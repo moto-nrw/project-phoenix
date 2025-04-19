@@ -1,0 +1,89 @@
+flowchart TD
+%% Diagram Title and Version
+    title[<u>System Architecture - RFID Management System</u><br>Production Environment v1.0]
+    style title fill:none,stroke:none
+
+%% Define Security Zones
+    subgraph PublicNetwork["Public Network (Low Trust)"]
+        AdminDevice
+    end
+
+    subgraph InternalNetwork["Internal Network (Medium Trust)"]
+        RaspberryPi
+    end
+
+    subgraph DatacenterZone["Datacenter Zone (High Trust)"]
+        ServerCluster
+    end
+
+%% Main Components as Subgraphs
+    subgraph AdminDevice["Admin Device"]
+        Browser["Call in Browser\n(Web Client)"]
+        Authentication["Authentication\nJWT-based"]
+    end
+
+    subgraph RaspberryPi["Raspberry Pi"]
+        RFID["RFID Python-Daemon v3.x\n(RFID Data Acquisition)"]
+        Tauri["Tauri App v1.x\n(Desktop Client)"]
+    end
+
+    subgraph ServerCluster["Server Cluster"]
+        subgraph LoadBalancer["Load Balancer\nNGINX"]
+            LB["Load Balancer\nPort: 443"]
+        end
+
+        subgraph Backend["Backend Services (Docker Container)"]
+            API["Go API v1.19+\n(Business Logic)\nPort: 8080"]
+            Website["Admin Website\n(SSR - Node.js)\nPort: 3000"]
+        end
+
+        subgraph Database["Database Cluster"]
+            DBPrimary["PostgreSQL v15+\n(Primary)\nPort: 5432"]
+            DBReplica["PostgreSQL v15+\n(Replica)\nPort: 5432"]
+            BackupService["Automated Backups\n(Daily Snapshots)"]
+        end
+    end
+
+%% Connections between Components with Protocol and Authentication Information
+    Browser <-->|"HTTPS (443)\nJWT Auth"| LB
+    Authentication <-->|"OAuth2"| API
+
+    RFID -->|"HTTPS (443)\nAPI-Key Auth\nJSON Payload\nRFID Data"| LB
+
+    Tauri <-->|"HTTPS (443)\nJWT Auth\nJSON Payload"| LB
+
+    LB -->|"HTTP (8080/3000)\nInternal Forwarding"| API
+    LB -->|"HTTP (8080/3000)\nInternal Forwarding"| Website
+
+    API <-->|"SQL (5432)\nEncrypted Connection"| DBPrimary
+    Website <-->|"HTTP (8080)\nInternal API Calls"| API
+
+    DBPrimary -->|"SQL Replication\nAsynchronous"| DBReplica
+    DBPrimary -.->|"Daily Backup"| BackupService
+
+%% Deployment Information
+    deployment["Deployment Recommendations:<br>- Backend & Web: Docker Containers on Kubernetes<br>- DB: Managed PostgreSQL or own Containers<br>- Raspberry Pi: Direct Deployment with Ansible<br>- CI/CD: Automated Builds and Tests"]
+    style deployment fill:lightyellow,stroke:#999,stroke-width:1px,color:black
+
+%% Fault Tolerance Information
+    ha["High Availability:<br>- Multiple API Instances behind Load Balancer<br>- DB Replication with Automatic Failover<br>- Secured Database Backups<br>- Health Checks and Self-Healing"]
+    style ha fill:lightgreen,stroke:#999,stroke-width:1px,color:black
+
+%% Legend
+    subgraph Legende["Legend"]
+        direction LR
+        Component["Component"]
+        Comm1["Bidirectional Communication"] <--> Comm2["Component"]
+        Comm3["Unidirectional Communication"] --> Comm4["Component"]
+        Comm5["Occasional/Backup Communication"] -.-> Comm6["Component"]
+        Security["Security Zone"]
+    end
+    style Legende fill:white,stroke:#999,stroke-dasharray: 5 5
+    style Component fill:white,stroke:#000
+    style Comm2 fill:white,stroke:#000
+    style Comm4 fill:white,stroke:#000
+    style Comm6 fill:white,stroke:#000
+    style Security fill:none,stroke:#f66,stroke-width:2px,stroke-dasharray: 5 5
+
+    classDef securityBoundary fill:none,stroke:#f66,stroke-width:2px,stroke-dasharray: 5 5
+    class PublicNetwork,InternalNetwork,DatacenterZone securityBoundary

@@ -1,0 +1,251 @@
+erDiagram
+%% Time-related models
+    Timespan {
+        int id PK "NOT NULL"
+        time starttime "NOT NULL"
+        time endtime "NULL"
+        datetime created_at "NOT NULL, AUTO"
+    }
+
+    Datespan {
+        int id PK "NOT NULL"
+        datetime startdate "NOT NULL"
+        datetime enddate "NOT NULL"
+        datetime created_at "NOT NULL, AUTO"
+    }
+
+%% User-related models
+    Custom_user {
+        int id PK "NOT NULL"
+        string first_name "NOT NULL"
+        string second_name "NOT NULL"
+        string tag_id "NULL, UNIQUE, INDEXED"
+        datetime created_at "NOT NULL, AUTO"
+        datetime modified_at "NOT NULL, AUTO"
+    }
+
+    Pedagogical_specialist {
+        int id PK "NOT NULL"
+        string role "NOT NULL"
+        int custom_user_id FK "NOT NULL"
+        int user_id FK "NOT NULL, UNIQUE"
+        bool is_password_otp "NOT NULL, DEFAULT TRUE"
+        datetime created_at "NOT NULL, AUTO"
+    }
+
+    Device {
+        int id PK "NOT NULL"
+        int user_id FK "NOT NULL"
+        string device_id "NOT NULL, UNIQUE, INDEXED"
+        datetime created_at "NOT NULL, AUTO"
+    }
+
+%% Room-related models
+    Room {
+        int id PK "NOT NULL"
+        string room_name "NOT NULL, UNIQUE, INDEXED"
+        string building "NULL"
+        int floor "NOT NULL, DEFAULT 0"
+        int capacity "NOT NULL"
+        string category "NOT NULL, DEFAULT 'Other'"
+        string color "NOT NULL, DEFAULT '#FFFFFF'"
+        datetime created_at "NOT NULL, AUTO"
+        datetime modified_at "NOT NULL, AUTO"
+    }
+
+    Room_occupancy {
+        int id PK "NOT NULL"
+        string device_id "NOT NULL, UNIQUE, INDEXED"
+        int room_id FK "NOT NULL"
+        int ag_id FK "NULL"
+        int group_id FK "NULL"
+        int timespan_id FK "NOT NULL"
+        datetime created_at "NOT NULL, AUTO"
+    }
+
+    Room_history {
+        int id PK "NOT NULL"
+        int room_id FK "NOT NULL"
+        string ag_name "NOT NULL"
+        date day "NOT NULL, INDEXED"
+        int timespan_id FK "NOT NULL"
+        int ag_category_id FK "NULL"
+        int supervisor_id FK "NOT NULL"
+        int max_participant "NOT NULL, DEFAULT 0"
+        datetime created_at "NOT NULL, AUTO"
+    }
+
+%% Group-related models
+    Group {
+        int id PK "NOT NULL"
+        string name "NOT NULL, UNIQUE, INDEXED"
+        int room_id FK "NULL, ON DELETE SET NULL"
+        int representative_id FK "NULL, ON DELETE SET NULL"
+        datetime created_at "NOT NULL, AUTO"
+        datetime modified_at "NOT NULL, AUTO"
+    }
+
+    CombinedGroup {
+        int id PK "NOT NULL"
+        string name "NOT NULL, UNIQUE"
+        bool is_active "NOT NULL, DEFAULT TRUE"
+        datetime created_at "NOT NULL, AUTO"
+        datetime valid_until "NULL"
+        string access_policy "NOT NULL"
+        int specific_group_id FK "NULL, ON DELETE SET NULL"
+    }
+
+%% Activity-related models
+    Ag_category {
+        int id PK "NOT NULL"
+        string name "NOT NULL, UNIQUE, INDEXED"
+        datetime created_at "NOT NULL, AUTO"
+    }
+
+    Ag {
+        int id PK "NOT NULL"
+        string name "NOT NULL, INDEXED"
+        int max_participant "NOT NULL"
+        bool is_open_ag "NOT NULL, DEFAULT FALSE"
+        int supervisor_id FK "NOT NULL, ON DELETE CASCADE"
+        int ag_category_id FK "NOT NULL, ON DELETE CASCADE"
+        int datespan_id FK "NULL, ON DELETE SET NULL"
+        datetime created_at "NOT NULL, AUTO"
+        datetime modified_at "NOT NULL, AUTO"
+    }
+
+    AgTime {
+        int id PK "NOT NULL"
+        string weekday "NOT NULL"
+        int timespan_id FK "NOT NULL, ON DELETE CASCADE"
+        datetime created_at "NOT NULL, AUTO"
+    }
+
+%% Student-related models
+    Student {
+        int id PK "NOT NULL"
+        string school_class "NOT NULL, INDEXED"
+        bool bus "NOT NULL, DEFAULT FALSE"
+        string name_lg "NOT NULL"
+        string contact_lg "NOT NULL"
+        bool in_house "NOT NULL, DEFAULT FALSE, INDEXED"
+        bool wc "NOT NULL, DEFAULT FALSE"
+        bool school_yard "NOT NULL, DEFAULT FALSE"
+        int custom_user_id FK "NOT NULL, ON DELETE CASCADE"
+        int group_id FK "NOT NULL, ON DELETE CASCADE"
+        datetime created_at "NOT NULL, AUTO"
+        datetime modified_at "NOT NULL, AUTO"
+    }
+
+    Visit {
+        int id PK "NOT NULL"
+        date day "NOT NULL, INDEXED"
+        int student_id FK "NOT NULL, ON DELETE CASCADE"
+        int room_id FK "NOT NULL, ON DELETE CASCADE"
+        int timespan_id FK "NOT NULL, ON DELETE CASCADE"
+        datetime created_at "NOT NULL, AUTO"
+    }
+
+    Feedback {
+        int id PK "NOT NULL"
+        string feedback_value "NOT NULL"
+        date day "NOT NULL, INDEXED"
+        time time "NOT NULL"
+        int student_id FK "NOT NULL, ON DELETE CASCADE"
+        bool mensa_feedback "NOT NULL, DEFAULT FALSE"
+        datetime created_at "NOT NULL, AUTO"
+    }
+
+%% System-related models
+    Setting {
+        int id PK "NOT NULL"
+        string key "NOT NULL, UNIQUE, INDEXED"
+        text value "NOT NULL"
+        string category "NOT NULL"
+        text description "NULL"
+        bool requires_restart "NOT NULL, DEFAULT FALSE"
+        bool requires_db_reset "NOT NULL, DEFAULT FALSE"
+        datetime created_at "NOT NULL, AUTO"
+        datetime modified_at "NOT NULL, AUTO"
+    }
+
+%% Junction tables for M2M relationships
+    Group_Supervisor {
+        int id PK "NOT NULL"
+        int group_id FK "NOT NULL, ON DELETE CASCADE"
+        int specialist_id FK "NOT NULL, ON DELETE CASCADE"
+        datetime created_at "NOT NULL, AUTO"
+    }
+
+    Student_Ag {
+        int id PK "NOT NULL"
+        int student_id FK "NOT NULL, ON DELETE CASCADE"
+        int ag_id FK "NOT NULL, ON DELETE CASCADE"
+        datetime created_at "NOT NULL, AUTO"
+    }
+
+    CombinedGroup_Group {
+        int id PK "NOT NULL"
+        int combinedgroup_id FK "NOT NULL, ON DELETE CASCADE"
+        int group_id FK "NOT NULL, ON DELETE CASCADE"
+        datetime created_at "NOT NULL, AUTO"
+    }
+
+    CombinedGroup_Specialist {
+        int id PK "NOT NULL"
+        int combinedgroup_id FK "NOT NULL, ON DELETE CASCADE"
+        int specialist_id FK "NOT NULL, ON DELETE CASCADE"
+        datetime created_at "NOT NULL, AUTO"
+    }
+
+    RoomOccupancy_Supervisor {
+        int id PK "NOT NULL"
+        int room_occupancy_id FK "NOT NULL, ON DELETE CASCADE"
+        int specialist_id FK "NOT NULL, ON DELETE CASCADE"
+        datetime created_at "NOT NULL, AUTO"
+    }
+
+%% Key Relationships with enhanced information
+    Custom_user ||--o| Pedagogical_specialist : "has"
+    Custom_user ||--o| Student : "has"
+    User ||--o{ Device : "has"
+
+    Group ||--o{ Student : "has (ON DELETE CASCADE)"
+    Group ||--o| Room_occupancy : "occupies (optional)"
+    Group ||--o{ Group_Supervisor : "junction"
+    Group_Supervisor }o--|| Pedagogical_specialist : "junction"
+    Group }|--o{ CombinedGroup_Group : "junction"
+    CombinedGroup ||--o{ CombinedGroup_Group : "junction"
+
+    Room ||--o{ Group : "assigned to (ON DELETE SET NULL)"
+    Room ||--o{ Room_occupancy : "has (ON DELETE CASCADE)"
+    Room ||--o{ Room_history : "has (ON DELETE CASCADE)"
+    Room ||--o{ Visit : "has (ON DELETE CASCADE)"
+
+    Ag_category ||--o{ Ag : "has (ON DELETE CASCADE)"
+    Ag_category ||--o| Room_history : "has (optional)"
+    Ag ||--o{ Student_Ag : "junction"
+    Student_Ag }o--|| Student : "junction"
+    Ag ||--o{ AgTime : "has timeslots (ON DELETE CASCADE)"
+    Ag ||--o| Room_occupancy : "occupies (optional)"
+    Ag ||--|| Pedagogical_specialist : "supervised by (ON DELETE CASCADE)"
+
+    Student ||--o{ Feedback : "gives (ON DELETE CASCADE)"
+    Student ||--o{ Visit : "makes (ON DELETE CASCADE)"
+    Student ||--o{ Student_Ag : "junction"
+
+    Timespan ||--|| AgTime : "has (ON DELETE CASCADE)"
+    Timespan ||--|| Room_occupancy : "has (ON DELETE CASCADE)"
+    Timespan ||--|| Visit : "has (ON DELETE CASCADE)"
+    Timespan ||--|| Room_history : "has (ON DELETE CASCADE)"
+
+    Datespan ||--o| Ag : "has (ON DELETE SET NULL)"
+
+    Pedagogical_specialist ||--o| Group : "represents (ON DELETE SET NULL)"
+    Pedagogical_specialist }|--o{ Group_Supervisor : "junction"
+    Pedagogical_specialist ||--o{ Room_history : "supervises (ON DELETE CASCADE)"
+    Pedagogical_specialist }|--o{ CombinedGroup_Specialist : "junction"
+    CombinedGroup ||--o{ CombinedGroup_Specialist : "junction"
+
+    Room_occupancy }|--o{ RoomOccupancy_Supervisor : "junction"
+    RoomOccupancy_Supervisor }o--|| Pedagogical_specialist : "junction"
