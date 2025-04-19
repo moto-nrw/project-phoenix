@@ -365,3 +365,4 @@ cython_debug/
 # Generated binary files
 **/project-phoenix
 backend/project-phoenix
+/CLAUDE.md
