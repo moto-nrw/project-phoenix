@@ -1,7 +1,7 @@
 services:
   server:
     build:
-      context: .
+      context: ./backend
     depends_on:
       - postgres
     ports:
