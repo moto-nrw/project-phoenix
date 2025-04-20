@@ -12,9 +12,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/student"
 	"github.com/moto-nrw/project-phoenix/api/user"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/auth/pwdless"
+	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	database2 "github.com/moto-nrw/project-phoenix/database"
-	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/logging"
 	"net/http"
 	"os"
@@ -38,14 +37,10 @@ func New(enableCORS bool) (*chi.Mux, error) {
 		return nil, err
 	}
 
-	mailer, err := email.NewMailer()
-	if err != nil {
-		logger.WithField("module", "email").Error(err)
-		return nil, err
-	}
+	// Email configuration is not needed for username/password auth
 
 	authStore := database2.NewAuthStore(db)
-	authResource, err := pwdless.NewResource(authStore, mailer)
+	authResource, err := userpass.NewResource(authStore)
 	if err != nil {
 		logger.WithField("module", "auth").Error(err)
 		return nil, err

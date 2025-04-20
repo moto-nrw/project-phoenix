@@ -90,6 +90,11 @@ func (a *TokenAuth) CreateRefreshJWT(c RefreshClaims) (string, error) {
 	return tokenString, err
 }
 
+// GetRefreshExpiry returns the refresh token expiration duration
+func (a *TokenAuth) GetRefreshExpiry() time.Duration {
+	return a.JwtRefreshExpiry
+}
+
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 func randStringBytes(n int) string {
