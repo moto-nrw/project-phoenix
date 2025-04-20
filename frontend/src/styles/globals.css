@@ -1,6 +1,8 @@
 @import "tailwindcss";
+@import '@fontsource/geist-sans';
 
 @theme {
+  --font-geist-sans: 'Geist Sans';
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
