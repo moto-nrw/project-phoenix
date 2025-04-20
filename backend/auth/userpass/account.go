@@ -1,4 +1,4 @@
-package pwdless
+package userpass
 
 import (
 	jwt2 "github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -12,15 +12,15 @@ import (
 
 // Account represents an authenticated application user
 type Account struct {
-	ID        int       `bun:"id,pk,autoincrement" json:"id"`
-	CreatedAt time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at,omitempty"`
-	UpdatedAt time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at,omitempty"`
-	LastLogin time.Time `bun:"last_login" json:"last_login,omitempty"`
-
-	Email  string   `bun:"email,notnull" json:"email"`
-	Name   string   `bun:"name,notnull" json:"name"`
-	Active bool     `bun:"active,notnull" json:"active"`
-	Roles  []string `bun:"roles,array" json:"roles,omitempty"`
+	ID           int       `bun:"id,pk,autoincrement" json:"id"`
+	CreatedAt    time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at,omitempty"`
+	UpdatedAt    time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at,omitempty"`
+	LastLogin    time.Time `bun:"last_login" json:"last_login,omitempty"`
+	Email        string    `bun:"email,notnull" json:"email"`
+	Name         string    `bun:"name,notnull" json:"name"`
+	Active       bool      `bun:"active,notnull" json:"active"`
+	Roles        []string  `bun:"roles,array" json:"roles,omitempty"`
+	PasswordHash string    `bun:"password_hash" json:"-"`
 
 	Token []jwt2.Token `bun:"rel:has-many" json:"token,omitempty"`
 }

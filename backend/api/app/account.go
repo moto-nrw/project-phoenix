@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	jwt2 "github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/auth/pwdless"
+	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"net/http"
 	"strconv"
 	"strings"
@@ -21,9 +21,9 @@ var (
 
 // AccountStore defines database operations for account.
 type AccountStore interface {
-	Get(id int) (*pwdless.Account, error)
-	Update(*pwdless.Account) error
-	Delete(*pwdless.Account) error
+	Get(id int) (*userpass.Account, error)
+	Update(*userpass.Account) error
+	Delete(*userpass.Account) error
 	UpdateToken(*jwt2.Token) error
 	DeleteToken(*jwt2.Token) error
 }
@@ -69,7 +69,7 @@ func (rs *AccountResource) accountCtx(next http.Handler) http.Handler {
 }
 
 type accountRequest struct {
-	*pwdless.Account
+	*userpass.Account
 	// override protected data here, although not really necessary here
 	// as we limit updated database columns in store as well
 	ProtectedID     int      `json:"id"`
@@ -84,21 +84,21 @@ func (d *accountRequest) Bind(r *http.Request) error {
 }
 
 type accountResponse struct {
-	*pwdless.Account
+	*userpass.Account
 }
 
-func newAccountResponse(a *pwdless.Account) *accountResponse {
+func newAccountResponse(a *userpass.Account) *accountResponse {
 	resp := &accountResponse{Account: a}
 	return resp
 }
 
 func (rs *AccountResource) get(w http.ResponseWriter, r *http.Request) {
-	acc := r.Context().Value(ctxAccount).(*pwdless.Account)
+	acc := r.Context().Value(ctxAccount).(*userpass.Account)
 	render.Respond(w, r, newAccountResponse(acc))
 }
 
 func (rs *AccountResource) update(w http.ResponseWriter, r *http.Request) {
-	acc := r.Context().Value(ctxAccount).(*pwdless.Account)
+	acc := r.Context().Value(ctxAccount).(*userpass.Account)
 	data := &accountRequest{Account: acc}
 	if err := render.Bind(r, data); err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
@@ -119,7 +119,7 @@ func (rs *AccountResource) update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *AccountResource) delete(w http.ResponseWriter, r *http.Request) {
-	acc := r.Context().Value(ctxAccount).(*pwdless.Account)
+	acc := r.Context().Value(ctxAccount).(*userpass.Account)
 	if err := rs.Store.Delete(acc); err != nil {
 		render.Render(w, r, ErrRender(err))
 		return
@@ -148,7 +148,7 @@ func (rs *AccountResource) updateToken(w http.ResponseWriter, r *http.Request) {
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
-	acc := r.Context().Value(ctxAccount).(*pwdless.Account)
+	acc := r.Context().Value(ctxAccount).(*userpass.Account)
 	for _, t := range acc.Token {
 		if t.ID == id {
 			if err := rs.Store.UpdateToken(&jwt2.Token{
@@ -169,7 +169,7 @@ func (rs *AccountResource) deleteToken(w http.ResponseWriter, r *http.Request) {
 		render.Render(w, r, ErrBadRequest)
 		return
 	}
-	acc := r.Context().Value(ctxAccount).(*pwdless.Account)
+	acc := r.Context().Value(ctxAccount).(*userpass.Account)
 	for _, t := range acc.Token {
 		if t.ID == id {
 			rs.Store.DeleteToken(&jwt2.Token{ID: t.ID})

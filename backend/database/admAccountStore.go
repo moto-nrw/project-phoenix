@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/auth/pwdless"
+	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/models"
 	"net/url"
 
@@ -80,8 +80,8 @@ func (f *AccountFilter) Apply(q *bun.SelectQuery) *bun.SelectQuery {
 }
 
 // List applies a filter and returns paginated array of matching results and total count.
-func (s *AdmAccountStore) List(f *AccountFilter) ([]pwdless.Account, int, error) {
-	var a []pwdless.Account
+func (s *AdmAccountStore) List(f *AccountFilter) ([]userpass.Account, int, error) {
+	var a []userpass.Account
 	count, err := s.db.NewSelect().
 		Model(&a).
 		Apply(f.Apply).
@@ -93,9 +93,9 @@ func (s *AdmAccountStore) List(f *AccountFilter) ([]pwdless.Account, int, error)
 }
 
 // Create creates a new account.
-func (s *AdmAccountStore) Create(a *pwdless.Account) error {
+func (s *AdmAccountStore) Create(a *userpass.Account) error {
 	exists, err := s.db.NewSelect().
-		Model((*pwdless.Account)(nil)).
+		Model((*userpass.Account)(nil)).
 		Where("email = ?", a.Email).
 		Exists(context.Background())
 	if err != nil {
@@ -132,8 +132,8 @@ func (s *AdmAccountStore) Create(a *pwdless.Account) error {
 }
 
 // Get account by ID.
-func (s *AdmAccountStore) Get(id int) (*pwdless.Account, error) {
-	a := &pwdless.Account{ID: id}
+func (s *AdmAccountStore) Get(id int) (*userpass.Account, error) {
+	a := &userpass.Account{ID: id}
 	err := s.db.NewSelect().
 		Model(a).
 		WherePK().
@@ -142,7 +142,7 @@ func (s *AdmAccountStore) Get(id int) (*pwdless.Account, error) {
 }
 
 // Update account.
-func (s *AdmAccountStore) Update(a *pwdless.Account) error {
+func (s *AdmAccountStore) Update(a *userpass.Account) error {
 	_, err := s.db.NewUpdate().
 		Model(a).
 		WherePK().
@@ -151,7 +151,7 @@ func (s *AdmAccountStore) Update(a *pwdless.Account) error {
 }
 
 // Delete account.
-func (s *AdmAccountStore) Delete(a *pwdless.Account) error {
+func (s *AdmAccountStore) Delete(a *userpass.Account) error {
 	ctx := context.Background()
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/auth/pwdless"
+	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/models"
 
 	"github.com/uptrace/bun"
@@ -23,8 +23,8 @@ func NewAccountStore(db *bun.DB) *AccountStore {
 }
 
 // Get an account by ID.
-func (s *AccountStore) Get(id int) (*pwdless.Account, error) {
-	a := &pwdless.Account{ID: id}
+func (s *AccountStore) Get(id int) (*userpass.Account, error) {
+	a := &userpass.Account{ID: id}
 	err := s.db.NewSelect().
 		Model(a).
 		Where("id = ?", id).
@@ -34,7 +34,7 @@ func (s *AccountStore) Get(id int) (*pwdless.Account, error) {
 }
 
 // Update an account.
-func (s *AccountStore) Update(a *pwdless.Account) error {
+func (s *AccountStore) Update(a *userpass.Account) error {
 	_, err := s.db.NewUpdate().
 		Model(a).
 		Column("email", "name").
@@ -44,7 +44,7 @@ func (s *AccountStore) Update(a *pwdless.Account) error {
 }
 
 // Delete an account.
-func (s *AccountStore) Delete(a *pwdless.Account) error {
+func (s *AccountStore) Delete(a *userpass.Account) error {
 	ctx := context.Background()
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

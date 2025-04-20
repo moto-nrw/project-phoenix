@@ -3,7 +3,7 @@ package admin
 import (
 	"context"
 	"errors"
-	"github.com/moto-nrw/project-phoenix/auth/pwdless"
+	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/database"
 	"net/http"
 	"strconv"
@@ -21,11 +21,11 @@ var (
 
 // AccountStore defines database operations for account management.
 type AccountStore interface {
-	List(*database.AccountFilter) ([]pwdless.Account, int, error)
-	Create(*pwdless.Account) error
-	Get(id int) (*pwdless.Account, error)
-	Update(*pwdless.Account) error
-	Delete(*pwdless.Account) error
+	List(*database.AccountFilter) ([]userpass.Account, int, error)
+	Create(*userpass.Account) error
+	Get(id int) (*userpass.Account, error)
+	Update(*userpass.Account) error
+	Delete(*userpass.Account) error
 }
 
 // AccountResource implements account management handler.
@@ -71,7 +71,7 @@ func (rs *AccountResource) accountCtx(next http.Handler) http.Handler {
 }
 
 type accountRequest struct {
-	*pwdless.Account
+	*userpass.Account
 }
 
 func (d *accountRequest) Bind(r *http.Request) error {
@@ -79,20 +79,20 @@ func (d *accountRequest) Bind(r *http.Request) error {
 }
 
 type accountResponse struct {
-	*pwdless.Account
+	*userpass.Account
 }
 
-func newAccountResponse(a *pwdless.Account) *accountResponse {
+func newAccountResponse(a *userpass.Account) *accountResponse {
 	resp := &accountResponse{Account: a}
 	return resp
 }
 
 type accountListResponse struct {
-	Accounts *[]pwdless.Account `json:"accounts"`
+	Accounts *[]userpass.Account `json:"accounts"`
 	Count    int                `json:"count"`
 }
 
-func newAccountListResponse(a *[]pwdless.Account, count int) *accountListResponse {
+func newAccountListResponse(a *[]userpass.Account, count int) *accountListResponse {
 	resp := &accountListResponse{
 		Accounts: a,
 		Count:    count,
@@ -134,12 +134,12 @@ func (rs *AccountResource) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *AccountResource) get(w http.ResponseWriter, r *http.Request) {
-	acc := r.Context().Value(ctxAccount).(*pwdless.Account)
+	acc := r.Context().Value(ctxAccount).(*userpass.Account)
 	render.Respond(w, r, newAccountResponse(acc))
 }
 
 func (rs *AccountResource) update(w http.ResponseWriter, r *http.Request) {
-	acc := r.Context().Value(ctxAccount).(*pwdless.Account)
+	acc := r.Context().Value(ctxAccount).(*userpass.Account)
 	data := &accountRequest{Account: acc}
 	if err := render.Bind(r, data); err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
@@ -160,7 +160,7 @@ func (rs *AccountResource) update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *AccountResource) delete(w http.ResponseWriter, r *http.Request) {
-	acc := r.Context().Value(ctxAccount).(*pwdless.Account)
+	acc := r.Context().Value(ctxAccount).(*userpass.Account)
 	if err := rs.Store.Delete(acc); err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
 		return

@@ -18,7 +18,7 @@ The following feature set is a minimal selection of typical Web API requirements
 - PostgreSQL support including migrations using [bun](https://github.com/uptrace/bun)
 - Structured logging with [Logrus](https://github.com/sirupsen/logrus)
 - Routing with [chi router](https://github.com/go-chi/chi) and middleware, following [chi rest example](https://github.com/go-chi/chi/tree/master/_examples/rest)
-- JWT Authentication using [lestrrat-go/jwx](https://github.com/lestrrat-go/jwx) with example passwordless email authentication
+- JWT Authentication using [lestrrat-go/jwx](https://github.com/lestrrat-go/jwx) with username/password authentication
 - Request data validation using [ozzo-validation](https://github.com/go-ozzo/ozzo-validation)
 - HTML emails with [go-mail](https://github.com/go-mail/mail)
 
@@ -47,16 +47,17 @@ By default viper will look at dev.env for a config file. It contains the applica
 
 ### Authentication
 
-For passwordless login following routes are available:
+The application uses username/password authentication with the following routes:
 
-| Path          | Method | Required JSON | Header                                | Description                                                             |
-| ------------- | ------ | ------------- | ------------------------------------- | ----------------------------------------------------------------------- |
-| /auth/login   | POST   | email         |                                       | the email you want to login with (see below)                            |
-| /auth/token   | POST   | token         |                                       | the token you received via email (or printed to stdout if smtp not set) |
-| /auth/refresh | POST   |               | Authorization: "Bearer refresh_token" | refresh JWTs                                                            |
-| /auth/logout  | POST   |               | Authorizaiton: "Bearer refresh_token" | logout from this device                                                 |
+| Path                  | Method | Required JSON                           | Header                                | Description                                     |
+| --------------------- | ------ | --------------------------------------- | ------------------------------------- | ----------------------------------------------- |
+| /auth/login           | POST   | email, password                         |                                       | Login with email and password                   |
+| /auth/register        | POST   | email, name, password, confirm_password |                                       | Register a new account                          |
+| /auth/change-password | POST   | current_password, new_password, confirm_password | Authorization: "Bearer access_token" | Change password (must be authenticated)        |
+| /auth/refresh         | POST   |                                         | Authorization: "Bearer refresh_token" | Refresh JWTs                                    |
+| /auth/logout          | POST   |                                         | Authorization: "Bearer refresh_token" | Logout from this device                         |
 
-Outgoing emails containing the login token will be printed to stdout if no valid email smtp settings are provided by environment variables (see dev.env). If _EMAIL_SMTP_HOST_ is set but the host can not be reached the application will exit immediately at start.
+Passwords must meet complexity requirements: minimum 8 characters, uppercase, lowercase, numbers, and special characters.
 
 ### Example API
 
@@ -66,7 +67,7 @@ Check [routes.md](routes.md) for a generated overview of the provided API routes
 
 ### Testing
 
-Package auth/pwdless contains example api tests using a mocked database. Run them with: `go test -v ./...`
+Package auth/userpass contains example api tests using a mocked database. Run them with: `go test -v ./...`
 
 ### Client API Access and CORS
 

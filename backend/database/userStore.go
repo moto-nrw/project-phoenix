@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/moto-nrw/project-phoenix/auth/pwdless"
+	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/models"
 
 	"github.com/uptrace/bun"
@@ -219,7 +219,7 @@ func (s *UserStore) ListSpecialistsWithoutSupervision(ctx context.Context) ([]mo
 }
 
 // CreateUserFromAccount creates a CustomUser and links it to an existing Account
-func (s *UserStore) CreateUserFromAccount(ctx context.Context, account *pwdless.Account, firstName, secondName string) (*models.CustomUser, error) {
+func (s *UserStore) CreateUserFromAccount(ctx context.Context, account *userpass.Account, firstName, secondName string) (*models.CustomUser, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return nil, err

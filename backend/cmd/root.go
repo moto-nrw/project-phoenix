@@ -14,7 +14,7 @@ var cfgFile string
 var RootCmd = &cobra.Command{
 	Use:   "go-base",
 	Short: "A RESTful API boilerplate",
-	Long:  `A RESTful API boilerplate with passwordless authentication.`,
+	Long:  `A RESTful API boilerplate with username/password authentication.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },

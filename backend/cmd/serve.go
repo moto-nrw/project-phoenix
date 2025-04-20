@@ -29,9 +29,7 @@ func init() {
 	viper.SetDefault("port", "3000")
 	viper.SetDefault("log_level", "debug")
 
-	viper.SetDefault("auth_login_url", "http://localhost:3000/login")
-	viper.SetDefault("auth_login_token_length", 8)
-	viper.SetDefault("auth_login_token_expiry", "11m")
+	viper.SetDefault("login_url", "http://localhost:3000/login")
 	viper.SetDefault("auth_jwt_secret", "random")
 	viper.SetDefault("auth_jwt_expiry", "15m")
 	viper.SetDefault("auth_jwt_refresh_expiry", "1h")
