@@ -14,5 +14,6 @@ jobs:
         with:
           version: latest
           args: --timeout 10m
+          working-directory: backend
         
           

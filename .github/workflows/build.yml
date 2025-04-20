@@ -12,7 +12,7 @@ jobs:
       - name: Go and dependencies
         uses: ./.github/actions/setup-go-and-deps
       - name: build
-        run: CGO_ENABLED=0 go build -o main .
+        run: cd backend && CGO_ENABLED=0 go build -o ../main .
 
       - name: upload builded artifact
         uses: actions/upload-artifact@v4

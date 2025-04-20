@@ -5,7 +5,7 @@ inputs:
   go-version-file:
     description: 'The path to the go.mod file'
     required: false
-    default: 'go.mod'
+    default: 'backend/go.mod'
 
 runs:
   using: "composite"
@@ -19,4 +19,4 @@ runs:
 
     - name: Install Dependencies
       shell: bash
-      run: go mod tidy
+      run: cd backend && go mod tidy
