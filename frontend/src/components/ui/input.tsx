@@ -23,7 +23,7 @@ export function Input({
       <input
         id={name}
         name={name}
-        className={`mt-1 block w-full rounded-lg border-0 px-4 py-3 shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-teal-500 focus:outline-none ${className}`}
+        className={`mt-1 block w-full rounded-lg border-0 px-4 py-3 shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-teal-500 focus:outline-none transition-all duration-200 hover:ring-gray-300 hover:bg-gray-50/50 ${className}`}
         {...props}
       />
       {error && (

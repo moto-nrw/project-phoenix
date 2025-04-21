@@ -18,7 +18,7 @@ export function Alert({ type, message }: AlertProps) {
   };
 
   return (
-    <div className={`rounded-lg p-4 text-sm shadow-sm border ${styles[type]}`}>
+    <div className={`rounded-lg p-4 text-sm shadow-sm border transition-all duration-200 hover:shadow-md hover:opacity-95 ${styles[type]}`}>
       {message}
     </div>
   );
