@@ -9,7 +9,11 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata = {
   title: "Project Phoenix",
   description: "A modern full-stack application",
-  icons: [{ rel: "icon", url: "/favicon.ico" }],
+  icons: [
+    { rel: "icon", url: "/favicon.png", type: "image/png" },
+    { rel: "apple-touch-icon", url: "/favicon.png" }
+  ],
+  manifest: "/site.webmanifest",
 };
 
 export default function RootLayout({
