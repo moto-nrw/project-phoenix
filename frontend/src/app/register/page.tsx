@@ -90,7 +90,7 @@ export default function RegisterPage() {
       const data = await response.json();
       
       if (!response.ok) {
-        setServerError(data.message || 'Registration failed');
+        setServerError(data.message ?? 'Registration failed');
       } else {
         setSuccess('Account created successfully! Redirecting to login...');
         setTimeout(() => {
@@ -107,9 +107,9 @@ export default function RegisterPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8 rounded-lg border p-6 shadow-md">
+      <div className="w-full max-w-md space-y-6 rounded-xl border-0 p-8 shadow-xl bg-white/95">
         <div className="text-center">
-          <h1 className="text-2xl font-bold">Create an account</h1>
+          <h1 className="text-3xl font-bold text-teal-600">Create an account</h1>
           <p className="mt-2 text-sm text-gray-600">
             Fill in your details to create a new account
           </p>
@@ -117,20 +117,20 @@ export default function RegisterPage() {
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {serverError && (
-            <div className="rounded-md bg-red-50 p-4 text-sm text-red-700">
+            <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700 shadow-sm border border-red-100">
               {serverError}
             </div>
           )}
           
           {success && (
-            <div className="rounded-md bg-green-50 p-4 text-sm text-green-700">
+            <div className="rounded-lg bg-green-50 p-4 text-sm text-green-700 shadow-sm border border-green-100">
               {success}
             </div>
           )}
 
           <div className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                 Email address
               </label>
               <input
@@ -141,7 +141,7 @@ export default function RegisterPage() {
                 required
                 value={formData.email}
                 onChange={handleChange}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                className="mt-1 block w-full rounded-lg border-0 px-4 py-3 shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-teal-500 focus:outline-none"
               />
               {errors.email && (
                 <p className="mt-1 text-xs text-red-600">{errors.email}</p>
@@ -149,7 +149,7 @@ export default function RegisterPage() {
             </div>
             
             <div>
-              <label htmlFor="username" className="block text-sm font-medium">
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700">
                 Username
               </label>
               <input
@@ -160,7 +160,7 @@ export default function RegisterPage() {
                 required
                 value={formData.username}
                 onChange={handleChange}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                className="mt-1 block w-full rounded-lg border-0 px-4 py-3 shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-teal-500 focus:outline-none"
               />
               {errors.username && (
                 <p className="mt-1 text-xs text-red-600">{errors.username}</p>
@@ -168,7 +168,7 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="name" className="block text-sm font-medium">
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
                 Full Name
               </label>
               <input
@@ -179,7 +179,7 @@ export default function RegisterPage() {
                 required
                 value={formData.name}
                 onChange={handleChange}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                className="mt-1 block w-full rounded-lg border-0 px-4 py-3 shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-teal-500 focus:outline-none"
               />
               {errors.name && (
                 <p className="mt-1 text-xs text-red-600">{errors.name}</p>
@@ -187,7 +187,7 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password
               </label>
               <input
@@ -198,7 +198,7 @@ export default function RegisterPage() {
                 required
                 value={formData.password}
                 onChange={handleChange}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                className="mt-1 block w-full rounded-lg border-0 px-4 py-3 shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-teal-500 focus:outline-none"
               />
               {errors.password && (
                 <p className="mt-1 text-xs text-red-600">{errors.password}</p>
@@ -206,7 +206,7 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium">
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
                 Confirm Password
               </label>
               <input
@@ -217,7 +217,7 @@ export default function RegisterPage() {
                 required
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+                className="mt-1 block w-full rounded-lg border-0 px-4 py-3 shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-teal-500 focus:outline-none"
               />
               {errors.confirmPassword && (
                 <p className="mt-1 text-xs text-red-600">{errors.confirmPassword}</p>
@@ -229,7 +229,7 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="flex w-full justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+              className="flex w-full justify-center rounded-lg bg-gradient-to-r from-teal-500 to-blue-500 px-4 py-3 text-sm font-medium text-white shadow-md hover:from-teal-600 hover:to-blue-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50 transition-all duration-200"
             >
               {isLoading ? 'Creating account...' : 'Create account'}
             </button>
@@ -238,7 +238,7 @@ export default function RegisterPage() {
           <div className="text-center text-sm">
             <p>
               Already have an account?{' '}
-              <Link href="/login" className="text-blue-600 hover:text-blue-800">
+              <Link href="/login" className="text-teal-600 hover:text-teal-800 font-medium">
                 Sign in
               </Link>
             </p>
