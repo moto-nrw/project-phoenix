@@ -22,6 +22,27 @@ services:
       #EMAIL_SMTP_PASSWORD:
       ENABLE_CORS: "true"
 
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3001:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: "http://localhost:3000/api"
+      NEXT_TELEMETRY_DISABLED: "1"
+    depends_on:
+      - server
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
