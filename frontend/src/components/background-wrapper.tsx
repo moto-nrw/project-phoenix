@@ -12,7 +12,7 @@ export function BackgroundWrapper({ children }: BackgroundWrapperProps) {
       {/* Background elements (positioned at the back) */}
       <AnimatedBackground />
       <div 
-        className="fixed inset-0 backdrop-blur-md bg-white/40"
+        className="fixed inset-0 backdrop-blur-sm bg-white/20"
         style={{ zIndex: -5 }}
       />
       

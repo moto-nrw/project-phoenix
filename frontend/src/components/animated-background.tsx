@@ -9,6 +9,7 @@ interface Ball {
   dx: number;
   dy: number;
   color: string;
+  blur: number;
 }
 
 export function AnimatedBackground() {
@@ -31,48 +32,114 @@ export function AnimatedBackground() {
     
     // Initialize balls
     const initBalls = () => {
-      const colors = ['#FF6B6B', '#4ECDC4', '#FFD166', '#6A0572'];
+      // Soft colors similar to the reference
+      const colors = [
+        '#FF8080', // red
+        '#80D8FF', // blue
+        '#A5D6A7', // green
+        '#FFA726', // orange
+      ];
+      
       ballsRef.current = [];
       
-      for (let i = 0; i < 4; i++) {
-        const radius = Math.random() * 50 + 30;
-        ballsRef.current.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          radius,
-          dx: (Math.random() - 0.5) * 0.2,
-          dy: (Math.random() - 0.5) * 0.2,
-          color: colors[i] ?? '#FF6B6B',
-        });
-      }
+      // Create bigger balls positioned strategically around the screen
+      // Top left
+      ballsRef.current.push({
+        x: canvas.width * 0.2,
+        y: canvas.height * 0.2,
+        radius: Math.min(canvas.width, canvas.height) * 0.25,
+        dx: 0.1,
+        dy: 0.08,
+        color: colors[0] ?? '#FF8080',
+        blur: 40
+      });
+      
+      // Top right
+      ballsRef.current.push({
+        x: canvas.width * 0.8,
+        y: canvas.height * 0.2,
+        radius: Math.min(canvas.width, canvas.height) * 0.2,
+        dx: -0.12,
+        dy: 0.09,
+        color: colors[1] ?? '#80D8FF',
+        blur: 35
+      });
+      
+      // Bottom left
+      ballsRef.current.push({
+        x: canvas.width * 0.25,
+        y: canvas.height * 0.8,
+        radius: Math.min(canvas.width, canvas.height) * 0.22,
+        dx: 0.08,
+        dy: -0.1,
+        color: colors[2] ?? '#A5D6A7',
+        blur: 45
+      });
+      
+      // Bottom right
+      ballsRef.current.push({
+        x: canvas.width * 0.8,
+        y: canvas.height * 0.85,
+        radius: Math.min(canvas.width, canvas.height) * 0.28,
+        dx: -0.07,
+        dy: -0.06,
+        color: colors[3] ?? '#FFA726',
+        blur: 50
+      });
+      
+      // Add one in the center
+      ballsRef.current.push({
+        x: canvas.width * 0.5,
+        y: canvas.height * 0.5,
+        radius: Math.min(canvas.width, canvas.height) * 0.15,
+        dx: 0.05,
+        dy: -0.04,
+        color: '#9575CD', // purple
+        blur: 30
+      });
     };
     
     // Animation loop
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
+      // Apply blur to the whole canvas
+      ctx.filter = 'blur(30px)';
+      
       // Draw and update each ball
       ballsRef.current.forEach(ball => {
-        // Draw ball
+        // Draw ball with gradient
+        const gradient = ctx.createRadialGradient(
+          ball.x, ball.y, 0, 
+          ball.x, ball.y, ball.radius
+        );
+        
+        gradient.addColorStop(0, ball.color);
+        gradient.addColorStop(1, 'rgba(255,255,255,0)');
+        
         ctx.beginPath();
         ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-        ctx.fillStyle = ball.color;
-        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = gradient;
+        ctx.globalAlpha = 0.7;
         ctx.fill();
         
-        // Bounce off walls
-        if (ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) {
+        // Bounce off walls with padding
+        const padding = ball.radius * 0.2;
+        if (ball.x + ball.radius - padding > canvas.width || ball.x - ball.radius + padding < 0) {
           ball.dx = -ball.dx;
         }
         
-        if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) {
+        if (ball.y + ball.radius - padding > canvas.height || ball.y - ball.radius + padding < 0) {
           ball.dy = -ball.dy;
         }
         
-        // Move ball
+        // Move ball very slowly
         ball.x += ball.dx;
         ball.y += ball.dy;
       });
+      
+      // Reset filter
+      ctx.filter = 'none';
       
       animationRef.current = requestAnimationFrame(animate);
     };
