@@ -48,7 +48,7 @@ export default function DashboardPage() {
             >
               ?
             </Button>
-            <Button onClick={() => redirect('/api/auth/signout')}>
+            <Button onClick={() => redirect('/logout')}>
               Logout
             </Button>
           </div>
