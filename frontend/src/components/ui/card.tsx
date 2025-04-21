@@ -3,11 +3,15 @@
 interface CardProps {
   children: React.ReactNode;
   className?: string;
+  onClick?: () => void;
 }
 
-export function Card({ children, className = '' }: CardProps) {
+export function Card({ children, className = '', onClick }: CardProps) {
   return (
-    <div className={`w-full max-w-md space-y-6 rounded-xl border-0 p-8 shadow-xl bg-white/95 transition-all duration-300 hover:shadow-2xl hover:translate-y-[-2px] ${className}`}>
+    <div 
+      className={`w-full max-w-md space-y-6 rounded-xl border-0 p-8 shadow-xl bg-white/95 transition-all duration-300 hover:shadow-2xl hover:translate-y-[-2px] ${className} ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={onClick}
+    >
       {children}
     </div>
   );
