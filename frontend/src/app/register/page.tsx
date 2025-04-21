@@ -84,7 +84,10 @@ export default function RegisterPage() {
     setIsLoading(true);
     
     try {
-      const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/register`, {
+      // Use relative URL when in the browser to avoid CORS issues with Docker hostnames
+      const apiUrl = typeof window !== 'undefined' ? '/api/auth/register' : `${env.NEXT_PUBLIC_API_URL}/auth/register`;
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -99,7 +102,47 @@ export default function RegisterPage() {
       const data = await response.json();
       
       if (!response.ok) {
-        setServerError(data.message ?? 'Registration failed');
+        // Extract the specific error message from the backend response
+        let errorMessage = 'Registration failed';
+        
+        if (data.error) {
+          // Handle specific error cases from the backend
+          switch(data.error) {
+            case 'email already exists':
+              errorMessage = 'An account with this email already exists';
+              break;
+            case 'username already exists':
+              errorMessage = 'This username is already taken';
+              break;
+            case 'password is too short (minimum 8 characters)':
+              errorMessage = 'Password must be at least 8 characters';
+              break;
+            case 'password must contain at least one uppercase letter':
+              errorMessage = 'Password must include an uppercase letter';
+              break;
+            case 'password must contain at least one lowercase letter':
+              errorMessage = 'Password must include a lowercase letter';
+              break;
+            case 'password must contain at least one number':
+              errorMessage = 'Password must include a number';
+              break;
+            case 'password must contain at least one special character':
+              errorMessage = 'Password must include a special character';
+              break;
+            case 'passwords do not match':
+              errorMessage = 'Passwords do not match';
+              break;
+            default:
+              // If we have a specific error message from the backend, use it
+              errorMessage = data.error;
+          }
+        } else if (data.message) {
+          errorMessage = data.message;
+        } else if (data.status) {
+          errorMessage = data.status;
+        }
+        
+        setServerError(errorMessage);
       } else {
         setSuccess('Account created successfully! Redirecting to login...');
         setTimeout(() => {
