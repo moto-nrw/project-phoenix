@@ -64,7 +64,7 @@ export function AnimatedBackground() {
             radius: Math.min(canvas.width, canvas.height) * sizeMultiplier,
             dx: (Math.random() - 0.5) * 0.15, // More varied movement
             dy: (Math.random() - 0.5) * 0.15,
-            color: colors[randomColorIndex],
+            color: colors[randomColorIndex] || '#80D8FF', // Provide default color
             blur: 40 + Math.random() * 35 // Much higher blur values
           });
         }

@@ -27,7 +27,7 @@ export function Header({ userName = 'Root' }: HeaderProps) {
           {/* Title section */}
           <div className="flex items-center">
             <h1 className="text-xl font-bold">
-              Willkommen, {userName}!
+              <span className="hidden md:inline">Willkommen, {userName}!</span>
             </h1>
           </div>
         </div>

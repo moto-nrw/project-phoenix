@@ -4,9 +4,10 @@ import { redirect } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import React from 'react';
 
 interface PageHeaderProps {
-  title: string;
+  title: string | React.ReactNode;
   backUrl?: string;
 }
 
@@ -32,7 +33,7 @@ export function PageHeader({
           {/* Title section */}
           <div className="flex items-center">
             <h1 className="text-xl font-bold">
-              {title}
+              <span className="hidden md:inline">{title}</span>
             </h1>
           </div>
         </div>
@@ -45,7 +46,7 @@ export function PageHeader({
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
-                Zurück
+                <span className="hidden md:inline">Zurück</span>
               </Button>
             </Link>
           )}
