@@ -28,7 +28,10 @@ services:
     ports:
       - "3001:3000"
     environment:
-      NEXT_PUBLIC_API_URL: "http://localhost:3000/api"
+      # For client-side API calls
+      NEXT_PUBLIC_API_URL: "http://localhost:3000"
+      # For server-side API calls (inside Docker network)
+      API_URL: "http://server:3000"
       NEXT_TELEMETRY_DISABLED: "1"
     depends_on:
       - server
