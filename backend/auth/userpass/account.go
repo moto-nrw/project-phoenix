@@ -17,6 +17,7 @@ type Account struct {
 	UpdatedAt    time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at,omitempty"`
 	LastLogin    time.Time `bun:"last_login" json:"last_login,omitempty"`
 	Email        string    `bun:"email,notnull" json:"email"`
+	Username     string    `bun:"username,unique" json:"username"`
 	Name         string    `bun:"name,notnull" json:"name"`
 	Active       bool      `bun:"active,notnull" json:"active"`
 	Roles        []string  `bun:"roles,array" json:"roles,omitempty"`
@@ -51,9 +52,11 @@ func (a *Account) Validate() error {
 	a.Email = strings.TrimSpace(a.Email)
 	a.Email = strings.ToLower(a.Email)
 	a.Name = strings.TrimSpace(a.Name)
+	a.Username = strings.TrimSpace(a.Username)
 
 	return validation.ValidateStruct(a,
 		validation.Field(&a.Email, validation.Required, is.Email, is.LowerCase),
+		validation.Field(&a.Username, validation.Required, is.Alphanumeric, validation.Length(3, 30)),
 		validation.Field(&a.Name, validation.Required, is.ASCII),
 	)
 }
@@ -66,8 +69,9 @@ func (a *Account) CanLogin() bool {
 // Claims returns the account's claims to be signed
 func (a *Account) Claims() jwt2.AppClaims {
 	return jwt2.AppClaims{
-		ID:    a.ID,
-		Sub:   a.Name,
-		Roles: a.Roles,
+		ID:       a.ID,
+		Sub:      a.Name,
+		Username: a.Username,
+		Roles:    a.Roles,
 	}
 }

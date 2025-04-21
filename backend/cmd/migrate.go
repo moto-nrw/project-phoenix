@@ -15,8 +15,19 @@ var migrateCmd = &cobra.Command{
 	},
 }
 
+// migrateResetCmd represents the migrate reset command
+var migrateResetCmd = &cobra.Command{
+	Use:   "reset",
+	Short: "reset database and run all migrations",
+	Long:  `WARNING: This will delete all data in the database and run all migrations from scratch`,
+	Run: func(cmd *cobra.Command, args []string) {
+		migrations.Reset()
+	},
+}
+
 func init() {
 	RootCmd.AddCommand(migrateCmd)
+	migrateCmd.AddCommand(migrateResetCmd)
 
 	// Here you will define your flags and configuration settings.
 

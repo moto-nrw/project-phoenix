@@ -2,24 +2,12 @@ package migrations
 
 import (
 	"context"
-	"embed"
 	"fmt"
-	"github.com/moto-nrw/project-phoenix/database"
 	"log"
 
+	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/uptrace/bun/migrate"
 )
-
-//go:embed *.sql
-var sqlMigrations embed.FS
-
-var Migrations = migrate.NewMigrations()
-
-func init() {
-	if err := Migrations.Discover(sqlMigrations); err != nil {
-		panic(err)
-	}
-}
 
 // Migrate runs all migrations
 func Migrate() {
@@ -31,19 +19,53 @@ func Migrate() {
 
 	migrator := migrate.NewMigrator(db, Migrations)
 
-	err = migrator.Init(context.Background())
-	if err != nil {
+	// Initialize migration tables
+	if err := migrator.Init(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 
+	// Run migrations
 	group, err := migrator.Migrate(context.Background())
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	if group.ID == 0 {
-		fmt.Printf("there are no new migrations to run\n")
+		fmt.Println("No new migrations to run")
 	} else {
-		fmt.Printf("migrated to %s\n", group)
+		fmt.Printf("Migrated to %s\n", group)
 	}
+}
+
+// Reset drops all tables and re-runs all migrations
+// CAUTION: This will delete all data
+func Reset() {
+	// First reset the database by dropping all tables
+	err := ResetDatabase()
+	if err != nil {
+		log.Fatalf("Failed to reset database: %v", err)
+	}
+
+	// Then run all migrations
+	db, err := database.DBConn()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	// Initialize new migrator
+	migrator := migrate.NewMigrator(db, Migrations)
+
+	if err := migrator.Init(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+
+	// Run migrations
+	fmt.Println("Running all migrations...")
+	group, err := migrator.Migrate(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("Database reset and migration completed successfully. Migrated to %s\n", group)
 }
