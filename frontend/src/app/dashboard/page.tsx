@@ -23,7 +23,7 @@ export default function DashboardPage() {
     <div className="container mx-auto p-4">
       <h1 className="mb-6 text-2xl font-bold">Dashboard</h1>
       <div className="rounded-lg border p-6 shadow-md">
-        <h2 className="mb-4 text-xl font-semibold">Welcome, {session?.user?.name || 'User'}!</h2>
+        <h2 className="mb-4 text-xl font-semibold">Welcome, {session?.user?.name ?? 'User'}!</h2>
         <p className="text-gray-600">You are now logged in with your account.</p>
       </div>
     </div>

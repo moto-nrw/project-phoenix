@@ -31,7 +31,7 @@ export function Button({
       className={`${baseStyles} ${variantStyles[variant]} ${className}`}
       {...props}
     >
-      {isLoading ? (loadingText || 'Loading...') : children}
+      {isLoading ? (loadingText ?? 'Loading...') : children}
     </button>
   );
 }
