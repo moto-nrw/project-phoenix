@@ -52,13 +52,13 @@ export default function StudentsPage() {
   // Custom renderer for student items
   const renderStudent = (student: Student) => (
     <>
-      <div className="flex flex-col">
-        <span className="font-semibold text-gray-900">{student.name}</span>
+      <div className="flex flex-col group-hover:translate-x-1 transition-transform duration-200">
+        <span className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors duration-200">{student.name}</span>
         <span className="text-sm text-gray-500">Klasse: {student.grade} | ID: {student.studentId}</span>
       </div>
       <svg 
         xmlns="http://www.w3.org/2000/svg" 
-        className="h-5 w-5 text-gray-400" 
+        className="h-5 w-5 text-gray-400 group-hover:text-blue-500 group-hover:transform group-hover:translate-x-1 transition-all duration-200" 
         fill="none" 
         viewBox="0 0 24 24" 
         stroke="currentColor"
