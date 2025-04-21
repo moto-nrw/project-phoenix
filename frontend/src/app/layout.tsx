@@ -1,6 +1,7 @@
 import "~/styles/globals.css";
 
 import { SessionProvider } from "~/components/session-provider";
+import { BackgroundWrapper } from "~/components/background-wrapper";
 import { Inter } from "next/font/google";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -19,7 +20,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`font-sans ${inter.className}`}>
-        <SessionProvider>{children}</SessionProvider>
+        <SessionProvider>
+          <BackgroundWrapper>{children}</BackgroundWrapper>
+        </SessionProvider>
       </body>
     </html>
   );
