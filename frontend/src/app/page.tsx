@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { BackgroundWrapper } from '../components/background-wrapper';
 
 export default function HomePage() {
@@ -6,6 +7,17 @@ export default function HomePage() {
     <BackgroundWrapper>
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
         <div className="text-center max-w-2xl mx-auto bg-white/80 backdrop-blur-md rounded-2xl p-10 shadow-xl transition-all duration-300 hover:shadow-2xl hover:bg-white/90">
+          <div className="flex justify-center mb-6">
+            <Image 
+              src="/images/moto_transparent.png" 
+              alt="MOTO Logo" 
+              width={200} 
+              height={80} 
+              className="transition-all duration-300 hover:scale-105"
+              priority
+            />
+          </div>
+          
           <h1 className="text-5xl font-bold bg-gradient-to-r from-teal-600 to-blue-600 bg-clip-text text-transparent">
             Welcome to Project Phoenix
           </h1>
