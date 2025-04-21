@@ -41,7 +41,8 @@ export const authConfig = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
+        // Adding request parameter to match the expected type signature
         if (!credentials?.email || !credentials?.password) return null;
         
         try {
@@ -56,30 +57,37 @@ export const authConfig = {
 
           const data = await response.json();
           
+          console.log("Login response:", JSON.stringify(data));
+          
           if (!response.ok) {
             return null;
           }
 
-          // Get user info with the token
-          const userResponse = await fetch(`${env.API_URL}/api/app/account`, {
-            headers: {
-              "Authorization": `Bearer ${data.access_token}`
-            }
-          });
-
-          if (!userResponse.ok) {
+          // Parse the JWT token to get the user info
+          // This avoids making a separate API call and possible auth issues
+          const tokenParts = data.access_token.split('.');
+          if (tokenParts.length !== 3) {
+            console.error("Invalid token format");
             return null;
           }
-
-          const userData = await userResponse.json();
           
-          return {
-            id: String(userData.id),
-            name: userData.name,
-            email: userData.email,
-            token: data.access_token,
-            refreshToken: data.refresh_token
-          };
+          try {
+            // Decode the payload (middle part of JWT)
+            const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
+            console.log("Token payload:", payload);
+            
+            // Using type assertions for credentials to satisfy TypeScript
+            return {
+              id: String(payload.id),
+              name: payload.sub || payload.username || String(credentials.email),
+              email: String(credentials.email),
+              token: data.access_token,
+              refreshToken: data.refresh_token
+            };
+          } catch (e) {
+            console.error("Error parsing JWT:", e);
+            return null;
+          }
         } catch (error) {
           console.error("Authentication error:", error);
           return null;
