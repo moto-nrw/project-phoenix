@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { signOut } from 'next-auth/react';
-import { Card, CardHeader, CardContent } from '../../components/ui/card';
-import { Button } from '../../components/ui/button';
-import { BackgroundWrapper } from '../../components/background-wrapper';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { BackgroundWrapper } from '@/components/background-wrapper';
 
 export default function LogoutPage() {
   const router = useRouter();
