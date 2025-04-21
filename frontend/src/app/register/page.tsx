@@ -8,6 +8,7 @@ import { env } from '~/env';
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
     email: '',
+    username: '',
     name: '',
     password: '',
     confirmPassword: '',
@@ -27,6 +28,12 @@ export default function RegisterPage() {
       newErrors.email = 'Email is invalid';
     }
     
+    if (!formData.username) {
+      newErrors.username = 'Username is required';
+    } else if (!/^[a-zA-Z0-9]{3,30}$/.test(formData.username)) {
+      newErrors.username = 'Username must be 3-30 alphanumeric characters';
+    }
+    
     if (!formData.name) {
       newErrors.name = 'Name is required';
     }
@@ -35,6 +42,14 @@ export default function RegisterPage() {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 8) {
       newErrors.password = 'Password must be at least 8 characters';
+    } else if (!/[A-Z]/.test(formData.password)) {
+      newErrors.password = 'Password must contain an uppercase letter';
+    } else if (!/[a-z]/.test(formData.password)) {
+      newErrors.password = 'Password must contain a lowercase letter';
+    } else if (!/[0-9]/.test(formData.password)) {
+      newErrors.password = 'Password must contain a number';
+    } else if (!/[^a-zA-Z0-9]/.test(formData.password)) {
+      newErrors.password = 'Password must contain a special character';
     }
     
     if (formData.password !== formData.confirmPassword) {
@@ -65,8 +80,10 @@ export default function RegisterPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: formData.email,
+          username: formData.username,
           name: formData.name,
           password: formData.password,
+          confirm_password: formData.confirmPassword,
         }),
       });
       
@@ -128,6 +145,25 @@ export default function RegisterPage() {
               />
               {errors.email && (
                 <p className="mt-1 text-xs text-red-600">{errors.email}</p>
+              )}
+            </div>
+            
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium">
+                Username
+              </label>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                autoComplete="username"
+                required
+                value={formData.username}
+                onChange={handleChange}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500"
+              />
+              {errors.username && (
+                <p className="mt-1 text-xs text-red-600">{errors.username}</p>
               )}
             </div>
 
