@@ -29,3 +29,5 @@ main
   # Environment files
 **/*.env
 **/dev.env
+/.jwt-dev-secret.key
+/phoenix-test
