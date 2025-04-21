@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { BackgroundWrapper } from '@/components/background-wrapper';
 import { PageHeader, SectionTitle } from '@/components/dashboard';
 import Link from 'next/link';
 
@@ -67,7 +66,7 @@ export function DataListPage<T extends BaseEntity>({
       <main className="max-w-4xl mx-auto p-4">
         {/* Title Section */}
         <div className="mb-8">
-          <SectionTitle title={sectionTitle || "Auswählen"} />
+          <SectionTitle title={sectionTitle ?? "Auswählen"} />
         </div>
 
         {/* Search and Add Section */}

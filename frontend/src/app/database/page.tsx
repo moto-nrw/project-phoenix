@@ -2,7 +2,6 @@
 
 import { useSession } from 'next-auth/react';
 import { redirect } from 'next/navigation';
-import { BackgroundWrapper } from '@/components/background-wrapper';
 import { PageHeader, SectionTitle, DataTypeCard } from '@/components/dashboard';
 
 // Icon components
@@ -47,8 +46,7 @@ export default function DatabasePage() {
   }
 
   return (
-    <BackgroundWrapper>
-      <div className="min-h-screen">
+    <div className="min-h-screen">
         {/* Header */}
         <PageHeader 
           title="Datenbankänderungen" 
@@ -58,10 +56,6 @@ export default function DatabasePage() {
         {/* Main Content */}
         <main className="container mx-auto p-4 py-8">
           <SectionTitle title="Datensatz auswählen" />
-          
-          <div className="text-center mb-8">
-            <p className="text-gray-600">Wählen Sie eine der folgenden Datentypen aus</p>
-          </div>
 
           {/* Database Selection Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
@@ -99,6 +93,5 @@ export default function DatabasePage() {
           </div>
         </main>
       </div>
-    </BackgroundWrapper>
   );
 }

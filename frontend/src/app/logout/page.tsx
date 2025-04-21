@@ -6,7 +6,6 @@ import Image from 'next/image';
 import { signOut } from 'next-auth/react';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { BackgroundWrapper } from '@/components/background-wrapper';
 
 export default function LogoutPage() {
   const router = useRouter();
@@ -39,8 +38,7 @@ export default function LogoutPage() {
   };
 
   return (
-    <BackgroundWrapper>
-      <div className="flex min-h-screen items-center justify-center p-4">
+    <div className="flex min-h-screen items-center justify-center p-4">
         <Card className="max-w-md w-full">
           {isLoggingOut ? (
             <>
@@ -114,6 +112,5 @@ export default function LogoutPage() {
           )}
         </Card>
       </div>
-    </BackgroundWrapper>
   );
 }

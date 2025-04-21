@@ -1,11 +1,9 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { BackgroundWrapper } from '../components/background-wrapper';
 
 export default function HomePage() {
   return (
-    <BackgroundWrapper>
-      <div className="flex min-h-screen flex-col items-center justify-center p-4">
+    <div className="flex min-h-screen flex-col items-center justify-center p-4">
         <div className="text-center max-w-2xl mx-auto bg-white/80 backdrop-blur-md rounded-2xl p-10 shadow-xl transition-all duration-300 hover:shadow-2xl hover:bg-white/90">
           <div className="flex justify-center mb-6">
             <a 
@@ -45,6 +43,5 @@ export default function HomePage() {
           </div>
         </div>
       </div>
-    </BackgroundWrapper>
   );
 }
