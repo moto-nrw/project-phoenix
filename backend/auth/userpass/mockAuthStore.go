@@ -26,6 +26,14 @@ func (m *MockAuthStore) GetAccountByEmail(email string) (*Account, error) {
 	return args.Get(0).(*Account), args.Error(1)
 }
 
+func (m *MockAuthStore) GetAccountByUsername(username string) (*Account, error) {
+	args := m.Called(username)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*Account), args.Error(1)
+}
+
 func (m *MockAuthStore) CreateAccount(a *Account) error {
 	args := m.Called(a)
 	return args.Error(0)
