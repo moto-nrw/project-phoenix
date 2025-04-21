@@ -14,8 +14,8 @@ export const env = createEnv({
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
-    // Add your backend API URL
-    API_URL: z.string().url().optional().default("http://localhost:8080"),
+    NEXTAUTH_URL: z.string().url().optional().default("http://localhost:3000"),
+    NEXTAUTH_SECRET: z.string().optional(),
   },
 
   /**
@@ -34,7 +34,8 @@ export const env = createEnv({
   runtimeEnv: {
     AUTH_SECRET: process.env.AUTH_SECRET,
     NODE_ENV: process.env.NODE_ENV,
-    API_URL: process.env.API_URL,
+    NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
   },
   /**

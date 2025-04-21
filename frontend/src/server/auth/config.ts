@@ -46,7 +46,10 @@ export const authConfig = {
         if (!credentials?.email || !credentials?.password) return null;
         
         try {
-          const response = await fetch(`${env.API_URL}/auth/login`, {
+          // Improved error handling with more detailed logging
+          console.log(`Attempting login with API URL: ${env.NEXT_PUBLIC_API_URL}/auth/login`);
+          
+          const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -54,14 +57,19 @@ export const authConfig = {
               password: credentials.password
             }),
           });
+          
+          // Log the response status to help with debugging
+          console.log(`Login response status: ${response.status}`);
+          
+          if (!response.ok) {
+            const text = await response.text();
+            console.error(`Login failed with status ${response.status}: ${text}`);
+            return null;
+          }
 
           const data = await response.json();
           
           console.log("Login response:", JSON.stringify(data));
-          
-          if (!response.ok) {
-            return null;
-          }
 
           // Parse the JWT token to get the user info
           // This avoids making a separate API call and possible auth issues

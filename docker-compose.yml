@@ -28,10 +28,13 @@ services:
     ports:
       - "3001:3000"
     environment:
-      # For client-side API calls
-      NEXT_PUBLIC_API_URL: "http://localhost:3000"
-      # For server-side API calls (inside Docker network)
-      API_URL: "http://server:3000"
+      # API URL for both client and server-side calls
+      NEXT_PUBLIC_API_URL: "http://server:3000"
+      # NextAuth configuration
+      NEXTAUTH_URL: "http://localhost:3001"
+      NEXTAUTH_SECRET: "supersecretkey123"
+      # Skip env validation in Docker
+      SKIP_ENV_VALIDATION: "true"
       NEXT_TELEMETRY_DISABLED: "1"
     depends_on:
       - server
