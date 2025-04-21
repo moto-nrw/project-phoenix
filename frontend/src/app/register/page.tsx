@@ -2,8 +2,17 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { env } from '~/env';
+import {
+  Card,
+  CardHeader,
+  CardContent,
+  CardFooter,
+  Input,
+  Button,
+  Alert,
+  Link
+} from '~/components/ui';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -107,144 +116,93 @@ export default function RegisterPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-6 rounded-xl border-0 p-8 shadow-xl bg-white/95">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-teal-600">Create an account</h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Fill in your details to create a new account
-          </p>
-        </div>
+      <Card>
+        <CardHeader 
+          title="Create an account" 
+          description="Fill in your details to create a new account" 
+        />
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {serverError && (
-            <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700 shadow-sm border border-red-100">
-              {serverError}
-            </div>
-          )}
-          
-          {success && (
-            <div className="rounded-lg bg-green-50 p-4 text-sm text-green-700 shadow-sm border border-green-100">
-              {success}
-            </div>
-          )}
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {serverError && <Alert type="error" message={serverError} />}
+            {success && <Alert type="success" message={success} />}
 
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
-              </label>
-              <input
-                id="email"
+            <div className="space-y-4">
+              <Input
+                label="Email address"
                 name="email"
                 type="email"
                 autoComplete="email"
                 required
                 value={formData.email}
                 onChange={handleChange}
-                className="mt-1 block w-full rounded-lg border-0 px-4 py-3 shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                error={errors.email}
               />
-              {errors.email && (
-                <p className="mt-1 text-xs text-red-600">{errors.email}</p>
-              )}
-            </div>
-            
-            <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-                Username
-              </label>
-              <input
-                id="username"
+              
+              <Input
+                label="Username"
                 name="username"
                 type="text"
                 autoComplete="username"
                 required
                 value={formData.username}
                 onChange={handleChange}
-                className="mt-1 block w-full rounded-lg border-0 px-4 py-3 shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                error={errors.username}
               />
-              {errors.username && (
-                <p className="mt-1 text-xs text-red-600">{errors.username}</p>
-              )}
-            </div>
 
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                Full Name
-              </label>
-              <input
-                id="name"
+              <Input
+                label="Full Name"
                 name="name"
                 type="text"
                 autoComplete="name"
                 required
                 value={formData.name}
                 onChange={handleChange}
-                className="mt-1 block w-full rounded-lg border-0 px-4 py-3 shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                error={errors.name}
               />
-              {errors.name && (
-                <p className="mt-1 text-xs text-red-600">{errors.name}</p>
-              )}
-            </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <input
-                id="password"
+              <Input
+                label="Password"
                 name="password"
                 type="password"
                 autoComplete="new-password"
                 required
                 value={formData.password}
                 onChange={handleChange}
-                className="mt-1 block w-full rounded-lg border-0 px-4 py-3 shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                error={errors.password}
               />
-              {errors.password && (
-                <p className="mt-1 text-xs text-red-600">{errors.password}</p>
-              )}
-            </div>
 
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                Confirm Password
-              </label>
-              <input
-                id="confirmPassword"
+              <Input
+                label="Confirm Password"
                 name="confirmPassword"
                 type="password"
                 autoComplete="new-password"
                 required
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                className="mt-1 block w-full rounded-lg border-0 px-4 py-3 shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                error={errors.confirmPassword}
               />
-              {errors.confirmPassword && (
-                <p className="mt-1 text-xs text-red-600">{errors.confirmPassword}</p>
-              )}
             </div>
-          </div>
 
-          <div>
-            <button
+            <Button
               type="submit"
-              disabled={isLoading}
-              className="flex w-full justify-center rounded-lg bg-gradient-to-r from-teal-500 to-blue-500 px-4 py-3 text-sm font-medium text-white shadow-md hover:from-teal-600 hover:to-blue-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50 transition-all duration-200"
+              isLoading={isLoading}
+              loadingText="Creating account..."
             >
-              {isLoading ? 'Creating account...' : 'Create account'}
-            </button>
-          </div>
+              Create account
+            </Button>
+          </form>
+        </CardContent>
 
-          <div className="text-center text-sm">
-            <p>
-              Already have an account?{' '}
-              <Link href="/login" className="text-teal-600 hover:text-teal-800 font-medium">
-                Sign in
-              </Link>
-            </p>
-          </div>
-        </form>
-      </div>
+        <CardFooter>
+          <p>
+            Already have an account?{' '}
+            <Link href="/login">
+              Sign in
+            </Link>
+          </p>
+        </CardFooter>
+      </Card>
     </div>
   );
 }
