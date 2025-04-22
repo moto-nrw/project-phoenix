@@ -8,16 +8,16 @@ import { studentService } from '@/lib/api';
 
 // Mock student data for development
 const mockStudents: Student[] = [
-  { id: '1', name: 'Anna Müller', grade: '1A', studentId: 'ST001' },
-  { id: '2', name: 'Max Schmidt', grade: '1A', studentId: 'ST002' },
-  { id: '3', name: 'Sophie Weber', grade: '2B', studentId: 'ST003' },
-  { id: '4', name: 'Lena Fischer', grade: '2B', studentId: 'ST004' },
-  { id: '5', name: 'Noah Meyer', grade: '3C', studentId: 'ST005' },
-  { id: '6', name: 'Emma Wagner', grade: '3C', studentId: 'ST006' },
-  { id: '7', name: 'Luis Becker', grade: '4D', studentId: 'ST007' },
-  { id: '8', name: 'Mia Hoffmann', grade: '4D', studentId: 'ST008' },
-  { id: '9', name: 'Finn Schneider', grade: '5E', studentId: 'ST009' },
-  { id: '10', name: 'Lara Schulz', grade: '5E', studentId: 'ST010' },
+  { id: '1', name: 'Anna Müller', school_class: '1A', grade: '1A', studentId: 'ST001', in_house: true },
+  { id: '2', name: 'Max Schmidt', school_class: '1A', grade: '1A', studentId: 'ST002', in_house: false },
+  { id: '3', name: 'Sophie Weber', school_class: '2B', grade: '2B', studentId: 'ST003', in_house: true },
+  { id: '4', name: 'Lena Fischer', school_class: '2B', grade: '2B', studentId: 'ST004', in_house: false },
+  { id: '5', name: 'Noah Meyer', school_class: '3C', grade: '3C', studentId: 'ST005', in_house: true },
+  { id: '6', name: 'Emma Wagner', school_class: '3C', grade: '3C', studentId: 'ST006', in_house: false },
+  { id: '7', name: 'Luis Becker', school_class: '4D', grade: '4D', studentId: 'ST007', in_house: true },
+  { id: '8', name: 'Mia Hoffmann', school_class: '4D', grade: '4D', studentId: 'ST008', in_house: false },
+  { id: '9', name: 'Finn Schneider', school_class: '5E', grade: '5E', studentId: 'ST009', in_house: true },
+  { id: '10', name: 'Lara Schulz', school_class: '5E', grade: '5E', studentId: 'ST010', in_house: false },
 ];
 
 export default function StudentDetailPage() {
@@ -46,8 +46,8 @@ export default function StudentDetailPage() {
           // Initialize form data with student data
           setFormData({
             name: data.name,
-            grade: data.grade,
-            studentId: data.studentId,
+            grade: data.grade ?? data.school_class ?? '',
+            studentId: data.studentId ?? data.id ?? '',
           });
           setError(null);
         } catch (apiErr) {
@@ -58,8 +58,8 @@ export default function StudentDetailPage() {
             setStudent(mockStudent);
             setFormData({
               name: mockStudent.name,
-              grade: mockStudent.grade,
-              studentId: mockStudent.studentId,
+              grade: mockStudent.grade ?? mockStudent.school_class ?? '',
+              studentId: mockStudent.studentId ?? mockStudent.id ?? '',
             });
             setError(null);
           } else {
@@ -106,6 +106,7 @@ export default function StudentDetailPage() {
         // Update student
         const updatedStudent = await studentService.updateStudent(studentId, {
           name: formData.name,
+          school_class: formData.grade, // Map grade to school_class
           grade: formData.grade,
           studentId: formData.studentId,
         });
@@ -114,11 +115,13 @@ export default function StudentDetailPage() {
       } catch (apiErr) {
         console.warn('Using mock update due to API error:', apiErr);
         // Update in our local state only
-        const updatedMockStudent = {
+        const updatedMockStudent: Student = {
           id: studentId,
           name: formData.name,
+          school_class: formData.grade, // Map grade to school_class
           grade: formData.grade,
           studentId: formData.studentId,
+          in_house: student?.in_house ?? false,
         };
         setStudent(updatedMockStudent);
       }

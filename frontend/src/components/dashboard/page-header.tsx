@@ -1,6 +1,5 @@
 'use client';
 
-import { redirect } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -8,11 +7,13 @@ import React from 'react';
 
 interface PageHeaderProps {
   title: string | React.ReactNode;
+  description?: string;
   backUrl?: string;
 }
 
 export function PageHeader({ 
   title, 
+  description,
   backUrl = '/dashboard'
 }: PageHeaderProps) {
   return (
@@ -31,10 +32,13 @@ export function PageHeader({
           </div>
           
           {/* Title section */}
-          <div className="flex items-center">
+          <div className="flex flex-col">
             <h1 className="text-xl font-bold">
               <span className="hidden md:inline">{title}</span>
             </h1>
+            {description && (
+              <p className="text-sm text-gray-500 hidden md:block">{description}</p>
+            )}
           </div>
         </div>
         

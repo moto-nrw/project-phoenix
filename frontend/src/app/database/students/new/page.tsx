@@ -40,8 +40,10 @@ export default function NewStudentPage() {
         // Try to create student on API
         await studentService.createStudent({
           name: formData.name,
+          school_class: formData.grade, // Map grade to school_class
           grade: formData.grade,
           studentId: formData.studentId,
+          in_house: false, // Default value
         });
       } catch (apiErr) {
         console.warn('Mock creation due to API error:', apiErr);

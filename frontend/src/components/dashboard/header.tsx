@@ -1,7 +1,7 @@
 'use client';
 
-import { redirect } from 'next/navigation';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
 interface HeaderProps {
@@ -34,9 +34,11 @@ export function Header({ userName = 'Root' }: HeaderProps) {
         
         {/* Logout button on the right */}
         <div>
-          <Button onClick={() => redirect('/logout')}>
-            Logout
-          </Button>
+          <Link href="/logout">
+            <Button>
+              Logout
+            </Button>
+          </Link>
         </div>
       </div>
     </header>
