@@ -99,15 +99,19 @@ export default function RegisterPage() {
         }),
       });
       
-      const data = await response.json();
+      const responseData = await response.json() as {
+        error?: string;
+        message?: string;
+        status?: string;
+      };
       
       if (!response.ok) {
         // Extract the specific error message from the backend response
         let errorMessage = 'Registration failed';
         
-        if (data.error) {
+        if (responseData.error) {
           // Handle specific error cases from the backend
-          switch(data.error) {
+          switch(responseData.error) {
             case 'email already exists':
               errorMessage = 'An account with this email already exists';
               break;
@@ -134,12 +138,12 @@ export default function RegisterPage() {
               break;
             default:
               // If we have a specific error message from the backend, use it
-              errorMessage = data.error;
+              errorMessage = responseData.error;
           }
-        } else if (data.message) {
-          errorMessage = data.message;
-        } else if (data.status) {
-          errorMessage = data.status;
+        } else if (responseData.message) {
+          errorMessage = responseData.message;
+        } else if (responseData.status) {
+          errorMessage = responseData.status;
         }
         
         setServerError(errorMessage);

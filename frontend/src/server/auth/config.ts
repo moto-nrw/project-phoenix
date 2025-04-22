@@ -41,7 +41,7 @@ export const authConfig = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials, request) {
+      async authorize(credentials, _request) {
         // Adding request parameter to match the expected type signature
         if (!credentials?.email || !credentials?.password) return null;
         
@@ -67,13 +67,13 @@ export const authConfig = {
             return null;
           }
 
-          const data = await response.json();
+          const responseData = await response.json() as { access_token: string; refresh_token: string };
           
-          console.log("Login response:", JSON.stringify(data));
+          console.log("Login response:", JSON.stringify(responseData));
 
           // Parse the JWT token to get the user info
           // This avoids making a separate API call and possible auth issues
-          const tokenParts = data.access_token.split('.');
+          const tokenParts = responseData.access_token.split('.');
           if (tokenParts.length !== 3) {
             console.error("Invalid token format");
             return null;
@@ -81,16 +81,21 @@ export const authConfig = {
           
           try {
             // Decode the payload (middle part of JWT)
-            const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
+            // Ensure tokenParts[1] is defined before attempting to decode
+            if (!tokenParts[1]) {
+              console.error("Invalid token part");
+              return null;
+            }
+            const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString()) as { id: string | number; sub?: string; username?: string };
             console.log("Token payload:", payload);
             
             // Using type assertions for credentials to satisfy TypeScript
             return {
               id: String(payload.id),
-              name: payload.sub || payload.username || String(credentials.email),
-              email: String(credentials.email),
-              token: data.access_token,
-              refreshToken: data.refresh_token
+              name: payload.sub ?? payload.username ?? (credentials.email as string),
+              email: credentials.email as string,
+              token: responseData.access_token,
+              refreshToken: responseData.refresh_token
             };
           } catch (e) {
             console.error("Error parsing JWT:", e);

@@ -30,7 +30,7 @@ const RoomsIcon = () => (
 );
 
 export default function DatabasePage() {
-  const { data: session, status } = useSession({
+  const { status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect('/login');

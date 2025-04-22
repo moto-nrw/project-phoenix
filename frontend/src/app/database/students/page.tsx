@@ -28,6 +28,12 @@ export default function StudentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
   
+  // This function was created but isn't used yet - keeping for future use
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleSearchInput = (value: string) => {
+    setSearchFilter(value);
+  };
+  
   const { status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -42,7 +48,7 @@ export default function StudentsPage() {
       
       // Prepare filters for API call
       const filters = {
-        search: search || undefined
+        search: search ?? undefined
       };
       
       // Try to fetch from the real API
@@ -100,11 +106,6 @@ export default function StudentsPage() {
     router.push(`/database/students/${student.id}`);
   };
 
-  // Handle search input change - Not used directly since DataListPage handles this
-  // But may be useful for future enhancements
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchFilter(e.target.value);
-  };
 
   // Custom renderer for student items
   const renderStudent = (student: Student) => (
