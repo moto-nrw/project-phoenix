@@ -205,19 +205,123 @@ func addSampleData(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
-// The below code is only for the migration system, not for direct use
+// The migration for creating student tables properly
 func init() {
-	// Register the migration
+	// Register the migration for creating student-related tables
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			// For the migration system, just do a no-op
-			// Use the AddSampleStudents function directly to populate data
-			fmt.Println("Migration 3: This migration is a no-op. Use AddSampleStudents() to add sample data.")
-			return nil
+			fmt.Println("Migration 3: Creating student tables...")
+
+			// Create custom_users table
+			_, err := db.ExecContext(ctx, `
+				CREATE TABLE IF NOT EXISTS custom_users (
+					id SERIAL PRIMARY KEY,
+					first_name TEXT NOT NULL,
+					second_name TEXT NOT NULL,
+					tag_id TEXT UNIQUE,
+					account_id INTEGER UNIQUE REFERENCES accounts(id) ON DELETE SET NULL,
+					created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+				)
+			`)
+			if err != nil {
+				return fmt.Errorf("error creating custom_users table: %w", err)
+			}
+
+			// Create groups table
+			_, err = db.ExecContext(ctx, `
+				CREATE TABLE IF NOT EXISTS groups (
+					id SERIAL PRIMARY KEY,
+					name TEXT NOT NULL,
+					created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					description TEXT
+				)
+			`)
+			if err != nil {
+				return fmt.Errorf("error creating groups table: %w", err)
+			}
+
+			// Create students table
+			_, err = db.ExecContext(ctx, `
+				CREATE TABLE IF NOT EXISTS students (
+					id SERIAL PRIMARY KEY,
+					school_class TEXT NOT NULL,
+					bus BOOLEAN NOT NULL DEFAULT FALSE,
+					name_lg TEXT NOT NULL,
+					contact_lg TEXT NOT NULL,
+					in_house BOOLEAN NOT NULL DEFAULT FALSE,
+					wc BOOLEAN NOT NULL DEFAULT FALSE,
+					school_yard BOOLEAN NOT NULL DEFAULT FALSE,
+					custom_user_id INTEGER NOT NULL REFERENCES custom_users(id) ON DELETE CASCADE,
+					group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+					created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    notes TEXT
+				)
+			`)
+			if err != nil {
+				return fmt.Errorf("error creating students table: %w", err)
+			}
+
+			// Create visits table
+			_, err = db.ExecContext(ctx, `
+				CREATE TABLE IF NOT EXISTS visits (
+					id SERIAL PRIMARY KEY,
+					student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+					check_in TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					check_out TIMESTAMPTZ,
+					created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+				)
+			`)
+			if err != nil {
+				return fmt.Errorf("error creating visits table: %w", err)
+			}
+
+			// Create feedbacks table
+			_, err = db.ExecContext(ctx, `
+				CREATE TABLE IF NOT EXISTS feedbacks (
+					id SERIAL PRIMARY KEY,
+					student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+					author_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE RESTRICT,
+					content TEXT NOT NULL,
+					type TEXT NOT NULL DEFAULT 'general',
+					created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+				)
+			`)
+
+			fmt.Println("Student tables created successfully")
+			return err
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 3: No changes to revert.")
-			return nil
+			fmt.Println("Rolling back migration 3: Dropping student tables...")
+
+			// Drop tables in reverse order to handle dependencies
+			_, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS feedbacks CASCADE`)
+			if err != nil {
+				return err
+			}
+
+			_, err = db.ExecContext(ctx, `DROP TABLE IF EXISTS visits CASCADE`)
+			if err != nil {
+				return err
+			}
+
+			_, err = db.ExecContext(ctx, `DROP TABLE IF EXISTS students CASCADE`)
+			if err != nil {
+				return err
+			}
+
+			_, err = db.ExecContext(ctx, `DROP TABLE IF EXISTS groups CASCADE`)
+			if err != nil {
+				return err
+			}
+
+			_, err = db.ExecContext(ctx, `DROP TABLE IF EXISTS custom_users CASCADE`)
+
+			return err
 		},
 	)
 }
