@@ -1,16 +1,17 @@
 package student
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	models2 "github.com/moto-nrw/project-phoenix/models"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	models2 "github.com/moto-nrw/project-phoenix/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -82,6 +83,11 @@ func (m *MockStudentStore) GetRoomVisits(ctx context.Context, roomID int64, date
 	return args.Get(0).([]models2.Visit), args.Error(1)
 }
 
+func (m *MockStudentStore) GetCombinedGroupVisits(ctx context.Context, combinedGroupID int64, date *time.Time, active bool) ([]models2.Visit, error) {
+	args := m.Called(ctx, combinedGroupID, date, active)
+	return args.Get(0).([]models2.Visit), args.Error(1)
+}
+
 func (m *MockStudentStore) GetStudentAsList(ctx context.Context, id int64) (*models2.StudentList, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
@@ -96,11 +102,6 @@ func (m *MockStudentStore) CreateFeedback(ctx context.Context, studentID int64, 
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*models2.Feedback), args.Error(1)
-}
-
-func (m *MockStudentStore) GetCombinedGroupVisits(ctx context.Context, combinedGroupID int64, date *time.Time, active bool) ([]models2.Visit, error) {
-	args := m.Called(ctx, combinedGroupID, date, active)
-	return args.Get(0).([]models2.Visit), args.Error(1)
 }
 
 func (m *MockStudentStore) GetRoomOccupancyByDeviceID(ctx context.Context, deviceID string) (*models2.RoomOccupancyDetail, error) {
@@ -239,6 +240,157 @@ func TestGetStudent(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "1A", responseStudent.SchoolClass)
 	assert.Equal(t, int64(1), responseStudent.CustomUserID)
+
+	mockStudentStore.AssertExpectations(t)
+}
+
+func TestCreateStudent(t *testing.T) {
+	rs, mockStudentStore, _ := setupTestAPI()
+
+	// Setup test data
+	customUser := &models2.CustomUser{
+		ID:         1,
+		FirstName:  "John",
+		SecondName: "Doe",
+	}
+
+	group := &models2.Group{
+		ID:   1,
+		Name: "Group 1",
+	}
+
+	newStudent := &models2.Student{
+		SchoolClass:  "2A",
+		CustomUserID: 1,
+		GroupID:      1,
+		NameLG:       "Parent Name",
+		ContactLG:    "parent@example.com",
+	}
+
+	createdStudent := &models2.Student{
+		ID:           1,
+		SchoolClass:  "2A",
+		CustomUserID: 1,
+		CustomUser:   customUser,
+		GroupID:      1,
+		Group:        group,
+		NameLG:       "Parent Name",
+		ContactLG:    "parent@example.com",
+		CreatedAt:    time.Now(),
+		ModifiedAt:   time.Now(),
+	}
+
+	mockStudentStore.On("CreateStudent", mock.Anything, newStudent).Return(nil)
+	mockStudentStore.On("GetStudentByID", mock.Anything, int64(1)).Return(createdStudent, nil)
+
+	// Create test request
+	studentReq := &StudentRequest{Student: newStudent}
+	body, _ := json.Marshal(studentReq)
+	r := httptest.NewRequest("POST", "/", bytes.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	// Call the handler directly
+	rs.createStudent(w, r)
+
+	// Check response
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var responseStudent models2.Student
+	err := json.Unmarshal(w.Body.Bytes(), &responseStudent)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(1), responseStudent.ID)
+	assert.Equal(t, "2A", responseStudent.SchoolClass)
+
+	mockStudentStore.AssertExpectations(t)
+}
+
+func TestUpdateStudent(t *testing.T) {
+	rs, mockStudentStore, _ := setupTestAPI()
+
+	// Setup test data
+	customUser := &models2.CustomUser{
+		ID:         1,
+		FirstName:  "John",
+		SecondName: "Doe",
+	}
+
+	group := &models2.Group{
+		ID:   1,
+		Name: "Group 1",
+	}
+
+	existingStudent := &models2.Student{
+		ID:           1,
+		SchoolClass:  "1A",
+		CustomUserID: 1,
+		CustomUser:   customUser,
+		GroupID:      1,
+		Group:        group,
+		NameLG:       "Old Parent Name",
+		ContactLG:    "old@example.com",
+	}
+
+	updatedStudent := &models2.Student{
+		ID:           1,
+		SchoolClass:  "1B", // Changed class
+		CustomUserID: 1,
+		CustomUser:   customUser,
+		GroupID:      1,
+		Group:        group,
+		NameLG:       "New Parent Name", // Changed parent name
+		ContactLG:    "new@example.com", // Changed contact
+	}
+
+	mockStudentStore.On("GetStudentByID", mock.Anything, int64(1)).Return(existingStudent, nil).Once()
+	mockStudentStore.On("UpdateStudent", mock.Anything, mock.MatchedBy(func(s *models2.Student) bool {
+		return s.ID == 1 && s.SchoolClass == "1B" && s.NameLG == "New Parent Name"
+	})).Return(nil)
+	mockStudentStore.On("GetStudentByID", mock.Anything, int64(1)).Return(updatedStudent, nil).Once()
+
+	// Create test request
+	studentReq := &StudentRequest{Student: updatedStudent}
+	body, _ := json.Marshal(studentReq)
+	r := httptest.NewRequest("PUT", "/1", bytes.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+
+	// Call the handler directly
+	rs.updateStudent(w, r)
+
+	// Check response
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var responseStudent models2.Student
+	err := json.Unmarshal(w.Body.Bytes(), &responseStudent)
+	assert.NoError(t, err)
+	assert.Equal(t, "1B", responseStudent.SchoolClass)
+	assert.Equal(t, "New Parent Name", responseStudent.NameLG)
+	assert.Equal(t, "new@example.com", responseStudent.ContactLG)
+
+	mockStudentStore.AssertExpectations(t)
+}
+
+func TestDeleteStudent(t *testing.T) {
+	rs, mockStudentStore, _ := setupTestAPI()
+
+	mockStudentStore.On("DeleteStudent", mock.Anything, int64(1)).Return(nil)
+
+	// Create test request
+	r := httptest.NewRequest("DELETE", "/1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+
+	// Call the handler directly
+	rs.deleteStudent(w, r)
+
+	// Check response
+	assert.Equal(t, http.StatusNoContent, w.Code)
 
 	mockStudentStore.AssertExpectations(t)
 }

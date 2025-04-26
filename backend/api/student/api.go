@@ -4,15 +4,15 @@ package student
 import (
 	"context"
 	"errors"
-	jwt2 "github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/logging"
-	models2 "github.com/moto-nrw/project-phoenix/models"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/logging"
+	models2 "github.com/moto-nrw/project-phoenix/models"
 	"github.com/sirupsen/logrus"
 )
 
@@ -41,7 +41,7 @@ type StudentStore interface {
 
 // AuthTokenStore defines operations for the auth token store
 type AuthTokenStore interface {
-	GetToken(t string) (*jwt2.Token, error)
+	GetToken(t string) (*jwt.Token, error)
 }
 
 // NewResource creates a new student management resource
@@ -58,7 +58,7 @@ func (rs *Resource) Router() chi.Router {
 
 	// JWT protected routes
 	r.Group(func(r chi.Router) {
-		r.Use(jwt2.Authenticator)
+		r.Use(jwt.Authenticator)
 
 		// Student routes
 		r.Route("/", func(r chi.Router) {
@@ -69,6 +69,7 @@ func (rs *Resource) Router() chi.Router {
 				r.Put("/", rs.updateStudent)
 				r.Delete("/", rs.deleteStudent)
 				r.Get("/visits", rs.getStudentVisits)
+				r.Get("/status", rs.getStudentStatus)
 			})
 		})
 
@@ -80,6 +81,14 @@ func (rs *Resource) Router() chi.Router {
 
 		// Combined group visits
 		r.Get("/combined-group/{id}/visits", rs.getCombinedGroupVisits)
+
+		// Room visits
+		r.Get("/room/{id}/visits", rs.getRoomVisits)
+
+		// Public API - usable without auth
+		r.Route("/public", func(r chi.Router) {
+			r.Get("/summary", rs.getStudentsSummary)
+		})
 	})
 
 	return r
@@ -90,6 +99,7 @@ func (rs *Resource) Router() chi.Router {
 // listStudents returns a list of all students
 func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	logger := logging.GetLogEntry(r)
 
 	// Parse query parameters for filtering
 	filters := make(map[string]interface{})
@@ -98,6 +108,8 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		groupID, err := strconv.ParseInt(groupIDStr, 10, 64)
 		if err == nil {
 			filters["group_id"] = groupID
+		} else {
+			logger.WithError(err).Warn("Invalid group_id parameter")
 		}
 	}
 
@@ -110,8 +122,19 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		filters["in_house"] = inHouse
 	}
 
+	if wcStr := r.URL.Query().Get("wc"); wcStr != "" {
+		wc := wcStr == "true"
+		filters["wc"] = wc
+	}
+
+	if schoolYardStr := r.URL.Query().Get("school_yard"); schoolYardStr != "" {
+		schoolYard := schoolYardStr == "true"
+		filters["school_yard"] = schoolYard
+	}
+
 	students, err := rs.Store.ListStudents(ctx, filters)
 	if err != nil {
+		logger.WithError(err).Error("Failed to list students")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
 	}
@@ -121,14 +144,25 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 
 // createStudent creates a new student
 func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
+	logger := logging.GetLogEntry(r)
+
 	data := &StudentRequest{}
 	if err := render.Bind(r, data); err != nil {
+		logger.WithError(err).Warn("Invalid student creation request")
+		render.Render(w, r, ErrInvalidRequest(err))
+		return
+	}
+
+	// Validate the student data
+	if err := ValidateStudent(data.Student); err != nil {
+		logger.WithError(err).Warn("Student validation failed")
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
 
 	ctx := r.Context()
 	if err := rs.Store.CreateStudent(ctx, data.Student); err != nil {
+		logger.WithError(err).Error("Failed to create student")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
 	}
@@ -136,9 +170,15 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	// Get the newly created student to include all relations
 	student, err := rs.Store.GetStudentByID(ctx, data.Student.ID)
 	if err != nil {
+		logger.WithError(err).Error("Failed to retrieve newly created student")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
 	}
+
+	logger.WithFields(logrus.Fields{
+		"student_id": student.ID,
+		"name": student.CustomUser.FirstName + " " + student.CustomUser.SecondName,
+	}).Info("Student created successfully")
 
 	render.Status(r, http.StatusCreated)
 	render.JSON(w, r, student)
@@ -146,9 +186,12 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 // getStudent returns a specific student
 func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
+	logger := logging.GetLogEntry(r)
+
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
+		logger.WithError(err).Warn("Invalid student ID format")
 		render.Render(w, r, ErrInvalidRequest(errors.New("invalid ID format")))
 		return
 	}
@@ -156,6 +199,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	student, err := rs.Store.GetStudentByID(ctx, id)
 	if err != nil {
+		logger.WithError(err).Error("Failed to get student by ID")
 		render.Render(w, r, ErrNotFound())
 		return
 	}
@@ -165,15 +209,26 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 
 // updateStudent updates a specific student
 func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
+	logger := logging.GetLogEntry(r)
+
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
+		logger.WithError(err).Warn("Invalid student ID format")
 		render.Render(w, r, ErrInvalidRequest(errors.New("invalid ID format")))
 		return
 	}
 
 	data := &StudentRequest{}
 	if err := render.Bind(r, data); err != nil {
+		logger.WithError(err).Warn("Invalid student update request")
+		render.Render(w, r, ErrInvalidRequest(err))
+		return
+	}
+
+	// Validate the student data
+	if err := ValidateStudent(data.Student); err != nil {
+		logger.WithError(err).Warn("Student validation failed")
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
@@ -181,11 +236,12 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	student, err := rs.Store.GetStudentByID(ctx, id)
 	if err != nil {
+		logger.WithError(err).Error("Failed to get student by ID for update")
 		render.Render(w, r, ErrNotFound())
 		return
 	}
 
-	// Update student fields except ID, CreatedAt and relationships
+	// Update student fields except ID, CreatedAt and relationships that should be managed separately
 	student.SchoolClass = data.SchoolClass
 	student.Bus = data.Bus
 	student.NameLG = data.NameLG
@@ -196,6 +252,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	student.GroupID = data.GroupID
 
 	if err := rs.Store.UpdateStudent(ctx, student); err != nil {
+		logger.WithError(err).Error("Failed to update student")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
 	}
@@ -203,29 +260,142 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Get the updated student with all relations
 	student, err = rs.Store.GetStudentByID(ctx, id)
 	if err != nil {
+		logger.WithError(err).Error("Failed to retrieve updated student")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
 	}
 
+	logger.WithField("student_id", id).Info("Student updated successfully")
 	render.JSON(w, r, student)
 }
 
 // deleteStudent deletes a specific student
 func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
+	logger := logging.GetLogEntry(r)
+
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
+		logger.WithError(err).Warn("Invalid student ID format")
 		render.Render(w, r, ErrInvalidRequest(errors.New("invalid ID format")))
 		return
 	}
 
 	ctx := r.Context()
 	if err := rs.Store.DeleteStudent(ctx, id); err != nil {
+		logger.WithError(err).Error("Failed to delete student")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
 	}
 
+	logger.WithField("student_id", id).Info("Student deleted successfully")
 	render.NoContent(w, r)
+}
+
+// getStudentVisits returns visits for a student
+func (rs *Resource) getStudentVisits(w http.ResponseWriter, r *http.Request) {
+	logger := logging.GetLogEntry(r)
+
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		logger.WithError(err).Warn("Invalid student ID format")
+		render.Render(w, r, ErrInvalidRequest(errors.New("invalid ID format")))
+		return
+	}
+
+	ctx := r.Context()
+
+	// Parse date parameter
+	var date *time.Time
+	if dateStr := r.URL.Query().Get("date"); dateStr != "" {
+		parsedDate, err := time.Parse("2006-01-02", dateStr)
+		if err == nil {
+			date = &parsedDate
+		} else {
+			logger.WithError(err).Warn("Invalid date format")
+		}
+	}
+
+	visits, err := rs.Store.GetStudentVisits(ctx, id, date)
+	if err != nil {
+		logger.WithError(err).Error("Failed to get student visits")
+		render.Render(w, r, ErrInternalServerError(err))
+		return
+	}
+
+	render.JSON(w, r, visits)
+}
+
+// getStudentStatus returns the current status of a student
+func (rs *Resource) getStudentStatus(w http.ResponseWriter, r *http.Request) {
+	logger := logging.GetLogEntry(r)
+
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		logger.WithError(err).Warn("Invalid student ID format")
+		render.Render(w, r, ErrInvalidRequest(errors.New("invalid ID format")))
+		return
+	}
+
+	ctx := r.Context()
+	student, err := rs.Store.GetStudentByID(ctx, id)
+	if err != nil {
+		logger.WithError(err).Error("Failed to get student by ID for status")
+		render.Render(w, r, ErrNotFound())
+		return
+	}
+
+	status := GetStudentCurrentStatus(student)
+
+	response := map[string]interface{}{
+		"student_id": student.ID,
+		"name": student.CustomUser.FirstName + " " + student.CustomUser.SecondName,
+		"status": status,
+		"in_house": student.InHouse,
+		"wc": student.WC,
+		"school_yard": student.SchoolYard,
+		"bus": student.Bus,
+	}
+
+	render.JSON(w, r, response)
+}
+
+// getStudentsSummary returns a summary of all students and their statuses
+func (rs *Resource) getStudentsSummary(w http.ResponseWriter, r *http.Request) {
+	logger := logging.GetLogEntry(r)
+	ctx := r.Context()
+
+	students, err := rs.Store.ListStudents(ctx, nil)
+	if err != nil {
+		logger.WithError(err).Error("Failed to list students for summary")
+		render.Render(w, r, ErrInternalServerError(err))
+		return
+	}
+
+	summary := map[string]interface{}{
+		"total_students": len(students),
+		"in_house_count": 0,
+		"wc_count": 0,
+		"school_yard_count": 0,
+		"not_present_count": 0,
+	}
+
+	for _, student := range students {
+		if student.InHouse {
+			summary["in_house_count"] = summary["in_house_count"].(int) + 1
+			if student.WC {
+				summary["wc_count"] = summary["wc_count"].(int) + 1
+			}
+		} else if student.SchoolYard {
+			summary["school_yard_count"] = summary["school_yard_count"].(int) + 1
+		} else {
+			summary["not_present_count"] = summary["not_present_count"].(int) + 1
+		}
+	}
+
+	render.JSON(w, r, summary)
 }
 
 // ======== Special Operations ========
@@ -237,8 +407,11 @@ type RoomOccupancyStore interface {
 
 // registerStudentInRoom registers a student in a room
 func (rs *Resource) registerStudentInRoom(w http.ResponseWriter, r *http.Request) {
+	logger := logging.GetLogEntry(r)
+
 	data := &RoomRegistrationRequest{}
 	if err := render.Bind(r, data); err != nil {
+		logger.WithError(err).Warn("Invalid room registration request")
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
@@ -280,6 +453,7 @@ func (rs *Resource) registerStudentInRoom(w http.ResponseWriter, r *http.Request
 	// Create a visit record
 	visit, err := rs.Store.CreateStudentVisit(ctx, data.StudentID, roomID, timespanID)
 	if err != nil {
+		logger.WithError(err).Error("Failed to create student visit")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
 	}
@@ -289,17 +463,27 @@ func (rs *Resource) registerStudentInRoom(w http.ResponseWriter, r *http.Request
 		"in_house": true,
 	}
 	if err := rs.Store.UpdateStudentLocation(ctx, data.StudentID, locations); err != nil {
+		logger.WithError(err).Error("Failed to update student location")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
 	}
+
+	logger.WithFields(logrus.Fields{
+		"student_id": data.StudentID,
+		"room_id": roomID,
+		"visit_id": visit.ID,
+	}).Info("Student registered in room successfully")
 
 	render.JSON(w, r, visit)
 }
 
 // unregisterStudentFromRoom unregisters a student from a room
 func (rs *Resource) unregisterStudentFromRoom(w http.ResponseWriter, r *http.Request) {
+	logger := logging.GetLogEntry(r)
+
 	data := &RoomRegistrationRequest{}
 	if err := render.Bind(r, data); err != nil {
+		logger.WithError(err).Warn("Invalid room unregistration request")
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
@@ -311,9 +495,12 @@ func (rs *Resource) unregisterStudentFromRoom(w http.ResponseWriter, r *http.Req
 		"in_house": false,
 	}
 	if err := rs.Store.UpdateStudentLocation(ctx, data.StudentID, locations); err != nil {
+		logger.WithError(err).Error("Failed to update student location")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
 	}
+
+	logger.WithField("student_id", data.StudentID).Info("Student unregistered from room")
 
 	// Return success message
 	render.JSON(w, r, map[string]interface{}{
@@ -322,11 +509,14 @@ func (rs *Resource) unregisterStudentFromRoom(w http.ResponseWriter, r *http.Req
 	})
 }
 
-// getStudentVisits returns visits for a student
-func (rs *Resource) getStudentVisits(w http.ResponseWriter, r *http.Request) {
+// getRoomVisits returns visits for a room
+func (rs *Resource) getRoomVisits(w http.ResponseWriter, r *http.Request) {
+	logger := logging.GetLogEntry(r)
+
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
+		logger.WithError(err).Warn("Invalid room ID format")
 		render.Render(w, r, ErrInvalidRequest(errors.New("invalid ID format")))
 		return
 	}
@@ -339,11 +529,20 @@ func (rs *Resource) getStudentVisits(w http.ResponseWriter, r *http.Request) {
 		parsedDate, err := time.Parse("2006-01-02", dateStr)
 		if err == nil {
 			date = &parsedDate
+		} else {
+			logger.WithError(err).Warn("Invalid date format")
 		}
 	}
 
-	visits, err := rs.Store.GetStudentVisits(ctx, id, date)
+	// Parse active parameter
+	active := false
+	if activeStr := r.URL.Query().Get("active"); activeStr == "true" {
+		active = true
+	}
+
+	visits, err := rs.Store.GetRoomVisits(ctx, id, date, active)
 	if err != nil {
+		logger.WithError(err).Error("Failed to get room visits")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
 	}
@@ -353,9 +552,12 @@ func (rs *Resource) getStudentVisits(w http.ResponseWriter, r *http.Request) {
 
 // getCombinedGroupVisits returns visits for a combined group
 func (rs *Resource) getCombinedGroupVisits(w http.ResponseWriter, r *http.Request) {
+	logger := logging.GetLogEntry(r)
+
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
+		logger.WithError(err).Warn("Invalid combined group ID format")
 		render.Render(w, r, ErrInvalidRequest(errors.New("invalid ID format")))
 		return
 	}
@@ -368,6 +570,8 @@ func (rs *Resource) getCombinedGroupVisits(w http.ResponseWriter, r *http.Reques
 		parsedDate, err := time.Parse("2006-01-02", dateStr)
 		if err == nil {
 			date = &parsedDate
+		} else {
+			logger.WithError(err).Warn("Invalid date format")
 		}
 	}
 
@@ -379,6 +583,7 @@ func (rs *Resource) getCombinedGroupVisits(w http.ResponseWriter, r *http.Reques
 
 	visits, err := rs.Store.GetCombinedGroupVisits(ctx, id, date, active)
 	if err != nil {
+		logger.WithError(err).Error("Failed to get combined group visits")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
 	}
@@ -388,8 +593,11 @@ func (rs *Resource) getCombinedGroupVisits(w http.ResponseWriter, r *http.Reques
 
 // giveFeedback records feedback from a student
 func (rs *Resource) giveFeedback(w http.ResponseWriter, r *http.Request) {
+	logger := logging.GetLogEntry(r)
+
 	data := &FeedbackRequest{}
 	if err := render.Bind(r, data); err != nil {
+		logger.WithError(err).Warn("Invalid feedback request")
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
@@ -397,9 +605,16 @@ func (rs *Resource) giveFeedback(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	feedback, err := rs.Store.CreateFeedback(ctx, data.StudentID, data.FeedbackValue, data.MensaFeedback)
 	if err != nil {
+		logger.WithError(err).Error("Failed to create feedback")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
 	}
+
+	logger.WithFields(logrus.Fields{
+		"student_id": data.StudentID,
+		"feedback_id": feedback.ID,
+		"mensa_feedback": data.MensaFeedback,
+	}).Info("Student feedback recorded successfully")
 
 	render.Status(r, http.StatusCreated)
 	render.JSON(w, r, feedback)
@@ -407,17 +622,26 @@ func (rs *Resource) giveFeedback(w http.ResponseWriter, r *http.Request) {
 
 // updateStudentLocation updates a student's location flags
 func (rs *Resource) updateStudentLocation(w http.ResponseWriter, r *http.Request) {
+	logger := logging.GetLogEntry(r)
+
 	data := &LocationUpdateRequest{}
 	if err := render.Bind(r, data); err != nil {
+		logger.WithError(err).Warn("Invalid location update request")
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
 
 	ctx := r.Context()
 	if err := rs.Store.UpdateStudentLocation(ctx, data.StudentID, data.Locations); err != nil {
+		logger.WithError(err).Error("Failed to update student location")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
 	}
+
+	logger.WithFields(logrus.Fields{
+		"student_id": data.StudentID,
+		"locations": data.Locations,
+	}).Info("Student location updated successfully")
 
 	// Return success message
 	render.JSON(w, r, map[string]interface{}{
@@ -433,7 +657,10 @@ type StudentRequest struct {
 
 // Bind preprocesses a StudentRequest
 func (sr *StudentRequest) Bind(r *http.Request) error {
-	// Validation logic can be added here
+	// Simple validation - more detailed validation in ValidateStudent
+	if sr.Student == nil {
+		return errors.New("missing student data")
+	}
 	return nil
 }
 
