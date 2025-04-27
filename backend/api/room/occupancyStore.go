@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/models"
 	"github.com/uptrace/bun"
 )
@@ -21,15 +22,17 @@ type OccupancyStore interface {
 }
 
 type occupancyStore struct {
-	db    *bun.DB
-	rooms *bun.DB // Reference to the room store for room operations
+	db           *bun.DB
+	rooms        *bun.DB // Reference to the room store for room operations
+	historyStore *database.RoomHistoryStore
 }
 
 // NewOccupancyStore returns a new OccupancyStore implementation
 func NewOccupancyStore(db *bun.DB) OccupancyStore {
 	return &occupancyStore{
-		db:    db,
-		rooms: db,
+		db:           db,
+		rooms:        db,
+		historyStore: database.NewRoomHistoryStore(db),
 	}
 }
 
@@ -402,9 +405,16 @@ func (s *occupancyStore) UnregisterTablet(ctx context.Context, roomID int64, dev
 		return err
 	}
 
-	// Commit the transaction
+	// Create a history record (this is done outside the transaction)
 	if err := tx.Commit(); err != nil {
 		return err
+	}
+
+	// Create room history record from the occupancy
+	err = s.historyStore.CreateRoomHistoryFromOccupancy(ctx, occupancy)
+	if err != nil {
+		// Log but don't fail if history creation fails
+		fmt.Printf("Warning: Failed to create room history record: %v\n", err)
 	}
 
 	return nil

@@ -36,6 +36,11 @@ type RoomStore interface {
 	GetCombinedGroupForRoom(ctx context.Context, roomID int64) (*models2.CombinedGroup, error)
 	FindActiveCombinedGroups(ctx context.Context) ([]models2.CombinedGroup, error)
 	DeactivateCombinedGroup(ctx context.Context, id int64) error
+
+	// Room history operations
+	GetRoomHistoryByRoom(ctx context.Context, roomID int64) ([]models2.RoomHistory, error)
+	GetRoomHistoryByDateRange(ctx context.Context, startDate, endDate time.Time) ([]models2.RoomHistory, error)
+	GetRoomHistoryBySupervisor(ctx context.Context, supervisorID int64) ([]models2.RoomHistory, error)
 }
 
 type roomStore struct {
@@ -43,6 +48,7 @@ type roomStore struct {
 	baseStore      *database.RoomStore
 	occupancyStore OccupancyStore
 	mergeStore     MergeStore
+	historyStore   HistoryStore
 }
 
 // NewRoomStore returns a new RoomStore implementation
@@ -52,6 +58,7 @@ func NewRoomStore(db *bun.DB) RoomStore {
 		baseStore:      database.NewRoomStore(db),
 		occupancyStore: NewOccupancyStore(db),
 		mergeStore:     NewMergeStore(db),
+		historyStore:   NewHistoryStore(db),
 	}
 }
 
@@ -153,4 +160,19 @@ func (s *roomStore) FindActiveCombinedGroups(ctx context.Context) ([]models2.Com
 // DeactivateCombinedGroup deactivates a combined group
 func (s *roomStore) DeactivateCombinedGroup(ctx context.Context, id int64) error {
 	return s.mergeStore.DeactivateCombinedGroup(ctx, id)
+}
+
+// GetRoomHistoryByRoom retrieves room history records for a specific room
+func (s *roomStore) GetRoomHistoryByRoom(ctx context.Context, roomID int64) ([]models2.RoomHistory, error) {
+	return s.historyStore.GetRoomHistoryByRoom(ctx, roomID)
+}
+
+// GetRoomHistoryByDateRange retrieves room history records within a date range
+func (s *roomStore) GetRoomHistoryByDateRange(ctx context.Context, startDate, endDate time.Time) ([]models2.RoomHistory, error) {
+	return s.historyStore.GetRoomHistoryByDateRange(ctx, startDate, endDate)
+}
+
+// GetRoomHistoryBySupervisor retrieves room history records for a specific supervisor
+func (s *roomStore) GetRoomHistoryBySupervisor(ctx context.Context, supervisorID int64) ([]models2.RoomHistory, error) {
+	return s.historyStore.GetRoomHistoryBySupervisor(ctx, supervisorID)
 }

@@ -140,6 +140,21 @@ func (m *MockRoomStore) DeactivateCombinedGroup(ctx context.Context, id int64) e
 	return args.Error(0)
 }
 
+func (m *MockRoomStore) GetRoomHistoryByRoom(ctx context.Context, roomID int64) ([]models2.RoomHistory, error) {
+	args := m.Called(ctx, roomID)
+	return args.Get(0).([]models2.RoomHistory), args.Error(1)
+}
+
+func (m *MockRoomStore) GetRoomHistoryByDateRange(ctx context.Context, startDate, endDate time.Time) ([]models2.RoomHistory, error) {
+	args := m.Called(ctx, startDate, endDate)
+	return args.Get(0).([]models2.RoomHistory), args.Error(1)
+}
+
+func (m *MockRoomStore) GetRoomHistoryBySupervisor(ctx context.Context, supervisorID int64) ([]models2.RoomHistory, error) {
+	args := m.Called(ctx, supervisorID)
+	return args.Get(0).([]models2.RoomHistory), args.Error(1)
+}
+
 // setupAPI creates a new API with a mock store
 func setupAPI(t *testing.T) (*API, *MockRoomStore) {
 	mockStore := new(MockRoomStore)
