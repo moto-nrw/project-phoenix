@@ -52,6 +52,7 @@ type PedagogicalSpecialist struct {
 	UserID        int64       `json:"user_id" bun:"user_id,notnull,unique"`
 	IsPasswordOTP bool        `json:"is_password_otp" bun:"is_password_otp,notnull,default:true"`
 	CreatedAt     time.Time   `json:"created_at" bun:"created_at,notnull"`
+	ModifiedAt    time.Time   `json:"updated_at" bun:"modified_at,notnull"`
 }
 
 // BeforeInsert hook executed before database insert operation.
