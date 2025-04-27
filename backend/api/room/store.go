@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/moto-nrw/project-phoenix/database"
 	models2 "github.com/moto-nrw/project-phoenix/models"
 	"time"
 
@@ -40,146 +41,66 @@ type RoomStore interface {
 }
 
 type roomStore struct {
-	db *bun.DB
+	db        *bun.DB
+	baseStore *database.RoomStore
 }
 
 // NewRoomStore returns a new RoomStore implementation
 func NewRoomStore(db *bun.DB) RoomStore {
-	return &roomStore{db: db}
+	return &roomStore{
+		db:        db,
+		baseStore: database.NewRoomStore(db),
+	}
 }
 
 // GetRooms returns all rooms
 func (s *roomStore) GetRooms(ctx context.Context) ([]models2.Room, error) {
-	var rooms []models2.Room
-	err := s.db.NewSelect().
-		Model(&rooms).
-		Order("room_name ASC").
-		Scan(ctx)
-
-	return rooms, err
+	return s.baseStore.GetRooms(ctx)
 }
 
 // GetRoomsByCategory returns rooms filtered by category
 func (s *roomStore) GetRoomsByCategory(ctx context.Context, category string) ([]models2.Room, error) {
-	var rooms []models2.Room
-	err := s.db.NewSelect().
-		Model(&rooms).
-		Where("category = ?", category).
-		Order("room_name ASC").
-		Scan(ctx)
-
-	return rooms, err
+	return s.baseStore.GetRoomsByCategory(ctx, category)
 }
 
 // GetRoomsByBuilding returns rooms filtered by building
 func (s *roomStore) GetRoomsByBuilding(ctx context.Context, building string) ([]models2.Room, error) {
-	var rooms []models2.Room
-	err := s.db.NewSelect().
-		Model(&rooms).
-		Where("building = ?", building).
-		Order("room_name ASC").
-		Scan(ctx)
-
-	return rooms, err
+	return s.baseStore.GetRoomsByBuilding(ctx, building)
 }
 
 // GetRoomsByFloor returns rooms filtered by floor
 func (s *roomStore) GetRoomsByFloor(ctx context.Context, floor int) ([]models2.Room, error) {
-	var rooms []models2.Room
-	err := s.db.NewSelect().
-		Model(&rooms).
-		Where("floor = ?", floor).
-		Order("room_name ASC").
-		Scan(ctx)
-
-	return rooms, err
+	return s.baseStore.GetRoomsByFloor(ctx, floor)
 }
 
 // GetRoomsByOccupied returns rooms filtered by occupancy status
 func (s *roomStore) GetRoomsByOccupied(ctx context.Context, occupied bool) ([]models2.Room, error) {
-	var rooms []models2.Room
-	query := s.db.NewSelect().Model(&rooms)
-
-	if occupied {
-		// Join with RoomOccupancy to find occupied rooms
-		query = query.Join("JOIN room_occupancies ro ON rooms.id = ro.room_id")
-	} else {
-		// Find rooms that don't have any occupancy entries
-		query = query.Where("id NOT IN (SELECT room_id FROM room_occupancies)")
-	}
-
-	err := query.Order("room_name ASC").Scan(ctx)
-	return rooms, err
+	return s.baseStore.GetRoomsByOccupied(ctx, occupied)
 }
 
 // GetRoomByID returns a room by ID
 func (s *roomStore) GetRoomByID(ctx context.Context, id int64) (*models2.Room, error) {
-	room := new(models2.Room)
-	err := s.db.NewSelect().
-		Model(room).
-		Where("id = ?", id).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return room, nil
+	return s.baseStore.GetRoomByID(ctx, id)
 }
 
 // CreateRoom creates a new room
 func (s *roomStore) CreateRoom(ctx context.Context, room *models2.Room) error {
-	room.CreatedAt = time.Now()
-	room.ModifiedAt = time.Now()
-
-	_, err := s.db.NewInsert().
-		Model(room).
-		Exec(ctx)
-
-	return err
+	return s.baseStore.CreateRoom(ctx, room)
 }
 
 // UpdateRoom updates an existing room
 func (s *roomStore) UpdateRoom(ctx context.Context, room *models2.Room) error {
-	room.ModifiedAt = time.Now()
-
-	_, err := s.db.NewUpdate().
-		Model(room).
-		WherePK().
-		Exec(ctx)
-
-	return err
+	return s.baseStore.UpdateRoom(ctx, room)
 }
 
 // DeleteRoom deletes a room by ID
 func (s *roomStore) DeleteRoom(ctx context.Context, id int64) error {
-	_, err := s.db.NewDelete().
-		Model((*models2.Room)(nil)).
-		Where("id = ?", id).
-		Exec(ctx)
-
-	return err
+	return s.baseStore.DeleteRoom(ctx, id)
 }
 
 // GetRoomsGroupedByCategory returns rooms grouped by category
 func (s *roomStore) GetRoomsGroupedByCategory(ctx context.Context) (map[string][]models2.Room, error) {
-	var rooms []models2.Room
-	err := s.db.NewSelect().
-		Model(&rooms).
-		Order("category ASC, room_name ASC").
-		Scan(ctx)
-
-	if err != nil {
-		return nil, err
-	}
-
-	// Group rooms by category
-	groupedRooms := make(map[string][]models2.Room)
-	for _, room := range rooms {
-		groupedRooms[room.Category] = append(groupedRooms[room.Category], room)
-	}
-
-	return groupedRooms, nil
+	return s.baseStore.GetRoomsGroupedByCategory(ctx)
 }
 
 // GetAllRoomOccupancies returns all room occupancies with details
@@ -325,11 +246,7 @@ func (s *roomStore) GetRoomOccupancyByID(ctx context.Context, id int64) (*RoomOc
 // GetCurrentRoomOccupancy returns current occupancy for a room
 func (s *roomStore) GetCurrentRoomOccupancy(ctx context.Context, roomID int64) (*RoomOccupancyDetail, error) {
 	// 1. Query Room to make sure it exists
-	room := new(models2.Room)
-	err := s.db.NewSelect().
-		Model(room).
-		Where("id = ?", roomID).
-		Scan(ctx)
+	room, err := s.baseStore.GetRoomByID(ctx, roomID)
 	if err != nil {
 		return nil, err
 	}
@@ -406,11 +323,7 @@ func (s *roomStore) RegisterTablet(ctx context.Context, roomID int64, req *Regis
 	defer tx.Rollback()
 
 	// 1. Check if room exists
-	room := new(models2.Room)
-	err = tx.NewSelect().
-		Model(room).
-		Where("id = ?", roomID).
-		Scan(ctx)
+	_, err = s.baseStore.GetRoomByID(ctx, roomID)
 	if err != nil {
 		return nil, err
 	}
@@ -587,23 +500,13 @@ func (s *roomStore) MergeRooms(ctx context.Context, sourceRoomID, targetRoomID i
 	defer tx.Rollback()
 
 	// Get source room
-	sourceRoom := new(models2.Room)
-	err = tx.NewSelect().
-		Model(sourceRoom).
-		Where("id = ?", sourceRoomID).
-		Scan(ctx)
-
+	sourceRoom, err := s.baseStore.GetRoomByID(ctx, sourceRoomID)
 	if err != nil {
 		return nil, fmt.Errorf("source room not found: %w", err)
 	}
 
 	// Get target room
-	targetRoom := new(models2.Room)
-	err = tx.NewSelect().
-		Model(targetRoom).
-		Where("id = ?", targetRoomID).
-		Scan(ctx)
-
+	targetRoom, err := s.baseStore.GetRoomByID(ctx, targetRoomID)
 	if err != nil {
 		return nil, fmt.Errorf("target room not found: %w", err)
 	}
