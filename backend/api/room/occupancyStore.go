@@ -15,7 +15,7 @@ type OccupancyStore interface {
 	GetAllRoomOccupancies(ctx context.Context) ([]RoomOccupancyDetail, error)
 	GetRoomOccupancyByID(ctx context.Context, id int64) (*RoomOccupancyDetail, error)
 	GetCurrentRoomOccupancy(ctx context.Context, roomID int64) (*RoomOccupancyDetail, error)
-	RegisterTablet(ctx context.Context, roomID int64, req *RegisterTabletRequest) (*RoomOccupancy, error)
+	RegisterTablet(ctx context.Context, roomID int64, req *RegisterTabletRequest) (*models.RoomOccupancy, error)
 	UnregisterTablet(ctx context.Context, roomID int64, deviceID string) error
 	AddSupervisorToRoomOccupancy(ctx context.Context, roomOccupancyID, supervisorID int64) error
 }
@@ -36,7 +36,7 @@ func NewOccupancyStore(db *bun.DB) OccupancyStore {
 // GetAllRoomOccupancies returns all room occupancies with details
 func (s *occupancyStore) GetAllRoomOccupancies(ctx context.Context) ([]RoomOccupancyDetail, error) {
 	// 1. Query all active RoomOccupancy entries
-	var occupancies []RoomOccupancy
+	var occupancies []models.RoomOccupancy
 	err := s.db.NewSelect().
 		Model(&occupancies).
 		Scan(ctx)
@@ -76,7 +76,7 @@ func (s *occupancyStore) GetAllRoomOccupancies(ctx context.Context) ([]RoomOccup
 		var supervisors []SupervisorInfo
 		err = s.db.NewSelect().
 			Table("room_occupancy_supervisors").
-			Column("specialist_id AS id").
+			Column("supervisor_id AS id").
 			Where("room_occupancy_id = ?", occupancy.ID).
 			Scan(ctx, &supervisors)
 		if err != nil {
@@ -110,7 +110,7 @@ func (s *occupancyStore) GetAllRoomOccupancies(ctx context.Context) ([]RoomOccup
 // GetRoomOccupancyByID returns room occupancy details by ID
 func (s *occupancyStore) GetRoomOccupancyByID(ctx context.Context, id int64) (*RoomOccupancyDetail, error) {
 	// 1. Query RoomOccupancy by ID
-	occupancy := new(RoomOccupancy)
+	occupancy := new(models.RoomOccupancy)
 	err := s.db.NewSelect().
 		Model(occupancy).
 		Where("id = ?", id).
@@ -143,7 +143,7 @@ func (s *occupancyStore) GetRoomOccupancyByID(ctx context.Context, id int64) (*R
 	var supervisors []SupervisorInfo
 	err = s.db.NewSelect().
 		Table("room_occupancy_supervisors").
-		Column("specialist_id AS id").
+		Column("supervisor_id AS id").
 		Where("room_occupancy_id = ?", occupancy.ID).
 		Scan(ctx, &supervisors)
 	if err != nil {
@@ -186,7 +186,7 @@ func (s *occupancyStore) GetCurrentRoomOccupancy(ctx context.Context, roomID int
 	}
 
 	// 2. Query RoomOccupancy by roomID
-	occupancy := new(RoomOccupancy)
+	occupancy := new(models.RoomOccupancy)
 	err = s.db.NewSelect().
 		Model(occupancy).
 		Where("room_id = ?", roomID).
@@ -214,7 +214,7 @@ func (s *occupancyStore) GetCurrentRoomOccupancy(ctx context.Context, roomID int
 	var supervisors []SupervisorInfo
 	err = s.db.NewSelect().
 		Table("room_occupancy_supervisors").
-		Column("specialist_id AS id").
+		Column("supervisor_id AS id").
 		Where("room_occupancy_id = ?", occupancy.ID).
 		Scan(ctx, &supervisors)
 	if err != nil {
@@ -248,7 +248,7 @@ func (s *occupancyStore) GetCurrentRoomOccupancy(ctx context.Context, roomID int
 }
 
 // RegisterTablet registers a tablet to a room
-func (s *occupancyStore) RegisterTablet(ctx context.Context, roomID int64, req *RegisterTabletRequest) (*RoomOccupancy, error) {
+func (s *occupancyStore) RegisterTablet(ctx context.Context, roomID int64, req *RegisterTabletRequest) (*models.RoomOccupancy, error) {
 	// Start a transaction
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -267,7 +267,7 @@ func (s *occupancyStore) RegisterTablet(ctx context.Context, roomID int64, req *
 	}
 
 	// 2. Check if tablet is already registered
-	var existingOccupancy RoomOccupancy
+	var existingOccupancy models.RoomOccupancy
 	err = tx.NewSelect().
 		Model(&existingOccupancy).
 		Where("device_id = ?", req.DeviceID).
@@ -290,31 +290,27 @@ func (s *occupancyStore) RegisterTablet(ctx context.Context, roomID int64, req *
 	}
 
 	// 4. Create a new AG if requested (placeholder for now)
-	var agID int64
+	var agID *int64
 	if req.NewAg != nil {
 		// AG creation logic would go here
 		// For now, we'll just use the provided AgID if any
 		if req.AgID != nil {
-			agID = *req.AgID
+			agID = req.AgID
 		}
 	} else if req.AgID != nil {
-		agID = *req.AgID
+		agID = req.AgID
 	}
 
 	// 5. Create RoomOccupancy entry
-	occupancy := &RoomOccupancy{
+	now := time.Now()
+	occupancy := &models.RoomOccupancy{
 		DeviceID:   req.DeviceID,
 		RoomID:     roomID,
 		TimespanID: timespan.ID,
-		CreatedAt:  time.Now(),
-	}
-
-	if req.GroupID != nil {
-		occupancy.GroupID = *req.GroupID
-	}
-
-	if agID != 0 {
-		occupancy.AgID = agID
+		CreatedAt:  now,
+		ModifiedAt: now,
+		AgID:       agID,
+		GroupID:    req.GroupID,
 	}
 
 	_, err = tx.NewInsert().
@@ -326,9 +322,9 @@ func (s *occupancyStore) RegisterTablet(ctx context.Context, roomID int64, req *
 
 	// 6. Add supervisors to RoomOccupancySupervisor table
 	for _, supervisorID := range req.Supervisors {
-		supervisor := &RoomOccupancySupervisor{
+		supervisor := &models.RoomOccupancySupervisor{
 			RoomOccupancyID: occupancy.ID,
-			SpecialistID:    supervisorID,
+			SupervisorID:    supervisorID,
 			CreatedAt:       time.Now(),
 		}
 		_, err = tx.NewInsert().
@@ -357,7 +353,7 @@ func (s *occupancyStore) UnregisterTablet(ctx context.Context, roomID int64, dev
 	defer tx.Rollback()
 
 	// 1. Find RoomOccupancy by roomID and deviceID
-	occupancy := new(RoomOccupancy)
+	occupancy := new(models.RoomOccupancy)
 	err = tx.NewSelect().
 		Model(occupancy).
 		Where("room_id = ? AND device_id = ?", roomID, deviceID).
@@ -390,7 +386,7 @@ func (s *occupancyStore) UnregisterTablet(ctx context.Context, roomID int64, dev
 
 	// 2. Delete related RoomOccupancySupervisor entries
 	_, err = tx.NewDelete().
-		Model((*RoomOccupancySupervisor)(nil)).
+		Model((*models.RoomOccupancySupervisor)(nil)).
 		Where("room_occupancy_id = ?", occupancy.ID).
 		Exec(ctx)
 	if err != nil {
@@ -416,15 +412,17 @@ func (s *occupancyStore) UnregisterTablet(ctx context.Context, roomID int64, dev
 
 // AddSupervisorToRoomOccupancy adds a supervisor to a room occupancy
 func (s *occupancyStore) AddSupervisorToRoomOccupancy(ctx context.Context, roomOccupancyID, supervisorID int64) error {
-	supervisor := &RoomOccupancySupervisor{
-		RoomOccupancyID: roomOccupancyID,
-		SpecialistID:    supervisorID,
-		CreatedAt:       time.Now(),
+	// First, find the occupancy
+	occupancy := &models.RoomOccupancy{ID: roomOccupancyID}
+	err := s.db.NewSelect().
+		Model(occupancy).
+		WherePK().
+		Scan(ctx)
+
+	if err != nil {
+		return fmt.Errorf("room occupancy not found: %w", err)
 	}
 
-	_, err := s.db.NewInsert().
-		Model(supervisor).
-		Exec(ctx)
-
-	return err
+	// Use the enhanced model method to add a supervisor
+	return occupancy.AddSupervisor(s.db, supervisorID)
 }

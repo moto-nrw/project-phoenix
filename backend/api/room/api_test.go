@@ -96,12 +96,12 @@ func (m *MockRoomStore) GetCurrentRoomOccupancy(ctx context.Context, roomID int6
 	return args.Get(0).(*RoomOccupancyDetail), args.Error(1)
 }
 
-func (m *MockRoomStore) RegisterTablet(ctx context.Context, roomID int64, req *RegisterTabletRequest) (*RoomOccupancy, error) {
+func (m *MockRoomStore) RegisterTablet(ctx context.Context, roomID int64, req *RegisterTabletRequest) (*models2.RoomOccupancy, error) {
 	args := m.Called(ctx, roomID, req)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*RoomOccupancy), args.Error(1)
+	return args.Get(0).(*models2.RoomOccupancy), args.Error(1)
 }
 
 func (m *MockRoomStore) UnregisterTablet(ctx context.Context, roomID int64, deviceID string) error {

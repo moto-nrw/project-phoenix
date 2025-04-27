@@ -27,7 +27,7 @@ type RoomStore interface {
 	GetAllRoomOccupancies(ctx context.Context) ([]RoomOccupancyDetail, error)
 	GetRoomOccupancyByID(ctx context.Context, id int64) (*RoomOccupancyDetail, error)
 	GetCurrentRoomOccupancy(ctx context.Context, roomID int64) (*RoomOccupancyDetail, error)
-	RegisterTablet(ctx context.Context, roomID int64, req *RegisterTabletRequest) (*RoomOccupancy, error)
+	RegisterTablet(ctx context.Context, roomID int64, req *RegisterTabletRequest) (*models2.RoomOccupancy, error)
 	UnregisterTablet(ctx context.Context, roomID int64, deviceID string) error
 	AddSupervisorToRoomOccupancy(ctx context.Context, roomOccupancyID, supervisorID int64) error
 
@@ -121,7 +121,7 @@ func (s *roomStore) GetCurrentRoomOccupancy(ctx context.Context, roomID int64) (
 }
 
 // RegisterTablet registers a tablet to a room
-func (s *roomStore) RegisterTablet(ctx context.Context, roomID int64, req *RegisterTabletRequest) (*RoomOccupancy, error) {
+func (s *roomStore) RegisterTablet(ctx context.Context, roomID int64, req *RegisterTabletRequest) (*models2.RoomOccupancy, error) {
 	return s.occupancyStore.RegisterTablet(ctx, roomID, req)
 }
 
