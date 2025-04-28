@@ -3,7 +3,11 @@ package jwt
 import (
 	"crypto/rand"
 	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/go-chi/jwtauth/v5"
@@ -20,8 +24,50 @@ type TokenAuth struct {
 // NewTokenAuth configures and returns a JWT authentication instance.
 func NewTokenAuth() (*TokenAuth, error) {
 	secret := viper.GetString("auth_jwt_secret")
+
+	// Handle "random" secret setting with persistence
 	if secret == "random" {
-		secret = randStringBytes(32)
+		// Check environment - don't allow random in production
+		env := viper.GetString("app_env")
+		if env == "production" {
+			return nil, errors.New("JWT secret cannot be 'random' in production")
+		}
+
+		// For development, use a persistent secret file
+		baseDir := viper.GetString("app_base_dir")
+		if baseDir == "" {
+			// Default to current directory if not set
+			var err error
+			baseDir, err = os.Getwd()
+			if err != nil {
+				baseDir = "."
+			}
+		}
+
+		// Store secret in a file within the project
+		secretFile := filepath.Join(baseDir, ".jwt-dev-secret.key")
+		secretBytes, err := os.ReadFile(secretFile)
+
+		if err == nil && len(secretBytes) >= 32 {
+			// Use existing secret
+			secret = string(secretBytes)
+			log.Printf("Using persistent JWT secret from %s", secretFile)
+		} else {
+			// Generate new secret
+			secret = randStringBytes(32)
+			log.Printf("Generated new JWT secret and saving to %s", secretFile)
+
+			// Save for future use
+			err = os.WriteFile(secretFile, []byte(secret), 0600)
+			if err != nil {
+				log.Printf("Warning: Could not persist JWT secret: %v", err)
+			}
+		}
+	}
+
+	// Validate secret length/strength
+	if len(secret) < 32 {
+		log.Printf("Warning: JWT secret is too short (%d chars). Recommend at least 32 chars.", len(secret))
 	}
 
 	a := &TokenAuth{

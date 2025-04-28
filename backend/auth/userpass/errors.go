@@ -103,6 +103,7 @@ var ErrInternalServerError = &ErrorResponse{
 var (
 	ErrInvalidPassword     = errors.New("invalid password")
 	ErrEmailAlreadyExists  = errors.New("email already exists")
+	ErrUsernameAlreadyExists = errors.New("username already exists")
 	ErrPasswordRequired    = errors.New("password is required")
 	ErrPasswordTooShort    = errors.New("password is too short (minimum 8 characters)")
 	ErrPasswordNoUpper     = errors.New("password must contain at least one uppercase letter")

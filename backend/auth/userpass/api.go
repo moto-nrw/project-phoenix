@@ -25,6 +25,7 @@ import (
 type AuthStorer interface {
 	GetAccount(id int) (*Account, error)
 	GetAccountByEmail(email string) (*Account, error)
+	GetAccountByUsername(username string) (*Account, error)
 	CreateAccount(a *Account) error
 	UpdateAccount(a *Account) error
 	UpdateAccountPassword(id int, passwordHash string) error
@@ -180,6 +181,7 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 
 type registerRequest struct {
 	Email           string `json:"email"`
+	Username        string `json:"username"`
 	Name            string `json:"name"`
 	Password        string `json:"password"`
 	ConfirmPassword string `json:"confirm_password"`
@@ -189,9 +191,11 @@ func (body *registerRequest) Bind(r *http.Request) error {
 	body.Email = strings.TrimSpace(body.Email)
 	body.Email = strings.ToLower(body.Email)
 	body.Name = strings.TrimSpace(body.Name)
+	body.Username = strings.TrimSpace(body.Username)
 
 	return validation.ValidateStruct(body,
 		validation.Field(&body.Email, validation.Required, is.Email, is.LowerCase),
+		validation.Field(&body.Username, validation.Required, is.Alphanumeric, validation.Length(3, 30)),
 		validation.Field(&body.Name, validation.Required, is.ASCII),
 		validation.Field(&body.Password, validation.Required, validation.By(validatePassword)),
 		validation.Field(&body.ConfirmPassword, validation.Required, validation.By(func(value interface{}) error {
@@ -231,9 +235,10 @@ func validatePassword(value interface{}) error {
 }
 
 type registerResponse struct {
-	ID    int    `json:"id"`
-	Email string `json:"email"`
-	Name  string `json:"name"`
+	ID       int    `json:"id"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	Name     string `json:"name"`
 }
 
 func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
@@ -251,6 +256,14 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 		render.Render(w, r, ErrInvalidRegistration(ErrEmailAlreadyExists))
 		return
 	}
+	
+	// Check if username already exists
+	_, err = rs.Store.GetAccountByUsername(body.Username)
+	if err == nil {
+		log(r).WithField("username", body.Username).Warn("Username already exists")
+		render.Render(w, r, ErrInvalidRegistration(ErrUsernameAlreadyExists))
+		return
+	}
 
 	// Hash the password
 	passwordHash, err := HashPassword(body.Password, DefaultParams())
@@ -263,6 +276,7 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 	// Create the new account
 	account := &Account{
 		Email:        body.Email,
+		Username:     body.Username,
 		Name:         body.Name,
 		Active:       true,
 		Roles:        []string{"user"},

@@ -22,6 +22,33 @@ services:
       #EMAIL_SMTP_PASSWORD:
       ENABLE_CORS: "true"
 
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3001:3000"
+    environment:
+      # API URL for both client and server-side calls
+      NEXT_PUBLIC_API_URL: "http://server:3000"
+      # NextAuth configuration
+      NEXTAUTH_URL: "http://localhost:3001"
+      NEXTAUTH_SECRET: "supersecretkey123"
+      # Skip env validation in Docker
+      SKIP_ENV_VALIDATION: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    depends_on:
+      - server
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped

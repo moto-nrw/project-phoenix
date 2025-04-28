@@ -37,7 +37,7 @@ func (s *AccountStore) Get(id int) (*userpass.Account, error) {
 func (s *AccountStore) Update(a *userpass.Account) error {
 	_, err := s.db.NewUpdate().
 		Model(a).
-		Column("email", "name").
+		Column("email", "username", "name").
 		WherePK().
 		Exec(context.Background())
 	return err

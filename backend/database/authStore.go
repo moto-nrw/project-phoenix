@@ -36,8 +36,19 @@ func (s *AuthStore) GetAccountByEmail(e string) (*userpass.Account, error) {
 	a := &userpass.Account{Email: e}
 	err := s.db.NewSelect().
 		Model(a).
-		Column("id", "active", "email", "name", "password_hash").
+		Column("id", "active", "email", "username", "name", "password_hash").
 		Where("email = ?", e).
+		Scan(context.Background())
+	return a, err
+}
+
+// GetAccountByUsername returns an account by username.
+func (s *AuthStore) GetAccountByUsername(u string) (*userpass.Account, error) {
+	a := &userpass.Account{Username: u}
+	err := s.db.NewSelect().
+		Model(a).
+		Column("id", "active", "email", "username", "name", "password_hash").
+		Where("username = ?", u).
 		Scan(context.Background())
 	return a, err
 }

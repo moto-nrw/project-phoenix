@@ -366,3 +366,5 @@ cython_debug/
 **/project-phoenix
 backend/project-phoenix
 /CLAUDE.md
+/package.json
+/package-lock.json
