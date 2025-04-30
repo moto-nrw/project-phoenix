@@ -16,7 +16,9 @@ export async function GET(
     );
   }
   
-  const studentId = params.id;
+  // Make sure params is fully resolved
+  const resolvedParams = params instanceof Promise ? await params : params;
+  const studentId = resolvedParams.id;
   
   try {
     // Check if user has proper roles
@@ -71,7 +73,9 @@ export async function PUT(
     );
   }
   
-  const studentId = params.id;
+  // Make sure params is fully resolved
+  const resolvedParams = params instanceof Promise ? await params : params;
+  const studentId = resolvedParams.id;
   
   try {
     // Parse request body
@@ -124,7 +128,9 @@ export async function DELETE(
     );
   }
   
-  const studentId = params.id;
+  // Make sure params is fully resolved
+  const resolvedParams = params instanceof Promise ? await params : params;
+  const studentId = resolvedParams.id;
   
   try {
     // Forward the request to the backend with token
