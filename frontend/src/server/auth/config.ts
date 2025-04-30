@@ -14,16 +14,15 @@ declare module "next-auth" {
     user: {
       id: string;
       token?: string;
-      // ...other properties
-      // role: UserRole;
+      refreshToken?: string;
+      roles?: string[];
     } & DefaultSession["user"];
   }
 
   interface User {
     token?: string;
     refreshToken?: string;
-    // ...other properties
-    // role: UserRole;
+    roles?: string[];
   }
 }
 
@@ -86,8 +85,24 @@ export const authConfig = {
               console.error("Invalid token part");
               return null;
             }
-            const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString()) as { id: string | number; sub?: string; username?: string };
+            const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString()) as { 
+              id: string | number; 
+              sub?: string; 
+              username?: string;
+              roles?: string[];
+            };
             console.log("Token payload:", payload);
+            
+            // Extract roles directly from the token payload - this is the correct way
+            // The backend includes roles in the JWT token already
+            let roles: string[] = [];
+            
+            if (payload.roles && Array.isArray(payload.roles)) {
+              roles = payload.roles;
+              console.log("Found roles in token:", roles);
+            } else {
+              console.warn("No roles found in token, this will cause authorization failures");
+            }
             
             // Using type assertions for credentials to satisfy TypeScript
             return {
@@ -95,7 +110,8 @@ export const authConfig = {
               name: payload.sub ?? payload.username ?? (credentials.email as string),
               email: credentials.email as string,
               token: responseData.access_token,
-              refreshToken: responseData.refresh_token
+              refreshToken: responseData.refresh_token,
+              roles: roles
             };
           } catch (e) {
             console.error("Error parsing JWT:", e);
@@ -125,6 +141,7 @@ export const authConfig = {
         token.email = user.email;
         token.token = user.token;
         token.refreshToken = user.refreshToken;
+        token.roles = user.roles;
       }
       return token;
     },
@@ -134,7 +151,9 @@ export const authConfig = {
         user: {
           ...session.user,
           id: token.id as string,
-          token: token.token as string
+          token: token.token as string,
+          refreshToken: token.refreshToken as string,
+          roles: token.roles as string[]
         }
       };
     },

@@ -26,6 +26,9 @@ func DBConn() (*bun.DB, error) {
 		return nil, err
 	}
 
+	// Register all models to ensure proper relationship handling
+	RegisterModels(db)
+
 	if viper.GetBool("db_debug") {
 		db.AddQueryHook(bundebug.NewQueryHook(bundebug.WithVerbose(true)))
 	}

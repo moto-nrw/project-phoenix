@@ -113,13 +113,28 @@ func (a *TokenAuth) CreateJWT(c AppClaims) (string, error) {
 
 func ParseStructToMap(c any) (map[string]any, error) {
 	var claims map[string]any
-	inrec, _ := json.Marshal(c)
-	err := json.Unmarshal(inrec, &claims)
+	inrec, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	
+	err = json.Unmarshal(inrec, &claims)
 	if err != nil {
 		return nil, err
 	}
 
-	return claims, err
+	// Special handling for embedded structs like CommonClaims
+	// This ensures all fields from embedded structs are properly included
+	if appClaims, ok := c.(AppClaims); ok {
+		// Make sure roles is explicitly set
+		claims["roles"] = appClaims.Roles
+		
+		// Set common claims manually to ensure they're included
+		claims["exp"] = appClaims.ExpiresAt
+		claims["iat"] = appClaims.IssuedAt
+	}
+
+	return claims, nil
 }
 
 // CreateRefreshJWT returns a refresh token for provided token Claims.
