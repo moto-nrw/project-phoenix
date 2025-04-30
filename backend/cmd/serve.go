@@ -26,10 +26,10 @@ func init() {
 	RootCmd.AddCommand(serveCmd)
 
 	// Here you will define your flags and configuration settings.
-	viper.SetDefault("port", "3000")
+	viper.SetDefault("port", "8080")
 	viper.SetDefault("log_level", "debug")
 
-	viper.SetDefault("login_url", "http://localhost:3000/login")
+	viper.SetDefault("login_url", "http://localhost:8080/login")
 	viper.SetDefault("auth_jwt_secret", "random")
 	viper.SetDefault("auth_jwt_expiry", "15m")
 	viper.SetDefault("auth_jwt_refresh_expiry", "1h")

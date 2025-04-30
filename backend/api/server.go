@@ -27,7 +27,7 @@ func NewServer() (*Server, error) {
 	var addr string
 	port := viper.GetString("port")
 
-	// allow port to be set as localhost:3000 in env during development to avoid "accept incoming network connection" request on restarts
+	// allow port to be set as localhost:8080 in env during development to avoid "accept incoming network connection" request on restarts
 	if strings.Contains(port, ":") {
 		addr = port
 	} else {
