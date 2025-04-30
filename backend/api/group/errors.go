@@ -69,3 +69,23 @@ var ErrForbidden = &ErrResponse{
 	HTTPStatusCode: http.StatusForbidden,
 	StatusText:     "Forbidden.",
 }
+
+// ErrConflict returns a 409 Conflict response.
+func ErrConflict(err error) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusConflict,
+		StatusText:     "Conflict.",
+		ErrorText:      err.Error(),
+	}
+}
+
+// ErrBadRequest returns a 400 Bad Request response.
+func ErrBadRequest(err error) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusBadRequest,
+		StatusText:     "Bad request.",
+		ErrorText:      err.Error(),
+	}
+}
