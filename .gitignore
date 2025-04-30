@@ -368,3 +368,4 @@ backend/project-phoenix
 /CLAUDE.md
 /package.json
 /package-lock.json
+.DS_Store

@@ -2,27 +2,9 @@ package room
 
 import (
 	"net/http"
-	"time"
 )
 
-// RoomOccupancy represents the current occupancy of a room
-type RoomOccupancy struct {
-	ID         int64     `json:"id" bun:"id,pk,autoincrement"`
-	DeviceID   string    `json:"device_id" bun:"device_id,notnull,unique"`
-	RoomID     int64     `json:"room_id" bun:"room_id,notnull"`
-	AgID       int64     `json:"ag,omitempty" bun:"ag_id"`
-	GroupID    int64     `json:"group,omitempty" bun:"group_id"`
-	TimespanID int64     `json:"timespan" bun:"timespan_id,notnull"`
-	CreatedAt  time.Time `json:"created_at" bun:"created_at,notnull"`
-}
-
-// RoomOccupancySupervisor represents the junction table between RoomOccupancy and Supervisors
-type RoomOccupancySupervisor struct {
-	ID              int64     `json:"id" bun:"id,pk,autoincrement"`
-	RoomOccupancyID int64     `json:"room_occupancy_id" bun:"room_occupancy_id,notnull"`
-	SpecialistID    int64     `json:"specialist_id" bun:"specialist_id,notnull"`
-	CreatedAt       time.Time `json:"created_at" bun:"created_at,notnull"`
-}
+// Use the models.RoomOccupancy and models.RoomOccupancySupervisor directly
 
 // RegisterTabletRequest represents request to register a tablet to a room
 type RegisterTabletRequest struct {

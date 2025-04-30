@@ -96,12 +96,12 @@ func (m *MockRoomStore) GetCurrentRoomOccupancy(ctx context.Context, roomID int6
 	return args.Get(0).(*RoomOccupancyDetail), args.Error(1)
 }
 
-func (m *MockRoomStore) RegisterTablet(ctx context.Context, roomID int64, req *RegisterTabletRequest) (*RoomOccupancy, error) {
+func (m *MockRoomStore) RegisterTablet(ctx context.Context, roomID int64, req *RegisterTabletRequest) (*models2.RoomOccupancy, error) {
 	args := m.Called(ctx, roomID, req)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*RoomOccupancy), args.Error(1)
+	return args.Get(0).(*models2.RoomOccupancy), args.Error(1)
 }
 
 func (m *MockRoomStore) UnregisterTablet(ctx context.Context, roomID int64, deviceID string) error {
@@ -138,6 +138,21 @@ func (m *MockRoomStore) FindActiveCombinedGroups(ctx context.Context) ([]models2
 func (m *MockRoomStore) DeactivateCombinedGroup(ctx context.Context, id int64) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
+}
+
+func (m *MockRoomStore) GetRoomHistoryByRoom(ctx context.Context, roomID int64) ([]models2.RoomHistory, error) {
+	args := m.Called(ctx, roomID)
+	return args.Get(0).([]models2.RoomHistory), args.Error(1)
+}
+
+func (m *MockRoomStore) GetRoomHistoryByDateRange(ctx context.Context, startDate, endDate time.Time) ([]models2.RoomHistory, error) {
+	args := m.Called(ctx, startDate, endDate)
+	return args.Get(0).([]models2.RoomHistory), args.Error(1)
+}
+
+func (m *MockRoomStore) GetRoomHistoryBySupervisor(ctx context.Context, supervisorID int64) ([]models2.RoomHistory, error) {
+	args := m.Called(ctx, supervisorID)
+	return args.Get(0).([]models2.RoomHistory), args.Error(1)
 }
 
 // setupAPI creates a new API with a mock store
