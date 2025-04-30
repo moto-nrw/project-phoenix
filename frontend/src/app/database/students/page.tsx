@@ -7,19 +7,7 @@ import { DataListPage } from '@/components/dashboard';
 import type { Student } from '@/lib/api';
 import { studentService } from '@/lib/api';
 
-// Mock student data for development
-const mockStudents: Student[] = [
-  { id: '1', name: 'Anna Müller', school_class: '1A', in_house: true },
-  { id: '2', name: 'Max Schmidt', school_class: '1A', in_house: false },
-  { id: '3', name: 'Sophie Weber', school_class: '2B', in_house: true },
-  { id: '4', name: 'Lena Fischer', school_class: '2B', in_house: false },
-  { id: '5', name: 'Noah Meyer', school_class: '3C', in_house: true },
-  { id: '6', name: 'Emma Wagner', school_class: '3C', in_house: false },
-  { id: '7', name: 'Luis Becker', school_class: '4D', in_house: true },
-  { id: '8', name: 'Mia Hoffmann', school_class: '4D', in_house: false },
-  { id: '9', name: 'Finn Schneider', school_class: '5E', in_house: true },
-  { id: '10', name: 'Lara Schulz', school_class: '5E', in_house: false },
-];
+// Student list will be loaded from API
 
 export default function StudentsPage() {
   const router = useRouter();
@@ -51,24 +39,20 @@ export default function StudentsPage() {
         search: search ?? undefined
       };
       
-      // Try to fetch from the real API
       try {
+        // Fetch from the real API using our student service
         const data = await studentService.getStudents(filters);
+        
+        if (data.length === 0 && !search) {
+          console.log('No students returned from API, checking connection');
+        }
+        
         setStudents(data);
         setError(null);
       } catch (apiErr) {
-        console.warn('Using mock data due to API error:', apiErr);
-        
-        // In development, filter mock data to simulate API filtering
-        let filteredMockData = mockStudents;
-        if (search) {
-          filteredMockData = mockStudents.filter(student => 
-            student.name.toLowerCase().includes(search.toLowerCase())
-          );
-        }
-        
-        setStudents(filteredMockData);
-        setError(null);
+        console.error('API error when fetching students:', apiErr);
+        setError('Fehler beim Laden der Schülerdaten. Bitte versuchen Sie es später erneut.');
+        setStudents([]);
       }
     } catch (err) {
       console.error('Error fetching students:', err);
@@ -162,7 +146,7 @@ export default function StudentsPage() {
       newEntityLabel="Neuen Schüler erstellen"
       newEntityUrl="/database/students/new"
       data={students}
-      onSelectEntity={handleSelectStudent}
+      onSelectEntityAction={handleSelectStudent}
       renderEntity={renderStudent}
     />
   );

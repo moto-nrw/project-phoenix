@@ -77,7 +77,7 @@ func New(enableCORS bool) (*chi.Mux, error) {
 
 	// Create API resources
 	userAPI := user.NewResource(userStore, authStore)
-	studentAPI := student.NewResource(studentStore, authStore)
+	studentAPI := student.NewResource(studentStore, userStore, authStore)
 
 	// Connect RFID API with User, Student, and Timespan stores for tag tracking
 	rfidAPI.SetUserStore(userStore)

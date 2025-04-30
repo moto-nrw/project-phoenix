@@ -17,7 +17,7 @@ interface DataListPageProps<T extends BaseEntity> {
   newEntityLabel: string;   // Label for new entity button (e.g., "Neuen Schüler erstellen")
   newEntityUrl: string;     // URL to create a new entity
   data: T[];                // Array of entities to display
-  onSelectEntity: (entity: T) => void; // Callback when entity is selected
+  onSelectEntityAction: (entity: T) => void; // Callback when entity is selected
   renderEntity?: (entity: T) => React.ReactNode; // Optional custom renderer for entity
 }
 
@@ -28,7 +28,7 @@ export function DataListPage<T extends BaseEntity>({
   newEntityLabel,
   newEntityUrl,
   data,
-  onSelectEntity,
+  onSelectEntityAction,
   renderEntity,
 }: DataListPageProps<T>) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -109,7 +109,7 @@ export function DataListPage<T extends BaseEntity>({
               <div 
                 key={entity.id} 
                 className="group bg-white border border-gray-100 rounded-lg p-4 shadow-sm hover:shadow-md hover:border-blue-200 hover:translate-y-[-1px] transition-all duration-200 cursor-pointer flex items-center justify-between"
-                onClick={() => onSelectEntity(entity)}
+                onClick={() => onSelectEntityAction(entity)}
               >
                 {renderEntity ? renderEntity(entity) : defaultRenderEntity(entity)}
               </div>

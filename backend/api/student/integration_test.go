@@ -17,7 +17,7 @@ import (
 
 // TestStudentLifecycle tests the complete lifecycle of a student
 func TestStudentLifecycle(t *testing.T) {
-	rs, mockStudentStore, _ := setupTestAPI()
+	rs, mockStudentStore, mockUserStore, _ := setupTestAPI()
 
 	// 1. Setup test data
 	now := time.Now()
@@ -31,9 +31,9 @@ func TestStudentLifecycle(t *testing.T) {
 	}
 
 	group := &models2.Group{
-		ID:        1,
-		Name:      "Group 1",
-		CreatedAt: now,
+		ID:         1,
+		Name:       "Group 1",
+		CreatedAt:  now,
 		ModifiedAt: now,
 	}
 
@@ -68,7 +68,7 @@ func TestStudentLifecycle(t *testing.T) {
 	// Student after update
 	updatedStudent := &models2.Student{
 		ID:           1,
-		SchoolClass:  "3B", // Changed
+		SchoolClass:  "3B",  // Changed
 		Bus:          false, // Changed
 		CustomUserID: 1,
 		CustomUser:   customUser,
@@ -199,6 +199,10 @@ func TestStudentLifecycle(t *testing.T) {
 			ContactLG:    "updated@example.com",
 		}
 
+		// Set up expectations for user name update in case FirstName/SecondName is provided
+		mockUserStore.On("GetCustomUserByID", mock.Anything, int64(1)).Return(customUser, nil).Maybe()
+		mockUserStore.On("UpdateCustomUser", mock.Anything, mock.Anything).Return(nil).Maybe()
+
 		studentReq := &StudentRequest{Student: updateData}
 		body, _ := json.Marshal(studentReq)
 		r := httptest.NewRequest("PUT", "/1", bytes.NewReader(body))
@@ -231,7 +235,7 @@ func TestStudentLifecycle(t *testing.T) {
 		// Create room registration request
 		regReq := &RoomRegistrationRequest{
 			StudentID: 1,
-			DeviceID: "DEVICE-TEST-001",
+			DeviceID:  "DEVICE-TEST-001",
 		}
 
 		body, _ := json.Marshal(regReq)
@@ -287,7 +291,7 @@ func TestStudentLifecycle(t *testing.T) {
 	t.Run("5. Give Feedback", func(t *testing.T) {
 		// Create feedback request
 		feedbackReq := &FeedbackRequest{
-			StudentID: 1,
+			StudentID:     1,
 			FeedbackValue: "Great class!",
 			MensaFeedback: false,
 		}
@@ -336,6 +340,7 @@ func TestStudentLifecycle(t *testing.T) {
 
 	// Verify all expectations were met
 	mockStudentStore.AssertExpectations(t)
+	mockUserStore.AssertExpectations(t)
 }
 
 // TestStudentBusinessLogic tests the business logic functions
@@ -353,8 +358,8 @@ func TestStudentBusinessLogic(t *testing.T) {
 		},
 		GroupID: 1,
 		Group: &models2.Group{
-			ID:   1,
-			Name: "Group 1",
+			ID:     1,
+			Name:   "Group 1",
 			RoomID: func() *int64 { id := int64(101); return &id }(),
 		},
 		InHouse:    true,

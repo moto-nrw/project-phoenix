@@ -26,6 +26,7 @@ func (s *AuthStore) GetAccount(id int) (*userpass.Account, error) {
 	a := &userpass.Account{ID: id}
 	err := s.db.NewSelect().
 		Model(a).
+		Column("id", "active", "email", "username", "name", "password_hash", "roles").
 		Where("id = ?", id).
 		Scan(context.Background())
 	return a, err
@@ -36,7 +37,7 @@ func (s *AuthStore) GetAccountByEmail(e string) (*userpass.Account, error) {
 	a := &userpass.Account{Email: e}
 	err := s.db.NewSelect().
 		Model(a).
-		Column("id", "active", "email", "username", "name", "password_hash").
+		Column("id", "active", "email", "username", "name", "password_hash", "roles").
 		Where("email = ?", e).
 		Scan(context.Background())
 	return a, err
@@ -47,7 +48,7 @@ func (s *AuthStore) GetAccountByUsername(u string) (*userpass.Account, error) {
 	a := &userpass.Account{Username: u}
 	err := s.db.NewSelect().
 		Model(a).
-		Column("id", "active", "email", "username", "name", "password_hash").
+		Column("id", "active", "email", "username", "name", "password_hash", "roles").
 		Where("username = ?", u).
 		Scan(context.Background())
 	return a, err
