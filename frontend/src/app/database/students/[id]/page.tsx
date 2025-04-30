@@ -134,8 +134,8 @@ export default function StudentDetailPage() {
         {isEditing ? (
           <StudentForm
             initialData={student}
-            onSubmit={handleUpdate}
-            onCancel={() => setIsEditing(false)}
+            onSubmitAction={handleUpdate}
+            onCancelAction={() => setIsEditing(false)}
             isLoading={loading}
             formTitle="Schüler bearbeiten"
             submitLabel="Speichern"

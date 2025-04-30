@@ -66,8 +66,8 @@ export default function NewStudentPage() {
             bus: false,
             group_id: '1',
           }}
-          onSubmit={handleCreateStudent}
-          onCancel={() => router.back()}
+          onSubmitAction={handleCreateStudent}
+          onCancelAction={() => router.back()}
           isLoading={loading}
           formTitle="Schüler erstellen"
           submitLabel="Erstellen"

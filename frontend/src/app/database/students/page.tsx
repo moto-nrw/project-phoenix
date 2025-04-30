@@ -146,7 +146,7 @@ export default function StudentsPage() {
       newEntityLabel="Neuen Schüler erstellen"
       newEntityUrl="/database/students/new"
       data={students}
-      onSelectEntity={handleSelectStudent}
+      onSelectEntityAction={handleSelectStudent}
       renderEntity={renderStudent}
     />
   );

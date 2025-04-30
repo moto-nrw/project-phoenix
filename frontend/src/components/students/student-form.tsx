@@ -5,8 +5,8 @@ import type { Student } from '@/lib/api';
 
 interface StudentFormProps {
   initialData?: Partial<Student>;
-  onSubmit: (studentData: Partial<Student>) => Promise<void>;
-  onCancel: () => void;
+  onSubmitAction: (studentData: Partial<Student>) => Promise<void>;
+  onCancelAction: () => void;
   isLoading: boolean;
   formTitle: string;
   submitLabel: string;
@@ -14,8 +14,8 @@ interface StudentFormProps {
 
 export default function StudentForm({
   initialData,
-  onSubmit,
-  onCancel,
+  onSubmitAction,
+  onCancelAction,
   isLoading,
   formTitle,
   submitLabel,
@@ -86,7 +86,7 @@ export default function StudentForm({
       setError(null);
       
       // Call the provided submit function with form data
-      await onSubmit(formData);
+      await onSubmitAction(formData);
     } catch (err) {
       console.error('Error submitting form:', err);
       setError('Fehler beim Speichern der Schülerdaten. Bitte versuchen Sie es später erneut.');
@@ -274,7 +274,7 @@ export default function StudentForm({
           <div className="flex justify-end pt-4">
             <button
               type="button"
-              onClick={onCancel}
+              onClick={onCancelAction}
               className="px-4 py-2 text-gray-700 mr-2 hover:bg-gray-100 rounded-lg transition-colors shadow-sm"
               disabled={isLoading}
             >
