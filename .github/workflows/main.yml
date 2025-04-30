@@ -5,11 +5,13 @@ on:
       - main
       - master
       - develop
+      - development
   pull_request:
     branches:
       - main
       - master
       - develop
+      - development
 defaults:
   run:
     shell: bash
