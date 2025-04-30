@@ -56,3 +56,104 @@ export async function GET(
     );
   }
 }
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  // Get authentication session
+  const session = await auth();
+  
+  if (!session?.user?.token) {
+    return NextResponse.json(
+      { error: 'Unauthorized: No valid session' },
+      { status: 401 }
+    );
+  }
+  
+  const studentId = params.id;
+  
+  try {
+    // Parse request body
+    const requestBody = await request.json();
+    
+    // Forward the request to the backend with token
+    const backendResponse = await fetch(
+      `${env.NEXT_PUBLIC_API_URL}/students/${studentId}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${session.user.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      }
+    );
+    
+    if (!backendResponse.ok) {
+      const errorText = await backendResponse.text();
+      console.error(`Backend API error: ${backendResponse.status}`, errorText);
+      return NextResponse.json(
+        { error: `Backend error: ${backendResponse.status}` },
+        { status: backendResponse.status }
+      );
+    }
+    
+    const data = await backendResponse.json();
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error(`Error updating student ${studentId}:`, error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  // Get authentication session
+  const session = await auth();
+  
+  if (!session?.user?.token) {
+    return NextResponse.json(
+      { error: 'Unauthorized: No valid session' },
+      { status: 401 }
+    );
+  }
+  
+  const studentId = params.id;
+  
+  try {
+    // Forward the request to the backend with token
+    const backendResponse = await fetch(
+      `${env.NEXT_PUBLIC_API_URL}/students/${studentId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.user.token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    
+    if (!backendResponse.ok) {
+      const errorText = await backendResponse.text();
+      console.error(`Backend API error: ${backendResponse.status}`, errorText);
+      return NextResponse.json(
+        { error: `Backend error: ${backendResponse.status}` },
+        { status: backendResponse.status }
+      );
+    }
+    
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    console.error(`Error deleting student ${studentId}:`, error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
+  }
+}

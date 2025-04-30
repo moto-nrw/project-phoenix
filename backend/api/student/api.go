@@ -16,9 +16,16 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// UserStore defines operations for updating CustomUser records
+type UserStore interface {
+	GetCustomUserByID(ctx context.Context, id int64) (*models2.CustomUser, error)
+	UpdateCustomUser(ctx context.Context, user *models2.CustomUser) error
+}
+
 // Resource defines the student management resource
 type Resource struct {
 	Store     StudentStore
+	UserStore UserStore
 	AuthStore AuthTokenStore
 }
 
@@ -45,9 +52,10 @@ type AuthTokenStore interface {
 }
 
 // NewResource creates a new student management resource
-func NewResource(store StudentStore, authStore AuthTokenStore) *Resource {
+func NewResource(store StudentStore, userStore UserStore, authStore AuthTokenStore) *Resource {
 	return &Resource{
 		Store:     store,
+		UserStore: userStore,
 		AuthStore: authStore,
 	}
 }
@@ -177,7 +185,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 	logger.WithFields(logrus.Fields{
 		"student_id": student.ID,
-		"name": student.CustomUser.FirstName + " " + student.CustomUser.SecondName,
+		"name":       student.CustomUser.FirstName + " " + student.CustomUser.SecondName,
 	}).Info("Student created successfully")
 
 	render.Status(r, http.StatusCreated)
@@ -250,6 +258,32 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	student.WC = data.WC
 	student.SchoolYard = data.SchoolYard
 	student.GroupID = data.GroupID
+
+	// Check if we need to update the CustomUser data (name fields)
+	if (data.FirstName != "" || data.SecondName != "") && student.CustomUserID > 0 {
+		customUser, err := rs.UserStore.GetCustomUserByID(ctx, student.CustomUserID)
+		if err != nil {
+			logger.WithError(err).Error("Failed to get CustomUser for student")
+			render.Render(w, r, ErrInternalServerError(err))
+			return
+		}
+
+		if data.FirstName != "" {
+			customUser.FirstName = data.FirstName
+		}
+
+		if data.SecondName != "" {
+			customUser.SecondName = data.SecondName
+		}
+
+		if err := rs.UserStore.UpdateCustomUser(ctx, customUser); err != nil {
+			logger.WithError(err).Error("Failed to update CustomUser name")
+			render.Render(w, r, ErrInternalServerError(err))
+			return
+		}
+
+		logger.WithField("custom_user_id", student.CustomUserID).Info("CustomUser name updated successfully")
+	}
 
 	if err := rs.Store.UpdateStudent(ctx, student); err != nil {
 		logger.WithError(err).Error("Failed to update student")
@@ -350,13 +384,13 @@ func (rs *Resource) getStudentStatus(w http.ResponseWriter, r *http.Request) {
 	status := GetStudentCurrentStatus(student)
 
 	response := map[string]interface{}{
-		"student_id": student.ID,
-		"name": student.CustomUser.FirstName + " " + student.CustomUser.SecondName,
-		"status": status,
-		"in_house": student.InHouse,
-		"wc": student.WC,
+		"student_id":  student.ID,
+		"name":        student.CustomUser.FirstName + " " + student.CustomUser.SecondName,
+		"status":      status,
+		"in_house":    student.InHouse,
+		"wc":          student.WC,
 		"school_yard": student.SchoolYard,
-		"bus": student.Bus,
+		"bus":         student.Bus,
 	}
 
 	render.JSON(w, r, response)
@@ -375,9 +409,9 @@ func (rs *Resource) getStudentsSummary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	summary := map[string]interface{}{
-		"total_students": len(students),
-		"in_house_count": 0,
-		"wc_count": 0,
+		"total_students":    len(students),
+		"in_house_count":    0,
+		"wc_count":          0,
 		"school_yard_count": 0,
 		"not_present_count": 0,
 	}
@@ -470,8 +504,8 @@ func (rs *Resource) registerStudentInRoom(w http.ResponseWriter, r *http.Request
 
 	logger.WithFields(logrus.Fields{
 		"student_id": data.StudentID,
-		"room_id": roomID,
-		"visit_id": visit.ID,
+		"room_id":    roomID,
+		"visit_id":   visit.ID,
 	}).Info("Student registered in room successfully")
 
 	render.JSON(w, r, visit)
@@ -611,8 +645,8 @@ func (rs *Resource) giveFeedback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	logger.WithFields(logrus.Fields{
-		"student_id": data.StudentID,
-		"feedback_id": feedback.ID,
+		"student_id":     data.StudentID,
+		"feedback_id":    feedback.ID,
 		"mensa_feedback": data.MensaFeedback,
 	}).Info("Student feedback recorded successfully")
 
@@ -640,7 +674,7 @@ func (rs *Resource) updateStudentLocation(w http.ResponseWriter, r *http.Request
 
 	logger.WithFields(logrus.Fields{
 		"student_id": data.StudentID,
-		"locations": data.Locations,
+		"locations":  data.Locations,
 	}).Info("Student location updated successfully")
 
 	// Return success message
@@ -653,6 +687,8 @@ func (rs *Resource) updateStudentLocation(w http.ResponseWriter, r *http.Request
 // StudentRequest represents request payload for student data
 type StudentRequest struct {
 	*models2.Student
+	FirstName  string `json:"first_name,omitempty"`
+	SecondName string `json:"second_name,omitempty"`
 }
 
 // Bind preprocesses a StudentRequest

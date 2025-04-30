@@ -125,15 +125,34 @@ func (m *MockAuthTokenStore) GetToken(t string) (*jwt.Token, error) {
 	return args.Get(0).(*jwt.Token), args.Error(1)
 }
 
-func setupTestAPI() (*Resource, *MockStudentStore, *MockAuthTokenStore) {
+// Mock UserStore
+type MockUserStore struct {
+	mock.Mock
+}
+
+func (m *MockUserStore) GetCustomUserByID(ctx context.Context, id int64) (*models2.CustomUser, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models2.CustomUser), args.Error(1)
+}
+
+func (m *MockUserStore) UpdateCustomUser(ctx context.Context, user *models2.CustomUser) error {
+	args := m.Called(ctx, user)
+	return args.Error(0)
+}
+
+func setupTestAPI() (*Resource, *MockStudentStore, *MockUserStore, *MockAuthTokenStore) {
 	mockStudentStore := new(MockStudentStore)
+	mockUserStore := new(MockUserStore)
 	mockAuthStore := new(MockAuthTokenStore)
-	resource := NewResource(mockStudentStore, mockAuthStore)
-	return resource, mockStudentStore, mockAuthStore
+	resource := NewResource(mockStudentStore, mockUserStore, mockAuthStore)
+	return resource, mockStudentStore, mockUserStore, mockAuthStore
 }
 
 func TestListStudents(t *testing.T) {
-	rs, mockStudentStore, _ := setupTestAPI()
+	rs, mockStudentStore, _, _ := setupTestAPI()
 
 	// Setup test data
 	customUser1 := &models2.CustomUser{
@@ -196,7 +215,7 @@ func TestListStudents(t *testing.T) {
 }
 
 func TestGetStudent(t *testing.T) {
-	rs, mockStudentStore, _ := setupTestAPI()
+	rs, mockStudentStore, _, _ := setupTestAPI()
 
 	// Setup test data
 	customUser := &models2.CustomUser{
@@ -245,7 +264,7 @@ func TestGetStudent(t *testing.T) {
 }
 
 func TestCreateStudent(t *testing.T) {
-	rs, mockStudentStore, _ := setupTestAPI()
+	rs, mockStudentStore, _, _ := setupTestAPI()
 
 	// Setup test data
 	customUser := &models2.CustomUser{
@@ -306,7 +325,7 @@ func TestCreateStudent(t *testing.T) {
 }
 
 func TestUpdateStudent(t *testing.T) {
-	rs, mockStudentStore, _ := setupTestAPI()
+	rs, mockStudentStore, mockUserStore, _ := setupTestAPI()
 
 	// Setup test data
 	customUser := &models2.CustomUser{
@@ -349,7 +368,18 @@ func TestUpdateStudent(t *testing.T) {
 	mockStudentStore.On("GetStudentByID", mock.Anything, int64(1)).Return(updatedStudent, nil).Once()
 
 	// Create test request
-	studentReq := &StudentRequest{Student: updatedStudent}
+	studentReq := &StudentRequest{
+		Student:    updatedStudent,
+		FirstName:  "Johnny", // Add first name update
+		SecondName: "Doeson", // Add second name update
+	}
+
+	// Setup user store mock for name update
+	mockUserStore.On("GetCustomUserByID", mock.Anything, int64(1)).Return(customUser, nil)
+	mockUserStore.On("UpdateCustomUser", mock.Anything, mock.MatchedBy(func(u *models2.CustomUser) bool {
+		return u.ID == 1 && u.FirstName == "Johnny" && u.SecondName == "Doeson"
+	})).Return(nil)
+
 	body, _ := json.Marshal(studentReq)
 	r := httptest.NewRequest("PUT", "/1", bytes.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
@@ -372,10 +402,11 @@ func TestUpdateStudent(t *testing.T) {
 	assert.Equal(t, "new@example.com", responseStudent.ContactLG)
 
 	mockStudentStore.AssertExpectations(t)
+	mockUserStore.AssertExpectations(t)
 }
 
 func TestDeleteStudent(t *testing.T) {
-	rs, mockStudentStore, _ := setupTestAPI()
+	rs, mockStudentStore, _, _ := setupTestAPI()
 
 	mockStudentStore.On("DeleteStudent", mock.Anything, int64(1)).Return(nil)
 
@@ -396,7 +427,7 @@ func TestDeleteStudent(t *testing.T) {
 }
 
 func TestRouter(t *testing.T) {
-	rs, _, _ := setupTestAPI()
+	rs, _, _, _ := setupTestAPI()
 	router := rs.Router()
 
 	// Test if the router is created correctly
