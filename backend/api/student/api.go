@@ -16,10 +16,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// UserStore defines operations for updating CustomUser records
+// UserStore defines operations for CustomUser record management
 type UserStore interface {
 	GetCustomUserByID(ctx context.Context, id int64) (*models2.CustomUser, error)
 	UpdateCustomUser(ctx context.Context, user *models2.CustomUser) error
+	CreateCustomUser(ctx context.Context, user *models2.CustomUser) error
 }
 
 // Resource defines the student management resource
@@ -72,6 +73,10 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/", func(r chi.Router) {
 			r.Get("/", rs.listStudents)
 			r.Post("/", rs.createStudent)
+
+			// New endpoint for creating a student with user in one request
+			r.Post("/with-user", rs.CreateStudentWithUser)
+
 			r.Route("/{id}", func(r chi.Router) {
 				r.Get("/", rs.getStudent)
 				r.Put("/", rs.updateStudent)

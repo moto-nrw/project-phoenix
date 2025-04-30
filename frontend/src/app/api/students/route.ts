@@ -64,3 +64,60 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export async function POST(request: NextRequest) {
+  // Get authentication session
+  const session = await auth();
+  
+  if (!session?.user?.token) {
+    return NextResponse.json(
+      { error: 'Unauthorized: No valid session' },
+      { status: 401 }
+    );
+  }
+  
+  try {
+    // Get the request body
+    const studentData = await request.json();
+    
+    // Use the new combined endpoint that creates both custom user and student in one request
+    const url = new URL(`${env.NEXT_PUBLIC_API_URL}/students/with-user`);
+    const backendResponse = await fetch(url.toString(), {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.user.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(studentData),
+    });
+    
+    if (!backendResponse.ok) {
+      const errorText = await backendResponse.text();
+      console.error(`Backend API error: ${backendResponse.status}`, errorText);
+      
+      // Try to parse error for better error messages
+      try {
+        const errorJson = JSON.parse(errorText);
+        return NextResponse.json(
+          { error: errorJson.error || `Error creating student: ${backendResponse.status}` },
+          { status: backendResponse.status }
+        );
+      } catch (e) {
+        // If parsing fails, use status code
+        return NextResponse.json(
+          { error: `Error creating student: ${backendResponse.status}` },
+          { status: backendResponse.status }
+        );
+      }
+    }
+    
+    const data = await backendResponse.json();
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Error creating student:', error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
+  }
+}

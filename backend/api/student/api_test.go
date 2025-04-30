@@ -143,6 +143,14 @@ func (m *MockUserStore) UpdateCustomUser(ctx context.Context, user *models2.Cust
 	return args.Error(0)
 }
 
+func (m *MockUserStore) CreateCustomUser(ctx context.Context, user *models2.CustomUser) error {
+	args := m.Called(ctx, user)
+	user.ID = 1 // Simulate auto-increment
+	user.CreatedAt = time.Now()
+	user.ModifiedAt = time.Now()
+	return args.Error(0)
+}
+
 func setupTestAPI() (*Resource, *MockStudentStore, *MockUserStore, *MockAuthTokenStore) {
 	mockStudentStore := new(MockStudentStore)
 	mockUserStore := new(MockUserStore)
@@ -424,6 +432,77 @@ func TestDeleteStudent(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, w.Code)
 
 	mockStudentStore.AssertExpectations(t)
+}
+
+func TestCreateStudentWithUser(t *testing.T) {
+	rs, mockStudentStore, mockUserStore, _ := setupTestAPI()
+
+	// Setup test data
+	customUser := &models2.CustomUser{
+		FirstName:  "John",
+		SecondName: "Doe",
+	}
+
+	group := &models2.Group{
+		ID:   1,
+		Name: "Group 1",
+	}
+
+	createdStudent := &models2.Student{
+		ID:           1,
+		SchoolClass:  "2A",
+		CustomUserID: 1,
+		CustomUser:   customUser,
+		GroupID:      1,
+		Group:        group,
+		NameLG:       "Parent Name",
+		ContactLG:    "parent@example.com",
+		CreatedAt:    time.Now(),
+		ModifiedAt:   time.Now(),
+	}
+
+	// Mock the CreateCustomUser call
+	mockUserStore.On("CreateCustomUser", mock.Anything, mock.MatchedBy(func(u *models2.CustomUser) bool {
+		return u.FirstName == "John" && u.SecondName == "Doe"
+	})).Return(nil)
+
+	// Mock the CreateStudent call
+	mockStudentStore.On("CreateStudent", mock.Anything, mock.MatchedBy(func(s *models2.Student) bool {
+		return s.SchoolClass == "2A" && s.CustomUserID == 1
+	})).Return(nil)
+
+	// Mock the GetStudentByID call
+	mockStudentStore.On("GetStudentByID", mock.Anything, int64(1)).Return(createdStudent, nil)
+
+	// Create test request
+	combinedReq := &CombinedStudentRequest{
+		FirstName:   "John",
+		SecondName:  "Doe",
+		SchoolClass: "2A",
+		GroupID:     1,
+		NameLG:      "Parent Name",
+		ContactLG:   "parent@example.com",
+	}
+
+	body, _ := json.Marshal(combinedReq)
+	r := httptest.NewRequest("POST", "/with-user", bytes.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	// Call the handler directly
+	rs.CreateStudentWithUser(w, r)
+
+	// Check response
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var responseStudent models2.Student
+	err := json.Unmarshal(w.Body.Bytes(), &responseStudent)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(1), responseStudent.ID)
+	assert.Equal(t, "2A", responseStudent.SchoolClass)
+
+	mockStudentStore.AssertExpectations(t)
+	mockUserStore.AssertExpectations(t)
 }
 
 func TestRouter(t *testing.T) {
