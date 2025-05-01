@@ -89,13 +89,19 @@ func (rs *Resource) CreateStudentWithUser(w http.ResponseWriter, r *http.Request
 		SchoolClass:  data.SchoolClass,
 		NameLG:       data.NameLG,
 		ContactLG:    data.ContactLG,
-		GroupID:      data.GroupID,
+		GroupID:      data.GroupID, // This field is correct, but we'll log it for debugging
 		InHouse:      data.InHouse,
 		WC:           data.WC,
 		SchoolYard:   data.SchoolYard,
 		Bus:          data.Bus,
 		CustomUserID: customUser.ID, // Link to the newly created user - field name matches model struct field
 	}
+
+	// Log student creation with group ID for debugging
+	logger.WithFields(logrus.Fields{
+		"group_id": data.GroupID,
+		"student":  student.SchoolClass,
+	}).Info("Creating student with group_id")
 
 	if err := rs.Store.CreateStudent(ctx, student); err != nil {
 		logger.WithError(err).Error("Failed to create student")

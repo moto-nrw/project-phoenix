@@ -448,9 +448,17 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return the students associated with the group
-	// Note: This assumes the GetGroupByID already loads the Students relation
+	// Now GetGroupByID loads the Students relation properly
 	if group.Students == nil {
 		group.Students = []models2.Student{}
+		// Log that no students were found for this group
+		logger.WithField("group_id", id).Info("No students found for group")
+	} else {
+		// Log how many students were found
+		logger.WithFields(logrus.Fields{
+			"group_id": id,
+			"count":    len(group.Students),
+		}).Info("Retrieved students for group")
 	}
 
 	render.JSON(w, r, group.Students)

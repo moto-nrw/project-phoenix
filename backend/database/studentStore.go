@@ -78,7 +78,23 @@ func (s *StudentStore) CreateStudent(ctx context.Context, student *models2.Stude
 		return errors.New("a student already exists for this custom user")
 	}
 
-	// Create the student
+	// Verify the group exists before creating the student
+	if student.GroupID > 0 {
+		groupExists, err := tx.NewSelect().
+			Model((*models2.Group)(nil)).
+			Where("id = ?", student.GroupID).
+			Exists(ctx)
+
+		if err != nil {
+			return err
+		}
+
+		if !groupExists {
+			return errors.New("specified group does not exist")
+		}
+	}
+
+	// Create the student with verified group_id
 	_, err = tx.NewInsert().
 		Model(student).
 		Exec(ctx)
