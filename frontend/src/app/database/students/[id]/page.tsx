@@ -224,7 +224,18 @@ export default function StudentDetailPage() {
                   
                   <div>
                     <div className="text-sm text-gray-500">Gruppe</div>
-                    <div className="text-base">{student.group_name || 'Keine Gruppe zugewiesen'}</div>
+                    <div className="text-base">
+                      {student.group_id && student.group_name ? (
+                        <a 
+                          href={`/database/groups/${student.group_id}`}
+                          className="text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                        >
+                          {student.group_name}
+                        </a>
+                      ) : (
+                        'Keine Gruppe zugewiesen'
+                      )}
+                    </div>
                   </div>
                   
                   <div>
