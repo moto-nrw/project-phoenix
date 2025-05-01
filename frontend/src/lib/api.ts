@@ -707,14 +707,43 @@ export const groupService = {
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`API error: ${response.status}`, errorText);
+          
+          // Try to parse error text as JSON for more detailed error message
+          try {
+            const errorJson = JSON.parse(errorText);
+            if (errorJson.error) {
+              // Throw the actual error message from the backend
+              throw new Error(errorJson.error);
+            }
+          } catch (parseError) {
+            // If JSON parsing fails, check if the error text contains the specific error message
+            if (errorText.includes('cannot delete group with students')) {
+              throw new Error('cannot delete group with students');
+            }
+            // Otherwise use status code
+          }
+          
           throw new Error(`API error: ${response.status}`);
         }
         
         return;
       } else {
         // Server-side: use axios with the API URL directly
-        await api.delete(url);
-        return;
+        try {
+          await api.delete(url);
+          return;
+        } catch (axiosError) {
+          // Handle axios error format
+          const axiosErr = axiosError as AxiosError;
+          if (axiosErr.response?.data) {
+            // Try to extract the error message from the response data
+            const errorData = axiosErr.response.data as any;
+            if (errorData.error) {
+              throw new Error(errorData.error);
+            }
+          }
+          throw axiosError;
+        }
       }
     } catch (error) {
       console.error(`Error deleting group ${id}:`, error);

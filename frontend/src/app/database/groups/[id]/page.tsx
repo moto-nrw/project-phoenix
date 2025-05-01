@@ -73,7 +73,17 @@ export default function GroupDetailPage() {
         router.push('/database/groups');
       } catch (err) {
         console.error('Error deleting group:', err);
-        setError('Fehler beim Löschen der Gruppe. Bitte versuchen Sie es später erneut.');
+        // Check if the error has a specific message
+        const errorMessage = err instanceof Error ? err.message : 'Unbekannter Fehler';
+        
+        // Handle the specific "cannot delete group with students" error case
+        if (errorMessage.includes('cannot delete group with students') || 
+            (errorMessage.includes('cannot delete') && errorMessage.includes('students'))) {
+          setError('Die Gruppe kann nicht gelöscht werden, da sie Schüler enthält. Bitte entfernen Sie zuerst alle Schüler aus der Gruppe.');
+        } else {
+          setError(`Fehler beim Löschen der Gruppe: ${errorMessage}`);
+        }
+        
         setLoading(false);
       }
     }
@@ -90,21 +100,34 @@ export default function GroupDetailPage() {
     );
   }
 
-  if (error && !group) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4 bg-gray-50">
-        <div className="bg-red-50 text-red-800 p-6 rounded-lg max-w-md shadow-md">
-          <h2 className="font-semibold text-lg mb-3">Fehler</h2>
-          <p className="mb-4">{error}</p>
-          <button 
-            onClick={() => router.back()} 
-            className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg transition-colors shadow-sm"
-          >
-            Zurück
-          </button>
+  if (error) {
+    if (!group) {
+      // Full page error when no group is loaded
+      return (
+        <div className="flex min-h-screen flex-col items-center justify-center p-4 bg-gray-50">
+          <div className="bg-red-50 text-red-800 p-6 rounded-lg max-w-md shadow-md">
+            <h2 className="font-semibold text-lg mb-3">Fehler</h2>
+            <p className="mb-4">{error}</p>
+            <button 
+              onClick={() => router.back()} 
+              className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg transition-colors shadow-sm"
+            >
+              Zurück
+            </button>
+          </div>
         </div>
-      </div>
-    );
+      );
+    } else {
+      // Add an error alert to the page content when group is still loaded
+      // This handles the case where delete fails but we still have the group data
+      
+      // For important errors related to deletion constraints, keep them visible longer
+      const clearTimeout = error.includes('Schüler enthält') ? 15000 : 5000;
+      setTimeout(() => {
+        // Auto-clear error after timeout period
+        if (error) setError(null);
+      }, clearTimeout);
+    }
   }
 
   if (!group) {
@@ -134,6 +157,41 @@ export default function GroupDetailPage() {
       
       {/* Main Content */}
       <main className="max-w-4xl mx-auto p-4">
+        {/* Error Alert */}
+        {error && group && (
+          <div className="mb-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow-md" role="alert">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                {/* Warning icon */}
+                <svg className="h-5 w-5 text-red-500 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="font-bold">Aktion nicht möglich</p>
+                <p className="text-sm mt-1">{error}</p>
+                {error.includes('Schüler enthält') && (
+                  <div className="mt-2 text-sm bg-red-50 p-2 rounded">
+                    <p className="font-medium">Hinweis zur Lösung:</p>
+                    <ol className="list-decimal list-inside ml-2 mt-1">
+                      <li>Gehen Sie zur Schülerliste</li>
+                      <li>Weisen Sie alle Schüler dieser Gruppe einer anderen Gruppe zu</li>
+                      <li>Kehren Sie zurück und versuchen Sie erneut, die Gruppe zu löschen</li>
+                    </ol>
+                  </div>
+                )}
+              </div>
+              <button 
+                className="flex-shrink-0 ml-2 text-red-500 hover:text-red-700 transition-colors"
+                onClick={() => setError(null)}
+                aria-label="Schließen"
+              >
+                <span className="text-xl">&times;</span>
+              </button>
+            </div>
+          </div>
+        )}
+        
         {isEditing ? (
           <GroupForm
             initialData={group}

@@ -42,6 +42,21 @@ export async function GET(
     if (!backendResponse.ok) {
       const errorText = await backendResponse.text();
       console.error(`Backend API error: ${backendResponse.status}`, errorText);
+      
+      // Try to parse the error text as JSON for a more detailed error message
+      try {
+        const errorJson = JSON.parse(errorText);
+        // If the backend returned a specific error message, return that
+        if (errorJson.error) {
+          return NextResponse.json(
+            { error: errorJson.error },
+            { status: backendResponse.status }
+          );
+        }
+      } catch (e) {
+        // If parsing fails, continue with the default error handling
+      }
+      
       return NextResponse.json(
         { error: `Backend error: ${backendResponse.status}` },
         { status: backendResponse.status }
@@ -97,6 +112,21 @@ export async function PUT(
     if (!backendResponse.ok) {
       const errorText = await backendResponse.text();
       console.error(`Backend API error: ${backendResponse.status}`, errorText);
+      
+      // Try to parse the error text as JSON for a more detailed error message
+      try {
+        const errorJson = JSON.parse(errorText);
+        // If the backend returned a specific error message, return that
+        if (errorJson.error) {
+          return NextResponse.json(
+            { error: errorJson.error },
+            { status: backendResponse.status }
+          );
+        }
+      } catch (e) {
+        // If parsing fails, continue with the default error handling
+      }
+      
       return NextResponse.json(
         { error: `Backend error: ${backendResponse.status}` },
         { status: backendResponse.status }
@@ -148,6 +178,21 @@ export async function DELETE(
     if (!backendResponse.ok) {
       const errorText = await backendResponse.text();
       console.error(`Backend API error: ${backendResponse.status}`, errorText);
+      
+      // Try to parse the error text as JSON for a more detailed error message
+      try {
+        const errorJson = JSON.parse(errorText);
+        // If the backend returned a specific error message, return that
+        if (errorJson.error) {
+          return NextResponse.json(
+            { error: errorJson.error },
+            { status: backendResponse.status }
+          );
+        }
+      } catch (e) {
+        // If parsing fails, continue with the default error handling
+      }
+      
       return NextResponse.json(
         { error: `Backend error: ${backendResponse.status}` },
         { status: backendResponse.status }
