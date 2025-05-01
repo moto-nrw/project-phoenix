@@ -4,408 +4,479 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	models2 "github.com/moto-nrw/project-phoenix/models"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	models2 "github.com/moto-nrw/project-phoenix/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
-// MockActivityStore is a mock of the ActivityStore interface
-type MockActivityStore struct {
+// MockAgStore implements the AgStore interface for testing
+type MockAgStore struct {
 	mock.Mock
 }
 
-// Implement all required methods of the ActivityStore interface
-func (m *MockActivityStore) CreateAgCategory(ctx context.Context, category *models2.AgCategory) error {
+// Category operations
+func (m *MockAgStore) CreateAgCategory(ctx context.Context, category *models2.AgCategory) error {
 	args := m.Called(ctx, category)
-	category.ID = 1
+	category.ID = 1 // Simulate auto-increment
 	category.CreatedAt = time.Now()
 	return args.Error(0)
 }
 
-func (m *MockActivityStore) GetAgCategoryByID(ctx context.Context, id int64) (*models2.AgCategory, error) {
+func (m *MockAgStore) GetAgCategoryByID(ctx context.Context, id int64) (*models2.AgCategory, error) {
 	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(*models2.AgCategory), args.Error(1)
 }
 
-func (m *MockActivityStore) UpdateAgCategory(ctx context.Context, category *models2.AgCategory) error {
+func (m *MockAgStore) UpdateAgCategory(ctx context.Context, category *models2.AgCategory) error {
 	args := m.Called(ctx, category)
 	return args.Error(0)
 }
 
-func (m *MockActivityStore) DeleteAgCategory(ctx context.Context, id int64) error {
+func (m *MockAgStore) DeleteAgCategory(ctx context.Context, id int64) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
 }
 
-func (m *MockActivityStore) ListAgCategories(ctx context.Context) ([]models2.AgCategory, error) {
+func (m *MockAgStore) ListAgCategories(ctx context.Context) ([]models2.AgCategory, error) {
 	args := m.Called(ctx)
 	return args.Get(0).([]models2.AgCategory), args.Error(1)
 }
 
-func (m *MockActivityStore) CreateAg(ctx context.Context, ag *models2.Ag, studentIDs []int64, timeslots []*models2.AgTime) error {
+// Activity Group operations
+func (m *MockAgStore) CreateAg(ctx context.Context, ag *models2.Ag, studentIDs []int64, timeslots []*models2.AgTime) error {
 	args := m.Called(ctx, ag, studentIDs, timeslots)
-	ag.ID = 1
+	ag.ID = 1 // Simulate auto-increment
 	ag.CreatedAt = time.Now()
 	ag.ModifiedAt = time.Now()
 	return args.Error(0)
 }
 
-func (m *MockActivityStore) GetAgByID(ctx context.Context, id int64) (*models2.Ag, error) {
+func (m *MockAgStore) GetAgByID(ctx context.Context, id int64) (*models2.Ag, error) {
 	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(*models2.Ag), args.Error(1)
 }
 
-func (m *MockActivityStore) UpdateAg(ctx context.Context, ag *models2.Ag) error {
+func (m *MockAgStore) UpdateAg(ctx context.Context, ag *models2.Ag) error {
 	args := m.Called(ctx, ag)
+	ag.ModifiedAt = time.Now()
 	return args.Error(0)
 }
 
-func (m *MockActivityStore) DeleteAg(ctx context.Context, id int64) error {
+func (m *MockAgStore) DeleteAg(ctx context.Context, id int64) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
 }
 
-func (m *MockActivityStore) ListAgs(ctx context.Context, filters map[string]interface{}) ([]models2.Ag, error) {
+func (m *MockAgStore) ListAgs(ctx context.Context, filters map[string]interface{}) ([]models2.Ag, error) {
 	args := m.Called(ctx, filters)
 	return args.Get(0).([]models2.Ag), args.Error(1)
 }
 
-func (m *MockActivityStore) CreateAgTime(ctx context.Context, agTime *models2.AgTime) error {
+// Time slot operations
+func (m *MockAgStore) CreateAgTime(ctx context.Context, agTime *models2.AgTime) error {
 	args := m.Called(ctx, agTime)
-	agTime.ID = 1
+	agTime.ID = 1 // Simulate auto-increment
 	agTime.CreatedAt = time.Now()
 	return args.Error(0)
 }
 
-func (m *MockActivityStore) GetAgTimeByID(ctx context.Context, id int64) (*models2.AgTime, error) {
+func (m *MockAgStore) GetAgTimeByID(ctx context.Context, id int64) (*models2.AgTime, error) {
 	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(*models2.AgTime), args.Error(1)
 }
 
-func (m *MockActivityStore) UpdateAgTime(ctx context.Context, agTime *models2.AgTime) error {
+func (m *MockAgStore) UpdateAgTime(ctx context.Context, agTime *models2.AgTime) error {
 	args := m.Called(ctx, agTime)
 	return args.Error(0)
 }
 
-func (m *MockActivityStore) DeleteAgTime(ctx context.Context, id int64) error {
+func (m *MockAgStore) DeleteAgTime(ctx context.Context, id int64) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
 }
 
-func (m *MockActivityStore) ListAgTimes(ctx context.Context, agID int64) ([]models2.AgTime, error) {
+func (m *MockAgStore) ListAgTimes(ctx context.Context, agID int64) ([]models2.AgTime, error) {
 	args := m.Called(ctx, agID)
 	return args.Get(0).([]models2.AgTime), args.Error(1)
 }
 
-func (m *MockActivityStore) EnrollStudent(ctx context.Context, agID, studentID int64) error {
+// Enrollment operations
+func (m *MockAgStore) EnrollStudent(ctx context.Context, agID, studentID int64) error {
 	args := m.Called(ctx, agID, studentID)
 	return args.Error(0)
 }
 
-func (m *MockActivityStore) UnenrollStudent(ctx context.Context, agID, studentID int64) error {
+func (m *MockAgStore) UnenrollStudent(ctx context.Context, agID, studentID int64) error {
 	args := m.Called(ctx, agID, studentID)
 	return args.Error(0)
 }
 
-func (m *MockActivityStore) ListEnrolledStudents(ctx context.Context, agID int64) ([]models2.Student, error) {
+func (m *MockAgStore) ListEnrolledStudents(ctx context.Context, agID int64) ([]*models2.Student, error) {
 	args := m.Called(ctx, agID)
-	return args.Get(0).([]models2.Student), args.Error(1)
+	return args.Get(0).([]*models2.Student), args.Error(1)
 }
 
-func (m *MockActivityStore) ListStudentAgs(ctx context.Context, studentID int64) ([]models2.Ag, error) {
+func (m *MockAgStore) ListStudentAgs(ctx context.Context, studentID int64) ([]models2.Ag, error) {
 	args := m.Called(ctx, studentID)
 	return args.Get(0).([]models2.Ag), args.Error(1)
 }
 
-// MockAuthTokenStore is a mock of the AuthTokenStore interface
+// MockAuthTokenStore implements the AuthTokenStore interface for testing
 type MockAuthTokenStore struct {
 	mock.Mock
 }
 
 func (m *MockAuthTokenStore) GetToken(t string) (*jwt.Token, error) {
 	args := m.Called(t)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(*jwt.Token), args.Error(1)
 }
 
-// Test setup function
-func setupTest(t *testing.T) (*Resource, *MockActivityStore, *MockAuthTokenStore) {
-	mockStore := new(MockActivityStore)
+// setupTestAPI creates a test API with mocked dependencies
+func setupTestAPI() (*Resource, *MockAgStore, *MockAuthTokenStore) {
+	mockAgStore := new(MockAgStore)
 	mockAuthStore := new(MockAuthTokenStore)
-	resource := NewResource(mockStore, mockAuthStore)
-	return resource, mockStore, mockAuthStore
+	resource := NewResource(mockAgStore, mockAuthStore)
+	return resource, mockAgStore, mockAuthStore
 }
 
-// TestCategoryCRUD tests the CRUD operations for categories
-func TestCategoryCRUD(t *testing.T) {
-	// Setup
-	rs, mockStore, _ := setupTest(t)
+// TestListCategories tests the listCategories handler
+func TestListCategories(t *testing.T) {
+	rs, mockAgStore, _ := setupTestAPI()
 
-	// Test ListCategories
-	t.Run("ListCategories", func(t *testing.T) {
-		categories := []models2.AgCategory{
-			{ID: 1, Name: "Sport", CreatedAt: time.Now()},
-			{ID: 2, Name: "Music", CreatedAt: time.Now()},
-		}
-		mockStore.On("ListAgCategories", mock.Anything).Return(categories, nil).Once()
+	// Setup test data
+	testCategories := []models2.AgCategory{
+		{
+			ID:   1,
+			Name: "Category 1",
+		},
+		{
+			ID:   2,
+			Name: "Category 2",
+		},
+	}
 
-		// Create a request to pass to our handler
-		r := httptest.NewRequest("GET", "/categories", nil)
-		w := httptest.NewRecorder()
+	mockAgStore.On("ListAgCategories", mock.Anything).Return(testCategories, nil)
 
-		// Set up the router
-		router := chi.NewRouter()
-		router.Get("/categories", rs.listCategories)
-		router.ServeHTTP(w, r)
+	// Create test request
+	r := httptest.NewRequest("GET", "/categories", nil)
+	w := httptest.NewRecorder()
 
-		// Check the status code
-		assert.Equal(t, http.StatusOK, w.Code)
+	// Call the handler directly
+	rs.listCategories(w, r)
 
-		// Unmarshal the response
-		var responseCategories []models2.AgCategory
-		err := json.Unmarshal(w.Body.Bytes(), &responseCategories)
-		assert.NoError(t, err)
-		assert.Len(t, responseCategories, 2)
-		assert.Equal(t, "Sport", responseCategories[0].Name)
-		assert.Equal(t, "Music", responseCategories[1].Name)
-	})
+	// Check response
+	assert.Equal(t, http.StatusOK, w.Code)
 
-	// Test CreateCategory
-	t.Run("CreateCategory", func(t *testing.T) {
-		category := &models2.AgCategory{Name: "Art"}
-		mockStore.On("CreateAgCategory", mock.Anything, mock.MatchedBy(func(c *models2.AgCategory) bool {
-			return c.Name == "Art"
-		})).Return(nil).Once()
+	var responseCategories []models2.AgCategory
+	err := json.Unmarshal(w.Body.Bytes(), &responseCategories)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(responseCategories))
+	assert.Equal(t, "Category 1", responseCategories[0].Name)
+	assert.Equal(t, "Category 2", responseCategories[1].Name)
 
-		// Create the JSON payload
-		payload, _ := json.Marshal(CategoryRequest{AgCategory: category})
-		r := httptest.NewRequest("POST", "/categories", bytes.NewBuffer(payload))
-		r.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-
-		// Set up the router
-		router := chi.NewRouter()
-		router.Post("/categories", rs.createCategory)
-		router.ServeHTTP(w, r)
-
-		// Check the status code
-		assert.Equal(t, http.StatusCreated, w.Code)
-
-		// Unmarshal the response
-		var responseCategory models2.AgCategory
-		err := json.Unmarshal(w.Body.Bytes(), &responseCategory)
-		assert.NoError(t, err)
-		assert.Equal(t, "Art", responseCategory.Name)
-		assert.Equal(t, int64(1), responseCategory.ID)
-	})
-
-	// Add more tests for other category operations as needed
+	mockAgStore.AssertExpectations(t)
 }
 
-// TestActivityGroupCRUD tests the CRUD operations for activity groups
-func TestActivityGroupCRUD(t *testing.T) {
-	// Setup
-	rs, mockStore, _ := setupTest(t)
+// TestCreateCategory tests the createCategory handler
+func TestCreateCategory(t *testing.T) {
+	rs, mockAgStore, _ := setupTestAPI()
 
-	// Test ListActivityGroups
-	t.Run("ListActivityGroups", func(t *testing.T) {
-		ags := []models2.Ag{
-			{ID: 1, Name: "Football", MaxParticipant: 20, SupervisorID: 1, AgCategoryID: 1, CreatedAt: time.Now(), ModifiedAt: time.Now()},
-			{ID: 2, Name: "Piano", MaxParticipant: 10, SupervisorID: 2, AgCategoryID: 2, CreatedAt: time.Now(), ModifiedAt: time.Now()},
-		}
-		mockStore.On("ListAgs", mock.Anything, mock.Anything).Return(ags, nil).Once()
+	// Setup test data
+	newCategory := &models2.AgCategory{
+		Name: "New Category",
+	}
 
-		// Create a request to pass to our handler
-		r := httptest.NewRequest("GET", "/", nil)
-		w := httptest.NewRecorder()
+	mockAgStore.On("CreateAgCategory", mock.Anything, mock.MatchedBy(func(c *models2.AgCategory) bool {
+		return c.Name == "New Category"
+	})).Return(nil)
 
-		// Set up the router
-		router := chi.NewRouter()
-		router.Get("/", rs.listActivityGroups)
-		router.ServeHTTP(w, r)
+	// Create test request
+	categoryReq := &AgCategoryRequest{AgCategory: newCategory}
+	body, _ := json.Marshal(categoryReq)
+	r := httptest.NewRequest("POST", "/categories", bytes.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
 
-		// Check the status code
-		assert.Equal(t, http.StatusOK, w.Code)
+	// Call the handler directly
+	rs.createCategory(w, r)
 
-		// Unmarshal the response
-		var responseAgs []models2.Ag
-		err := json.Unmarshal(w.Body.Bytes(), &responseAgs)
-		assert.NoError(t, err)
-		assert.Len(t, responseAgs, 2)
-		assert.Equal(t, "Football", responseAgs[0].Name)
-		assert.Equal(t, "Piano", responseAgs[1].Name)
-	})
+	// Check response
+	assert.Equal(t, http.StatusCreated, w.Code)
 
-	// Test CreateActivityGroup
-	t.Run("CreateActivityGroup", func(t *testing.T) {
-		ag := &models2.Ag{
-			Name:           "Basketball",
-			MaxParticipant: 15,
-			SupervisorID:   1,
-			AgCategoryID:   1,
-		}
-		studentIDs := []int64{1, 2, 3}
-		times := []*models2.AgTime{
-			{Weekday: "Monday", TimespanID: 1},
-			{Weekday: "Wednesday", TimespanID: 2},
-		}
+	var responseCategory models2.AgCategory
+	err := json.Unmarshal(w.Body.Bytes(), &responseCategory)
+	assert.NoError(t, err)
+	assert.Equal(t, "New Category", responseCategory.Name)
+	assert.Equal(t, int64(1), responseCategory.ID) // Auto-increment ID in mock
 
-		mockStore.On("CreateAg", mock.Anything, mock.MatchedBy(func(a *models2.Ag) bool {
-			return a.Name == "Basketball" && a.MaxParticipant == 15
-		}), studentIDs, times).Return(nil).Once()
+	mockAgStore.AssertExpectations(t)
+}
 
-		// Mock the GetAgByID call
-		mockStore.On("GetAgByID", mock.Anything, int64(1)).Return(&models2.Ag{
+// TestGetCategory tests the getCategory handler
+func TestGetCategory(t *testing.T) {
+	rs, mockAgStore, _ := setupTestAPI()
+
+	// Setup test data
+	category := &models2.AgCategory{
+		ID:   1,
+		Name: "Test Category",
+	}
+
+	mockAgStore.On("GetAgCategoryByID", mock.Anything, int64(1)).Return(category, nil)
+
+	// Create test request
+	r := httptest.NewRequest("GET", "/categories/1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+
+	// Call the handler directly
+	rs.getCategory(w, r)
+
+	// Check response
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var responseCategory models2.AgCategory
+	err := json.Unmarshal(w.Body.Bytes(), &responseCategory)
+	assert.NoError(t, err)
+	assert.Equal(t, "Test Category", responseCategory.Name)
+	assert.Equal(t, int64(1), responseCategory.ID)
+
+	mockAgStore.AssertExpectations(t)
+}
+
+// TestListAgs tests the listAgs handler
+func TestListAgs(t *testing.T) {
+	rs, mockAgStore, _ := setupTestAPI()
+
+	// Setup test data
+	testAgs := []models2.Ag{
+		{
 			ID:             1,
-			Name:           "Basketball",
-			MaxParticipant: 15,
-			SupervisorID:   1,
+			Name:           "Activity Group 1",
+			MaxParticipant: 10,
 			AgCategoryID:   1,
-			CreatedAt:      time.Now(),
-			ModifiedAt:     time.Now(),
-		}, nil).Once()
+			SupervisorID:   1,
+		},
+		{
+			ID:             2,
+			Name:           "Activity Group 2",
+			MaxParticipant: 15,
+			AgCategoryID:   2,
+			SupervisorID:   2,
+		},
+	}
 
-		// Create the JSON payload
-		payload, _ := json.Marshal(ActivityGroupRequest{
-			Ag:         ag,
-			StudentIDs: studentIDs,
-			Times:      times,
-		})
-		r := httptest.NewRequest("POST", "/", bytes.NewBuffer(payload))
-		r.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
+	mockAgStore.On("ListAgs", mock.Anything, mock.Anything).Return(testAgs, nil)
 
-		// Set up the router
-		router := chi.NewRouter()
-		router.Post("/", rs.createActivityGroup)
-		router.ServeHTTP(w, r)
+	// Create test request
+	r := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
 
-		// Check the status code
-		assert.Equal(t, http.StatusCreated, w.Code)
+	// Call the handler directly
+	rs.listAgs(w, r)
 
-		// Unmarshal the response
-		var responseAg models2.Ag
-		err := json.Unmarshal(w.Body.Bytes(), &responseAg)
-		assert.NoError(t, err)
-		assert.Equal(t, "Basketball", responseAg.Name)
-		assert.Equal(t, int64(1), responseAg.ID)
-		assert.Equal(t, 15, responseAg.MaxParticipant)
-	})
+	// Check response
+	assert.Equal(t, http.StatusOK, w.Code)
 
-	// Add more tests for other activity group operations as needed
+	var responseAgs []models2.Ag
+	err := json.Unmarshal(w.Body.Bytes(), &responseAgs)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(responseAgs))
+	assert.Equal(t, "Activity Group 1", responseAgs[0].Name)
+	assert.Equal(t, "Activity Group 2", responseAgs[1].Name)
+
+	mockAgStore.AssertExpectations(t)
 }
 
-// TestTimeslotCRUD tests the CRUD operations for timeslots
-func TestTimeslotCRUD(t *testing.T) {
-	// Setup
-	rs, mockStore, _ := setupTest(t)
+// TestCreateAg tests the createAg handler
+func TestCreateAg(t *testing.T) {
+	rs, mockAgStore, _ := setupTestAPI()
 
-	// Test ListAgTimes
-	t.Run("ListAgTimes", func(t *testing.T) {
-		agTimes := []models2.AgTime{
-			{ID: 1, Weekday: "Monday", TimespanID: 1, AgID: 1, CreatedAt: time.Now()},
-			{ID: 2, Weekday: "Wednesday", TimespanID: 2, AgID: 1, CreatedAt: time.Now()},
-		}
-		mockStore.On("ListAgTimes", mock.Anything, int64(1)).Return(agTimes, nil).Once()
+	// Setup test data
+	now := time.Now()
+	timespan := &models2.Timespan{
+		ID:        1,
+		StartTime: now,
+	}
 
-		// Create a request to pass to our handler
-		r := httptest.NewRequest("GET", "/1/times", nil)
-		w := httptest.NewRecorder()
+	timeslot := &models2.AgTime{
+		Weekday:    "Monday",
+		TimespanID: 1,
+		Timespan:   timespan,
+	}
 
-		// Set up the router with URL params
-		router := chi.NewRouter()
-		router.Route("/{id}", func(r chi.Router) {
-			r.Route("/times", func(r chi.Router) {
-				r.Get("/", rs.listAgTimes)
-			})
-		})
-		router.ServeHTTP(w, r)
+	newAg := &models2.Ag{
+		Name:           "New Activity Group",
+		MaxParticipant: 10,
+		AgCategoryID:   1,
+		SupervisorID:   1,
+	}
 
-		// Check the status code
-		assert.Equal(t, http.StatusOK, w.Code)
+	createdAg := &models2.Ag{
+		ID:             1,
+		Name:           "New Activity Group",
+		MaxParticipant: 10,
+		AgCategoryID:   1,
+		SupervisorID:   1,
+		Times:          []*models2.AgTime{timeslot},
+		CreatedAt:      now,
+		ModifiedAt:     now,
+	}
 
-		// Unmarshal the response
-		var responseAgTimes []models2.AgTime
-		err := json.Unmarshal(w.Body.Bytes(), &responseAgTimes)
-		assert.NoError(t, err)
-		assert.Len(t, responseAgTimes, 2)
-		assert.Equal(t, "Monday", responseAgTimes[0].Weekday)
-		assert.Equal(t, "Wednesday", responseAgTimes[1].Weekday)
-	})
+	mockAgStore.On("CreateAg", mock.Anything, mock.MatchedBy(func(a *models2.Ag) bool {
+		return a.Name == "New Activity Group" && a.MaxParticipant == 10
+	}), []int64{}, []*models2.AgTime{timeslot}).Return(nil)
 
-	// Add more tests for other timeslot operations as needed
+	mockAgStore.On("GetAgByID", mock.Anything, int64(1)).Return(createdAg, nil)
+
+	// Create test request
+	agReq := &AgRequest{
+		Ag:        newAg,
+		Timeslots: []*models2.AgTime{timeslot},
+	}
+	body, _ := json.Marshal(agReq)
+	r := httptest.NewRequest("POST", "/", bytes.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	// Call the handler directly
+	rs.createAg(w, r)
+
+	// Check response
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var responseAg models2.Ag
+	err := json.Unmarshal(w.Body.Bytes(), &responseAg)
+	assert.NoError(t, err)
+	assert.Equal(t, "New Activity Group", responseAg.Name)
+	assert.Equal(t, int64(1), responseAg.ID)
+	assert.Equal(t, 1, len(responseAg.Times))
+
+	mockAgStore.AssertExpectations(t)
 }
 
-// TestEnrollmentCRUD tests the CRUD operations for student enrollments
-func TestEnrollmentCRUD(t *testing.T) {
-	// Setup
-	rs, mockStore, _ := setupTest(t)
+// TestEnrollStudent tests the enrollStudent handler
+func TestEnrollStudent(t *testing.T) {
+	rs, mockAgStore, _ := setupTestAPI()
 
-	// Test ListEnrolledStudents
-	t.Run("ListEnrolledStudents", func(t *testing.T) {
-		students := []models2.Student{
-			{ID: 1, SchoolClass: "5A", CustomUserID: 1, GroupID: 1, CreatedAt: time.Now(), ModifiedAt: time.Now()},
-			{ID: 2, SchoolClass: "5B", CustomUserID: 2, GroupID: 2, CreatedAt: time.Now(), ModifiedAt: time.Now()},
-		}
-		mockStore.On("ListEnrolledStudents", mock.Anything, int64(1)).Return(students, nil).Once()
+	// Setup test data
+	ag := &models2.Ag{
+		ID:             1,
+		Name:           "Test Activity Group",
+		MaxParticipant: 10,
+		Students:       []models2.Student{}, // No students yet
+	}
 
-		// Create a request to pass to our handler
-		r := httptest.NewRequest("GET", "/1/students", nil)
-		w := httptest.NewRecorder()
+	mockAgStore.On("GetAgByID", mock.Anything, int64(1)).Return(ag, nil)
+	mockAgStore.On("EnrollStudent", mock.Anything, int64(1), int64(1)).Return(nil)
 
-		// Set up the router with URL params
-		router := chi.NewRouter()
-		router.Route("/{id}", func(r chi.Router) {
-			r.Route("/students", func(r chi.Router) {
-				r.Get("/", rs.listEnrolledStudents)
-			})
-		})
-		router.ServeHTTP(w, r)
+	// Create test request
+	r := httptest.NewRequest("POST", "/1/enroll/1", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	rctx.URLParams.Add("studentId", "1")
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
 
-		// Check the status code
-		assert.Equal(t, http.StatusOK, w.Code)
+	// Call the handler directly
+	rs.enrollStudent(w, r)
 
-		// Unmarshal the response
-		var responseStudents []models2.Student
-		err := json.Unmarshal(w.Body.Bytes(), &responseStudents)
-		assert.NoError(t, err)
-		assert.Len(t, responseStudents, 2)
-		assert.Equal(t, "5A", responseStudents[0].SchoolClass)
-		assert.Equal(t, "5B", responseStudents[1].SchoolClass)
-	})
+	// Check response
+	assert.Equal(t, http.StatusOK, w.Code)
 
-	// Test EnrollStudent
-	t.Run("EnrollStudent", func(t *testing.T) {
-		mockStore.On("EnrollStudent", mock.Anything, int64(1), int64(3)).Return(nil).Once()
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.True(t, response["success"].(bool))
+	assert.Equal(t, float64(1), response["ag_id"])
+	assert.Equal(t, float64(1), response["student_id"])
 
-		// Create a request to pass to our handler
-		r := httptest.NewRequest("POST", "/1/students/3", nil)
-		w := httptest.NewRecorder()
+	mockAgStore.AssertExpectations(t)
+}
 
-		// Set up the router with URL params
-		router := chi.NewRouter()
-		router.Route("/{id}", func(r chi.Router) {
-			r.Route("/students", func(r chi.Router) {
-				r.Post("/{studentId}", func(w http.ResponseWriter, r *http.Request) {
-					agID, _ := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-					studentID, _ := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
-					rs.Store.EnrollStudent(r.Context(), agID, studentID)
-					w.WriteHeader(http.StatusCreated)
-				})
-			})
-		})
-		router.ServeHTTP(w, r)
+// TestAddAgTime tests the addAgTime handler
+func TestAddAgTime(t *testing.T) {
+	rs, mockAgStore, _ := setupTestAPI()
 
-		// Check the status code
-		assert.Equal(t, http.StatusCreated, w.Code)
-	})
+	// Setup test data
+	now := time.Now()
+	timespan := &models2.Timespan{
+		ID:        1,
+		StartTime: now,
+	}
 
-	// Add more tests for other enrollment operations as needed
+	newTime := &models2.AgTime{
+		Weekday:    "Monday",
+		TimespanID: 1,
+	}
+
+	createdTime := &models2.AgTime{
+		ID:         1,
+		Weekday:    "Monday",
+		TimespanID: 1,
+		AgID:       1,
+		Timespan:   timespan,
+		CreatedAt:  now,
+	}
+
+	mockAgStore.On("CreateAgTime", mock.Anything, mock.MatchedBy(func(at *models2.AgTime) bool {
+		return at.Weekday == "Monday" && at.TimespanID == 1 && at.AgID == 1
+	})).Return(nil)
+
+	mockAgStore.On("GetAgTimeByID", mock.Anything, int64(1)).Return(createdTime, nil)
+
+	// Create test request
+	timeReq := &AgTimeRequest{AgTime: newTime}
+	body, _ := json.Marshal(timeReq)
+	r := httptest.NewRequest("POST", "/1/times", bytes.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+
+	// Call the handler directly
+	rs.addAgTime(w, r)
+
+	// Check response
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var responseTime models2.AgTime
+	err := json.Unmarshal(w.Body.Bytes(), &responseTime)
+	assert.NoError(t, err)
+	assert.Equal(t, "Monday", responseTime.Weekday)
+	assert.Equal(t, int64(1), responseTime.ID)
+	assert.Equal(t, int64(1), responseTime.AgID)
+
+	mockAgStore.AssertExpectations(t)
+}
+
+// TestRouter tests the router configuration
+func TestRouter(t *testing.T) {
+	rs, _, _ := setupTestAPI()
+	router := rs.Router()
+
+	// Test if the router is created correctly
+	assert.NotNil(t, router)
 }
