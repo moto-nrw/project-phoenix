@@ -321,13 +321,11 @@ func TestCreateAg(t *testing.T) {
 		StartTime: now,
 	}
 
-	// FIX: Include a valid AgID in the timeslot
 	timeslot := &models2.AgTime{
-		ID:         0, // Will be set by the mock
 		Weekday:    "Monday",
 		TimespanID: 1,
 		Timespan:   timespan,
-		AgID:       1, // This was missing - add a valid AgID
+		AgID:       1, // This will be set later
 	}
 
 	newAg := &models2.Ag{
@@ -348,17 +346,34 @@ func TestCreateAg(t *testing.T) {
 		ModifiedAt:     now,
 	}
 
-	mockAgStore.On("CreateAg", mock.Anything, mock.MatchedBy(func(a *models2.Ag) bool {
-		return a.Name == "New Activity Group" && a.MaxParticipant == 10
-	}), []int64{}, []*models2.AgTime{timeslot}).Return(nil)
+	// Important: Create an exact copy of the timeslot to ensure consistency
+	// when comparing expected vs actual values in mock
+	timeslotCopy := &models2.AgTime{
+		Weekday:    timeslot.Weekday,
+		TimespanID: timeslot.TimespanID,
+		Timespan:   timeslot.Timespan,
+		AgID:       timeslot.AgID,
+	}
+
+	// Use the copied timeslot in both expectation and request
+	mockAgStore.On("CreateAg",
+		mock.Anything,
+		mock.MatchedBy(func(a *models2.Ag) bool {
+			return a.Name == "New Activity Group" && a.MaxParticipant == 10
+		}),
+		// Important: Use empty slice, not nil
+		[]int64{},
+		// Important: Use the same timeslot instance here as in the request
+		[]*models2.AgTime{timeslotCopy},
+	).Return(nil)
 
 	mockAgStore.On("GetAgByID", mock.Anything, int64(1)).Return(createdAg, nil)
 
-	// Create test request
+	// Create test request using the same timeslot copy
 	agReq := &AgRequest{
 		Ag:         newAg,
-		StudentIDs: []int64{},                   // FIX: Initialize as empty slice instead of nil
-		Timeslots:  []*models2.AgTime{timeslot}, // FIX: Include the timeslot
+		StudentIDs: []int64{},                       // Must be empty slice, not nil
+		Timeslots:  []*models2.AgTime{timeslotCopy}, // Use the same timeslot instance
 	}
 	body, _ := json.Marshal(agReq)
 	r := httptest.NewRequest("POST", "/", bytes.NewReader(body))
@@ -390,7 +405,7 @@ func TestEnrollStudent(t *testing.T) {
 		ID:             1,
 		Name:           "Test Activity Group",
 		MaxParticipant: 10,
-		Students:       []*models2.Student{}, // FIX: Changed from []models2.Student{} to []*models2.Student{}
+		Students:       []*models2.Student{}, // Use pointer slice
 	}
 
 	mockAgStore.On("GetAgByID", mock.Anything, int64(1)).Return(ag, nil)
@@ -431,11 +446,10 @@ func TestAddAgTime(t *testing.T) {
 		StartTime: now,
 	}
 
-	// FIX: Make sure the AgTime has an AgID
 	newTime := &models2.AgTime{
 		Weekday:    "Monday",
 		TimespanID: 1,
-		AgID:       1, // FIX: This was missing
+		AgID:       1, // Make sure this is set correctly
 	}
 
 	createdTime := &models2.AgTime{
