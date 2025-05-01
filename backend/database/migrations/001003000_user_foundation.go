@@ -92,14 +92,21 @@ func userFoundationUp(ctx context.Context, db *bun.DB) error {
 
 	// Create triggers for updated_at columns
 	_, err = tx.ExecContext(ctx, `
-		-- Function to update updated_at column already created in previous migration
+		-- Function to update modified_at column for tables using this naming convention
+		CREATE OR REPLACE FUNCTION update_modified_at_column()
+		RETURNS TRIGGER AS $$
+		BEGIN
+			NEW.modified_at = CURRENT_TIMESTAMP;
+			RETURN NEW;
+		END;
+		$$ LANGUAGE plpgsql;
 		
 		-- Trigger for custom_user
 		DROP TRIGGER IF EXISTS update_custom_user_modified_at ON custom_user;
 		CREATE TRIGGER update_custom_user_modified_at
 		BEFORE UPDATE ON custom_user
 		FOR EACH ROW
-		EXECUTE FUNCTION update_updated_at_column();
+		EXECUTE FUNCTION update_modified_at_column();
 		
 		-- Trigger for profile
 		DROP TRIGGER IF EXISTS update_profile_updated_at ON profile;

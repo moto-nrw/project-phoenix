@@ -89,9 +89,9 @@ func seedDataDown(ctx context.Context, db *bun.DB) error {
 		_, err = tx.ExecContext(ctx, `
 			-- Remove sample data
 			DELETE FROM groups WHERE name LIKE 'Sample%';
-			DELETE FROM rfid_cards WHERE id NOT IN (SELECT tag_id FROM custom_users WHERE tag_id IS NOT NULL);
-			DELETE FROM pedagogical_specialists WHERE role LIKE 'Sample%';
-			DELETE FROM custom_users WHERE first_name LIKE 'Sample%';
+			DELETE FROM rfid_cards WHERE id NOT IN (SELECT tag_id FROM custom_user WHERE tag_id IS NOT NULL);
+			DELETE FROM pedagogical_specialist WHERE role LIKE 'Sample%';
+			DELETE FROM custom_user WHERE first_name LIKE 'Sample%';
 			
 			-- Remove admin accounts except the default one if in production
 			DELETE FROM accounts WHERE email != 'admin@example.com' 
@@ -267,7 +267,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 		var exists bool
 		err := tx.QueryRowContext(ctx, `
 			SELECT EXISTS(
-				SELECT 1 FROM custom_users 
+				SELECT 1 FROM custom_user 
 				WHERE first_name = ? AND second_name = ?
 			)
 		`, user.FirstName, user.SecondName).Scan(&exists)
@@ -299,7 +299,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 
 			// Then create the user
 			_, err = tx.ExecContext(ctx, `
-				INSERT INTO custom_users (
+				INSERT INTO custom_user (
 					first_name, second_name, tag_id, created_at, modified_at
 				) VALUES (
 					?, ?, ?, ?, ?
@@ -349,7 +349,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 	// First get the user ID for the sample teacher
 	var sampleTeacherID int64
 	err := tx.QueryRowContext(ctx, `
-		SELECT id FROM custom_users 
+		SELECT id FROM custom_user 
 		WHERE first_name = 'Sample' AND second_name = 'Teacher'
 	`).Scan(&sampleTeacherID)
 
@@ -360,8 +360,8 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 	var specialistExists bool
 	err = tx.QueryRowContext(ctx, `
 		SELECT EXISTS(
-			SELECT 1 FROM pedagogical_specialists
-			WHERE custom_user_id = ?
+			SELECT 1 FROM pedagogical_specialist
+			WHERE user_id = ?
 		)
 	`, sampleTeacherID).Scan(&specialistExists)
 
@@ -401,7 +401,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 
 		// Update the custom user with the account ID
 		_, err = tx.ExecContext(ctx, `
-			UPDATE custom_users SET account_id = ? WHERE id = ?
+			UPDATE custom_user SET account_id = ? WHERE id = ?
 		`, accountID, sampleTeacherID)
 
 		if err != nil {
@@ -410,12 +410,12 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 
 		// Create the specialist record
 		_, err = tx.ExecContext(ctx, `
-			INSERT INTO pedagogical_specialists (
-				role, custom_user_id, user_id, is_password_otp, created_at, modified_at
+			INSERT INTO pedagogical_specialist (
+				specialization, user_id, created_at, modified_at
 			) VALUES (
-				'Sample Teacher', ?, ?, true, ?, ?
+				'Teacher', ?, ?, ?
 			)
-		`, sampleTeacherID, accountID, time.Now(), time.Now())
+		`, accountID, time.Now(), time.Now())
 
 		if err != nil {
 			return fmt.Errorf("error inserting pedagogical specialist: %w", err)

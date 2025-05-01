@@ -123,11 +123,17 @@ func accountsAuthUp(ctx context.Context, db *bun.DB) error {
 
 	// Create a trigger to update updated_at timestamp
 	_, err = tx.ExecContext(ctx, `
-		-- Function to update updated_at timestamp
+		-- Function to update updated_at or modified_at timestamp
 		CREATE OR REPLACE FUNCTION update_updated_at_column()
 		RETURNS TRIGGER AS $$
 		BEGIN
-			NEW.updated_at = CURRENT_TIMESTAMP;
+			-- Check which column exists in the table and update accordingly
+			IF TG_TABLE_NAME = 'custom_user' OR TG_TABLE_NAME = 'pedagogical_specialist' OR 
+			   TG_TABLE_NAME = 'rfid_cards' OR TG_TABLE_NAME = 'device' THEN
+				NEW.modified_at = CURRENT_TIMESTAMP;
+			ELSE
+				NEW.updated_at = CURRENT_TIMESTAMP;
+			END IF;
 			RETURN NEW;
 		END;
 		$$ LANGUAGE plpgsql;

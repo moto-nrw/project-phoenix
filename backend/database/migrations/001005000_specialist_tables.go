@@ -38,7 +38,28 @@ func specialistTablesUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer tx.Rollback()
 
-	// 1. Create the pedagogical_specialist table
+	// 1. Create the rfid_cards table
+	_, err = tx.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS rfid_cards (
+			id TEXT PRIMARY KEY,
+			active BOOLEAN NOT NULL DEFAULT TRUE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("error creating rfid_cards table: %w", err)
+	}
+
+	// Create indexes for rfid_cards
+	_, err = tx.ExecContext(ctx, `
+		CREATE INDEX IF NOT EXISTS idx_rfid_cards_active ON rfid_cards(active);
+	`)
+	if err != nil {
+		return fmt.Errorf("error creating indexes for rfid_cards table: %w", err)
+	}
+
+	// 2. Create the pedagogical_specialist table
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS pedagogical_specialist (
 			id BIGSERIAL PRIMARY KEY,
@@ -63,7 +84,7 @@ func specialistTablesUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating indexes for pedagogical_specialist table: %w", err)
 	}
 
-	// 2. Create the device table
+	// 3. Create the device table
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS device (
 			id BIGSERIAL PRIMARY KEY,
@@ -95,19 +116,26 @@ func specialistTablesUp(ctx context.Context, db *bun.DB) error {
 
 	// Create triggers for updated_at columns
 	_, err = tx.ExecContext(ctx, `
+		-- Trigger for rfid_cards
+		DROP TRIGGER IF EXISTS update_rfid_cards_modified_at ON rfid_cards;
+		CREATE TRIGGER update_rfid_cards_modified_at
+		BEFORE UPDATE ON rfid_cards
+		FOR EACH ROW
+		EXECUTE FUNCTION update_modified_at_column();
+
 		-- Trigger for pedagogical_specialist
 		DROP TRIGGER IF EXISTS update_pedagogical_specialist_modified_at ON pedagogical_specialist;
 		CREATE TRIGGER update_pedagogical_specialist_modified_at
 		BEFORE UPDATE ON pedagogical_specialist
 		FOR EACH ROW
-		EXECUTE FUNCTION update_updated_at_column();
+		EXECUTE FUNCTION update_modified_at_column();
 		
 		-- Trigger for device
 		DROP TRIGGER IF EXISTS update_device_modified_at ON device;
 		CREATE TRIGGER update_device_modified_at
 		BEFORE UPDATE ON device
 		FOR EACH ROW
-		EXECUTE FUNCTION update_updated_at_column();
+		EXECUTE FUNCTION update_modified_at_column();
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating updated_at triggers: %w", err)
@@ -132,6 +160,7 @@ func specialistTablesDown(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		DROP TABLE IF EXISTS device;
 		DROP TABLE IF EXISTS pedagogical_specialist;
+		DROP TABLE IF EXISTS rfid_cards;
 	`)
 	if err != nil {
 		return fmt.Errorf("error dropping specialist tables: %w", err)
