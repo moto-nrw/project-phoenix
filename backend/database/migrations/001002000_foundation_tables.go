@@ -14,16 +14,17 @@ const (
 )
 
 func init() {
-	// Register the migration
-	migration := &Migration{
-		Version:     FoundationTablesVersion,
-		Description: FoundationTablesDescription,
-		DependsOn:   []string{"1.1.0"}, // Depends on authentication foundation
-		Up:          foundationTablesUp,
-		Down:        foundationTablesDown,
-	}
-
-	registerMigration(migration)
+	// Migration 1.2.0: Foundation tables with no or minimal dependencies
+	Migrations.MustRegister(
+		// Up function
+		func(ctx context.Context, db *bun.DB) error {
+			return foundationTablesUp(ctx, db)
+		},
+		// Down function
+		func(ctx context.Context, db *bun.DB) error {
+			return foundationTablesDown(ctx, db)
+		},
+	)
 }
 
 // foundationTablesUp creates foundation tables with minimal dependencies

@@ -14,16 +14,15 @@ const (
 )
 
 func init() {
-	// Register the migration
-	migration := &Migration{
-		Version:     JunctionTablesVersion,
-		Description: JunctionTablesDescription,
-		DependsOn:   []string{"1.4.0", "1.5.0"}, // Depends on group foundation and specialist tables
-		Up:          junctionTablesUp,
-		Down:        junctionTablesDown,
-	}
-
-	registerMigration(migration)
+	// Migration 9: Junction tables for groups, specialists, and combined groups
+	Migrations.MustRegister(
+		func(ctx context.Context, db *bun.DB) error {
+			return junctionTablesUp(ctx, db)
+		},
+		func(ctx context.Context, db *bun.DB) error {
+			return junctionTablesDown(ctx, db)
+		},
+	)
 }
 
 // junctionTablesUp creates junction tables for group-specialist, combined group relationships

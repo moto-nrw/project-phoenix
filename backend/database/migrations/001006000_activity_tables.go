@@ -14,16 +14,15 @@ const (
 )
 
 func init() {
-	// Register the migration
-	migration := &Migration{
-		Version:     ActivityTablesVersion,
-		Description: ActivityTablesDescription,
-		DependsOn:   []string{"1.5.0", "1.4.0"}, // Depends on specialist tables and group foundation
-		Up:          activityTablesUp,
-		Down:        activityTablesDown,
-	}
-
-	registerMigration(migration)
+	// Migration 6: Activity group and time tables
+	Migrations.MustRegister(
+		func(ctx context.Context, db *bun.DB) error {
+			return activityTablesUp(ctx, db)
+		},
+		func(ctx context.Context, db *bun.DB) error {
+			return activityTablesDown(ctx, db)
+		},
+	)
 }
 
 // activityTablesUp creates the activity group related tables

@@ -18,16 +18,15 @@ const (
 )
 
 func init() {
-	// Register the migration
-	migration := &Migration{
-		Version:     SeedDataVersion,
-		Description: SeedDataDescription,
-		DependsOn:   []string{"1.1.0", "1.2.0", "1.11.0"}, // Depends on accounts, tables, and constraints
-		Up:          seedDataUp,
-		Down:        seedDataDown,
-	}
-
-	registerMigration(migration)
+	// Migration 12: Seed essential data and sample records
+	Migrations.MustRegister(
+		func(ctx context.Context, db *bun.DB) error {
+			return seedDataUp(ctx, db)
+		},
+		func(ctx context.Context, db *bun.DB) error {
+			return seedDataDown(ctx, db)
+		},
+	)
 }
 
 // seedDataUp populates the database with essential and sample data

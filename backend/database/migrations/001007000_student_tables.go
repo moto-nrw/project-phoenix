@@ -14,16 +14,15 @@ const (
 )
 
 func init() {
-	// Register the migration
-	migration := &Migration{
-		Version:     StudentTablesVersion,
-		Description: StudentTablesDescription,
-		DependsOn:   []string{"1.4.0", "1.6.0"}, // Depends on group foundation and activity tables
-		Up:          studentTablesUp,
-		Down:        studentTablesDown,
-	}
-
-	registerMigration(migration)
+	// Migration 7: Student and feedback tables
+	Migrations.MustRegister(
+		func(ctx context.Context, db *bun.DB) error {
+			return studentTablesUp(ctx, db)
+		},
+		func(ctx context.Context, db *bun.DB) error {
+			return studentTablesDown(ctx, db)
+		},
+	)
 }
 
 // studentTablesUp creates the student, feedback, and student_ags tables

@@ -14,16 +14,15 @@ const (
 )
 
 func init() {
-	// Register the migration
-	migration := &Migration{
-		Version:     CircularConstraintsVersion,
-		Description: CircularConstraintsDescription,
-		DependsOn:   []string{"1.4.0", "1.6.0", "1.7.0", "1.8.0"}, // Depends on group foundation, activity tables, student tables, and room complex tables
-		Up:          circularConstraintsUp,
-		Down:        circularConstraintsDown,
-	}
-
-	registerMigration(migration)
+	// Migration 10: Resolving circular dependencies in foreign key constraints
+	Migrations.MustRegister(
+		func(ctx context.Context, db *bun.DB) error {
+			return circularConstraintsUp(ctx, db)
+		},
+		func(ctx context.Context, db *bun.DB) error {
+			return circularConstraintsDown(ctx, db)
+		},
+	)
 }
 
 // circularConstraintsUp adds foreign key constraints that couldn't be added earlier due to circular dependencies

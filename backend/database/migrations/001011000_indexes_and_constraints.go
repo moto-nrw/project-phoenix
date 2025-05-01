@@ -14,16 +14,15 @@ const (
 )
 
 func init() {
-	// Register the migration
-	migration := &Migration{
-		Version:     IndexesAndConstraintsVersion,
-		Description: IndexesAndConstraintsDescription,
-		DependsOn:   []string{"1.10.0"}, // Depends on circular constraints
-		Up:          indexesAndConstraintsUp,
-		Down:        indexesAndConstraintsDown,
-	}
-
-	registerMigration(migration)
+	// Migration 11: Performance indexes and data integrity constraints
+	Migrations.MustRegister(
+		func(ctx context.Context, db *bun.DB) error {
+			return indexesAndConstraintsUp(ctx, db)
+		},
+		func(ctx context.Context, db *bun.DB) error {
+			return indexesAndConstraintsDown(ctx, db)
+		},
+	)
 }
 
 // indexesAndConstraintsUp adds additional indexes and constraints for performance and data integrity

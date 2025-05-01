@@ -14,16 +14,15 @@ const (
 )
 
 func init() {
-	// Register the migration
-	migration := &Migration{
-		Version:     RoomComplexTablesVersion,
-		Description: RoomComplexTablesDescription,
-		DependsOn:   []string{"1.3.0", "1.7.0"}, // Depends on user foundation and student tables
-		Up:          roomComplexTablesUp,
-		Down:        roomComplexTablesDown,
-	}
-
-	registerMigration(migration)
+	// Migration 8: Room occupancy, history, and visit tables
+	Migrations.MustRegister(
+		func(ctx context.Context, db *bun.DB) error {
+			return roomComplexTablesUp(ctx, db)
+		},
+		func(ctx context.Context, db *bun.DB) error {
+			return roomComplexTablesDown(ctx, db)
+		},
+	)
 }
 
 // roomComplexTablesUp creates the room_occupancy, room_history, and visit tables

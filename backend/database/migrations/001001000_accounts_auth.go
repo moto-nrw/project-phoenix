@@ -14,16 +14,17 @@ const (
 )
 
 func init() {
-	// Register the migration
-	migration := &Migration{
-		Version:     AccountsAuthVersion,
-		Description: AccountsAuthDescription,
-		DependsOn:   []string{"1.0.0"}, // Depends on infrastructure
-		Up:          accountsAuthUp,
-		Down:        accountsAuthDown,
-	}
-
-	registerMigration(migration)
+	// Migration 1.1.0: Authentication foundation tables
+	Migrations.MustRegister(
+		// Up function
+		func(ctx context.Context, db *bun.DB) error {
+			return accountsAuthUp(ctx, db)
+		},
+		// Down function
+		func(ctx context.Context, db *bun.DB) error {
+			return accountsAuthDown(ctx, db)
+		},
+	)
 }
 
 // accountsAuthUp creates the authentication foundation tables

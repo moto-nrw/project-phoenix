@@ -14,16 +14,17 @@ const (
 )
 
 func init() {
-	// Register the migration
-	migration := &Migration{
-		Version:     SpecialistTablesVersion,
-		Description: SpecialistTablesDescription,
-		DependsOn:   []string{"1.3.0"}, // Depends on user foundation tables
-		Up:          specialistTablesUp,
-		Down:        specialistTablesDown,
-	}
-
-	registerMigration(migration)
+	// Migration 1.5.0: Pedagogical specialist and device tables
+	Migrations.MustRegister(
+		// Up function
+		func(ctx context.Context, db *bun.DB) error {
+			return specialistTablesUp(ctx, db)
+		},
+		// Down function
+		func(ctx context.Context, db *bun.DB) error {
+			return specialistTablesDown(ctx, db)
+		},
+	)
 }
 
 // specialistTablesUp creates the pedagogical specialist and device tables

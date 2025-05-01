@@ -17,8 +17,9 @@ func registerMigration(migration *Migration) {
 	// Store in metadata registry
 	MigrationRegistry[migration.Version] = migration
 
-	// Register with Bun migrator
+	// Register the migration functions with the Bun migrator
 	Migrations.MustRegister(
+		// Up function
 		func(ctx context.Context, db *bun.DB) error {
 			startTime := time.Now()
 			fmt.Printf("Running migration V%s: %s\n", migration.Version, migration.Description)
@@ -38,6 +39,7 @@ func registerMigration(migration *Migration) {
 			fmt.Printf("Migration V%s completed successfully (%d ms)\n", migration.Version, duration)
 			return nil
 		},
+		// Down function
 		func(ctx context.Context, db *bun.DB) error {
 			startTime := time.Now()
 			fmt.Printf("Rolling back migration V%s: %s\n", migration.Version, migration.Description)
