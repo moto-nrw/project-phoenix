@@ -242,7 +242,7 @@ export default function StudentDetailPage() {
                     <div className="text-sm text-gray-500">IDs</div>
                     <div className="text-xs text-gray-600 flex flex-col">
                       <span>Student: {student.id}</span>
-                      {student.custom_user_id && <span>Benutzer: {student.custom_user_id}</span>}
+                      {student.custom_users_id && <span>Benutzer: {student.custom_users_id}</span>}
                       {student.group_id && <span>Gruppe: {student.group_id}</span>}
                     </div>
                   </div>

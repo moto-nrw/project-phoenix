@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Group } from '@/lib/api';
+import type { Group } from '@/lib/api';
 
 interface GroupSelectorProps {
   value: string;

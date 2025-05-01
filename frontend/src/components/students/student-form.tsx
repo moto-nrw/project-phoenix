@@ -50,7 +50,7 @@ export default function StudentForm({
         in_house: initialData.in_house || false,
         wc: initialData.wc || false,
         school_yard: initialData.school_yard || false,
-        custom_users_id: initialData.custom_users_id || initialData.custom_user_id || '',
+        custom_users_id: initialData.custom_users_id || '',
       });
     }
   }, [initialData]);
