@@ -371,3 +371,4 @@ backend/project-phoenix
 !/frontend/package.json
 !/frontend/package-lock.json
 .DS_Store
+**/.claude/settings.local.json
