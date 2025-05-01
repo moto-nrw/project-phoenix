@@ -400,8 +400,8 @@ func (s *AgStore) UnenrollStudent(ctx context.Context, agID, studentID int64) er
 }
 
 // ListEnrolledStudents returns a list of all students enrolled in a specific activity group
-func (s *AgStore) ListEnrolledStudents(ctx context.Context, agID int64) ([]models2.Student, error) {
-	var students []models2.Student
+func (s *AgStore) ListEnrolledStudents(ctx context.Context, agID int64) ([]*models2.Student, error) {
+	var students []*models2.Student
 
 	err := s.db.NewSelect().
 		Model(&students).
