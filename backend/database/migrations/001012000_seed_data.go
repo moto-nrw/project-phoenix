@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/uptrace/bun"
-	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -216,10 +216,12 @@ func seedDefaultAdmin(ctx context.Context, tx bun.Tx) error {
 	if !adminExists {
 		// Get default admin password from environment or use default
 		adminPassword := os.Getenv("DEFAULT_ADMIN_PASSWORD")
-		adminPassword = "admin123" // Default password - should be changed immediately
+		if adminPassword == "" {
+			adminPassword = "Test1234%" // Default password - should be changed immediately
+		}
 
-		// Hash the password
-		passwordHash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
+		// Hash the password using Argon2id (consistent with authentication)
+		passwordHash, err := userpass.HashPassword(adminPassword, userpass.DefaultParams())
 		if err != nil {
 			return fmt.Errorf("error hashing admin password: %w", err)
 		}
@@ -236,7 +238,7 @@ func seedDefaultAdmin(ctx context.Context, tx bun.Tx) error {
 		`,
 			time.Now(), time.Now(), "admin@example.com", "admin",
 			"System Administrator", true,
-			`{"admin"}`, string(passwordHash))
+			`{"admin"}`, passwordHash)
 
 		if err != nil {
 			return fmt.Errorf("error inserting admin account: %w", err)
@@ -467,7 +469,12 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 
 	if !specialistExists && sampleTeacherID > 0 {
 		// Create a sample account for the specialist
-		_, err := tx.ExecContext(ctx, `
+		teacherPassword, err := userpass.HashPassword("Teacher1234%", userpass.DefaultParams())
+		if err != nil {
+			return fmt.Errorf("error hashing teacher password: %w", err)
+		}
+
+		_, err = tx.ExecContext(ctx, `
 			INSERT INTO accounts (
 				created_at, updated_at, email, username, name, active, 
 				roles, password_hash
@@ -479,7 +486,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 			time.Now(), time.Now(),
 			"sample.teacher@example.com", "sample.teacher",
 			"Sample Teacher", true,
-			`{"teacher"}`, "$2a$10$RgXMYCgWUn9OJ6rqUH.PBOjFRTLvgcOJvOTQqfy3BKTjUGFBQkvX2")
+			`{"teacher"}`, teacherPassword)
 
 		if err != nil {
 			return fmt.Errorf("error inserting sample specialist account: %w", err)
