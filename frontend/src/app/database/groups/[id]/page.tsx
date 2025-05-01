@@ -322,7 +322,9 @@ export default function GroupDetailPage() {
                     <p className="mb-2">Keine Schüler in dieser Gruppe gefunden.</p>
                     <p className="text-sm">Wenn Sie gerade einen Schüler hinzugefügt haben, könnte das System einige Sekunden benötigen, um das zu verarbeiten.</p>
                     <button
-                      onClick={() => fetchGroupDetails()}
+                      onClick={() => {
+                        void groupService.getGroupStudents(groupId).then(data => setStudents(data));
+                      }}
                       className="mt-3 px-4 py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-md transition-colors duration-200"
                     >
                       Aktualisieren
