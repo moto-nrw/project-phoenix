@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/dashboard';
 import { GroupForm } from '@/components/groups';
+import { StudentList } from '@/components/students';
 import type { Group, Student } from '@/lib/api';
 import { groupService } from '@/lib/api';
 
@@ -237,59 +238,41 @@ export default function GroupDetailPage() {
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Group Information */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium text-blue-800 border-b border-blue-200 pb-2">
-                    Gruppendaten
-                  </h3>
-                  
-                  <div>
-                    <div className="text-sm text-gray-500">Name</div>
-                    <div className="text-base">{group.name}</div>
-                  </div>
-                  
-                  <div>
-                    <div className="text-sm text-gray-500">Raum</div>
-                    <div className="text-base">{group.room_name || 'Nicht zugewiesen'}</div>
-                  </div>
-                  
-                  <div>
-                    <div className="text-sm text-gray-500">Vertreter</div>
-                    <div className="text-base">{group.representative_name || 'Nicht zugewiesen'}</div>
-                  </div>
-                  
-                  <div>
-                    <div className="text-sm text-gray-500">IDs</div>
-                    <div className="text-xs text-gray-600 flex flex-col">
-                      <span>Gruppe: {group.id}</span>
-                      {group.room_id && <span>Raum: {group.room_id}</span>}
-                      {group.representative_id && <span>Vertreter: {group.representative_id}</span>}
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Students and Supervisors */}
-                <div className="space-y-8">
+              {/* Group Information (Top Section) */}
+              <div className="mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {/* Group Details */}
                   <div className="space-y-4">
-                    <h3 className="text-lg font-medium text-green-800 border-b border-green-200 pb-2">
-                      Schüler in dieser Gruppe
+                    <h3 className="text-lg font-medium text-blue-800 border-b border-blue-200 pb-2">
+                      Gruppendaten
                     </h3>
                     
-                    {students.length > 0 ? (
-                      <div className="space-y-2">
-                        {students.map(student => (
-                          <div key={student.id} className="bg-green-50 p-2 rounded-lg flex justify-between items-center">
-                            <span>{student.name}</span>
-                            <span className="text-xs text-gray-500">{student.school_class}</span>
-                          </div>
-                        ))}
+                    <div>
+                      <div className="text-sm text-gray-500">Name</div>
+                      <div className="text-base">{group.name}</div>
+                    </div>
+                    
+                    <div>
+                      <div className="text-sm text-gray-500">Raum</div>
+                      <div className="text-base">{group.room_name || 'Nicht zugewiesen'}</div>
+                    </div>
+                    
+                    <div>
+                      <div className="text-sm text-gray-500">Vertreter</div>
+                      <div className="text-base">{group.representative_name || 'Nicht zugewiesen'}</div>
+                    </div>
+                    
+                    <div>
+                      <div className="text-sm text-gray-500">IDs</div>
+                      <div className="text-xs text-gray-600 flex flex-col">
+                        <span>Gruppe: {group.id}</span>
+                        {group.room_id && <span>Raum: {group.room_id}</span>}
+                        {group.representative_id && <span>Vertreter: {group.representative_id}</span>}
                       </div>
-                    ) : (
-                      <p className="text-gray-500">Keine Schüler in dieser Gruppe.</p>
-                    )}
+                    </div>
                   </div>
                   
+                  {/* Supervisors */}
                   <div className="space-y-4">
                     <h3 className="text-lg font-medium text-purple-800 border-b border-purple-200 pb-2">
                       Aufsichtspersonen
@@ -298,7 +281,7 @@ export default function GroupDetailPage() {
                     {group.supervisors && group.supervisors.length > 0 ? (
                       <div className="space-y-2">
                         {group.supervisors.map(supervisor => (
-                          <div key={supervisor.id} className="bg-purple-50 p-2 rounded-lg">
+                          <div key={supervisor.id} className="bg-purple-50 p-3 rounded-lg hover:bg-purple-100 transition-colors">
                             <span>{supervisor.name}</span>
                           </div>
                         ))}
@@ -308,6 +291,49 @@ export default function GroupDetailPage() {
                     )}
                   </div>
                 </div>
+              </div>
+              
+              {/* Students Section (Full Width) */}
+              <div className="border-t border-gray-200 pt-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-medium text-green-800 border-b border-green-200 pb-2">
+                    Schüler in dieser Gruppe
+                  </h3>
+                  
+                  <div className="flex items-center gap-4">
+                    <div className="text-sm text-gray-500">
+                      {students.length > 0 ? `${students.length} Schüler` : 'Keine Schüler'}
+                    </div>
+                    
+                    <button
+                      onClick={() => router.push('/database/students/new?groupId=' + groupId)}
+                      className="px-3 py-1.5 bg-green-50 text-green-600 rounded-md hover:bg-green-100 transition-colors flex items-center gap-1"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span>Schüler hinzufügen</span>
+                    </button>
+                  </div>
+                </div>
+                
+                {students.length === 0 ? (
+                  <div className="bg-yellow-50 text-yellow-800 p-4 rounded-lg text-center">
+                    <p className="mb-2">Keine Schüler in dieser Gruppe gefunden.</p>
+                    <p className="text-sm">Wenn Sie gerade einen Schüler hinzugefügt haben, könnte das System einige Sekunden benötigen, um das zu verarbeiten.</p>
+                    <button
+                      onClick={() => fetchGroupDetails()}
+                      className="mt-3 px-4 py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-md transition-colors duration-200"
+                    >
+                      Aktualisieren
+                    </button>
+                  </div>
+                ) : (
+                  <StudentList 
+                    students={students} 
+                    showDetails={true}
+                  />
+                )}
               </div>
             </div>
           </div>

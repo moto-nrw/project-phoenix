@@ -86,6 +86,9 @@ export async function POST(
     // Parse request body
     const requestBody = await request.json();
     
+    // Log for debugging
+    console.log(`Adding student to group ${groupId}:`, requestBody);
+    
     // Forward the request to the backend with token
     const backendResponse = await fetch(
       `${env.NEXT_PUBLIC_API_URL}/groups/${groupId}/students`,
