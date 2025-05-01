@@ -43,10 +43,10 @@ export default function StudentDetailPage() {
       setLoading(true);
       setError(null);
       
-      // Prepare update data with custom_user_id
+      // Prepare update data with custom_users_id
       const updateData: Partial<Student> = {
         ...formData,
-        custom_user_id: formData.custom_user_id || student?.custom_user_id,
+        custom_users_id: formData.custom_users_id || student?.custom_users_id,
       };
       
       // Update student
@@ -224,14 +224,25 @@ export default function StudentDetailPage() {
                   
                   <div>
                     <div className="text-sm text-gray-500">Gruppe</div>
-                    <div className="text-base">{student.group_name || 'Keine Gruppe zugewiesen'}</div>
+                    <div className="text-base">
+                      {student.group_id && student.group_name ? (
+                        <a 
+                          href={`/database/groups/${student.group_id}`}
+                          className="text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                        >
+                          {student.group_name}
+                        </a>
+                      ) : (
+                        'Keine Gruppe zugewiesen'
+                      )}
+                    </div>
                   </div>
                   
                   <div>
                     <div className="text-sm text-gray-500">IDs</div>
                     <div className="text-xs text-gray-600 flex flex-col">
                       <span>Student: {student.id}</span>
-                      {student.custom_user_id && <span>Benutzer: {student.custom_user_id}</span>}
+                      {student.custom_users_id && <span>Benutzer: {student.custom_users_id}</span>}
                       {student.group_id && <span>Gruppe: {student.group_id}</span>}
                     </div>
                   </div>

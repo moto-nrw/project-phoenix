@@ -3,9 +3,11 @@
 import { useSession } from 'next-auth/react';
 import { redirect, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { DataListPage } from '@/components/dashboard';
+import { DataListPage, DataListFilters, PageHeader, SectionTitle } from '@/components/dashboard';
 import type { Student } from '@/lib/api';
 import { studentService } from '@/lib/api';
+import { GroupSelector } from '@/components/groups';
+import Link from 'next/link';
 
 // Student list will be loaded from API
 
@@ -15,11 +17,16 @@ export default function StudentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
+  const [groupFilter, setGroupFilter] = useState<string | null>(null);
   
-  // This function was created but isn't used yet - keeping for future use
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleSearchInput = (value: string) => {
     setSearchFilter(value);
+  };
+  
+  const handleFilterChange = (filterId: string, value: string | null) => {
+    if (filterId === 'group') {
+      setGroupFilter(value);
+    }
   };
   
   const { status } = useSession({
@@ -30,20 +37,21 @@ export default function StudentsPage() {
   });
 
   // Function to fetch students with optional filters
-  const fetchStudents = async (search?: string) => {
+  const fetchStudents = async (search?: string, groupId?: string | null) => {
     try {
       setLoading(true);
       
       // Prepare filters for API call
       const filters = {
-        search: search ?? undefined
+        search: search ?? undefined,
+        groupId: groupId ?? undefined
       };
       
       try {
         // Fetch from the real API using our student service
         const data = await studentService.getStudents(filters);
         
-        if (data.length === 0 && !search) {
+        if (data.length === 0 && !search && !groupId) {
           console.log('No students returned from API, checking connection');
         }
         
@@ -68,15 +76,15 @@ export default function StudentsPage() {
     void fetchStudents();
   }, []);
 
-  // Handle search filter changes
+  // Handle search and group filter changes
   useEffect(() => {
     // Debounce search to avoid too many API calls
     const timer = setTimeout(() => {
-      void fetchStudents(searchFilter);
+      void fetchStudents(searchFilter, groupFilter);
     }, 300);
     
     return () => clearTimeout(timer);
-  }, [searchFilter]);
+  }, [searchFilter, groupFilter]);
 
   if (status === 'loading' || loading) {
     return (
@@ -105,7 +113,18 @@ export default function StudentsPage() {
         </span>
         <span className="text-sm text-gray-500">
           Klasse: {student.school_class} 
-          {student.group_name && ` | Gruppe: ${student.group_name}`}
+          {student.group_name && student.group_id && ` | Gruppe: `}
+          {student.group_name && student.group_id && (
+            <a 
+              href={`/database/groups/${student.group_id}`} 
+              className="text-blue-600 hover:text-blue-800 hover:underline transition-colors inline-block"
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent triggering the parent click event
+              }}
+            >
+              {student.group_name}
+            </a>
+          )}
         </span>
       </div>
       <svg 
@@ -138,16 +157,100 @@ export default function StudentsPage() {
     );
   }
 
+  // Define the filters for the student list
+  const filters = [
+    {
+      id: 'group',
+      label: 'Gruppe',
+      options: [
+        { label: 'Alle Gruppen', value: null },
+        // The actual options will be populated by the GroupSelector component
+      ],
+    },
+  ];
+
   return (
-    <DataListPage
-      title="Schülerauswahl"
-      sectionTitle="Schüler auswählen"
-      backUrl="/database"
-      newEntityLabel="Neuen Schüler erstellen"
-      newEntityUrl="/database/students/new"
-      data={students}
-      onSelectEntityAction={handleSelectStudent}
-      renderEntity={renderStudent}
-    />
+    <div className="min-h-screen">
+      <PageHeader 
+        title="Schülerauswahl"
+        backUrl="/database"
+      />
+
+      <main className="max-w-4xl mx-auto p-4">
+        <div className="mb-8">
+          <SectionTitle title="Schüler auswählen" />
+        </div>
+
+        {/* Search and Add Section with Filters */}
+        <div className="mb-8">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
+            <div className="relative w-full sm:max-w-md">
+              <input
+                type="text"
+                placeholder="Suchen..."
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 pl-10 transition-all duration-200 hover:border-gray-400 focus:shadow-md"
+              />
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  className="h-5 w-5 text-gray-400" 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+            </div>
+            
+            <Link href="/database/students/new" className="w-full sm:w-auto">
+              <button className="group w-full sm:w-auto bg-gradient-to-r from-teal-500 to-blue-600 text-white py-3 px-4 rounded-lg flex items-center gap-2 hover:from-teal-600 hover:to-blue-700 hover:scale-[1.02] hover:shadow-lg transition-all duration-200 justify-center sm:justify-start">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Neuen Schüler erstellen</span>
+              </button>
+            </Link>
+          </div>
+          
+          {/* Filter Section */}
+          <div className="flex items-center gap-2 mt-4">
+            <span className="text-sm text-gray-500">Filter:</span>
+            <div className="w-48">
+              <GroupSelector
+                value={groupFilter || ''}
+                onChange={(value) => setGroupFilter(value === '' ? null : value)}
+                includeEmpty={true}
+                emptyLabel="Alle Gruppen"
+                label=""
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Student List */}
+        <div className="space-y-3 w-full">
+          {students.length > 0 ? (
+            students.map(student => (
+              <div 
+                key={student.id} 
+                className="group bg-white border border-gray-100 rounded-lg p-4 shadow-sm hover:shadow-md hover:border-blue-200 hover:translate-y-[-1px] transition-all duration-200 cursor-pointer flex items-center justify-between"
+                onClick={() => handleSelectStudent(student)}
+              >
+                {renderStudent(student)}
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-gray-500">
+                {searchFilter || groupFilter ? 'Keine Ergebnisse gefunden.' : 'Keine Einträge vorhanden.'}
+              </p>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { Student } from '@/lib/api';
+import { GroupSelector } from '@/components/groups';
 
 interface StudentFormProps {
   initialData?: Partial<Student>;
@@ -31,7 +32,7 @@ export default function StudentForm({
     in_house: false,
     wc: false,
     school_yard: false,
-    custom_user_id: '',
+    custom_users_id: '',
   });
   
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +50,7 @@ export default function StudentForm({
         in_house: initialData.in_house || false,
         wc: initialData.wc || false,
         school_yard: initialData.school_yard || false,
-        custom_user_id: initialData.custom_user_id || '',
+        custom_users_id: initialData.custom_users_id || '',
       });
     }
   }, [initialData]);
@@ -156,18 +157,17 @@ export default function StudentForm({
                 />
               </div>
               
-              {/* Group ID field */}
+              {/* Group Selector */}
               <div>
-                <label htmlFor="group_id" className="block text-sm font-medium text-gray-700 mb-1">
-                  Gruppe ID
-                </label>
-                <input
-                  type="text"
-                  id="group_id"
-                  name="group_id"
+                <GroupSelector
                   value={formData.group_id}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
+                  onChange={(groupId) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      group_id: groupId,
+                    }));
+                  }}
+                  label="Gruppe"
                 />
               </div>
             </div>

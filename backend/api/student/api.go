@@ -287,7 +287,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		logger.WithField("custom_user_id", student.CustomUserID).Info("CustomUser name updated successfully")
+		logger.WithField("custom_users_id", student.CustomUserID).Info("CustomUser name updated successfully")
 	}
 
 	if err := rs.Store.UpdateStudent(ctx, student); err != nil {

@@ -82,20 +82,26 @@ func (rs *Resource) CreateStudentWithUser(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	logger.WithField("custom_user_id", customUser.ID).Info("CustomUser created successfully")
+	logger.WithField("custom_users_id", customUser.ID).Info("CustomUser created successfully")
 
 	// Create Student with the newly created CustomUser ID
 	student := &models2.Student{
 		SchoolClass:  data.SchoolClass,
 		NameLG:       data.NameLG,
 		ContactLG:    data.ContactLG,
-		GroupID:      data.GroupID,
+		GroupID:      data.GroupID, // This field is correct, but we'll log it for debugging
 		InHouse:      data.InHouse,
 		WC:           data.WC,
 		SchoolYard:   data.SchoolYard,
 		Bus:          data.Bus,
-		CustomUserID: customUser.ID, // Link to the newly created user
+		CustomUserID: customUser.ID, // Link to the newly created user - field name matches model struct field
 	}
+
+	// Log student creation with group ID for debugging
+	logger.WithFields(logrus.Fields{
+		"group_id": data.GroupID,
+		"student":  student.SchoolClass,
+	}).Info("Creating student with group_id")
 
 	if err := rs.Store.CreateStudent(ctx, student); err != nil {
 		logger.WithError(err).Error("Failed to create student")
@@ -112,9 +118,9 @@ func (rs *Resource) CreateStudentWithUser(w http.ResponseWriter, r *http.Request
 	}
 
 	logger.WithFields(logrus.Fields{
-		"student_id":     student.ID,
-		"custom_user_id": customUser.ID,
-		"name":           customUser.FirstName + " " + customUser.SecondName,
+		"student_id":      student.ID,
+		"custom_users_id": customUser.ID,
+		"name":            customUser.FirstName + " " + customUser.SecondName,
 	}).Info("Student with user created successfully")
 
 	render.Status(r, http.StatusCreated)

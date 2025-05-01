@@ -1,16 +1,36 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { PageHeader } from '@/components/dashboard';
 import StudentForm from '@/components/students/student-form';
 import type { Student } from '@/lib/api';
-import { studentService } from '@/lib/api';
+import { studentService, groupService } from '@/lib/api';
 
 export default function NewStudentPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const groupId = searchParams.get('groupId');
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [groupName, setGroupName] = useState<string | null>(null);
+
+  // Fetch group name if groupId is provided
+  useEffect(() => {
+    if (groupId) {
+      const fetchGroupName = async () => {
+        try {
+          const group = await groupService.getGroup(groupId);
+          setGroupName(group.name);
+        } catch (err) {
+          console.error('Error fetching group:', err);
+        }
+      };
+      
+      void fetchGroupName();
+    }
+  }, [groupId]);
 
   const handleCreateStudent = async (studentData: Partial<Student>) => {
     try {
@@ -26,13 +46,18 @@ export default function NewStudentPage() {
         school_yard: studentData.school_yard || false,
         bus: studentData.bus || false,
         school_class: studentData.school_class || '',
+        group_id: groupId || studentData.group_id, // Use groupId from URL if available
       };
       
-      // Create student
-      await studentService.createStudent(newStudent);
+      // Create student - group association now works directly via the API
+      const createdStudent = await studentService.createStudent(newStudent);
       
-      // Navigate back to students list on success
-      router.push('/database/students');
+      // Navigate back to the appropriate page
+      if (groupId) {
+        router.push(`/database/groups/${groupId}`);
+      } else {
+        router.push('/database/students');
+      }
     } catch (err) {
       console.error('Error creating student:', err);
       setError('Fehler beim Erstellen des Schülers. Bitte versuchen Sie es später erneut.');
@@ -46,8 +71,8 @@ export default function NewStudentPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <PageHeader 
-        title="Neuer Schüler"
-        backUrl="/database/students"
+        title={groupName ? `Neuer Schüler für ${groupName}` : "Neuer Schüler"}
+        backUrl={groupId ? `/database/groups/${groupId}` : "/database/students"}
       />
       
       {/* Main Content */}
@@ -58,18 +83,25 @@ export default function NewStudentPage() {
           </div>
         )}
         
+        {groupName && (
+          <div className="mb-4 bg-blue-50 border-l-4 border-blue-500 text-blue-800 p-4 rounded-md">
+            <p className="font-medium">Hinweis</p>
+            <p>Der neue Schüler wird automatisch der Gruppe "{groupName}" zugewiesen.</p>
+          </div>
+        )}
+
         <StudentForm
           initialData={{ 
             in_house: false,
             wc: false,
             school_yard: false,
             bus: false,
-            group_id: '1',
+            group_id: groupId || '1',
           }}
           onSubmitAction={handleCreateStudent}
           onCancelAction={() => router.back()}
           isLoading={loading}
-          formTitle="Schüler erstellen"
+          formTitle={groupName ? `Schüler für ${groupName} erstellen` : "Schüler erstellen"}
           submitLabel="Erstellen"
         />
       </main>

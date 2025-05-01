@@ -32,6 +32,8 @@ func (s *GroupStore) GetGroupByID(ctx context.Context, id int64) (*models2.Group
 		Relation("Representative.CustomUser").
 		Relation("Supervisors").
 		Relation("Supervisors.CustomUser").
+		Relation("Students").
+		Relation("Students.CustomUser").
 		Where("\"group\".id = ?", id).
 		Scan(ctx)
 
