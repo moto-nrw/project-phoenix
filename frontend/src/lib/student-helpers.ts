@@ -14,7 +14,7 @@ interface BackendStudent {
   bus: boolean;
   name_lg: string;
   contact_lg: string;
-  custom_user_id?: number;
+  custom_users_id?: number;
   group_id: number;
 }
 
@@ -50,7 +50,8 @@ export function mapSingleStudentResponse(student: BackendStudent): Student {
     bus: student.bus || false,
     name_lg: student.name_lg || '',
     contact_lg: student.contact_lg || '',
-    custom_user_id: student.custom_user_id?.toString()
+    custom_users_id: student.custom_users_id?.toString(),
+    custom_user_id: student.custom_users_id?.toString() // Include for backward compatibility
   };
 }
 
@@ -74,10 +75,18 @@ export function prepareStudentForBackend(student: Partial<Student>): Record<stri
   if (student.wc !== undefined) backendStudent.wc = student.wc;
   if (student.school_yard !== undefined) backendStudent.school_yard = student.school_yard;
   
-  // For updates, custom_user_id is required
+  // For updates, custom_users_id is required
   // For new students (create), the backend will create a new user
-  if (student.custom_user_id) {
-    backendStudent.custom_user_id = parseInt(student.custom_user_id, 10);
+  if (student.custom_users_id) {
+    backendStudent.custom_users_id = parseInt(student.custom_users_id, 10);
+  } else if (student.custom_user_id) {
+    // Backward compatibility
+    backendStudent.custom_users_id = parseInt(student.custom_user_id, 10);
+  }
+  
+  // IMPORTANT: Remove any reference to custom_user_id as the column doesn't exist anymore
+  if ('custom_user_id' in backendStudent) {
+    delete backendStudent.custom_user_id;
   }
   
   // Group ID is required

@@ -43,10 +43,10 @@ export default function StudentDetailPage() {
       setLoading(true);
       setError(null);
       
-      // Prepare update data with custom_user_id
+      // Prepare update data with custom_users_id
       const updateData: Partial<Student> = {
         ...formData,
-        custom_user_id: formData.custom_user_id || student?.custom_user_id,
+        custom_users_id: formData.custom_users_id || student?.custom_users_id || student?.custom_user_id,
       };
       
       // Update student

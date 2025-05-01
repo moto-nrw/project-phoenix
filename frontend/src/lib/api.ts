@@ -90,7 +90,8 @@ export interface Student {
   bus?: boolean;         // Bus status
   name_lg?: string;      // Legal Guardian name
   contact_lg?: string;   // Legal Guardian contact
-  custom_user_id?: string; // ID of the related CustomUser
+  custom_users_id?: string; // ID of the related CustomUser
+  custom_user_id?: string; // Legacy field name for backward compatibility
 }
 
 // Group-related interfaces
@@ -340,8 +341,8 @@ export const studentService = {
     const backendUpdates = prepareStudentForBackend(student);
     
     // Additional validation before sending to API for updates
-    if (!backendUpdates.custom_user_id) {
-      throw new Error('Missing required field: custom_user_id');
+    if (!backendUpdates.custom_users_id) {
+      throw new Error('Missing required field: custom_users_id');
     }
     // Other validations that apply to both updates and creates
     if (!backendUpdates.group_id) {

@@ -18,8 +18,8 @@ type Student struct {
 	InHouse      bool        `json:"in_house" bun:"in_house,notnull,default:false"`
 	WC           bool        `json:"wc" bun:"wc,notnull,default:false"`
 	SchoolYard   bool        `json:"school_yard" bun:"school_yard,notnull,default:false"`
-	CustomUserID int64       `json:"custom_user_id" bun:"custom_user_id,notnull"`
-	CustomUser   *CustomUser `json:"custom_user,omitempty" bun:"rel:belongs-to,join:custom_user_id=id"`
+	CustomUserID int64       `json:"custom_users_id" bun:"custom_users_id,notnull"`
+	CustomUser   *CustomUser `json:"custom_user,omitempty" bun:"rel:belongs-to,join:custom_users_id=id"`
 	GroupID      int64       `json:"group_id" bun:"group_id,notnull"`
 	Group        *Group      `json:"group,omitempty" bun:"rel:belongs-to,join:group_id=id"`
 	CreatedAt    time.Time   `json:"created_at" bun:"created_at,notnull"`

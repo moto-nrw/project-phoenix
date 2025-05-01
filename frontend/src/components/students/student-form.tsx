@@ -31,7 +31,7 @@ export default function StudentForm({
     in_house: false,
     wc: false,
     school_yard: false,
-    custom_user_id: '',
+    custom_users_id: '',
   });
   
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +49,7 @@ export default function StudentForm({
         in_house: initialData.in_house || false,
         wc: initialData.wc || false,
         school_yard: initialData.school_yard || false,
-        custom_user_id: initialData.custom_user_id || '',
+        custom_users_id: initialData.custom_users_id || initialData.custom_user_id || '',
       });
     }
   }, [initialData]);

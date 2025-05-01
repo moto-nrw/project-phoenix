@@ -46,7 +46,7 @@ func (s *StudentStore) GetStudentByCustomUserID(ctx context.Context, customUserI
 		Model(student).
 		Relation("CustomUser").
 		Relation("Group").
-		Where("student.custom_user_id = ?", customUserID).
+		Where("student.custom_users_id = ?", customUserID).
 		Scan(ctx)
 
 	if err != nil {
@@ -67,7 +67,7 @@ func (s *StudentStore) CreateStudent(ctx context.Context, student *models2.Stude
 	// Check if a student already exists for this custom user
 	exists, err := tx.NewSelect().
 		Model((*models2.Student)(nil)).
-		Where("custom_user_id = ?", student.CustomUserID).
+		Where("custom_users_id = ?", student.CustomUserID).
 		Exists(ctx)
 
 	if err != nil {
