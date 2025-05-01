@@ -267,20 +267,18 @@ func TestCreateSpecialist(t *testing.T) {
 	// Create test specialist
 	specialist := models.PedagogicalSpecialist{
 		Role:          "Teacher",
-		CustomUserID:  1,
-		UserID:        123,
+		UserID:        1, // This refers to the CustomUser.ID
 		IsPasswordOTP: true,
 	}
 
 	mockUserStore.On("CreateSpecialist", mock.Anything, mock.MatchedBy(func(s *models.PedagogicalSpecialist) bool {
-		return s.Role == "Teacher" && s.CustomUserID == 1
+		return s.Role == "Teacher" && s.UserID == 1
 	})).Return(nil)
 
 	mockUserStore.On("GetSpecialistByID", mock.Anything, int64(1)).Return(&models.PedagogicalSpecialist{
 		ID:            1,
 		Role:          "Teacher",
-		CustomUserID:  1,
-		UserID:        123,
+		UserID:        1,
 		IsPasswordOTP: true,
 		CustomUser:    user,
 	}, nil)
@@ -302,7 +300,7 @@ func TestCreateSpecialist(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), responseSpecialist.ID)
 	assert.Equal(t, "Teacher", responseSpecialist.Role)
-	assert.Equal(t, int64(1), responseSpecialist.CustomUserID)
+	assert.Equal(t, int64(1), responseSpecialist.UserID)
 	assert.Equal(t, "John", responseSpecialist.CustomUser.FirstName)
 
 	mockUserStore.AssertExpectations(t)
