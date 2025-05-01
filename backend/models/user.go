@@ -47,9 +47,8 @@ func (u *CustomUser) Validate() error {
 type PedagogicalSpecialist struct {
 	ID            int64       `json:"id" bun:"id,pk,autoincrement"`
 	Role          string      `json:"role" bun:"role,notnull"`
-	CustomUserID  int64       `json:"custom_user_id" bun:"custom_user_id,notnull"`
-	CustomUser    *CustomUser `json:"custom_user,omitempty" bun:"rel:belongs-to,join:custom_user_id=id"`
 	UserID        int64       `json:"user_id" bun:"user_id,notnull,unique"`
+	CustomUser    *CustomUser `json:"custom_users,omitempty" bun:"rel:belongs-to,join:user_id=id"`
 	IsPasswordOTP bool        `json:"is_password_otp" bun:"is_password_otp,notnull,default:true"`
 	CreatedAt     time.Time   `json:"created_at" bun:"created_at,notnull"`
 	ModifiedAt    time.Time   `json:"updated_at" bun:"modified_at,notnull"`
@@ -65,7 +64,6 @@ func (p *PedagogicalSpecialist) BeforeInsert(db *bun.DB) error {
 func (p *PedagogicalSpecialist) Validate() error {
 	return validation.ValidateStruct(p,
 		validation.Field(&p.Role, validation.Required),
-		validation.Field(&p.CustomUserID, validation.Required),
 		validation.Field(&p.UserID, validation.Required),
 	)
 }
