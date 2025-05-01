@@ -70,6 +70,9 @@ export default function GroupsPage() {
     
     return () => clearTimeout(timer);
   }, [searchFilter]);
+  
+  // We use the API-based search, so we pass an empty search to the DataListPage
+  // to avoid duplicate client-side filtering
 
   if (status === 'loading' || loading) {
     return (
@@ -105,6 +108,11 @@ export default function GroupsPage() {
     );
   }
 
+  // Create a handler for the search input in DataListPage
+  const handleSearchChange = (searchTerm: string) => {
+    setSearchFilter(searchTerm);
+  };
+
   return (
     <DataListPage
       title="Gruppenauswahl"
@@ -115,6 +123,8 @@ export default function GroupsPage() {
       data={groups}
       onSelectEntityAction={handleSelectGroup}
       renderEntity={renderGroup}
+      searchTerm={searchFilter}
+      onSearchChange={handleSearchChange}
     />
   );
 }
