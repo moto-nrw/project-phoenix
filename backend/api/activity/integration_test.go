@@ -717,8 +717,8 @@ func TestStudentEnrollmentFlow(t *testing.T) {
 		Students:       []*models2.Student{student}, // Use pointer slice
 	}
 
-	// Set up expectations
-	mockAgStore.On("ListStudentAgs", mock.Anything, int64(1)).Return([]models2.Ag{ag2}, nil).Once()
+	// Set up expectations - notice we're setting up ListStudentAgs to be called twice with the same parameters
+	mockAgStore.On("ListStudentAgs", mock.Anything, int64(1)).Return([]models2.Ag{ag2}, nil).Twice()
 	mockAgStore.On("ListAgs", mock.Anything, map[string]interface{}{"is_open": true, "active": true}).Return([]models2.Ag{ag1, ag2}, nil).Once()
 	mockAgStore.On("GetAgByID", mock.Anything, int64(1)).Return(&ag1, nil).Once()
 	mockAgStore.On("EnrollStudent", mock.Anything, int64(1), int64(1)).Return(nil).Once()

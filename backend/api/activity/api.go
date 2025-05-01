@@ -441,6 +441,14 @@ func (rs *Resource) createAg(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// In the createAg handler, add this code before calling store.CreateAg:
+	if data.StudentIDs == nil {
+		data.StudentIDs = []int64{}
+	}
+	if data.Timeslots == nil {
+		data.Timeslots = []*models2.AgTime{}
+	}
+
 	ctx := r.Context()
 	if err := rs.Store.CreateAg(ctx, data.Ag, data.StudentIDs, data.Timeslots); err != nil {
 		logger.WithError(err).Error("Failed to create activity group")
