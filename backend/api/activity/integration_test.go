@@ -197,8 +197,8 @@ func TestAgCategoryLifecycle(t *testing.T) {
 	mockAgStore.AssertExpectations(t)
 }
 
-// TestEnrollStudent tests the enrollStudent handler
-func TestEnrollStudent(t *testing.T) {
+// TestEnrollStudentHandler tests the enrollStudent handler in isolation
+func TestEnrollStudentHandler(t *testing.T) {
 	rs, mockAgStore, _ := setupTestAPI()
 
 	// Setup test data
@@ -764,7 +764,6 @@ func TestStudentEnrollmentFlow(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 
 		var responseAgs []models2.Ag
-		err := jsonvar responseAgs []models2.Ag
 		err := json.Unmarshal(w.Body.Bytes(), &responseAgs)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(responseAgs))

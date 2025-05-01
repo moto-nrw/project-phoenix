@@ -325,56 +325,56 @@ func TestCreateAg(t *testing.T) {
 		Weekday:    "Monday",
 		TimespanID: 1,
 		Timespan:   timespan,
-		AgID:       1, // This will be set later
 	}
 
 	newAg := &models2.Ag{
 		Name:           "New Activity Group",
 		MaxParticipant: 10,
-		AgCategoryID:   1,
 		SupervisorID:   1,
+		AgCategoryID:   1,
 	}
 
 	createdAg := &models2.Ag{
 		ID:             1,
 		Name:           "New Activity Group",
 		MaxParticipant: 10,
-		AgCategoryID:   1,
 		SupervisorID:   1,
+		AgCategoryID:   1,
 		Times:          []*models2.AgTime{timeslot},
 		CreatedAt:      now,
 		ModifiedAt:     now,
 	}
 
-	// Important: Create an exact copy of the timeslot to ensure consistency
-	// when comparing expected vs actual values in mock
-	timeslotCopy := &models2.AgTime{
-		Weekday:    timeslot.Weekday,
-		TimespanID: timeslot.TimespanID,
-		Timespan:   timeslot.Timespan,
-		AgID:       timeslot.AgID,
+	// Create a matching timeslot that will be used in the request
+	// This is crucial to ensure memory addresses match
+	requestTimeslot := &models2.AgTime{
+		Weekday:    "Monday",
+		TimespanID: 1,
+		Timespan:   timespan,
 	}
 
-	// Use the copied timeslot in both expectation and request
+	// Important: Use empty slices, not nil
+	studentIDs := []int64{}
+
+	// Set up expectation with the same timeslot instance that will be used in the request
 	mockAgStore.On("CreateAg",
 		mock.Anything,
 		mock.MatchedBy(func(a *models2.Ag) bool {
 			return a.Name == "New Activity Group" && a.MaxParticipant == 10
 		}),
-		// Important: Use empty slice, not nil
-		[]int64{},
-		// Important: Use the same timeslot instance here as in the request
-		[]*models2.AgTime{timeslotCopy},
+		studentIDs,
+		[]*models2.AgTime{requestTimeslot},
 	).Return(nil)
 
 	mockAgStore.On("GetAgByID", mock.Anything, int64(1)).Return(createdAg, nil)
 
-	// Create test request using the same timeslot copy
+	// Create test request using the SAME timeslot instance as in the expectation
 	agReq := &AgRequest{
 		Ag:         newAg,
-		StudentIDs: []int64{},                       // Must be empty slice, not nil
-		Timeslots:  []*models2.AgTime{timeslotCopy}, // Use the same timeslot instance
+		StudentIDs: studentIDs,
+		Timeslots:  []*models2.AgTime{requestTimeslot},
 	}
+
 	body, _ := json.Marshal(agReq)
 	r := httptest.NewRequest("POST", "/", bytes.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
