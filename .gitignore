@@ -159,6 +159,7 @@ eggs/
 .eggs/
 lib/
 lib64/
+!frontend/src/lib/
 parts/
 sdist/
 var/
@@ -366,6 +367,7 @@ cython_debug/
 **/project-phoenix
 backend/project-phoenix
 /CLAUDE.md
-/package.json
-/package-lock.json
+# Do NOT exclude package.json files - they should be tracked
+!/frontend/package.json
+!/frontend/package-lock.json
 .DS_Store
