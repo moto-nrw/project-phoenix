@@ -89,9 +89,9 @@ func seedDataDown(ctx context.Context, db *bun.DB) error {
 		_, err = tx.ExecContext(ctx, `
 			-- Remove sample data
 			DELETE FROM groups WHERE name LIKE 'Sample%';
-			DELETE FROM rfid_cards WHERE id NOT IN (SELECT tag_id FROM custom_user WHERE tag_id IS NOT NULL);
+			DELETE FROM rfid_cards WHERE id NOT IN (SELECT tag_id FROM custom_users WHERE tag_id IS NOT NULL);
 			DELETE FROM pedagogical_specialist WHERE role LIKE 'Sample%';
-			DELETE FROM custom_user WHERE first_name LIKE 'Sample%';
+			DELETE FROM custom_users WHERE first_name LIKE 'Sample%';
 			
 			-- Remove admin accounts except the default one if in production
 			DELETE FROM accounts WHERE email != 'admin@example.com' 
@@ -215,9 +215,7 @@ func seedDefaultAdmin(ctx context.Context, tx bun.Tx) error {
 	if !adminExists {
 		// Get default admin password from environment or use default
 		adminPassword := os.Getenv("DEFAULT_ADMIN_PASSWORD")
-		if adminPassword == "" {
-			adminPassword = "admin123" // Default password - should be changed immediately
-		}
+		adminPassword = "admin123" // Default password - should be changed immediately
 
 		// Hash the password
 		passwordHash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
@@ -244,6 +242,7 @@ func seedDefaultAdmin(ctx context.Context, tx bun.Tx) error {
 		}
 
 		fmt.Println("Created default admin account (admin@example.com)")
+		fmt.Println("With password:", adminPassword)
 		fmt.Println("IMPORTANT: Please change the default admin password immediately!")
 	}
 
@@ -267,7 +266,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 		var exists bool
 		err := tx.QueryRowContext(ctx, `
 			SELECT EXISTS(
-				SELECT 1 FROM custom_user 
+				SELECT 1 FROM custom_users 
 				WHERE first_name = ? AND second_name = ?
 			)
 		`, user.FirstName, user.SecondName).Scan(&exists)
@@ -299,7 +298,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 
 			// Then create the user
 			_, err = tx.ExecContext(ctx, `
-				INSERT INTO custom_user (
+				INSERT INTO custom_users (
 					first_name, second_name, tag_id, created_at, modified_at
 				) VALUES (
 					?, ?, ?, ?, ?
@@ -349,7 +348,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 	// First get the user ID for the sample teacher
 	var sampleTeacherID int64
 	err := tx.QueryRowContext(ctx, `
-		SELECT id FROM custom_user 
+		SELECT id FROM custom_users 
 		WHERE first_name = 'Sample' AND second_name = 'Teacher'
 	`).Scan(&sampleTeacherID)
 
@@ -401,7 +400,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 
 		// Update the custom user with the account ID
 		_, err = tx.ExecContext(ctx, `
-			UPDATE custom_user SET account_id = ? WHERE id = ?
+			UPDATE custom_users SET account_id = ? WHERE id = ?
 		`, accountID, sampleTeacherID)
 
 		if err != nil {

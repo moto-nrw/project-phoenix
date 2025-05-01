@@ -90,7 +90,7 @@ func roomComplexTablesUp(ctx context.Context, db *bun.DB) error {
 			exit_time TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			CONSTRAINT fk_visit_student FOREIGN KEY (student_id) REFERENCES student(id) ON DELETE CASCADE,
+			CONSTRAINT fk_visit_student FOREIGN KEY (student_id) REFERENCES  students(id) ON DELETE CASCADE,
 			CONSTRAINT fk_visit_room_occupancy FOREIGN KEY (room_occupancy_id) REFERENCES room_occupancy(id) ON DELETE CASCADE
 		)
 	`)

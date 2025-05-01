@@ -38,8 +38,8 @@ func indexesAndConstraintsUp(ctx context.Context, db *bun.DB) error {
 
 	// 1. Adding NOT NULL constraints to important columns
 	_, err = tx.ExecContext(ctx, `
-		-- Student table
-		ALTER TABLE student 
+		-- students table
+		ALTER TABLE students 
 		ALTER COLUMN name_lg SET NOT NULL,
 		ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP,
 		ALTER COLUMN modified_at SET DEFAULT CURRENT_TIMESTAMP;
@@ -67,10 +67,10 @@ func indexesAndConstraintsUp(ctx context.Context, db *bun.DB) error {
 
 	// 2. Add performance-focused indexes
 	_, err = tx.ExecContext(ctx, `
-		-- Student indexes for frequent queries
-		CREATE INDEX IF NOT EXISTS idx_student_name_lg ON student(name_lg);
-		CREATE INDEX IF NOT EXISTS idx_student_group_id ON student(group_id);
-		CREATE INDEX IF NOT EXISTS idx_student_created_at ON student(created_at);
+		-- students indexes for frequent queries
+		CREATE INDEX IF NOT EXISTS idx_student_name_lg ON  students(name_lg);
+		CREATE INDEX IF NOT EXISTS idx_student_group_id ON  students(group_id);
+		CREATE INDEX IF NOT EXISTS idx_student_created_at ON  students(created_at);
 		
 		-- Groups indexes
 		CREATE INDEX IF NOT EXISTS idx_groups_name ON groups(name);
@@ -99,8 +99,8 @@ func indexesAndConstraintsUp(ctx context.Context, db *bun.DB) error {
 		-- Composite indexes for room history queries
 		CREATE INDEX IF NOT EXISTS idx_room_history_room_day ON room_history(room_id, day);
 		
-		-- Composite indexes for student queries
-		CREATE INDEX IF NOT EXISTS idx_student_group_id_in_house ON student(group_id, in_house);
+		-- Composite indexes for students queries
+		CREATE INDEX IF NOT EXISTS idx_student_group_id_in_house ON  students(group_id, in_house);
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating composite indexes: %w", err)
@@ -163,10 +163,10 @@ func indexesAndConstraintsUp(ctx context.Context, db *bun.DB) error {
 		END;
 		$$ LANGUAGE plpgsql;
 		
-		-- Student table trigger
-		DROP TRIGGER IF EXISTS update_student_modified_at ON student;
+		-- students table trigger
+		DROP TRIGGER IF EXISTS update_student_modified_at ON students;
 		CREATE TRIGGER update_student_modified_at
-		BEFORE UPDATE ON student
+		BEFORE UPDATE ON students
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_at_column();
 		
@@ -242,7 +242,7 @@ func indexesAndConstraintsDown(ctx context.Context, db *bun.DB) error {
 
 	// 4. Remove performance indexes
 	_, err = tx.ExecContext(ctx, `
-		-- Remove student indexes
+		-- Remove students indexes
 		DROP INDEX IF EXISTS idx_student_name_lg;
 		DROP INDEX IF EXISTS idx_student_group_id;
 		DROP INDEX IF EXISTS idx_student_created_at;
@@ -271,8 +271,8 @@ func indexesAndConstraintsDown(ctx context.Context, db *bun.DB) error {
 
 	// 5. Remove NOT NULL constraints and default values
 	_, err = tx.ExecContext(ctx, `
-		-- Remove NOT NULL constraints from student table
-		ALTER TABLE student 
+		-- Remove NOT NULL constraints from students table
+		ALTER TABLE students 
 		ALTER COLUMN name_lg DROP NOT NULL,
 		ALTER COLUMN created_at DROP DEFAULT,
 		ALTER COLUMN modified_at DROP DEFAULT;
@@ -301,7 +301,7 @@ func indexesAndConstraintsDown(ctx context.Context, db *bun.DB) error {
 	// 6. Remove triggers
 	_, err = tx.ExecContext(ctx, `
 		-- Remove triggers
-		DROP TRIGGER IF EXISTS update_student_modified_at ON student;
+		DROP TRIGGER IF EXISTS update_student_modified_at ON students;
 		DROP TRIGGER IF EXISTS update_groups_modified_at ON groups;
 		DROP TRIGGER IF EXISTS update_rooms_modified_at ON rooms;
 		DROP TRIGGER IF EXISTS update_room_occupancy_modified_at ON room_occupancy;

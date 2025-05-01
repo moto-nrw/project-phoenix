@@ -128,7 +128,7 @@ func accountsAuthUp(ctx context.Context, db *bun.DB) error {
 		RETURNS TRIGGER AS $$
 		BEGIN
 			-- Check which column exists in the table and update accordingly
-			IF TG_TABLE_NAME = 'custom_user' OR TG_TABLE_NAME = 'pedagogical_specialist' OR 
+			IF TG_TABLE_NAME = 'custom_users' OR TG_TABLE_NAME = 'pedagogical_specialist' OR 
 			   TG_TABLE_NAME = 'rfid_cards' OR TG_TABLE_NAME = 'device' THEN
 				NEW.modified_at = CURRENT_TIMESTAMP;
 			ELSE

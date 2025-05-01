@@ -68,7 +68,7 @@ func specialistTablesUp(ctx context.Context, db *bun.DB) error {
 			qualifications TEXT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			CONSTRAINT fk_specialist_user FOREIGN KEY (user_id) REFERENCES custom_user(id) ON DELETE CASCADE
+			CONSTRAINT fk_specialist_user FOREIGN KEY (user_id) REFERENCES custom_users(id) ON DELETE CASCADE
 		)
 	`)
 	if err != nil {
@@ -97,7 +97,7 @@ func specialistTablesUp(ctx context.Context, db *bun.DB) error {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			registered_by BIGINT,
-			CONSTRAINT fk_device_user FOREIGN KEY (registered_by) REFERENCES custom_user(id) ON DELETE SET NULL
+			CONSTRAINT fk_device_user FOREIGN KEY (registered_by) REFERENCES custom_users(id) ON DELETE SET NULL
 		)
 	`)
 	if err != nil {

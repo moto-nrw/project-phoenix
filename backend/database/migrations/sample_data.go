@@ -9,7 +9,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// AddSampleStudents adds sample student data for development/testing
+// AddSampleStudents adds sample students data for development/testing
 // This is a temporary compatibility function for the CLI command
 // This functionality will be properly implemented in the V1_12_0__seed_data.go migration
 func AddSampleStudents() {

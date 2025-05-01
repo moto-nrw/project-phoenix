@@ -38,9 +38,9 @@ func userFoundationUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer tx.Rollback()
 
-	// 1. Create the custom_user table
+	// 1. Create the custom_users table
 	_, err = tx.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS custom_user (
+		CREATE TABLE IF NOT EXISTS custom_users (
 			id BIGSERIAL PRIMARY KEY,
 			first_name TEXT NOT NULL,
 			second_name TEXT NOT NULL,
@@ -48,21 +48,21 @@ func userFoundationUp(ctx context.Context, db *bun.DB) error {
 			account_id INTEGER UNIQUE,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			CONSTRAINT fk_custom_user_account FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE SET NULL
+			CONSTRAINT fk_custom_users_account FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE SET NULL
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating custom_user table: %w", err)
+		return fmt.Errorf("error creating custom_users table: %w", err)
 	}
 
-	// Create indexes for custom_user
+	// Create indexes for custom_users
 	_, err = tx.ExecContext(ctx, `
-		CREATE INDEX IF NOT EXISTS idx_custom_user_account_id ON custom_user(account_id);
-		CREATE INDEX IF NOT EXISTS idx_custom_user_tag_id ON custom_user(tag_id);
-		CREATE INDEX IF NOT EXISTS idx_custom_user_names ON custom_user(first_name, second_name);
+		CREATE INDEX IF NOT EXISTS idx_custom_users_account_id ON custom_users(account_id);
+		CREATE INDEX IF NOT EXISTS idx_custom_users_tag_id ON custom_users(tag_id);
+		CREATE INDEX IF NOT EXISTS idx_custom_users_names ON custom_users(first_name, second_name);
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating indexes for custom_user table: %w", err)
+		return fmt.Errorf("error creating indexes for custom_users table: %w", err)
 	}
 
 	// 2. Create the profile table
@@ -101,10 +101,10 @@ func userFoundationUp(ctx context.Context, db *bun.DB) error {
 		END;
 		$$ LANGUAGE plpgsql;
 		
-		-- Trigger for custom_user
-		DROP TRIGGER IF EXISTS update_custom_user_modified_at ON custom_user;
-		CREATE TRIGGER update_custom_user_modified_at
-		BEFORE UPDATE ON custom_user
+		-- Trigger for custom_users
+		DROP TRIGGER IF EXISTS update_custom_users_modified_at ON custom_users;
+		CREATE TRIGGER update_custom_users_modified_at
+		BEFORE UPDATE ON custom_users
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_at_column();
 		
@@ -137,7 +137,7 @@ func userFoundationDown(ctx context.Context, db *bun.DB) error {
 	// Drop tables in reverse order of dependencies
 	_, err = tx.ExecContext(ctx, `
 		DROP TABLE IF EXISTS profile;
-		DROP TABLE IF EXISTS custom_user;
+		DROP TABLE IF EXISTS custom_users;
 	`)
 	if err != nil {
 		return fmt.Errorf("error dropping user foundation tables: %w", err)

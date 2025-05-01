@@ -14,7 +14,7 @@ const (
 )
 
 func init() {
-	// Migration 7: Student and feedback tables
+	// Migration 7: students and feedback tables
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return studentTablesUp(ctx, db)
@@ -27,7 +27,7 @@ func init() {
 
 // studentTablesUp creates the student, feedback, and student_ags tables
 func studentTablesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Creating student and feedback tables...")
+	fmt.Println("Creating students and feedback tables...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -36,9 +36,9 @@ func studentTablesUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer tx.Rollback()
 
-	// 1. Create the student table
+	// 1. Create the students table
 	_, err = tx.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS student (
+		CREATE TABLE IF NOT EXISTS students (
 			id BIGSERIAL PRIMARY KEY,
 			school_class TEXT NOT NULL,
 			bus BOOLEAN NOT NULL DEFAULT false,
@@ -47,16 +47,16 @@ func studentTablesUp(ctx context.Context, db *bun.DB) error {
 			in_house BOOLEAN NOT NULL DEFAULT false,
 			wc BOOLEAN NOT NULL DEFAULT false,
 			school_yard BOOLEAN NOT NULL DEFAULT false,
-			custom_user_id BIGINT NOT NULL UNIQUE,
+			custom_users_id BIGINT NOT NULL UNIQUE,
 			group_id BIGINT NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			CONSTRAINT fk_student_user FOREIGN KEY (custom_user_id) REFERENCES custom_user(id) ON DELETE CASCADE,
+			CONSTRAINT fk_student_user FOREIGN KEY (custom_users_id) REFERENCES custom_users(id) ON DELETE CASCADE,
 			CONSTRAINT fk_student_group FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE RESTRICT
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating student table: %w", err)
+		return fmt.Errorf("error creating students table: %w", err)
 	}
 
 	// 2. Create the feedback table
@@ -69,7 +69,7 @@ func studentTablesUp(ctx context.Context, db *bun.DB) error {
 			student_id BIGINT NOT NULL,
 			mensa_feedback BOOLEAN NOT NULL DEFAULT false,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			CONSTRAINT fk_feedback_student FOREIGN KEY (student_id) REFERENCES student(id) ON DELETE CASCADE
+			CONSTRAINT fk_feedback_student FOREIGN KEY (student_id) REFERENCES  students(id) ON DELETE CASCADE
 		)
 	`)
 	if err != nil {
@@ -83,7 +83,7 @@ func studentTablesUp(ctx context.Context, db *bun.DB) error {
 			student_id BIGINT NOT NULL,
 			ag_id BIGINT NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			CONSTRAINT fk_student_ags_student FOREIGN KEY (student_id) REFERENCES student(id) ON DELETE CASCADE,
+			CONSTRAINT fk_student_ags_student FOREIGN KEY (student_id) REFERENCES  students(id) ON DELETE CASCADE,
 			CONSTRAINT fk_student_ags_ag FOREIGN KEY (ag_id) REFERENCES ag(id) ON DELETE CASCADE,
 			CONSTRAINT uq_student_ag UNIQUE(student_id, ag_id)
 		)
@@ -94,13 +94,13 @@ func studentTablesUp(ctx context.Context, db *bun.DB) error {
 
 	// Create indexes for student
 	_, err = tx.ExecContext(ctx, `
-		CREATE INDEX IF NOT EXISTS idx_student_custom_user_id ON student(custom_user_id);
-		CREATE INDEX IF NOT EXISTS idx_student_group_id ON student(group_id);
-		CREATE INDEX IF NOT EXISTS idx_student_school_class ON student(school_class);
-		CREATE INDEX IF NOT EXISTS idx_student_in_house ON student(in_house);
+		CREATE INDEX IF NOT EXISTS idx_student_custom_users_id ON  students(custom_users_id);
+		CREATE INDEX IF NOT EXISTS idx_student_group_id ON  students(group_id);
+		CREATE INDEX IF NOT EXISTS idx_student_school_class ON  students(school_class);
+		CREATE INDEX IF NOT EXISTS idx_student_in_house ON  students(in_house);
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating indexes for student table: %w", err)
+		return fmt.Errorf("error creating indexes for students table: %w", err)
 	}
 
 	// Create indexes for feedback
@@ -122,16 +122,16 @@ func studentTablesUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating indexes for student_ags table: %w", err)
 	}
 
-	// Create trigger for updated_at column in student table
+	// Create trigger for updated_at column in students table
 	_, err = tx.ExecContext(ctx, `
-		DROP TRIGGER IF EXISTS update_student_modified_at ON student;
+		DROP TRIGGER IF EXISTS update_student_modified_at ON students;
 		CREATE TRIGGER update_student_modified_at
-		BEFORE UPDATE ON student
+		BEFORE UPDATE ON students
 		FOR EACH ROW
 		EXECUTE FUNCTION update_updated_at_column();
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating updated_at trigger for student table: %w", err)
+		return fmt.Errorf("error creating updated_at trigger for students table: %w", err)
 	}
 
 	// Commit the transaction
@@ -140,7 +140,7 @@ func studentTablesUp(ctx context.Context, db *bun.DB) error {
 
 // studentTablesDown removes the student, feedback, and student_ags tables
 func studentTablesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back student and feedback tables...")
+	fmt.Println("Rolling back students and feedback tables...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -153,10 +153,10 @@ func studentTablesDown(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		DROP TABLE IF EXISTS student_ags;
 		DROP TABLE IF EXISTS feedback;
-		DROP TABLE IF EXISTS student;
+		DROP TABLE IF EXISTS students;
 	`)
 	if err != nil {
-		return fmt.Errorf("error dropping student tables: %w", err)
+		return fmt.Errorf("error dropping students tables: %w", err)
 	}
 
 	// Commit the transaction
