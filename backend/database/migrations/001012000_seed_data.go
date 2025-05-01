@@ -88,6 +88,7 @@ func seedDataDown(ctx context.Context, db *bun.DB) error {
 		// Remove sample data and essential data
 		_, err = tx.ExecContext(ctx, `
 			-- Remove sample data
+			DELETE FROM students WHERE school_class LIKE 'Sample%';
 			DELETE FROM groups WHERE name LIKE 'Sample%';
 			DELETE FROM rfid_cards WHERE id NOT IN (SELECT tag_id FROM custom_users WHERE tag_id IS NOT NULL);
 			DELETE FROM pedagogical_specialist WHERE role LIKE 'Sample%';
@@ -377,7 +378,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 			) VALUES (
 				?, ?, ?, ?, ?, ?,
 				?, ?
-			) RETURNING id
+			)
 		`,
 			time.Now(), time.Now(),
 			"sample.teacher@example.com", "sample.teacher",
@@ -418,6 +419,141 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 
 		if err != nil {
 			return fmt.Errorf("error inserting pedagogical specialist: %w", err)
+		}
+	}
+
+	// 4. Create student records linked to sample users
+	// Get the student user ID
+	var sampleStudentID int64
+	err = tx.QueryRowContext(ctx, `
+		SELECT id FROM custom_users 
+		WHERE first_name = 'Sample' AND second_name = 'Student'
+	`).Scan(&sampleStudentID)
+
+	if err != nil {
+		return fmt.Errorf("error getting sample student ID: %w", err)
+	}
+
+	// Check if a student record already exists for this user
+	var studentExists bool
+	err = tx.QueryRowContext(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM students 
+			WHERE custom_users_id = ?
+		)
+	`, sampleStudentID).Scan(&studentExists)
+
+	if err != nil {
+		return fmt.Errorf("error checking if student record exists: %w", err)
+	}
+
+	// If the student doesn't exist and we have a valid user ID, create the student record
+	if !studentExists && sampleStudentID > 0 {
+		// Get the first group ID to use
+		var groupID int64
+		err = tx.QueryRowContext(ctx, `
+			SELECT id FROM groups WHERE name = 'Sample Group A'
+		`).Scan(&groupID)
+
+		if err != nil {
+			return fmt.Errorf("error getting sample group ID: %w", err)
+		}
+
+		if groupID > 0 {
+			// Create the student record
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO students (
+					school_class, bus, name_lg, contact_lg, in_house, wc, school_yard, 
+					custom_users_id, group_id, created_at, modified_at
+				) VALUES (
+					?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+				)
+			`,
+				"Sample Class 5A",    // School class
+				false,                // Bus
+				"Parent Name",        // Legal guardian name
+				"parent@example.com", // Legal guardian contact
+				false,                // In house
+				false,                // WC
+				false,                // School yard
+				sampleStudentID,      // Custom user ID
+				groupID,              // Group ID
+				time.Now(),           // Created at
+				time.Now(),           // Modified at
+			)
+
+			if err != nil {
+				return fmt.Errorf("error creating student record: %w", err)
+			}
+
+			fmt.Println("Created sample student record")
+		}
+	}
+
+	// 5. Create another example student with different details
+	// Check if we've already created the second sample student
+	var secondStudentExists bool
+	err = tx.QueryRowContext(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM students 
+			WHERE school_class = 'Sample Class 6B'
+		)
+	`).Scan(&secondStudentExists)
+
+	if err != nil {
+		return fmt.Errorf("error checking if second student record exists: %w", err)
+	}
+
+	if !secondStudentExists {
+		// Get the second group ID to use
+		var groupID int64
+		err = tx.QueryRowContext(ctx, `
+			SELECT id FROM groups WHERE name = 'Sample Group B'
+		`).Scan(&groupID)
+
+		if err != nil {
+			return fmt.Errorf("error getting second sample group ID: %w", err)
+		}
+
+		// Get the admin user ID for our example
+		var adminUserID int64
+		err = tx.QueryRowContext(ctx, `
+			SELECT id FROM custom_users 
+			WHERE first_name = 'Sample' AND second_name = 'Admin'
+		`).Scan(&adminUserID)
+
+		if err != nil {
+			return fmt.Errorf("error getting sample admin ID: %w", err)
+		}
+
+		if groupID > 0 && adminUserID > 0 {
+			// Create the student record
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO students (
+					school_class, bus, name_lg, contact_lg, in_house, wc, school_yard, 
+					custom_users_id, group_id, created_at, modified_at
+				) VALUES (
+					?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+				)
+			`,
+				"Sample Class 6B",      // School class
+				true,                   // Bus (this one takes the bus)
+				"Guardian Example",     // Legal guardian name
+				"guardian@example.com", // Legal guardian contact
+				true,                   // In house (this one is in the house)
+				false,                  // WC
+				false,                  // School yard
+				adminUserID,            // Custom user ID
+				groupID,                // Group ID
+				time.Now(),             // Created at
+				time.Now(),             // Modified at
+			)
+
+			if err != nil {
+				return fmt.Errorf("error creating second student record: %w", err)
+			}
+
+			fmt.Println("Created second sample student record")
 		}
 	}
 
