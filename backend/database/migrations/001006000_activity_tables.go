@@ -60,7 +60,7 @@ func activityTablesUp(ctx context.Context, db *bun.DB) error {
 			datespan_id BIGINT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			CONSTRAINT fk_ag_supervisor FOREIGN KEY (supervisor_id) REFERENCES pedagogical_specialist(id) ON DELETE RESTRICT,
+			CONSTRAINT fk_ag_supervisor FOREIGN KEY (supervisor_id) REFERENCES pedagogical_specialists(id) ON DELETE RESTRICT,
 			CONSTRAINT fk_ag_category FOREIGN KEY (ag_category_id) REFERENCES ag_category(id) ON DELETE RESTRICT,
 			CONSTRAINT fk_ag_datespan FOREIGN KEY (datespan_id) REFERENCES timespan(id) ON DELETE SET NULL
 		)

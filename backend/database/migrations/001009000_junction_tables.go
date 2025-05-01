@@ -44,7 +44,7 @@ func junctionTablesUp(ctx context.Context, db *bun.DB) error {
 			specialist_id BIGINT NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			CONSTRAINT fk_group_supervisor_group FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
-			CONSTRAINT fk_group_supervisor_specialist FOREIGN KEY (specialist_id) REFERENCES pedagogical_specialist(id) ON DELETE CASCADE,
+			CONSTRAINT fk_group_supervisor_specialist FOREIGN KEY (specialist_id) REFERENCES pedagogical_specialists(id) ON DELETE CASCADE,
 			CONSTRAINT uq_group_supervisor UNIQUE(group_id, specialist_id)
 		)
 	`)
@@ -76,7 +76,7 @@ func junctionTablesUp(ctx context.Context, db *bun.DB) error {
 			specialist_id BIGINT NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			CONSTRAINT fk_combined_group_specialist_combined_group FOREIGN KEY (combined_group_id) REFERENCES combined_groups(id) ON DELETE CASCADE,
-			CONSTRAINT fk_combined_group_specialist_specialist FOREIGN KEY (specialist_id) REFERENCES pedagogical_specialist(id) ON DELETE CASCADE,
+			CONSTRAINT fk_combined_group_specialist_specialist FOREIGN KEY (specialist_id) REFERENCES pedagogical_specialists(id) ON DELETE CASCADE,
 			CONSTRAINT uq_combined_group_specialist UNIQUE(combined_group_id, specialist_id)
 		)
 	`)

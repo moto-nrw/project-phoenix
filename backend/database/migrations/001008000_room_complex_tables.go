@@ -72,7 +72,7 @@ func roomComplexTablesUp(ctx context.Context, db *bun.DB) error {
 			CONSTRAINT fk_room_history_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
 			CONSTRAINT fk_room_history_timespan FOREIGN KEY (timespan_id) REFERENCES timespan(id) ON DELETE RESTRICT,
 			CONSTRAINT fk_room_history_ag_category FOREIGN KEY (ag_category_id) REFERENCES ag_category(id) ON DELETE SET NULL,
-			CONSTRAINT fk_room_history_supervisor FOREIGN KEY (supervisor_id) REFERENCES pedagogical_specialist(id) ON DELETE RESTRICT,
+			CONSTRAINT fk_room_history_supervisor FOREIGN KEY (supervisor_id) REFERENCES pedagogical_specialists(id) ON DELETE RESTRICT,
 			CONSTRAINT fk_room_history_group FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE SET NULL
 		)
 	`)
@@ -106,7 +106,7 @@ func roomComplexTablesUp(ctx context.Context, db *bun.DB) error {
 			supervisor_id BIGINT NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			CONSTRAINT fk_room_occupancy_supervisors_room_occupancy FOREIGN KEY (room_occupancy_id) REFERENCES room_occupancy(id) ON DELETE CASCADE,
-			CONSTRAINT fk_room_occupancy_supervisors_supervisor FOREIGN KEY (supervisor_id) REFERENCES pedagogical_specialist(id) ON DELETE CASCADE,
+			CONSTRAINT fk_room_occupancy_supervisors_supervisor FOREIGN KEY (supervisor_id) REFERENCES pedagogical_specialists(id) ON DELETE CASCADE,
 			CONSTRAINT uq_room_occupancy_supervisor UNIQUE(room_occupancy_id, supervisor_id)
 		)
 	`)

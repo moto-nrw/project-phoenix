@@ -59,12 +59,14 @@ func specialistTablesUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating indexes for rfid_cards table: %w", err)
 	}
 
-	// 2. Create the pedagogical_specialist table
+	// 2. Create the pedagogical_specialists table
 	_, err = tx.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS pedagogical_specialist (
+		CREATE TABLE IF NOT EXISTS pedagogical_specialists (
 			id BIGSERIAL PRIMARY KEY,
 			user_id BIGINT NOT NULL UNIQUE,
 			specialization TEXT NOT NULL,
+			role TEXT,
+			is_password_otp BOOLEAN DEFAULT FALSE,
 			qualifications TEXT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -72,16 +74,16 @@ func specialistTablesUp(ctx context.Context, db *bun.DB) error {
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating pedagogical_specialist table: %w", err)
+		return fmt.Errorf("error creating pedagogical_specialists table: %w", err)
 	}
 
-	// Create indexes for pedagogical_specialist
+	// Create indexes for pedagogical_specialists
 	_, err = tx.ExecContext(ctx, `
-		CREATE INDEX IF NOT EXISTS idx_pedagogical_specialist_user_id ON pedagogical_specialist(user_id);
-		CREATE INDEX IF NOT EXISTS idx_pedagogical_specialist_specialization ON pedagogical_specialist(specialization);
+		CREATE INDEX IF NOT EXISTS idx_pedagogical_specialists_user_id ON pedagogical_specialists(user_id);
+		CREATE INDEX IF NOT EXISTS idx_pedagogical_specialists_specialization ON pedagogical_specialists(specialization);
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating indexes for pedagogical_specialist table: %w", err)
+		return fmt.Errorf("error creating indexes for pedagogical_specialists table: %w", err)
 	}
 
 	// 3. Create the device table
@@ -123,10 +125,10 @@ func specialistTablesUp(ctx context.Context, db *bun.DB) error {
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_at_column();
 
-		-- Trigger for pedagogical_specialist
-		DROP TRIGGER IF EXISTS update_pedagogical_specialist_modified_at ON pedagogical_specialist;
-		CREATE TRIGGER update_pedagogical_specialist_modified_at
-		BEFORE UPDATE ON pedagogical_specialist
+		-- Trigger for pedagogical_specialists
+		DROP TRIGGER IF EXISTS update_pedagogical_specialists_modified_at ON pedagogical_specialists;
+		CREATE TRIGGER update_pedagogical_specialists_modified_at
+		BEFORE UPDATE ON pedagogical_specialists
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_at_column();
 		
@@ -159,7 +161,7 @@ func specialistTablesDown(ctx context.Context, db *bun.DB) error {
 	// Drop tables in reverse order of dependencies
 	_, err = tx.ExecContext(ctx, `
 		DROP TABLE IF EXISTS device;
-		DROP TABLE IF EXISTS pedagogical_specialist;
+		DROP TABLE IF EXISTS pedagogical_specialists;
 		DROP TABLE IF EXISTS rfid_cards;
 	`)
 	if err != nil {

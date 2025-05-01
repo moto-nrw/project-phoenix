@@ -91,7 +91,7 @@ func seedDataDown(ctx context.Context, db *bun.DB) error {
 			DELETE FROM students WHERE school_class LIKE 'Sample%';
 			DELETE FROM groups WHERE name LIKE 'Sample%';
 			DELETE FROM rfid_cards WHERE id NOT IN (SELECT tag_id FROM custom_users WHERE tag_id IS NOT NULL);
-			DELETE FROM pedagogical_specialist WHERE role LIKE 'Sample%';
+			DELETE FROM pedagogical_specialists WHERE role LIKE 'Sample%';
 			DELETE FROM custom_users WHERE first_name LIKE 'Sample%';
 			
 			-- Remove admin accounts except the default one if in production
@@ -360,7 +360,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 	var specialistExists bool
 	err = tx.QueryRowContext(ctx, `
 		SELECT EXISTS(
-			SELECT 1 FROM pedagogical_specialist
+			SELECT 1 FROM pedagogical_specialists
 			WHERE user_id = ?
 		)
 	`, sampleTeacherID).Scan(&specialistExists)
@@ -410,7 +410,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 
 		// Create the specialist record
 		_, err = tx.ExecContext(ctx, `
-			INSERT INTO pedagogical_specialist (
+			INSERT INTO pedagogical_specialists (
 				specialization, user_id, created_at, modified_at
 			) VALUES (
 				'Teacher', ?, ?, ?
