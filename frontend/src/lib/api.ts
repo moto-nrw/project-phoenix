@@ -91,7 +91,6 @@ export interface Student {
   name_lg?: string;      // Legal Guardian name
   contact_lg?: string;   // Legal Guardian contact
   custom_users_id?: string; // ID of the related CustomUser
-  custom_user_id?: string; // Legacy field name for backward compatibility
 }
 
 // Group-related interfaces
