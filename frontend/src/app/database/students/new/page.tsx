@@ -49,40 +49,8 @@ export default function NewStudentPage() {
         group_id: groupId || studentData.group_id, // Use groupId from URL if available
       };
       
-      // Create student
+      // Create student - group association now works directly via the API
       const createdStudent = await studentService.createStudent(newStudent);
-      
-      // The best way to ensure a student is in the correct group is to explicitly update their record
-      if (groupId && createdStudent.id) {
-        try {
-          console.log(`Attempting to update student ${createdStudent.id} to be in group ${groupId}`);
-          
-          // Make a direct API call to update the student's group
-          const response = await fetch(`/api/students/${createdStudent.id}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-              group_id: groupId,
-              // We need to include the custom_users_id for updates
-              custom_users_id: createdStudent.custom_users_id,
-              // Keep the student's basic information
-              school_class: createdStudent.school_class || ''
-            }),
-          });
-          
-          if (response.ok) {
-            console.log(`Successfully updated student ${createdStudent.id} to be in group ${groupId}`);
-          } else {
-            const error = await response.text();
-            console.error(`Failed to update student group: ${error}`);
-          }
-        } catch (err) {
-          console.error('Error updating student group:', err);
-          // Continue anyway, as we'll still redirect to the group page
-        }
-      }
       
       // Navigate back to the appropriate page
       if (groupId) {
