@@ -226,6 +226,7 @@ func TestAgLifecycle(t *testing.T) {
 		Weekday:    "Monday",
 		TimespanID: 1,
 		Timespan:   timespan,
+		AgID:       1, // FIX: Add a valid AgID
 	}
 
 	// Create sample student
@@ -319,8 +320,8 @@ func TestAgLifecycle(t *testing.T) {
 		// Create test request
 		agReq := &AgRequest{
 			Ag:         newAg,
-			StudentIDs: []int64{},
-			Timeslots:  []*models2.AgTime{},
+			StudentIDs: []int64{},           // FIX: Initialize empty slice instead of nil
+			Timeslots:  []*models2.AgTime{}, // FIX: Initialize empty slice instead of nil
 		}
 		body, _ := json.Marshal(agReq)
 		r := httptest.NewRequest("POST", "/", bytes.NewReader(body))
@@ -555,7 +556,7 @@ func TestStudentEnrollmentFlow(t *testing.T) {
 		AgCategory:     category,
 		CreatedAt:      now,
 		ModifiedAt:     now,
-		Students:       []*models2.Student{}, // No students yet
+		Students:       []*models2.Student{}, // FIX: Changed to slice of pointers
 	}
 
 	ag2 := models2.Ag{
@@ -569,7 +570,7 @@ func TestStudentEnrollmentFlow(t *testing.T) {
 		AgCategory:     category,
 		CreatedAt:      now,
 		ModifiedAt:     now,
-		Students:       []*models2.Student{student}, // Student already enrolled
+		Students:       []*models2.Student{student}, // FIX: Changed to slice of pointers
 	}
 
 	// Set up expectations
@@ -690,7 +691,7 @@ func TestPublicEndpoints(t *testing.T) {
 		Supervisor:     specialist,
 		AgCategoryID:   category1.ID,
 		AgCategory:     category1,
-		Students:       []*models2.Student{}, // No students yet
+		Students:       []*models2.Student{}, // FIX: Changed to slice of pointers
 	}
 
 	ag2 := models2.Ag{
@@ -702,7 +703,7 @@ func TestPublicEndpoints(t *testing.T) {
 		Supervisor:     specialist,
 		AgCategoryID:   category2.ID,
 		AgCategory:     category2,
-		Students:       []*models2.Student{}, // No students yet
+		Students:       []*models2.Student{}, // FIX: Changed to slice of pointers
 	}
 
 	// Set up expectations
