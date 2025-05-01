@@ -127,6 +127,7 @@ func (m *MockAgStore) UnenrollStudent(ctx context.Context, agID, studentID int64
 	return args.Error(0)
 }
 
+// ListEnrolledStudents modifies the mock to return pointers to students
 func (m *MockAgStore) ListEnrolledStudents(ctx context.Context, agID int64) ([]*models2.Student, error) {
 	args := m.Called(ctx, agID)
 	return args.Get(0).([]*models2.Student), args.Error(1)
