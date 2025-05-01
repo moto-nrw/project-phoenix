@@ -312,40 +312,136 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 		}
 	}
 
-	// 2. Create sample groups
-	sampleGroups := []string{
-		"Sample Group A",
-		"Sample Group B",
-		"Sample Combined Group",
+	// 2. Create sample rooms
+	sampleRooms := []struct {
+		RoomName string
+		Building string
+		Floor    int
+		Capacity int
+		Category string
+		Color    string
+	}{
+		{"Room 101", "Main Building", 1, 25, "Classroom", "#4287f5"}, // Blue
+		{"Room 102", "Main Building", 1, 30, "Classroom", "#42f560"}, // Green
+		{"Library", "Main Building", 2, 50, "Study", "#f54242"},      // Red
+		{"Computer Lab", "Science Wing", 1, 20, "Lab", "#f5a442"},    // Orange
+		{"Cafeteria", "Main Building", 0, 100, "Other", "#b042f5"},   // Purple
+		{"Gymnasium", "Sports Hall", 0, 150, "Activity", "#f542e3"},  // Pink
+	}
+
+	roomIds := make(map[string]int64)
+
+	for _, room := range sampleRooms {
+		var exists bool
+		err := tx.QueryRowContext(ctx, `
+			SELECT EXISTS(SELECT 1 FROM rooms WHERE room_name = ?)
+		`, room.RoomName).Scan(&exists)
+
+		if err != nil {
+			return fmt.Errorf("error checking if room exists: %w", err)
+		}
+
+		if !exists {
+			// Insert the room
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO rooms (
+					room_name, building, floor, capacity, category, color, created_at, modified_at
+				) VALUES (
+					?, ?, ?, ?, ?, ?, ?, ?
+				)
+				RETURNING id
+			`, room.RoomName, room.Building, room.Floor, room.Capacity, room.Category, room.Color, time.Now(), time.Now())
+
+			if err != nil {
+				return fmt.Errorf("error inserting room: %w", err)
+			}
+
+			// Get last inserted ID
+			var roomId int64
+			err = tx.QueryRowContext(ctx, `SELECT lastval()`).Scan(&roomId)
+			if err != nil {
+				return fmt.Errorf("error getting room id: %w", err)
+			}
+
+			roomIds[room.RoomName] = roomId
+			fmt.Printf("Created room %s with ID %d\n", room.RoomName, roomId)
+		} else {
+			// Get existing room ID
+			var roomId int64
+			err = tx.QueryRowContext(ctx, `
+				SELECT id FROM rooms WHERE room_name = ?
+			`, room.RoomName).Scan(&roomId)
+
+			if err != nil {
+				return fmt.Errorf("error getting existing room id: %w", err)
+			}
+
+			roomIds[room.RoomName] = roomId
+		}
+	}
+
+	// 3. Create sample groups
+	sampleGroups := []struct {
+		Name     string
+		RoomName string // Will be mapped to room_id
+	}{
+		{"Sample Group A", "Room 101"},
+		{"Sample Group B", "Room 102"},
+		{"Sample Combined Group", "Library"},
+		{"Computer Club", "Computer Lab"},
+		{"Sports Team", "Gymnasium"},
+		{"Lunch Group", "Cafeteria"},
 	}
 
 	for _, group := range sampleGroups {
 		var exists bool
 		err := tx.QueryRowContext(ctx, `
 			SELECT EXISTS(SELECT 1 FROM groups WHERE name = ?)
-		`, group).Scan(&exists)
+		`, group.Name).Scan(&exists)
 
 		if err != nil {
 			return fmt.Errorf("error checking if sample group exists: %w", err)
 		}
 
 		if !exists {
-			// Insert the group
+			roomId, ok := roomIds[group.RoomName]
+			if !ok {
+				fmt.Printf("Warning: Room %s not found for group %s\n", group.RoomName, group.Name)
+				roomId = 0 // NULL value for room_id
+			}
+
+			// Insert the group with room_id reference
 			_, err = tx.ExecContext(ctx, `
 				INSERT INTO groups (
-					name, created_at, modified_at
+					name, room_id, created_at, modified_at
 				) VALUES (
-					?, ?, ?
+					?, ?, ?, ?
 				)
-			`, group, time.Now(), time.Now())
+			`, group.Name, roomId, time.Now(), time.Now())
 
 			if err != nil {
 				return fmt.Errorf("error inserting sample group: %w", err)
 			}
+
+			fmt.Printf("Created group %s with room_id %d\n", group.Name, roomId)
+		} else {
+			// Check if we need to update the room_id for existing groups
+			roomId, ok := roomIds[group.RoomName]
+			if ok {
+				_, err = tx.ExecContext(ctx, `
+					UPDATE groups SET room_id = ? WHERE name = ?
+				`, roomId, group.Name)
+
+				if err != nil {
+					return fmt.Errorf("error updating group with room_id: %w", err)
+				}
+
+				fmt.Printf("Updated existing group %s with room_id %d\n", group.Name, roomId)
+			}
 		}
 	}
 
-	// 3. Create sample pedagogical specialists
+	// 4. Create sample pedagogical specialists
 	// First get the user ID for the sample teacher
 	var sampleTeacherID int64
 	err := tx.QueryRowContext(ctx, `
@@ -490,7 +586,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 		}
 	}
 
-	// 5. Create another example student with different details
+	// 6. Create another example student with different details
 	// Check if we've already created the second sample student
 	var secondStudentExists bool
 	err = tx.QueryRowContext(ctx, `
