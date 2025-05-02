@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '~/server/auth';
 import { env } from '~/env';
 
@@ -18,7 +19,7 @@ export async function GET(
   
   // Make sure params is fully resolved
   const resolvedParams = params instanceof Promise ? await params : params;
-  const roomId = resolvedParams.roomId;
+  const roomId: string = resolvedParams.roomId;
   
   try {
     // Check if user has proper roles
@@ -48,9 +49,9 @@ export async function GET(
       );
     }
     
-    const data = await backendResponse.json();
+    const data: unknown = await backendResponse.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error fetching group for room ${roomId}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },

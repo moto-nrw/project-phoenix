@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '~/server/auth';
 import { env } from '~/env';
 
@@ -46,9 +47,9 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    const data = await backendResponse.json();
+    const data: unknown = await backendResponse.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error fetching public groups:', error);
     return NextResponse.json(
       { error: 'Internal Server Error' },

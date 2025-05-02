@@ -1,8 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '~/server/auth';
 import { env } from '~/env';
 
 const API_URL = env.NEXT_PUBLIC_API_URL;
+
+interface ErrorResponse {
+  error: string;
+  [key: string]: unknown;
+}
 
 export async function POST(
   request: NextRequest,
@@ -17,7 +23,7 @@ export async function POST(
     );
   }
 
-  const { id, studentId } = await params;
+  const { id, studentId } = params;
 
   try {
     const response = await fetch(`${API_URL}/activities/${id}/enroll/${studentId}`, {
@@ -34,12 +40,12 @@ export async function POST(
       
       // Try to parse error for better error messages
       try {
-        const errorJson = JSON.parse(errorText);
+        const errorJson = JSON.parse(errorText) as ErrorResponse;
         return NextResponse.json(
-          { error: errorJson.error || `Error enrolling student: ${response.status}` },
+          { error: errorJson.error ?? `Error enrolling student: ${response.status}` },
           { status: response.status }
         );
-      } catch (e) {
+      } catch {
         // If parsing fails, use status code
         return NextResponse.json(
           { error: `Error enrolling student: ${response.status}` },
@@ -48,7 +54,7 @@ export async function POST(
       }
     }
 
-    const data = await response.json();
+    const data = await response.json() as unknown;
     return NextResponse.json(data);
   } catch (error) {
     console.error(`Error enrolling student ${studentId} in activity ${id}:`, error);
@@ -72,7 +78,7 @@ export async function DELETE(
     );
   }
 
-  const { id, studentId } = await params;
+  const { id, studentId } = params;
 
   try {
     const response = await fetch(`${API_URL}/activities/${id}/enroll/${studentId}`, {

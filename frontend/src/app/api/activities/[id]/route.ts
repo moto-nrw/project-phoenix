@@ -1,11 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { env } from "~/env";
 
 interface RouteContext {
   params: {
     id: string;
-  };
+  } | Promise<{
+    id: string;
+  }>;
 }
 
 /**
@@ -15,7 +18,7 @@ export async function GET(
   request: NextRequest,
   context: RouteContext
 ) {
-  const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
+  const resolvedParams = await (context.params instanceof Promise ? context.params : Promise.resolve(context.params));
   const id = resolvedParams.id;
   const session = await auth();
   
@@ -45,7 +48,7 @@ export async function GET(
       );
     }
     
-    const data = await response.json();
+    const data = await response.json() as Record<string, unknown>;
     return NextResponse.json(data);
   } catch (error) {
     console.error(`Error fetching activity ${id}:`, error);
@@ -63,7 +66,7 @@ export async function PUT(
   request: NextRequest,
   context: RouteContext
 ) {
-  const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
+  const resolvedParams = await (context.params instanceof Promise ? context.params : Promise.resolve(context.params));
   const id = resolvedParams.id;
   const session = await auth();
   
@@ -75,7 +78,7 @@ export async function PUT(
   }
   
   try {
-    const body = await request.json();
+    const body = await request.json() as Record<string, unknown>;
     
     const apiUrl = `${env.NEXT_PUBLIC_API_URL}/activities/${id}`;
     const response = await fetch(apiUrl, {
@@ -93,11 +96,11 @@ export async function PUT(
       
       let errorMessage = `Error from API: ${response.statusText}`;
       try {
-        const parsedError = JSON.parse(errorData);
+        const parsedError = JSON.parse(errorData) as { error?: string };
         if (parsedError.error) {
           errorMessage = parsedError.error;
         }
-      } catch (e) {
+      } catch {
         // Use default error message
       }
       
@@ -107,7 +110,7 @@ export async function PUT(
       );
     }
     
-    const data = await response.json();
+    const data = await response.json() as Record<string, unknown>;
     return NextResponse.json(data);
   } catch (error) {
     console.error(`Error updating activity ${id}:`, error);
@@ -125,7 +128,7 @@ export async function DELETE(
   request: NextRequest,
   context: RouteContext
 ) {
-  const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
+  const resolvedParams = await (context.params instanceof Promise ? context.params : Promise.resolve(context.params));
   const id = resolvedParams.id;
   const session = await auth();
   

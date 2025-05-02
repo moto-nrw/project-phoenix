@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '~/server/auth';
 import { env } from '~/env';
 
@@ -18,7 +19,7 @@ export async function GET(
   
   // Make sure params is fully resolved
   const resolvedParams = params instanceof Promise ? await params : params;
-  const groupId = resolvedParams.id;
+  const groupId: string = resolvedParams.id;
   
   try {
     // Check if user has proper roles
@@ -48,9 +49,9 @@ export async function GET(
       );
     }
     
-    const data = await backendResponse.json();
+    const data: unknown = await backendResponse.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error fetching representative for group ${groupId}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
@@ -75,11 +76,11 @@ export async function PUT(
   
   // Make sure params is fully resolved
   const resolvedParams = params instanceof Promise ? await params : params;
-  const groupId = resolvedParams.id;
+  const groupId: string = resolvedParams.id;
   
   try {
     // Parse request body
-    const { studentId } = await request.json();
+    const { studentId } = await request.json() as { studentId: string };
     
     if (!studentId) {
       return NextResponse.json(
@@ -107,12 +108,12 @@ export async function PUT(
       
       // Try to parse error for better error messages
       try {
-        const errorJson = JSON.parse(errorText);
+        const errorJson = JSON.parse(errorText) as { error?: string };
         return NextResponse.json(
-          { error: errorJson.error || `Error setting group representative: ${backendResponse.status}` },
+          { error: errorJson.error ?? `Error setting group representative: ${backendResponse.status}` },
           { status: backendResponse.status }
         );
-      } catch (e) {
+      } catch {
         // If parsing fails, use status code
         return NextResponse.json(
           { error: `Error setting group representative: ${backendResponse.status}` },
@@ -121,9 +122,9 @@ export async function PUT(
       }
     }
     
-    const data = await backendResponse.json();
+    const data: unknown = await backendResponse.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error setting representative for group ${groupId}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
@@ -148,7 +149,7 @@ export async function DELETE(
   
   // Make sure params is fully resolved
   const resolvedParams = params instanceof Promise ? await params : params;
-  const groupId = resolvedParams.id;
+  const groupId: string = resolvedParams.id;
   
   try {
     // Forward the request to the backend with token
@@ -173,7 +174,7 @@ export async function DELETE(
     }
     
     return new NextResponse(null, { status: 204 });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error removing representative from group ${groupId}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },

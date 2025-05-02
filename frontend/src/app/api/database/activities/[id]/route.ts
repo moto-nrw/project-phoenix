@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '~/server/auth';
 import { env } from '~/env';
 
@@ -19,7 +20,7 @@ export async function GET(
 
   // Properly handle params that could potentially be a Promise
   const resolvedParams = params instanceof Promise ? await params : params;
-  const id = resolvedParams.id;
+  const id: string = resolvedParams?.id ?? '';
 
   try {
     const response = await fetch(`${API_URL}/activities/${id}`, {
@@ -30,16 +31,16 @@ export async function GET(
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
+      await response.text(); // Read the response body
       return NextResponse.json(
         { error: `Backend error: ${response.status}` },
         { status: response.status }
       );
     }
 
-    const data = await response.json();
+    const data: unknown = await response.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }
@@ -62,10 +63,10 @@ export async function PUT(
 
   // Properly handle params that could potentially be a Promise
   const resolvedParams = params instanceof Promise ? await params : params;
-  const id = resolvedParams.id;
+  const id: string = resolvedParams?.id ?? '';
 
   try {
-    const body = await request.json();
+    const body: unknown = await request.json();
     const requestBody = JSON.stringify(body);
     
     const response = await fetch(`${API_URL}/activities/${id}`, {
@@ -82,12 +83,12 @@ export async function PUT(
       
       // Try to parse error for better error messages
       try {
-        const errorJson = JSON.parse(errorText);
+        const errorJson = JSON.parse(errorText) as { error?: string };
         return NextResponse.json(
-          { error: errorJson.error || `Error updating activity: ${response.status}` },
+          { error: errorJson.error ?? `Error updating activity: ${response.status}` },
           { status: response.status }
         );
-      } catch (e) {
+      } catch {
         // If parsing fails, use status code
         return NextResponse.json(
           { error: `Error updating activity: ${response.status}` },
@@ -96,9 +97,9 @@ export async function PUT(
       }
     }
 
-    const data = await response.json();
+    const data: unknown = await response.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }
@@ -121,7 +122,7 @@ export async function DELETE(
 
   // Properly handle params that could potentially be a Promise
   const resolvedParams = params instanceof Promise ? await params : params;
-  const id = resolvedParams.id;
+  const id: string = resolvedParams?.id ?? '';
 
   try {
     const response = await fetch(`${API_URL}/activities/${id}`, {
@@ -133,7 +134,7 @@ export async function DELETE(
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
+      await response.text(); // Read the response body
       return NextResponse.json(
         { error: `Backend error: ${response.status}` },
         { status: response.status }
@@ -141,7 +142,7 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }

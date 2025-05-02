@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '~/server/auth';
 import { env } from '~/env';
 
@@ -17,7 +18,8 @@ export async function DELETE(
     );
   }
 
-  const { id, timeId } = await params;
+  // Properly handle params
+  const { id, timeId } = params;
 
   try {
     const response = await fetch(`${API_URL}/activities/${id}/times/${timeId}`, {
@@ -38,7 +40,7 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error deleting time slot ${timeId} from activity ${id}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },

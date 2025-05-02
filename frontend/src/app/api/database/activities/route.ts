@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '~/server/auth';
 import { env } from '~/env';
 
@@ -40,9 +41,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const data = await response.json();
+    const data: unknown = await response.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error fetching activities:', error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
+    const body: unknown = await request.json();
     
     const response = await fetch(`${API_URL}/activities`, {
       method: 'POST',
@@ -79,12 +80,12 @@ export async function POST(request: NextRequest) {
       
       // Try to parse error for better error messages
       try {
-        const errorJson = JSON.parse(errorText);
+        const errorJson = JSON.parse(errorText) as { error?: string };
         return NextResponse.json(
-          { error: errorJson.error || `Error creating activity: ${response.status}` },
+          { error: errorJson.error ?? `Error creating activity: ${response.status}` },
           { status: response.status }
         );
-      } catch (e) {
+      } catch {
         // If parsing fails, use status code
         return NextResponse.json(
           { error: `Error creating activity: ${response.status}` },
@@ -93,9 +94,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const data = await response.json();
+    const data: unknown = await response.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error creating activity:', error);
     return NextResponse.json(
       { error: 'Internal Server Error' },

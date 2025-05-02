@@ -1,6 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { env } from "~/env";
+
+interface TimespanRequest {
+  start_time: string;
+  end_time: string;
+  [key: string]: unknown;
+}
+
+interface ErrorResponse {
+  error: string;
+  [key: string]: unknown;
+}
 
 /**
  * POST handler for creating a new timespan
@@ -18,7 +30,7 @@ export async function POST(
   }
   
   try {
-    const body = await request.json();
+    const body = await request.json() as TimespanRequest;
     
     // Basic validation
     if (!body.start_time) {
@@ -54,11 +66,11 @@ export async function POST(
       
       let errorMessage = `Error from API: ${response.statusText}`;
       try {
-        const parsedError = JSON.parse(errorData);
+        const parsedError = JSON.parse(errorData) as ErrorResponse;
         if (parsedError.error) {
           errorMessage = parsedError.error;
         }
-      } catch (e) {
+      } catch {
         // Use default error message
       }
       
@@ -68,7 +80,7 @@ export async function POST(
       );
     }
     
-    const data = await response.json();
+    const data = await response.json() as unknown;
     console.log('Timespan created successfully:', JSON.stringify(data));
     return NextResponse.json(data, { status: 201 });
   } catch (error) {

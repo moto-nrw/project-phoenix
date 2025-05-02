@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { env } from "~/env";
 
@@ -42,11 +43,11 @@ export async function POST(
       
       let errorMessage = `Error from API: ${response.statusText}`;
       try {
-        const parsedError = JSON.parse(errorData);
+        const parsedError = JSON.parse(errorData) as { error?: string };
         if (parsedError.error) {
           errorMessage = parsedError.error;
         }
-      } catch (e) {
+      } catch {
         // Use default error message
       }
       
@@ -56,7 +57,7 @@ export async function POST(
       );
     }
     
-    const data = await response.json();
+    const data = await response.json() as Record<string, unknown>;
     return NextResponse.json(data);
   } catch (error) {
     console.error(`Error enrolling student ${studentId} in activity ${id}:`, error);

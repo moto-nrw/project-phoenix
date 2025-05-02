@@ -1,11 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { env } from "~/env";
 
 /**
  * GET handler for fetching activity categories
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   const session = await auth();
   
   if (!session?.user?.token) {
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    const data = await response.json();
+    const data = await response.json() as Record<string, unknown>;
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error fetching activity categories:', error);
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
   }
   
   try {
-    const body = await request.json();
+    const body = await request.json() as { name?: string; [key: string]: unknown };
     
     if (!body.name) {
       return NextResponse.json(
@@ -84,11 +85,11 @@ export async function POST(request: NextRequest) {
       
       let errorMessage = `Error from API: ${response.statusText}`;
       try {
-        const parsedError = JSON.parse(errorData);
+        const parsedError = JSON.parse(errorData) as { error?: string };
         if (parsedError.error) {
           errorMessage = parsedError.error;
         }
-      } catch (e) {
+      } catch {
         // Use default error message
       }
       
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const data = await response.json();
+    const data = await response.json() as Record<string, unknown>;
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     console.error('Error creating activity category:', error);

@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '~/server/auth';
 import { env } from '~/env';
 
@@ -19,7 +20,7 @@ export async function GET(
 
   // Properly handle params that could potentially be a Promise
   const resolvedParams = params instanceof Promise ? await params : params;
-  const id = resolvedParams.id;
+  const id: string = resolvedParams.id;
 
   try {
     const response = await fetch(`${API_URL}/activities/${id}/times`, {
@@ -38,9 +39,9 @@ export async function GET(
       );
     }
 
-    const data = await response.json();
+    const data: unknown = await response.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error fetching time slots for activity ${id}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
@@ -64,10 +65,10 @@ export async function POST(
 
   // Properly handle params that could potentially be a Promise
   const resolvedParams = params instanceof Promise ? await params : params;
-  const id = resolvedParams.id;
+  const id: string = resolvedParams.id;
 
   try {
-    const body = await request.json();
+    const body: unknown = await request.json();
     
     const response = await fetch(`${API_URL}/activities/${id}/times`, {
       method: 'POST',
@@ -84,12 +85,12 @@ export async function POST(
       
       // Try to parse error for better error messages
       try {
-        const errorJson = JSON.parse(errorText);
+        const errorJson = JSON.parse(errorText) as { error?: string };
         return NextResponse.json(
-          { error: errorJson.error || `Error adding time slot: ${response.status}` },
+          { error: errorJson.error ?? `Error adding time slot: ${response.status}` },
           { status: response.status }
         );
-      } catch (e) {
+      } catch {
         // If parsing fails, use status code
         return NextResponse.json(
           { error: `Error adding time slot: ${response.status}` },
@@ -98,9 +99,9 @@ export async function POST(
       }
     }
 
-    const data = await response.json();
+    const data: unknown = await response.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error adding time slot to activity ${id}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },

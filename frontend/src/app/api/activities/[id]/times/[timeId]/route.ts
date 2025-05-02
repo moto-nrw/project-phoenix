@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { env } from "~/env";
 
@@ -6,7 +7,10 @@ interface RouteContext {
   params: {
     id: string;
     timeId: string;
-  };
+  } | Promise<{
+    id: string;
+    timeId: string;
+  }>;
 }
 
 /**
@@ -16,7 +20,7 @@ export async function DELETE(
   request: NextRequest,
   context: RouteContext
 ) {
-  const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
+  const resolvedParams = await (context.params instanceof Promise ? context.params : Promise.resolve(context.params));
   const { id, timeId } = resolvedParams;
   const session = await auth();
   

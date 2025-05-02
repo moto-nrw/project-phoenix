@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '~/server/auth';
 import { env } from '~/env';
 
@@ -19,7 +20,7 @@ export async function GET(
 
   // Properly handle params that could potentially be a Promise
   const resolvedParams = params instanceof Promise ? await params : params;
-  const id = resolvedParams.id;
+  const id: string = resolvedParams.id;
 
   try {
     const response = await fetch(`${API_URL}/activities/student/${id}/ags`, {
@@ -38,9 +39,9 @@ export async function GET(
       );
     }
 
-    const data = await response.json();
+    const data: unknown = await response.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error fetching activities for student ${id}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },

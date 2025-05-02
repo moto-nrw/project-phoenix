@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '~/server/auth';
 import { env } from '~/env';
 
@@ -18,7 +19,7 @@ export async function GET(
   
   // Make sure params is fully resolved
   const resolvedParams = params instanceof Promise ? await params : params;
-  const groupId = resolvedParams.id;
+  const groupId: string = resolvedParams.id;
   
   try {
     // Check if user has proper roles
@@ -45,7 +46,7 @@ export async function GET(
       
       // Try to parse the error text as JSON for a more detailed error message
       try {
-        const errorJson = JSON.parse(errorText);
+        const errorJson = JSON.parse(errorText) as { error?: string };
         // If the backend returned a specific error message, return that
         if (errorJson.error) {
           return NextResponse.json(
@@ -53,7 +54,7 @@ export async function GET(
             { status: backendResponse.status }
           );
         }
-      } catch (e) {
+      } catch {
         // If parsing fails, continue with the default error handling
       }
       
@@ -63,9 +64,9 @@ export async function GET(
       );
     }
     
-    const data = await backendResponse.json();
+    const data: unknown = await backendResponse.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error fetching group ${groupId}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
@@ -90,7 +91,7 @@ export async function PUT(
   
   // Make sure params is fully resolved
   const resolvedParams = params instanceof Promise ? await params : params;
-  const groupId = resolvedParams.id;
+  const groupId: string = resolvedParams.id;
   
   try {
     // Parse request body
@@ -115,7 +116,7 @@ export async function PUT(
       
       // Try to parse the error text as JSON for a more detailed error message
       try {
-        const errorJson = JSON.parse(errorText);
+        const errorJson = JSON.parse(errorText) as { error?: string };
         // If the backend returned a specific error message, return that
         if (errorJson.error) {
           return NextResponse.json(
@@ -123,7 +124,7 @@ export async function PUT(
             { status: backendResponse.status }
           );
         }
-      } catch (e) {
+      } catch {
         // If parsing fails, continue with the default error handling
       }
       
@@ -133,9 +134,9 @@ export async function PUT(
       );
     }
     
-    const data = await backendResponse.json();
+    const data: unknown = await backendResponse.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error updating group ${groupId}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
@@ -160,7 +161,7 @@ export async function DELETE(
   
   // Make sure params is fully resolved
   const resolvedParams = params instanceof Promise ? await params : params;
-  const groupId = resolvedParams.id;
+  const groupId: string = resolvedParams.id;
   
   try {
     // Forward the request to the backend with token
@@ -181,7 +182,7 @@ export async function DELETE(
       
       // Try to parse the error text as JSON for a more detailed error message
       try {
-        const errorJson = JSON.parse(errorText);
+        const errorJson = JSON.parse(errorText) as { error?: string };
         // If the backend returned a specific error message, return that
         if (errorJson.error) {
           return NextResponse.json(
@@ -189,7 +190,7 @@ export async function DELETE(
             { status: backendResponse.status }
           );
         }
-      } catch (e) {
+      } catch {
         // If parsing fails, continue with the default error handling
       }
       
@@ -200,7 +201,7 @@ export async function DELETE(
     }
     
     return new NextResponse(null, { status: 204 });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error deleting group ${groupId}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },

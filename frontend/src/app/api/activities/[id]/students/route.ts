@@ -1,11 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { env } from "~/env";
 
 interface RouteContext {
   params: {
     id: string;
-  };
+  } | Promise<{
+    id: string;
+  }>;
 }
 
 /**
@@ -15,7 +18,7 @@ export async function GET(
   request: NextRequest,
   context: RouteContext
 ) {
-  const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
+  const resolvedParams = await (context.params instanceof Promise ? context.params : Promise.resolve(context.params));
   const id = resolvedParams.id;
   const session = await auth();
   
@@ -45,7 +48,7 @@ export async function GET(
       );
     }
     
-    const data = await response.json();
+    const data = await response.json() as Record<string, unknown>;
     return NextResponse.json(data);
   } catch (error) {
     console.error(`Error fetching students for activity ${id}:`, error);

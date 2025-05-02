@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { env } from "~/env";
 
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    const data = await response.json();
+    const data = await response.json() as unknown;
     return NextResponse.json(data);
   } catch (error) {
     console.error(`Error fetching available activities for student ${studentId}:`, error);

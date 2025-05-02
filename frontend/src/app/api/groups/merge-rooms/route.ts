@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '~/server/auth';
 import { env } from '~/env';
 
@@ -36,12 +37,12 @@ export async function POST(request: NextRequest) {
       
       // Try to parse error for better error messages
       try {
-        const errorJson = JSON.parse(errorText);
+        const errorJson = JSON.parse(errorText) as { error?: string };
         return NextResponse.json(
-          { error: errorJson.error || `Error merging rooms: ${backendResponse.status}` },
+          { error: errorJson.error ?? `Error merging rooms: ${backendResponse.status}` },
           { status: backendResponse.status }
         );
-      } catch (e) {
+      } catch {
         // If parsing fails, use status code
         return NextResponse.json(
           { error: `Error merging rooms: ${backendResponse.status}` },
@@ -50,9 +51,9 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    const data = await backendResponse.json();
+    const data: unknown = await backendResponse.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error merging rooms:', error);
     return NextResponse.json(
       { error: 'Internal Server Error' },

@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '~/server/auth';
 import { env } from '~/env';
 
@@ -18,7 +19,7 @@ export async function GET(
   
   // Make sure params is fully resolved
   const resolvedParams = params instanceof Promise ? await params : params;
-  const groupId = resolvedParams.id;
+  const groupId: string = resolvedParams.id;
   
   try {
     // Check if user has proper roles
@@ -48,9 +49,9 @@ export async function GET(
       );
     }
     
-    const data = await backendResponse.json();
+    const data: unknown = await backendResponse.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error fetching supervisors for group ${groupId}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
@@ -75,7 +76,7 @@ export async function POST(
   
   // Make sure params is fully resolved
   const resolvedParams = params instanceof Promise ? await params : params;
-  const groupId = resolvedParams.id;
+  const groupId: string = resolvedParams.id;
   
   try {
     // Parse request body
@@ -100,12 +101,12 @@ export async function POST(
       
       // Try to parse error for better error messages
       try {
-        const errorJson = JSON.parse(errorText);
+        const errorJson = JSON.parse(errorText) as { error?: string };
         return NextResponse.json(
-          { error: errorJson.error || `Error adding supervisors to group: ${backendResponse.status}` },
+          { error: errorJson.error ?? `Error adding supervisors to group: ${backendResponse.status}` },
           { status: backendResponse.status }
         );
-      } catch (e) {
+      } catch {
         // If parsing fails, use status code
         return NextResponse.json(
           { error: `Error adding supervisors to group: ${backendResponse.status}` },
@@ -114,9 +115,9 @@ export async function POST(
       }
     }
     
-    const data = await backendResponse.json();
+    const data: unknown = await backendResponse.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error adding supervisors to group ${groupId}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
@@ -141,7 +142,7 @@ export async function DELETE(
   
   // Make sure params is fully resolved
   const resolvedParams = params instanceof Promise ? await params : params;
-  const groupId = resolvedParams.id;
+  const groupId: string = resolvedParams.id;
   
   try {
     // Parse request body to get supervisor IDs to remove
@@ -177,7 +178,7 @@ export async function DELETE(
     }
     
     return new NextResponse(null, { status: 204 });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error removing supervisors from group ${groupId}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },

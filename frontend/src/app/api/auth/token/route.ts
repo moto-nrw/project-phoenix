@@ -1,8 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '~/server/auth';
 import { env } from '~/env';
 
-export async function POST(request: NextRequest) {
+interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+}
+
+export async function POST(_request: NextRequest) {
   try {
     const session = await auth();
     
@@ -39,7 +45,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const tokens = await backendResponse.json();
+    const tokens = await backendResponse.json() as TokenResponse;
     
     return NextResponse.json({
       access_token: tokens.access_token,

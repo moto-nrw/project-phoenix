@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '~/server/auth';
 import { env } from '~/env';
 
@@ -18,7 +19,7 @@ export async function GET(
   
   // Make sure params is fully resolved
   const resolvedParams = params instanceof Promise ? await params : params;
-  const studentId = resolvedParams.id;
+  const studentId: string = resolvedParams.id;
   
   try {
     // Check if user has proper roles
@@ -48,9 +49,9 @@ export async function GET(
       );
     }
     
-    const data = await backendResponse.json();
+    const data: unknown = await backendResponse.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error fetching student ${studentId}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
@@ -75,7 +76,7 @@ export async function PUT(
   
   // Make sure params is fully resolved
   const resolvedParams = params instanceof Promise ? await params : params;
-  const studentId = resolvedParams.id;
+  const studentId: string = resolvedParams.id;
   
   try {
     // Parse request body
@@ -103,9 +104,9 @@ export async function PUT(
       );
     }
     
-    const data = await backendResponse.json();
+    const data: unknown = await backendResponse.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error updating student ${studentId}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
@@ -130,7 +131,7 @@ export async function DELETE(
   
   // Make sure params is fully resolved
   const resolvedParams = params instanceof Promise ? await params : params;
-  const studentId = resolvedParams.id;
+  const studentId: string = resolvedParams.id;
   
   try {
     // Forward the request to the backend with token
@@ -155,7 +156,7 @@ export async function DELETE(
     }
     
     return new NextResponse(null, { status: 204 });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error deleting student ${studentId}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
