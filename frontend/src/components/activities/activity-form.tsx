@@ -105,6 +105,9 @@ const TimeSlotEditor = ({
       const formattedStartTime = `${today}T${startTime}:00Z`;
       const formattedEndTime = `${today}T${endTime}:00Z`;
       
+      // Log the formatted times for debugging
+      console.log('Creating timespan with start_time:', formattedStartTime, 'end_time:', formattedEndTime);
+      
       const response = await fetch('/api/activities/timespans', {
         method: 'POST',
         headers: {
@@ -126,8 +129,13 @@ const TimeSlotEditor = ({
       const data = await response.json();
       const newTimespanId = data.id;
       
+      console.log('Created timespan with ID:', newTimespanId, 'Full response:', JSON.stringify(data));
+      
+      // Debug pause to ensure timespan is fully created in the database
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       // Add the time slot with the new timespan ID
-      // Make sure to convert string ID to number for the Go backend
+      // Make sure we convert the ID to a number as required by the Go backend
       onAdd({
         weekday,
         timespan_id: parseInt(newTimespanId, 10),

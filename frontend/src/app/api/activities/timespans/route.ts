@@ -36,6 +36,9 @@ export async function POST(
     }
     
     const apiUrl = `${env.NEXT_PUBLIC_API_URL}/timespans`;
+    console.log('Creating timespan at:', apiUrl);
+    console.log('With body:', JSON.stringify(body));
+    
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
@@ -66,6 +69,7 @@ export async function POST(
     }
     
     const data = await response.json();
+    console.log('Timespan created successfully:', JSON.stringify(data));
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     console.error(`Error creating timespan:`, error);

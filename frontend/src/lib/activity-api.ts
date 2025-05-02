@@ -553,7 +553,10 @@ export const activityService = {
       ? `/api/database/activities/${activityId}/times` 
       : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/times`;
     
-    // Ensure timespan_id is a number for the Go backend
+    // Log the incoming timeSlot data for debugging
+    console.log('Adding time slot to activity:', activityId, 'with data:', JSON.stringify(timeSlot));
+    
+    // The backend expects timespan_id as a number (int64)
     const preparedTimeSlot = {
       ...timeSlot,
       timespan_id: typeof timeSlot.timespan_id === 'string' 
