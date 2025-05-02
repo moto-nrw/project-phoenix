@@ -2,6 +2,7 @@
 package room
 
 import (
+	"context" // Add this import
 	"errors"
 	"net/http"
 	"strconv"
@@ -10,9 +11,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/database" // Add this import
 	"github.com/moto-nrw/project-phoenix/logging"
 	models2 "github.com/moto-nrw/project-phoenix/models"
-	"github.com/uptrace/bun"
+	"github.com/uptrace/bun" // Add this import
 )
 
 // Resource defines the room management resource
@@ -56,6 +58,18 @@ func NewResource(store RoomStore) *Resource {
 	return &Resource{
 		Store: store,
 	}
+}
+
+// NewAPI creates a new room API resource (alias for NewResource for consistency with other APIs)
+func NewAPI(db *bun.DB) (*Resource, chi.Router) {
+	// Create a real RoomStore implementation using the database
+	store := database.NewRoomStore(db)
+
+	// Create the resource
+	resource := NewResource(store)
+
+	// Create and return the router
+	return resource, resource.Router()
 }
 
 // Router creates a router for room management
