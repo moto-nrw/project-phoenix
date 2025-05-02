@@ -135,10 +135,10 @@ const TimeSlotEditor = ({
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Add the time slot with the new timespan ID
-      // Make sure we convert the ID to a number as required by the Go backend
+      // The API expects timespan_id as a string that it will convert to a number
       onAdd({
         weekday,
-        timespan_id: parseInt(newTimespanId, 10),
+        timespan_id: newTimespanId,
       });
       
       // Reset form

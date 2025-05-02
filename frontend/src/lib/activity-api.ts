@@ -547,7 +547,7 @@ export const activityService = {
   },
   
   // Add a time slot to an activity
-  addTimeSlot: async (activityId: string, timeSlot: Omit<ActivityTime, 'id' | 'ag_id' | 'created_at'>): Promise<ActivityTime> => {
+  addTimeSlot: async (activityId: string, timeSlot: Omit<ActivityTime, 'id' | 'ag_id' | 'created_at'> | { weekday: string, start_time: string, end_time?: string }): Promise<ActivityTime> => {
     const useProxyApi = typeof window !== 'undefined';
     const url = useProxyApi 
       ? `/api/database/activities/${activityId}/times` 
@@ -556,13 +556,27 @@ export const activityService = {
     // Log the incoming timeSlot data for debugging
     console.log('Adding time slot to activity:', activityId, 'with data:', JSON.stringify(timeSlot));
     
-    // The backend expects timespan_id as a number (int64)
-    const preparedTimeSlot = {
-      ...timeSlot,
-      timespan_id: typeof timeSlot.timespan_id === 'string' 
-        ? parseInt(timeSlot.timespan_id, 10) 
-        : timeSlot.timespan_id
-    };
+    // Check if we're using the new format with start_time/end_time or the old format with timespan_id
+    let preparedTimeSlot;
+    
+    if ('timespan_id' in timeSlot) {
+      // Old format - The backend expects timespan_id as a number (int64)
+      preparedTimeSlot = {
+        ...timeSlot,
+        timespan_id: typeof timeSlot.timespan_id === 'string' 
+          ? parseInt(timeSlot.timespan_id, 10) 
+          : timeSlot.timespan_id
+      };
+    } else if ('start_time' in timeSlot) {
+      // New format - Pass the start_time and end_time directly for automatic timespan creation
+      preparedTimeSlot = {
+        weekday: timeSlot.weekday,
+        start_time: timeSlot.start_time,
+        end_time: timeSlot.end_time
+      };
+    } else {
+      throw new Error('Invalid time slot format: must include either timespan_id or start_time');
+    }
     
     try {
       if (useProxyApi) {

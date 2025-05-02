@@ -283,7 +283,7 @@ func (s *AgStore) GetAgTimeByID(ctx context.Context, id int64) (*models2.AgTime,
 		Model(agTime).
 		Relation("Timespan").
 		Relation("Ag").
-		Where("id = ?", id).
+		Where("ag_time.id = ?", id).
 		Scan(ctx)
 
 	if err != nil {

@@ -84,16 +84,37 @@ export default function ActivityTimesPage() {
   const handleAddTimeSlot = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!id || !weekday || !startTime || !timeSpanId) return;
+    if (!id || !weekday || !startTime) return;
     if (addingTime) return; // Prevent duplicate submissions
     
     try {
       setAddingTime(true);
       
-      // Create a new time slot
+      // Parse times in HH:MM format to create Date objects
+      // We need to create complete timestamps for the API
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = today.getMonth();
+      const day = today.getDate();
+      
+      // Parse hours and minutes from the time strings
+      const [startHours, startMinutes] = startTime.split(':').map(Number);
+      
+      // Create the start time Date object
+      const parsedStartTime = new Date(year, month, day, startHours, startMinutes);
+      
+      // Create the end time Date object if end time is provided
+      let parsedEndTime = null;
+      if (endTime) {
+        const [endHours, endMinutes] = endTime.split(':').map(Number);
+        parsedEndTime = new Date(year, month, day, endHours, endMinutes);
+      }
+      
+      // Create a new time slot with start/end times
       const newTimeSlot = {
         weekday,
-        timespan_id: timeSpanId,
+        start_time: parsedStartTime.toISOString(),
+        end_time: parsedEndTime ? parsedEndTime.toISOString() : undefined,
       };
       
       await activityService.addTimeSlot(id as string, newTimeSlot);
@@ -101,6 +122,7 @@ export default function ActivityTimesPage() {
       // Clear form fields
       setStartTime('');
       setEndTime('');
+      setTimeSpanId(''); // Clear this field even though it's no longer visible (for backward compatibility)
       
       // Refresh activity data
       await fetchActivity();
@@ -267,22 +289,10 @@ export default function ActivityTimesPage() {
               </div>
             </div>
             
-            {/* Temporary TimeSpan ID field - in a real implementation, this would be handled by creating a timespan on the server */}
+            {/* Start and end time inputs are used to create a timespan on the server */}
             <div>
-              <label htmlFor="timeSpanId" className="block text-sm font-medium text-gray-700 mb-1">
-                Timespan ID (temporär für Demo)
-              </label>
-              <input
-                type="text"
-                id="timeSpanId"
-                value={timeSpanId}
-                onChange={(e) => setTimeSpanId(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-                required
-                placeholder="Bitte geben Sie eine gültige Timespan ID ein"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Hinweis: In einer vollständigen Implementierung würde ein Timespan automatisch erstellt.
+              <p className="text-xs text-gray-500 mb-2">
+                Die Zeitspanne wird automatisch auf dem Server erstellt, basierend auf den ausgewählten Zeiten.
               </p>
             </div>
             

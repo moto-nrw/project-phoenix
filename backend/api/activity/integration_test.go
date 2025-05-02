@@ -17,7 +17,7 @@ import (
 
 // TestAgCategoryLifecycle tests the complete lifecycle of an activity group category
 func TestAgCategoryLifecycle(t *testing.T) {
-	rs, mockAgStore, _ := setupTestAPI()
+	rs, mockAgStore, _, _ := setupTestAPI()
 
 	// 1. Setup test data
 	now := time.Now()
@@ -199,7 +199,7 @@ func TestAgCategoryLifecycle(t *testing.T) {
 
 // TestEnrollStudentHandler tests the enrollStudent handler in isolation
 func TestEnrollStudentHandler(t *testing.T) {
-	rs, mockAgStore, _ := setupTestAPI()
+	rs, mockAgStore, _, _ := setupTestAPI()
 
 	// Setup test data
 	ag := &models2.Ag{
@@ -234,7 +234,7 @@ func TestEnrollStudentHandler(t *testing.T) {
 
 // TestPublicEndpoints tests the public endpoints for activity groups
 func TestPublicEndpoints(t *testing.T) {
-	rs, mockAgStore, _ := setupTestAPI()
+	rs, mockAgStore, _, _ := setupTestAPI()
 
 	// Setup test data
 	specialist := &models2.PedagogicalSpecialist{
@@ -339,7 +339,7 @@ func TestPublicEndpoints(t *testing.T) {
 
 // TestAgLifecycle tests the complete lifecycle of an activity group
 func TestAgLifecycle(t *testing.T) {
-	rs, mockAgStore, _ := setupTestAPI()
+	rs, mockAgStore, _, _ := setupTestAPI()
 
 	// 1. Setup test data
 	now := time.Now()
@@ -657,7 +657,7 @@ func TestAgLifecycle(t *testing.T) {
 
 // TestStudentEnrollmentFlow tests the flow for a student to view and enroll in activity groups
 func TestStudentEnrollmentFlow(t *testing.T) {
-	rs, mockAgStore, _ := setupTestAPI()
+	rs, mockAgStore, _, _ := setupTestAPI()
 
 	// Setup test data
 	now := time.Now()

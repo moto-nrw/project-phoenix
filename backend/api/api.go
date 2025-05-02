@@ -89,7 +89,7 @@ func New(enableCORS bool) (*chi.Mux, error) {
 	groupAPI := group.NewResource(groupStore, authStore)
 
 	agStore := database2.NewAgStore(db)
-	activityAPI := activity.NewResource(agStore, authStore)
+	activityAPI := activity.NewResource(agStore, authStore, timespanStore)
 
 	// Timespan API
 	timespanAPI := timespan.NewResource(timespanStore, authStore)
