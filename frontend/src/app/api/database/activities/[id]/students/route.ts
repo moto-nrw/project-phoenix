@@ -17,7 +17,9 @@ export async function GET(
     );
   }
 
-  const { id } = params;
+  // Properly handle params that could potentially be a Promise
+  const resolvedParams = params instanceof Promise ? await params : params;
+  const id = resolvedParams.id;
 
   try {
     const response = await fetch(`${API_URL}/activities/${id}/students`, {

@@ -40,20 +40,20 @@ export default function ActivityStudentsPage() {
         
         // Fetch enrolled students
         const enrolledStudents = await activityService.getEnrolledStudents(id as string);
-        setStudents(enrolledStudents);
+        setStudents(enrolledStudents || []); // Ensure students is always an array
         
         setError(null);
       } catch (apiErr) {
         console.error('API error when fetching activity and students:', apiErr);
         setError('Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.');
         setActivity(null);
-        setStudents([]);
+        setStudents([]); // Ensure students is always an array
       }
     } catch (err) {
       console.error('Error fetching activity and students:', err);
       setError('Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.');
       setActivity(null);
-      setStudents([]);
+      setStudents([]); // Ensure students is always an array
     } finally {
       setLoading(false);
     }
@@ -84,10 +84,10 @@ export default function ActivityStudentsPage() {
   }, [id]);
 
   // Filter students based on search term
-  const filteredStudents = students.filter(student =>
+  const filteredStudents = students?.filter(student =>
     student.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
     (student.school_class && student.school_class.toLowerCase().includes(searchFilter.toLowerCase()))
-  );
+  ) || [];
 
   if (status === 'loading' || loading) {
     return (
