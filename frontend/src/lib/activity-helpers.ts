@@ -168,7 +168,7 @@ export function prepareActivityForBackend(activity: Partial<Activity>): any {
   }
   
   if (activity.ag_category_id) {
-    backendActivity.ag_category_id = parseInt(activity.ag_category_id, 10);
+    backendActivity.ag_categories_id = parseInt(activity.ag_category_id, 10);
   }
   
   if (activity.datespan_id) {

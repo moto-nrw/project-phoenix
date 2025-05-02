@@ -180,7 +180,7 @@ func (s *AgStore) UpdateAg(ctx context.Context, ag *models2.Ag) error {
 	_, err := s.db.NewUpdate().
 		Model(ag).
 		Column("name", "max_participant", "is_open_ags",
-			"supervisor_id", "ag_category_id", "datespan_id", "modified_at").
+			"supervisor_id", "ag_categories_id", "datespan_id", "modified_at").
 		WherePK().
 		Exec(ctx)
 
