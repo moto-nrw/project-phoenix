@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react';
 import { redirect, useRouter, useParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { PageHeader, SectionTitle } from '@/components/dashboard';
+import ActivityForm from '@/components/activities/activity-form';
 import type { Activity, ActivityCategory } from '@/lib/activity-api';
 import { activityService } from '@/lib/activity-api';
 import Link from 'next/link';
@@ -18,11 +19,7 @@ export default function EditActivityPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Form state
-  const [name, setName] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [maxParticipants, setMaxParticipants] = useState(10);
-  const [isOpen, setIsOpen] = useState(true);
+  const [supervisors, setSupervisors] = useState<Array<{id: string, name: string}>>([]);
   
   const { status } = useSession({
     required: true,
@@ -43,15 +40,17 @@ export default function EditActivityPage() {
         const activityData = await activityService.getActivity(id as string);
         setActivity(activityData);
         
-        // Initialize form fields
-        setName(activityData.name || '');
-        setCategoryId(activityData.ag_category_id || '');
-        setMaxParticipants(activityData.max_participant || 10);
-        setIsOpen(activityData.is_open_ags || false);
-        
         // Fetch categories
         const categoriesData = await activityService.getCategories();
         setCategories(categoriesData);
+        
+        // For now, we only have the current supervisor as an option
+        if (activityData?.supervisor_id && activityData?.supervisor_name) {
+          setSupervisors([{
+            id: activityData.supervisor_id,
+            name: activityData.supervisor_name
+          }]);
+        }
         
         setError(null);
       } catch (apiErr) {
@@ -69,33 +68,21 @@ export default function EditActivityPage() {
   };
 
   // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const handleSubmit = async (formData: Partial<Activity>) => {
     if (!id || !activity) return;
-    if (saving) return; // Prevent duplicate submissions
     
     try {
       setSaving(true);
       
-      // Prepare update data
-      const updateData: Partial<Activity> = {
-        name,
-        ag_category_id: categoryId,
-        max_participant: maxParticipants,
-        is_open_ags: isOpen,
-        // Keep supervisor, we don't allow changing it here
-        supervisor_id: activity.supervisor_id
-      };
-      
       // Update the activity
-      await activityService.updateActivity(id as string, updateData);
+      await activityService.updateActivity(id as string, formData);
       
       // Redirect back to activity details
       router.push(`/database/activities/${id}`);
     } catch (err) {
       console.error('Error updating activity:', err);
       setError('Fehler beim Speichern der Aktivität. Bitte versuchen Sie es später erneut.');
+      throw err; // Rethrow so the form can handle it
     } finally {
       setSaving(false);
     }
@@ -160,105 +147,16 @@ export default function EditActivityPage() {
           <SectionTitle title="Aktivitätsdetails bearbeiten" />
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
-          {/* Name Input */}
-          <div className="mb-6">
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-              Name der Aktivität
-            </label>
-            <input
-              type="text"
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
-              required
-            />
-          </div>
-
-          {/* Category Dropdown */}
-          <div className="mb-6">
-            <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
-              Kategorie
-            </label>
-            <select
-              id="category"
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
-              required
-            >
-              <option value="">Kategorie auswählen</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Max Participants Input */}
-          <div className="mb-6">
-            <label htmlFor="maxParticipants" className="block text-sm font-medium text-gray-700 mb-1">
-              Maximale Teilnehmerzahl
-            </label>
-            <input
-              type="number"
-              id="maxParticipants"
-              value={maxParticipants}
-              onChange={(e) => setMaxParticipants(Number(e.target.value))}
-              min="1"
-              max="100"
-              className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
-              required
-            />
-          </div>
-
-          {/* Is Open Checkbox */}
-          <div className="mb-6 flex items-center">
-            <input
-              type="checkbox"
-              id="isOpen"
-              checked={isOpen}
-              onChange={(e) => setIsOpen(e.target.checked)}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label htmlFor="isOpen" className="ml-2 block text-sm text-gray-700">
-              Offen für Anmeldungen
-            </label>
-          </div>
-
-          {/* Supervisor Info (Read-only) */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Aktivitätsleitung
-            </label>
-            <div className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
-              {activity.supervisor_name || 'Nicht zugewiesen'}
-              <p className="text-xs text-gray-500 mt-1">
-                Die Aktivitätsleitung kann aktuell nicht geändert werden.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 justify-end mt-8">
-            <Link href={`/database/activities/${activity.id}`}>
-              <button 
-                type="button"
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                Abbrechen
-              </button>
-            </Link>
-            <button
-              type="submit"
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-300"
-              disabled={saving}
-            >
-              {saving ? 'Wird gespeichert...' : 'Änderungen speichern'}
-            </button>
-          </div>
-        </form>
+        <ActivityForm
+          initialData={activity}
+          onSubmitAction={handleSubmit}
+          onCancelAction={() => router.push(`/database/activities/${activity.id}`)}
+          isLoading={saving}
+          formTitle="Aktivität bearbeiten"
+          submitLabel="Änderungen speichern"
+          categories={categories}
+          supervisors={supervisors}
+        />
       </main>
     </div>
   );

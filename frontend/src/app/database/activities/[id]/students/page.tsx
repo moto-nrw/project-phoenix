@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react';
 import { redirect, useRouter, useParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { PageHeader, SectionTitle } from '@/components/dashboard';
+import StudentList from '@/components/students/student-list';
 import type { Activity } from '@/lib/activity-api';
 import type { Student } from '@/lib/api';
 import { activityService } from '@/lib/activity-api';
@@ -188,47 +189,40 @@ export default function ActivityStudentsPage() {
             </h3>
           </div>
 
-          {students.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-500">Keine Teilnehmer gefunden.</p>
-            </div>
-          ) : filteredStudents.length === 0 ? (
+          {filteredStudents.length === 0 && searchFilter ? (
             <div className="text-center py-8">
               <p className="text-gray-500">Keine Ergebnisse für "{searchFilter}"</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {filteredStudents.map((student) => (
-                <div 
-                  key={student.id}
-                  className="group p-4 border border-gray-100 rounded-lg hover:border-blue-200 hover:bg-blue-50 transition-all flex justify-between items-center"
-                >
-                  <Link href={`/database/students/${student.id}`} className="flex-grow">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
-                      <span className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                        {student.name}
-                      </span>
-                      {student.school_class && (
-                        <span className="text-sm text-gray-500">Klasse: {student.school_class}</span>
-                      )}
-                      {student.in_house && (
-                        <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full inline-block">
-                          Anwesend
-                        </span>
-                      )}
+            <div className="relative">
+              {/* Custom wrapper to add the unenroll button to each student item */}
+              <StudentList 
+                students={filteredStudents}
+                onStudentClick={(student) => router.push(`/database/students/${student.id}`)}
+                emptyMessage="Keine Teilnehmer gefunden."
+              />
+              
+              {/* Add unenroll buttons */}
+              {filteredStudents.length > 0 && (
+                <div className="absolute right-0 top-0 h-full w-full pointer-events-none">
+                  {filteredStudents.map((student, index) => (
+                    <div key={student.id} className="absolute right-4" style={{ top: `${index * 78 + 20}px` }}>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUnenrollStudent(student.id);
+                        }}
+                        className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors pointer-events-auto"
+                        title="Schüler abmelden"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
-                  </Link>
-                  <button 
-                    onClick={() => handleUnenrollStudent(student.id)}
-                    className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-                    title="Schüler abmelden"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>

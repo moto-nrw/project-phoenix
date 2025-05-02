@@ -3,10 +3,11 @@
 import { useSession } from 'next-auth/react';
 import { redirect, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { DataListPage } from '@/components/dashboard';
+import { PageHeader, SectionTitle } from '@/components/dashboard';
+import ActivityList from '@/components/activities/activity-list';
 import type { Activity, ActivityCategory } from '@/lib/activity-api';
 import { activityService } from '@/lib/activity-api';
-import { formatActivityTimes, formatParticipantStatus } from '@/lib/activity-helpers';
+import Link from 'next/link';
 
 export default function ActivitiesPage() {
   const router = useRouter();
@@ -97,37 +98,6 @@ export default function ActivitiesPage() {
     router.push(`/database/activities/${activity.id}`);
   };
 
-  // Custom renderer for activity items
-  const renderActivity = (activity: Activity) => (
-    <>
-      <div className="flex flex-col group-hover:translate-x-1 transition-transform duration-200">
-        <span className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors duration-200">
-          {activity.name}
-          {activity.is_open_ags && (
-            <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
-              Offen
-            </span>
-          )}
-        </span>
-        <div className="flex flex-wrap gap-x-4 text-sm text-gray-500">
-          <span>Kategorie: {activity.category_name || 'Keine'}</span>
-          <span>Teilnehmer: {formatParticipantStatus(activity)}</span>
-          <span>Zeiten: {formatActivityTimes(activity)}</span>
-          {activity.supervisor_name && <span>Leitung: {activity.supervisor_name}</span>}
-        </div>
-      </div>
-      <svg 
-        xmlns="http://www.w3.org/2000/svg" 
-        className="h-5 w-5 text-gray-400 group-hover:text-blue-500 group-hover:transform group-hover:translate-x-1 transition-all duration-200" 
-        fill="none" 
-        viewBox="0 0 24 24" 
-        stroke="currentColor"
-      >
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-      </svg>
-    </>
-  );
-
   // Show error if loading failed
   if (error) {
     return (
@@ -146,23 +116,61 @@ export default function ActivitiesPage() {
     );
   }
 
-  // Create a handler for the search input in DataListPage
-  const handleSearchChange = (searchTerm: string) => {
-    setSearchFilter(searchTerm);
-  };
-
   return (
-    <DataListPage
-      title="Aktivitätenauswahl"
-      sectionTitle="Aktivität auswählen"
-      backUrl="/database"
-      newEntityLabel="Neue Aktivität erstellen"
-      newEntityUrl="/database/activities/new"
-      data={activities}
-      onSelectEntityAction={handleSelectActivity}
-      renderEntity={renderActivity}
-      searchTerm={searchFilter}
-      onSearchChange={handleSearchChange}
-    />
+    <div className="min-h-screen">
+      {/* Header */}
+      <PageHeader 
+        title="Aktivitätenauswahl"
+        backUrl="/database"
+      />
+
+      {/* Main Content */}
+      <main className="max-w-4xl mx-auto p-4">
+        {/* Title Section */}
+        <div className="mb-8">
+          <SectionTitle title="Aktivität auswählen" />
+        </div>
+
+        {/* Search and Add Section */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
+          <div className="relative w-full sm:max-w-md">
+            <input
+              type="text"
+              placeholder="Suchen..."
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 pl-10 transition-all duration-200 hover:border-gray-400 focus:shadow-md"
+            />
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                className="h-5 w-5 text-gray-400" 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
+          
+          <Link href="/database/activities/new" className="w-full sm:w-auto">
+            <button className="group w-full sm:w-auto bg-gradient-to-r from-teal-500 to-blue-600 text-white py-3 px-4 rounded-lg flex items-center gap-2 hover:from-teal-600 hover:to-blue-700 hover:scale-[1.02] hover:shadow-lg transition-all duration-200 justify-center sm:justify-start">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span>Neue Aktivität erstellen</span>
+            </button>
+          </Link>
+        </div>
+
+        {/* Activity List */}
+        <ActivityList 
+          activities={activities}
+          onActivityClick={handleSelectActivity}
+          emptyMessage={searchFilter ? `Keine Ergebnisse für "${searchFilter}"` : "Keine Aktivitäten vorhanden."}
+        />
+      </main>
+    </div>
   );
 }
