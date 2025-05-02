@@ -58,12 +58,27 @@ export default function NewActivityPage() {
     try {
       setSaving(true);
       
-      // Add timestamps
-      const activityData = {
-        ...formData,
+      // Ensure all required fields are set
+      if (!formData.name || !formData.max_participant || !formData.supervisor_id || !formData.ag_category_id) {
+        setError('Bitte füllen Sie alle Pflichtfelder aus.');
+        return;
+      }
+      
+      // Create a complete activity object with all required fields
+      const activityData: Omit<Activity, 'id'> = {
+        name: formData.name,
+        max_participant: formData.max_participant,
+        is_open_ags: formData.is_open_ags ?? false,
+        supervisor_id: formData.supervisor_id,
+        ag_category_id: formData.ag_category_id,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
+      
+      // Add optional times if present
+      if (formData.times) {
+        activityData.times = formData.times;
+      }
       
       // Create the activity
       const newActivity = await activityService.createActivity(activityData);

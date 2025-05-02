@@ -13,7 +13,7 @@ export function mapSingleActivityResponse(data: any): Activity {
     id: data.id.toString(),
     name: data.name || '',
     max_participant: data.max_participant || 0,
-    is_open_ags: data.is_open_ags || false,
+    is_open_ags: data.is_open_ags || false, // Use is_open_ags directly from the backend
     supervisor_id: data.supervisor_id ? data.supervisor_id.toString() : '',
     ag_category_id: data.ag_category_id ? data.ag_category_id.toString() : '',
     created_at: data.created_at || '',
@@ -154,7 +154,7 @@ export function prepareActivityForBackend(activity: Partial<Activity>): any {
   const backendActivity: any = {
     name: activity.name,
     max_participant: activity.max_participant,
-    is_open_ags: activity.is_open_ags,
+    is_open_ags: activity.is_open_ags, // Use is_open_ags as defined in the backend model
   };
 
   // Add IDs if present, ensuring they're converted to numbers
