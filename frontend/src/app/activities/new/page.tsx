@@ -83,22 +83,23 @@ export default function NewActivityPage() {
       />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      
-      {error && (
-        <div className="bg-red-50 text-red-800 p-4 rounded-lg mb-6">
-          <p>{error}</p>
-        </div>
-      )}
-      
-      <ActivityForm
-        onSubmitAction={handleCreateActivity}
-        onCancelAction={() => router.push('/activities')}
-        isLoading={isSubmitting}
-        formTitle="Neue Aktivität erstellen"
-        submitLabel="Erstellen"
-        categories={categories}
-        supervisors={supervisors}
-      />
+        
+        {error && (
+          <div className="bg-red-50 text-red-800 p-4 rounded-lg mb-6">
+            <p>{error}</p>
+          </div>
+        )}
+        
+        <ActivityForm
+          onSubmitAction={handleCreateActivity}
+          onCancelAction={() => router.push('/activities')}
+          isLoading={isSubmitting}
+          formTitle="Neue Aktivität erstellen"
+          submitLabel="Erstellen"
+          categories={categories}
+          supervisors={supervisors}
+        />
+      </div>
     </div>
   );
 }

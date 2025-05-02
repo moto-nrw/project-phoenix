@@ -212,120 +212,121 @@ export default function ActivityDetailPage({ params }: ActivityDetailPageProps) 
           </div>
         </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden mb-8">
-        <div className="p-6">
-          <div className="flex justify-between items-start mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">{activity.name}</h1>
-              <p className="text-gray-500 mt-1">
-                {activity.category_name && `Kategorie: ${activity.category_name}`}
-              </p>
+        <div className="bg-white rounded-lg shadow overflow-hidden mb-8">
+          <div className="p-6">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">{activity.name}</h1>
+                <p className="text-gray-500 mt-1">
+                  {activity.category_name && `Kategorie: ${activity.category_name}`}
+                </p>
+              </div>
+              
+              <div className="flex items-center space-x-2 bg-gray-100 px-3 py-1 rounded-full">
+                <div className={`h-2.5 w-2.5 rounded-full ${activity.is_open_ag ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                <span className="text-sm font-medium text-gray-700">
+                  {activity.is_open_ag ? 'Offen für Anmeldungen' : 'Geschlossen für Anmeldungen'}
+                </span>
+              </div>
             </div>
             
-            <div className="flex items-center space-x-2 bg-gray-100 px-3 py-1 rounded-full">
-              <div className={`h-2.5 w-2.5 rounded-full ${activity.is_open_ag ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-              <span className="text-sm font-medium text-gray-700">
-                {activity.is_open_ag ? 'Offen für Anmeldungen' : 'Geschlossen für Anmeldungen'}
-              </span>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-            <div className="bg-purple-50 p-4 rounded-lg">
-              <h2 className="text-lg font-medium text-purple-800 mb-4">Details</h2>
-              <dl className="space-y-2">
-                <div className="flex justify-between">
-                  <dt className="text-gray-500">Leitung:</dt>
-                  <dd className="font-medium text-gray-800">{activity.supervisor_name || 'Nicht zugewiesen'}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-gray-500">Teilnehmer:</dt>
-                  <dd className="font-medium text-gray-800">{formatParticipantStatus(activity)}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-gray-500">Erstellt am:</dt>
-                  <dd className="font-medium text-gray-800">
-                    {new Date(activity.created_at).toLocaleDateString()}
-                  </dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-gray-500">Aktualisiert am:</dt>
-                  <dd className="font-medium text-gray-800">
-                    {new Date(activity.updated_at).toLocaleDateString()}
-                  </dd>
-                </div>
-              </dl>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+              <div className="bg-purple-50 p-4 rounded-lg">
+                <h2 className="text-lg font-medium text-purple-800 mb-4">Details</h2>
+                <dl className="space-y-2">
+                  <div className="flex justify-between">
+                    <dt className="text-gray-500">Leitung:</dt>
+                    <dd className="font-medium text-gray-800">{activity.supervisor_name || 'Nicht zugewiesen'}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-gray-500">Teilnehmer:</dt>
+                    <dd className="font-medium text-gray-800">{formatParticipantStatus(activity)}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-gray-500">Erstellt am:</dt>
+                    <dd className="font-medium text-gray-800">
+                      {new Date(activity.created_at).toLocaleDateString()}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-gray-500">Aktualisiert am:</dt>
+                    <dd className="font-medium text-gray-800">
+                      {new Date(activity.updated_at).toLocaleDateString()}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+              
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h2 className="text-lg font-medium text-blue-800 mb-4">Zeitplan</h2>
+                {activity.times && activity.times.length > 0 ? (
+                  <ul className="space-y-2">
+                    {activity.times.map((time, index) => (
+                      <li key={time.id || index} className="flex justify-between items-center p-2 bg-white rounded border border-blue-100">
+                        <span className="font-medium">{time.weekday}</span>
+                        <span>
+                          {time.timespan?.start_time || ''} 
+                          {time.timespan?.end_time ? ` - ${time.timespan.end_time}` : ''}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-gray-500 italic">Keine Zeiten geplant</p>
+                )}
+              </div>
             </div>
             
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h2 className="text-lg font-medium text-blue-800 mb-4">Zeitplan</h2>
-              {activity.times && activity.times.length > 0 ? (
-                <ul className="space-y-2">
-                  {activity.times.map((time, index) => (
-                    <li key={time.id || index} className="flex justify-between items-center p-2 bg-white rounded border border-blue-100">
-                      <span className="font-medium">{time.weekday}</span>
-                      <span>
-                        {time.timespan?.start_time || ''} 
-                        {time.timespan?.end_time ? ` - ${time.timespan.end_time}` : ''}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+            <div className="mb-4">
+              <h2 className="text-lg font-medium text-gray-800 mb-4">Teilnehmer</h2>
+              {enrolledStudents.length > 0 ? (
+                <div className="overflow-hidden border border-gray-200 rounded-lg">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Name
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Klasse
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Gruppe
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Aktionen
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {enrolledStudents.map(student => (
+                        <tr key={student.id}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="font-medium text-gray-900">{student.name}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-gray-500">{student.school_class}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-gray-500">{student.group_name}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <button
+                              onClick={() => handleUnenrollStudent(student.id)}
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              Abmelden
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
-                <p className="text-gray-500 italic">Keine Zeiten geplant</p>
+                <p className="text-gray-500 italic">Keine Teilnehmer angemeldet</p>
               )}
             </div>
-          </div>
-          
-          <div className="mb-4">
-            <h2 className="text-lg font-medium text-gray-800 mb-4">Teilnehmer</h2>
-            {enrolledStudents.length > 0 ? (
-              <div className="overflow-hidden border border-gray-200 rounded-lg">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Name
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Klasse
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Gruppe
-                      </th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Aktionen
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {enrolledStudents.map(student => (
-                      <tr key={student.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="font-medium text-gray-900">{student.name}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-gray-500">{student.school_class}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-gray-500">{student.group_name}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <button
-                            onClick={() => handleUnenrollStudent(student.id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            Abmelden
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-gray-500 italic">Keine Teilnehmer angemeldet</p>
-            )}
           </div>
         </div>
       </div>
