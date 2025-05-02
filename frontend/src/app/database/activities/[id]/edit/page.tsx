@@ -44,13 +44,13 @@ export default function EditActivityPage() {
         const categoriesData = await activityService.getCategories();
         setCategories(categoriesData);
         
-        // For now, we only have the current supervisor as an option
-        if (activityData?.supervisor_id && activityData?.supervisor_name) {
-          setSupervisors([{
-            id: activityData.supervisor_id,
-            name: activityData.supervisor_name
-          }]);
+        // Fetch all supervisors from API
+        const response = await fetch('/api/users/supervisors');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch supervisors: ${response.statusText}`);
         }
+        const supervisorsData = await response.json();
+        setSupervisors(supervisorsData);
         
         setError(null);
       } catch (apiErr) {
