@@ -105,7 +105,7 @@ const TimeSlotEditor = ({
       const formattedStartTime = `${today}T${startTime}:00Z`;
       const formattedEndTime = `${today}T${endTime}:00Z`;
       
-      const response = await fetch('/api/database/activities/timespans', {
+      const response = await fetch('/api/activities/timespans', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
