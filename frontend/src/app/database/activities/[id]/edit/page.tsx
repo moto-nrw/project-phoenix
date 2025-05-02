@@ -54,12 +54,10 @@ export default function EditActivityPage() {
         
         setError(null);
       } catch (apiErr) {
-        console.error('API error when fetching data:', apiErr);
-        setError('Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.');
+          setError('Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.');
         setActivity(null);
       }
     } catch (err) {
-      console.error('Error fetching data:', err);
       setError('Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.');
       setActivity(null);
     } finally {
@@ -80,7 +78,6 @@ export default function EditActivityPage() {
       // Redirect back to activity details
       router.push(`/database/activities/${id}`);
     } catch (err) {
-      console.error('Error updating activity:', err);
       setError('Fehler beim Speichern der Aktivität. Bitte versuchen Sie es später erneut.');
       throw err; // Rethrow so the form can handle it
     } finally {

@@ -31,7 +31,6 @@ export async function GET(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`API error: ${response.status}`, errorText);
       return NextResponse.json(
         { error: `Backend error: ${response.status}` },
         { status: response.status }
@@ -41,7 +40,6 @@ export async function GET(
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error(`Error fetching activity ${id}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }
@@ -68,6 +66,7 @@ export async function PUT(
 
   try {
     const body = await request.json();
+    const requestBody = JSON.stringify(body);
     
     const response = await fetch(`${API_URL}/activities/${id}`, {
       method: 'PUT',
@@ -75,12 +74,11 @@ export async function PUT(
         'Authorization': `Bearer ${session.user.token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
+      body: requestBody,
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`API error: ${response.status}`, errorText);
       
       // Try to parse error for better error messages
       try {
@@ -101,7 +99,6 @@ export async function PUT(
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error(`Error updating activity ${id}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }
@@ -137,7 +134,6 @@ export async function DELETE(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`API error: ${response.status}`, errorText);
       return NextResponse.json(
         { error: `Backend error: ${response.status}` },
         { status: response.status }
@@ -146,7 +142,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error(`Error deleting activity ${id}:`, error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }

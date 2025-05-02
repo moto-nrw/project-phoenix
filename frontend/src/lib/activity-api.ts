@@ -261,8 +261,14 @@ export const activityService = {
   
   // Update an activity
   updateActivity: async (id: string, activity: Partial<Activity>): Promise<Activity> => {
+    // Log the original activity data
+    console.log('Updating activity with data:', JSON.stringify(activity, null, 2));
+    
     // Transform from frontend model to backend model updates
     const backendUpdates = prepareActivityForBackend(activity);
+    
+    // Log the transformed backend model updates
+    console.log('Backend updates prepared:', JSON.stringify(backendUpdates, null, 2));
     
     const useProxyApi = typeof window !== 'undefined';
     const url = useProxyApi ? `/api/database/activities/${id}` : `${env.NEXT_PUBLIC_API_URL}/activities/${id}`;
@@ -271,6 +277,11 @@ export const activityService = {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
         const session = await getSession();
+        
+        // Log the actual request that will be sent
+        console.log('Sending request to:', url);
+        console.log('Request body:', JSON.stringify(backendUpdates, null, 2));
+        
         const response = await fetch(url, {
           method: 'PUT',
           credentials: 'include',

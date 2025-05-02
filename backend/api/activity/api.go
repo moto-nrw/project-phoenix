@@ -441,7 +441,7 @@ func (rs *Resource) createAg(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// In the createAg handler, add this code before calling store.CreateAg:
+	// Initialize empty slices if nil
 	if data.StudentIDs == nil {
 		data.StudentIDs = []int64{}
 	}
@@ -514,6 +514,16 @@ func (rs *Resource) updateAg(w http.ResponseWriter, r *http.Request) {
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
+
+	// Log the parsed data
+	logger.WithFields(logrus.Fields{
+		"ag_id":           id,
+		"name":            data.Name,
+		"max_participant": data.MaxParticipant,
+		"is_open_ags":     data.IsOpenAg,
+		"supervisor_id":   data.SupervisorID,
+		"ag_category_id":  data.AgCategoryID,
+	}).Debug("Activity update data")
 
 	// Validate the activity group data
 	if err := ValidateAg(data.Ag); err != nil {

@@ -151,10 +151,11 @@ export function formatActivityTimes(activity: Activity): string {
  * Prepare activity data for backend submission
  */
 export function prepareActivityForBackend(activity: Partial<Activity>): any {
+  // The Go struct now consistently uses is_open_ags for the field
   const backendActivity: any = {
     name: activity.name,
     max_participant: activity.max_participant,
-    is_open_ags: activity.is_open_ags, // Use is_open_ags as defined in the backend model
+    is_open_ags: activity.is_open_ags
   };
 
   // Add IDs if present, ensuring they're converted to numbers

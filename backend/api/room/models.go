@@ -20,7 +20,7 @@ type NewAg struct {
 	Name           string `json:"name"`
 	MaxParticipant int    `json:"max_participant"`
 	AgCategoryID   int64  `json:"ag_category"`
-	IsOpenAG       bool   `json:"is_open_ag"`
+	IsOpenAgs      bool   `json:"is_open_ags"`
 }
 
 // Bind preprocesses a RegisterTabletRequest

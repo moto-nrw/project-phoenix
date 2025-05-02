@@ -179,7 +179,7 @@ func (s *AgStore) GetAgByID(ctx context.Context, id int64) (*models2.Ag, error) 
 func (s *AgStore) UpdateAg(ctx context.Context, ag *models2.Ag) error {
 	_, err := s.db.NewUpdate().
 		Model(ag).
-		Column("name", "max_participant", "is_open_ag",
+		Column("name", "max_participant", "is_open_ags",
 			"supervisor_id", "ag_category_id", "datespan_id", "modified_at").
 		WherePK().
 		Exec(ctx)
@@ -248,7 +248,7 @@ func (s *AgStore) ListAgs(ctx context.Context, filters map[string]interface{}) (
 	}
 
 	if isOpen, ok := filters["is_open"].(bool); ok {
-		query = query.Where("is_open_ag = ?", isOpen)
+		query = query.Where("is_open_ags = ?", isOpen)
 	}
 
 	if searchTerm, ok := filters["search"].(string); ok && searchTerm != "" {

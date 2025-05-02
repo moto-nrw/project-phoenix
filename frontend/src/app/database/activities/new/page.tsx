@@ -16,12 +16,8 @@ export default function NewActivityPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Mock supervisors for demo purposes - in production, these would come from an API
-  const [supervisors, setSupervisors] = useState<Array<{id: string, name: string}>>([
-    { id: "1", name: "Supervisor 1" },
-    { id: "2", name: "Supervisor 2" },
-    { id: "3", name: "Supervisor 3" }
-  ]);
+  // Supervisors should be fetched from an API
+  const [supervisors, setSupervisors] = useState<Array<{id: string, name: string}>>([]);
   
   const { status } = useSession({
     required: true,
@@ -42,11 +38,9 @@ export default function NewActivityPage() {
         
         setError(null);
       } catch (apiErr) {
-        console.error('API error when fetching categories:', apiErr);
         setError('Fehler beim Laden der Kategorien. Bitte versuchen Sie es später erneut.');
       }
     } catch (err) {
-      console.error('Error fetching categories:', err);
       setError('Fehler beim Laden der Kategorien. Bitte versuchen Sie es später erneut.');
     } finally {
       setLoading(false);
@@ -86,7 +80,6 @@ export default function NewActivityPage() {
       // Redirect to the new activity
       router.push(`/database/activities/${newActivity.id}`);
     } catch (err) {
-      console.error('Error creating activity:', err);
       setError('Fehler beim Erstellen der Aktivität. Bitte versuchen Sie es später erneut.');
       throw err; // Rethrow so the form can handle it
     } finally {
