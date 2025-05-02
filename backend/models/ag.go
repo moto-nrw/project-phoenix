@@ -78,7 +78,7 @@ type AgTime struct {
 	Weekday    string    `json:"weekday" bun:"weekday,notnull"`
 	TimespanID int64     `json:"timespan_id" bun:"timespan_id,notnull"`
 	Timespan   *Timespan `json:"timespan,omitempty" bun:"rel:belongs-to,join:timespan_id=id"`
-	AgID       int64     `json:"ag_id" bun:"ag_id,notnull"`
+	AgID       int64     `json:"ag_id" bun:"ag_id,nullzero"` // Use nullzero to allow zero values during insert
 	Ag         *Ag       `json:"ag,omitempty" bun:"rel:belongs-to,join:ag_id=id"`
 	CreatedAt  time.Time `json:"created_at" bun:"created_at,notnull"`
 }
@@ -94,7 +94,7 @@ func (t *AgTime) Validate() error {
 	return validation.ValidateStruct(t,
 		validation.Field(&t.Weekday, validation.Required, validation.In("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")),
 		validation.Field(&t.TimespanID, validation.Required),
-		validation.Field(&t.AgID, validation.Required),
+		// Don't require AgID during initial creation - it will be set by CreateAg
 	)
 }
 
