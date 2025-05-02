@@ -18,7 +18,7 @@ export async function GET(
   }
   
   // Make sure params is fully resolved
-  const resolvedParams = params instanceof Promise ? await params : params;
+  const resolvedParams = params instanceof Promise ? (await params as { id: string }) : (params as { id: string });
   const groupId: string = resolvedParams.id;
   
   try {
@@ -75,12 +75,12 @@ export async function POST(
   }
   
   // Make sure params is fully resolved
-  const resolvedParams = params instanceof Promise ? await params : params;
+  const resolvedParams = params instanceof Promise ? (await params as { id: string }) : (params as { id: string });
   const groupId: string = resolvedParams.id;
   
   try {
     // Parse request body
-    const requestBody = await request.json();
+    const requestBody: unknown = await request.json();
     
     // Forward the request to the backend with token
     const backendResponse = await fetch(
@@ -141,12 +141,12 @@ export async function DELETE(
   }
   
   // Make sure params is fully resolved
-  const resolvedParams = params instanceof Promise ? await params : params;
+  const resolvedParams = params instanceof Promise ? (await params as { id: string }) : (params as { id: string });
   const groupId: string = resolvedParams.id;
   
   try {
     // Parse request body to get supervisor IDs to remove
-    const { supervisorIds } = await request.json();
+    const { supervisorIds } = await request.json() as { supervisorIds: string[] };
     
     if (!Array.isArray(supervisorIds) || supervisorIds.length === 0) {
       return NextResponse.json(

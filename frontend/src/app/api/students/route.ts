@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
   
   try {
     // Get the request body
-    const studentData = await request.json();
+    const studentData: unknown = await request.json();
     
     // Use the new combined endpoint that creates both custom user and student in one request
     const url = new URL(`${env.NEXT_PUBLIC_API_URL}/students/with-user`);

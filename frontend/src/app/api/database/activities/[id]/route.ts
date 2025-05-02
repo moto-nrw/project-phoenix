@@ -19,8 +19,8 @@ export async function GET(
   }
 
   // Properly handle params that could potentially be a Promise
-  const resolvedParams = params instanceof Promise ? await params : params;
-  const id: string = resolvedParams?.id ?? '';
+  const resolvedParams = params instanceof Promise ? (await params as { id: string }) : (params as { id: string });
+  const id: string = resolvedParams.id ?? '';
 
   try {
     const response = await fetch(`${API_URL}/activities/${id}`, {
@@ -62,8 +62,8 @@ export async function PUT(
   }
 
   // Properly handle params that could potentially be a Promise
-  const resolvedParams = params instanceof Promise ? await params : params;
-  const id: string = resolvedParams?.id ?? '';
+  const resolvedParams = params instanceof Promise ? (await params as { id: string }) : (params as { id: string });
+  const id: string = resolvedParams.id ?? '';
 
   try {
     const body: unknown = await request.json();
@@ -121,8 +121,8 @@ export async function DELETE(
   }
 
   // Properly handle params that could potentially be a Promise
-  const resolvedParams = params instanceof Promise ? await params : params;
-  const id: string = resolvedParams?.id ?? '';
+  const resolvedParams = params instanceof Promise ? (await params as { id: string }) : (params as { id: string });
+  const id: string = resolvedParams.id ?? '';
 
   try {
     const response = await fetch(`${API_URL}/activities/${id}`, {

@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   
   try {
     // Parse request body
-    const requestBody = await request.json();
+    const requestBody: unknown = await request.json();
     
     // Forward the request to the backend with token
     const backendResponse = await fetch(

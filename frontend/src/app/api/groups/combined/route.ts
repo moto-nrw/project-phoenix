@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
   
   try {
     // Get the request body
-    const groupData = await request.json();
+    const groupData: unknown = await request.json();
     
     const url = new URL(`${env.NEXT_PUBLIC_API_URL}/groups/combined`);
     const backendResponse = await fetch(url.toString(), {

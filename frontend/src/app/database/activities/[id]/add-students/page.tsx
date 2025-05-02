@@ -1,8 +1,8 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { redirect, useRouter, useParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { redirect, useParams } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
 import { PageHeader, SectionTitle } from '@/components/dashboard';
 import type { Activity } from '@/lib/activity-api';
 import type { Student } from '@/lib/api';
@@ -11,7 +11,6 @@ import { studentService } from '@/lib/api';
 import Link from 'next/link';
 
 export default function AddStudentsToActivityPage() {
-  const router = useRouter();
   const params = useParams();
   const { id } = params;
   const [activity, setActivity] = useState<Activity | null>(null);
@@ -30,7 +29,7 @@ export default function AddStudentsToActivityPage() {
   });
 
   // Function to fetch data
-  const fetchData = async (showRefreshing = false) => {
+  const fetchData = useCallback(async (showRefreshing = false) => {
     if (!id) return;
 
     try {
@@ -50,7 +49,7 @@ export default function AddStudentsToActivityPage() {
         
         // Filter out students already enrolled
         const enrolledStudentIds = new Set(
-          (activityData.students || []).map(student => student.id)
+          (activityData.students ?? []).map(student => student.id)
         );
         
         // Available students are those not already enrolled
@@ -73,7 +72,7 @@ export default function AddStudentsToActivityPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [id]);
 
   // Function to enroll a student
   const handleEnrollStudent = async (studentId: string) => {
@@ -87,7 +86,7 @@ export default function AddStudentsToActivityPage() {
       
       // Find the enrolled student for the success message
       const enrolledStudent = availableStudents.find(s => s.id === studentId);
-      const studentName = enrolledStudent?.name || 'Schüler';
+      const studentName = enrolledStudent?.name ?? 'Schüler';
       
       // Remove this student from the available list
       setAvailableStudents(current => 
@@ -147,12 +146,12 @@ export default function AddStudentsToActivityPage() {
   // Initial data load
   useEffect(() => {
     void fetchData();
-  }, [id]);
+  }, [id, fetchData]);
 
   // Filter students based on search term
   const filteredStudents = availableStudents.filter(student =>
     student.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
-    (student.school_class && student.school_class.toLowerCase().includes(searchFilter.toLowerCase()))
+    student.school_class?.toLowerCase().includes(searchFilter.toLowerCase())
   );
 
   if (status === 'loading' || loading) {
@@ -230,7 +229,7 @@ export default function AddStudentsToActivityPage() {
             <div>
               <span className="text-sm text-gray-500">Teilnehmer:</span> 
               <span className="ml-2 font-medium">
-                {activity.participant_count || 0} / {activity.max_participant}
+                {activity.participant_count ?? 0} / {activity.max_participant}
               </span>
               {isFull && (
                 <span className="ml-2 px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full">
@@ -240,7 +239,7 @@ export default function AddStudentsToActivityPage() {
             </div>
             <div>
               <span className="text-sm text-gray-500">Kategorie:</span>
-              <span className="ml-2 font-medium">{activity.category_name || 'Keine'}</span>
+              <span className="ml-2 font-medium">{activity.category_name ?? 'Keine'}</span>
             </div>
           </div>
         </div>
@@ -310,7 +309,7 @@ export default function AddStudentsToActivityPage() {
             </div>
           ) : filteredStudents.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500">Keine Ergebnisse für "{searchFilter}"</p>
+              <p className="text-gray-500">Keine Ergebnisse für &quot;{searchFilter}&quot;</p>
             </div>
           ) : (
             <div className="space-y-3">

@@ -18,7 +18,7 @@ export async function GET(
   }
   
   // Make sure params is fully resolved
-  const resolvedParams = params instanceof Promise ? await params : params;
+  const resolvedParams = params instanceof Promise ? (await params as { id: string }) : (params as { id: string });
   const groupId: string = resolvedParams.id;
 
   // Parse query parameters
@@ -80,12 +80,12 @@ export async function POST(
   }
   
   // Make sure params is fully resolved
-  const resolvedParams = params instanceof Promise ? await params : params;
+  const resolvedParams = params instanceof Promise ? (await params as { id: string }) : (params as { id: string });
   const groupId: string = resolvedParams.id;
   
   try {
     // Parse request body
-    const requestBody = await request.json();
+    const requestBody: unknown = await request.json();
     
     // Log for debugging
     console.log(`Adding student to group ${groupId}:`, requestBody);
@@ -149,12 +149,12 @@ export async function DELETE(
   }
   
   // Make sure params is fully resolved
-  const resolvedParams = params instanceof Promise ? await params : params;
+  const resolvedParams = params instanceof Promise ? (await params as { id: string }) : (params as { id: string });
   const groupId: string = resolvedParams.id;
   
   try {
     // Parse request body to get student IDs to remove
-    const { studentIds } = await request.json();
+    const { studentIds } = await request.json() as { studentIds: string[] };
     
     if (!Array.isArray(studentIds) || studentIds.length === 0) {
       return NextResponse.json(

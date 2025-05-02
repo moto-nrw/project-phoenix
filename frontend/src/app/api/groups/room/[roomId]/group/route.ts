@@ -18,7 +18,7 @@ export async function GET(
   }
   
   // Make sure params is fully resolved
-  const resolvedParams = params instanceof Promise ? await params : params;
+  const resolvedParams = params instanceof Promise ? (await params as { roomId: string }) : (params as { roomId: string });
   const roomId: string = resolvedParams.roomId;
   
   try {

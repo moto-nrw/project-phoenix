@@ -19,7 +19,7 @@ export async function GET(
   }
 
   // Properly handle params that could potentially be a Promise
-  const resolvedParams = params instanceof Promise ? await params : params;
+  const resolvedParams = params instanceof Promise ? (await params as { id: string }) : (params as { id: string });
   const id: string = resolvedParams.id;
 
   try {
@@ -64,7 +64,7 @@ export async function POST(
   }
 
   // Properly handle params that could potentially be a Promise
-  const resolvedParams = params instanceof Promise ? await params : params;
+  const resolvedParams = params instanceof Promise ? (await params as { id: string }) : (params as { id: string });
   const id: string = resolvedParams.id;
 
   try {
