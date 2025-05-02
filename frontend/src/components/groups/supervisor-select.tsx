@@ -26,30 +26,28 @@ export default function SupervisorSelect({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Mock data for now - this would be replaced by an API call to get supervisors
+  // Fetch supervisors from API
   useEffect(() => {
-    // Simulating API call to fetch supervisors
     const fetchSupervisors = async () => {
       try {
         setLoading(true);
         
-        // This would be an actual API call in production
-        // const response = await fetch('/api/supervisors');
-        // const data = await response.json();
+        // Make the actual API call
+        const response = await fetch('/api/users/supervisors');
         
-        // Mock data for demonstration
-        const mockSupervisors: Supervisor[] = [
-          { id: '1', name: 'Max Mustermann' },
-          { id: '2', name: 'Erika Musterfrau' },
-          { id: '3', name: 'John Doe' },
-          { id: '4', name: 'Jane Smith' },
-        ];
+        if (!response.ok) {
+          throw new Error(`Failed to fetch supervisors: ${response.statusText}`);
+        }
         
-        setSupervisors(mockSupervisors);
+        const data = await response.json();
+        setSupervisors(data);
         setError(null);
       } catch (err) {
         console.error('Error fetching supervisors:', err);
         setError('Fehler beim Laden der Aufsichtspersonen');
+        
+        // Fallback to empty array to avoid breaking the UI
+        setSupervisors([]);
       } finally {
         setLoading(false);
       }

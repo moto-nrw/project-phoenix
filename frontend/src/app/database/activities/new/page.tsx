@@ -16,8 +16,9 @@ export default function NewActivityPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Supervisors should be fetched from an API
+  // Fetch supervisors from API
   const [supervisors, setSupervisors] = useState<Array<{id: string, name: string}>>([]);
+  const [supervisorsLoading, setSupervisorsLoading] = useState<boolean>(true);
   
   const { status } = useSession({
     required: true,
@@ -44,6 +45,28 @@ export default function NewActivityPage() {
       setError('Fehler beim Laden der Kategorien. Bitte versuchen Sie es später erneut.');
     } finally {
       setLoading(false);
+    }
+  };
+  
+  // Function to fetch supervisors
+  const fetchSupervisors = async () => {
+    try {
+      setSupervisorsLoading(true);
+      
+      // Fetch supervisors from our API
+      const response = await fetch('/api/users/supervisors');
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch supervisors: ${response.statusText}`);
+      }
+      
+      const supervisorsData = await response.json();
+      setSupervisors(supervisorsData);
+    } catch (err) {
+      console.error('Error fetching supervisors:', err);
+      // Don't set an error state that would block the UI, just log it
+    } finally {
+      setSupervisorsLoading(false);
     }
   };
 
@@ -90,6 +113,7 @@ export default function NewActivityPage() {
   // Initial data load
   useEffect(() => {
     void fetchCategories();
+    void fetchSupervisors();
   }, []);
 
   if (status === 'loading' || loading) {
@@ -99,6 +123,9 @@ export default function NewActivityPage() {
       </div>
     );
   }
+  
+  // We don't need to block the entire UI on supervisors loading,
+  // they will just show as loading in the select component
 
   return (
     <div className="min-h-screen">
