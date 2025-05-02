@@ -61,7 +61,7 @@ export const activityService = {
     
     // Use the nextjs api route which handles auth token properly
     const useProxyApi = typeof window !== 'undefined';
-    let url = useProxyApi ? '/api/activities' : `${env.NEXT_PUBLIC_API_URL}/activities`;
+    let url = useProxyApi ? '/api/database/activities' : `${env.NEXT_PUBLIC_API_URL}/activities`;
     
     try {
       // Build query string for API route
@@ -129,7 +129,7 @@ export const activityService = {
   // Get a specific activity by ID
   getActivity: async (id: string): Promise<Activity> => {
     const useProxyApi = typeof window !== 'undefined';
-    const url = useProxyApi ? `/api/activities/${id}` : `${env.NEXT_PUBLIC_API_URL}/activities/${id}`;
+    const url = useProxyApi ? `/api/database/activities/${id}` : `${env.NEXT_PUBLIC_API_URL}/activities/${id}`;
     
     try {
       if (useProxyApi) {
@@ -210,7 +210,7 @@ export const activityService = {
     }
     
     const useProxyApi = typeof window !== 'undefined';
-    const url = useProxyApi ? `/api/activities` : `${env.NEXT_PUBLIC_API_URL}/activities`;
+    const url = useProxyApi ? `/api/database/activities` : `${env.NEXT_PUBLIC_API_URL}/activities`;
     
     try {
       if (useProxyApi) {
@@ -265,7 +265,7 @@ export const activityService = {
     const backendUpdates = prepareActivityForBackend(activity);
     
     const useProxyApi = typeof window !== 'undefined';
-    const url = useProxyApi ? `/api/activities/${id}` : `${env.NEXT_PUBLIC_API_URL}/activities/${id}`;
+    const url = useProxyApi ? `/api/database/activities/${id}` : `${env.NEXT_PUBLIC_API_URL}/activities/${id}`;
     
     try {
       if (useProxyApi) {
@@ -318,7 +318,7 @@ export const activityService = {
   // Delete an activity
   deleteActivity: async (id: string): Promise<void> => {
     const useProxyApi = typeof window !== 'undefined';
-    const url = useProxyApi ? `/api/activities/${id}` : `${env.NEXT_PUBLIC_API_URL}/activities/${id}`;
+    const url = useProxyApi ? `/api/database/activities/${id}` : `${env.NEXT_PUBLIC_API_URL}/activities/${id}`;
     
     try {
       if (useProxyApi) {
@@ -359,7 +359,7 @@ export const activityService = {
   // Get all categories
   getCategories: async (): Promise<ActivityCategory[]> => {
     const useProxyApi = typeof window !== 'undefined';
-    const url = useProxyApi ? '/api/activities/categories' : `${env.NEXT_PUBLIC_API_URL}/activities/categories`;
+    const url = useProxyApi ? '/api/database/activities/categories' : `${env.NEXT_PUBLIC_API_URL}/activities/categories`;
     
     try {
       if (useProxyApi) {
@@ -399,7 +399,7 @@ export const activityService = {
   // Create a new category
   createCategory: async (category: { name: string }): Promise<ActivityCategory> => {
     const useProxyApi = typeof window !== 'undefined';
-    const url = useProxyApi ? '/api/activities/categories' : `${env.NEXT_PUBLIC_API_URL}/activities/categories`;
+    const url = useProxyApi ? '/api/database/activities/categories' : `${env.NEXT_PUBLIC_API_URL}/activities/categories`;
     
     try {
       if (useProxyApi) {
@@ -442,7 +442,7 @@ export const activityService = {
   enrollStudent: async (activityId: string, studentId: string): Promise<void> => {
     const useProxyApi = typeof window !== 'undefined';
     const url = useProxyApi 
-      ? `/api/activities/${activityId}/enroll/${studentId}` 
+      ? `/api/database/activities/${activityId}/enroll/${studentId}` 
       : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/enroll/${studentId}`;
     
     try {
@@ -496,7 +496,7 @@ export const activityService = {
   unenrollStudent: async (activityId: string, studentId: string): Promise<void> => {
     const useProxyApi = typeof window !== 'undefined';
     const url = useProxyApi 
-      ? `/api/activities/${activityId}/enroll/${studentId}` 
+      ? `/api/database/activities/${activityId}/enroll/${studentId}` 
       : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/enroll/${studentId}`;
     
     try {
@@ -539,7 +539,7 @@ export const activityService = {
   addTimeSlot: async (activityId: string, timeSlot: Omit<ActivityTime, 'id' | 'ag_id' | 'created_at'>): Promise<ActivityTime> => {
     const useProxyApi = typeof window !== 'undefined';
     const url = useProxyApi 
-      ? `/api/activities/${activityId}/times` 
+      ? `/api/database/activities/${activityId}/times` 
       : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/times`;
     
     try {
@@ -583,7 +583,7 @@ export const activityService = {
   deleteTimeSlot: async (activityId: string, timeSlotId: string): Promise<void> => {
     const useProxyApi = typeof window !== 'undefined';
     const url = useProxyApi 
-      ? `/api/activities/${activityId}/times/${timeSlotId}` 
+      ? `/api/database/activities/${activityId}/times/${timeSlotId}` 
       : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/times/${timeSlotId}`;
     
     try {
@@ -626,7 +626,7 @@ export const activityService = {
   getEnrolledStudents: async (activityId: string): Promise<Student[]> => {
     const useProxyApi = typeof window !== 'undefined';
     const url = useProxyApi 
-      ? `/api/activities/${activityId}/students` 
+      ? `/api/database/activities/${activityId}/students` 
       : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/students`;
     
     try {
@@ -668,7 +668,7 @@ export const activityService = {
   getStudentActivities: async (studentId: string): Promise<Activity[]> => {
     const useProxyApi = typeof window !== 'undefined';
     const url = useProxyApi 
-      ? `/api/activities/student/${studentId}/ags` 
+      ? `/api/database/activities/student/${studentId}/ags` 
       : `${env.NEXT_PUBLIC_API_URL}/activities/student/${studentId}/ags`;
     
     try {
@@ -710,7 +710,7 @@ export const activityService = {
   getAvailableActivities: async (studentId: string): Promise<Activity[]> => {
     const useProxyApi = typeof window !== 'undefined';
     const url = useProxyApi 
-      ? `/api/activities/student/available?student_id=${studentId}` 
+      ? `/api/database/activities/student/available?student_id=${studentId}` 
       : `${env.NEXT_PUBLIC_API_URL}/activities/student/available?student_id=${studentId}`;
     
     try {

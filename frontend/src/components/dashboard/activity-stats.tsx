@@ -71,7 +71,7 @@ export function ActivityStats() {
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold">Aktivitätsübersicht</h3>
         <Link 
-          href="/activities"
+          href="/database/activities"
           className="text-sm text-purple-600 hover:text-purple-800 font-medium"
         >
           Alle anzeigen →
@@ -107,7 +107,7 @@ export function ActivityStats() {
             {activities.slice(0, 3).map(activity => (
               <li key={activity.id} className="py-2">
                 <Link 
-                  href={`/activities/${activity.id}`}
+                  href={`/database/activities/${activity.id}`}
                   className="block hover:bg-gray-50 rounded-lg p-2 -mx-2"
                 >
                   <div className="flex justify-between">

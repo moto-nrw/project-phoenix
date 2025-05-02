@@ -23,7 +23,7 @@ export default function ActivityList({
     if (onActivityClick) {
       onActivityClick(activity);
     } else {
-      router.push(`/activities/${activity.id}`);
+      router.push(`/database/activities/${activity.id}`);
     }
   };
 
