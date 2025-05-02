@@ -16,7 +16,8 @@ export async function DELETE(
   request: NextRequest,
   context: RouteContext
 ) {
-  const { id, timeId } = context.params;
+  const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
+  const { id, timeId } = resolvedParams;
   const session = await auth();
   
   if (!session?.user?.token) {

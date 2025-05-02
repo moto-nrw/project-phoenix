@@ -17,7 +17,7 @@ export async function POST(
     );
   }
 
-  const { id, studentId } = params;
+  const { id, studentId } = await params;
 
   try {
     const response = await fetch(`${API_URL}/activities/${id}/enroll/${studentId}`, {
@@ -72,7 +72,7 @@ export async function DELETE(
     );
   }
 
-  const { id, studentId } = params;
+  const { id, studentId } = await params;
 
   try {
     const response = await fetch(`${API_URL}/activities/${id}/enroll/${studentId}`, {

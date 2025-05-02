@@ -17,7 +17,7 @@ export async function DELETE(
     );
   }
 
-  const { id, timeId } = params;
+  const { id, timeId } = await params;
 
   try {
     const response = await fetch(`${API_URL}/activities/${id}/times/${timeId}`, {
