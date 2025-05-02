@@ -84,8 +84,8 @@ func studentTablesUp(ctx context.Context, db *bun.DB) error {
 			ag_id BIGINT NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			CONSTRAINT fk_student_ags_student FOREIGN KEY (student_id) REFERENCES  students(id) ON DELETE CASCADE,
-			CONSTRAINT fk_student_ags_ag FOREIGN KEY (ag_id) REFERENCES ag(id) ON DELETE CASCADE,
-			CONSTRAINT uq_student_ag UNIQUE(student_id, ag_id)
+			CONSTRAINT fk_student_ags_ags FOREIGN KEY (ag_id) REFERENCES ags(id) ON DELETE CASCADE,
+			CONSTRAINT uq_student_ags UNIQUE(student_id, ag_id)
 		)
 	`)
 	if err != nil {

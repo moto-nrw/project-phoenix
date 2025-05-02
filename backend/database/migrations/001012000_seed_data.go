@@ -279,7 +279,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 		}
 
 		if !exists {
-			// First make sure the tag ID exists in rfid_cards
+			// First make sure the tags ID exists in rfid_cards
 			var cardExists bool
 			err = tx.QueryRowContext(ctx, `
 				SELECT EXISTS(SELECT 1 FROM rfid_cards WHERE id = ?)

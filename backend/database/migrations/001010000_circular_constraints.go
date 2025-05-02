@@ -55,7 +55,7 @@ func circularConstraintsUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error adding representative_id foreign key to groups table: %w", err)
 	}
 
-	// 2. Add Room_occupancy.ag_id → Ag(id)
+	// 2. Add Room_occupancy.ag_id → Ags(id)
 	// This creates an indirect circular dependency through other related tables
 	_, err = tx.ExecContext(ctx, `
 		-- First, add the ag_id column to the room_occupancy table if it doesn't exist
@@ -64,8 +64,8 @@ func circularConstraintsUp(ctx context.Context, db *bun.DB) error {
 
 		-- Add the foreign key constraint
 		ALTER TABLE room_occupancy
-		ADD CONSTRAINT fk_room_occupancy_ag FOREIGN KEY (ag_id) 
-		REFERENCES ag(id) ON DELETE SET NULL;
+		ADD CONSTRAINT fk_room_occupancy_ags FOREIGN KEY (ag_id) 
+		REFERENCES ags(id) ON DELETE SET NULL;
 
 		-- Create an index for the foreign key
 		CREATE INDEX IF NOT EXISTS idx_room_occupancy_ag_id ON room_occupancy(ag_id);
@@ -131,7 +131,7 @@ func circularConstraintsDown(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		-- Drop the foreign key constraint
 		ALTER TABLE room_occupancy
-		DROP CONSTRAINT IF EXISTS fk_room_occupancy_ag;
+		DROP CONSTRAINT IF EXISTS fk_room_occupancy_ags;
 
 		-- Drop the index
 		DROP INDEX IF EXISTS idx_room_occupancy_ag_id;
