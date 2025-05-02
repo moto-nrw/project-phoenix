@@ -339,7 +339,7 @@ func TestPublicEndpoints(t *testing.T) {
 
 // TestAgLifecycle tests the complete lifecycle of an activity group
 func TestAgLifecycle(t *testing.T) {
-	rs, mockAgStore, _, _ := setupTestAPI()
+	rs, mockAgStore, _, mockTimespanStore := setupTestAPI()
 
 	// 1. Setup test data
 	now := time.Now()
@@ -429,6 +429,10 @@ func TestAgLifecycle(t *testing.T) {
 	mockAgStore.On("GetAgByID", mock.Anything, int64(1)).Return(createdAg, nil).Once()
 
 	// 4. Set up expectations for adding a time slot
+	// Add expectation for timespan creation
+	mockTimespanStore.On("CreateTimespan", mock.Anything, mock.AnythingOfType("time.Time"), mock.Anything).Return(timespan, nil).Once()
+
+	// Add expectation for time slot creation
 	mockAgStore.On("CreateAgTime", mock.Anything, mock.MatchedBy(func(at *models2.AgTime) bool {
 		return at.Weekday == "Monday" && at.TimespanID == 1 && at.AgID == 1
 	})).Return(nil).Once()
@@ -493,9 +497,13 @@ func TestAgLifecycle(t *testing.T) {
 
 	// PHASE 2: Add Time Slot
 	t.Run("2. Add Time Slot", func(t *testing.T) {
-		// Create time slot request
-		timeReq := &AgTimeRequest{AgTime: timeslot}
-		body, _ := json.Marshal(timeReq)
+		// Create time slot with the new request format
+		createReq := &AgTimeCreateRequest{
+			Weekday:   "Monday",
+			StartTime: now,
+			EndTime:   nil,
+		}
+		body, _ := json.Marshal(createReq)
 		r := httptest.NewRequest("POST", "/1/times", bytes.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")
 

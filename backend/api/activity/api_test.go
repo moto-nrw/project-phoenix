@@ -464,7 +464,7 @@ func TestEnrollStudent(t *testing.T) {
 
 // TestAddAgTime tests the addAgTime handler
 func TestAddAgTime(t *testing.T) {
-	rs, mockAgStore, _, _ := setupTestAPI()
+	rs, mockAgStore, _, mockTimespanStore := setupTestAPI()
 
 	// Setup test data
 	now := time.Now()
@@ -473,10 +473,11 @@ func TestAddAgTime(t *testing.T) {
 		StartTime: now,
 	}
 
-	newTime := &models2.AgTime{
-		Weekday:    "Monday",
-		TimespanID: 1,
-		AgID:       1, // Make sure this is set correctly
+	// Use the new request format with direct timespan creation
+	createReq := &AgTimeCreateRequest{
+		Weekday:   "Monday",
+		StartTime: now,
+		EndTime:   nil,
 	}
 
 	createdTime := &models2.AgTime{
@@ -488,15 +489,20 @@ func TestAddAgTime(t *testing.T) {
 		CreatedAt:  now,
 	}
 
+	// Set up mock expectation for creating a timespan
+	// Using mock.AnythingOfType instead of direct time value due to monotonic clock differences
+	mockTimespanStore.On("CreateTimespan", mock.Anything, mock.AnythingOfType("time.Time"), mock.Anything).Return(timespan, nil)
+
+	// Set up mock expectation for creating a time slot
 	mockAgStore.On("CreateAgTime", mock.Anything, mock.MatchedBy(func(at *models2.AgTime) bool {
 		return at.Weekday == "Monday" && at.TimespanID == 1 && at.AgID == 1
 	})).Return(nil)
 
+	// Set up mock expectation for getting the created time slot
 	mockAgStore.On("GetAgTimeByID", mock.Anything, int64(1)).Return(createdTime, nil)
 
 	// Create test request
-	timeReq := &AgTimeRequest{AgTime: newTime}
-	body, _ := json.Marshal(timeReq)
+	body, _ := json.Marshal(createReq)
 	r := httptest.NewRequest("POST", "/1/times", bytes.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
 	rctx := chi.NewRouteContext()
@@ -518,6 +524,7 @@ func TestAddAgTime(t *testing.T) {
 	assert.Equal(t, int64(1), responseTime.AgID)
 
 	mockAgStore.AssertExpectations(t)
+	mockTimespanStore.AssertExpectations(t)
 }
 
 // TestRouter tests the router configuration
