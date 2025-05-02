@@ -69,9 +69,9 @@ func activityTablesUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating ags table: %w", err)
 	}
 
-	// 3. Create the ag_time table
+	// 3. Create the ag_times table
 	_, err = tx.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS ag_time (
+		CREATE TABLE IF NOT EXISTS ag_times (
 			id BIGSERIAL PRIMARY KEY,
 			weekday TEXT NOT NULL,
 			timespan_id BIGINT NOT NULL,
@@ -83,7 +83,7 @@ func activityTablesUp(ctx context.Context, db *bun.DB) error {
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating ag_time table: %w", err)
+		return fmt.Errorf("error creating ag_times table: %w", err)
 	}
 
 	// Create indexes for ag
@@ -97,14 +97,14 @@ func activityTablesUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating indexes for ags table: %w", err)
 	}
 
-	// Create indexes for ag_time
+	// Create indexes for ag_times
 	_, err = tx.ExecContext(ctx, `
-		CREATE INDEX IF NOT EXISTS idx_ag_time_ag_id ON ag_time(ag_id);
-		CREATE INDEX IF NOT EXISTS idx_ag_time_timespan_id ON ag_time(timespan_id);
-		CREATE INDEX IF NOT EXISTS idx_ag_time_weekday ON ag_time(weekday);
+		CREATE INDEX IF NOT EXISTS idx_ag_time_ag_id ON ag_times(ag_id);
+		CREATE INDEX IF NOT EXISTS idx_ag_time_timespan_id ON ag_times(timespan_id);
+		CREATE INDEX IF NOT EXISTS idx_ag_time_weekday ON ag_times(weekday);
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating indexes for ag_time table: %w", err)
+		return fmt.Errorf("error creating indexes for ag_times table: %w", err)
 	}
 
 	// Create trigger for updated_at column in ags table
@@ -136,7 +136,7 @@ func activityTablesDown(ctx context.Context, db *bun.DB) error {
 
 	// Drop tables in reverse order of dependencies
 	_, err = tx.ExecContext(ctx, `
-		DROP TABLE IF EXISTS ag_time;
+		DROP TABLE IF EXISTS ag_times;
 		DROP TABLE IF EXISTS ags;
 		DROP TABLE IF EXISTS ag_categories;
 	`)
