@@ -26,16 +26,20 @@ export function mapSingleActivityResponse(data: any): Activity {
   }
 
   // Add supervisor name if available
-  if (data.supervisor && data.supervisor.custom_user) {
+  if (data.supervisor && (data.supervisor.custom_user || data.supervisor.custom_users)) {
     const supervisor = data.supervisor;
-    const customUser = supervisor.custom_user;
-    const firstName = customUser.first_name || '';
-    const secondName = customUser.second_name || '';
-    activity.supervisor_name = `${firstName} ${secondName}`.trim();
+    // Handle both naming conventions (custom_user from frontend model, custom_users from backend)
+    const customUser = supervisor.custom_user || supervisor.custom_users;
     
-    // If both names are empty, don't set a supervisor name so the UI shows "Nicht zugewiesen"
-    if (!firstName && !secondName) {
-      activity.supervisor_name = '';
+    if (customUser) {
+      const firstName = customUser.first_name || '';
+      const secondName = customUser.second_name || '';
+      activity.supervisor_name = `${firstName} ${secondName}`.trim();
+      
+      // If both names are empty, don't set a supervisor name so the UI shows "Nicht zugewiesen"
+      if (!firstName && !secondName) {
+        activity.supervisor_name = '';
+      }
     }
   }
 
