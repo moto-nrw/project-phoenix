@@ -553,6 +553,14 @@ export const activityService = {
       ? `/api/database/activities/${activityId}/times` 
       : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/times`;
     
+    // Ensure timespan_id is a number for the Go backend
+    const preparedTimeSlot = {
+      ...timeSlot,
+      timespan_id: typeof timeSlot.timespan_id === 'string' 
+        ? parseInt(timeSlot.timespan_id, 10) 
+        : timeSlot.timespan_id
+    };
+    
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
@@ -564,7 +572,7 @@ export const activityService = {
             'Authorization': `Bearer ${session.user.token}`,
             'Content-Type': 'application/json'
           } : undefined,
-          body: JSON.stringify(timeSlot)
+          body: JSON.stringify(preparedTimeSlot)
         });
         
         if (!response.ok) {
@@ -581,7 +589,7 @@ export const activityService = {
           headers: { 'Content-Type': 'application/json' },
           withCredentials: true,
         });
-        const response = await api.post(url, timeSlot);
+        const response = await api.post(url, preparedTimeSlot);
         return response.data as ActivityTime;
       }
     } catch (error) {

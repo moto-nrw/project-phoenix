@@ -72,8 +72,19 @@ export default function EditActivityPage() {
     try {
       setSaving(true);
       
+      // Ensure category ID is included from original activity if not in form data
+      const dataToSubmit: Partial<Activity> = {
+        ...formData
+      };
+
+      // Make sure we preserve the category ID if it's not in formData but exists in original activity
+      if (!dataToSubmit.ag_category_id && activity.ag_category_id) {
+        console.log('Adding missing ag_category_id from original activity:', activity.ag_category_id);
+        dataToSubmit.ag_category_id = activity.ag_category_id;
+      }
+      
       // Update the activity
-      await activityService.updateActivity(id as string, formData);
+      await activityService.updateActivity(id as string, dataToSubmit);
       
       // Redirect back to activity details
       router.push(`/database/activities/${id}`);

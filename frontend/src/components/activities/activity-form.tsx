@@ -127,9 +127,10 @@ const TimeSlotEditor = ({
       const newTimespanId = data.id;
       
       // Add the time slot with the new timespan ID
+      // Make sure to convert string ID to number for the Go backend
       onAdd({
         weekday,
-        timespan_id: newTimespanId,
+        timespan_id: parseInt(newTimespanId, 10),
       });
       
       // Reset form
@@ -309,11 +310,14 @@ export default function ActivityForm({
     try {
       setError(null);
       
-      // Include time slots in submission data
+      // Include time slots in submission data and ensure category ID is included
       const submissionData = {
         ...formData,
         times: timeSlots
       };
+      
+      // Debug log to see what we're submitting
+      console.log('Submitting form data:', JSON.stringify(submissionData, null, 2));
       
       // Call the provided submit function with form data
       await onSubmitAction(submissionData);

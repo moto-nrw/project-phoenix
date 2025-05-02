@@ -149,7 +149,16 @@ func indexesAndConstraintsUp(ctx context.Context, db *bun.DB) error {
 		CREATE OR REPLACE FUNCTION update_updated_at_column()
 		RETURNS TRIGGER AS $$
 		BEGIN
-			NEW.updated_at = CURRENT_TIMESTAMP;
+			-- Check which column exists in the table
+			IF EXISTS (
+				SELECT 1 FROM information_schema.columns 
+				WHERE table_name = TG_TABLE_NAME 
+				AND column_name = 'modified_at'
+			) THEN
+				NEW.modified_at = CURRENT_TIMESTAMP;
+			ELSE
+				NEW.updated_at = CURRENT_TIMESTAMP;
+			END IF;
 			RETURN NEW;
 		END;
 		$$ LANGUAGE plpgsql;

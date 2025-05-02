@@ -152,12 +152,15 @@ export function formatActivityTimes(activity: Activity): string {
  */
 export function prepareActivityForBackend(activity: Partial<Activity>): any {
   // The Go struct now consistently uses is_open_ags for the field
+  // Debug what we're getting from the frontend
+  console.log('Raw activity data for backend conversion:', JSON.stringify(activity, null, 2));
+  
   const backendActivity: any = {
     name: activity.name,
     max_participant: activity.max_participant,
     is_open_ags: activity.is_open_ags,
     // Add these fields to ensure they're always included, even if undefined
-    ag_categories_id: undefined,
+    ag_category_id: undefined,  // Use the correct JSON field name matching Go struct tag
     supervisor_id: undefined
   };
 
@@ -169,8 +172,8 @@ export function prepareActivityForBackend(activity: Partial<Activity>): any {
   // Always include supervisor_id - either from input or as 0
   backendActivity.supervisor_id = activity.supervisor_id ? parseInt(activity.supervisor_id, 10) : 0;
   
-  // Always include ag_categories_id - either from input or as 0
-  backendActivity.ag_categories_id = activity.ag_category_id ? parseInt(activity.ag_category_id, 10) : 0;
+  // Map frontend's ag_category_id to the backend's JSON field ag_category_id (not ag_categories_id)
+  backendActivity.ag_category_id = activity.ag_category_id ? parseInt(activity.ag_category_id, 10) : 0;
   
   if (activity.datespan_id) {
     backendActivity.datespan_id = parseInt(activity.datespan_id, 10);

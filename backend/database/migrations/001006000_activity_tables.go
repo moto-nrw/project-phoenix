@@ -107,13 +107,13 @@ func activityTablesUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating indexes for ag_times table: %w", err)
 	}
 
-	// Create trigger for updated_at column in ags table
+	// Create trigger for modified_at column in ags table
 	_, err = tx.ExecContext(ctx, `
 		DROP TRIGGER IF EXISTS update_ag_modified_at ON ags;
 		CREATE TRIGGER update_ag_modified_at
 		BEFORE UPDATE ON ags
 		FOR EACH ROW
-		EXECUTE FUNCTION update_updated_at_column();
+		EXECUTE FUNCTION update_modified_at_column();
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating updated_at trigger for ags table: %w", err)
