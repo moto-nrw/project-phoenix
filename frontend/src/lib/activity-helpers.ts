@@ -29,7 +29,14 @@ export function mapSingleActivityResponse(data: any): Activity {
   if (data.supervisor && data.supervisor.custom_user) {
     const supervisor = data.supervisor;
     const customUser = supervisor.custom_user;
-    activity.supervisor_name = `${customUser.first_name || ''} ${customUser.second_name || ''}`.trim();
+    const firstName = customUser.first_name || '';
+    const secondName = customUser.second_name || '';
+    activity.supervisor_name = `${firstName} ${secondName}`.trim();
+    
+    // If both names are empty, don't set a supervisor name so the UI shows "Nicht zugewiesen"
+    if (!firstName && !secondName) {
+      activity.supervisor_name = '';
+    }
   }
 
   // Add category name if available

@@ -147,7 +147,7 @@ export default function ActivityDetailsPage() {
                 
                 <div className="flex flex-col">
                   <dt className="text-sm text-gray-500">Leitung</dt>
-                  <dd className="font-medium">{activity.supervisor_name || 'Nicht zugewiesen'}</dd>
+                  <dd className="font-medium">{activity.supervisor_name && activity.supervisor_name.trim() !== '' ? activity.supervisor_name : 'Nicht zugewiesen'}</dd>
                 </div>
 
                 <div className="flex flex-col">
@@ -190,14 +190,14 @@ export default function ActivityDetailsPage() {
                 <div className="flex flex-col">
                   <dt className="text-sm text-gray-500">Erstellt am</dt>
                   <dd className="font-medium">
-                    {new Date(activity.created_at).toLocaleDateString('de-DE')}
+                    {activity.created_at ? new Date(activity.created_at).toLocaleDateString('de-DE') : 'Unbekannt'}
                   </dd>
                 </div>
                 
                 <div className="flex flex-col">
                   <dt className="text-sm text-gray-500">Aktualisiert am</dt>
                   <dd className="font-medium">
-                    {new Date(activity.updated_at).toLocaleDateString('de-DE')}
+                    {activity.updated_at ? new Date(activity.updated_at).toLocaleDateString('de-DE') : 'Unbekannt'}
                   </dd>
                 </div>
               </dl>
