@@ -16,6 +16,8 @@ export default function ActivityDetailsPage() {
   const [activity, setActivity] = useState<Activity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const { status } = useSession({
     required: true,
@@ -47,6 +49,23 @@ export default function ActivityDetailsPage() {
       setActivity(null);
     } finally {
       setLoading(false);
+    }
+  };
+  
+  // Function to handle activity deletion
+  const handleDeleteActivity = async () => {
+    if (!id) return;
+    
+    try {
+      setIsDeleting(true);
+      await activityService.deleteActivity(id as string);
+      router.push('/database/activities');
+    } catch (err) {
+      console.error('Error deleting activity:', err);
+      setError('Fehler beim Löschen der Aktivität. Bitte versuchen Sie es später erneut.');
+      setShowDeleteConfirm(false);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -203,7 +222,44 @@ export default function ActivityDetailsPage() {
                 Zeitplan bearbeiten
               </button>
             </Link>
+            
+            <button 
+              onClick={() => setShowDeleteConfirm(true)}
+              className="w-full sm:w-auto px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+            >
+              Aktivität löschen
+            </button>
           </div>
+          
+          {/* Delete Confirmation Dialog */}
+          {showDeleteConfirm && (
+            <div className="fixed inset-0 flex items-center justify-center z-50 backdrop-blur-sm">
+              <div className="bg-white/95 backdrop-filter backdrop-blur-sm rounded-lg p-6 max-w-md w-full shadow-xl border border-gray-100">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Aktivität löschen</h3>
+                <p className="text-gray-700 mb-6">
+                  Sind Sie sicher, dass Sie die Aktivität "{activity.name}" löschen möchten?
+                  Dies kann nicht rückgängig gemacht werden, und alle Teilnehmerverbindungen werden entfernt.
+                </p>
+                
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg transition-colors"
+                  >
+                    Abbrechen
+                  </button>
+                  
+                  <button
+                    onClick={handleDeleteActivity}
+                    disabled={isDeleting}
+                    className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                  >
+                    {isDeleting ? 'Wird gelöscht...' : 'Löschen'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Enrolled Students Section */}
