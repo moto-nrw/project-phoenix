@@ -660,6 +660,354 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 		}
 	}
 
+	// 7. Create activity group categories
+	sampleAGCategories := []string{
+		"Sport",
+		"Music",
+		"Art",
+		"Science",
+		"Languages",
+	}
+
+	agCategoryIds := make(map[string]int64)
+
+	for _, category := range sampleAGCategories {
+		var exists bool
+		err := tx.QueryRowContext(ctx, `
+			SELECT EXISTS(SELECT 1 FROM ag_categories WHERE name = ?)
+		`, category).Scan(&exists)
+
+		if err != nil {
+			return fmt.Errorf("error checking if AG category exists: %w", err)
+		}
+
+		if !exists {
+			// Insert the category
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO ag_categories (
+					name, created_at
+				) VALUES (
+					?, ?
+				)
+				RETURNING id
+			`, category, time.Now())
+
+			if err != nil {
+				return fmt.Errorf("error inserting AG category: %w", err)
+			}
+
+			// Get last inserted ID
+			var categoryId int64
+			err = tx.QueryRowContext(ctx, `SELECT lastval()`).Scan(&categoryId)
+			if err != nil {
+				return fmt.Errorf("error getting AG category id: %w", err)
+			}
+
+			agCategoryIds[category] = categoryId
+			fmt.Printf("Created AG category %s with ID %d\n", category, categoryId)
+		} else {
+			// Get existing category ID
+			var categoryId int64
+			err = tx.QueryRowContext(ctx, `
+				SELECT id FROM ag_categories WHERE name = ?
+			`, category).Scan(&categoryId)
+
+			if err != nil {
+				return fmt.Errorf("error getting existing AG category id: %w", err)
+			}
+
+			agCategoryIds[category] = categoryId
+		}
+	}
+
+	// 8. Create timespans for activity groups
+	sampleTimespans := []struct {
+		StartTime string
+		EndTime   string
+	}{
+		{"08:00:00", "09:30:00"}, // Morning session
+		{"10:00:00", "11:30:00"}, // Mid-morning session
+		{"13:00:00", "14:30:00"}, // Afternoon session
+		{"15:00:00", "16:30:00"}, // Late afternoon session
+	}
+
+	timespanIds := make(map[string]int64)
+
+	for _, timespan := range sampleTimespans {
+		key := timespan.StartTime + "-" + timespan.EndTime
+		var exists bool
+		err := tx.QueryRowContext(ctx, `
+			SELECT EXISTS(
+				SELECT 1 FROM timespans 
+				WHERE start_time::time::text LIKE ? AND end_time::time::text LIKE ?
+			)
+		`, timespan.StartTime+"%", timespan.EndTime+"%").Scan(&exists)
+
+		if err != nil {
+			return fmt.Errorf("error checking if timespan exists: %w", err)
+		}
+
+		if !exists {
+			// Create a timespan that's valid for the current day
+			now := time.Now()
+			startDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+			// Parse the time values
+			startTime, _ := time.Parse("15:04:05", timespan.StartTime)
+			endTime, _ := time.Parse("15:04:05", timespan.EndTime)
+
+			// Combine date and time
+			start := startDate.Add(time.Duration(startTime.Hour())*time.Hour +
+				time.Duration(startTime.Minute())*time.Minute +
+				time.Duration(startTime.Second())*time.Second)
+
+			end := startDate.Add(time.Duration(endTime.Hour())*time.Hour +
+				time.Duration(endTime.Minute())*time.Minute +
+				time.Duration(endTime.Second())*time.Second)
+
+			// Insert the timespan
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO timespans (
+					start_time, end_time, created_at
+				) VALUES (
+					?, ?, ?
+				)
+				RETURNING id
+			`, start, end, time.Now())
+
+			if err != nil {
+				return fmt.Errorf("error inserting timespan: %w", err)
+			}
+
+			// Get last inserted ID
+			var timespanId int64
+			err = tx.QueryRowContext(ctx, `SELECT lastval()`).Scan(&timespanId)
+			if err != nil {
+				return fmt.Errorf("error getting timespan id: %w", err)
+			}
+
+			timespanIds[key] = timespanId
+			fmt.Printf("Created timespan %s with ID %d\n", key, timespanId)
+		} else {
+			// Get existing timespan ID
+			var timespanId int64
+			err = tx.QueryRowContext(ctx, `
+				SELECT id FROM timespans 
+				WHERE start_time::time::text LIKE ? AND end_time::time::text LIKE ? 
+				LIMIT 1
+			`, timespan.StartTime+"%", timespan.EndTime+"%").Scan(&timespanId)
+
+			if err != nil {
+				return fmt.Errorf("error getting existing timespan id: %w", err)
+			}
+
+			timespanIds[key] = timespanId
+		}
+	}
+
+	// 9. Create sample activity groups
+	// First make sure we have a pedagogical specialist (supervisor) id
+	var supervisorID int64
+	err = tx.QueryRowContext(ctx, `
+		SELECT id FROM pedagogical_specialists LIMIT 1
+	`).Scan(&supervisorID)
+
+	if err != nil {
+		fmt.Println("Warning: No supervisor found for AGs, skipping AG creation")
+		return nil
+	}
+
+	sampleAGs := []struct {
+		Name           string
+		MaxParticipant int
+		IsOpenAG       bool
+		Category       string
+	}{
+		{"Football Club", 20, true, "Sport"},
+		{"Chess Club", 15, true, "Sport"},
+		{"Piano Lessons", 10, false, "Music"},
+		{"Painting Workshop", 15, true, "Art"},
+		{"Robotics Lab", 12, true, "Science"},
+		{"Spanish Language", 15, false, "Languages"},
+	}
+
+	for _, ag := range sampleAGs {
+		var exists bool
+		err := tx.QueryRowContext(ctx, `
+			SELECT EXISTS(SELECT 1 FROM ags WHERE name = ?)
+		`, ag.Name).Scan(&exists)
+
+		if err != nil {
+			return fmt.Errorf("error checking if AG exists: %w", err)
+		}
+
+		if !exists {
+			categoryID, ok := agCategoryIds[ag.Category]
+			if !ok {
+				fmt.Printf("Warning: Category %s not found for AG %s\n", ag.Category, ag.Name)
+				continue
+			}
+
+			// Insert the activity group
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO ags (
+					name, max_participant, is_open_ags, supervisor_id, ag_categories_id, 
+					created_at, modified_at
+				) VALUES (
+					?, ?, ?, ?, ?, ?, ?
+				)
+				RETURNING id
+			`, ag.Name, ag.MaxParticipant, ag.IsOpenAG, supervisorID, categoryID, time.Now(), time.Now())
+
+			if err != nil {
+				return fmt.Errorf("error inserting AG: %w", err)
+			}
+
+			// Get last inserted ID
+			var agId int64
+			err = tx.QueryRowContext(ctx, `SELECT lastval()`).Scan(&agId)
+			if err != nil {
+				return fmt.Errorf("error getting AG id: %w", err)
+			}
+
+			fmt.Printf("Created AG %s with ID %d\n", ag.Name, agId)
+
+			// 10. Create activity group times (weekdays and timeslots)
+			// Assign different weekdays and time slots to each activity
+			weekdays := []string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday"}
+			timeSlotKeys := make([]string, 0)
+			for k := range timespanIds {
+				timeSlotKeys = append(timeSlotKeys, k)
+			}
+
+			// Use the AG's position in the list to determine weekday and timeslot
+			// This ensures each AG gets a different schedule
+			weekdayIndex := int(agId) % len(weekdays)
+			timeSlotIndex := (int(agId) / len(weekdays)) % len(timeSlotKeys)
+
+			weekday := weekdays[weekdayIndex]
+			timeSlotKey := timeSlotKeys[timeSlotIndex]
+			timespanId := timespanIds[timeSlotKey]
+
+			// Insert the AG time
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO ag_times (
+					weekday, timespans_id, ag_id, created_at
+				) VALUES (
+					?, ?, ?, ?
+				)
+			`, weekday, timespanId, agId, time.Now())
+
+			if err != nil {
+				return fmt.Errorf("error inserting AG time: %w", err)
+			}
+
+			fmt.Printf("Created AG time for %s on %s with timespan ID %d\n", ag.Name, weekday, timespanId)
+
+			// For some AGs, add a second day
+			if agId%2 == 0 { // Every other AG gets a second day
+				secondWeekdayIndex := (weekdayIndex + 2) % len(weekdays) // Skip a day
+				secondWeekday := weekdays[secondWeekdayIndex]
+
+				// Insert the second AG time
+				_, err = tx.ExecContext(ctx, `
+					INSERT INTO ag_times (
+						weekday, timespans_id, ag_id, created_at
+					) VALUES (
+						?, ?, ?, ?
+					)
+				`, secondWeekday, timespanId, agId, time.Now())
+
+				if err != nil {
+					return fmt.Errorf("error inserting second AG time: %w", err)
+				}
+
+				fmt.Printf("Created second AG time for %s on %s with timespan ID %d\n", ag.Name, secondWeekday, timespanId)
+			}
+		}
+	}
+
+	// 11. Enroll some sample students in activities
+	// First check if we have sample students
+	var studentIDs []int64
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id FROM students WHERE school_class LIKE 'Sample%' LIMIT 5
+	`)
+	if err != nil {
+		return fmt.Errorf("error querying sample students: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return fmt.Errorf("error scanning student ID: %w", err)
+		}
+		studentIDs = append(studentIDs, id)
+	}
+
+	if len(studentIDs) > 0 {
+		// Get all activity group IDs
+		var agIDs []int64
+		agRows, err := tx.QueryContext(ctx, `
+			SELECT id FROM ags WHERE name IN (
+				'Football Club', 'Chess Club', 'Piano Lessons', 
+				'Painting Workshop', 'Robotics Lab', 'Spanish Language'
+			)
+		`)
+		if err != nil {
+			return fmt.Errorf("error querying AGs: %w", err)
+		}
+		defer agRows.Close()
+
+		for agRows.Next() {
+			var id int64
+			if err := agRows.Scan(&id); err != nil {
+				return fmt.Errorf("error scanning AG ID: %w", err)
+			}
+			agIDs = append(agIDs, id)
+		}
+
+		// Enroll each student in 1-3 activities
+		for _, studentID := range studentIDs {
+			// Determine how many activities (1-3)
+			numActivities := (int(studentID) % 3) + 1
+			for i := 0; i < numActivities && i < len(agIDs); i++ {
+				agID := agIDs[i]
+
+				// Check if enrollment already exists
+				var exists bool
+				err := tx.QueryRowContext(ctx, `
+					SELECT EXISTS(
+						SELECT 1 FROM student_ags 
+						WHERE student_id = ? AND ag_id = ?
+					)
+				`, studentID, agID).Scan(&exists)
+
+				if err != nil {
+					return fmt.Errorf("error checking if student enrollment exists: %w", err)
+				}
+
+				if !exists {
+					// Enroll the student
+					_, err = tx.ExecContext(ctx, `
+						INSERT INTO student_ags (
+							student_id, ag_id, created_at
+						) VALUES (
+							?, ?, ?
+						)
+					`, studentID, agID, time.Now())
+
+					if err != nil {
+						return fmt.Errorf("error enrolling student in AG: %w", err)
+					}
+
+					fmt.Printf("Enrolled student ID %d in activity ID %d\n", studentID, agID)
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
