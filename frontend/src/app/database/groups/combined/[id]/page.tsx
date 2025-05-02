@@ -172,7 +172,7 @@ export default function CombinedGroupDetailPage() {
             <div className="bg-gradient-to-r from-purple-500 to-blue-600 p-6 text-white relative">
               <div className="flex items-center">
                 <div className="w-20 h-20 rounded-full bg-white/30 flex items-center justify-center text-3xl font-bold mr-5">
-                  {combinedGroup.name[0] || 'G'}
+                  {combinedGroup.name[0] ?? 'G'}
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold">{combinedGroup.name}</h1>
@@ -329,7 +329,7 @@ export default function CombinedGroupDetailPage() {
                         <button
                           onClick={() => {
                             const input = document.getElementById('add_group_id') as HTMLInputElement;
-                            if (input && input.value) {
+                            if (input?.value) {
                               void handleAddGroup(input.value);
                               input.value = '';
                             }

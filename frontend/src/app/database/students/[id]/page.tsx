@@ -146,7 +146,7 @@ export default function StudentDetailPage() {
             <div className="bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white relative">
               <div className="flex items-center">
                 <div className="w-20 h-20 rounded-full bg-white/30 flex items-center justify-center text-3xl font-bold mr-5">
-                  {student.first_name?.[0] || ''}{student.second_name?.[0] || ''}
+                  {student.first_name?.[0] ?? ''}{student.second_name?.[0] ?? ''}
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold">{student.name}</h1>
@@ -257,12 +257,12 @@ export default function StudentDetailPage() {
                     
                     <div>
                       <div className="text-sm text-gray-500">Name</div>
-                      <div className="text-base">{student.name_lg || 'Nicht angegeben'}</div>
+                      <div className="text-base">{student.name_lg ?? 'Nicht angegeben'}</div>
                     </div>
                     
                     <div>
                       <div className="text-sm text-gray-500">Kontakt</div>
-                      <div className="text-base">{student.contact_lg || 'Nicht angegeben'}</div>
+                      <div className="text-base">{student.contact_lg ?? 'Nicht angegeben'}</div>
                     </div>
                   </div>
                   

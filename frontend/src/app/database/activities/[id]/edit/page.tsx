@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { redirect, useRouter, useParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PageHeader, SectionTitle } from '@/components/dashboard';
 import ActivityForm from '@/components/activities/activity-form';
 import type { Activity, ActivityCategory } from '@/lib/activity-api';
@@ -29,7 +29,7 @@ export default function EditActivityPage() {
   });
 
   // Function to fetch the activity details and categories
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!id) return;
 
     try {
@@ -49,21 +49,21 @@ export default function EditActivityPage() {
         if (!response.ok) {
           throw new Error(`Failed to fetch supervisors: ${response.statusText}`);
         }
-        const supervisorsData = await response.json();
+        const supervisorsData = await response.json() as Array<{id: string, name: string}>;
         setSupervisors(supervisorsData);
         
         setError(null);
-      } catch (apiErr) {
+      } catch {
           setError('Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.');
         setActivity(null);
       }
-    } catch (err) {
+    } catch {
       setError('Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.');
       setActivity(null);
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   // Handle form submission
   const handleSubmit = async (formData: Partial<Activity>) => {
@@ -87,7 +87,7 @@ export default function EditActivityPage() {
       await activityService.updateActivity(id as string, dataToSubmit);
       
       // Redirect back to activity details
-      router.push(`/database/activities/${id}`);
+      router.push(`/database/activities/${id as string}`);
     } catch (err) {
       setError('Fehler beim Speichern der Aktivität. Bitte versuchen Sie es später erneut.');
       throw err; // Rethrow so the form can handle it
@@ -99,7 +99,7 @@ export default function EditActivityPage() {
   // Initial data load
   useEffect(() => {
     void fetchData();
-  }, [id]);
+  }, [id, fetchData]);
 
   if (status === 'loading' || loading) {
     return (

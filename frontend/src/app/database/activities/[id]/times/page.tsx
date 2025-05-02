@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { redirect, useRouter, useParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PageHeader, SectionTitle } from '@/components/dashboard';
 import type { Activity, ActivityTime } from '@/lib/activity-api';
 import { activityService } from '@/lib/activity-api';
@@ -32,7 +32,7 @@ export default function ActivityTimesPage() {
   });
 
   // Function to fetch the activity details
-  const fetchActivity = async () => {
+  const fetchActivity = useCallback(async () => {
     if (!id) return;
 
     try {
@@ -55,7 +55,7 @@ export default function ActivityTimesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   // Function to delete a time slot
   const handleDeleteTimeSlot = async (timeSlotId: string) => {
@@ -137,7 +137,7 @@ export default function ActivityTimesPage() {
   // Initial data load
   useEffect(() => {
     void fetchActivity();
-  }, [id]);
+  }, [id, fetchActivity]);
 
   if (status === 'loading' || loading) {
     return (

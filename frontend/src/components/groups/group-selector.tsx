@@ -38,7 +38,7 @@ export default function GroupSelector({
           throw new Error(`Error: ${response.status}`);
         }
         
-        const data = await response.json();
+        const data = await response.json() as Group[];
         setGroups(data);
         setError(null);
       } catch (err) {

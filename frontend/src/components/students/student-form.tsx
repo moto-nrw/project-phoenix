@@ -40,17 +40,17 @@ export default function StudentForm({
   useEffect(() => {
     if (initialData) {
       setFormData({
-        first_name: initialData.first_name || '',
-        second_name: initialData.second_name || '',
-        school_class: initialData.school_class || '',
-        name_lg: initialData.name_lg || '',
-        contact_lg: initialData.contact_lg || '',
-        group_id: initialData.group_id || '1',
-        bus: initialData.bus || false,
-        in_house: initialData.in_house || false,
-        wc: initialData.wc || false,
-        school_yard: initialData.school_yard || false,
-        custom_users_id: initialData.custom_users_id || '',
+        first_name: initialData.first_name ?? '',
+        second_name: initialData.second_name ?? '',
+        school_class: initialData.school_class ?? '',
+        name_lg: initialData.name_lg ?? '',
+        contact_lg: initialData.contact_lg ?? '',
+        group_id: initialData.group_id ?? '1',
+        bus: initialData.bus ?? false,
+        in_house: initialData.in_house ?? false,
+        wc: initialData.wc ?? false,
+        school_yard: initialData.school_yard ?? false,
+        custom_users_id: initialData.custom_users_id ?? '',
       });
     }
   }, [initialData]);

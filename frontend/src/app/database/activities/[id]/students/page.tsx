@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { redirect, useRouter, useParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PageHeader, SectionTitle } from '@/components/dashboard';
 import StudentList from '@/components/students/student-list';
 import type { Activity } from '@/lib/activity-api';
@@ -33,7 +33,7 @@ export default function ActivityStudentsPage() {
   });
 
   // Function to fetch the activity details
-  const fetchActivity = async (showRefreshing = false) => {
+  const fetchActivity = useCallback(async (showRefreshing = false) => {
     if (!id) return;
 
     try {
@@ -68,7 +68,7 @@ export default function ActivityStudentsPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [id]);
 
   // Function to open the confirmation modal
   const openUnenrollConfirmation = (studentId: string) => {
@@ -127,7 +127,7 @@ export default function ActivityStudentsPage() {
   // Initial data load
   useEffect(() => {
     void fetchActivity();
-  }, [id]);
+  }, [id, fetchActivity]);
 
   // Filter students based on search term
   const filteredStudents = students?.filter(student =>
@@ -308,7 +308,7 @@ export default function ActivityStudentsPage() {
 
           {filteredStudents.length === 0 && searchFilter ? (
             <div className="text-center py-8">
-              <p className="text-gray-500">Keine Ergebnisse für "{searchFilter}"</p>
+              <p className="text-gray-500">Keine Ergebnisse für &quot;{searchFilter}&quot;</p>
             </div>
           ) : filteredStudents.length === 0 ? (
             <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg">

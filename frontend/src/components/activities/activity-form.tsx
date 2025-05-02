@@ -213,7 +213,7 @@ const TimeSlotEditor = ({
                 className="flex justify-between items-center p-2 bg-gray-50 rounded border border-gray-200"
               >
                 <span>
-                  {slot.weekday} {slot.timespan?.start_time || ''} 
+                  {slot.weekday} {slot.timespan?.start_time ?? ''} 
                   {slot.timespan?.end_time ? ` - ${slot.timespan.end_time}` : ''}
                 </span>
                 <button
@@ -269,11 +269,11 @@ export default function ActivityForm({
   useEffect(() => {
     if (initialData) {
       setFormData({
-        name: initialData.name || '',
-        max_participant: initialData.max_participant || 0,
-        is_open_ags: initialData.is_open_ags || false,
-        supervisor_id: initialData.supervisor_id || '',
-        ag_category_id: initialData.ag_category_id || '',
+        name: initialData.name ?? '',
+        max_participant: initialData.max_participant ?? 0,
+        is_open_ags: initialData.is_open_ags ?? false,
+        supervisor_id: initialData.supervisor_id ?? '',
+        ag_category_id: initialData.ag_category_id ?? '',
       });
       
       if (initialData.times) {
@@ -401,7 +401,7 @@ export default function ActivityForm({
               
               {/* Category selector */}
               <CategorySelector
-                value={formData.ag_category_id || ''}
+                value={formData.ag_category_id ?? ''}
                 onChange={(value) => {
                   setFormData(prev => ({
                     ...prev,
@@ -414,7 +414,7 @@ export default function ActivityForm({
               
               {/* Supervisor selector */}
               <SupervisorSelector
-                value={formData.supervisor_id || ''}
+                value={formData.supervisor_id ?? ''}
                 onChange={(value) => {
                   setFormData(prev => ({
                     ...prev,

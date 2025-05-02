@@ -2,9 +2,9 @@
 
 import { useSession } from 'next-auth/react';
 import { redirect, useRouter, useParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PageHeader, SectionTitle } from '@/components/dashboard';
-import type { Activity, ActivityCategory } from '@/lib/activity-api';
+import type { Activity } from '@/lib/activity-api';
 import { activityService } from '@/lib/activity-api';
 import { formatActivityTimes, formatParticipantStatus } from '@/lib/activity-helpers';
 import { DeleteModal } from '@/components/ui';
@@ -28,7 +28,7 @@ export default function ActivityDetailsPage() {
   });
 
   // Function to fetch the activity details
-  const fetchActivity = async () => {
+  const fetchActivity = useCallback(async () => {
     if (!id) return;
 
     try {
@@ -51,7 +51,7 @@ export default function ActivityDetailsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
   
   // Function to handle activity deletion
   const handleDeleteActivity = async () => {
@@ -73,7 +73,7 @@ export default function ActivityDetailsPage() {
   // Initial data load
   useEffect(() => {
     void fetchActivity();
-  }, [id]);
+  }, [id, fetchActivity]);
 
   if (status === 'loading' || loading) {
     return (
@@ -142,7 +142,7 @@ export default function ActivityDetailsPage() {
                 
                 <div className="flex flex-col">
                   <dt className="text-sm text-gray-500">Kategorie</dt>
-                  <dd className="font-medium">{activity.category_name || 'Keine Kategorie'}</dd>
+                  <dd className="font-medium">{activity.category_name ?? 'Keine Kategorie'}</dd>
                 </div>
                 
                 <div className="flex flex-col">
@@ -174,7 +174,7 @@ export default function ActivityDetailsPage() {
                   <dt className="text-sm text-gray-500">Teilnehmer</dt>
                   <dd className="font-medium">
                     {formatParticipantStatus(activity)}
-                    {(activity.participant_count || 0) >= activity.max_participant && (
+                    {(activity.participant_count ?? 0) >= activity.max_participant && (
                       <span className="ml-2 px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full">
                         Voll
                       </span>
@@ -214,7 +214,7 @@ export default function ActivityDetailsPage() {
             
             <Link href={`/database/activities/${activity.id}/students`}>
               <button className="w-full sm:w-auto px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors">
-                Teilnehmer verwalten ({activity.participant_count || 0})
+                Teilnehmer verwalten ({activity.participant_count ?? 0})
               </button>
             </Link>
             
@@ -241,7 +241,7 @@ export default function ActivityDetailsPage() {
             isDeleting={isDeleting}
           >
             <p>
-              Sind Sie sicher, dass Sie die Aktivität "{activity.name}" löschen möchten?
+              Sind Sie sicher, dass Sie die Aktivität &quot;{activity.name}&quot; löschen möchten?
               Dies kann nicht rückgängig gemacht werden, und alle Teilnehmerverbindungen werden entfernt.
             </p>
           </DeleteModal>

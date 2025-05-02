@@ -208,7 +208,7 @@ export default function GroupDetailPage() {
             <div className="bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white relative">
               <div className="flex items-center">
                 <div className="w-20 h-20 rounded-full bg-white/30 flex items-center justify-center text-3xl font-bold mr-5">
-                  {group.name[0] || 'G'}
+                  {group.name[0] ?? 'G'}
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold">{group.name}</h1>
@@ -254,12 +254,12 @@ export default function GroupDetailPage() {
                     
                     <div>
                       <div className="text-sm text-gray-500">Raum</div>
-                      <div className="text-base">{group.room_name || 'Nicht zugewiesen'}</div>
+                      <div className="text-base">{group.room_name ?? 'Nicht zugewiesen'}</div>
                     </div>
                     
                     <div>
                       <div className="text-sm text-gray-500">Vertreter</div>
-                      <div className="text-base">{group.representative_name || 'Nicht zugewiesen'}</div>
+                      <div className="text-base">{group.representative_name ?? 'Nicht zugewiesen'}</div>
                     </div>
                     
                     <div>

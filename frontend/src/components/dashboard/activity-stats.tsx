@@ -54,7 +54,7 @@ export function ActivityStats() {
       }
     };
 
-    fetchData();
+    void fetchData();
   }, []);
   
   if (loading) {
@@ -115,7 +115,7 @@ export function ActivityStats() {
                     <div className={`h-2 w-2 rounded-full self-center ${activity.is_open_ags ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    {activity.category_name || 'Keine Kategorie'} • {activity.participant_count || 0} von {activity.max_participant} Teilnehmern
+                    {activity.category_name ?? 'Keine Kategorie'} • {activity.participant_count ?? 0} von {activity.max_participant} Teilnehmern
                   </p>
                 </Link>
               </li>

@@ -39,7 +39,7 @@ export default function SupervisorSelect({
           throw new Error(`Failed to fetch supervisors: ${response.statusText}`);
         }
         
-        const data = await response.json();
+        const data = await response.json() as Supervisor[];
         setSupervisors(data);
         setError(null);
       } catch (err) {
