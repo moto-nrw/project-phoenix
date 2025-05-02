@@ -76,8 +76,8 @@ func (ag *Ag) Validate() error {
 type AgTime struct {
 	ID         int64     `json:"id" bun:"id,pk,autoincrement"`
 	Weekday    string    `json:"weekday" bun:"weekday,notnull"`
-	TimespanID int64     `json:"timespan_id" bun:"timespan_id,notnull"`
-	Timespan   *Timespan `json:"timespan,omitempty" bun:"rel:belongs-to,join:timespan_id=id"`
+	TimespanID int64     `json:"timespan_id" bun:"timespans_id,notnull"`
+	Timespan   *Timespan `json:"timespan,omitempty" bun:"rel:belongs-to,join:timespans_id=id"`
 	AgID       int64     `json:"ag_id" bun:"ag_id,nullzero"` // Use nullzero to allow zero values during insert
 	Ag         *Ag       `json:"ag,omitempty" bun:"rel:belongs-to,join:ag_id=id"`
 	CreatedAt  time.Time `json:"created_at" bun:"created_at,notnull"`
