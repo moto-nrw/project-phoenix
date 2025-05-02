@@ -33,7 +33,7 @@ type Ag struct {
 	ID             int64                  `json:"id" bun:"id,pk,autoincrement"`
 	Name           string                 `json:"name" bun:"name,notnull"`
 	MaxParticipant int                    `json:"max_participant" bun:"max_participant,notnull"`
-	IsOpenAg       bool                   `json:"is_open_ag" bun:"is_open_ags,notnull,default:false"`
+	IsOpenAg       bool                   `json:"is_open_ags" bun:"is_open_ags,notnull,default:false"`
 	SupervisorID   int64                  `json:"supervisor_id" bun:"supervisor_id,notnull"`
 	Supervisor     *PedagogicalSpecialist `json:"supervisor,omitempty" bun:"rel:belongs-to,join:supervisor_id=id"`
 	AgCategoryID   int64                  `json:"ag_category_id" bun:"ag_categories_id,notnull"`

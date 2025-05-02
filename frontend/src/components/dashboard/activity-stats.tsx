@@ -26,7 +26,7 @@ export function ActivityStats() {
         setActivities(activitiesData);
         
         // Calculate stats
-        const openActivities = activitiesData.filter(a => a.is_open_ag);
+        const openActivities = activitiesData.filter(a => a.is_open_ags);
         
         // Calculate capacity usage
         let totalCapacity = 0;
@@ -112,7 +112,7 @@ export function ActivityStats() {
                 >
                   <div className="flex justify-between">
                     <p className="text-sm font-medium text-gray-900">{activity.name}</p>
-                    <div className={`h-2 w-2 rounded-full self-center ${activity.is_open_ag ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                    <div className={`h-2 w-2 rounded-full self-center ${activity.is_open_ags ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
                     {activity.category_name || 'Keine Kategorie'} • {activity.participant_count || 0} von {activity.max_participant} Teilnehmern

@@ -11,7 +11,7 @@ export interface Activity {
   id: string;
   name: string;
   max_participant: number;
-  is_open_ag: boolean;
+  is_open_ags: boolean;
   supervisor_id: string;
   supervisor_name?: string;
   ag_category_id: string;

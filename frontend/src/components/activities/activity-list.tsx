@@ -69,9 +69,9 @@ export default function ActivityList({
                 </span>
                 <div 
                   className={`h-2.5 w-2.5 rounded-full ${
-                    activity.is_open_ag ? 'bg-green-500' : 'bg-gray-300'
+                    activity.is_open_ags ? 'bg-green-500' : 'bg-gray-300'
                   }`} 
-                  title={activity.is_open_ag ? 'Offen für Anmeldungen' : 'Geschlossen für Anmeldungen'}>
+                  title={activity.is_open_ags ? 'Offen für Anmeldungen' : 'Geschlossen für Anmeldungen'}>
                 </div>
                 
                 <svg 

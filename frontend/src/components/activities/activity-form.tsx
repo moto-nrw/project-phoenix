@@ -249,7 +249,7 @@ export default function ActivityForm({
   const [formData, setFormData] = useState<Partial<Activity>>({
     name: '',
     max_participant: 0,
-    is_open_ag: false,
+    is_open_ags: false,
     supervisor_id: '',
     ag_category_id: '',
   });
@@ -262,7 +262,7 @@ export default function ActivityForm({
       setFormData({
         name: initialData.name || '',
         max_participant: initialData.max_participant || 0,
-        is_open_ag: initialData.is_open_ag || false,
+        is_open_ags: initialData.is_open_ags || false,
         supervisor_id: initialData.supervisor_id || '',
         ag_category_id: initialData.ag_category_id || '',
       });
@@ -417,13 +417,13 @@ export default function ActivityForm({
               <div className="md:col-span-2 flex items-center mt-2">
                 <input
                   type="checkbox"
-                  id="is_open_ag"
-                  name="is_open_ag"
-                  checked={formData.is_open_ag}
+                  id="is_open_ags"
+                  name="is_open_ags"
+                  checked={formData.is_open_ags}
                   onChange={handleChange}
                   className="h-4 w-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
                 />
-                <label htmlFor="is_open_ag" className="ml-2 block text-sm text-gray-700">
+                <label htmlFor="is_open_ags" className="ml-2 block text-sm text-gray-700">
                   Offen für Anmeldungen
                 </label>
               </div>

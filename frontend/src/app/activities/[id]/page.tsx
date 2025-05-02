@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { use } from 'react';
 import { activityService } from '~/lib/activity-api';
 import type { Activity, ActivityCategory } from '~/lib/activity-api';
 import { formatActivityTimes, formatParticipantStatus } from '~/lib/activity-helpers';
@@ -17,8 +16,7 @@ interface ActivityDetailPageProps {
 }
 
 export default function ActivityDetailPage({ params }: ActivityDetailPageProps) {
-  const resolvedParams = use(params);
-  const { id } = resolvedParams;
+  const { id } = params;
   const [activity, setActivity] = useState<Activity | null>(null);
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
   const [supervisors, setSupervisors] = useState<Array<{id: string, name: string}>>([]);
@@ -192,9 +190,9 @@ export default function ActivityDetailPage({ params }: ActivityDetailPageProps) 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center space-x-2 bg-gray-100 px-3 py-1 rounded-full">
-            <div className={`h-2.5 w-2.5 rounded-full ${activity.is_open_ag ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+            <div className={`h-2.5 w-2.5 rounded-full ${activity.is_open_ags ? 'bg-green-500' : 'bg-gray-400'}`}></div>
             <span className="text-sm font-medium text-gray-700">
-              {activity.is_open_ag ? 'Offen für Anmeldungen' : 'Geschlossen für Anmeldungen'}
+              {activity.is_open_ags ? 'Offen für Anmeldungen' : 'Geschlossen für Anmeldungen'}
             </span>
           </div>
           
@@ -225,9 +223,9 @@ export default function ActivityDetailPage({ params }: ActivityDetailPageProps) 
               </div>
               
               <div className="flex items-center space-x-2 bg-gray-100 px-3 py-1 rounded-full">
-                <div className={`h-2.5 w-2.5 rounded-full ${activity.is_open_ag ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                <div className={`h-2.5 w-2.5 rounded-full ${activity.is_open_ags ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                 <span className="text-sm font-medium text-gray-700">
-                  {activity.is_open_ag ? 'Offen für Anmeldungen' : 'Geschlossen für Anmeldungen'}
+                  {activity.is_open_ags ? 'Offen für Anmeldungen' : 'Geschlossen für Anmeldungen'}
                 </span>
               </div>
             </div>
