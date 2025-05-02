@@ -83,39 +83,66 @@ const TimeSlotEditor = ({
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [timespanId, setTimespanId] = useState('');
+  const [isCreatingTimespan, setIsCreatingTimespan] = useState(false);
   
   const weekdays = [
     'Monday', 'Tuesday', 'Wednesday', 'Thursday', 
     'Friday', 'Saturday', 'Sunday'
   ];
   
-  const handleAddTimeSlot = () => {
-    if (!weekday || !timespanId) {
-      alert('Bitte geben Sie Wochentag und Zeitraum an.');
+  const handleAddTimeSlot = async () => {
+    if (!weekday || !startTime || !endTime) {
+      alert('Bitte geben Sie Wochentag, Startzeit und Endzeit an.');
       return;
     }
     
-    onAdd({
-      weekday,
-      timespan_id: timespanId,
-    });
-    
-    // Reset form
-    setStartTime('');
-    setEndTime('');
-  };
-  
-  // In a real application, you'd fetch actual timespan IDs from the backend
-  // For now, we'll just use a dummy timespan ID
-  useEffect(() => {
-    if (startTime) {
-      // This is just a placeholder - in a real app, you would create or select 
-      // a real timespan ID based on the start and end times
-      setTimespanId('1');
-    } else {
+    try {
+      setIsCreatingTimespan(true);
+      
+      // Create a timespan first
+      // Format the start and end times as ISO strings with current date
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const formattedStartTime = `${today}T${startTime}:00Z`;
+      const formattedEndTime = `${today}T${endTime}:00Z`;
+      
+      const response = await fetch('/api/activities/timespans', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          start_time: formattedStartTime,
+          end_time: formattedEndTime,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('Error creating timespan:', errorData);
+        alert('Fehler beim Erstellen des Zeitraums. Bitte versuchen Sie es später erneut.');
+        return;
+      }
+      
+      const data = await response.json();
+      const newTimespanId = data.id;
+      
+      // Add the time slot with the new timespan ID
+      onAdd({
+        weekday,
+        timespan_id: newTimespanId,
+      });
+      
+      // Reset form
+      setStartTime('');
+      setEndTime('');
       setTimespanId('');
+    } catch (error) {
+      console.error('Error adding time slot:', error);
+      alert('Fehler beim Hinzufügen des Zeitslots. Bitte versuchen Sie es später erneut.');
+    } finally {
+      setIsCreatingTimespan(false);
     }
-  }, [startTime, endTime]);
+  };
   
   return (
     <div className="space-y-4">
@@ -160,9 +187,10 @@ const TimeSlotEditor = ({
         <button
           type="button"
           onClick={handleAddTimeSlot}
-          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+          disabled={isCreatingTimespan}
+          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
-          Zeitslot hinzufügen
+          {isCreatingTimespan ? 'Wird hinzugefügt...' : 'Zeitslot hinzufügen'}
         </button>
       </div>
       
