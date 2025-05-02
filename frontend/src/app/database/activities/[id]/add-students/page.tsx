@@ -17,7 +17,8 @@ export default function AddStudentsToActivityPage() {
   const [activity, setActivity] = useState<Activity | null>(null);
   const [availableStudents, setAvailableStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
-  const [enrollingStudent, setEnrollingStudent] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [enrollingStudent, setEnrollingStudent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
   
@@ -29,11 +30,15 @@ export default function AddStudentsToActivityPage() {
   });
 
   // Function to fetch data
-  const fetchData = async () => {
+  const fetchData = async (showRefreshing = false) => {
     if (!id) return;
 
     try {
-      setLoading(true);
+      if (showRefreshing) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       
       try {
         // Fetch activity details
@@ -66,27 +71,76 @@ export default function AddStudentsToActivityPage() {
       setAvailableStudents([]);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   // Function to enroll a student
   const handleEnrollStudent = async (studentId: string) => {
     if (!id || !studentId) return;
-    if (enrollingStudent) return; // Prevent duplicate enrollments
+    if (enrollingStudent !== null) return; // Prevent duplicate enrollments
+    
+    setEnrollingStudent(studentId);
     
     try {
-      setEnrollingStudent(true);
       await activityService.enrollStudent(id as string, studentId);
+      
+      // Find the enrolled student for the success message
+      const enrolledStudent = availableStudents.find(s => s.id === studentId);
+      const studentName = enrolledStudent?.name || 'Schüler';
       
       // Remove this student from the available list
       setAvailableStudents(current => 
         current.filter(student => student.id !== studentId)
       );
+      
+      // Update the activity data to reflect new enrollment count
+      if (activity && typeof activity.participant_count === 'number') {
+        setActivity({
+          ...activity,
+          participant_count: activity.participant_count + 1
+        });
+      }
+      
+      // Show success toast
+      const toastElement = document.createElement('div');
+      toastElement.className = 'fixed bottom-4 right-4 bg-green-50 text-green-800 px-4 py-2 rounded-lg shadow-lg border border-green-200 animate-fade-in-out z-50 flex items-center';
+      toastElement.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        <span>${studentName} erfolgreich eingeschrieben</span>
+      `;
+      document.body.appendChild(toastElement);
+      
+      // Remove the toast after 3 seconds
+      setTimeout(() => {
+        if (document.body.contains(toastElement)) {
+          document.body.removeChild(toastElement);
+        }
+      }, 3000);
     } catch (err) {
       console.error('Error enrolling student:', err);
-      alert('Fehler beim Einschreiben des Schülers. Bitte versuchen Sie es später erneut.');
+      
+      // Show error toast instead of alert
+      const toastElement = document.createElement('div');
+      toastElement.className = 'fixed bottom-4 right-4 bg-red-50 text-red-800 px-4 py-2 rounded-lg shadow-lg border border-red-200 animate-fade-in-out z-50 flex items-center';
+      toastElement.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <span>Fehler beim Einschreiben des Schülers</span>
+      `;
+      document.body.appendChild(toastElement);
+      
+      // Remove the toast after 3 seconds
+      setTimeout(() => {
+        if (document.body.contains(toastElement)) {
+          document.body.removeChild(toastElement);
+        }
+      }, 3000);
     } finally {
-      setEnrollingStudent(false);
+      setEnrollingStudent(null);
     }
   };
 
@@ -156,6 +210,15 @@ export default function AddStudentsToActivityPage() {
       />
 
       <main className="max-w-4xl mx-auto p-4">
+        {refreshing && (
+          <div className="fixed top-4 right-4 bg-blue-50 text-blue-800 px-4 py-2 rounded-lg shadow-lg border border-blue-200 flex items-center z-50">
+            <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Aktualisiere Schülerliste...
+          </div>
+        )}
         <div className="mb-8">
           <SectionTitle title="Schüler einschreiben" />
         </div>
@@ -206,13 +269,25 @@ export default function AddStudentsToActivityPage() {
 
         {/* Available Students List */}
         <div className="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-800">
-              Verfügbare Schüler
-            </h3>
-            <p className="text-sm text-gray-500">
-              Klicken Sie auf einen Schüler, um ihn zur Aktivität hinzuzufügen.
-            </p>
+          <div className="mb-4 flex justify-between items-start">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800">
+                Verfügbare Schüler
+              </h3>
+              <p className="text-sm text-gray-500">
+                Klicken Sie auf einen Schüler, um ihn zur Aktivität hinzuzufügen.
+              </p>
+            </div>
+            <button
+              onClick={() => fetchData(true)}
+              className="p-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+              disabled={refreshing}
+              title="Schülerliste aktualisieren"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
           </div>
 
           {isFull && (
@@ -243,26 +318,48 @@ export default function AddStudentsToActivityPage() {
                 <div 
                   key={student.id}
                   className={`group p-4 border rounded-lg flex justify-between items-center transition-all
-                    ${isFull 
-                      ? 'border-gray-200 bg-gray-50 cursor-not-allowed' 
-                      : 'border-gray-100 hover:border-green-200 hover:bg-green-50 cursor-pointer'
+                    ${enrollingStudent === student.id ? 'border-green-200 bg-green-50 cursor-wait' :
+                      isFull ? 'border-gray-200 bg-gray-50 cursor-not-allowed' : 
+                      'border-gray-100 hover:border-green-200 hover:bg-green-50 cursor-pointer'
                     }`}
-                  onClick={() => !isFull && handleEnrollStudent(student.id)}
+                  onClick={() => !isFull && enrollingStudent !== student.id && !enrollingStudent && handleEnrollStudent(student.id)}
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
-                    <span className={`font-medium ${isFull ? 'text-gray-500' : 'text-gray-900 group-hover:text-green-700'} transition-colors`}>
-                      {student.name}
-                    </span>
-                    {student.school_class && (
-                      <span className="text-sm text-gray-500">Klasse: {student.school_class}</span>
-                    )}
-                    {student.in_house && (
-                      <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full inline-block">
-                        Anwesend
+                  <div className="flex items-center space-x-4">
+                    {/* Avatar placeholder */}
+                    <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gradient-to-r from-purple-400 to-indigo-500 flex items-center justify-center text-white font-medium">
+                      {student.name ? student.name.charAt(0).toUpperCase() : '?'}
+                    </div>
+                    
+                    {/* Student info */}
+                    <div>
+                      <span className={`font-medium ${isFull ? 'text-gray-500' : 'text-gray-900 group-hover:text-green-700'} transition-colors`}>
+                        {student.name}
                       </span>
-                    )}
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {student.school_class && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                            {student.school_class}
+                          </span>
+                        )}
+                        {student.in_house && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            Anwesend
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  {!isFull && (
+                  
+                  {/* Action button with loading state */}
+                  {enrollingStudent === student.id ? (
+                    <svg className="animate-spin h-5 w-5 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : !isFull && (
                     <svg 
                       xmlns="http://www.w3.org/2000/svg" 
                       className="h-5 w-5 text-gray-400 group-hover:text-green-600 transition-colors" 
