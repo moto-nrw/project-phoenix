@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { redirect } from 'next/navigation';
-import { Header, FeatureCard, SectionTitle, ActivityStats } from '~/components/dashboard';
+import { Header, FeatureCard, SectionTitle } from '~/components/dashboard';
 
 export default function DashboardPage() {
   const { data: session, status } = useSession({
@@ -27,15 +27,6 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <main className="container mx-auto p-4 py-8">
-        {/* Stats Section */}
-        <div className="mb-12">
-          <SectionTitle title="Aktuelle Statistiken" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-6xl mx-auto">
-            <ActivityStats />
-            {/* Other stats widgets can be added here */}
-          </div>
-        </div>
-
         {/* Main Menu Section */}
         <SectionTitle title="Hauptmenü" />
         
