@@ -85,8 +85,8 @@ export default function ActivityStudentsPage() {
 
   // Filter students based on search term
   const filteredStudents = students?.filter(student =>
-    student.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
-    (student.school_class && student.school_class.toLowerCase().includes(searchFilter.toLowerCase()))
+    (student?.name?.toLowerCase()?.includes(searchFilter.toLowerCase()) ?? false) ||
+    (student?.school_class?.toLowerCase()?.includes(searchFilter.toLowerCase()) ?? false)
   ) || [];
 
   if (status === 'loading' || loading) {
