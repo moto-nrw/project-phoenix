@@ -17,8 +17,10 @@ interface DataListPageProps<T extends BaseEntity> {
   newEntityLabel: string;   // Label for new entity button (e.g., "Neuen Schüler erstellen")
   newEntityUrl: string;     // URL to create a new entity
   data: T[];                // Array of entities to display
-  onSelectEntity: (entity: T) => void; // Callback when entity is selected
+  onSelectEntityAction: (entity: T) => void; // Callback when entity is selected
   renderEntity?: (entity: T) => React.ReactNode; // Optional custom renderer for entity
+  searchTerm?: string;      // Optional controlled search term
+  onSearchChange?: (searchTerm: string) => void; // Optional callback for search changes
 }
 
 export function DataListPage<T extends BaseEntity>({
@@ -28,15 +30,33 @@ export function DataListPage<T extends BaseEntity>({
   newEntityLabel,
   newEntityUrl,
   data,
-  onSelectEntity,
+  onSelectEntityAction,
   renderEntity,
+  searchTerm: externalSearchTerm,
+  onSearchChange,
 }: DataListPageProps<T>) {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [internalSearchTerm, setInternalSearchTerm] = useState('');
+  
+  // Use either the controlled or the internal search term
+  const searchTerm = externalSearchTerm !== undefined ? externalSearchTerm : internalSearchTerm;
+  
+  // Handle search input changes
+  const handleSearchChange = (value: string) => {
+    if (onSearchChange) {
+      // If we have an external handler, use it
+      onSearchChange(value);
+    } else {
+      // Otherwise use the internal state
+      setInternalSearchTerm(value);
+    }
+  };
 
-  // Filter data based on search term
-  const filteredData = data.filter(entity => 
-    entity.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter data based on search term (only if we're using the internal search)
+  const filteredData = externalSearchTerm !== undefined
+    ? data // If external search, don't filter data (already filtered by the parent)
+    : data.filter(entity => 
+        entity.name.toLowerCase().includes(internalSearchTerm.toLowerCase())
+      );
 
   // Default entity renderer
   const defaultRenderEntity = (entity: T) => (
@@ -76,7 +96,7 @@ export function DataListPage<T extends BaseEntity>({
               type="text"
               placeholder="Suchen..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 pl-10 transition-all duration-200 hover:border-gray-400 focus:shadow-md"
             />
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -106,12 +126,15 @@ export function DataListPage<T extends BaseEntity>({
         <div className="space-y-3 w-full">
           {filteredData.length > 0 ? (
             filteredData.map(entity => (
-              <div 
-                key={entity.id} 
-                className="group bg-white border border-gray-100 rounded-lg p-4 shadow-sm hover:shadow-md hover:border-blue-200 hover:translate-y-[-1px] transition-all duration-200 cursor-pointer flex items-center justify-between"
-                onClick={() => onSelectEntity(entity)}
-              >
-                {renderEntity ? renderEntity(entity) : defaultRenderEntity(entity)}
+              <div key={entity.id}>
+                {renderEntity ? renderEntity(entity) : (
+                  <div 
+                    className="group bg-white border border-gray-100 rounded-lg p-4 shadow-sm hover:shadow-md hover:border-blue-200 hover:translate-y-[-1px] transition-all duration-200 cursor-pointer flex items-center justify-between"
+                    onClick={() => onSelectEntityAction(entity)}
+                  >
+                    {defaultRenderEntity(entity)}
+                  </div>
+                )}
               </div>
             ))
           ) : (

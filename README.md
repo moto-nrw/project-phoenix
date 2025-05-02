@@ -1,76 +1,69 @@
 # Project Phoenix
 
-A modern room and student management system with RFID authentication support.
+A modern room and student management system with RFID authentication for educational institutions.
 
-It's a Go backend API that helps schools track students, manage rooms, and organize activity groups. Key features include:
+## Key Features
 
 - RFID student location tracking system
 - Room occupancy monitoring and visit history
-- Student grouping and activity management
+- Student grouping and activity management 
 - JWT authentication with passwordless login
-- PostgreSQL database with Bun ORM
-
-The architecture uses Chi router for API endpoints with separate resource packages like rfid, room, student, and activity. It's designed
-to help educational institutions monitor student whereabouts and manage facilities through a REST API that can be used by web browsers,
-Tauri desktop apps, and RFID readers.
-
-
-## Overview
-
-Project Phoenix is a full-stack application designed to manage:
-- Room occupancy and scheduling
-- Student registration and tracking
-- Group management and activities
-- RFID-based authentication and access control
+- Responsive Next.js frontend with Tailwind CSS
 
 ## Architecture
 
-- **Backend**: Go-based REST API with JWT authentication
-- **Database**: PostgreSQL with Bun ORM
-- **Frontend**: incoming
+- **Backend**: Go REST API with microservices architecture
+- **Database**: PostgreSQL for persistent data storage
+- **Frontend**: Next.js React application with modern UI components
+- **Authentication**: JWT-based auth system for secure access
+- **RFID Integration**: Custom API endpoints for device communication
 
 ## Getting Started
 
-### Using Docker Compose
+### Quick Start with Docker
 
 ```bash
-# Start the database
+# Start everything
+docker compose up
+
+# Or start just the database
 docker compose up -d postgres
 
 # Run migrations
 docker compose run server ./main migrate
-
-# Start the API server
-docker compose up
 ```
 
-### Local Development
+### Backend Development
 
 ```bash
-# Navigate to backend directory
 cd backend
-
-# Set up environment variables (modify dev.env as needed)
 cp dev.env .env
-
-# Run migrations
 go run main.go migrate
-
-# Start server
 go run main.go serve
+```
+
+### Frontend Development
+
+```bash
+cd frontend
+npm run dev
 ```
 
 ### Testing
 
 ```bash
-# Run all tests
+# Backend tests
 go test ./...
+
+# Frontend checks
+npm run lint && npm run typecheck
 ```
 
 ## Documentation
 
-- API documentation: See `routes.md` and `/docs` directory
+- API endpoints: See `backend/routes.md`
 - RFID integration: See `backend/docs/rfid-integration.md`
+- Architecture diagrams: See `/docs` directory
 
 ## License
 

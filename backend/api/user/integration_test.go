@@ -44,8 +44,8 @@ func TestAPIEndpointsDirectly(t *testing.T) {
 	specialistUser2 := &models.CustomUser{ID: 2, FirstName: "Teacher", SecondName: "Two"}
 
 	specialists := []models.PedagogicalSpecialist{
-		{ID: 1, Role: "Teacher", CustomUserID: 1, UserID: 101, CustomUser: specialistUser1},
-		{ID: 2, Role: "Principal", CustomUserID: 2, UserID: 102, CustomUser: specialistUser2},
+		{ID: 1, Role: "Teacher", UserID: 1, CustomUser: specialistUser1},
+		{ID: 2, Role: "Principal", UserID: 2, CustomUser: specialistUser2},
 	}
 
 	mockUserStore.On("ListSpecialists", mock.Anything).Return(specialists, nil).Once()

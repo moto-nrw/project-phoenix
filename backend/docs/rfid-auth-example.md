@@ -9,7 +9,7 @@ Before you can use most RFID endpoints, you need to register your device and obt
 ```bash
 # Register a new device
 curl -X POST \
-  "http://localhost:3000/api/rfid/devices" \
+  "http://localhost:8080/api/rfid/devices" \
   -H "Content-Type: application/json" \
   -d '{
     "device_id": "my-unique-device-id",
@@ -46,7 +46,7 @@ All protected RFID endpoints require the API key to be included in the `Authoriz
 ```bash
 # Record a tag read
 curl -X POST \
-  "http://localhost:3000/api/rfid/tag" \
+  "http://localhost:8080/api/rfid/tag" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -62,7 +62,7 @@ For GET requests, you can also include the API key as a query parameter:
 ```bash
 # Get all tags
 curl -X GET \
-  "http://localhost:3000/api/rfid/tags?api_key=YOUR_API_KEY"
+  "http://localhost:8080/api/rfid/tags?api_key=YOUR_API_KEY"
 ```
 
 ## API Key Authentication Flow
@@ -123,7 +123,7 @@ import os
 
 # Get API key from environment variable
 API_KEY = os.environ.get("RFID_API_KEY")
-API_BASE_URL = "http://localhost:3000/api/rfid"
+API_BASE_URL = "http://localhost:8080/api/rfid"
 
 # Set up headers with API key
 headers = {
@@ -176,7 +176,7 @@ const axios = require('axios');
 
 // API configuration
 const apiKey = process.env.RFID_API_KEY;
-const baseUrl = 'http://localhost:3000/api/rfid';
+const baseUrl = 'http://localhost:8080/api/rfid';
 
 // Create axios instance with default headers
 const apiClient = axios.create({
@@ -233,7 +233,7 @@ import (
 )
 
 const (
-	apiBaseURL = "http://localhost:3000/api/rfid"
+	apiBaseURL = "http://localhost:8080/api/rfid"
 )
 
 // TagReadRequest represents the payload for recording a tag read

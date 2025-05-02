@@ -3,13 +3,14 @@ services:
     build:
       context: ./backend
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
-      - 3000:3000
+      - 8080:8080
     environment:
       LOG_LEVEL: debug
       LOG_TEXTLOGGING: "true"
-      #PORT: 3000
+      PORT: 8080
       DB_DSN: postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
       #AUTH_JWT_EXPIRY: 1h
       #AUTH_JWT_REFRESH_EXPIRY: 72h
@@ -26,12 +27,12 @@ services:
     build:
       context: ./frontend
     ports:
-      - "3001:3000"
+      - "3000:3000"
     environment:
       # API URL for both client and server-side calls
-      NEXT_PUBLIC_API_URL: "http://server:3000"
+      NEXT_PUBLIC_API_URL: "http://server:8080"
       # NextAuth configuration
-      NEXTAUTH_URL: "http://localhost:3001"
+      NEXTAUTH_URL: "http://localhost:3000"
       NEXTAUTH_SECRET: "supersecretkey123"
       # Skip env validation in Docker
       SKIP_ENV_VALIDATION: "true"
@@ -58,6 +59,12 @@ services:
       - postgres:/var/lib/postgresql/data
     environment:
       POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 1s
+      timeout: 1s
+      retries: 10
+      start_period: 10s
 
 volumes:
   postgres:

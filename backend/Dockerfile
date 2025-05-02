@@ -21,6 +21,6 @@ COPY templates templates
 # Copy frontend
 COPY public public
 # Expose port
-EXPOSE 3000
+EXPOSE 8080
 # Set the binary as the entrypoint of the container
 CMD ["./main", "serve"]
