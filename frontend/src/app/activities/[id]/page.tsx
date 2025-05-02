@@ -7,6 +7,7 @@ import type { Activity, ActivityCategory } from '~/lib/activity-api';
 import { formatActivityTimes, formatParticipantStatus } from '~/lib/activity-helpers';
 import type { Student } from '~/lib/api';
 import { ActivityForm } from '~/components/activities';
+import { PageHeader } from '~/components/dashboard';
 
 interface ActivityDetailPageProps {
   params: {
@@ -121,9 +122,15 @@ export default function ActivityDetailPage({ params }: ActivityDetailPageProps) 
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center py-8">
-          <p className="text-gray-500">Aktivitätsdetails werden geladen...</p>
+      <div className="min-h-screen">
+        <PageHeader 
+          title="Aktivitätsdetails" 
+          backUrl="/activities"
+        />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center py-8">
+            <p className="text-gray-500">Aktivitätsdetails werden geladen...</p>
+          </div>
         </div>
       </div>
     );
@@ -131,17 +138,16 @@ export default function ActivityDetailPage({ params }: ActivityDetailPageProps) 
 
   if (error || !activity) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-red-50 text-red-800 p-4 rounded-lg">
-          <p>{error || 'Aktivität nicht gefunden.'}</p>
-        </div>
-        <div className="mt-4">
-          <button
-            onClick={() => router.push('/activities')}
-            className="px-4 py-2 text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
-          >
-            Zurück zur Übersicht
-          </button>
+      <div className="min-h-screen">
+        <PageHeader 
+          title="Fehler" 
+          description="Aktivitätsdetails konnten nicht geladen werden"
+          backUrl="/activities"
+        />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="bg-red-50 text-red-800 p-4 rounded-lg">
+            <p>{error || 'Aktivität nicht gefunden.'}</p>
+          </div>
         </div>
       </div>
     );
@@ -149,55 +155,62 @@ export default function ActivityDetailPage({ params }: ActivityDetailPageProps) 
 
   if (isEditing) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <button
-            onClick={() => setIsEditing(false)}
-            className="px-4 py-2 text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
-          >
-            &larr; Zurück zu Details
-          </button>
-        </div>
-        
-        <ActivityForm
-          initialData={activity}
-          onSubmitAction={handleUpdateActivity}
-          onCancelAction={() => setIsEditing(false)}
-          isLoading={isSubmitting}
-          formTitle="Aktivität bearbeiten"
-          submitLabel="Speichern"
-          categories={categories}
-          supervisors={supervisors}
+      <div className="min-h-screen">
+        <PageHeader 
+          title={`${activity.name} bearbeiten`}
+          description="Bearbeiten der Aktivitätsdetails"
+          backUrl={`/activities/${id}`}
         />
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <ActivityForm
+            initialData={activity}
+            onSubmitAction={handleUpdateActivity}
+            onCancelAction={() => setIsEditing(false)}
+            isLoading={isSubmitting}
+            formTitle="Aktivität bearbeiten"
+            submitLabel="Speichern"
+            categories={categories}
+            supervisors={supervisors}
+          />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <button
-          onClick={() => router.push('/activities')}
-          className="px-4 py-2 text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
-        >
-          &larr; Zurück zur Übersicht
-        </button>
-        
-        <div className="flex space-x-2">
-          <button
-            onClick={() => setIsEditing(true)}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-          >
-            Bearbeiten
-          </button>
-          <button
-            onClick={handleDeleteActivity}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-          >
-            Löschen
-          </button>
+    <div className="min-h-screen">
+      {/* Header */}
+      <PageHeader 
+        title={activity.name} 
+        description={activity.category_name ? `Kategorie: ${activity.category_name}` : "Aktivitätsdetails"}
+        backUrl="/activities"
+      />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center space-x-2 bg-gray-100 px-3 py-1 rounded-full">
+            <div className={`h-2.5 w-2.5 rounded-full ${activity.is_open_ag ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+            <span className="text-sm font-medium text-gray-700">
+              {activity.is_open_ag ? 'Offen für Anmeldungen' : 'Geschlossen für Anmeldungen'}
+            </span>
+          </div>
+          
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setIsEditing(true)}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            >
+              Bearbeiten
+            </button>
+            <button
+              onClick={handleDeleteActivity}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Löschen
+            </button>
+          </div>
         </div>
-      </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden mb-8">
         <div className="p-6">

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { activityService } from '~/lib/activity-api';
 import type { ActivityCategory } from '~/lib/activity-api';
 import { ActivityForm } from '~/components/activities';
+import { PageHeader } from '~/components/dashboard';
 
 export default function NewActivityPage() {
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
@@ -57,24 +58,31 @@ export default function NewActivityPage() {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center py-8">
-          <p className="text-gray-500">Daten werden geladen...</p>
+      <div className="min-h-screen">
+        <PageHeader 
+          title="Neue Aktivität erstellen" 
+          description="Daten werden geladen"
+          backUrl="/activities"
+        />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center py-8">
+            <p className="text-gray-500">Daten werden geladen...</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6">
-        <button
-          onClick={() => router.push('/activities')}
-          className="px-4 py-2 text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
-        >
-          &larr; Zurück zur Übersicht
-        </button>
-      </div>
+    <div className="min-h-screen">
+      {/* Header */}
+      <PageHeader 
+        title="Neue Aktivität erstellen" 
+        description="Erstellen Sie eine neue Aktivitätsgruppe"
+        backUrl="/activities"
+      />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       
       {error && (
         <div className="bg-red-50 text-red-800 p-4 rounded-lg mb-6">
