@@ -15,7 +15,8 @@ export async function GET(
   request: NextRequest,
   context: RouteContext
 ) {
-  const { id } = context.params;
+  const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
+  const id = resolvedParams.id;
   const session = await auth();
   
   if (!session?.user?.token) {

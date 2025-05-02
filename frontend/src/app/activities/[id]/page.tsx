@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { use } from 'react';
 import { activityService } from '~/lib/activity-api';
 import type { Activity, ActivityCategory } from '~/lib/activity-api';
 import { formatActivityTimes, formatParticipantStatus } from '~/lib/activity-helpers';
@@ -16,7 +17,8 @@ interface ActivityDetailPageProps {
 }
 
 export default function ActivityDetailPage({ params }: ActivityDetailPageProps) {
-  const { id } = params;
+  const resolvedParams = use(params);
+  const { id } = resolvedParams;
   const [activity, setActivity] = useState<Activity | null>(null);
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
   const [supervisors, setSupervisors] = useState<Array<{id: string, name: string}>>([]);
@@ -279,7 +281,7 @@ export default function ActivityDetailPage({ params }: ActivityDetailPageProps) 
             
             <div className="mb-4">
               <h2 className="text-lg font-medium text-gray-800 mb-4">Teilnehmer</h2>
-              {enrolledStudents.length > 0 ? (
+              {enrolledStudents && enrolledStudents.length > 0 ? (
                 <div className="overflow-hidden border border-gray-200 rounded-lg">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
