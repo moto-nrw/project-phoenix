@@ -82,24 +82,24 @@ func foundationTablesUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating indexes for datespan table: %w", err)
 	}
 
-	// 3. Create the ag_category table (Activity Group categories)
+	// 3. Create the ag_categories table (Activity Group categories)
 	_, err = tx.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS ag_category (
+		CREATE TABLE IF NOT EXISTS ag_categories (
 			id BIGSERIAL PRIMARY KEY,
 			name TEXT NOT NULL UNIQUE,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating ag_category table: %w", err)
+		return fmt.Errorf("error creating ag_categories table: %w", err)
 	}
 
-	// Create indexes for ag_category
+	// Create indexes for ag_categories
 	_, err = tx.ExecContext(ctx, `
-		CREATE INDEX IF NOT EXISTS idx_ag_category_name ON ag_category(name);
+		CREATE INDEX IF NOT EXISTS idx_ag_categories_name ON ag_categories(name);
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating indexes for ag_category table: %w", err)
+		return fmt.Errorf("error creating indexes for ag_categories table: %w", err)
 	}
 
 	// 4. Create the settings table
@@ -198,7 +198,7 @@ func foundationTablesDown(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		DROP TABLE IF EXISTS rooms;
 		DROP TABLE IF EXISTS settings;
-		DROP TABLE IF EXISTS ag_category;
+		DROP TABLE IF EXISTS ag_categories;
 		DROP TABLE IF EXISTS datespan;
 		DROP TABLE IF EXISTS timespan;
 	`)

@@ -36,16 +36,16 @@ func activityTablesUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer tx.Rollback()
 
-	// 1. Create the ag_category table
+	// 1. Create the ag_categories table
 	_, err = tx.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS ag_category (
+		CREATE TABLE IF NOT EXISTS ag_categories (
 			id BIGSERIAL PRIMARY KEY,
 			name TEXT NOT NULL UNIQUE,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating ag_category table: %w", err)
+		return fmt.Errorf("error creating ag_categories table: %w", err)
 	}
 
 	// 2. Create the ag (activity group) table
@@ -56,12 +56,12 @@ func activityTablesUp(ctx context.Context, db *bun.DB) error {
 			max_participant INTEGER NOT NULL,
 			is_open_ag BOOLEAN NOT NULL DEFAULT false,
 			supervisor_id BIGINT NOT NULL,
-			ag_category_id BIGINT NOT NULL,
+			ag_categories_id BIGINT NOT NULL,
 			datespan_id BIGINT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			CONSTRAINT fk_ag_supervisor FOREIGN KEY (supervisor_id) REFERENCES pedagogical_specialists(id) ON DELETE RESTRICT,
-			CONSTRAINT fk_ag_category FOREIGN KEY (ag_category_id) REFERENCES ag_category(id) ON DELETE RESTRICT,
+			CONSTRAINT fk_ag_categories FOREIGN KEY (ag_categories_id) REFERENCES ag_categories(id) ON DELETE RESTRICT,
 			CONSTRAINT fk_ag_datespan FOREIGN KEY (datespan_id) REFERENCES timespan(id) ON DELETE SET NULL
 		)
 	`)
@@ -89,7 +89,7 @@ func activityTablesUp(ctx context.Context, db *bun.DB) error {
 	// Create indexes for ag
 	_, err = tx.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_ag_supervisor_id ON ag(supervisor_id);
-		CREATE INDEX IF NOT EXISTS idx_ag_category_id ON ag(ag_category_id);
+		CREATE INDEX IF NOT EXISTS idx_ag_categories_id ON ag(ag_categories_id);
 		CREATE INDEX IF NOT EXISTS idx_ag_datespan_id ON ag(datespan_id);
 		CREATE INDEX IF NOT EXISTS idx_ag_name ON ag(name);
 	`)
@@ -138,7 +138,7 @@ func activityTablesDown(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		DROP TABLE IF EXISTS ag_time;
 		DROP TABLE IF EXISTS ag;
-		DROP TABLE IF EXISTS ag_category;
+		DROP TABLE IF EXISTS ag_categories;
 	`)
 	if err != nil {
 		return fmt.Errorf("error dropping activity group tables: %w", err)
