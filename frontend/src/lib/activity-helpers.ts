@@ -155,7 +155,10 @@ export function prepareActivityForBackend(activity: Partial<Activity>): any {
   const backendActivity: any = {
     name: activity.name,
     max_participant: activity.max_participant,
-    is_open_ags: activity.is_open_ags
+    is_open_ags: activity.is_open_ags,
+    // Add these fields to ensure they're always included, even if undefined
+    ag_categories_id: undefined,
+    supervisor_id: undefined
   };
 
   // Add IDs if present, ensuring they're converted to numbers
@@ -163,13 +166,11 @@ export function prepareActivityForBackend(activity: Partial<Activity>): any {
     backendActivity.id = parseInt(activity.id, 10);
   }
   
-  if (activity.supervisor_id) {
-    backendActivity.supervisor_id = parseInt(activity.supervisor_id, 10);
-  }
+  // Always include supervisor_id - either from input or as 0
+  backendActivity.supervisor_id = activity.supervisor_id ? parseInt(activity.supervisor_id, 10) : 0;
   
-  if (activity.ag_category_id) {
-    backendActivity.ag_categories_id = parseInt(activity.ag_category_id, 10);
-  }
+  // Always include ag_categories_id - either from input or as 0
+  backendActivity.ag_categories_id = activity.ag_category_id ? parseInt(activity.ag_category_id, 10) : 0;
   
   if (activity.datespan_id) {
     backendActivity.datespan_id = parseInt(activity.datespan_id, 10);
