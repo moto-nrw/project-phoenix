@@ -62,7 +62,7 @@ func activityTablesUp(ctx context.Context, db *bun.DB) error {
 			modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			CONSTRAINT fk_ag_supervisor FOREIGN KEY (supervisor_id) REFERENCES pedagogical_specialists(id) ON DELETE RESTRICT,
 			CONSTRAINT fk_ag_categories FOREIGN KEY (ag_categories_id) REFERENCES ag_categories(id) ON DELETE RESTRICT,
-			CONSTRAINT fk_ag_datespan FOREIGN KEY (datespan_id) REFERENCES timespan(id) ON DELETE SET NULL
+			CONSTRAINT fk_ag_datespan FOREIGN KEY (datespan_id) REFERENCES timespans(id) ON DELETE SET NULL
 		)
 	`)
 	if err != nil {
@@ -74,10 +74,10 @@ func activityTablesUp(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS ag_times (
 			id BIGSERIAL PRIMARY KEY,
 			weekday TEXT NOT NULL,
-			timespan_id BIGINT NOT NULL,
+			timespans_id BIGINT NOT NULL,
 			ag_id BIGINT NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			CONSTRAINT fk_ag_time_timespan FOREIGN KEY (timespan_id) REFERENCES timespan(id) ON DELETE CASCADE,
+			CONSTRAINT fk_ag_time_timespans FOREIGN KEY (timespans_id) REFERENCES timespans(id) ON DELETE CASCADE,
 			CONSTRAINT fk_ag_time_ags FOREIGN KEY (ag_id) REFERENCES ags(id) ON DELETE CASCADE,
 			CONSTRAINT check_weekday CHECK (weekday IN ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'))
 		)
@@ -100,7 +100,7 @@ func activityTablesUp(ctx context.Context, db *bun.DB) error {
 	// Create indexes for ag_times
 	_, err = tx.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_ag_time_ag_id ON ag_times(ag_id);
-		CREATE INDEX IF NOT EXISTS idx_ag_time_timespan_id ON ag_times(timespan_id);
+		CREATE INDEX IF NOT EXISTS idx_ag_time_timespans_id ON ag_times(timespans_id);
 		CREATE INDEX IF NOT EXISTS idx_ag_time_weekday ON ag_times(weekday);
 	`)
 	if err != nil {
