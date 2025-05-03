@@ -126,7 +126,7 @@ const TimeSlotEditor = ({
         return;
       }
       
-      const data: { id: string } = await response.json();
+      const data = await response.json() as { id: string };
       const newTimespanId = data.id;
       
       console.log('Created timespan with ID:', newTimespanId, 'Full response:', JSON.stringify(data));

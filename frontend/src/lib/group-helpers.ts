@@ -73,8 +73,8 @@ export function mapSingleGroupResponse(group: BackendGroup): Group {
     representative_name: group.representative?.custom_user ? 
       `${group.representative.custom_user.first_name} ${group.representative.custom_user.second_name}` : 
       undefined,
-    student_count: group.students?.length || 0,
-    supervisor_count: group.supervisors?.length || 0,
+    student_count: group.students?.length ?? 0,
+    supervisor_count: group.supervisors?.length ?? 0,
     created_at: group.created_at,
     updated_at: group.updated_at,
     students: group.students?.map(s => ({
@@ -131,8 +131,8 @@ export function mapSingleCombinedGroupResponse(combinedGroup: BackendCombinedGro
       name: s.custom_user ? `${s.custom_user.first_name} ${s.custom_user.second_name}` : 'Unknown',
     })),
     is_expired: isExpired,
-    group_count: combinedGroup.groups?.length || 0,
-    specialist_count: combinedGroup.access_specialists?.length || 0,
+    group_count: combinedGroup.groups?.length ?? 0,
+    specialist_count: combinedGroup.access_specialists?.length ?? 0,
     time_until_expiration: timeUntilExpiration,
   };
 }
@@ -144,7 +144,7 @@ export function prepareGroupForBackend(group: Partial<Group>): Record<string, un
   const backendGroup: Record<string, unknown> = {};
   
   // Required fields
-  backendGroup.name = group.name || '';
+  backendGroup.name = group.name ?? '';
   
   // Optional fields
   if (group.room_id) {
@@ -165,9 +165,9 @@ export function prepareCombinedGroupForBackend(combinedGroup: Partial<CombinedGr
   const backendCombinedGroup: Record<string, unknown> = {};
   
   // Required fields
-  backendCombinedGroup.name = combinedGroup.name || '';
-  backendCombinedGroup.access_policy = combinedGroup.access_policy || 'manual';
-  backendCombinedGroup.is_active = combinedGroup.is_active !== undefined ? combinedGroup.is_active : true;
+  backendCombinedGroup.name = combinedGroup.name ?? '';
+  backendCombinedGroup.access_policy = combinedGroup.access_policy ?? 'manual';
+  backendCombinedGroup.is_active = combinedGroup.is_active ?? true;
   
   // Optional fields
   if (combinedGroup.valid_until) {

@@ -1,8 +1,7 @@
 import axios from 'axios';
-import type { AxiosError } from 'axios';
 import { getSession } from 'next-auth/react';
 import { env } from '~/env';
-import { mapActivityResponse, mapSingleActivityResponse, mapCategoryResponse, prepareActivityForBackend } from './activity-helpers';
+import { mapActivityResponse, mapSingleActivityResponse, mapCategoryResponse, prepareActivityForBackend, type BackendActivity, type ActivityData } from './activity-helpers';
 import { handleAuthFailure } from './auth-api';
 import type { Student } from './api';
 
@@ -101,7 +100,8 @@ export const activityService = {
               });
               
               if (retryResponse.ok) {
-                return mapActivityResponse(await retryResponse.json());
+                const responseData = await retryResponse.json() as ActivityData[];
+                return mapActivityResponse(responseData);
               }
             }
           }
@@ -109,7 +109,8 @@ export const activityService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        return mapActivityResponse(await response.json());
+        const responseData = await response.json() as ActivityData[];
+        return mapActivityResponse(responseData);
       } else {
         // Server-side: use axios with the API URL directly
         const api = axios.create({
@@ -118,7 +119,7 @@ export const activityService = {
           withCredentials: true,
         });
         const response = await api.get(url, { params });
-        return mapActivityResponse(response.data);
+        return mapActivityResponse(response.data as ActivityData[]);
       }
     } catch (error) {
       console.error("Error fetching activities:", error);
@@ -163,7 +164,7 @@ export const activityService = {
               });
               
               if (retryResponse.ok) {
-                const data = await retryResponse.json();
+                const data = await retryResponse.json() as ActivityData;
                 return mapSingleActivityResponse(data);
               }
             }
@@ -172,7 +173,7 @@ export const activityService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        const data = await response.json();
+        const data = await response.json() as ActivityData;
         return mapSingleActivityResponse(data);
       } else {
         // Server-side: use axios with the API URL directly
@@ -182,7 +183,7 @@ export const activityService = {
           withCredentials: true,
         });
         const response = await api.get(url);
-        return mapSingleActivityResponse(response.data);
+        return mapSingleActivityResponse(response.data as ActivityData);
       }
     } catch (error) {
       console.error(`Error fetching activity ${id}:`, error);
@@ -193,7 +194,7 @@ export const activityService = {
   // Create a new activity
   createActivity: async (activity: Omit<Activity, 'id'>): Promise<Activity> => {
     // Transform from frontend model to backend model
-    const backendActivity = prepareActivityForBackend(activity);
+    const backendActivity: BackendActivity = prepareActivityForBackend(activity as Activity);
     
     // Basic validation
     if (!backendActivity.name) {
@@ -231,17 +232,17 @@ export const activityService = {
           console.error(`API error: ${response.status}`, errorText);
           // Try to parse error for more detailed message
           try {
-            const errorJson = JSON.parse(errorText);
+            const errorJson = JSON.parse(errorText) as { error?: string };
             if (errorJson.error) {
               throw new Error(`API error: ${errorJson.error}`);
             }
-          } catch (e) {
+          } catch {
             // If parsing fails, use status code
           }
           throw new Error(`API error: ${response.status}`);
         }
         
-        const data = await response.json();
+        const data = await response.json() as ActivityData;
         return mapSingleActivityResponse(data);
       } else {
         // Server-side: use axios with the API URL directly
@@ -251,7 +252,7 @@ export const activityService = {
           withCredentials: true,
         });
         const response = await api.post(url, backendActivity);
-        return mapSingleActivityResponse(response.data);
+        return mapSingleActivityResponse(response.data as ActivityData);
       }
     } catch (error) {
       console.error(`Error creating activity:`, error);
@@ -265,7 +266,7 @@ export const activityService = {
     console.log('Updating activity with data:', JSON.stringify(activity, null, 2));
     
     // Transform from frontend model to backend model updates
-    const backendUpdates = prepareActivityForBackend(activity);
+    const backendUpdates: BackendActivity = prepareActivityForBackend(activity);
     
     // Log the transformed backend model updates
     console.log('Backend updates prepared:', JSON.stringify(backendUpdates, null, 2));
@@ -298,17 +299,17 @@ export const activityService = {
           
           // Try to parse error text as JSON for more detailed error
           try {
-            const errorJson = JSON.parse(errorText);
+            const errorJson = JSON.parse(errorText) as { error?: string };
             if (errorJson.error) {
               throw new Error(`API error ${response.status}: ${errorJson.error}`);
             }
-          } catch (e) {
+          } catch {
             // If parsing fails, use status code + error text
             throw new Error(`API error ${response.status}: ${errorText.substring(0, 100)}`);
           }
         }
         
-        const data = await response.json();
+        const data = await response.json() as ActivityData;
         return mapSingleActivityResponse(data);
       } else {
         // Server-side: use axios with the API URL directly
@@ -318,7 +319,7 @@ export const activityService = {
           withCredentials: true,
         });
         const response = await api.put(url, backendUpdates);
-        return mapSingleActivityResponse(response.data);
+        return mapSingleActivityResponse(response.data as ActivityData);
       }
     } catch (error) {
       console.error(`Error updating activity ${id}:`, error);
@@ -390,7 +391,8 @@ export const activityService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        return mapCategoryResponse(await response.json());
+        const responseData = await response.json() as CategoryData[];
+        return mapCategoryResponse(responseData);
       } else {
         // Server-side: use axios with the API URL directly
         const api = axios.create({
@@ -399,7 +401,7 @@ export const activityService = {
           withCredentials: true,
         });
         const response = await api.get(url);
-        return mapCategoryResponse(response.data);
+        return mapCategoryResponse(response.data as CategoryData[]);
       }
     } catch (error) {
       console.error("Error fetching activity categories:", error);
@@ -475,11 +477,11 @@ export const activityService = {
           
           // Try to parse error text as JSON for more detailed error
           try {
-            const errorJson = JSON.parse(errorText);
+            const errorJson = JSON.parse(errorText) as { error?: string };
             if (errorJson.error) {
               throw new Error(errorJson.error);
             }
-          } catch (e) {
+          } catch {
             // If parsing fails, use status code
           }
           
@@ -725,7 +727,8 @@ export const activityService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        return mapActivityResponse(await response.json());
+        const responseData = await response.json() as ActivityData[];
+        return mapActivityResponse(responseData);
       } else {
         // Server-side: use axios with the API URL directly
         const api = axios.create({
@@ -734,7 +737,7 @@ export const activityService = {
           withCredentials: true,
         });
         const response = await api.get(url);
-        return mapActivityResponse(response.data);
+        return mapActivityResponse(response.data as ActivityData[]);
       }
     } catch (error) {
       console.error(`Error fetching activities for student ${studentId}:`, error);
@@ -767,7 +770,8 @@ export const activityService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        return mapActivityResponse(await response.json());
+        const responseData = await response.json() as ActivityData[];
+        return mapActivityResponse(responseData);
       } else {
         // Server-side: use axios with the API URL directly
         const api = axios.create({
@@ -776,7 +780,7 @@ export const activityService = {
           withCredentials: true,
         });
         const response = await api.get(url);
-        return mapActivityResponse(response.data);
+        return mapActivityResponse(response.data as ActivityData[]);
       }
     } catch (error) {
       console.error(`Error fetching available activities for student ${studentId}:`, error);

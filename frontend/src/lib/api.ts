@@ -180,7 +180,8 @@ export const studentService = {
               });
               
               if (retryResponse.ok) {
-                return mapStudentResponse(await retryResponse.json());
+                const responseData = await retryResponse.json() as BackendStudent[];
+                return mapStudentResponse(responseData);
               }
             }
           }
@@ -188,11 +189,12 @@ export const studentService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        return mapStudentResponse(await response.json());
+        const responseData = await response.json() as BackendStudent[];
+        return mapStudentResponse(responseData);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
-        return mapStudentResponse(response.data);
+        return mapStudentResponse(response.data as BackendStudent[]);
       }
     } catch (error) {
       console.error("Error fetching students:", error);
@@ -239,7 +241,7 @@ export const studentService = {
               });
               
               if (retryResponse.ok) {
-                const data = await retryResponse.json();
+                const data = await retryResponse.json() as BackendStudent;
                 return mapSingleStudentResponse(data);
               }
             }
@@ -248,14 +250,14 @@ export const studentService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        const data = await response.json();
+        const data = await response.json() as BackendStudent;
         // Map response to our frontend model
         const mappedResponse = mapSingleStudentResponse(data);
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapSingleStudentResponse(response.data);
+        return mapSingleStudentResponse(response.data as BackendStudent);
       }
     } catch (error) {
       console.error(`Error fetching student ${id}:`, error);
@@ -279,9 +281,7 @@ export const studentService = {
       throw new Error('Missing required field: second_name');
     }
     // Ensure group_id is set (defaults to 1 if not provided)
-    if (!backendStudent.group_id) {
-      backendStudent.group_id = 1;
-    }
+    backendStudent.group_id ??= 1;
     
     const useProxyApi = typeof window !== 'undefined';
     const url = useProxyApi ? `/api/students` : `${env.NEXT_PUBLIC_API_URL}/students`;
@@ -305,24 +305,24 @@ export const studentService = {
           console.error(`API error: ${response.status}`, errorText);
           // Try to parse error for more detailed message
           try {
-            const errorJson = JSON.parse(errorText);
+            const errorJson = JSON.parse(errorText) as { error?: string };
             if (errorJson.error) {
               throw new Error(`API error: ${errorJson.error}`);
             }
-          } catch (e) {
+          } catch {
             // If parsing fails, use status code
           }
           throw new Error(`API error: ${response.status}`);
         }
         
-        const data = await response.json();
+        const data = await response.json() as BackendStudent;
         // Map response to our frontend model
         const mappedResponse = mapSingleStudentResponse(data);
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.post(url, backendStudent);
-        return mapSingleStudentResponse(response.data);
+        return mapSingleStudentResponse(response.data as BackendStudent);
       }
     } catch (error) {
       console.error(`Error creating student:`, error);
@@ -374,17 +374,17 @@ export const studentService = {
           
           // Try to parse error text as JSON for more detailed error
           try {
-            const errorJson = JSON.parse(errorText);
+            const errorJson = JSON.parse(errorText) as { error?: string };
             if (errorJson.error) {
               throw new Error(`API error ${response.status}: ${errorJson.error}`);
             }
-          } catch (e) {
+          } catch {
             // If parsing fails, use status code + error text
             throw new Error(`API error ${response.status}: ${errorText.substring(0, 100)}`);
           }
         }
         
-        const data = await response.json();
+        const data = await response.json() as BackendStudent;
         // Map response to our frontend model
         const mappedResponse = mapSingleStudentResponse(data);
         return mappedResponse;
@@ -500,7 +500,8 @@ export const groupService = {
               });
               
               if (retryResponse.ok) {
-                return mapGroupResponse(await retryResponse.json());
+                const responseData = await retryResponse.json() as BackendGroup[];
+                return mapGroupResponse(responseData);
               }
             }
           }
@@ -508,11 +509,12 @@ export const groupService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        return mapGroupResponse(await response.json());
+        const responseData = await response.json() as BackendGroup[];
+        return mapGroupResponse(responseData);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
-        return mapGroupResponse(response.data);
+        return mapGroupResponse(response.data as BackendGroup[]);
       }
     } catch (error) {
       console.error("Error fetching groups:", error);
@@ -558,7 +560,7 @@ export const groupService = {
               });
               
               if (retryResponse.ok) {
-                const data = await retryResponse.json();
+                const data = await retryResponse.json() as BackendGroup;
                 return mapSingleGroupResponse(data);
               }
             }
@@ -567,12 +569,12 @@ export const groupService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        const data = await response.json();
+        const data = await response.json() as BackendGroup;
         return mapSingleGroupResponse(data);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapSingleGroupResponse(response.data);
+        return mapSingleGroupResponse(response.data as BackendGroup);
       }
     } catch (error) {
       console.error(`Error fetching group ${id}:`, error);
@@ -612,22 +614,22 @@ export const groupService = {
           console.error(`API error: ${response.status}`, errorText);
           // Try to parse error for more detailed message
           try {
-            const errorJson = JSON.parse(errorText);
+            const errorJson = JSON.parse(errorText) as { error?: string };
             if (errorJson.error) {
               throw new Error(`API error: ${errorJson.error}`);
             }
-          } catch (e) {
+          } catch {
             // If parsing fails, use status code
           }
           throw new Error(`API error: ${response.status}`);
         }
         
-        const data = await response.json();
+        const data = await response.json() as BackendGroup;
         return mapSingleGroupResponse(data);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.post(url, backendGroup);
-        return mapSingleGroupResponse(response.data);
+        return mapSingleGroupResponse(response.data as BackendGroup);
       }
     } catch (error) {
       console.error(`Error creating group:`, error);
@@ -663,22 +665,22 @@ export const groupService = {
           
           // Try to parse error text as JSON for more detailed error
           try {
-            const errorJson = JSON.parse(errorText);
+            const errorJson = JSON.parse(errorText) as { error?: string };
             if (errorJson.error) {
               throw new Error(`API error ${response.status}: ${errorJson.error}`);
             }
-          } catch (e) {
+          } catch {
             // If parsing fails, use status code + error text
             throw new Error(`API error ${response.status}: ${errorText.substring(0, 100)}`);
           }
         }
         
-        const data = await response.json();
+        const data = await response.json() as BackendGroup;
         return mapSingleGroupResponse(data);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.put(url, backendUpdates);
-        return mapSingleGroupResponse(response.data);
+        return mapSingleGroupResponse(response.data as BackendGroup);
       }
     } catch (error) {
       console.error(`Error updating group ${id}:`, error);
@@ -710,12 +712,12 @@ export const groupService = {
           
           // Try to parse error text as JSON for more detailed error message
           try {
-            const errorJson = JSON.parse(errorText);
+            const errorJson = JSON.parse(errorText) as { error?: string };
             if (errorJson.error) {
               // Throw the actual error message from the backend
               throw new Error(errorJson.error);
             }
-          } catch (parseError) {
+          } catch {
             // If JSON parsing fails, check if the error text contains the specific error message
             if (errorText.includes('cannot delete group with students')) {
               throw new Error('cannot delete group with students');
@@ -737,7 +739,7 @@ export const groupService = {
           const axiosErr = axiosError as AxiosError;
           if (axiosErr.response?.data) {
             // Try to extract the error message from the response data
-            const errorData = axiosErr.response.data as any;
+            const errorData = axiosErr.response.data as { error?: string };
             if (errorData.error) {
               throw new Error(errorData.error);
             }
@@ -774,11 +776,12 @@ export const groupService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        return mapStudentResponse(await response.json());
+        const responseData = await response.json() as BackendStudent[];
+        return mapStudentResponse(responseData);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapStudentResponse(response.data);
+        return mapStudentResponse(response.data as BackendStudent[]);
       }
     } catch (error) {
       console.error(`Error fetching students for group ${id}:`, error);
@@ -922,11 +925,12 @@ export const combinedGroupService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        return mapCombinedGroupResponse(await response.json());
+        const responseData = await response.json() as BackendCombinedGroup[];
+        return mapCombinedGroupResponse(responseData);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapCombinedGroupResponse(response.data);
+        return mapCombinedGroupResponse(response.data as BackendCombinedGroup[]);
       }
     } catch (error) {
       console.error("Error fetching combined groups:", error);
@@ -957,11 +961,12 @@ export const combinedGroupService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        return mapSingleCombinedGroupResponse(await response.json());
+        const responseData = await response.json() as BackendCombinedGroup;
+        return mapSingleCombinedGroupResponse(responseData);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapSingleCombinedGroupResponse(response.data);
+        return mapSingleCombinedGroupResponse(response.data as BackendCombinedGroup);
       }
     } catch (error) {
       console.error(`Error fetching combined group ${id}:`, error);
@@ -1005,11 +1010,12 @@ export const combinedGroupService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        return mapSingleCombinedGroupResponse(await response.json());
+        const responseData = await response.json() as BackendCombinedGroup;
+        return mapSingleCombinedGroupResponse(responseData);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.post(url, backendCombinedGroup);
-        return mapSingleCombinedGroupResponse(response.data);
+        return mapSingleCombinedGroupResponse(response.data as BackendCombinedGroup);
       }
     } catch (error) {
       console.error(`Error creating combined group:`, error);
@@ -1045,11 +1051,12 @@ export const combinedGroupService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        return mapSingleCombinedGroupResponse(await response.json());
+        const responseData = await response.json() as BackendCombinedGroup;
+        return mapSingleCombinedGroupResponse(responseData);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.put(url, backendUpdates);
-        return mapSingleCombinedGroupResponse(response.data);
+        return mapSingleCombinedGroupResponse(response.data as BackendCombinedGroup);
       }
     } catch (error) {
       console.error(`Error updating combined group ${id}:`, error);

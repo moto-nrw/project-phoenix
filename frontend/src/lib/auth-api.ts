@@ -19,7 +19,7 @@ export async function refreshToken(): Promise<{ access_token: string, refresh_to
       return null;
     }
 
-    const data = await response.json();
+    const data = await response.json() as { access_token: string, refresh_token: string };
     return data;
   } catch (error) {
     console.error('Error refreshing token:', error);

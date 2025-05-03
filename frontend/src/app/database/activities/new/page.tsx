@@ -38,10 +38,11 @@ export default function NewActivityPage() {
         setCategories(categoriesData);
         
         setError(null);
-      } catch (_apiErr) {
+      } catch (apiErr) {
+        console.error('API error fetching categories:', apiErr);
         setError('Fehler beim Laden der Kategorien. Bitte versuchen Sie es später erneut.');
       }
-    } catch (_err) {
+    } catch {
       setError('Fehler beim Laden der Kategorien. Bitte versuchen Sie es später erneut.');
     } finally {
       setLoading(false);
@@ -60,7 +61,7 @@ export default function NewActivityPage() {
         throw new Error(`Failed to fetch supervisors: ${response.statusText}`);
       }
       
-      const supervisorsData: Array<{id: string, name: string}> = await response.json();
+      const supervisorsData = await response.json() as Array<{id: string, name: string}>;
       setSupervisors(supervisorsData);
     } catch (err) {
       console.error('Error fetching supervisors:', err);

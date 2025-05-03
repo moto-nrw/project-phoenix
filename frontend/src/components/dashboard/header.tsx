@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 
 interface HeaderProps {
@@ -14,7 +15,7 @@ export function Header({ userName = 'Root' }: HeaderProps) {
         <div className="flex items-center">
           {/* Logo and title - always in the same position */}
           <div className="flex items-center gap-3 w-[160px] justify-center">
-            <img 
+            <Image 
               src="/images/moto_transparent.png" 
               alt="Logo" 
               width={40} 

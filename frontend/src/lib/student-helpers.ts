@@ -35,8 +35,8 @@ export function mapSingleStudentResponse(student: BackendStudent): Student {
       ? `${student.custom_user.first_name} ${student.custom_user.second_name}` 
       : 'Unknown',
     // Store first_name and second_name separately
-    first_name: student.custom_user?.first_name || '',
-    second_name: student.custom_user?.second_name || '',
+    first_name: student.custom_user?.first_name ?? '',
+    second_name: student.custom_user?.second_name ?? '',
     school_class: student.school_class,
     // Use school_class as grade for display consistency
     grade: student.school_class,
@@ -45,11 +45,11 @@ export function mapSingleStudentResponse(student: BackendStudent): Student {
     group_name: student.group?.name,
     group_id: student.group_id?.toString(),
     in_house: student.in_house,
-    wc: student.wc || false,
-    school_yard: student.school_yard || false,
-    bus: student.bus || false,
-    name_lg: student.name_lg || '',
-    contact_lg: student.contact_lg || '',
+    wc: student.wc ?? false,
+    school_yard: student.school_yard ?? false,
+    bus: student.bus ?? false,
+    name_lg: student.name_lg ?? '',
+    contact_lg: student.contact_lg ?? '',
     custom_users_id: student.custom_users_id?.toString()
   };
 }
@@ -62,11 +62,11 @@ export function prepareStudentForBackend(student: Partial<Student>): Record<stri
   
   // Map fields to backend model
   // School class is required - prioritize school_class, fall back to grade
-  backendStudent.school_class = student.school_class || student.grade || '';
+  backendStudent.school_class = student.school_class ?? student.grade ?? '';
   
   // Legal guardian info is required
-  backendStudent.name_lg = student.name_lg || '';
-  backendStudent.contact_lg = student.contact_lg || '';
+  backendStudent.name_lg = student.name_lg ?? '';
+  backendStudent.contact_lg = student.contact_lg ?? '';
   
   // Status fields
   if (student.bus !== undefined) backendStudent.bus = student.bus;
