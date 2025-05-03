@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	models2 "github.com/moto-nrw/project-phoenix/models"
-
 	"github.com/uptrace/bun"
+	"time"
 )
 
 // GroupStore implements database operations for group management
@@ -325,7 +325,7 @@ func (s *GroupStore) ListCombinedGroups(ctx context.Context) ([]models2.Combined
 }
 
 // MergeRooms merges two rooms and creates a combined group
-func (s *GroupStore) MergeRooms(ctx context.Context, sourceRoomID, targetRoomID int64) (*models2.CombinedGroup, error) {
+func (s *GroupStore) MergeRooms(ctx context.Context, sourceRoomID, targetRoomID int64, name string, validUntil *time.Time, accessPolicy string) (*models2.CombinedGroup, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return nil, err
@@ -362,12 +362,24 @@ func (s *GroupStore) MergeRooms(ctx context.Context, sourceRoomID, targetRoomID 
 		return nil, errors.New("no group found for target room")
 	}
 
+	// Use provided name or generate one
+	combinedGroupName := name
+	if combinedGroupName == "" {
+		combinedGroupName = fmt.Sprintf("%s + %s", sourceGroup.Name, targetGroup.Name)
+	}
+
+	// Use provided access policy or default to "all"
+	policy := accessPolicy
+	if policy == "" {
+		policy = "all" // All supervisors from both groups have access
+	}
+
 	// Create a combined group with both groups
-	combinedGroupName := fmt.Sprintf("%s + %s", sourceGroup.Name, targetGroup.Name)
 	combinedGroup := &models2.CombinedGroup{
 		Name:         combinedGroupName,
 		IsActive:     true,
-		AccessPolicy: "all", // All supervisors from both groups have access
+		AccessPolicy: policy,
+		ValidUntil:   validUntil,
 	}
 
 	_, err = tx.NewInsert().
@@ -473,4 +485,77 @@ func (s *GroupStore) MergeRooms(ctx context.Context, sourceRoomID, targetRoomID 
 
 	// Return the created combined group with all relations
 	return s.GetCombinedGroupByID(ctx, combinedGroup.ID)
+}
+
+func (s *GroupStore) DeactivateCombinedGroup(ctx context.Context, id int64) error {
+	_, err := s.db.NewUpdate().
+		Model((*models2.CombinedGroup)(nil)).
+		Set("is_active = ?", false).
+		Set("modified_at = ?", time.Now()).
+		Where("id = ?", id).
+		Exec(ctx)
+
+	return err
+}
+
+// FindActiveCombinedGroups returns all active combined groups
+func (s *GroupStore) FindActiveCombinedGroups(ctx context.Context) ([]models2.CombinedGroup, error) {
+	var combinedGroups []models2.CombinedGroup
+
+	err := s.db.NewSelect().
+		Model(&combinedGroups).
+		Relation("SpecificGroup").
+		Relation("Groups").
+		Relation("AccessSpecialists").
+		Relation("AccessSpecialists.CustomUser").
+		Where("is_active = ?", true).
+		Where("valid_until IS NULL OR valid_until > ?", time.Now()).
+		OrderExpr("combined_group.name ASC").
+		Scan(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return combinedGroups, nil
+}
+
+// GetCombinedGroupForRoom returns the active combined group for a specific room
+func (s *GroupStore) GetCombinedGroupForRoom(ctx context.Context, roomID int64) (*models2.CombinedGroup, error) {
+	// First, find the group associated with the room
+	var group models2.Group
+	err := s.db.NewSelect().
+		Model(&group).
+		Where("room_id = ?", roomID).
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("no group found for this room")
+		}
+		return nil, err
+	}
+
+	// Then, find any active combined group that includes this group
+	var combinedGroup models2.CombinedGroup
+	err = s.db.NewSelect().
+		Model(&combinedGroup).
+		Join("JOIN combined_group_groups cgg ON cgg.combinedgroup_id = combined_group.id").
+		Where("cgg.group_id = ?", group.ID).
+		Where("combined_group.is_active = ?", true).
+		Where("combined_group.valid_until IS NULL OR combined_group.valid_until > ?", time.Now()).
+		Relation("SpecificGroup").
+		Relation("Groups").
+		Relation("AccessSpecialists").
+		Relation("AccessSpecialists.CustomUser").
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("no active combined group found for this room")
+		}
+		return nil, err
+	}
+
+	return &combinedGroup, nil
 }

@@ -2,6 +2,8 @@ package database
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models"
@@ -152,4 +154,155 @@ func (s *RoomStore) GetRoomsGroupedByCategory(ctx context.Context) (map[string][
 	}
 
 	return groupedRooms, nil
+}
+
+// GetCurrentRoomOccupancy returns the current occupancy of a room
+func (s *RoomStore) GetCurrentRoomOccupancy(ctx context.Context, roomID int64) (*models.RoomOccupancy, error) {
+	occupancy := new(models.RoomOccupancy)
+	err := s.db.NewSelect().
+		Model(occupancy).
+		Relation("Room").
+		Relation("Ag").
+		Relation("Group").
+		Relation("Timespan").
+		Relation("Supervisors").
+		Relation("Supervisors.CustomUser").
+		Where("room_id = ?", roomID).
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("no occupancy found for this room")
+		}
+		return nil, err
+	}
+
+	return occupancy, nil
+}
+
+// RegisterTablet registers a tablet device to a room
+func (s *RoomStore) RegisterTablet(ctx context.Context, roomID int64, deviceID string, agID *int64, groupID *int64) (*models.RoomOccupancy, error) {
+	// Check if the tablet is already registered
+	exists, err := s.db.NewSelect().
+		Model((*models.RoomOccupancy)(nil)).
+		Where("device_id = ?", deviceID).
+		Exists(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, errors.New("tablet is already registered")
+	}
+
+	// Get the current timespan
+	var timespan models.Timespan
+	err = s.db.NewSelect().
+		Model(&timespan).
+		Where("is_active = true").
+		Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a new room occupancy
+	occupancy := &models.RoomOccupancy{
+		DeviceID:   deviceID,
+		RoomID:     roomID,
+		AgID:       agID,
+		GroupID:    groupID,
+		TimespanID: timespan.ID,
+		CreatedAt:  time.Now(),
+		ModifiedAt: time.Now(),
+	}
+
+	_, err = s.db.NewInsert().
+		Model(occupancy).
+		Returning("*").
+		Exec(ctx, occupancy)
+	if err != nil {
+		return nil, err
+	}
+
+	// Load the complete occupancy with all relations
+	err = s.db.NewSelect().
+		Model(occupancy).
+		Relation("Room").
+		Relation("Ag").
+		Relation("Group").
+		Relation("Timespan").
+		WherePK().
+		Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return occupancy, nil
+}
+
+// UnregisterTablet unregisters a tablet from a room
+func (s *RoomStore) UnregisterTablet(ctx context.Context, roomID int64, deviceID string) error {
+	// Retrieve the occupancy first for history recording
+	occupancy := new(models.RoomOccupancy)
+	err := s.db.NewSelect().
+		Model(occupancy).
+		Where("room_id = ? AND device_id = ?", roomID, deviceID).
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return errors.New("tablet not registered in this room")
+		}
+		return err
+	}
+
+	// Record occupancy history
+	historyStore := NewRoomHistoryStore(s.db)
+	err = historyStore.CreateRoomHistoryFromOccupancy(ctx, occupancy)
+	if err != nil {
+		return err
+	}
+
+	// Delete the occupancy
+	_, err = s.db.NewDelete().
+		Model((*models.RoomOccupancy)(nil)).
+		Where("room_id = ? AND device_id = ?", roomID, deviceID).
+		Exec(ctx)
+
+	return err
+}
+
+// GetRoomHistoryByRoom retrieves room history records for a specific room
+func (s *RoomStore) GetRoomHistoryByRoom(ctx context.Context, roomID int64) ([]models.RoomHistory, error) {
+	var history []models.RoomHistory
+	err := s.db.NewSelect().
+		Model(&history).
+		Where("room_id = ?", roomID).
+		Order("day DESC").
+		Scan(ctx)
+
+	return history, err
+}
+
+// GetRoomHistoryByDateRange retrieves room history records within a date range
+func (s *RoomStore) GetRoomHistoryByDateRange(ctx context.Context, startDate, endDate time.Time) ([]models.RoomHistory, error) {
+	var history []models.RoomHistory
+	err := s.db.NewSelect().
+		Model(&history).
+		Where("day BETWEEN ? AND ?", startDate, endDate).
+		Order("day DESC").
+		Scan(ctx)
+
+	return history, err
+}
+
+// GetRoomHistoryBySupervisor retrieves room history records for a specific supervisor
+func (s *RoomStore) GetRoomHistoryBySupervisor(ctx context.Context, supervisorID int64) ([]models.RoomHistory, error) {
+	var history []models.RoomHistory
+	err := s.db.NewSelect().
+		Model(&history).
+		Where("supervisor_id = ?", supervisorID).
+		Order("day DESC").
+		Scan(ctx)
+
+	return history, err
 }

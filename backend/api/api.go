@@ -65,11 +65,7 @@ func New(enableCORS bool) (*chi.Mux, error) {
 		return nil, err
 	}
 
-	roomAPI, err := room.NewAPI(db)
-	if err != nil {
-		logger.WithField("module", "room").Error(err)
-		return nil, err
-	}
+	_, roomAPI := room.NewAPI(db)
 
 	// Initialize stores
 	userStore := database2.NewUserStore(db)
@@ -122,7 +118,7 @@ func New(enableCORS bool) (*chi.Mux, error) {
 		r.Use(jwt.Authenticator)
 		r.Mount("/admin", adminAPI.Router())
 		r.Mount("/api", appAPI.Router())
-		r.Mount("/rooms", roomAPI.Router())
+		r.Mount("/rooms", roomAPI)
 		r.Mount("/users", userAPI.Router())
 		r.Mount("/students", studentAPI.Router())
 		r.Mount("/groups", groupAPI.Router())

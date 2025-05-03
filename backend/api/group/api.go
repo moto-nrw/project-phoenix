@@ -34,7 +34,10 @@ type GroupStore interface {
 	CreateCombinedGroup(ctx context.Context, combinedGroup *models2.CombinedGroup, groupIDs []int64, specialistIDs []int64) error
 	GetCombinedGroupByID(ctx context.Context, id int64) (*models2.CombinedGroup, error)
 	ListCombinedGroups(ctx context.Context) ([]models2.CombinedGroup, error)
-	MergeRooms(ctx context.Context, sourceRoomID, targetRoomID int64) (*models2.CombinedGroup, error)
+	MergeRooms(ctx context.Context, sourceRoomID, targetRoomID int64, name string, validUntil *time.Time, accessPolicy string) (*models2.CombinedGroup, error)
+	GetCombinedGroupForRoom(ctx context.Context, roomID int64) (*models2.CombinedGroup, error)
+	FindActiveCombinedGroups(ctx context.Context) ([]models2.CombinedGroup, error)
+	DeactivateCombinedGroup(ctx context.Context, id int64) error
 }
 
 // AuthTokenStore defines operations for the auth token store
@@ -168,12 +171,6 @@ func (req *GroupIDsRequest) Bind(r *http.Request) error {
 		return errors.New("group_ids is required")
 	}
 	return nil
-}
-
-// MergeRoomsRequest is the request payload for merging rooms
-type MergeRoomsRequest struct {
-	SourceRoomID int64 `json:"source_room_id"`
-	TargetRoomID int64 `json:"target_room_id"`
 }
 
 // Bind preprocesses a MergeRoomsRequest
@@ -1000,6 +997,15 @@ func (rs *Resource) updateCombinedGroupSpecialists(w http.ResponseWriter, r *htt
 
 // ======== Special Operations ========
 
+// MergeRoomsRequest is the request payload for merging rooms
+type MergeRoomsRequest struct {
+	SourceRoomID int64      `json:"source_room_id"`
+	TargetRoomID int64      `json:"target_room_id"`
+	Name         string     `json:"name,omitempty"`
+	ValidUntil   *time.Time `json:"valid_until,omitempty"`
+	AccessPolicy string     `json:"access_policy,omitempty"`
+}
+
 // mergeRooms merges two rooms and creates a combined group
 func (rs *Resource) mergeRooms(w http.ResponseWriter, r *http.Request) {
 	logger := logging.GetLogEntry(r)
@@ -1011,8 +1017,14 @@ func (rs *Resource) mergeRooms(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Use default access policy if not provided
+	accessPolicy := data.AccessPolicy
+	if accessPolicy == "" {
+		accessPolicy = "all"
+	}
+
 	ctx := r.Context()
-	combinedGroup, err := rs.Store.MergeRooms(ctx, data.SourceRoomID, data.TargetRoomID)
+	combinedGroup, err := rs.Store.MergeRooms(ctx, data.SourceRoomID, data.TargetRoomID, data.Name, data.ValidUntil, accessPolicy)
 	if err != nil {
 		logger.WithError(err).Error("Failed to merge rooms")
 		render.Render(w, r, ErrInternalServerError(err))
@@ -1023,6 +1035,8 @@ func (rs *Resource) mergeRooms(w http.ResponseWriter, r *http.Request) {
 		"source_room_id":    data.SourceRoomID,
 		"target_room_id":    data.TargetRoomID,
 		"combined_group_id": combinedGroup.ID,
+		"name":              data.Name,
+		"access_policy":     accessPolicy,
 	}).Info("Rooms merged successfully")
 
 	// Return successful response with combined group
