@@ -45,12 +45,12 @@ export default function StudentList({
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full flex items-center justify-center text-white font-medium">
-                {student.name.slice(0, 1).toUpperCase()}
+                {(student.name || (student.first_name ? `${student.first_name} ${student.second_name || ''}` : 'S')).slice(0, 1).toUpperCase()}
               </div>
               
               <div className="flex flex-col">
                 <span className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                  {student.name}
+                  {student.name || (student.first_name ? `${student.first_name} ${student.second_name || ''}` : 'Unnamed Student')}
                 </span>
                 {showDetails && (
                   <span className="text-sm text-gray-500">
@@ -61,20 +61,17 @@ export default function StudentList({
               </div>
             </div>
             
-            <div className="flex items-center space-x-2">
-              <div className={`h-2.5 w-2.5 rounded-full ${student.in_house ? 'bg-green-500' : 'bg-gray-300'}`} 
-                   title={student.in_house ? 'Anwesend' : 'Nicht anwesend'}>
+            <div className="flex items-center">
+              <div className="mr-16 flex items-center">
+                <div className={`h-2.5 w-2.5 rounded-full ${student.in_house ? 'bg-green-500' : 'bg-gray-300'} transition-all duration-200 relative group-hover:scale-110`}
+                    title={student.in_house ? 'Anwesend' : 'Nicht anwesend'}>
+                  {student.in_house && (
+                    <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3 opacity-75">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    </span>
+                  )}
+                </div>
               </div>
-              
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                className="h-5 w-5 text-gray-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-all duration-200" 
-                fill="none" 
-                viewBox="0 0 24 24" 
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
             </div>
           </div>
         </div>

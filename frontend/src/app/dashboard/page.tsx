@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { redirect } from 'next/navigation';
-import { Header, FeatureCard, SectionTitle } from '@/components/dashboard';
+import { Header, FeatureCard, SectionTitle } from '~/components/dashboard';
 
 export default function DashboardPage() {
   const { data: session, status } = useSession({
@@ -27,8 +27,9 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <main className="container mx-auto p-4 py-8">
-        <SectionTitle title="Übersicht" />
-
+        {/* Main Menu Section */}
+        <SectionTitle title="Hauptmenü" />
+        
         {/* Dashboard Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
           {/* CSV Import Card */}

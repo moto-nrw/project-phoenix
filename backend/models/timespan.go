@@ -3,14 +3,18 @@ package models
 import (
 	"net/http"
 	"time"
+
+	"github.com/uptrace/bun"
 )
 
 // Timespan represents a period of time with a start and optional end
 type Timespan struct {
 	ID        int64      `json:"id" bun:"id,pk,autoincrement"`
-	StartTime time.Time  `json:"starttime" bun:"starttime,notnull"`
-	EndTime   *time.Time `json:"endtime,omitempty" bun:"endtime"`
+	StartTime time.Time  `json:"starttime" bun:"start_time,notnull"`
+	EndTime   *time.Time `json:"endtime,omitempty" bun:"end_time"`
 	CreatedAt time.Time  `json:"created_at" bun:"created_at,notnull"`
+
+	bun.BaseModel `bun:"table:timespans"` // Specify the correct table name
 }
 
 // Bind preprocesses a Timespan request

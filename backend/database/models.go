@@ -13,4 +13,5 @@ func RegisterModels(db *bun.DB) {
 	db.RegisterModel((*models.GroupSupervisor)(nil))
 	db.RegisterModel((*models.CombinedGroupGroup)(nil))
 	db.RegisterModel((*models.CombinedGroupSpecialist)(nil))
+	db.RegisterModel((*models.StudentAg)(nil))
 }

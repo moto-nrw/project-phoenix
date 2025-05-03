@@ -33,17 +33,19 @@ type Ag struct {
 	ID             int64                  `json:"id" bun:"id,pk,autoincrement"`
 	Name           string                 `json:"name" bun:"name,notnull"`
 	MaxParticipant int                    `json:"max_participant" bun:"max_participant,notnull"`
-	IsOpenAg       bool                   `json:"is_open_ag" bun:"is_open_ag,notnull,default:false"`
+	IsOpenAg       bool                   `json:"is_open_ags" bun:"is_open_ags,notnull,default:false"`
 	SupervisorID   int64                  `json:"supervisor_id" bun:"supervisor_id,notnull"`
 	Supervisor     *PedagogicalSpecialist `json:"supervisor,omitempty" bun:"rel:belongs-to,join:supervisor_id=id"`
-	AgCategoryID   int64                  `json:"ag_category_id" bun:"ag_category_id,notnull"`
-	AgCategory     *AgCategory            `json:"ag_category,omitempty" bun:"rel:belongs-to,join:ag_category_id=id"`
+	AgCategoryID   int64                  `json:"ag_category_id" bun:"ag_categories_id,notnull"`
+	AgCategory     *AgCategory            `json:"ag_category,omitempty" bun:"rel:belongs-to,join:ag_categories_id=id"`
 	DatespanID     *int64                 `json:"datespan_id,omitempty" bun:"datespan_id"`
 	Datespan       *Timespan              `json:"datespan,omitempty" bun:"rel:belongs-to,join:datespan_id=id"`
 	CreatedAt      time.Time              `json:"created_at" bun:"created_at,notnull"`
 	ModifiedAt     time.Time              `json:"updated_at" bun:"modified_at,notnull"`
 	Times          []*AgTime              `json:"times,omitempty" bun:"rel:has-many,join:id=ag_id"`
 	Students       []*Student             `json:"students,omitempty" bun:"m2m:student_ags,join:Ag=Student"`
+
+	bun.BaseModel `bun:"table:ags"` // Specify the correct table name
 }
 
 // BeforeInsert hook executed before database insert operation.
@@ -74,9 +76,9 @@ func (ag *Ag) Validate() error {
 type AgTime struct {
 	ID         int64     `json:"id" bun:"id,pk,autoincrement"`
 	Weekday    string    `json:"weekday" bun:"weekday,notnull"`
-	TimespanID int64     `json:"timespan_id" bun:"timespan_id,notnull"`
-	Timespan   *Timespan `json:"timespan,omitempty" bun:"rel:belongs-to,join:timespan_id=id"`
-	AgID       int64     `json:"ag_id" bun:"ag_id,notnull"`
+	TimespanID int64     `json:"timespan_id" bun:"timespans_id,notnull"`
+	Timespan   *Timespan `json:"timespan,omitempty" bun:"rel:belongs-to,join:timespans_id=id"`
+	AgID       int64     `json:"ag_id" bun:"ag_id,nullzero"` // Use nullzero to allow zero values during insert
 	Ag         *Ag       `json:"ag,omitempty" bun:"rel:belongs-to,join:ag_id=id"`
 	CreatedAt  time.Time `json:"created_at" bun:"created_at,notnull"`
 }
@@ -92,7 +94,7 @@ func (t *AgTime) Validate() error {
 	return validation.ValidateStruct(t,
 		validation.Field(&t.Weekday, validation.Required, validation.In("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")),
 		validation.Field(&t.TimespanID, validation.Required),
-		validation.Field(&t.AgID, validation.Required),
+		// Don't require AgID during initial creation - it will be set by CreateAg
 	)
 }
 
