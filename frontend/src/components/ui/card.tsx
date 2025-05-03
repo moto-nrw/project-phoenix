@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 interface CardProps {
   children: React.ReactNode;
@@ -6,10 +6,10 @@ interface CardProps {
   onClick?: () => void;
 }
 
-export function Card({ children, className = '', onClick }: CardProps) {
+export function Card({ children, className = "", onClick }: CardProps) {
   return (
-    <div 
-      className={`w-full max-w-md space-y-6 rounded-xl border-0 p-8 shadow-xl bg-white/95 transition-all duration-300 hover:shadow-2xl hover:translate-y-[-2px] ${className} ${onClick ? 'cursor-pointer' : ''}`}
+    <div
+      className={`w-full max-w-md space-y-6 rounded-xl border-0 bg-white/95 p-8 shadow-xl transition-all duration-300 hover:translate-y-[-2px] hover:shadow-2xl ${className} ${onClick ? "cursor-pointer" : ""}`}
       onClick={onClick}
     >
       {children}
@@ -27,9 +27,7 @@ export function CardHeader({ title, description }: CardHeaderProps) {
     <div className="text-center">
       <h1 className="text-3xl font-bold text-teal-600">{title}</h1>
       {description && (
-        <p className="mt-2 text-sm text-gray-600">
-          {description}
-        </p>
+        <p className="mt-2 text-sm text-gray-600">{description}</p>
       )}
     </div>
   );

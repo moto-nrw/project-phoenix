@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { useSession } from 'next-auth/react';
-import { redirect, useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import { DataListPage, DataListFilters, PageHeader, SectionTitle } from '@/components/dashboard';
-import type { Student } from '@/lib/api';
-import { studentService } from '@/lib/api';
-import { GroupSelector } from '@/components/groups';
-import Link from 'next/link';
+import { useSession } from "next-auth/react";
+import { redirect, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { PageHeader, SectionTitle } from "@/components/dashboard";
+import type { Student } from "@/lib/api";
+import { studentService } from "@/lib/api";
+import { GroupSelector } from "@/components/groups";
+import Link from "next/link";
 
 // Student list will be loaded from API
 
@@ -16,23 +16,23 @@ export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchFilter, setSearchFilter] = useState('');
+  const [searchFilter, setSearchFilter] = useState("");
   const [groupFilter, setGroupFilter] = useState<string | null>(null);
-  
-  const handleSearchInput = (value: string) => {
-    setSearchFilter(value);
-  };
-  
-  const handleFilterChange = (filterId: string, value: string | null) => {
-    if (filterId === 'group') {
-      setGroupFilter(value);
-    }
-  };
-  
+
+  // const handleSearchInput = (value: string) => {
+  //   setSearchFilter(value);
+  // };
+
+  // const handleFilterChange = (filterId: string, value: string | null) => {
+  //   if (filterId === 'group') {
+  //     setGroupFilter(value);
+  //   }
+  // };
+
   const { status } = useSession({
     required: true,
     onUnauthenticated() {
-      redirect('/login');
+      redirect("/login");
     },
   });
 
@@ -40,31 +40,35 @@ export default function StudentsPage() {
   const fetchStudents = async (search?: string, groupId?: string | null) => {
     try {
       setLoading(true);
-      
+
       // Prepare filters for API call
       const filters = {
         search: search ?? undefined,
-        groupId: groupId ?? undefined
+        groupId: groupId ?? undefined,
       };
-      
+
       try {
         // Fetch from the real API using our student service
         const data = await studentService.getStudents(filters);
-        
+
         if (data.length === 0 && !search && !groupId) {
-          console.log('No students returned from API, checking connection');
+          console.log("No students returned from API, checking connection");
         }
-        
+
         setStudents(data);
         setError(null);
       } catch (apiErr) {
-        console.error('API error when fetching students:', apiErr);
-        setError('Fehler beim Laden der Schülerdaten. Bitte versuchen Sie es später erneut.');
+        console.error("API error when fetching students:", apiErr);
+        setError(
+          "Fehler beim Laden der Schülerdaten. Bitte versuchen Sie es später erneut.",
+        );
         setStudents([]);
       }
     } catch (err) {
-      console.error('Error fetching students:', err);
-      setError('Fehler beim Laden der Schülerdaten. Bitte versuchen Sie es später erneut.');
+      console.error("Error fetching students:", err);
+      setError(
+        "Fehler beim Laden der Schülerdaten. Bitte versuchen Sie es später erneut.",
+      );
       setStudents([]);
     } finally {
       setLoading(false);
@@ -82,11 +86,11 @@ export default function StudentsPage() {
     const timer = setTimeout(() => {
       void fetchStudents(searchFilter, groupFilter);
     }, 300);
-    
+
     return () => clearTimeout(timer);
   }, [searchFilter, groupFilter]);
 
-  if (status === 'loading' || loading) {
+  if (status === "loading" || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p>Loading...</p>
@@ -98,26 +102,25 @@ export default function StudentsPage() {
     router.push(`/database/students/${student.id}`);
   };
 
-
   // Custom renderer for student items
   const renderStudent = (student: Student) => (
     <>
-      <div className="flex flex-col group-hover:translate-x-1 transition-transform duration-200">
-        <span className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors duration-200">
+      <div className="flex flex-col transition-transform duration-200 group-hover:translate-x-1">
+        <span className="font-semibold text-gray-900 transition-colors duration-200 group-hover:text-blue-600">
           {student.name}
           {student.in_house && (
-            <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">
+            <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">
               Anwesend
             </span>
           )}
         </span>
         <span className="text-sm text-gray-500">
-          Klasse: {student.school_class} 
+          Klasse: {student.school_class}
           {student.group_name && student.group_id && ` | Gruppe: `}
           {student.group_name && student.group_id && (
-            <a 
-              href={`/database/groups/${student.group_id}`} 
-              className="text-blue-600 hover:text-blue-800 hover:underline transition-colors inline-block"
+            <a
+              href={`/database/groups/${student.group_id}`}
+              className="inline-block text-blue-600 transition-colors hover:text-blue-800 hover:underline"
               onClick={(e) => {
                 e.stopPropagation(); // Prevent triggering the parent click event
               }}
@@ -127,14 +130,19 @@ export default function StudentsPage() {
           )}
         </span>
       </div>
-      <svg 
-        xmlns="http://www.w3.org/2000/svg" 
-        className="h-5 w-5 text-gray-400 group-hover:text-blue-500 group-hover:transform group-hover:translate-x-1 transition-all duration-200" 
-        fill="none" 
-        viewBox="0 0 24 24" 
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-5 w-5 text-gray-400 transition-all duration-200 group-hover:translate-x-1 group-hover:transform group-hover:text-blue-500"
+        fill="none"
+        viewBox="0 0 24 24"
         stroke="currentColor"
       >
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M9 5l7 7-7 7"
+        />
       </svg>
     </>
   );
@@ -143,12 +151,12 @@ export default function StudentsPage() {
   if (error) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <div className="bg-red-50 text-red-800 p-4 rounded-lg max-w-md">
-          <h2 className="font-semibold mb-2">Fehler</h2>
+        <div className="max-w-md rounded-lg bg-red-50 p-4 text-red-800">
+          <h2 className="mb-2 font-semibold">Fehler</h2>
           <p>{error}</p>
-          <button 
-            onClick={() => fetchStudents()} 
-            className="mt-4 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-800 rounded transition-colors"
+          <button
+            onClick={() => fetchStudents()}
+            className="mt-4 rounded bg-red-100 px-4 py-2 text-red-800 transition-colors hover:bg-red-200"
           >
             Erneut versuchen
           </button>
@@ -158,6 +166,7 @@ export default function StudentsPage() {
   }
 
   // Define the filters for the student list
+  /*
   const filters = [
     {
       id: 'group',
@@ -168,60 +177,76 @@ export default function StudentsPage() {
       ],
     },
   ];
+  */
 
   return (
     <div className="min-h-screen">
-      <PageHeader 
-        title="Schülerauswahl"
-        backUrl="/database"
-      />
+      <PageHeader title="Schülerauswahl" backUrl="/database" />
 
-      <main className="max-w-4xl mx-auto p-4">
+      <main className="mx-auto max-w-4xl p-4">
         <div className="mb-8">
           <SectionTitle title="Schüler auswählen" />
         </div>
 
         {/* Search and Add Section with Filters */}
         <div className="mb-8">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
+          <div className="mb-4 flex flex-col items-center justify-between gap-4 sm:flex-row">
             <div className="relative w-full sm:max-w-md">
               <input
                 type="text"
                 placeholder="Suchen..."
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 pl-10 transition-all duration-200 hover:border-gray-400 focus:shadow-md"
+                className="w-full rounded-lg border border-gray-300 px-4 py-3 pl-10 transition-all duration-200 hover:border-gray-400 focus:shadow-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  className="h-5 w-5 text-gray-400" 
-                  fill="none" 
-                  viewBox="0 0 24 24" 
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
                   stroke="currentColor"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
                 </svg>
               </div>
             </div>
-            
+
             <Link href="/database/students/new" className="w-full sm:w-auto">
-              <button className="group w-full sm:w-auto bg-gradient-to-r from-teal-500 to-blue-600 text-white py-3 px-4 rounded-lg flex items-center gap-2 hover:from-teal-600 hover:to-blue-700 hover:scale-[1.02] hover:shadow-lg transition-all duration-200 justify-center sm:justify-start">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              <button className="group flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-teal-500 to-blue-600 px-4 py-3 text-white transition-all duration-200 hover:scale-[1.02] hover:from-teal-600 hover:to-blue-700 hover:shadow-lg sm:w-auto sm:justify-start">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4v16m8-8H4"
+                  />
                 </svg>
                 <span>Neuen Schüler erstellen</span>
               </button>
             </Link>
           </div>
-          
+
           {/* Filter Section */}
-          <div className="flex items-center gap-2 mt-4">
+          <div className="mt-4 flex items-center gap-2">
             <span className="text-sm text-gray-500">Filter:</span>
             <div className="w-48">
               <GroupSelector
-                value={groupFilter || ''}
-                onChange={(value) => setGroupFilter(value === '' ? null : value)}
+                value={groupFilter ?? ""}
+                onChange={(value) =>
+                  setGroupFilter(value === "" ? null : value)
+                }
                 includeEmpty={true}
                 emptyLabel="Alle Gruppen"
                 label=""
@@ -231,21 +256,23 @@ export default function StudentsPage() {
         </div>
 
         {/* Student List */}
-        <div className="space-y-3 w-full">
+        <div className="w-full space-y-3">
           {students.length > 0 ? (
-            students.map(student => (
-              <div 
-                key={student.id} 
-                className="group bg-white border border-gray-100 rounded-lg p-4 shadow-sm hover:shadow-md hover:border-blue-200 hover:translate-y-[-1px] transition-all duration-200 cursor-pointer flex items-center justify-between"
+            students.map((student) => (
+              <div
+                key={student.id}
+                className="group flex cursor-pointer items-center justify-between rounded-lg border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:translate-y-[-1px] hover:border-blue-200 hover:shadow-md"
                 onClick={() => handleSelectStudent(student)}
               >
                 {renderStudent(student)}
               </div>
             ))
           ) : (
-            <div className="text-center py-8">
+            <div className="py-8 text-center">
               <p className="text-gray-500">
-                {searchFilter || groupFilter ? 'Keine Ergebnisse gefunden.' : 'Keine Einträge vorhanden.'}
+                {searchFilter || groupFilter
+                  ? "Keine Ergebnisse gefunden."
+                  : "Keine Einträge vorhanden."}
               </p>
             </div>
           )}

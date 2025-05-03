@@ -1,46 +1,46 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { 
-  Card, 
-  CardHeader, 
-  CardContent, 
+import { useState } from "react";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import {
+  Card,
+  CardHeader,
+  CardContent,
   CardFooter,
   Input,
   Button,
   Alert,
-  Link
-} from '~/components/ui';
+  Link,
+} from "~/components/ui";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
-      const result = await signIn('credentials', {
+      const result = await signIn("credentials", {
         email,
         password,
         redirect: false,
       });
 
       if (result?.error) {
-        setError('Invalid email or password');
+        setError("Invalid email or password");
       } else {
-        router.push('/dashboard');
+        router.push("/dashboard");
         router.refresh();
       }
     } catch (error) {
-      setError('An error occurred during login');
+      setError("An error occurred during login");
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -50,9 +50,9 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
       <Card>
-        <CardHeader 
-          title="Sign in to your account" 
-          description="Enter your email and password below" 
+        <CardHeader
+          title="Sign in to your account"
+          description="Enter your email and password below"
         />
 
         <CardContent>
@@ -93,10 +93,8 @@ export default function LoginPage() {
 
         <CardFooter>
           <p>
-            Don&apos;t have an account?{' '}
-            <Link href="/register">
-              Create new account
-            </Link>
+            Don&apos;t have an account?{" "}
+            <Link href="/register">Create new account</Link>
           </p>
         </CardFooter>
       </Card>
