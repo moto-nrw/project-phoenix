@@ -1,22 +1,18 @@
-"use client";
+'use client';
 
-import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
-import {
-  PageHeader,
-  SectionTitle,
-  ActivityStats,
-} from "~/components/dashboard";
+import { useSession } from 'next-auth/react';
+import { redirect } from 'next/navigation';
+import { PageHeader, SectionTitle, ActivityStats } from '~/components/dashboard';
 
 export default function MetricsPage() {
-  const { status } = useSession({
+  const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
-      redirect("/login");
+      redirect('/login');
     },
   });
 
-  if (status === "loading") {
+  if (status === 'loading') {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p>Loading...</p>
@@ -27,14 +23,17 @@ export default function MetricsPage() {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <PageHeader title="Statistiken" backUrl="/dashboard" />
+      <PageHeader 
+        title="Statistiken" 
+        backUrl="/dashboard"
+      />
 
       {/* Main Content */}
       <main className="container mx-auto p-4 py-8">
         {/* Stats Section */}
         <div className="mb-12">
           <SectionTitle title="Aktuelle Statistiken" />
-          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-6xl mx-auto">
             <ActivityStats />
             {/* Other stats widgets can be added here */}
           </div>
