@@ -20,9 +20,9 @@ export default function NewCombinedGroupPage() {
       // Prepare combined group data
       const newCombinedGroup: Omit<CombinedGroup, 'id'> = {
         ...combinedGroupData,
-        name: combinedGroupData.name || '',
+        name: combinedGroupData.name ?? '',
         is_active: combinedGroupData.is_active ?? true,
-        access_policy: combinedGroupData.access_policy || 'manual',
+        access_policy: combinedGroupData.access_policy ?? 'manual',
       };
       
       // Create combined group

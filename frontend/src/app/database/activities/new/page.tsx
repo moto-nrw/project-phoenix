@@ -7,7 +7,7 @@ import { PageHeader, SectionTitle } from '@/components/dashboard';
 import ActivityForm from '@/components/activities/activity-form';
 import type { Activity, ActivityCategory } from '@/lib/activity-api';
 import { activityService } from '@/lib/activity-api';
-import Link from 'next/link';
+// import Link from 'next/link';
 
 export default function NewActivityPage() {
   const router = useRouter();
@@ -18,7 +18,7 @@ export default function NewActivityPage() {
   
   // Fetch supervisors from API
   const [supervisors, setSupervisors] = useState<Array<{id: string, name: string}>>([]);
-  const [supervisorsLoading, setSupervisorsLoading] = useState<boolean>(true);
+  const [, setSupervisorsLoading] = useState<boolean>(true);
   
   const { status } = useSession({
     required: true,
@@ -38,10 +38,10 @@ export default function NewActivityPage() {
         setCategories(categoriesData);
         
         setError(null);
-      } catch (apiErr) {
+      } catch (_apiErr) {
         setError('Fehler beim Laden der Kategorien. Bitte versuchen Sie es später erneut.');
       }
-    } catch (err) {
+    } catch (_err) {
       setError('Fehler beim Laden der Kategorien. Bitte versuchen Sie es später erneut.');
     } finally {
       setLoading(false);
@@ -60,7 +60,7 @@ export default function NewActivityPage() {
         throw new Error(`Failed to fetch supervisors: ${response.statusText}`);
       }
       
-      const supervisorsData = await response.json();
+      const supervisorsData: Array<{id: string, name: string}> = await response.json();
       setSupervisors(supervisorsData);
     } catch (err) {
       console.error('Error fetching supervisors:', err);

@@ -20,7 +20,7 @@ export default function NewGroupPage() {
       // Prepare group data
       const newGroup: Omit<Group, 'id'> = {
         ...groupData,
-        name: groupData.name || '',
+        name: groupData.name ?? '',
       };
       
       // Create group

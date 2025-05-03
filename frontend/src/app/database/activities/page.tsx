@@ -12,11 +12,11 @@ import Link from 'next/link';
 export default function ActivitiesPage() {
   const router = useRouter();
   const [activities, setActivities] = useState<Activity[]>([]);
-  const [categories, setCategories] = useState<ActivityCategory[]>([]);
+  const [, setCategories] = useState<ActivityCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [categoryFilter, ] = useState<string | null>(null);
   
   const { status } = useSession({
     required: true,

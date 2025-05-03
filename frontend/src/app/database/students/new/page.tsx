@@ -41,16 +41,16 @@ export default function NewStudentPage() {
       const newStudent: Omit<Student, 'id'> = {
         ...studentData,
         name: `${studentData.first_name} ${studentData.second_name}`,
-        in_house: studentData.in_house || false,
-        wc: studentData.wc || false,
-        school_yard: studentData.school_yard || false,
-        bus: studentData.bus || false,
-        school_class: studentData.school_class || '',
-        group_id: groupId || studentData.group_id, // Use groupId from URL if available
+        in_house: studentData.in_house ?? false,
+        wc: studentData.wc ?? false,
+        school_yard: studentData.school_yard ?? false,
+        bus: studentData.bus ?? false,
+        school_class: studentData.school_class ?? '',
+        group_id: groupId ?? studentData.group_id, // Use groupId from URL if available
       };
       
       // Create student - group association now works directly via the API
-      const createdStudent = await studentService.createStudent(newStudent);
+      await studentService.createStudent(newStudent);
       
       // Navigate back to the appropriate page
       if (groupId) {
@@ -86,7 +86,7 @@ export default function NewStudentPage() {
         {groupName && (
           <div className="mb-4 bg-blue-50 border-l-4 border-blue-500 text-blue-800 p-4 rounded-md">
             <p className="font-medium">Hinweis</p>
-            <p>Der neue Schüler wird automatisch der Gruppe "{groupName}" zugewiesen.</p>
+            <p>Der neue Schüler wird automatisch der Gruppe &quot;{groupName}&quot; zugewiesen.</p>
           </div>
         )}
 
@@ -96,7 +96,7 @@ export default function NewStudentPage() {
             wc: false,
             school_yard: false,
             bus: false,
-            group_id: groupId || '1',
+            group_id: groupId ?? '1',
           }}
           onSubmitAction={handleCreateStudent}
           onCancelAction={() => router.back()}

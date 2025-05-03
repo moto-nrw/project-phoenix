@@ -3,7 +3,7 @@
 import { useSession } from 'next-auth/react';
 import { redirect, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { DataListPage, DataListFilters, PageHeader, SectionTitle } from '@/components/dashboard';
+import { PageHeader, SectionTitle } from '@/components/dashboard';
 import type { Student } from '@/lib/api';
 import { studentService } from '@/lib/api';
 import { GroupSelector } from '@/components/groups';
@@ -19,15 +19,15 @@ export default function StudentsPage() {
   const [searchFilter, setSearchFilter] = useState('');
   const [groupFilter, setGroupFilter] = useState<string | null>(null);
   
-  const handleSearchInput = (value: string) => {
-    setSearchFilter(value);
-  };
+  // const handleSearchInput = (value: string) => {
+  //   setSearchFilter(value);
+  // };
   
-  const handleFilterChange = (filterId: string, value: string | null) => {
-    if (filterId === 'group') {
-      setGroupFilter(value);
-    }
-  };
+  // const handleFilterChange = (filterId: string, value: string | null) => {
+  //   if (filterId === 'group') {
+  //     setGroupFilter(value);
+  //   }
+  // };
   
   const { status } = useSession({
     required: true,
@@ -158,6 +158,7 @@ export default function StudentsPage() {
   }
 
   // Define the filters for the student list
+  /*
   const filters = [
     {
       id: 'group',
@@ -168,6 +169,7 @@ export default function StudentsPage() {
       ],
     },
   ];
+  */
 
   return (
     <div className="min-h-screen">
@@ -220,7 +222,7 @@ export default function StudentsPage() {
             <span className="text-sm text-gray-500">Filter:</span>
             <div className="w-48">
               <GroupSelector
-                value={groupFilter || ''}
+                value={groupFilter ?? ''}
                 onChange={(value) => setGroupFilter(value === '' ? null : value)}
                 includeEmpty={true}
                 emptyLabel="Alle Gruppen"

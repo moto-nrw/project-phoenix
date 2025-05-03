@@ -38,7 +38,7 @@ export function DataListPage<T extends BaseEntity>({
   const [internalSearchTerm, setInternalSearchTerm] = useState('');
   
   // Use either the controlled or the internal search term
-  const searchTerm = externalSearchTerm !== undefined ? externalSearchTerm : internalSearchTerm;
+  const searchTerm = externalSearchTerm ?? internalSearchTerm;
   
   // Handle search input changes
   const handleSearchChange = (value: string) => {

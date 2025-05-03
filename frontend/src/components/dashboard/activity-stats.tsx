@@ -33,8 +33,8 @@ export function ActivityStats() {
         let totalParticipants = 0;
         
         activitiesData.forEach(activity => {
-          totalCapacity += activity.max_participant || 0;
-          totalParticipants += activity.participant_count || 0;
+          totalCapacity += activity.max_participant ?? 0;
+          totalParticipants += activity.participant_count ?? 0;
         });
         
         const capacityPercentage = totalCapacity > 0 

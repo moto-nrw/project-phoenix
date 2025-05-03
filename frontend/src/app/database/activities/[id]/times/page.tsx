@@ -1,15 +1,15 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { redirect, useRouter, useParams } from 'next/navigation';
+import { redirect, useParams } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
 import { PageHeader, SectionTitle } from '@/components/dashboard';
-import type { Activity, ActivityTime } from '@/lib/activity-api';
+import type { Activity } from '@/lib/activity-api';
 import { activityService } from '@/lib/activity-api';
 import Link from 'next/link';
 
 export default function ActivityTimesPage() {
-  const router = useRouter();
+  // const router = useRouter();
   const params = useParams();
   const { id } = params;
   const [activity, setActivity] = useState<Activity | null>(null);
@@ -22,7 +22,7 @@ export default function ActivityTimesPage() {
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [addingTime, setAddingTime] = useState(false);
-  const [timeSpanId, setTimeSpanId] = useState('');
+  // const [timeSpanId, setTimeSpanId] = useState('');
   
   const { status } = useSession({
     required: true,
@@ -122,7 +122,8 @@ export default function ActivityTimesPage() {
       // Clear form fields
       setStartTime('');
       setEndTime('');
-      setTimeSpanId(''); // Clear this field even though it's no longer visible (for backward compatibility)
+      // This field is now commented out and no longer needed
+      // setTimeSpanId(''); // Clear this field even though it's no longer visible (for backward compatibility)
       
       // Refresh activity data
       await fetchActivity();

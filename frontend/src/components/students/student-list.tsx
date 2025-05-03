@@ -45,12 +45,12 @@ export default function StudentList({
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full flex items-center justify-center text-white font-medium">
-                {(student.name || (student.first_name ? `${student.first_name} ${student.second_name || ''}` : 'S')).slice(0, 1).toUpperCase()}
+                {(student.name ?? (student.first_name ? `${student.first_name} ${student.second_name ?? ''}` : 'S')).slice(0, 1).toUpperCase()}
               </div>
               
               <div className="flex flex-col">
                 <span className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                  {student.name || (student.first_name ? `${student.first_name} ${student.second_name || ''}` : 'Unnamed Student')}
+                  {student.name ?? (student.first_name ? `${student.first_name} ${student.second_name ?? ''}` : 'Unnamed Student')}
                 </span>
                 {showDetails && (
                   <span className="text-sm text-gray-500">

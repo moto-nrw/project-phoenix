@@ -31,9 +31,9 @@ export default function GroupForm({
   useEffect(() => {
     if (initialData) {
       setFormData({
-        name: initialData.name || '',
-        room_id: initialData.room_id || '',
-        representative_id: initialData.representative_id || '',
+        name: initialData.name ?? '',
+        room_id: initialData.room_id ?? '',
+        representative_id: initialData.representative_id ?? ''
       });
     }
   }, [initialData]);

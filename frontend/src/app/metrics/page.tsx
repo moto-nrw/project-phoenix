@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { PageHeader, SectionTitle, ActivityStats } from '~/components/dashboard';
 
 export default function MetricsPage() {
-  const { data: session, status } = useSession({
+  const { status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect('/login');

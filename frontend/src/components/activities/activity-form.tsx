@@ -82,7 +82,7 @@ const TimeSlotEditor = ({
   const [weekday, setWeekday] = useState('Monday');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
-  const [timespanId, setTimespanId] = useState('');
+  // const [timespanId, setTimespanId] = useState('');
   const [isCreatingTimespan, setIsCreatingTimespan] = useState(false);
   
   const weekdays = [
@@ -126,7 +126,7 @@ const TimeSlotEditor = ({
         return;
       }
       
-      const data = await response.json();
+      const data: { id: string } = await response.json();
       const newTimespanId = data.id;
       
       console.log('Created timespan with ID:', newTimespanId, 'Full response:', JSON.stringify(data));
@@ -144,7 +144,8 @@ const TimeSlotEditor = ({
       // Reset form
       setStartTime('');
       setEndTime('');
-      setTimespanId('');
+      // This field is now commented out and no longer needed
+      // setTimespanId('');
     } catch (error) {
       console.error('Error adding time slot:', error);
       alert('Fehler beim Hinzufügen des Zeitslots. Bitte versuchen Sie es später erneut.');
@@ -339,7 +340,7 @@ export default function ActivityForm({
     // Generate a temporary ID for UI purposes
     const tempTimeSlot: ActivityTime = {
       id: `temp-${Date.now()}`,
-      ag_id: formData.id || 'new',
+      ag_id: formData.id ?? 'new',
       created_at: new Date().toISOString(),
       ...newTimeSlot,
     };

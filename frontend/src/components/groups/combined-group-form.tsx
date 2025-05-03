@@ -33,11 +33,11 @@ export default function CombinedGroupForm({
   useEffect(() => {
     if (initialData) {
       setFormData({
-        name: initialData.name || '',
+        name: initialData.name ?? '',
         is_active: initialData.is_active ?? true,
-        access_policy: initialData.access_policy || 'manual',
-        valid_until: initialData.valid_until?.split('T')[0] || '', // Format as YYYY-MM-DD for input type="date"
-        specific_group_id: initialData.specific_group_id || '',
+        access_policy: initialData.access_policy ?? 'manual',
+        valid_until: initialData.valid_until?.split('T')[0] ?? '', // Format as YYYY-MM-DD for input type="date"
+        specific_group_id: initialData.specific_group_id ?? ''
       });
     }
   }, [initialData]);

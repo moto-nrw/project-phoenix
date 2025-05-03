@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/dashboard';
 import { CombinedGroupForm } from '@/components/groups';
-import type { CombinedGroup, Group } from '@/lib/api';
+import type { CombinedGroup } from '@/lib/api';
 import { combinedGroupService } from '@/lib/api';
 
 export default function CombinedGroupDetailPage() {

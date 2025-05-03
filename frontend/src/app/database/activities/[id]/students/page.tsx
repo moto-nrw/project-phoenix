@@ -4,7 +4,7 @@ import { useSession } from 'next-auth/react';
 import { redirect, useRouter, useParams } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
 import { PageHeader, SectionTitle } from '@/components/dashboard';
-import StudentList from '@/components/students/student-list';
+// import StudentList from '@/components/students/student-list';
 import type { Activity } from '@/lib/activity-api';
 import type { Student } from '@/lib/api';
 import { activityService } from '@/lib/activity-api';
