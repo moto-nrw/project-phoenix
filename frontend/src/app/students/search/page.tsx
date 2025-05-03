@@ -10,7 +10,7 @@ import type { Student } from "@/lib/api";
 import { GroupSelector } from "@/components/groups";
 
 export default function StudentSearchPage() {
-  const { status } = useSession({
+  const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/login");
@@ -27,7 +27,7 @@ export default function StudentSearchPage() {
 
   // Load initial data
   useEffect(() => {
-    void fetchStudents();
+    fetchStudents();
   }, []);
 
   async function fetchStudents(filters?: {
@@ -69,14 +69,14 @@ export default function StudentSearchPage() {
       filters.inHouse = true;
     }
 
-    void fetchStudents(filters);
+    await fetchStudents(filters);
   };
 
   const handleFilterReset = () => {
     setSearchTerm("");
     setSelectedGroup("");
     setAttendanceFilter("all");
-    void fetchStudents();
+    fetchStudents();
   };
 
   // Apply additional client-side filtering for attendance statuses that the API doesn't support
@@ -110,7 +110,7 @@ export default function StudentSearchPage() {
               </p>
             </div>
             <button
-              onClick={() => { void redirect("/dashboard"); }}
+              onClick={() => redirect("/dashboard")}
               className="rounded-lg bg-white/20 px-4 py-2 text-sm font-medium text-white backdrop-blur-sm transition-colors hover:bg-white/30"
             >
               Zurück zum Dashboard
