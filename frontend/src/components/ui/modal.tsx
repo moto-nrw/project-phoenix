@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import React, { useEffect } from 'react';
+import React, { useEffect } from "react";
 
 interface ModalProps {
   isOpen: boolean;
@@ -10,25 +10,31 @@ interface ModalProps {
   footer?: React.ReactNode;
 }
 
-export function Modal({ isOpen, onClose, title, children, footer }: ModalProps) {
+export function Modal({
+  isOpen,
+  onClose,
+  title,
+  children,
+  footer,
+}: ModalProps) {
   // Close on escape key press
   useEffect(() => {
     const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isOpen) {
+      if (event.key === "Escape" && isOpen) {
         onClose();
       }
     };
 
     if (isOpen) {
-      document.addEventListener('keydown', handleEscKey);
+      document.addEventListener("keydown", handleEscKey);
       // Disable scrolling on body when modal is open
-      document.body.style.overflow = 'hidden';
+      document.body.style.overflow = "hidden";
     }
 
     return () => {
-      document.removeEventListener('keydown', handleEscKey);
+      document.removeEventListener("keydown", handleEscKey);
       // Re-enable scrolling when modal is closed
-      document.body.style.overflow = '';
+      document.body.style.overflow = "";
     };
   }, [isOpen, onClose]);
 
@@ -42,27 +48,21 @@ export function Modal({ isOpen, onClose, title, children, footer }: ModalProps) 
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm"
       onClick={handleBackdropClick}
     >
-      <div 
-        className="bg-white/95 backdrop-filter backdrop-blur-sm rounded-lg p-6 max-w-md w-full shadow-xl border border-gray-100"
+      <div
+        className="w-full max-w-md rounded-lg border border-gray-100 bg-white/95 p-6 shadow-xl backdrop-blur-sm backdrop-filter"
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
+          <h3 className="mb-4 text-lg font-semibold text-gray-900">{title}</h3>
         )}
-        
-        <div className="text-gray-700 mb-6">
-          {children}
-        </div>
-        
-        {footer && (
-          <div className="flex justify-end gap-3">
-            {footer}
-          </div>
-        )}
+
+        <div className="mb-6 text-gray-700">{children}</div>
+
+        {footer && <div className="flex justify-end gap-3">{footer}</div>}
       </div>
     </div>
   );
@@ -87,37 +87,32 @@ export function ConfirmationModal({
   onConfirm,
   title,
   children,
-  confirmText = 'Bestätigen',
-  cancelText = 'Abbrechen',
+  confirmText = "Bestätigen",
+  cancelText = "Abbrechen",
   isConfirmLoading = false,
-  confirmButtonClass = 'bg-blue-500 hover:bg-blue-600',
+  confirmButtonClass = "bg-blue-500 hover:bg-blue-600",
 }: ConfirmationModalProps) {
   const modalFooter = (
     <>
       <button
         onClick={onClose}
-        className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg transition-colors"
+        className="rounded-lg bg-gray-200 px-4 py-2 text-gray-800 transition-colors hover:bg-gray-300"
       >
         {cancelText}
       </button>
-      
+
       <button
         onClick={onConfirm}
         disabled={isConfirmLoading}
-        className={`px-4 py-2 ${confirmButtonClass} text-white rounded-lg transition-colors`}
+        className={`px-4 py-2 ${confirmButtonClass} rounded-lg text-white transition-colors`}
       >
-        {isConfirmLoading ? 'Wird geladen...' : confirmText}
+        {isConfirmLoading ? "Wird geladen..." : confirmText}
       </button>
     </>
   );
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={title}
-      footer={modalFooter}
-    >
+    <Modal isOpen={isOpen} onClose={onClose} title={title} footer={modalFooter}>
       {children}
     </Modal>
   );
@@ -141,8 +136,8 @@ export function DeleteModal({
   onDelete,
   title,
   children,
-  deleteText = 'Löschen',
-  cancelText = 'Abbrechen',
+  deleteText = "Löschen",
+  cancelText = "Abbrechen",
   isDeleting = false,
 }: DeleteModalProps) {
   return (
