@@ -17,6 +17,12 @@ import {
   prepareCombinedGroupForBackend,
 } from "./group-helpers";
 import type { BackendGroup, BackendCombinedGroup } from "./group-helpers";
+import {
+  mapSingleRoomResponse,
+  mapRoomResponse,
+  prepareRoomForBackend,
+} from "./room-helpers";
+import type { BackendRoom } from "./room-helpers";
 import { handleAuthFailure } from "./auth-api";
 
 // Create an Axios instance
@@ -140,6 +146,25 @@ export interface CombinedGroup {
   group_count?: number;
   specialist_count?: number;
   time_until_expiration?: string;
+}
+
+// Room-related interfaces
+export interface Room {
+  id: string;
+  name: string; 
+  building?: string;
+  floor: number;
+  capacity: number;
+  category: string;
+  color: string;
+  deviceId?: string;
+  isOccupied: boolean;
+  activityName?: string;
+  groupName?: string;
+  supervisorName?: string;
+  studentCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // API services
@@ -1351,6 +1376,380 @@ export const combinedGroupService = {
         `Error removing group ${groupId} from combined group ${combinedGroupId}:`,
         error,
       );
+      throw error;
+    }
+  },
+};
+
+// Room service for API operations
+export const roomService = {
+  // Get all rooms
+  getRooms: async (filters?: {
+    building?: string;
+    floor?: number;
+    category?: string;
+    occupied?: boolean;
+    search?: string;
+  }): Promise<Room[]> => {
+    // Build query parameters
+    const params = new URLSearchParams();
+    if (filters?.search) params.append("search", filters.search);
+    if (filters?.building) params.append("building", filters.building);
+    if (filters?.floor !== undefined) params.append("floor", filters.floor.toString());
+    if (filters?.category) params.append("category", filters.category);
+    if (filters?.occupied !== undefined) params.append("occupied", filters.occupied.toString());
+
+    // Use the nextjs api route which handles auth token properly
+    const useProxyApi = typeof window !== "undefined";
+    let url = useProxyApi ? "/api/rooms" : `${env.NEXT_PUBLIC_API_URL}/rooms`;
+
+    try {
+      // Build query string for API route
+      const queryString = params.toString();
+      if (queryString) {
+        url += `?${queryString}`;
+      }
+
+      if (useProxyApi) {
+        // Browser environment: use fetch with our Next.js API route
+        const session = await getSession();
+        const response = await fetch(url, {
+          credentials: "include",
+          headers: session?.user?.token
+            ? {
+                Authorization: `Bearer ${session.user.token}`,
+                "Content-Type": "application/json",
+              }
+            : undefined,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`API error: ${response.status}`, errorText);
+
+          // Try token refresh on 401 errors
+          if (response.status === 401) {
+            const refreshSuccessful = await handleAuthFailure();
+
+            if (refreshSuccessful) {
+              // Try the request again after token refresh
+              const newSession = await getSession();
+              const retryResponse = await fetch(url, {
+                credentials: "include",
+                headers: newSession?.user?.token
+                  ? {
+                      Authorization: `Bearer ${newSession.user.token}`,
+                      "Content-Type": "application/json",
+                    }
+                  : undefined,
+              });
+
+              if (retryResponse.ok) {
+                // Type assertion to avoid unsafe assignment
+                const responseData: unknown = await retryResponse.json();
+                return mapRoomResponse(responseData as BackendRoom[]);
+              }
+            }
+          }
+
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        // Type assertion to avoid unsafe assignment
+        const responseData: unknown = await response.json();
+        return mapRoomResponse(responseData as BackendRoom[]);
+      } else {
+        // Server-side: use axios with the API URL directly
+        const response = await api.get(url, { params });
+        return mapRoomResponse(response.data as unknown as BackendRoom[]);
+      }
+    } catch (error) {
+      console.error("Error fetching rooms:", error);
+      throw error;
+    }
+  },
+
+  // Get a specific room by ID
+  getRoom: async (id: string): Promise<Room> => {
+    // Use the nextjs api route which handles auth token properly
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+      ? `/api/rooms/${id}`
+      : `${env.NEXT_PUBLIC_API_URL}/rooms/${id}`;
+
+    try {
+      if (useProxyApi) {
+        // Browser environment: use fetch with our Next.js API route
+        const session = await getSession();
+        const response = await fetch(url, {
+          credentials: "include",
+          headers: session?.user?.token
+            ? {
+                Authorization: `Bearer ${session.user.token}`,
+                "Content-Type": "application/json",
+              }
+            : undefined,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`API error: ${response.status}`, errorText);
+
+          // Try token refresh on 401 errors
+          if (response.status === 401) {
+            const refreshSuccessful = await handleAuthFailure();
+
+            if (refreshSuccessful) {
+              // Try the request again after token refresh
+              const newSession = await getSession();
+              const retryResponse = await fetch(url, {
+                credentials: "include",
+                headers: newSession?.user?.token
+                  ? {
+                      Authorization: `Bearer ${newSession.user.token}`,
+                      "Content-Type": "application/json",
+                    }
+                  : undefined,
+              });
+
+              if (retryResponse.ok) {
+                const data = (await retryResponse.json()) as BackendRoom;
+                return mapSingleRoomResponse(data);
+              }
+            }
+          }
+
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = (await response.json()) as BackendRoom;
+        return mapSingleRoomResponse(data);
+      } else {
+        // Server-side: use axios with the API URL directly
+        const response = await api.get(url);
+        return mapSingleRoomResponse(response.data as BackendRoom);
+      }
+    } catch (error) {
+      console.error(`Error fetching room ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // Create a new room
+  createRoom: async (room: Omit<Room, "id" | "isOccupied">): Promise<Room> => {
+    // Transform from frontend model to backend model
+    const backendRoom = prepareRoomForBackend(room);
+
+    // Basic validation for room creation
+    if (!backendRoom.room_name) {
+      throw new Error("Missing required field: room_name");
+    }
+    if (backendRoom.capacity === undefined || backendRoom.capacity <= 0) {
+      throw new Error("Missing required field: capacity must be greater than 0");
+    }
+    if (!backendRoom.category) {
+      throw new Error("Missing required field: category");
+    }
+
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+      ? `/api/rooms`
+      : `${env.NEXT_PUBLIC_API_URL}/rooms`;
+
+    try {
+      if (useProxyApi) {
+        // Browser environment: use fetch with our Next.js API route
+        const session = await getSession();
+        const response = await fetch(url, {
+          method: "POST",
+          credentials: "include",
+          headers: session?.user?.token
+            ? {
+                Authorization: `Bearer ${session.user.token}`,
+                "Content-Type": "application/json",
+              }
+            : undefined,
+          body: JSON.stringify(backendRoom),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`API error: ${response.status}`, errorText);
+          // Try to parse error for more detailed message
+          try {
+            const errorJson = JSON.parse(errorText) as { error?: string };
+            if (errorJson.error) {
+              throw new Error(`API error: ${errorJson.error}`);
+            }
+          } catch {
+            // If parsing fails, use status code
+          }
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = (await response.json()) as BackendRoom;
+        return mapSingleRoomResponse(data);
+      } else {
+        // Server-side: use axios with the API URL directly
+        const response = await api.post(url, backendRoom);
+        return mapSingleRoomResponse(response.data as BackendRoom);
+      }
+    } catch (error) {
+      console.error(`Error creating room:`, error);
+      throw error;
+    }
+  },
+
+  // Update a room
+  updateRoom: async (id: string, room: Partial<Room>): Promise<Room> => {
+    // Transform from frontend model to backend model updates
+    const backendUpdates = prepareRoomForBackend(room);
+
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+      ? `/api/rooms/${id}`
+      : `${env.NEXT_PUBLIC_API_URL}/rooms/${id}`;
+
+    try {
+      if (useProxyApi) {
+        // Browser environment: use fetch with our Next.js API route
+        const session = await getSession();
+        const response = await fetch(url, {
+          method: "PUT",
+          credentials: "include",
+          headers: session?.user?.token
+            ? {
+                Authorization: `Bearer ${session.user.token}`,
+                "Content-Type": "application/json",
+              }
+            : undefined,
+          body: JSON.stringify(backendUpdates),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`API error: ${response.status}`, errorText);
+
+          // Try to parse error text as JSON for more detailed error
+          try {
+            const errorJson = JSON.parse(errorText) as { error?: string };
+            if (errorJson.error) {
+              throw new Error(
+                `API error ${response.status}: ${errorJson.error}`,
+              );
+            }
+          } catch {
+            // If parsing fails, use status code + error text
+            throw new Error(
+              `API error ${response.status}: ${errorText.substring(0, 100)}`,
+            );
+          }
+        }
+
+        const data = (await response.json()) as BackendRoom;
+        return mapSingleRoomResponse(data);
+      } else {
+        // Server-side: use axios with the API URL directly
+        const response = await api.put(url, backendUpdates);
+        return mapSingleRoomResponse(response.data as BackendRoom);
+      }
+    } catch (error) {
+      console.error(`Error updating room ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // Delete a room
+  deleteRoom: async (id: string): Promise<void> => {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+      ? `/api/rooms/${id}`
+      : `${env.NEXT_PUBLIC_API_URL}/rooms/${id}`;
+
+    try {
+      if (useProxyApi) {
+        // Browser environment: use fetch with our Next.js API route
+        const session = await getSession();
+        const response = await fetch(url, {
+          method: "DELETE",
+          credentials: "include",
+          headers: session?.user?.token
+            ? {
+                Authorization: `Bearer ${session.user.token}`,
+                "Content-Type": "application/json",
+              }
+            : undefined,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`API error: ${response.status}`, errorText);
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        return;
+      } else {
+        // Server-side: use axios with the API URL directly
+        await api.delete(url);
+        return;
+      }
+    } catch (error) {
+      console.error(`Error deleting room ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // Get rooms grouped by category
+  getRoomsByCategory: async (): Promise<Record<string, Room[]>> => {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+      ? "/api/rooms/by-category"
+      : `${env.NEXT_PUBLIC_API_URL}/rooms/by-category`;
+
+    try {
+      if (useProxyApi) {
+        // Browser environment: use fetch with our Next.js API route
+        const session = await getSession();
+        const response = await fetch(url, {
+          credentials: "include",
+          headers: session?.user?.token
+            ? {
+                Authorization: `Bearer ${session.user.token}`,
+                "Content-Type": "application/json",
+              }
+            : undefined,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`API error: ${response.status}`, errorText);
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json() as Record<string, BackendRoom[]>;
+        
+        // Transform each category's room array
+        const result: Record<string, Room[]> = {};
+        for (const [category, rooms] of Object.entries(data)) {
+          result[category] = mapRoomResponse(rooms);
+        }
+        
+        return result;
+      } else {
+        // Server-side: use axios with the API URL directly
+        const response = await api.get(url);
+        const data = response.data as Record<string, BackendRoom[]>;
+        
+        // Transform each category's room array
+        const result: Record<string, Room[]> = {};
+        for (const [category, rooms] of Object.entries(data)) {
+          result[category] = mapRoomResponse(rooms);
+        }
+        
+        return result;
+      }
+    } catch (error) {
+      console.error("Error fetching rooms by category:", error);
       throw error;
     }
   },
