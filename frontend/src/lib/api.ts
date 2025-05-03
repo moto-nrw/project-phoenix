@@ -3,7 +3,9 @@ import type { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { getSession } from 'next-auth/react';
 import { env } from '~/env';
 import { mapSingleStudentResponse, mapStudentResponse, prepareStudentForBackend } from './student-helpers';
+import type { BackendStudent } from './student-helpers';
 import { mapSingleGroupResponse, mapGroupResponse, prepareGroupForBackend, mapSingleCombinedGroupResponse, mapCombinedGroupResponse, prepareCombinedGroupForBackend } from './group-helpers';
+import type { BackendGroup, BackendCombinedGroup } from './group-helpers';
 import { handleAuthFailure } from './auth-api';
 
 // Create an Axios instance
@@ -180,8 +182,9 @@ export const studentService = {
               });
               
               if (retryResponse.ok) {
-                const responseData = await retryResponse.json() as BackendStudent[];
-                return mapStudentResponse(responseData);
+                // Type assertion to avoid unsafe assignment
+                const responseData: unknown = await retryResponse.json();
+                return mapStudentResponse(responseData as BackendStudent[]);
               }
             }
           }
@@ -189,12 +192,13 @@ export const studentService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        const responseData = await response.json() as BackendStudent[];
-        return mapStudentResponse(responseData);
+        // Type assertion to avoid unsafe assignment
+        const responseData: unknown = await response.json();
+        return mapStudentResponse(responseData as BackendStudent[]);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
-        return mapStudentResponse(response.data as BackendStudent[]);
+        return mapStudentResponse(response.data as unknown as BackendStudent[]);
       }
     } catch (error) {
       console.error("Error fetching students:", error);
@@ -241,8 +245,9 @@ export const studentService = {
               });
               
               if (retryResponse.ok) {
-                const data = await retryResponse.json() as BackendStudent;
-                return mapSingleStudentResponse(data);
+                // Type assertion to avoid unsafe assignment
+                const data: unknown = await retryResponse.json();
+                return mapSingleStudentResponse(data as BackendStudent);
               }
             }
           }
@@ -250,14 +255,15 @@ export const studentService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        const data = await response.json() as BackendStudent;
+        // Type assertion to avoid unsafe assignment
+        const data: unknown = await response.json();
         // Map response to our frontend model
-        const mappedResponse = mapSingleStudentResponse(data);
+        const mappedResponse = mapSingleStudentResponse(data as BackendStudent);
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapSingleStudentResponse(response.data as BackendStudent);
+        return mapSingleStudentResponse(response.data as unknown as BackendStudent);
       }
     } catch (error) {
       console.error(`Error fetching student ${id}:`, error);
@@ -315,14 +321,15 @@ export const studentService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        const data = await response.json() as BackendStudent;
+        // Type assertion to avoid unsafe assignment
+        const data: unknown = await response.json();
         // Map response to our frontend model
-        const mappedResponse = mapSingleStudentResponse(data);
+        const mappedResponse = mapSingleStudentResponse(data as BackendStudent);
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.post(url, backendStudent);
-        return mapSingleStudentResponse(response.data as BackendStudent);
+        return mapSingleStudentResponse(response.data as unknown as BackendStudent);
       }
     } catch (error) {
       console.error(`Error creating student:`, error);
@@ -384,15 +391,16 @@ export const studentService = {
           }
         }
         
-        const data = await response.json() as BackendStudent;
+        // Type assertion to avoid unsafe assignment
+        const data: unknown = await response.json();
         // Map response to our frontend model
-        const mappedResponse = mapSingleStudentResponse(data);
+        const mappedResponse = mapSingleStudentResponse(data as BackendStudent);
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.put(url, backendUpdates);
         // Merge the returned data with our local name changes if provided
-        const mappedResponse = mapSingleStudentResponse(response.data);
+        const mappedResponse = mapSingleStudentResponse(response.data as unknown as BackendStudent);
         if (firstName || secondName) {
           if (firstName) mappedResponse.first_name = firstName;
           if (secondName) mappedResponse.second_name = secondName;
@@ -500,8 +508,9 @@ export const groupService = {
               });
               
               if (retryResponse.ok) {
-                const responseData = await retryResponse.json() as BackendGroup[];
-                return mapGroupResponse(responseData);
+                // Type assertion to avoid unsafe assignment
+                const responseData: unknown = await retryResponse.json();
+                return mapGroupResponse(responseData as BackendGroup[]);
               }
             }
           }
@@ -509,12 +518,13 @@ export const groupService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        const responseData = await response.json() as BackendGroup[];
-        return mapGroupResponse(responseData);
+        // Type assertion to avoid unsafe assignment
+        const responseData: unknown = await response.json();
+        return mapGroupResponse(responseData as BackendGroup[]);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
-        return mapGroupResponse(response.data as BackendGroup[]);
+        return mapGroupResponse(response.data as unknown as BackendGroup[]);
       }
     } catch (error) {
       console.error("Error fetching groups:", error);
@@ -776,8 +786,9 @@ export const groupService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        const responseData = await response.json() as BackendStudent[];
-        return mapStudentResponse(responseData);
+        // Type assertion to avoid unsafe assignment
+        const responseData: unknown = await response.json();
+        return mapStudentResponse(responseData as BackendStudent[]);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);

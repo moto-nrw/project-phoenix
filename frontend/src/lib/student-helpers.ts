@@ -1,6 +1,6 @@
 import type { Student } from './api';
 
-interface BackendStudent {
+export interface BackendStudent {
   id: number;
   custom_user?: {
     first_name: string;

@@ -1,6 +1,6 @@
 import type { Group, CombinedGroup } from './api';
 
-interface BackendGroup {
+export interface BackendGroup {
   id: number;
   name: string;
   room_id?: number;
@@ -34,7 +34,7 @@ interface BackendGroup {
   updated_at: string;
 }
 
-interface BackendCombinedGroup {
+export interface BackendCombinedGroup {
   id: number;
   name: string;
   is_active: boolean;

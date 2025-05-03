@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { getSession } from 'next-auth/react';
 import { env } from '~/env';
-import { mapActivityResponse, mapSingleActivityResponse, mapCategoryResponse, prepareActivityForBackend, type BackendActivity, type ActivityData } from './activity-helpers';
+import { mapActivityResponse, mapSingleActivityResponse, mapCategoryResponse, prepareActivityForBackend, type BackendActivity, type ActivityData, type CategoryData } from './activity-helpers';
 import { handleAuthFailure } from './auth-api';
 import type { Student } from './api';
 
@@ -100,8 +100,9 @@ export const activityService = {
               });
               
               if (retryResponse.ok) {
-                const responseData = await retryResponse.json() as ActivityData[];
-                return mapActivityResponse(responseData);
+                // Type assertion to avoid unsafe assignment
+                const responseData: unknown = await retryResponse.json();
+                return mapActivityResponse(responseData as ActivityData[]);
               }
             }
           }
@@ -109,8 +110,9 @@ export const activityService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        const responseData = await response.json() as ActivityData[];
-        return mapActivityResponse(responseData);
+        // Type assertion to avoid unsafe assignment
+        const responseData: unknown = await response.json();
+        return mapActivityResponse(responseData as ActivityData[]);
       } else {
         // Server-side: use axios with the API URL directly
         const api = axios.create({
@@ -391,8 +393,9 @@ export const activityService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        const responseData = await response.json() as CategoryData[];
-        return mapCategoryResponse(responseData);
+        // Type assertion to avoid unsafe assignment
+        const responseData: unknown = await response.json();
+        return mapCategoryResponse(responseData as CategoryData[]);
       } else {
         // Server-side: use axios with the API URL directly
         const api = axios.create({
@@ -401,7 +404,7 @@ export const activityService = {
           withCredentials: true,
         });
         const response = await api.get(url);
-        return mapCategoryResponse(response.data as CategoryData[]);
+        return mapCategoryResponse(response.data as unknown as CategoryData[]);
       }
     } catch (error) {
       console.error("Error fetching activity categories:", error);
@@ -727,8 +730,9 @@ export const activityService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        const responseData = await response.json() as ActivityData[];
-        return mapActivityResponse(responseData);
+        // Type assertion to avoid unsafe assignment
+        const responseData: unknown = await response.json();
+        return mapActivityResponse(responseData as ActivityData[]);
       } else {
         // Server-side: use axios with the API URL directly
         const api = axios.create({
@@ -770,8 +774,9 @@ export const activityService = {
           throw new Error(`API error: ${response.status}`);
         }
         
-        const responseData = await response.json() as ActivityData[];
-        return mapActivityResponse(responseData);
+        // Type assertion to avoid unsafe assignment
+        const responseData: unknown = await response.json();
+        return mapActivityResponse(responseData as ActivityData[]);
       } else {
         // Server-side: use axios with the API URL directly
         const api = axios.create({
