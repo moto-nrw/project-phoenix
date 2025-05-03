@@ -2,7 +2,7 @@
 package room
 
 import (
-	"context" // Add this import
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -11,15 +11,16 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database" // Add this import
+	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/logging"
 	models2 "github.com/moto-nrw/project-phoenix/models"
-	"github.com/uptrace/bun" // Add this import
+	"github.com/uptrace/bun"
 )
 
 // Resource defines the room management resource
 type Resource struct {
-	Store RoomStore
+	RoomStore  RoomStore
+	GroupStore GroupStore
 }
 
 // RoomStore defines database operations for room management
@@ -41,32 +42,37 @@ type RoomStore interface {
 	RegisterTablet(ctx context.Context, roomID int64, deviceID string, agID *int64, groupID *int64) (*models2.RoomOccupancy, error)
 	UnregisterTablet(ctx context.Context, roomID int64, deviceID string) error
 
-	// Combined group operations
-	MergeRooms(ctx context.Context, sourceRoomID, targetRoomID int64, name string, validUntil *time.Time, accessPolicy string) (*models2.CombinedGroup, error)
-	GetCombinedGroupForRoom(ctx context.Context, roomID int64) (*models2.CombinedGroup, error)
-	FindActiveCombinedGroups(ctx context.Context) ([]models2.CombinedGroup, error)
-	DeactivateCombinedGroup(ctx context.Context, id int64) error
-
 	// Room history operations
 	GetRoomHistoryByRoom(ctx context.Context, roomID int64) ([]models2.RoomHistory, error)
 	GetRoomHistoryByDateRange(ctx context.Context, startDate, endDate time.Time) ([]models2.RoomHistory, error)
 	GetRoomHistoryBySupervisor(ctx context.Context, supervisorID int64) ([]models2.RoomHistory, error)
 }
 
+// GroupStore defines operations for group and combined group management
+type GroupStore interface {
+	// Combined group operations
+	MergeRooms(ctx context.Context, sourceRoomID, targetRoomID int64, name string, validUntil *time.Time, accessPolicy string) (*models2.CombinedGroup, error)
+	GetCombinedGroupForRoom(ctx context.Context, roomID int64) (*models2.CombinedGroup, error)
+	FindActiveCombinedGroups(ctx context.Context) ([]models2.CombinedGroup, error)
+	DeactivateCombinedGroup(ctx context.Context, id int64) error
+}
+
 // NewResource creates a new room management resource
-func NewResource(store RoomStore) *Resource {
+func NewResource(roomStore RoomStore, groupStore GroupStore) *Resource {
 	return &Resource{
-		Store: store,
+		RoomStore:  roomStore,
+		GroupStore: groupStore,
 	}
 }
 
 // NewAPI creates a new room API resource (alias for NewResource for consistency with other APIs)
 func NewAPI(db *bun.DB) (*Resource, chi.Router) {
-	// Create a real RoomStore implementation using the database
-	store := database.NewRoomStore(db)
+	// Create store implementations using the database
+	roomStore := database.NewRoomStore(db)
+	groupStore := database.NewGroupStore(db)
 
 	// Create the resource
-	resource := NewResource(store)
+	resource := NewResource(roomStore, groupStore)
 
 	// Create and return the router
 	return resource, resource.Router()
@@ -126,7 +132,7 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 	logger := logging.GetLogEntry(r)
 	ctx := r.Context()
 
-	rooms, err := rs.Store.GetRooms(ctx)
+	rooms, err := rs.RoomStore.GetRooms(ctx)
 	if err != nil {
 		logger.WithError(err).Error("Failed to list rooms")
 		render.Render(w, r, ErrInternalServerError(err))
@@ -155,7 +161,7 @@ func (rs *Resource) createRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := rs.Store.CreateRoom(ctx, data.Room); err != nil {
+	if err := rs.RoomStore.CreateRoom(ctx, data.Room); err != nil {
 		logger.WithError(err).Error("Failed to create room")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
@@ -179,7 +185,7 @@ func (rs *Resource) getRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	room, err := rs.Store.GetRoomByID(ctx, id)
+	room, err := rs.RoomStore.GetRoomByID(ctx, id)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get room by ID")
 		render.Render(w, r, ErrNotFound())
@@ -219,7 +225,7 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 	// Make sure ID in URL matches ID in body
 	data.Room.ID = id
 
-	room, err := rs.Store.GetRoomByID(ctx, id)
+	room, err := rs.RoomStore.GetRoomByID(ctx, id)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get room by ID for update")
 		render.Render(w, r, ErrNotFound())
@@ -234,7 +240,7 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 	room.Category = data.Room.Category
 	room.Color = data.Room.Color
 
-	if err := rs.Store.UpdateRoom(ctx, room); err != nil {
+	if err := rs.RoomStore.UpdateRoom(ctx, room); err != nil {
 		logger.WithError(err).Error("Failed to update room")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
@@ -258,14 +264,14 @@ func (rs *Resource) deleteRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if room exists
-	_, err = rs.Store.GetRoomByID(ctx, id)
+	_, err = rs.RoomStore.GetRoomByID(ctx, id)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get room by ID for deletion")
 		render.Render(w, r, ErrNotFound())
 		return
 	}
 
-	if err := rs.Store.DeleteRoom(ctx, id); err != nil {
+	if err := rs.RoomStore.DeleteRoom(ctx, id); err != nil {
 		logger.WithError(err).Error("Failed to delete room")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
@@ -287,7 +293,7 @@ func (rs *Resource) getRoomsByCategory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rooms, err := rs.Store.GetRoomsByCategory(ctx, category)
+	rooms, err := rs.RoomStore.GetRoomsByCategory(ctx, category)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get rooms by category")
 		render.Render(w, r, ErrInternalServerError(err))
@@ -309,7 +315,7 @@ func (rs *Resource) getRoomsByBuilding(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rooms, err := rs.Store.GetRoomsByBuilding(ctx, building)
+	rooms, err := rs.RoomStore.GetRoomsByBuilding(ctx, building)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get rooms by building")
 		render.Render(w, r, ErrInternalServerError(err))
@@ -338,7 +344,7 @@ func (rs *Resource) getRoomsByFloor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rooms, err := rs.Store.GetRoomsByFloor(ctx, floor)
+	rooms, err := rs.RoomStore.GetRoomsByFloor(ctx, floor)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get rooms by floor")
 		render.Render(w, r, ErrInternalServerError(err))
@@ -367,7 +373,7 @@ func (rs *Resource) getRoomsByOccupied(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rooms, err := rs.Store.GetRoomsByOccupied(ctx, occupied)
+	rooms, err := rs.RoomStore.GetRoomsByOccupied(ctx, occupied)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get rooms by occupied status")
 		render.Render(w, r, ErrInternalServerError(err))
@@ -382,7 +388,7 @@ func (rs *Resource) getRoomsGroupedByCategory(w http.ResponseWriter, r *http.Req
 	logger := logging.GetLogEntry(r)
 	ctx := r.Context()
 
-	groupedRooms, err := rs.Store.GetRoomsGroupedByCategory(ctx)
+	groupedRooms, err := rs.RoomStore.GetRoomsGroupedByCategory(ctx)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get rooms grouped by category")
 		render.Render(w, r, ErrInternalServerError(err))
@@ -416,7 +422,7 @@ func (rs *Resource) getRoomOccupancy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	occupancy, err := rs.Store.GetCurrentRoomOccupancy(ctx, id)
+	occupancy, err := rs.RoomStore.GetCurrentRoomOccupancy(ctx, id)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get room occupancy")
 		render.Render(w, r, ErrNotFound())
@@ -447,14 +453,14 @@ func (rs *Resource) registerTablet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if room exists
-	_, err = rs.Store.GetRoomByID(ctx, id)
+	_, err = rs.RoomStore.GetRoomByID(ctx, id)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get room by ID for tablet registration")
 		render.Render(w, r, ErrNotFound())
 		return
 	}
 
-	occupancy, err := rs.Store.RegisterTablet(ctx, id, data.DeviceID, data.AgID, data.GroupID)
+	occupancy, err := rs.RoomStore.RegisterTablet(ctx, id, data.DeviceID, data.AgID, data.GroupID)
 	if err != nil {
 		if err.Error() == "tablet is already registered" {
 			logger.WithError(err).Warn("Tablet already registered")
@@ -496,14 +502,14 @@ func (rs *Resource) unregisterTablet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if room exists
-	_, err = rs.Store.GetRoomByID(ctx, id)
+	_, err = rs.RoomStore.GetRoomByID(ctx, id)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get room by ID for tablet unregistration")
 		render.Render(w, r, ErrNotFound())
 		return
 	}
 
-	if err := rs.Store.UnregisterTablet(ctx, id, data.DeviceID); err != nil {
+	if err := rs.RoomStore.UnregisterTablet(ctx, id, data.DeviceID); err != nil {
 		logger.WithError(err).Error("Failed to unregister tablet")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
@@ -535,7 +541,7 @@ func (rs *Resource) mergeRooms(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if source room exists
-	_, err := rs.Store.GetRoomByID(ctx, data.SourceRoomID)
+	_, err := rs.RoomStore.GetRoomByID(ctx, data.SourceRoomID)
 	if err != nil {
 		logger.WithError(err).Error("Source room not found")
 		render.Render(w, r, ErrNotFound())
@@ -543,14 +549,14 @@ func (rs *Resource) mergeRooms(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if target room exists
-	_, err = rs.Store.GetRoomByID(ctx, data.TargetRoomID)
+	_, err = rs.RoomStore.GetRoomByID(ctx, data.TargetRoomID)
 	if err != nil {
 		logger.WithError(err).Error("Target room not found")
 		render.Render(w, r, ErrNotFound())
 		return
 	}
 
-	combinedGroup, err := rs.Store.MergeRooms(ctx, data.SourceRoomID, data.TargetRoomID, data.Name, data.ValidUntil, data.AccessPolicy)
+	combinedGroup, err := rs.GroupStore.MergeRooms(ctx, data.SourceRoomID, data.TargetRoomID, data.Name, data.ValidUntil, data.AccessPolicy)
 	if err != nil {
 		logger.WithError(err).Error("Failed to merge rooms")
 		render.Render(w, r, ErrInternalServerError(err))
@@ -587,14 +593,14 @@ func (rs *Resource) getCombinedGroupForRoom(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Check if room exists
-	_, err = rs.Store.GetRoomByID(ctx, id)
+	_, err = rs.RoomStore.GetRoomByID(ctx, id)
 	if err != nil {
 		logger.WithError(err).Error("Room not found")
 		render.Render(w, r, ErrNotFound())
 		return
 	}
 
-	combinedGroup, err := rs.Store.GetCombinedGroupForRoom(ctx, id)
+	combinedGroup, err := rs.GroupStore.GetCombinedGroupForRoom(ctx, id)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get combined group for room")
 		render.Render(w, r, ErrNotFound())
@@ -609,7 +615,7 @@ func (rs *Resource) getActiveCombinedGroups(w http.ResponseWriter, r *http.Reque
 	logger := logging.GetLogEntry(r)
 	ctx := r.Context()
 
-	combinedGroups, err := rs.Store.FindActiveCombinedGroups(ctx)
+	combinedGroups, err := rs.GroupStore.FindActiveCombinedGroups(ctx)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get active combined groups")
 		render.Render(w, r, ErrInternalServerError(err))
@@ -632,7 +638,7 @@ func (rs *Resource) deactivateCombinedGroup(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := rs.Store.DeactivateCombinedGroup(ctx, id); err != nil {
+	if err := rs.GroupStore.DeactivateCombinedGroup(ctx, id); err != nil {
 		logger.WithError(err).Error("Failed to deactivate combined group")
 		render.Render(w, r, ErrInternalServerError(err))
 		return
@@ -662,14 +668,14 @@ func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if room exists
-	_, err = rs.Store.GetRoomByID(ctx, id)
+	_, err = rs.RoomStore.GetRoomByID(ctx, id)
 	if err != nil {
 		logger.WithError(err).Error("Room not found")
 		render.Render(w, r, ErrNotFound())
 		return
 	}
 
-	history, err := rs.Store.GetRoomHistoryByRoom(ctx, id)
+	history, err := rs.RoomStore.GetRoomHistoryByRoom(ctx, id)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get room history")
 		render.Render(w, r, ErrInternalServerError(err))
@@ -710,7 +716,7 @@ func (rs *Resource) getRoomHistoryByDateRange(w http.ResponseWriter, r *http.Req
 	// Add one day to end date to include the entire end date
 	endDate = endDate.Add(24 * time.Hour)
 
-	history, err := rs.Store.GetRoomHistoryByDateRange(ctx, startDate, endDate)
+	history, err := rs.RoomStore.GetRoomHistoryByDateRange(ctx, startDate, endDate)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get room history by date range")
 		render.Render(w, r, ErrInternalServerError(err))
@@ -733,7 +739,7 @@ func (rs *Resource) getRoomHistoryBySupervisor(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	history, err := rs.Store.GetRoomHistoryBySupervisor(ctx, id)
+	history, err := rs.RoomStore.GetRoomHistoryBySupervisor(ctx, id)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get room history by supervisor")
 		render.Render(w, r, ErrInternalServerError(err))

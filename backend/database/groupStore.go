@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	models2 "github.com/moto-nrw/project-phoenix/models"
-
 	"github.com/uptrace/bun"
+	"time"
 )
 
 // GroupStore implements database operations for group management
@@ -473,4 +473,15 @@ func (s *GroupStore) MergeRooms(ctx context.Context, sourceRoomID, targetRoomID 
 
 	// Return the created combined group with all relations
 	return s.GetCombinedGroupByID(ctx, combinedGroup.ID)
+}
+
+func (s *GroupStore) DeactivateCombinedGroup(ctx context.Context, id int64) error {
+	_, err := s.db.NewUpdate().
+		Model((*models2.CombinedGroup)(nil)).
+		Set("is_active = ?", false).
+		Set("modified_at = ?", time.Now()).
+		Where("id = ?", id).
+		Exec(ctx)
+
+	return err
 }
