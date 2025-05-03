@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import React from 'react';
+import React from "react";
 
 interface SectionTitleProps {
   title: string;
@@ -8,11 +8,11 @@ interface SectionTitleProps {
 
 export function SectionTitle({ title }: SectionTitleProps) {
   return (
-    <div className="mb-12 text-center group">
-      <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-500 to-green-500 inline-block text-transparent bg-clip-text mb-2 transition-transform duration-300 group-hover:scale-[1.02]">
+    <div className="group mb-12 text-center">
+      <h2 className="mb-2 inline-block bg-gradient-to-r from-blue-500 to-green-500 bg-clip-text text-3xl font-bold text-transparent transition-transform duration-300 group-hover:scale-[1.02]">
         {title}
       </h2>
-      <div className="w-full max-w-sm mx-auto h-1 bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-300 group-hover:max-w-md group-hover:h-1.5"></div>
+      <div className="mx-auto h-1 w-full max-w-sm rounded-full bg-gradient-to-r from-blue-500 to-green-500 transition-all duration-300 group-hover:h-1.5 group-hover:max-w-md"></div>
     </div>
   );
 }

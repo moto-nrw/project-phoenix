@@ -1,28 +1,34 @@
-import { signIn, signOut } from 'next-auth/react';
+import { signIn, signOut } from "next-auth/react";
 
 /**
  * Function to refresh the authentication token
  * @returns Promise with the new tokens or null if refresh failed
  */
-export async function refreshToken(): Promise<{ access_token: string, refresh_token: string } | null> {
+export async function refreshToken(): Promise<{
+  access_token: string;
+  refresh_token: string;
+} | null> {
   try {
-    const response = await fetch('/api/auth/token', {
-      method: 'POST',
+    const response = await fetch("/api/auth/token", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-      credentials: 'include', // Important to include cookies
+      credentials: "include", // Important to include cookies
     });
 
     if (!response.ok) {
-      console.error('Token refresh failed:', response.status);
+      console.error("Token refresh failed:", response.status);
       return null;
     }
 
-    const data = await response.json() as { access_token: string, refresh_token: string };
+    const data = (await response.json()) as {
+      access_token: string;
+      refresh_token: string;
+    };
     return data;
   } catch (error) {
-    console.error('Error refreshing token:', error);
+    console.error("Error refreshing token:", error);
     return null;
   }
 }
@@ -35,40 +41,43 @@ export async function handleAuthFailure(): Promise<boolean> {
   try {
     // Try to refresh the token
     const newTokens = await refreshToken();
-    
+
     if (newTokens) {
       // Token refresh successful
-      console.log('Token refreshed successfully');
+      console.log("Token refreshed successfully");
       // Force a session reload to update the token in the session
-      const result = await signIn('credentials', { 
+      const result = await signIn("credentials", {
         redirect: false,
         internalRefresh: true, // Special flag to indicate this is just a token refresh
         token: newTokens.access_token,
-        refreshToken: newTokens.refresh_token
+        refreshToken: newTokens.refresh_token,
       });
-      
+
       if (result?.error) {
-        console.error('Session update failed after token refresh:', result.error);
+        console.error(
+          "Session update failed after token refresh:",
+          result.error,
+        );
         await signOut({ redirect: false });
         return false;
       }
-      
-      console.log('Session updated with new tokens');
+
+      console.log("Session updated with new tokens");
       return true;
     }
-    
+
     // If refresh failed, sign out
-    console.log('Token refresh failed, signing out');
+    console.log("Token refresh failed, signing out");
     await signOut({ redirect: false });
-    
+
     // If we're in the browser, redirect to login
-    if (typeof window !== 'undefined') {
-      window.location.href = '/login';
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
     }
-    
+
     return false;
   } catch (error) {
-    console.error('Auth failure handling error:', error);
+    console.error("Auth failure handling error:", error);
     await signOut({ redirect: false });
     return false;
   }

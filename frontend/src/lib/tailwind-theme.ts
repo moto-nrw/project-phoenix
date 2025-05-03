@@ -1,11 +1,11 @@
 /**
  * Project Phoenix Tailwind Theme Functions
- * 
+ *
  * This file provides functions for integrating the design tokens
  * with Tailwind CSS configuration.
  */
 
-import { theme } from './theme';
+import { theme } from "./theme";
 
 /**
  * Converts the theme colors to a format compatible with Tailwind colors configuration
@@ -39,13 +39,13 @@ export function getThemeColorsTailwind() {
     800: theme.colors.gray[800],
     900: theme.colors.gray[900],
   };
-  
+
   // Map other color categories
   colors.success = theme.colors.success;
   colors.warning = theme.colors.warning;
   colors.error = theme.colors.error;
   colors.info = theme.colors.info;
-  
+
   return colors;
 }
 

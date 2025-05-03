@@ -38,46 +38,56 @@ export const authConfig = {
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Password", type: "password" },
       },
       async authorize(credentials, _request) {
         // Adding request parameter to match the expected type signature
         if (!credentials?.email || !credentials?.password) return null;
-        
+
         try {
           // Improved error handling with more detailed logging
-          console.log(`Attempting login with API URL: ${env.NEXT_PUBLIC_API_URL}/auth/login`);
-          
-          const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: credentials.email,
-              password: credentials.password
-            }),
-          });
-          
+          console.log(
+            `Attempting login with API URL: ${env.NEXT_PUBLIC_API_URL}/auth/login`,
+          );
+
+          const response = await fetch(
+            `${env.NEXT_PUBLIC_API_URL}/auth/login`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                email: credentials.email,
+                password: credentials.password,
+              }),
+            },
+          );
+
           // Log the response status to help with debugging
           console.log(`Login response status: ${response.status}`);
-          
+
           if (!response.ok) {
             const text = await response.text();
-            console.error(`Login failed with status ${response.status}: ${text}`);
+            console.error(
+              `Login failed with status ${response.status}: ${text}`,
+            );
             return null;
           }
 
-          const responseData = await response.json() as { access_token: string; refresh_token: string };
-          
+          const responseData = (await response.json()) as {
+            access_token: string;
+            refresh_token: string;
+          };
+
           console.log("Login response:", JSON.stringify(responseData));
 
           // Parse the JWT token to get the user info
           // This avoids making a separate API call and possible auth issues
-          const tokenParts = responseData.access_token.split('.');
+          const tokenParts = responseData.access_token.split(".");
           if (tokenParts.length !== 3) {
             console.error("Invalid token format");
             return null;
           }
-          
+
           try {
             // Decode the payload (middle part of JWT)
             // Ensure tokenParts[1] is defined before attempting to decode
@@ -85,33 +95,40 @@ export const authConfig = {
               console.error("Invalid token part");
               return null;
             }
-            const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString()) as { 
-              id: string | number; 
-              sub?: string; 
+            const payload = JSON.parse(
+              Buffer.from(tokenParts[1], "base64").toString(),
+            ) as {
+              id: string | number;
+              sub?: string;
               username?: string;
               roles?: string[];
             };
             console.log("Token payload:", payload);
-            
+
             // Extract roles directly from the token payload - this is the correct way
             // The backend includes roles in the JWT token already
             let roles: string[] = [];
-            
+
             if (payload.roles && Array.isArray(payload.roles)) {
               roles = payload.roles;
               console.log("Found roles in token:", roles);
             } else {
-              console.warn("No roles found in token, this will cause authorization failures");
+              console.warn(
+                "No roles found in token, this will cause authorization failures",
+              );
             }
-            
+
             // Using type assertions for credentials to satisfy TypeScript
             return {
               id: String(payload.id),
-              name: payload.sub ?? payload.username ?? (credentials.email as string),
+              name:
+                payload.sub ??
+                payload.username ??
+                (credentials.email as string),
               email: credentials.email as string,
               token: responseData.access_token,
               refreshToken: responseData.refresh_token,
-              roles: roles
+              roles: roles,
             };
           } catch (e) {
             console.error("Error parsing JWT:", e);
@@ -121,8 +138,8 @@ export const authConfig = {
           console.error("Authentication error:", error);
           return null;
         }
-      }
-    })
+      },
+    }),
     /**
      * ...add more providers here.
      *
@@ -153,12 +170,12 @@ export const authConfig = {
           id: token.id as string,
           token: token.token as string,
           refreshToken: token.refreshToken as string,
-          roles: token.roles as string[]
-        }
+          roles: token.roles as string[],
+        },
       };
     },
   },
   pages: {
-    signIn: "/login"
-  }
+    signIn: "/login",
+  },
 } satisfies NextAuthConfig;
