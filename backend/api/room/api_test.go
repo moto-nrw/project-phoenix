@@ -140,11 +140,47 @@ func (m *MockRoomStore) GetRoomHistoryBySupervisor(ctx context.Context, supervis
 	return args.Get(0).([]models2.RoomHistory), args.Error(1)
 }
 
-// setupTestAPI creates a new Resource with a mock store for testing
+// MockGroupStore is a mock implementation of GroupStore
+type MockGroupStore struct {
+	mock.Mock
+}
+
+// MergeRooms implements the GroupStore.MergeRooms method
+func (m *MockGroupStore) MergeRooms(ctx context.Context, sourceRoomID, targetRoomID int64, name string, validUntil *time.Time, accessPolicy string) (*models2.CombinedGroup, error) {
+	args := m.Called(ctx, sourceRoomID, targetRoomID, name, validUntil, accessPolicy)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models2.CombinedGroup), args.Error(1)
+}
+
+// GetCombinedGroupForRoom implements the GroupStore.GetCombinedGroupForRoom method
+func (m *MockGroupStore) GetCombinedGroupForRoom(ctx context.Context, roomID int64) (*models2.CombinedGroup, error) {
+	args := m.Called(ctx, roomID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models2.CombinedGroup), args.Error(1)
+}
+
+// FindActiveCombinedGroups implements the GroupStore.FindActiveCombinedGroups method
+func (m *MockGroupStore) FindActiveCombinedGroups(ctx context.Context) ([]models2.CombinedGroup, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]models2.CombinedGroup), args.Error(1)
+}
+
+// DeactivateCombinedGroup implements the GroupStore.DeactivateCombinedGroup method
+func (m *MockGroupStore) DeactivateCombinedGroup(ctx context.Context, id int64) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+// setupTestAPI creates a new Resource with mock stores for testing
 func setupTestAPI() (*Resource, *MockRoomStore) {
-	mockStore := new(MockRoomStore)
-	resource := NewResource(mockStore)
-	return resource, mockStore
+	mockRoomStore := new(MockRoomStore)
+	mockGroupStore := new(MockGroupStore)
+	resource := NewResource(mockRoomStore, mockGroupStore)
+	return resource, mockRoomStore
 }
 
 func TestListRooms(t *testing.T) {
@@ -430,7 +466,11 @@ func TestMergeRooms(t *testing.T) {
 
 	mockStore.On("GetRoomByID", mock.Anything, int64(1)).Return(sourceRoom, nil)
 	mockStore.On("GetRoomByID", mock.Anything, int64(2)).Return(targetRoom, nil)
-	mockStore.On("MergeRooms", mock.Anything, int64(1), int64(2), "", (*time.Time)(nil), "all").Return(combinedGroup, nil)
+
+	// Setup mock for GroupStore
+	mockGroupStore := new(MockGroupStore)
+	rs.GroupStore = mockGroupStore
+	mockGroupStore.On("MergeRooms", mock.Anything, int64(1), int64(2), "", (*time.Time)(nil), "all").Return(combinedGroup, nil)
 
 	// Create test request
 	mergeReq := &MergeRoomsRequest{
@@ -457,6 +497,7 @@ func TestMergeRooms(t *testing.T) {
 	assert.NotNil(t, response["combined_group"])
 
 	mockStore.AssertExpectations(t)
+	mockGroupStore.AssertExpectations(t)
 }
 
 func TestRegisterTablet(t *testing.T) {
@@ -584,7 +625,10 @@ func TestGetActiveCombinedGroups(t *testing.T) {
 		},
 	}
 
-	mockStore.On("FindActiveCombinedGroups", mock.Anything).Return(combinedGroups, nil)
+	// Setup mock for GroupStore since the handler uses GroupStore, not RoomStore
+	mockGroupStore := new(MockGroupStore)
+	rs.GroupStore = mockGroupStore
+	mockGroupStore.On("FindActiveCombinedGroups", mock.Anything).Return(combinedGroups, nil)
 
 	// Create test request
 	r := httptest.NewRequest("GET", "/combined-groups", nil)
@@ -604,12 +648,16 @@ func TestGetActiveCombinedGroups(t *testing.T) {
 	assert.Equal(t, "Combined Group 2", responseCombinedGroups[1].Name)
 
 	mockStore.AssertExpectations(t)
+	mockGroupStore.AssertExpectations(t)
 }
 
 func TestDeactivateCombinedGroup(t *testing.T) {
 	rs, mockStore := setupTestAPI()
 
-	mockStore.On("DeactivateCombinedGroup", mock.Anything, int64(1)).Return(nil)
+	// Setup mock for GroupStore since the handler uses GroupStore, not RoomStore
+	mockGroupStore := new(MockGroupStore)
+	rs.GroupStore = mockGroupStore
+	mockGroupStore.On("DeactivateCombinedGroup", mock.Anything, int64(1)).Return(nil)
 
 	// Create test request
 	r := httptest.NewRequest("DELETE", "/combined-groups/1", nil)
@@ -631,6 +679,7 @@ func TestDeactivateCombinedGroup(t *testing.T) {
 	assert.Equal(t, "Combined group deactivated successfully", response["message"])
 
 	mockStore.AssertExpectations(t)
+	mockGroupStore.AssertExpectations(t)
 }
 
 func TestGetRoomHistory(t *testing.T) {

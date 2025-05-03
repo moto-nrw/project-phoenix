@@ -109,31 +109,43 @@ func TestRoomLifecycle(t *testing.T) {
 	mockStore.On("GetRoomByID", mock.Anything, int64(1)).Return(createdRoom, nil)
 
 	// 4. Set up expectations for update
-	mockStore.On("GetRoomByID", mock.Anything, int64(1)).Return(createdRoom, nil).Once()
+	mockStore.On("GetRoomByID", mock.Anything, int64(1)).Return(createdRoom, nil)
 	mockStore.On("UpdateRoom", mock.Anything, mock.MatchedBy(func(r *models.Room) bool {
 		return r.ID == 1 && r.RoomName == "Updated Test Room"
 	})).Return(nil)
-	mockStore.On("GetRoomByID", mock.Anything, int64(1)).Return(updatedRoom, nil).Once()
+	mockStore.On("GetRoomByID", mock.Anything, int64(1)).Return(updatedRoom, nil)
 
 	// 5. Set up expectations for tablet registration
-	mockStore.On("GetRoomByID", mock.Anything, int64(1)).Return(updatedRoom, nil).Once()
+	mockStore.On("GetRoomByID", mock.Anything, int64(1)).Return(updatedRoom, nil)
 	mockStore.On("RegisterTablet", mock.Anything, int64(1), "TEST-DEVICE-001", (*int64)(nil), &groupID).Return(roomOccupancy, nil)
 
 	// 6. Set up expectations for tablet unregistration
-	mockStore.On("GetRoomByID", mock.Anything, int64(1)).Return(updatedRoom, nil).Once()
+	mockStore.On("GetRoomByID", mock.Anything, int64(1)).Return(updatedRoom, nil)
 	mockStore.On("UnregisterTablet", mock.Anything, int64(1), "TEST-DEVICE-001").Return(nil)
 
 	// 7. Set up expectations for room merging
-	mockStore.On("GetRoomByID", mock.Anything, int64(1)).Return(updatedRoom, nil).Once()
+	mockStore.On("GetRoomByID", mock.Anything, int64(1)).Return(updatedRoom, nil)
 	mockStore.On("GetRoomByID", mock.Anything, int64(2)).Return(&models.Room{ID: 2, RoomName: "Second Test Room"}, nil)
-	mockStore.On("MergeRooms", mock.Anything, int64(1), int64(2), "Test Merged Rooms", mock.Anything, "all").Return(combinedGroup, nil)
+
+	// Mock GroupStore for the mergeRooms function
+	mockGroupStore := new(MockGroupStore)
+	mockGroupStore.On("MergeRooms", mock.Anything, int64(1), int64(2), "Test Merged Rooms", mock.Anything, "all").Return(combinedGroup, nil)
+
+	// Set the mocked GroupStore in the resource
+	originalGroupStore := rs.GroupStore
+	rs.GroupStore = mockGroupStore
+
+	// Restore the original GroupStore after the test
+	defer func() {
+		rs.GroupStore = originalGroupStore
+	}()
 
 	// 8. Set up expectations for room history
-	mockStore.On("GetRoomByID", mock.Anything, int64(1)).Return(updatedRoom, nil).Once()
+	mockStore.On("GetRoomByID", mock.Anything, int64(1)).Return(updatedRoom, nil)
 	mockStore.On("GetRoomHistoryByRoom", mock.Anything, int64(1)).Return(roomHistory, nil)
 
 	// 9. Set up expectations for room deletion
-	mockStore.On("GetRoomByID", mock.Anything, int64(1)).Return(updatedRoom, nil).Once()
+	mockStore.On("GetRoomByID", mock.Anything, int64(1)).Return(updatedRoom, nil)
 	mockStore.On("DeleteRoom", mock.Anything, int64(1)).Return(nil)
 
 	// Use a standard context for testing

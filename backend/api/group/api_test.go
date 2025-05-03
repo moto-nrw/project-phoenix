@@ -77,12 +77,30 @@ func (m *MockGroupStore) ListCombinedGroups(ctx context.Context) ([]models2.Comb
 	return args.Get(0).([]models2.CombinedGroup), args.Error(1)
 }
 
-func (m *MockGroupStore) MergeRooms(ctx context.Context, sourceRoomID, targetRoomID int64) (*models2.CombinedGroup, error) {
-	args := m.Called(ctx, sourceRoomID, targetRoomID)
+func (m *MockGroupStore) MergeRooms(ctx context.Context, sourceRoomID, targetRoomID int64, name string, validUntil *time.Time, accessPolicy string) (*models2.CombinedGroup, error) {
+	args := m.Called(ctx, sourceRoomID, targetRoomID, name, validUntil, accessPolicy)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*models2.CombinedGroup), args.Error(1)
+}
+
+func (m *MockGroupStore) GetCombinedGroupForRoom(ctx context.Context, roomID int64) (*models2.CombinedGroup, error) {
+	args := m.Called(ctx, roomID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models2.CombinedGroup), args.Error(1)
+}
+
+func (m *MockGroupStore) FindActiveCombinedGroups(ctx context.Context) ([]models2.CombinedGroup, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]models2.CombinedGroup), args.Error(1)
+}
+
+func (m *MockGroupStore) DeactivateCombinedGroup(ctx context.Context, id int64) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
 }
 
 // MockAuthTokenStore implements the AuthTokenStore interface for testing
@@ -554,7 +572,7 @@ func TestMergeRooms(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	mockGroupStore.On("MergeRooms", mock.Anything, int64(101), int64(102)).Return(mergedCombinedGroup, nil)
+	mockGroupStore.On("MergeRooms", mock.Anything, int64(101), int64(102), "", (*time.Time)(nil), "all").Return(mergedCombinedGroup, nil)
 
 	// Create test request
 	mergeReq := &MergeRoomsRequest{
