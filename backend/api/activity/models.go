@@ -74,9 +74,8 @@ func ValidateAgTime(agTime *models2.AgTime) error {
 		return errors.New("timespan ID is required")
 	}
 
-	if agTime.AgID == 0 {
-		return errors.New("activity group ID is required")
-	}
+	// AgID is not required during initial creation of an activity
+	// It will be set automatically in the CreateAg method
 
 	return nil
 }

@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 
 interface Filter {
   id: string;
@@ -17,21 +17,23 @@ interface DataListFiltersProps {
 export function DataListFilters({
   filters,
   onChange,
-  className = '',
+  className = "",
 }: DataListFiltersProps) {
-  const [activeFilters, setActiveFilters] = useState<Record<string, string | null>>({});
+  const [activeFilters, setActiveFilters] = useState<
+    Record<string, string | null>
+  >({});
 
   const handleFilterChange = (filterId: string, value: string | null) => {
     const newActiveFilters = {
       ...activeFilters,
       [filterId]: value,
     };
-    
+
     // If value is null or empty, remove this filter
-    if (value === null || value === '') {
+    if (value === null || value === "") {
       delete newActiveFilters[filterId];
     }
-    
+
     setActiveFilters(newActiveFilters);
     onChange(filterId, value);
   };
@@ -42,15 +44,15 @@ export function DataListFilters({
         <div key={filter.id} className="flex-shrink-0">
           <select
             id={`filter-${filter.id}`}
-            value={activeFilters[filter.id] ?? ''}
+            value={activeFilters[filter.id] ?? ""}
             onChange={(e) => {
-              const value = e.target.value === '' ? null : e.target.value;
+              const value = e.target.value === "" ? null : e.target.value;
               handleFilterChange(filter.id, value);
             }}
-            className="px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
           >
             {filter.options.map((option) => (
-              <option key={option.value ?? 'empty'} value={option.value ?? ''}>
+              <option key={option.value ?? "empty"} value={option.value ?? ""}>
                 {option.label}
               </option>
             ))}

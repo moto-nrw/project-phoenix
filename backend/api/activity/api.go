@@ -19,8 +19,9 @@ import (
 
 // Resource defines the activity group management resource
 type Resource struct {
-	Store     AgStore
-	AuthStore AuthTokenStore
+	Store         AgStore
+	AuthStore     AuthTokenStore
+	TimespanStore TimespanStore
 }
 
 // AgStore defines database operations for activity group management
@@ -58,11 +59,20 @@ type AuthTokenStore interface {
 	GetToken(t string) (*jwt.Token, error)
 }
 
+// TimespanStore defines operations for timespan management
+type TimespanStore interface {
+	CreateTimespan(ctx context.Context, startTime time.Time, endTime *time.Time) (*models2.Timespan, error)
+	GetTimespan(ctx context.Context, id int64) (*models2.Timespan, error)
+	UpdateTimespanEndTime(ctx context.Context, id int64, endTime time.Time) error
+	DeleteTimespan(ctx context.Context, id int64) error
+}
+
 // NewResource creates a new activity group management resource
-func NewResource(store AgStore, authStore AuthTokenStore) *Resource {
+func NewResource(store AgStore, authStore AuthTokenStore, timespanStore TimespanStore) *Resource {
 	return &Resource{
-		Store:     store,
-		AuthStore: authStore,
+		Store:         store,
+		AuthStore:     authStore,
+		TimespanStore: timespanStore,
 	}
 }
 
@@ -149,7 +159,7 @@ func (req *AgRequest) Bind(r *http.Request) error {
 	return nil
 }
 
-// AgTimeRequest is the request payload for AgTime data
+// AgTimeRequest is the request payload for AgTime data with an existing timespan ID
 type AgTimeRequest struct {
 	*models2.AgTime
 }
@@ -159,6 +169,41 @@ func (req *AgTimeRequest) Bind(r *http.Request) error {
 	if req.AgTime == nil {
 		return errors.New("missing time slot data")
 	}
+	return nil
+}
+
+// AgTimeCreateRequest is the request payload for AgTime data with time information
+// This allows creating a time slot without providing a timespan ID directly
+type AgTimeCreateRequest struct {
+	Weekday   string     `json:"weekday"`
+	StartTime time.Time  `json:"start_time"`
+	EndTime   *time.Time `json:"end_time,omitempty"`
+}
+
+// Bind preprocesses an AgTimeCreateRequest
+func (req *AgTimeCreateRequest) Bind(r *http.Request) error {
+	// Validate weekday
+	validWeekdays := map[string]bool{
+		"Monday":    true,
+		"Tuesday":   true,
+		"Wednesday": true,
+		"Thursday":  true,
+		"Friday":    true,
+		"Saturday":  true,
+		"Sunday":    true,
+	}
+
+	if !validWeekdays[req.Weekday] {
+		return errors.New("invalid weekday; must be one of: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday")
+	}
+
+	// Validate start time
+	if req.StartTime.IsZero() {
+		return errors.New("start time is required")
+	}
+
+	// End time is optional
+
 	return nil
 }
 
@@ -441,7 +486,7 @@ func (rs *Resource) createAg(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// In the createAg handler, add this code before calling store.CreateAg:
+	// Initialize empty slices if nil
 	if data.StudentIDs == nil {
 		data.StudentIDs = []int64{}
 	}
@@ -514,6 +559,16 @@ func (rs *Resource) updateAg(w http.ResponseWriter, r *http.Request) {
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
+
+	// Log the parsed data
+	logger.WithFields(logrus.Fields{
+		"ag_id":           id,
+		"name":            data.Name,
+		"max_participant": data.MaxParticipant,
+		"is_open_ags":     data.IsOpenAg,
+		"supervisor_id":   data.SupervisorID,
+		"ag_category_id":  data.AgCategoryID,
+	}).Debug("Activity update data")
 
 	// Validate the activity group data
 	if err := ValidateAg(data.Ag); err != nil {
@@ -635,6 +690,21 @@ func (rs *Resource) addAgTime(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
+
+	// Check content type to determine how to handle the request
+	contentType := r.Header.Get("Content-Type")
+	if contentType == "application/json" {
+		// First, try to parse as the new request format with start_time and end_time
+		var createData AgTimeCreateRequest
+		if err := render.Bind(r, &createData); err == nil {
+			// Process the create request with automatic timespan creation
+			rs.handleTimeslotCreationWithTimespan(ctx, w, r, id, &createData)
+			return
+		}
+	}
+
+	// Fall back to the original format if needed (for backward compatibility)
 	data := &AgTimeRequest{}
 	if err := render.Bind(r, data); err != nil {
 		logger.WithError(err).Warn("Invalid time slot creation request")
@@ -652,7 +722,6 @@ func (rs *Resource) addAgTime(w http.ResponseWriter, r *http.Request) {
 	// Set the activity group ID
 	data.AgID = id
 
-	ctx := r.Context()
 	if err := rs.Store.CreateAgTime(ctx, data.AgTime); err != nil {
 		logger.WithError(err).Error("Failed to create time slot")
 		render.Render(w, r, ErrInternalServerError(err))
@@ -672,6 +741,65 @@ func (rs *Resource) addAgTime(w http.ResponseWriter, r *http.Request) {
 		"time_id": timeSlot.ID,
 		"weekday": timeSlot.Weekday,
 	}).Info("Time slot added to activity group successfully")
+
+	render.Status(r, http.StatusCreated)
+	render.JSON(w, r, timeSlot)
+}
+
+// handleTimeslotCreationWithTimespan handles the creation of a time slot with automatic timespan creation
+func (rs *Resource) handleTimeslotCreationWithTimespan(ctx context.Context, w http.ResponseWriter, r *http.Request, agID int64, createData *AgTimeCreateRequest) {
+	logger := logging.GetLogEntry(r)
+
+	// First, create the timespan
+	logger.WithFields(logrus.Fields{
+		"start_time": createData.StartTime,
+		"end_time":   createData.EndTime,
+	}).Debug("Creating timespan for time slot")
+
+	timespan, err := rs.TimespanStore.CreateTimespan(ctx, createData.StartTime, createData.EndTime)
+	if err != nil {
+		logger.WithError(err).Error("Failed to create timespan")
+		render.Render(w, r, ErrInternalServerError(err))
+		return
+	}
+
+	logger.WithFields(logrus.Fields{
+		"timespan_id": timespan.ID,
+		"start_time":  timespan.StartTime,
+		"end_time":    timespan.EndTime,
+	}).Debug("Timespan created successfully")
+
+	// Create the time slot with the new timespan ID
+	agTime := &models2.AgTime{
+		Weekday:    createData.Weekday,
+		TimespanID: timespan.ID,
+		AgID:       agID,
+	}
+
+	if err := rs.Store.CreateAgTime(ctx, agTime); err != nil {
+		logger.WithError(err).Error("Failed to create time slot")
+		// Try to clean up the timespan we just created
+		if cleanupErr := rs.TimespanStore.DeleteTimespan(ctx, timespan.ID); cleanupErr != nil {
+			logger.WithError(cleanupErr).Warn("Failed to delete timespan after time slot creation error")
+		}
+		render.Render(w, r, ErrInternalServerError(err))
+		return
+	}
+
+	// Get the created time slot with full relations
+	timeSlot, err := rs.Store.GetAgTimeByID(ctx, agTime.ID)
+	if err != nil {
+		logger.WithError(err).Error("Failed to retrieve newly created time slot")
+		render.Render(w, r, ErrInternalServerError(err))
+		return
+	}
+
+	logger.WithFields(logrus.Fields{
+		"ag_id":       agID,
+		"time_id":     timeSlot.ID,
+		"weekday":     timeSlot.Weekday,
+		"timespan_id": timeSlot.TimespanID,
+	}).Info("Time slot with automatic timespan creation added successfully")
 
 	render.Status(r, http.StatusCreated)
 	render.JSON(w, r, timeSlot)

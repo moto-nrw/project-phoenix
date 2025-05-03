@@ -42,14 +42,14 @@ func roomComplexTablesUp(ctx context.Context, db *bun.DB) error {
 			id BIGSERIAL PRIMARY KEY,
 			device_id TEXT NOT NULL UNIQUE,
 			room_id BIGINT NOT NULL,
-			timespan_id BIGINT NOT NULL,
+			timespans_id BIGINT NOT NULL,
 			status TEXT NOT NULL DEFAULT 'active',
 			max_capacity INTEGER NOT NULL DEFAULT 0,
 			current_occupancy INTEGER NOT NULL DEFAULT 0,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			CONSTRAINT fk_room_occupancy_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
-			CONSTRAINT fk_room_occupancy_timespan FOREIGN KEY (timespan_id) REFERENCES timespan(id) ON DELETE RESTRICT
+			CONSTRAINT fk_room_occupancy_timespans FOREIGN KEY (timespans_id) REFERENCES timespans(id) ON DELETE RESTRICT
 		)
 	`)
 	if err != nil {
@@ -63,15 +63,15 @@ func roomComplexTablesUp(ctx context.Context, db *bun.DB) error {
 			room_id BIGINT NOT NULL,
 			ag_name TEXT NOT NULL,
 			day DATE NOT NULL,
-			timespan_id BIGINT NOT NULL,
-			ag_category_id BIGINT,
+			timespans_id BIGINT NOT NULL,
+			ag_categories_id BIGINT,
 			supervisor_id BIGINT NOT NULL,
 			max_participant INTEGER NOT NULL DEFAULT 0,
 			group_id BIGINT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			CONSTRAINT fk_room_history_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
-			CONSTRAINT fk_room_history_timespan FOREIGN KEY (timespan_id) REFERENCES timespan(id) ON DELETE RESTRICT,
-			CONSTRAINT fk_room_history_ag_category FOREIGN KEY (ag_category_id) REFERENCES ag_category(id) ON DELETE SET NULL,
+			CONSTRAINT fk_room_history_timespans FOREIGN KEY (timespans_id) REFERENCES timespans(id) ON DELETE RESTRICT,
+			CONSTRAINT fk_room_history_ag_categories FOREIGN KEY (ag_categories_id) REFERENCES ag_categories(id) ON DELETE SET NULL,
 			CONSTRAINT fk_room_history_supervisor FOREIGN KEY (supervisor_id) REFERENCES pedagogical_specialists(id) ON DELETE RESTRICT,
 			CONSTRAINT fk_room_history_group FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE SET NULL
 		)
@@ -117,7 +117,7 @@ func roomComplexTablesUp(ctx context.Context, db *bun.DB) error {
 	// Create indexes for room_occupancy
 	_, err = tx.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_room_occupancy_room_id ON room_occupancy(room_id);
-		CREATE INDEX IF NOT EXISTS idx_room_occupancy_timespan_id ON room_occupancy(timespan_id);
+		CREATE INDEX IF NOT EXISTS idx_room_occupancy_timespans_id ON room_occupancy(timespans_id);
 		CREATE INDEX IF NOT EXISTS idx_room_occupancy_device_id ON room_occupancy(device_id);
 		CREATE INDEX IF NOT EXISTS idx_room_occupancy_status ON room_occupancy(status);
 	`)
@@ -129,10 +129,10 @@ func roomComplexTablesUp(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_room_history_room_id ON room_history(room_id);
 		CREATE INDEX IF NOT EXISTS idx_room_history_day ON room_history(day);
-		CREATE INDEX IF NOT EXISTS idx_room_history_timespan_id ON room_history(timespan_id);
+		CREATE INDEX IF NOT EXISTS idx_room_history_timespans_id ON room_history(timespans_id);
 		CREATE INDEX IF NOT EXISTS idx_room_history_supervisor_id ON room_history(supervisor_id);
 		CREATE INDEX IF NOT EXISTS idx_room_history_group_id ON room_history(group_id);
-		CREATE INDEX IF NOT EXISTS idx_room_history_ag_category_id ON room_history(ag_category_id);
+		CREATE INDEX IF NOT EXISTS idx_room_history_ag_categories_id ON room_history(ag_categories_id);
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating indexes for room_history table: %w", err)

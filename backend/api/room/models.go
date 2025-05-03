@@ -22,12 +22,21 @@ func (rr *RoomRequest) Bind(r *http.Request) error {
 	return nil
 }
 
+
 // RegisterTabletRequest represents request payload for tablet registration
 type RegisterTabletRequest struct {
 	DeviceID   string `json:"device_id"`
 	GroupID    *int64 `json:"group_id,omitempty"`
 	AgID       *int64 `json:"ag_id,omitempty"`
 	ActivityID *int64 `json:"activity_id,omitempty"`
+
+// NewAg contains information for creating a new activity group during room registration
+type NewAg struct {
+	Name           string `json:"name"`
+	MaxParticipant int    `json:"max_participant"`
+	AgCategoryID   int64  `json:"ag_category"`
+	IsOpenAgs      bool   `json:"is_open_ags"`
+
 }
 
 // Bind preprocesses a RegisterTabletRequest

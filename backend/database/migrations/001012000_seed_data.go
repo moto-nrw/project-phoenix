@@ -254,6 +254,8 @@ func seedDefaultAdmin(ctx context.Context, tx bun.Tx) error {
 
 // seedSampleData adds sample data for development and testing
 func seedSampleData(ctx context.Context, tx bun.Tx) error {
+	var err error
+
 	// 1. Create sample users
 	sampleUsers := []struct {
 		FirstName  string
@@ -267,7 +269,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 
 	for _, user := range sampleUsers {
 		var exists bool
-		err := tx.QueryRowContext(ctx, `
+		err = tx.QueryRowContext(ctx, `
 			SELECT EXISTS(
 				SELECT 1 FROM custom_users 
 				WHERE first_name = ? AND second_name = ?
@@ -279,7 +281,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 		}
 
 		if !exists {
-			// First make sure the tag ID exists in rfid_cards
+			// First make sure the tags ID exists in rfid_cards
 			var cardExists bool
 			err = tx.QueryRowContext(ctx, `
 				SELECT EXISTS(SELECT 1 FROM rfid_cards WHERE id = ?)
@@ -335,7 +337,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 
 	for _, room := range sampleRooms {
 		var exists bool
-		err := tx.QueryRowContext(ctx, `
+		err = tx.QueryRowContext(ctx, `
 			SELECT EXISTS(SELECT 1 FROM rooms WHERE room_name = ?)
 		`, room.RoomName).Scan(&exists)
 
@@ -397,7 +399,7 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 
 	for _, group := range sampleGroups {
 		var exists bool
-		err := tx.QueryRowContext(ctx, `
+		err = tx.QueryRowContext(ctx, `
 			SELECT EXISTS(SELECT 1 FROM groups WHERE name = ?)
 		`, group.Name).Scan(&exists)
 
@@ -444,88 +446,232 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 	}
 
 	// 4. Create sample pedagogical specialists
-	// First get the user ID for the sample teacher
-	var sampleTeacherID int64
-	err := tx.QueryRowContext(ctx, `
-		SELECT id FROM custom_users 
-		WHERE first_name = 'Sample' AND second_name = 'Teacher'
-	`).Scan(&sampleTeacherID)
-
-	if err != nil {
-		return fmt.Errorf("error getting sample teacher ID: %w", err)
+	// Sample supervisors data
+	supervisors := []struct {
+		FirstName      string
+		SecondName     string
+		Email          string
+		Username       string
+		Name           string
+		TagID          string
+		Specialization string
+	}{
+		{
+			FirstName:      "Sample",
+			SecondName:     "Teacher",
+			Email:          "sample.teacher@example.com",
+			Username:       "sample.teacher",
+			Name:           "Sample Teacher",
+			TagID:          "SAMPLE001",
+			Specialization: "Teacher",
+		},
+		{
+			FirstName:      "Maria",
+			SecondName:     "Schmidt",
+			Email:          "maria.schmidt@example.com",
+			Username:       "maria.schmidt",
+			Name:           "Maria Schmidt",
+			TagID:          "SAMPLE004",
+			Specialization: "Sports Coach",
+		},
+		{
+			FirstName:      "Thomas",
+			SecondName:     "Müller",
+			Email:          "thomas.mueller@example.com",
+			Username:       "thomas.mueller",
+			Name:           "Thomas Müller",
+			TagID:          "SAMPLE005",
+			Specialization: "Music Teacher",
+		},
+		{
+			FirstName:      "Anna",
+			SecondName:     "Weber",
+			Email:          "anna.weber@example.com",
+			Username:       "anna.weber",
+			Name:           "Anna Weber",
+			TagID:          "SAMPLE006",
+			Specialization: "Art Teacher",
+		},
+		{
+			FirstName:      "Michael",
+			SecondName:     "Fischer",
+			Email:          "michael.fischer@example.com",
+			Username:       "michael.fischer",
+			Name:           "Michael Fischer",
+			TagID:          "SAMPLE007",
+			Specialization: "Science Teacher",
+		},
+		{
+			FirstName:      "Sophia",
+			SecondName:     "Wagner",
+			Email:          "sophia.wagner@example.com",
+			Username:       "sophia.wagner",
+			Name:           "Sophia Wagner",
+			TagID:          "SAMPLE008",
+			Specialization: "Language Teacher",
+		},
 	}
 
-	var specialistExists bool
-	err = tx.QueryRowContext(ctx, `
-		SELECT EXISTS(
-			SELECT 1 FROM pedagogical_specialists
-			WHERE user_id = ?
-		)
-	`, sampleTeacherID).Scan(&specialistExists)
+	for _, supervisor := range supervisors {
+		// Check if the user exists
+		var userID int64
+		var userExists bool
 
-	if err != nil {
-		return fmt.Errorf("error checking if specialist exists: %w", err)
-	}
-
-	if !specialistExists && sampleTeacherID > 0 {
-		// Create a sample account for the specialist
-		teacherPassword, err := userpass.HashPassword("Teacher1234%", userpass.DefaultParams())
-		if err != nil {
-			return fmt.Errorf("error hashing teacher password: %w", err)
-		}
-
-		_, err = tx.ExecContext(ctx, `
-			INSERT INTO accounts (
-				created_at, updated_at, email, username, name, active, 
-				roles, password_hash
-			) VALUES (
-				?, ?, ?, ?, ?, ?,
-				?, ?
-			)
-		`,
-			time.Now(), time.Now(),
-			"sample.teacher@example.com", "sample.teacher",
-			"Sample Teacher", true,
-			`{"teacher"}`, teacherPassword)
-
-		if err != nil {
-			return fmt.Errorf("error inserting sample specialist account: %w", err)
-		}
-
-		// Get the account ID
-		var accountID int64
 		err = tx.QueryRowContext(ctx, `
-			SELECT id FROM accounts WHERE email = 'sample.teacher@example.com'
-		`).Scan(&accountID)
-
-		if err != nil {
-			return fmt.Errorf("error getting sample account ID: %w", err)
-		}
-
-		// Update the custom user with the account ID
-		_, err = tx.ExecContext(ctx, `
-			UPDATE custom_users SET account_id = ? WHERE id = ?
-		`, accountID, sampleTeacherID)
-
-		if err != nil {
-			return fmt.Errorf("error updating sample user with account ID: %w", err)
-		}
-
-		// Create the specialist record
-		_, err = tx.ExecContext(ctx, `
-			INSERT INTO pedagogical_specialists (
-				specialization, user_id, created_at, modified_at
-			) VALUES (
-				'Teacher', ?, ?, ?
+			SELECT EXISTS(
+				SELECT 1 FROM custom_users 
+				WHERE first_name = ? AND second_name = ?
 			)
-		`, accountID, time.Now(), time.Now())
+		`, supervisor.FirstName, supervisor.SecondName).Scan(&userExists)
 
 		if err != nil {
-			return fmt.Errorf("error inserting pedagogical specialist: %w", err)
+			return fmt.Errorf("error checking if user exists: %w", err)
+		}
+
+		if !userExists {
+			// Create RFID card if needed
+			var cardExists bool
+			err = tx.QueryRowContext(ctx, `
+				SELECT EXISTS(SELECT 1 FROM rfid_cards WHERE id = ?)
+			`, supervisor.TagID).Scan(&cardExists)
+
+			if err != nil {
+				return fmt.Errorf("error checking if RFID card exists: %w", err)
+			}
+
+			if !cardExists {
+				_, err = tx.ExecContext(ctx, `
+					INSERT INTO rfid_cards (id, active) VALUES (?, true)
+				`, supervisor.TagID)
+
+				if err != nil {
+					return fmt.Errorf("error inserting RFID card: %w", err)
+				}
+			}
+
+			// Create the user
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO custom_users (
+					first_name, second_name, tag_id, created_at, modified_at
+				) VALUES (
+					?, ?, ?, ?, ?
+				)
+			`, supervisor.FirstName, supervisor.SecondName, supervisor.TagID, time.Now(), time.Now())
+
+			if err != nil {
+				return fmt.Errorf("error inserting sample supervisor user: %w", err)
+			}
+		}
+
+		// Get the user ID
+		err = tx.QueryRowContext(ctx, `
+			SELECT id FROM custom_users 
+			WHERE first_name = ? AND second_name = ?
+		`, supervisor.FirstName, supervisor.SecondName).Scan(&userID)
+
+		if err != nil {
+			return fmt.Errorf("error getting supervisor user ID: %w", err)
+		}
+
+		// Check if specialist exists for this user
+		var specialistExists bool
+		err = tx.QueryRowContext(ctx, `
+			SELECT EXISTS(
+				SELECT 1 FROM pedagogical_specialists
+				WHERE user_id = ?
+			)
+		`, userID).Scan(&specialistExists)
+
+		if err != nil {
+			return fmt.Errorf("error checking if specialist exists: %w", err)
+		}
+
+		if !specialistExists && userID > 0 {
+			// Create a sample account for the specialist if it doesn't exist
+			var accountExists bool
+			err = tx.QueryRowContext(ctx, `
+				SELECT EXISTS(SELECT 1 FROM accounts WHERE email = ?)
+			`, supervisor.Email).Scan(&accountExists)
+
+			if err != nil {
+				return fmt.Errorf("error checking if account exists: %w", err)
+			}
+
+			var accountID int64
+
+			if !accountExists {
+				// Hash password for the account
+				var teacherPassword string
+				teacherPassword, err = userpass.HashPassword("Teacher1234%", userpass.DefaultParams())
+				if err != nil {
+					return fmt.Errorf("error hashing teacher password: %w", err)
+				}
+
+				_, err = tx.ExecContext(ctx, `
+					INSERT INTO accounts (
+						created_at, updated_at, email, username, name, active, 
+						roles, password_hash
+					) VALUES (
+						?, ?, ?, ?, ?, ?,
+						?, ?
+					)
+				`,
+					time.Now(), time.Now(),
+					supervisor.Email, supervisor.Username,
+					supervisor.Name, true,
+					`{"teacher"}`, teacherPassword)
+
+				if err != nil {
+					return fmt.Errorf("error inserting sample specialist account: %w", err)
+				}
+
+				// Get the account ID
+				err = tx.QueryRowContext(ctx, `
+					SELECT id FROM accounts WHERE email = ?
+				`, supervisor.Email).Scan(&accountID)
+
+				if err != nil {
+					return fmt.Errorf("error getting sample account ID: %w", err)
+				}
+
+				// Update the custom user with the account ID
+				_, err = tx.ExecContext(ctx, `
+					UPDATE custom_users SET account_id = ? WHERE id = ?
+				`, accountID, userID)
+
+				if err != nil {
+					return fmt.Errorf("error updating sample user with account ID: %w", err)
+				}
+			} else {
+				// Get existing account ID
+				err = tx.QueryRowContext(ctx, `
+					SELECT id FROM accounts WHERE email = ?
+				`, supervisor.Email).Scan(&accountID)
+
+				if err != nil {
+					return fmt.Errorf("error getting existing account ID: %w", err)
+				}
+			}
+
+			// Create the specialist record
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO pedagogical_specialists (
+					role, specialization, user_id, created_at, modified_at
+				) VALUES (
+					?, ?, ?, ?, ?
+				)
+			`, supervisor.Specialization, supervisor.Specialization, userID, time.Now(), time.Now())
+
+			if err != nil {
+				return fmt.Errorf("error inserting pedagogical specialist: %w", err)
+			}
+
+			fmt.Printf("Created specialist %s %s (%s)\n",
+				supervisor.FirstName, supervisor.SecondName, supervisor.Specialization)
 		}
 	}
 
-	// 4. Create student records linked to sample users
+	// 5. Create student records linked to sample users
 	// Get the student user ID
 	var sampleStudentID int64
 	err = tx.QueryRowContext(ctx, `
@@ -657,6 +803,354 @@ func seedSampleData(ctx context.Context, tx bun.Tx) error {
 			}
 
 			fmt.Println("Created second sample student record")
+		}
+	}
+
+	// 7. Create activity group categories
+	sampleAGCategories := []string{
+		"Sport",
+		"Music",
+		"Art",
+		"Science",
+		"Languages",
+	}
+
+	agCategoryIds := make(map[string]int64)
+
+	for _, category := range sampleAGCategories {
+		var exists bool
+		err = tx.QueryRowContext(ctx, `
+			SELECT EXISTS(SELECT 1 FROM ag_categories WHERE name = ?)
+		`, category).Scan(&exists)
+
+		if err != nil {
+			return fmt.Errorf("error checking if AG category exists: %w", err)
+		}
+
+		if !exists {
+			// Insert the category
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO ag_categories (
+					name, created_at
+				) VALUES (
+					?, ?
+				)
+				RETURNING id
+			`, category, time.Now())
+
+			if err != nil {
+				return fmt.Errorf("error inserting AG category: %w", err)
+			}
+
+			// Get last inserted ID
+			var categoryId int64
+			err = tx.QueryRowContext(ctx, `SELECT lastval()`).Scan(&categoryId)
+			if err != nil {
+				return fmt.Errorf("error getting AG category id: %w", err)
+			}
+
+			agCategoryIds[category] = categoryId
+			fmt.Printf("Created AG category %s with ID %d\n", category, categoryId)
+		} else {
+			// Get existing category ID
+			var categoryId int64
+			err = tx.QueryRowContext(ctx, `
+				SELECT id FROM ag_categories WHERE name = ?
+			`, category).Scan(&categoryId)
+
+			if err != nil {
+				return fmt.Errorf("error getting existing AG category id: %w", err)
+			}
+
+			agCategoryIds[category] = categoryId
+		}
+	}
+
+	// 8. Create timespans for activity groups
+	sampleTimespans := []struct {
+		StartTime string
+		EndTime   string
+	}{
+		{"08:00:00", "09:30:00"}, // Morning session
+		{"10:00:00", "11:30:00"}, // Mid-morning session
+		{"13:00:00", "14:30:00"}, // Afternoon session
+		{"15:00:00", "16:30:00"}, // Late afternoon session
+	}
+
+	timespanIds := make(map[string]int64)
+
+	for _, timespan := range sampleTimespans {
+		key := timespan.StartTime + "-" + timespan.EndTime
+		var exists bool
+		err = tx.QueryRowContext(ctx, `
+			SELECT EXISTS(
+				SELECT 1 FROM timespans 
+				WHERE start_time::time::text LIKE ? AND end_time::time::text LIKE ?
+			)
+		`, timespan.StartTime+"%", timespan.EndTime+"%").Scan(&exists)
+
+		if err != nil {
+			return fmt.Errorf("error checking if timespan exists: %w", err)
+		}
+
+		if !exists {
+			// Create a timespan that's valid for the current day
+			now := time.Now()
+			startDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+			// Parse the time values
+			startTime, _ := time.Parse("15:04:05", timespan.StartTime)
+			endTime, _ := time.Parse("15:04:05", timespan.EndTime)
+
+			// Combine date and time
+			start := startDate.Add(time.Duration(startTime.Hour())*time.Hour +
+				time.Duration(startTime.Minute())*time.Minute +
+				time.Duration(startTime.Second())*time.Second)
+
+			end := startDate.Add(time.Duration(endTime.Hour())*time.Hour +
+				time.Duration(endTime.Minute())*time.Minute +
+				time.Duration(endTime.Second())*time.Second)
+
+			// Insert the timespan
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO timespans (
+					start_time, end_time, created_at
+				) VALUES (
+					?, ?, ?
+				)
+				RETURNING id
+			`, start, end, time.Now())
+
+			if err != nil {
+				return fmt.Errorf("error inserting timespan: %w", err)
+			}
+
+			// Get last inserted ID
+			var timespanId int64
+			err = tx.QueryRowContext(ctx, `SELECT lastval()`).Scan(&timespanId)
+			if err != nil {
+				return fmt.Errorf("error getting timespan id: %w", err)
+			}
+
+			timespanIds[key] = timespanId
+			fmt.Printf("Created timespan %s with ID %d\n", key, timespanId)
+		} else {
+			// Get existing timespan ID
+			var timespanId int64
+			err = tx.QueryRowContext(ctx, `
+				SELECT id FROM timespans 
+				WHERE start_time::time::text LIKE ? AND end_time::time::text LIKE ? 
+				LIMIT 1
+			`, timespan.StartTime+"%", timespan.EndTime+"%").Scan(&timespanId)
+
+			if err != nil {
+				return fmt.Errorf("error getting existing timespan id: %w", err)
+			}
+
+			timespanIds[key] = timespanId
+		}
+	}
+
+	// 9. Create sample activity groups
+	// First make sure we have a pedagogical specialist (supervisor) id
+	var supervisorID int64
+	err = tx.QueryRowContext(ctx, `
+		SELECT id FROM pedagogical_specialists LIMIT 1
+	`).Scan(&supervisorID)
+
+	if err != nil {
+		fmt.Println("Warning: No supervisor found for AGs, skipping AG creation")
+		return nil
+	}
+
+	sampleAGs := []struct {
+		Name           string
+		MaxParticipant int
+		IsOpenAG       bool
+		Category       string
+	}{
+		{"Football Club", 20, true, "Sport"},
+		{"Chess Club", 15, true, "Sport"},
+		{"Piano Lessons", 10, false, "Music"},
+		{"Painting Workshop", 15, true, "Art"},
+		{"Robotics Lab", 12, true, "Science"},
+		{"Spanish Language", 15, false, "Languages"},
+	}
+
+	for _, ag := range sampleAGs {
+		var exists bool
+		err = tx.QueryRowContext(ctx, `
+			SELECT EXISTS(SELECT 1 FROM ags WHERE name = ?)
+		`, ag.Name).Scan(&exists)
+
+		if err != nil {
+			return fmt.Errorf("error checking if AG exists: %w", err)
+		}
+
+		if !exists {
+			categoryID, ok := agCategoryIds[ag.Category]
+			if !ok {
+				fmt.Printf("Warning: Category %s not found for AG %s\n", ag.Category, ag.Name)
+				continue
+			}
+
+			// Insert the activity group
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO ags (
+					name, max_participant, is_open_ags, supervisor_id, ag_categories_id, 
+					created_at, modified_at
+				) VALUES (
+					?, ?, ?, ?, ?, ?, ?
+				)
+				RETURNING id
+			`, ag.Name, ag.MaxParticipant, ag.IsOpenAG, supervisorID, categoryID, time.Now(), time.Now())
+
+			if err != nil {
+				return fmt.Errorf("error inserting AG: %w", err)
+			}
+
+			// Get last inserted ID
+			var agId int64
+			err = tx.QueryRowContext(ctx, `SELECT lastval()`).Scan(&agId)
+			if err != nil {
+				return fmt.Errorf("error getting AG id: %w", err)
+			}
+
+			fmt.Printf("Created AG %s with ID %d\n", ag.Name, agId)
+
+			// 10. Create activity group times (weekdays and timeslots)
+			// Assign different weekdays and time slots to each activity
+			weekdays := []string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday"}
+			timeSlotKeys := make([]string, 0)
+			for k := range timespanIds {
+				timeSlotKeys = append(timeSlotKeys, k)
+			}
+
+			// Use the AG's position in the list to determine weekday and timeslot
+			// This ensures each AG gets a different schedule
+			weekdayIndex := int(agId) % len(weekdays)
+			timeSlotIndex := (int(agId) / len(weekdays)) % len(timeSlotKeys)
+
+			weekday := weekdays[weekdayIndex]
+			timeSlotKey := timeSlotKeys[timeSlotIndex]
+			timespanId := timespanIds[timeSlotKey]
+
+			// Insert the AG time
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO ag_times (
+					weekday, timespans_id, ag_id, created_at
+				) VALUES (
+					?, ?, ?, ?
+				)
+			`, weekday, timespanId, agId, time.Now())
+
+			if err != nil {
+				return fmt.Errorf("error inserting AG time: %w", err)
+			}
+
+			fmt.Printf("Created AG time for %s on %s with timespan ID %d\n", ag.Name, weekday, timespanId)
+
+			// For some AGs, add a second day
+			if agId%2 == 0 { // Every other AG gets a second day
+				secondWeekdayIndex := (weekdayIndex + 2) % len(weekdays) // Skip a day
+				secondWeekday := weekdays[secondWeekdayIndex]
+
+				// Insert the second AG time
+				_, err = tx.ExecContext(ctx, `
+					INSERT INTO ag_times (
+						weekday, timespans_id, ag_id, created_at
+					) VALUES (
+						?, ?, ?, ?
+					)
+				`, secondWeekday, timespanId, agId, time.Now())
+
+				if err != nil {
+					return fmt.Errorf("error inserting second AG time: %w", err)
+				}
+
+				fmt.Printf("Created second AG time for %s on %s with timespan ID %d\n", ag.Name, secondWeekday, timespanId)
+			}
+		}
+	}
+
+	// 11. Enroll some sample students in activities
+	// First check if we have sample students
+	var studentIDs []int64
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id FROM students WHERE school_class LIKE 'Sample%' LIMIT 5
+	`)
+	if err != nil {
+		return fmt.Errorf("error querying sample students: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return fmt.Errorf("error scanning student ID: %w", err)
+		}
+		studentIDs = append(studentIDs, id)
+	}
+
+	if len(studentIDs) > 0 {
+		// Get all activity group IDs
+		var agIDs []int64
+		agRows, err := tx.QueryContext(ctx, `
+			SELECT id FROM ags WHERE name IN (
+				'Football Club', 'Chess Club', 'Piano Lessons', 
+				'Painting Workshop', 'Robotics Lab', 'Spanish Language'
+			)
+		`)
+		if err != nil {
+			return fmt.Errorf("error querying AGs: %w", err)
+		}
+		defer agRows.Close()
+
+		for agRows.Next() {
+			var id int64
+			if err := agRows.Scan(&id); err != nil {
+				return fmt.Errorf("error scanning AG ID: %w", err)
+			}
+			agIDs = append(agIDs, id)
+		}
+
+		// Enroll each student in 1-3 activities
+		for _, studentID := range studentIDs {
+			// Determine how many activities (1-3)
+			numActivities := (int(studentID) % 3) + 1
+			for i := 0; i < numActivities && i < len(agIDs); i++ {
+				agID := agIDs[i]
+
+				// Check if enrollment already exists
+				var exists bool
+				err = tx.QueryRowContext(ctx, `
+					SELECT EXISTS(
+						SELECT 1 FROM student_ags 
+						WHERE student_id = ? AND ag_id = ?
+					)
+				`, studentID, agID).Scan(&exists)
+
+				if err != nil {
+					return fmt.Errorf("error checking if student enrollment exists: %w", err)
+				}
+
+				if !exists {
+					// Enroll the student
+					_, err = tx.ExecContext(ctx, `
+						INSERT INTO student_ags (
+							student_id, ag_id, created_at
+						) VALUES (
+							?, ?, ?
+						)
+					`, studentID, agID, time.Now())
+
+					if err != nil {
+						return fmt.Errorf("error enrolling student in AG: %w", err)
+					}
+
+					fmt.Printf("Enrolled student ID %d in activity ID %d\n", studentID, agID)
+				}
+			}
 		}
 	}
 

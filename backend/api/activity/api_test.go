@@ -151,17 +151,49 @@ func (m *MockAuthTokenStore) GetToken(t string) (*jwt.Token, error) {
 	return args.Get(0).(*jwt.Token), args.Error(1)
 }
 
+// MockTimespanStore implements the TimespanStore interface for testing
+type MockTimespanStore struct {
+	mock.Mock
+}
+
+func (m *MockTimespanStore) CreateTimespan(ctx context.Context, startTime time.Time, endTime *time.Time) (*models2.Timespan, error) {
+	args := m.Called(ctx, startTime, endTime)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models2.Timespan), args.Error(1)
+}
+
+func (m *MockTimespanStore) GetTimespan(ctx context.Context, id int64) (*models2.Timespan, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models2.Timespan), args.Error(1)
+}
+
+func (m *MockTimespanStore) UpdateTimespanEndTime(ctx context.Context, id int64, endTime time.Time) error {
+	args := m.Called(ctx, id, endTime)
+	return args.Error(0)
+}
+
+func (m *MockTimespanStore) DeleteTimespan(ctx context.Context, id int64) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
 // setupTestAPI creates a test API with mocked dependencies
-func setupTestAPI() (*Resource, *MockAgStore, *MockAuthTokenStore) {
+func setupTestAPI() (*Resource, *MockAgStore, *MockAuthTokenStore, *MockTimespanStore) {
 	mockAgStore := new(MockAgStore)
 	mockAuthStore := new(MockAuthTokenStore)
-	resource := NewResource(mockAgStore, mockAuthStore)
-	return resource, mockAgStore, mockAuthStore
+	mockTimespanStore := new(MockTimespanStore)
+	resource := NewResource(mockAgStore, mockAuthStore, mockTimespanStore)
+	return resource, mockAgStore, mockAuthStore, mockTimespanStore
 }
 
 // TestListCategories tests the listCategories handler
 func TestListCategories(t *testing.T) {
-	rs, mockAgStore, _ := setupTestAPI()
+	rs, mockAgStore, _, _ := setupTestAPI()
 
 	// Setup test data
 	testCategories := []models2.AgCategory{
@@ -199,7 +231,7 @@ func TestListCategories(t *testing.T) {
 
 // TestCreateCategory tests the createCategory handler
 func TestCreateCategory(t *testing.T) {
-	rs, mockAgStore, _ := setupTestAPI()
+	rs, mockAgStore, _, _ := setupTestAPI()
 
 	// Setup test data
 	newCategory := &models2.AgCategory{
@@ -234,7 +266,7 @@ func TestCreateCategory(t *testing.T) {
 
 // TestGetCategory tests the getCategory handler
 func TestGetCategory(t *testing.T) {
-	rs, mockAgStore, _ := setupTestAPI()
+	rs, mockAgStore, _, _ := setupTestAPI()
 
 	// Setup test data
 	category := &models2.AgCategory{
@@ -268,7 +300,7 @@ func TestGetCategory(t *testing.T) {
 
 // TestListAgs tests the listAgs handler
 func TestListAgs(t *testing.T) {
-	rs, mockAgStore, _ := setupTestAPI()
+	rs, mockAgStore, _, _ := setupTestAPI()
 
 	// Setup test data
 	testAgs := []models2.Ag{
@@ -312,7 +344,7 @@ func TestListAgs(t *testing.T) {
 
 // TestCreateAg tests the createAg handler
 func TestCreateAg(t *testing.T) {
-	rs, mockAgStore, _ := setupTestAPI()
+	rs, mockAgStore, _, _ := setupTestAPI()
 
 	// Setup test data
 	now := time.Now()
@@ -393,7 +425,7 @@ func TestCreateAg(t *testing.T) {
 
 // TestEnrollStudent tests the enrollStudent handler
 func TestEnrollStudent(t *testing.T) {
-	rs, mockAgStore, _ := setupTestAPI()
+	rs, mockAgStore, _, _ := setupTestAPI()
 
 	// Setup test data
 	ag := &models2.Ag{
@@ -432,7 +464,7 @@ func TestEnrollStudent(t *testing.T) {
 
 // TestAddAgTime tests the addAgTime handler
 func TestAddAgTime(t *testing.T) {
-	rs, mockAgStore, _ := setupTestAPI()
+	rs, mockAgStore, _, mockTimespanStore := setupTestAPI()
 
 	// Setup test data
 	now := time.Now()
@@ -441,10 +473,11 @@ func TestAddAgTime(t *testing.T) {
 		StartTime: now,
 	}
 
-	newTime := &models2.AgTime{
-		Weekday:    "Monday",
-		TimespanID: 1,
-		AgID:       1, // Make sure this is set correctly
+	// Use the new request format with direct timespan creation
+	createReq := &AgTimeCreateRequest{
+		Weekday:   "Monday",
+		StartTime: now,
+		EndTime:   nil,
 	}
 
 	createdTime := &models2.AgTime{
@@ -456,15 +489,20 @@ func TestAddAgTime(t *testing.T) {
 		CreatedAt:  now,
 	}
 
+	// Set up mock expectation for creating a timespan
+	// Using mock.AnythingOfType instead of direct time value due to monotonic clock differences
+	mockTimespanStore.On("CreateTimespan", mock.Anything, mock.AnythingOfType("time.Time"), mock.Anything).Return(timespan, nil)
+
+	// Set up mock expectation for creating a time slot
 	mockAgStore.On("CreateAgTime", mock.Anything, mock.MatchedBy(func(at *models2.AgTime) bool {
 		return at.Weekday == "Monday" && at.TimespanID == 1 && at.AgID == 1
 	})).Return(nil)
 
+	// Set up mock expectation for getting the created time slot
 	mockAgStore.On("GetAgTimeByID", mock.Anything, int64(1)).Return(createdTime, nil)
 
 	// Create test request
-	timeReq := &AgTimeRequest{AgTime: newTime}
-	body, _ := json.Marshal(timeReq)
+	body, _ := json.Marshal(createReq)
 	r := httptest.NewRequest("POST", "/1/times", bytes.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
 	rctx := chi.NewRouteContext()
@@ -486,11 +524,12 @@ func TestAddAgTime(t *testing.T) {
 	assert.Equal(t, int64(1), responseTime.AgID)
 
 	mockAgStore.AssertExpectations(t)
+	mockTimespanStore.AssertExpectations(t)
 }
 
 // TestRouter tests the router configuration
 func TestRouter(t *testing.T) {
-	rs, _, _ := setupTestAPI()
+	rs, _, _, _ := setupTestAPI()
 	router := rs.Router()
 
 	// Test if the router is created correctly

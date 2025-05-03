@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/room"
 	"github.com/moto-nrw/project-phoenix/api/settings"
 	"github.com/moto-nrw/project-phoenix/api/student"
+	"github.com/moto-nrw/project-phoenix/api/timespan"
 	"github.com/moto-nrw/project-phoenix/api/user"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
@@ -84,7 +85,10 @@ func New(enableCORS bool) (*chi.Mux, error) {
 	groupAPI := group.NewResource(groupStore, authStore)
 
 	agStore := database2.NewAgStore(db)
-	activityAPI := activity.NewResource(agStore, authStore)
+	activityAPI := activity.NewResource(agStore, authStore, timespanStore)
+
+	// Timespan API
+	timespanAPI := timespan.NewResource(timespanStore, authStore)
 
 	// Settings API
 	settingsStore := database2.NewSettingsStore(db)
@@ -119,6 +123,7 @@ func New(enableCORS bool) (*chi.Mux, error) {
 		r.Mount("/students", studentAPI.Router())
 		r.Mount("/groups", groupAPI.Router())
 		r.Mount("/activities", activityAPI.Router())
+		r.Mount("/timespans", timespanAPI.Router())
 		r.Mount("/settings", settingsAPI.Router())
 	})
 
