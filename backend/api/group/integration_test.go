@@ -603,7 +603,7 @@ func TestRoomMerge(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	mockGroupStore.On("MergeRooms", mock.Anything, int64(101), int64(102)).Return(mergedCombinedGroup, nil)
+	mockGroupStore.On("MergeRooms", mock.Anything, int64(101), int64(102), "", (*time.Time)(nil), "all").Return(mergedCombinedGroup, nil)
 
 	// Create test request
 	mergeReq := &MergeRoomsRequest{

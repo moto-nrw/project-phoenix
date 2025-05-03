@@ -1,165 +1,175 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '~/server/auth';
-import { env } from '~/env';
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { auth } from "~/server/auth";
+import { env } from "~/env";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   // Get authentication session
   const session = await auth();
-  
+
   if (!session?.user?.token) {
     return NextResponse.json(
-      { error: 'Unauthorized: No valid session' },
-      { status: 401 }
+      { error: "Unauthorized: No valid session" },
+      { status: 401 },
     );
   }
-  
+
   // Make sure params is fully resolved
-  const resolvedParams = params instanceof Promise ? await params : params;
-  const studentId = resolvedParams.id;
-  
+  const resolvedParams =
+    params instanceof Promise
+      ? ((await params) as { id: string })
+      : (params as { id: string });
+  const studentId: string = resolvedParams.id;
+
   try {
     // Check if user has proper roles
     if (!session.user.roles || session.user.roles.length === 0) {
-      console.warn('User has no roles for API request');
+      console.warn("User has no roles for API request");
     }
-    
-    console.log('Making API request with roles:', session.user.roles);
-    
+
+    console.log("Making API request with roles:", session.user.roles);
+
     // Forward the request to the backend with token
     const backendResponse = await fetch(
       `${env.NEXT_PUBLIC_API_URL}/students/${studentId}`,
       {
         headers: {
-          'Authorization': `Bearer ${session.user.token}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.user.token}`,
+          "Content-Type": "application/json",
         },
-      }
+      },
     );
-    
+
     if (!backendResponse.ok) {
       const errorText = await backendResponse.text();
       console.error(`Backend API error: ${backendResponse.status}`, errorText);
       return NextResponse.json(
         { error: `Backend error: ${backendResponse.status}` },
-        { status: backendResponse.status }
+        { status: backendResponse.status },
       );
     }
-    
-    const data = await backendResponse.json();
+
+    const data: unknown = await backendResponse.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error fetching student ${studentId}:`, error);
     return NextResponse.json(
-      { error: 'Internal Server Error' },
-      { status: 500 }
+      { error: "Internal Server Error" },
+      { status: 500 },
     );
   }
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   // Get authentication session
   const session = await auth();
-  
+
   if (!session?.user?.token) {
     return NextResponse.json(
-      { error: 'Unauthorized: No valid session' },
-      { status: 401 }
+      { error: "Unauthorized: No valid session" },
+      { status: 401 },
     );
   }
-  
+
   // Make sure params is fully resolved
-  const resolvedParams = params instanceof Promise ? await params : params;
-  const studentId = resolvedParams.id;
-  
+  const resolvedParams =
+    params instanceof Promise
+      ? ((await params) as { id: string })
+      : (params as { id: string });
+  const studentId: string = resolvedParams.id;
+
   try {
     // Parse request body
-    const requestBody = await request.json();
-    
+    const requestBody: unknown = await request.json();
+
     // Forward the request to the backend with token
     const backendResponse = await fetch(
       `${env.NEXT_PUBLIC_API_URL}/students/${studentId}`,
       {
-        method: 'PUT',
+        method: "PUT",
         headers: {
-          'Authorization': `Bearer ${session.user.token}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.user.token}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(requestBody),
-      }
+      },
     );
-    
+
     if (!backendResponse.ok) {
       const errorText = await backendResponse.text();
       console.error(`Backend API error: ${backendResponse.status}`, errorText);
       return NextResponse.json(
         { error: `Backend error: ${backendResponse.status}` },
-        { status: backendResponse.status }
+        { status: backendResponse.status },
       );
     }
-    
-    const data = await backendResponse.json();
+
+    const data: unknown = await backendResponse.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error updating student ${studentId}:`, error);
     return NextResponse.json(
-      { error: 'Internal Server Error' },
-      { status: 500 }
+      { error: "Internal Server Error" },
+      { status: 500 },
     );
   }
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   // Get authentication session
   const session = await auth();
-  
+
   if (!session?.user?.token) {
     return NextResponse.json(
-      { error: 'Unauthorized: No valid session' },
-      { status: 401 }
+      { error: "Unauthorized: No valid session" },
+      { status: 401 },
     );
   }
-  
+
   // Make sure params is fully resolved
-  const resolvedParams = params instanceof Promise ? await params : params;
-  const studentId = resolvedParams.id;
-  
+  const resolvedParams =
+    params instanceof Promise
+      ? ((await params) as { id: string })
+      : (params as { id: string });
+  const studentId: string = resolvedParams.id;
+
   try {
     // Forward the request to the backend with token
     const backendResponse = await fetch(
       `${env.NEXT_PUBLIC_API_URL}/students/${studentId}`,
       {
-        method: 'DELETE',
+        method: "DELETE",
         headers: {
-          'Authorization': `Bearer ${session.user.token}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.user.token}`,
+          "Content-Type": "application/json",
         },
-      }
+      },
     );
-    
+
     if (!backendResponse.ok) {
       const errorText = await backendResponse.text();
       console.error(`Backend API error: ${backendResponse.status}`, errorText);
       return NextResponse.json(
         { error: `Backend error: ${backendResponse.status}` },
-        { status: backendResponse.status }
+        { status: backendResponse.status },
       );
     }
-    
+
     return new NextResponse(null, { status: 204 });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`Error deleting student ${studentId}:`, error);
     return NextResponse.json(
-      { error: 'Internal Server Error' },
-      { status: 500 }
+      { error: "Internal Server Error" },
+      { status: 500 },
     );
   }
 }

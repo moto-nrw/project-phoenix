@@ -24,7 +24,11 @@ export const env = createEnv({
    * `NEXT_PUBLIC_`.
    */
   client: {
-    NEXT_PUBLIC_API_URL: z.string().url().optional().default("http://localhost:8080"),
+    NEXT_PUBLIC_API_URL: z
+      .string()
+      .url()
+      .optional()
+      .default("http://localhost:8080"),
   },
 
   /**

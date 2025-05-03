@@ -45,11 +45,21 @@ func ErrNotFound() render.Renderer {
 }
 
 // ErrInternalServer returns a 500 Internal Server Error response.
-func ErrInternalServer(err error) render.Renderer {
+func ErrInternalServerError(err error) render.Renderer {
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: http.StatusInternalServerError,
 		StatusText:     "Internal server error.",
+		ErrorText:      err.Error(),
+	}
+}
+
+// ErrRender returns a 422 Unprocessable Entity response with the error message.
+func ErrRender(err error) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusUnprocessableEntity,
+		StatusText:     "Error rendering response.",
 		ErrorText:      err.Error(),
 	}
 }
@@ -67,5 +77,41 @@ func ErrTabletAlreadyRegistered() render.Renderer {
 	return &ErrResponse{
 		HTTPStatusCode: http.StatusBadRequest,
 		StatusText:     "Tablet is already registered.",
+	}
+}
+
+// ErrConflict returns a 409 Conflict response.
+func ErrConflict(err error) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusConflict,
+		StatusText:     "Conflict.",
+		ErrorText:      err.Error(),
+	}
+}
+
+// ErrBadRequest returns a 400 Bad Request response.
+func ErrBadRequest(err error) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusBadRequest,
+		StatusText:     "Bad request.",
+		ErrorText:      err.Error(),
+	}
+}
+
+// ErrForbidden returns a 403 Forbidden response.
+func ErrForbidden() render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: http.StatusForbidden,
+		StatusText:     "Forbidden.",
+	}
+}
+
+// ErrUnauthorized returns a 401 Unauthorized response.
+func ErrUnauthorized() render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: http.StatusUnauthorized,
+		StatusText:     "Unauthorized.",
 	}
 }

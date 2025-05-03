@@ -36,87 +36,87 @@ func activityTablesUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer tx.Rollback()
 
-	// 1. Create the ag_category table
+	// 1. Create the ag_categories table
 	_, err = tx.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS ag_category (
+		CREATE TABLE IF NOT EXISTS ag_categories (
 			id BIGSERIAL PRIMARY KEY,
 			name TEXT NOT NULL UNIQUE,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating ag_category table: %w", err)
+		return fmt.Errorf("error creating ag_categories table: %w", err)
 	}
 
-	// 2. Create the ag (activity group) table
+	// 2. Create the ags (activity group) table
 	_, err = tx.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS ag (
+		CREATE TABLE IF NOT EXISTS ags (
 			id BIGSERIAL PRIMARY KEY,
 			name TEXT NOT NULL,
 			max_participant INTEGER NOT NULL,
-			is_open_ag BOOLEAN NOT NULL DEFAULT false,
+			is_open_ags BOOLEAN NOT NULL DEFAULT false,
 			supervisor_id BIGINT NOT NULL,
-			ag_category_id BIGINT NOT NULL,
+			ag_categories_id BIGINT NOT NULL,
 			datespan_id BIGINT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			modified_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			CONSTRAINT fk_ag_supervisor FOREIGN KEY (supervisor_id) REFERENCES pedagogical_specialists(id) ON DELETE RESTRICT,
-			CONSTRAINT fk_ag_category FOREIGN KEY (ag_category_id) REFERENCES ag_category(id) ON DELETE RESTRICT,
-			CONSTRAINT fk_ag_datespan FOREIGN KEY (datespan_id) REFERENCES timespan(id) ON DELETE SET NULL
+			CONSTRAINT fk_ag_categories FOREIGN KEY (ag_categories_id) REFERENCES ag_categories(id) ON DELETE RESTRICT,
+			CONSTRAINT fk_ag_datespan FOREIGN KEY (datespan_id) REFERENCES timespans(id) ON DELETE SET NULL
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating ag table: %w", err)
+		return fmt.Errorf("error creating ags table: %w", err)
 	}
 
-	// 3. Create the ag_time table
+	// 3. Create the ag_times table
 	_, err = tx.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS ag_time (
+		CREATE TABLE IF NOT EXISTS ag_times (
 			id BIGSERIAL PRIMARY KEY,
 			weekday TEXT NOT NULL,
-			timespan_id BIGINT NOT NULL,
+			timespans_id BIGINT NOT NULL,
 			ag_id BIGINT NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			CONSTRAINT fk_ag_time_timespan FOREIGN KEY (timespan_id) REFERENCES timespan(id) ON DELETE CASCADE,
-			CONSTRAINT fk_ag_time_ag FOREIGN KEY (ag_id) REFERENCES ag(id) ON DELETE CASCADE,
+			CONSTRAINT fk_ag_time_timespans FOREIGN KEY (timespans_id) REFERENCES timespans(id) ON DELETE CASCADE,
+			CONSTRAINT fk_ag_time_ags FOREIGN KEY (ag_id) REFERENCES ags(id) ON DELETE CASCADE,
 			CONSTRAINT check_weekday CHECK (weekday IN ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'))
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating ag_time table: %w", err)
+		return fmt.Errorf("error creating ag_times table: %w", err)
 	}
 
 	// Create indexes for ag
 	_, err = tx.ExecContext(ctx, `
-		CREATE INDEX IF NOT EXISTS idx_ag_supervisor_id ON ag(supervisor_id);
-		CREATE INDEX IF NOT EXISTS idx_ag_category_id ON ag(ag_category_id);
-		CREATE INDEX IF NOT EXISTS idx_ag_datespan_id ON ag(datespan_id);
-		CREATE INDEX IF NOT EXISTS idx_ag_name ON ag(name);
+		CREATE INDEX IF NOT EXISTS idx_ag_supervisor_id ON ags(supervisor_id);
+		CREATE INDEX IF NOT EXISTS idx_ag_categories_id ON ags(ag_categories_id);
+		CREATE INDEX IF NOT EXISTS idx_ag_datespan_id ON ags(datespan_id);
+		CREATE INDEX IF NOT EXISTS idx_ag_name ON ags(name);
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating indexes for ag table: %w", err)
+		return fmt.Errorf("error creating indexes for ags table: %w", err)
 	}
 
-	// Create indexes for ag_time
+	// Create indexes for ag_times
 	_, err = tx.ExecContext(ctx, `
-		CREATE INDEX IF NOT EXISTS idx_ag_time_ag_id ON ag_time(ag_id);
-		CREATE INDEX IF NOT EXISTS idx_ag_time_timespan_id ON ag_time(timespan_id);
-		CREATE INDEX IF NOT EXISTS idx_ag_time_weekday ON ag_time(weekday);
+		CREATE INDEX IF NOT EXISTS idx_ag_time_ag_id ON ag_times(ag_id);
+		CREATE INDEX IF NOT EXISTS idx_ag_time_timespans_id ON ag_times(timespans_id);
+		CREATE INDEX IF NOT EXISTS idx_ag_time_weekday ON ag_times(weekday);
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating indexes for ag_time table: %w", err)
+		return fmt.Errorf("error creating indexes for ag_times table: %w", err)
 	}
 
-	// Create trigger for updated_at column in ag table
+	// Create trigger for modified_at column in ags table
 	_, err = tx.ExecContext(ctx, `
-		DROP TRIGGER IF EXISTS update_ag_modified_at ON ag;
+		DROP TRIGGER IF EXISTS update_ag_modified_at ON ags;
 		CREATE TRIGGER update_ag_modified_at
-		BEFORE UPDATE ON ag
+		BEFORE UPDATE ON ags
 		FOR EACH ROW
-		EXECUTE FUNCTION update_updated_at_column();
+		EXECUTE FUNCTION update_modified_at_column();
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating updated_at trigger for ag table: %w", err)
+		return fmt.Errorf("error creating updated_at trigger for ags table: %w", err)
 	}
 
 	// Commit the transaction
@@ -136,9 +136,9 @@ func activityTablesDown(ctx context.Context, db *bun.DB) error {
 
 	// Drop tables in reverse order of dependencies
 	_, err = tx.ExecContext(ctx, `
-		DROP TABLE IF EXISTS ag_time;
-		DROP TABLE IF EXISTS ag;
-		DROP TABLE IF EXISTS ag_category;
+		DROP TABLE IF EXISTS ag_times;
+		DROP TABLE IF EXISTS ags;
+		DROP TABLE IF EXISTS ag_categories;
 	`)
 	if err != nil {
 		return fmt.Errorf("error dropping activity group tables: %w", err)
