@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/rfid"
 	"github.com/moto-nrw/project-phoenix/api/room"
 	"github.com/moto-nrw/project-phoenix/api/settings"
+	"github.com/moto-nrw/project-phoenix/api/specialist"
 	"github.com/moto-nrw/project-phoenix/api/student"
 	"github.com/moto-nrw/project-phoenix/api/timespan"
 	"github.com/moto-nrw/project-phoenix/api/user"
@@ -98,6 +99,10 @@ func New(enableCORS bool) (*chi.Mux, error) {
 	settingsStore := database2.NewSettingsStore(db)
 	settingsAPI := settings.NewResource(settingsStore, authStore)
 
+	// Specialist API
+	specialistStore := database.NewSpecialistStore(db)
+	specialistAPI := specialist.NewResource(specialistStore, authStore, userStore)
+
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
@@ -129,6 +134,7 @@ func New(enableCORS bool) (*chi.Mux, error) {
 		r.Mount("/activities", activityAPI.Router())
 		r.Mount("/timespans", timespanAPI.Router())
 		r.Mount("/settings", settingsAPI.Router())
+		r.Mount("/api/specialists", specialistAPI.Router())
 	})
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
