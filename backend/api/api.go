@@ -100,7 +100,7 @@ func New(enableCORS bool) (*chi.Mux, error) {
 	settingsAPI := settings.NewResource(settingsStore, authStore)
 
 	// Specialist API
-	specialistStore := database.NewSpecialistStore(db)
+	specialistStore := database2.NewSpecialistStore(db)
 	specialistAPI := specialist.NewResource(specialistStore, authStore, userStore)
 
 	r := chi.NewRouter()
