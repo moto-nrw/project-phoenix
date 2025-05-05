@@ -8,11 +8,23 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const (
+	CoreFunctionsVersion     = "0.1.0"
+	CoreFunctionsDescription = "Core database functions"
+)
+
 func init() {
-	// Migration 0: Core database functions
+	// Register migration with explicit version
+	MigrationRegistry[CoreFunctionsVersion] = &Migration{
+		Version:     CoreFunctionsVersion,
+		Description: CoreFunctionsDescription,
+		DependsOn:   []string{"0.0.0"}, // Depends on schemas
+	}
+
+	// Migration 0.1: Core database functions
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 0: Setting up core database functions...")
+			fmt.Println("Migration 0.1.0: Setting up core database functions...")
 
 			// Begin a transaction for atomicity
 			tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -42,7 +54,7 @@ func init() {
 			return tx.Commit()
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 0: Removing core database functions...")
+			fmt.Println("Rolling back migration 0.1.0: Removing core database functions...")
 
 			// Begin a transaction for atomicity
 			tx, err := db.BeginTx(ctx, &sql.TxOptions{})

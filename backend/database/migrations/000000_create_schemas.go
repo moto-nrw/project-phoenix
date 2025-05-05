@@ -8,7 +8,19 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const (
+	SchemasVersion     = "0.0.0"
+	SchemasDescription = "Create database schemas"
+)
+
 func init() {
+	// Register migration with explicit version
+	MigrationRegistry[SchemasVersion] = &Migration{
+		Version:     SchemasVersion,
+		Description: SchemasDescription,
+		DependsOn:   []string{},
+	}
+
 	// Migration 0.0: Create database schemas
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
