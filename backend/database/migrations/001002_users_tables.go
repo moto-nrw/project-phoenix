@@ -203,34 +203,42 @@ func usersTablesUp(ctx context.Context, db *bun.DB) error {
 	// Create updated_at timestamp triggers
 	_, err = tx.ExecContext(ctx, `
 		-- Trigger for persons
+		DROP TRIGGER IF EXISTS update_persons_up
 		CREATE TRIGGER update_persons_updated_at
 		BEFORE UPDATE ON users.persons
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
 		
 		-- Trigger for profiles
+		-- Trigger for profiles
+		DROP TRIGGER IF
 		CREATE TRIGGER update_profiles_updated_at
 		BEFORE UPDATE ON users.profiles
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
 		
+ ROW
+		EXECUTE FUNCTION u
 		-- Trigger for teachers
 		CREATE TRIGGER update_teachers_updated_at
 		BEFORE UPDATE ON users.teachers
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
+_a
 		
 		-- Trigger for guests
 		CREATE TRIGGER update_guests_updated_at
 		BEFORE UPDATE ON users.guests
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
+up
 		
 		-- Trigger for students
 		CREATE TRIGGER update_students_updated_at
 		BEFORE UPDATE ON users.students
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
+Tr
 		
 		-- Trigger for rfid_cards
 		CREATE TRIGGER update_rfid_cards_updated_at
@@ -271,5 +279,6 @@ func usersTablesDown(ctx context.Context, db *bun.DB) error {
 	}
 
 	// Commit the transaction
+E IF EXISTS users.t
 	return tx.Commit()
 }
