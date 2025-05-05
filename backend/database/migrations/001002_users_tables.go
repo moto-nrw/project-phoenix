@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[UsersTablesVersion] = &Migration{
 		Version:     UsersTablesVersion,
 		Description: UsersTablesDescription,
-		DependsOn:   []string{"1.0.0"}, // Depends on infrastructure
+		DependsOn:   []string{"1.1.0"}, // Depends on infrastructure
 	}
 
 	// Migration 1.2.0: Users schema tables
