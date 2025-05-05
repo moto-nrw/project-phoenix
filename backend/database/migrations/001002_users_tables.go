@@ -203,44 +203,42 @@ func usersTablesUp(ctx context.Context, db *bun.DB) error {
 	// Create updated_at timestamp triggers
 	_, err = tx.ExecContext(ctx, `
 		-- Trigger for persons
-		DROP TRIGGER IF EXISTS update_persons_up
+		DROP TRIGGER IF EXISTS update_persons_updated_at ON users.persons;
 		CREATE TRIGGER update_persons_updated_at
 		BEFORE UPDATE ON users.persons
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
 		
 		-- Trigger for profiles
-		-- Trigger for profiles
-		DROP TRIGGER IF
+		DROP TRIGGER IF EXISTS update_profiles_updated_at ON users.profiles;
 		CREATE TRIGGER update_profiles_updated_at
 		BEFORE UPDATE ON users.profiles
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
 		
- ROW
-		EXECUTE FUNCTION u
 		-- Trigger for teachers
+		DROP TRIGGER IF EXISTS update_teachers_updated_at ON users.teachers;
 		CREATE TRIGGER update_teachers_updated_at
 		BEFORE UPDATE ON users.teachers
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
-_a
 		
 		-- Trigger for guests
+		DROP TRIGGER IF EXISTS update_guests_updated_at ON users.guests;
 		CREATE TRIGGER update_guests_updated_at
 		BEFORE UPDATE ON users.guests
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
-up
 		
 		-- Trigger for students
+		DROP TRIGGER IF EXISTS update_students_updated_at ON users.students;
 		CREATE TRIGGER update_students_updated_at
 		BEFORE UPDATE ON users.students
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
-Tr
 		
 		-- Trigger for rfid_cards
+		DROP TRIGGER IF EXISTS update_rfid_cards_updated_at ON users.rfid_cards;
 		CREATE TRIGGER update_rfid_cards_updated_at
 		BEFORE UPDATE ON users.rfid_cards
 		FOR EACH ROW
@@ -279,6 +277,5 @@ func usersTablesDown(ctx context.Context, db *bun.DB) error {
 	}
 
 	// Commit the transaction
-E IF EXISTS users.t
 	return tx.Commit()
 }
