@@ -103,11 +103,11 @@ func createFacilitiesTables(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating facilities.room_occupancy_teachers table: %w", err)
 	}
 
-	// Create the facilities.visits table
+	// Create the facilities.visits table - tracks all persons (students, teachers, guests)
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS facilities.visits (
 			id BIGSERIAL PRIMARY KEY,
-			student_id BIGINT NOT NULL REFERENCES users.students(id),
+			person_id BIGINT NOT NULL REFERENCES users.persons(id),
 			room_occupancy_id BIGINT NOT NULL REFERENCES facilities.room_occupancy(id),
 			entry_time TIMESTAMPTZ NOT NULL,
 			exit_time TIMESTAMPTZ,
@@ -151,7 +151,7 @@ func createFacilitiesTables(ctx context.Context, db *bun.DB) error {
 		CREATE INDEX idx_room_occupancy_teachers_teacher_id ON facilities.room_occupancy_teachers(teacher_id);
 		
 		-- Indexes for facilities.visits
-		CREATE INDEX idx_visits_student_id ON facilities.visits(student_id);
+		CREATE INDEX idx_visits_person_id ON facilities.visits(person_id);
 		CREATE INDEX idx_visits_room_occupancy_id ON facilities.visits(room_occupancy_id);
 		CREATE INDEX idx_visits_entry_time ON facilities.visits(entry_time);
 		CREATE INDEX idx_visits_exit_time ON facilities.visits(exit_time) WHERE exit_time IS NOT NULL;
