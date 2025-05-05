@@ -242,16 +242,6 @@ func groupsTablesUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating updated_at triggers: %w", err)
 	}
 
-	// Add foreign key for student group_id to reference groups
-	_, err = tx.ExecContext(ctx, `
-		ALTER TABLE users.students 
-		ADD CONSTRAINT fk_students_group 
-		FOREIGN KEY (group_id) REFERENCES education.groups(id) ON DELETE SET NULL;
-	`)
-	if err != nil {
-		return fmt.Errorf("error adding foreign key for students group: %w", err)
-	}
-
 	// Commit the transaction
 	return tx.Commit()
 }
