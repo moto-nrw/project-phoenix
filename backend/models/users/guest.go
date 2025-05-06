@@ -10,93 +10,98 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Teacher represents a teacher entity in the system
-type Teacher struct {
+// Guest represents a guest instructor entity in the system
+type Guest struct {
 	base.Model
-	PersonID       int64  `bun:"person_id,notnull" json:"person_id"`
-	Specialization string `bun:"specialization,notnull" json:"specialization"`
-	Role           string `bun:"role" json:"role,omitempty"`
-	IsPasswordOTP  bool   `bun:"is_password_otp,default:false" json:"is_password_otp"`
-	Qualifications string `bun:"qualifications" json:"qualifications,omitempty"`
+	PersonID          int64     `bun:"person_id,notnull" json:"person_id"`
+	Organization      string    `bun:"organization" json:"organization,omitempty"`
+	ContactEmail      string    `bun:"contact_email" json:"contact_email,omitempty"`
+	ContactPhone      string    `bun:"contact_phone" json:"contact_phone,omitempty"`
+	ActivityExpertise string    `bun:"activity_expertise,notnull" json:"activity_expertise"`
+	StartDate         time.Time `bun:"start_date" json:"start_date,omitempty"`
+	EndDate           time.Time `bun:"end_date" json:"end_date,omitempty"`
+	Notes             string    `bun:"notes" json:"notes,omitempty"`
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
 }
 
-// TableName returns the table name for the Teacher model
-func (t *Teacher) TableName() string {
-	return "users.teachers"
+// TableName returns the table name for the Guest model
+func (g *Guest) TableName() string {
+	return "users.guests"
 }
 
-// GetID returns the teacher ID
-func (t *Teacher) GetID() interface{} {
-	return t.ID
+// GetID returns the guest ID
+func (g *Guest) GetID() interface{} {
+	return g.ID
 }
 
 // GetCreatedAt returns the creation timestamp
-func (t *Teacher) GetCreatedAt() time.Time {
-	return t.CreatedAt
+func (g *Guest) GetCreatedAt() time.Time {
+	return g.CreatedAt
 }
 
 // GetUpdatedAt returns the last update timestamp
-func (t *Teacher) GetUpdatedAt() time.Time {
-	return t.UpdatedAt
+func (g *Guest) GetUpdatedAt() time.Time {
+	return g.UpdatedAt
 }
 
-// Validate validates the teacher fields
-func (t *Teacher) Validate() error {
-	if t.PersonID <= 0 {
+// Validate validates the guest fields
+func (g *Guest) Validate() error {
+	if g.PersonID <= 0 {
 		return errors.New("person ID is required")
 	}
 
-	if strings.TrimSpace(t.Specialization) == "" {
-		return errors.New("specialization is required")
+	if strings.TrimSpace(g.ActivityExpertise) == "" {
+		return errors.New("activity expertise is required")
 	}
 
 	return nil
 }
 
 // BeforeAppend sets default values before saving to the database
-func (t *Teacher) BeforeAppend() error {
+func (g *Guest) BeforeAppend() error {
 	// Call parent's BeforeAppend to set timestamps
-	if err := t.Model.BeforeAppend(); err != nil {
+	if err := g.Model.BeforeAppend(); err != nil {
 		return err
 	}
 
 	// Trim whitespace
-	t.Specialization = strings.TrimSpace(t.Specialization)
-	t.Role = strings.TrimSpace(t.Role)
-	t.Qualifications = strings.TrimSpace(t.Qualifications)
+	g.Organization = strings.TrimSpace(g.Organization)
+	g.ContactEmail = strings.TrimSpace(g.ContactEmail)
+	g.ContactPhone = strings.TrimSpace(g.ContactPhone)
+	g.ActivityExpertise = strings.TrimSpace(g.ActivityExpertise)
+	g.Notes = strings.TrimSpace(g.Notes)
 
 	return nil
 }
 
-// TeacherRepository defines operations for working with teachers
-type TeacherRepository interface {
-	base.Repository[*Teacher]
-	FindByPersonID(ctx context.Context, personID int64) (*Teacher, error)
-	FindBySpecialization(ctx context.Context, specialization string) ([]*Teacher, error)
-	FindByRole(ctx context.Context, role string) ([]*Teacher, error)
-	FindWithPerson(ctx context.Context, id int64) (*Teacher, error)
+// GuestRepository defines operations for working with guests
+type GuestRepository interface {
+	base.Repository[*Guest]
+	FindByPersonID(ctx context.Context, personID int64) (*Guest, error)
+	FindByOrganization(ctx context.Context, organization string) ([]*Guest, error)
+	FindByActivityExpertise(ctx context.Context, expertise string) ([]*Guest, error)
+	FindWithPerson(ctx context.Context, id int64) (*Guest, error)
 }
 
-// DefaultTeacherRepository is the default implementation of TeacherRepository
-type DefaultTeacherRepository struct {
+// DefaultGuestRepository is the default implementation of GuestRepository
+type DefaultGuestRepository struct {
 	db *bun.DB
 }
 
-// NewTeacherRepository creates a new teacher repository
-func NewTeacherRepository(db *bun.DB) TeacherRepository {
-	return &DefaultTeacherRepository{db: db}
+// NewGuestRepository creates a new guest repository
+func NewGuestRepository(db *bun.DB) GuestRepository {
+	return &DefaultGuestRepository{db: db}
 }
 
-// Create inserts a new teacher into the database
-func (r *DefaultTeacherRepository) Create(ctx context.Context, teacher *Teacher) error {
-	if err := teacher.Validate(); err != nil {
+// Create inserts a new guest into the database
+func (r *DefaultGuestRepository) Create(ctx context.Context, guest *Guest) error {
+	if err := guest.Validate(); err != nil {
 		return err
 	}
 
-	_, err := r.db.NewInsert().Model(teacher).Exec(ctx)
+	_, err := r.db.NewInsert().Model(guest).Exec(ctx)
 	if err != nil {
 		return &base.DatabaseError{Op: "create", Err: err}
 	}
@@ -104,95 +109,95 @@ func (r *DefaultTeacherRepository) Create(ctx context.Context, teacher *Teacher)
 	return nil
 }
 
-// FindByID retrieves a teacher by their ID
-func (r *DefaultTeacherRepository) FindByID(ctx context.Context, id interface{}) (*Teacher, error) {
-	teacher := new(Teacher)
-	err := r.db.NewSelect().Model(teacher).Where("id = ?", id).Scan(ctx)
+// FindByID retrieves a guest by their ID
+func (r *DefaultGuestRepository) FindByID(ctx context.Context, id interface{}) (*Guest, error) {
+	guest := new(Guest)
+	err := r.db.NewSelect().Model(guest).Where("id = ?", id).Scan(ctx)
 	if err != nil {
 		return nil, &base.DatabaseError{Op: "find_by_id", Err: err}
 	}
-	return teacher, nil
+	return guest, nil
 }
 
-// FindByPersonID retrieves a teacher by their person ID
-func (r *DefaultTeacherRepository) FindByPersonID(ctx context.Context, personID int64) (*Teacher, error) {
-	teacher := new(Teacher)
-	err := r.db.NewSelect().Model(teacher).Where("person_id = ?", personID).Scan(ctx)
+// FindByPersonID retrieves a guest by their person ID
+func (r *DefaultGuestRepository) FindByPersonID(ctx context.Context, personID int64) (*Guest, error) {
+	guest := new(Guest)
+	err := r.db.NewSelect().Model(guest).Where("person_id = ?", personID).Scan(ctx)
 	if err != nil {
 		return nil, &base.DatabaseError{Op: "find_by_person_id", Err: err}
 	}
-	return teacher, nil
+	return guest, nil
 }
 
-// FindBySpecialization retrieves teachers by their specialization
-func (r *DefaultTeacherRepository) FindBySpecialization(ctx context.Context, specialization string) ([]*Teacher, error) {
-	var teachers []*Teacher
+// FindByOrganization retrieves guests by their organization
+func (r *DefaultGuestRepository) FindByOrganization(ctx context.Context, organization string) ([]*Guest, error) {
+	var guests []*Guest
 	err := r.db.NewSelect().
-		Model(&teachers).
-		Where("specialization ILIKE ?", "%"+specialization+"%").
+		Model(&guests).
+		Where("organization ILIKE ?", "%"+organization+"%").
 		Scan(ctx)
 
 	if err != nil {
-		return nil, &base.DatabaseError{Op: "find_by_specialization", Err: err}
+		return nil, &base.DatabaseError{Op: "find_by_organization", Err: err}
 	}
-	return teachers, nil
+	return guests, nil
 }
 
-// FindByRole retrieves teachers by their role
-func (r *DefaultTeacherRepository) FindByRole(ctx context.Context, role string) ([]*Teacher, error) {
-	var teachers []*Teacher
+// FindByActivityExpertise retrieves guests by their activity expertise
+func (r *DefaultGuestRepository) FindByActivityExpertise(ctx context.Context, expertise string) ([]*Guest, error) {
+	var guests []*Guest
 	err := r.db.NewSelect().
-		Model(&teachers).
-		Where("role ILIKE ?", "%"+role+"%").
+		Model(&guests).
+		Where("activity_expertise ILIKE ?", "%"+expertise+"%").
 		Scan(ctx)
 
 	if err != nil {
-		return nil, &base.DatabaseError{Op: "find_by_role", Err: err}
+		return nil, &base.DatabaseError{Op: "find_by_activity_expertise", Err: err}
 	}
-	return teachers, nil
+	return guests, nil
 }
 
-// FindWithPerson retrieves a teacher with their associated person data
-func (r *DefaultTeacherRepository) FindWithPerson(ctx context.Context, id int64) (*Teacher, error) {
-	teacher := new(Teacher)
+// FindWithPerson retrieves a guest with their associated person data
+func (r *DefaultGuestRepository) FindWithPerson(ctx context.Context, id int64) (*Guest, error) {
+	guest := new(Guest)
 	err := r.db.NewSelect().
-		Model(teacher).
+		Model(guest).
 		Relation("Person").
-		Where("teacher.id = ?", id).
+		Where("guest.id = ?", id).
 		Scan(ctx)
 
 	if err != nil {
 		return nil, &base.DatabaseError{Op: "find_with_person", Err: err}
 	}
-	return teacher, nil
+	return guest, nil
 }
 
-// Update updates an existing teacher
-func (r *DefaultTeacherRepository) Update(ctx context.Context, teacher *Teacher) error {
-	if err := teacher.Validate(); err != nil {
+// Update updates an existing guest
+func (r *DefaultGuestRepository) Update(ctx context.Context, guest *Guest) error {
+	if err := guest.Validate(); err != nil {
 		return err
 	}
 
-	_, err := r.db.NewUpdate().Model(teacher).WherePK().Exec(ctx)
+	_, err := r.db.NewUpdate().Model(guest).WherePK().Exec(ctx)
 	if err != nil {
 		return &base.DatabaseError{Op: "update", Err: err}
 	}
 	return nil
 }
 
-// Delete removes a teacher
-func (r *DefaultTeacherRepository) Delete(ctx context.Context, id interface{}) error {
-	_, err := r.db.NewDelete().Model((*Teacher)(nil)).Where("id = ?", id).Exec(ctx)
+// Delete removes a guest
+func (r *DefaultGuestRepository) Delete(ctx context.Context, id interface{}) error {
+	_, err := r.db.NewDelete().Model((*Guest)(nil)).Where("id = ?", id).Exec(ctx)
 	if err != nil {
 		return &base.DatabaseError{Op: "delete", Err: err}
 	}
 	return nil
 }
 
-// List retrieves teachers matching the filters
-func (r *DefaultTeacherRepository) List(ctx context.Context, filters map[string]interface{}) ([]*Teacher, error) {
-	var teachers []*Teacher
-	query := r.db.NewSelect().Model(&teachers)
+// List retrieves guests matching the filters
+func (r *DefaultGuestRepository) List(ctx context.Context, filters map[string]interface{}) ([]*Guest, error) {
+	var guests []*Guest
+	query := r.db.NewSelect().Model(&guests)
 
 	// Apply filters
 	for key, value := range filters {
@@ -205,5 +210,5 @@ func (r *DefaultTeacherRepository) List(ctx context.Context, filters map[string]
 		return nil, &base.DatabaseError{Op: "list", Err: err}
 	}
 
-	return teachers, nil
+	return guests, nil
 }

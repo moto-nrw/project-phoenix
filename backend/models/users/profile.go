@@ -13,13 +13,11 @@ import (
 // Profile represents a user profile in the system
 type Profile struct {
 	base.Model
-	AccountID int64  `bun:"account_id,notnull" json:"account_id"`
-	Avatar    string `bun:"avatar" json:"avatar,omitempty"`
-	Bio       string `bun:"bio" json:"bio,omitempty"`
-	Settings  string `bun:"settings,default:'{}'" json:"settings,omitempty"`
-
-	// Relations
-	Account *auth.Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
+	AccountID int64                  `bun:"account_id,notnull" json:"account_id"`
+	Avatar    string                 `bun:"avatar" json:"avatar,omitempty"`
+	Bio       string                 `bun:"bio" json:"bio,omitempty"`
+	Settings  map[string]interface{} `bun:"settings,type:jsonb,default:'{}'" json:"settings,omitempty"` // Use map for JSON data
+	Account   *auth.Account          `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
 }
 
 // TableName returns the table name for the Profile model
@@ -56,7 +54,7 @@ type ProfileRepository interface {
 	FindByAccountID(ctx context.Context, accountID int64) (*Profile, error)
 	UpdateAvatar(ctx context.Context, id int64, avatar string) error
 	UpdateBio(ctx context.Context, id int64, bio string) error
-	UpdateSettings(ctx context.Context, id int64, settings jsonb.JSONB) error
+	UpdateSettings(ctx context.Context, id int64, settings map[string]interface{}) error
 }
 
 // DefaultProfileRepository is the default implementation of ProfileRepository
@@ -77,7 +75,7 @@ func (r *DefaultProfileRepository) Create(ctx context.Context, profile *Profile)
 
 	// Initialize settings if empty
 	if profile.Settings == nil {
-		profile.Settings = jsonb.JSONB("{}")
+		profile.Settings = make(map[string]interface{})
 	}
 
 	_, err := r.db.NewInsert().Model(profile).Exec(ctx)
@@ -178,7 +176,7 @@ func (r *DefaultProfileRepository) UpdateBio(ctx context.Context, id int64, bio 
 }
 
 // UpdateSettings updates the settings for a profile
-func (r *DefaultProfileRepository) UpdateSettings(ctx context.Context, id int64, settings jsonb.JSONB) error {
+func (r *DefaultProfileRepository) UpdateSettings(ctx context.Context, id int64, settings map[string]interface{}) error {
 	_, err := r.db.NewUpdate().
 		Model((*Profile)(nil)).
 		Set("settings = ?", settings).
