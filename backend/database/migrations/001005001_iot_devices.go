@@ -9,32 +9,32 @@ import (
 )
 
 const (
-	IoTTablesVersion     = "1.7.0"
-	IoTTablesDescription = "IoT device management tables"
+	IoTDevicesVersion     = "1.5.1"
+	IoTDevicesDescription = "Create iot.devices table"
 )
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[IoTTablesVersion] = &Migration{
-		Version:     IoTTablesVersion,
-		Description: IoTTablesDescription,
-		DependsOn:   []string{"1.6.0"}, // Depends on facilities tables
+	MigrationRegistry[IoTDevicesVersion] = &Migration{
+		Version:     IoTDevicesVersion,
+		Description: IoTDevicesDescription,
+		DependsOn:   []string{"1.2.1"}, // Depends on users.persons
 	}
 
-	// Migration 1.7.0: IoT schema tables
+	// Migration 1.5.1: Create iot.devices table
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			return iotTablesUp(ctx, db)
+			return createIoTDevicesTable(ctx, db)
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			return iotTablesDown(ctx, db)
+			return dropIoTDevicesTable(ctx, db)
 		},
 	)
 }
 
-// iotTablesUp creates the IoT schema tables
-func iotTablesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.7.0: Creating IoT schema tables...")
+// createIoTDevicesTable creates the iot.devices table
+func createIoTDevicesTable(ctx context.Context, db *bun.DB) error {
+	fmt.Println("Migration 1.5.1: Creating iot.devices table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -43,7 +43,7 @@ func iotTablesUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer tx.Rollback()
 
-	// Create IoT schema
+	// Create IoT schema if it doesn't exist
 	_, err = tx.ExecContext(ctx, `
 		CREATE SCHEMA IF NOT EXISTS iot;
 	`)
@@ -64,7 +64,7 @@ func iotTablesUp(ctx context.Context, db *bun.DB) error {
 
 	// Create IoT devices table
 	_, err = tx.ExecContext(ctx, `
-		-- IoT device management tables
+		-- IoT device management table
 		CREATE TABLE IF NOT EXISTS iot.devices (
 			id BIGSERIAL PRIMARY KEY,
 			device_id TEXT NOT NULL UNIQUE,
@@ -112,9 +112,9 @@ func iotTablesUp(ctx context.Context, db *bun.DB) error {
 	return tx.Commit()
 }
 
-// iotTablesDown removes the IoT schema tables
-func iotTablesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.7.0: Removing IoT schema tables...")
+// dropIoTDevicesTable drops the iot.devices table
+func dropIoTDevicesTable(ctx context.Context, db *bun.DB) error {
+	fmt.Println("Rolling back migration 1.5.1: Removing iot.devices table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -123,12 +123,20 @@ func iotTablesDown(ctx context.Context, db *bun.DB) error {
 	}
 	defer tx.Rollback()
 
-	// Drop tables
+	// Drop trigger first
+	_, err = tx.ExecContext(ctx, `
+		DROP TRIGGER IF EXISTS update_iot_devices_updated_at ON iot.devices;
+	`)
+	if err != nil {
+		return fmt.Errorf("error dropping trigger for iot.devices table: %w", err)
+	}
+
+	// Drop the table
 	_, err = tx.ExecContext(ctx, `
 		DROP TABLE IF EXISTS iot.devices CASCADE;
 	`)
 	if err != nil {
-		return fmt.Errorf("error dropping IoT devices table: %w", err)
+		return fmt.Errorf("error dropping iot.devices table: %w", err)
 	}
 
 	// Drop the device_status type

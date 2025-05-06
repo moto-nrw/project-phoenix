@@ -9,32 +9,32 @@ import (
 )
 
 const (
-	ConfigTablesVersion     = "1.9.0"
-	ConfigTablesDescription = "System configuration tables"
+	ConfigSettingsVersion     = "1.6.1"
+	ConfigSettingsDescription = "Create config.settings table"
 )
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[ConfigTablesVersion] = &Migration{
-		Version:     ConfigTablesVersion,
-		Description: ConfigTablesDescription,
-		DependsOn:   []string{"1.8.0"}, // Depends on feedback tables
+	MigrationRegistry[ConfigSettingsVersion] = &Migration{
+		Version:     ConfigSettingsVersion,
+		Description: ConfigSettingsDescription,
+		DependsOn:   []string{"1.1.0"}, // Only depends on infrastructure
 	}
 
-	// Migration 1.9.0: Config schema tables
+	// Migration 1.6.1: Create config.settings table
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			return configTablesUp(ctx, db)
+			return createConfigSettingsTable(ctx, db)
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			return configTablesDown(ctx, db)
+			return dropConfigSettingsTable(ctx, db)
 		},
 	)
 }
 
-// configTablesUp creates the config schema tables
-func configTablesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.9.0: Creating config schema tables...")
+// createConfigSettingsTable creates the config.settings table
+func createConfigSettingsTable(ctx context.Context, db *bun.DB) error {
+	fmt.Println("Migration 1.6.1: Creating config.settings table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -43,7 +43,7 @@ func configTablesUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer tx.Rollback()
 
-	// Create config schema
+	// Create config schema if it doesn't exist
 	_, err = tx.ExecContext(ctx, `
 		CREATE SCHEMA IF NOT EXISTS config;
 	`)
@@ -53,7 +53,7 @@ func configTablesUp(ctx context.Context, db *bun.DB) error {
 
 	// Create config settings table
 	_, err = tx.ExecContext(ctx, `
-		-- System configuration tables
+		-- System configuration table
 		CREATE TABLE IF NOT EXISTS config.settings (
 			id BIGSERIAL PRIMARY KEY,
 			key TEXT NOT NULL UNIQUE,
@@ -113,9 +113,9 @@ func configTablesUp(ctx context.Context, db *bun.DB) error {
 	return tx.Commit()
 }
 
-// configTablesDown removes the config schema tables
-func configTablesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.9.0: Removing config schema tables...")
+// dropConfigSettingsTable drops the config.settings table
+func dropConfigSettingsTable(ctx context.Context, db *bun.DB) error {
+	fmt.Println("Rolling back migration 1.6.1: Removing config.settings table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -124,12 +124,20 @@ func configTablesDown(ctx context.Context, db *bun.DB) error {
 	}
 	defer tx.Rollback()
 
-	// Drop tables
+	// Drop trigger first
+	_, err = tx.ExecContext(ctx, `
+		DROP TRIGGER IF EXISTS update_config_settings_updated_at ON config.settings;
+	`)
+	if err != nil {
+		return fmt.Errorf("error dropping trigger for config.settings table: %w", err)
+	}
+
+	// Drop the table
 	_, err = tx.ExecContext(ctx, `
 		DROP TABLE IF EXISTS config.settings CASCADE;
 	`)
 	if err != nil {
-		return fmt.Errorf("error dropping config settings table: %w", err)
+		return fmt.Errorf("error dropping config.settings table: %w", err)
 	}
 
 	// Commit the transaction

@@ -9,32 +9,32 @@ import (
 )
 
 const (
-	FeedbackTablesVersion     = "1.8.0"
-	FeedbackTablesDescription = "Student feedback tables"
+	FeedbackEntriesVersion     = "1.5.2"
+	FeedbackEntriesDescription = "Create feedback.entries table"
 )
 
 func init() {
 	// Register migration with explicit version
-	MigrationRegistry[FeedbackTablesVersion] = &Migration{
-		Version:     FeedbackTablesVersion,
-		Description: FeedbackTablesDescription,
-		DependsOn:   []string{"1.7.0"}, // Depends on IoT tables
+	MigrationRegistry[FeedbackEntriesVersion] = &Migration{
+		Version:     FeedbackEntriesVersion,
+		Description: FeedbackEntriesDescription,
+		DependsOn:   []string{"1.3.5"}, // Depends on users.students
 	}
 
-	// Migration 1.8.0: Feedback schema tables
+	// Migration 1.5.2: Create feedback.entries table
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			return feedbackTablesUp(ctx, db)
+			return createFeedbackEntriesTable(ctx, db)
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			return feedbackTablesDown(ctx, db)
+			return dropFeedbackEntriesTable(ctx, db)
 		},
 	)
 }
 
-// feedbackTablesUp creates the feedback schema tables
-func feedbackTablesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.8.0: Creating feedback schema tables...")
+// createFeedbackEntriesTable creates the feedback.entries table
+func createFeedbackEntriesTable(ctx context.Context, db *bun.DB) error {
+	fmt.Println("Migration 1.5.2: Creating feedback.entries table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -43,7 +43,7 @@ func feedbackTablesUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer tx.Rollback()
 
-	// Create feedback schema
+	// Create feedback schema if it doesn't exist
 	_, err = tx.ExecContext(ctx, `
 		CREATE SCHEMA IF NOT EXISTS feedback;
 	`)
@@ -53,7 +53,7 @@ func feedbackTablesUp(ctx context.Context, db *bun.DB) error {
 
 	// Create feedback entries table
 	_, err = tx.ExecContext(ctx, `
-		-- Student feedback tables
+		-- Student feedback table
 		CREATE TABLE IF NOT EXISTS feedback.entries (
 			id BIGSERIAL PRIMARY KEY,
 			value TEXT NOT NULL,
@@ -99,9 +99,9 @@ func feedbackTablesUp(ctx context.Context, db *bun.DB) error {
 	return tx.Commit()
 }
 
-// feedbackTablesDown removes the feedback schema tables
-func feedbackTablesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.8.0: Removing feedback schema tables...")
+// dropFeedbackEntriesTable drops the feedback.entries table
+func dropFeedbackEntriesTable(ctx context.Context, db *bun.DB) error {
+	fmt.Println("Rolling back migration 1.5.2: Removing feedback.entries table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -110,12 +110,20 @@ func feedbackTablesDown(ctx context.Context, db *bun.DB) error {
 	}
 	defer tx.Rollback()
 
-	// Drop tables
+	// Drop trigger first
+	_, err = tx.ExecContext(ctx, `
+		DROP TRIGGER IF EXISTS update_feedback_entries_updated_at ON feedback.entries;
+	`)
+	if err != nil {
+		return fmt.Errorf("error dropping trigger for feedback.entries table: %w", err)
+	}
+
+	// Drop the table
 	_, err = tx.ExecContext(ctx, `
 		DROP TABLE IF EXISTS feedback.entries CASCADE;
 	`)
 	if err != nil {
-		return fmt.Errorf("error dropping feedback entries table: %w", err)
+		return fmt.Errorf("error dropping feedback.entries table: %w", err)
 	}
 
 	// Commit the transaction
