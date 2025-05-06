@@ -55,7 +55,13 @@ func createFacilitiesRoomHistoryTable(ctx context.Context, db *bun.DB) error {
 			teacher_id BIGINT NOT NULL REFERENCES users.teachers(id),
 			max_participants INT NOT NULL DEFAULT 0,
 			group_id BIGINT REFERENCES education.groups(id),
-			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			-- Ensure consistent handling of category_id and group_id relationship
+			CONSTRAINT only_one_group_type CHECK (
+				(category_id IS NULL AND group_id IS NOT NULL) OR
+				(category_id IS NOT NULL AND group_id IS NULL) OR
+				(category_id IS NULL AND group_id IS NULL)
+			)
 		)
 	`)
 	if err != nil {
