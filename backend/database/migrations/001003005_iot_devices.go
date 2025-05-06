@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	IoTDevicesVersion     = "1.3.5" // Changed from 1.5.1 to come before room_occupancy (1.4.1)
+	IoTDevicesVersion     = "1.3.5" // Version maintained to preserve compatibility with room_occupancy
 	IoTDevicesDescription = "Create iot.devices table"
 )
 
@@ -56,7 +56,12 @@ func createIoTDevicesTable(ctx context.Context, db *bun.DB) error {
 		DROP TYPE IF EXISTS device_status CASCADE;
 		
 		-- Create device status enum
-		CREATE TYPE device_status AS ENUM ('active', 'inactive', 'maintenance', 'offline');
+		CREATE TYPE device_status AS ENUM (
+			'active',    -- Device is fully operational
+			'inactive',  -- Device is powered on but not in use
+			'maintenance', -- Device is undergoing maintenance
+			'offline'    -- Device is not connected or powered off
+		);
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating device_status type: %w", err)
@@ -70,7 +75,6 @@ func createIoTDevicesTable(ctx context.Context, db *bun.DB) error {
 			device_id TEXT NOT NULL UNIQUE,
 			device_type TEXT NOT NULL,
 			name TEXT,
-			location TEXT,
 			status device_status NOT NULL DEFAULT 'active',
 			last_seen TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
