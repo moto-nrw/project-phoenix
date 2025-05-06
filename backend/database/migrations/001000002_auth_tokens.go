@@ -78,7 +78,7 @@ func createAuthTokensTable(ctx context.Context, db *bun.DB) error {
 		CREATE TRIGGER update_tokens_updated_at
 		BEFORE UPDATE ON auth.tokens
 		FOR EACH ROW
-		EXECUTE FUNCTION auth.update_updated_at_column();
+		EXECUTE FUNCTION update_modified_column();
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating updated_at trigger for tokens: %w", err)

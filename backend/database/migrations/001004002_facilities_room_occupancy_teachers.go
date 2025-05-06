@@ -47,8 +47,8 @@ func createFacilitiesRoomOccupancyTeachersTable(ctx context.Context, db *bun.DB)
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS facilities.room_occupancy_teachers (
 			id BIGSERIAL PRIMARY KEY,
-			room_occupancy_id BIGINT NOT NULL REFERENCES facilities.room_occupancy(id),
-			teacher_id BIGINT NOT NULL REFERENCES users.teachers(id),
+			room_occupancy_id BIGINT NOT NULL REFERENCES facilities.room_occupancy(id) ON DELETE RESTRICT,
+			teacher_id BIGINT REFERENCES users.teachers(id) ON DELETE SET NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			UNIQUE(room_occupancy_id, teacher_id)
 		)

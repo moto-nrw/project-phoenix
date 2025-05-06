@@ -43,20 +43,7 @@ func createAuthAccountsTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer tx.Rollback()
 
-	// Create auth function for updating timestamps if it doesn't exist
-	_, err = tx.ExecContext(ctx, `
-		-- Create or replace the function for updating timestamps
-		CREATE OR REPLACE FUNCTION auth.update_updated_at_column()
-		RETURNS TRIGGER AS $$
-		BEGIN
-			NEW.updated_at = CURRENT_TIMESTAMP;
-			RETURN NEW;
-		END;
-		$$ LANGUAGE plpgsql;
-	`)
-	if err != nil {
-		return fmt.Errorf("error creating auth timestamp function: %w", err)
-	}
+	// No need to create a schema-specific function, we'll use the global one
 
 	// Create the accounts table - the core login entity
 	_, err = tx.ExecContext(ctx, `
@@ -92,7 +79,7 @@ func createAuthAccountsTable(ctx context.Context, db *bun.DB) error {
 		CREATE TRIGGER update_accounts_updated_at
 		BEFORE UPDATE ON auth.accounts
 		FOR EACH ROW
-		EXECUTE FUNCTION auth.update_updated_at_column();
+		EXECUTE FUNCTION update_modified_column();
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating updated_at trigger for accounts: %w", err)

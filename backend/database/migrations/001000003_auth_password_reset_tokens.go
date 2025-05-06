@@ -77,7 +77,7 @@ func createAuthPasswordResetTokensTable(ctx context.Context, db *bun.DB) error {
 		CREATE TRIGGER update_password_reset_tokens_updated_at
 		BEFORE UPDATE ON auth.password_reset_tokens
 		FOR EACH ROW
-		EXECUTE FUNCTION auth.update_updated_at_column();
+		EXECUTE FUNCTION update_modified_column();
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating updated_at trigger for password_reset_tokens: %w", err)
