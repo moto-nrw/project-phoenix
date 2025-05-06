@@ -52,7 +52,9 @@ func createFacilitiesVisitsTable(ctx context.Context, db *bun.DB) error {
 			entry_time TIMESTAMPTZ NOT NULL,
 			exit_time TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			-- Ensure exit_time is after entry_time if set
+			CONSTRAINT valid_exit_time CHECK (exit_time IS NULL OR exit_time > entry_time)
 		)
 	`)
 	if err != nil {
