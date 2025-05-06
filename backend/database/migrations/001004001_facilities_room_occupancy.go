@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[FacilitiesRoomOccupancyVersion] = &Migration{
 		Version:     FacilitiesRoomOccupancyVersion,
 		Description: FacilitiesRoomOccupancyDescription,
-		DependsOn:   []string{"1.1.1", "1.1.2", "1.3.2", "1.2.6", "1.3.5"}, // Depends on rooms, timeframes, activities.groups, education.groups, and iot.devices
+		DependsOn:   []string{"1.1.1", "1.1.2", "1.3.2", "1.2.6", "1.3.5", "1.3.6"}, // Depends on rooms, timeframes, activities.groups, education.groups, iot.devices, and users.students
 	}
 
 	// Migration 1.4.1: Create facilities.room_occupancy table
@@ -46,7 +46,11 @@ func createFacilitiesRoomOccupancyTable(ctx context.Context, db *bun.DB) error {
 	// Create the room_occupancy status type
 	_, err = tx.ExecContext(ctx, `
 		DROP TYPE IF EXISTS occupancy_status CASCADE;
-		CREATE TYPE occupancy_status AS ENUM ('active', 'inactive', 'maintenance');
+		CREATE TYPE occupancy_status AS ENUM (
+			'active',     -- Room is currently in normal use
+			'inactive',   -- Room is not currently in use
+			'maintenance' -- Room is under maintenance or unavailable
+		);
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating occupancy_status type: %w", err)
