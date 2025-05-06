@@ -57,13 +57,13 @@ func createFacilitiesRoomOccupancyTable(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS facilities.room_occupancy (
 			id BIGSERIAL PRIMARY KEY,
 			device_id TEXT UNIQUE REFERENCES iot.devices(device_id) ON DELETE SET NULL,
-			room_id BIGINT NOT NULL REFERENCES facilities.rooms(id),
-			timeframe_id BIGINT NOT NULL REFERENCES schedule.timeframes(id),
+			room_id BIGINT NOT NULL REFERENCES facilities.rooms(id) ON DELETE RESTRICT,
+			timeframe_id BIGINT NOT NULL REFERENCES schedule.timeframes(id) ON DELETE RESTRICT,
 			status occupancy_status NOT NULL DEFAULT 'active',
 			max_capacity INT NOT NULL DEFAULT 0,
 			current_occupancy INT NOT NULL DEFAULT 0,
-			activity_group_id BIGINT REFERENCES activities.groups(id),
-			group_id BIGINT REFERENCES education.groups(id),
+			activity_group_id BIGINT REFERENCES activities.groups(id) ON DELETE SET NULL,
+			group_id BIGINT REFERENCES education.groups(id) ON DELETE SET NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			-- Ensure only one of activity_group_id or group_id is set
