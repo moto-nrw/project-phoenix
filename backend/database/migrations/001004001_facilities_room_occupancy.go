@@ -56,7 +56,7 @@ func createFacilitiesRoomOccupancyTable(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS facilities.room_occupancy (
 			id BIGSERIAL PRIMARY KEY,
-			device_id TEXT NOT NULL UNIQUE REFERENCES iot.devices(device_id),
+			device_id TEXT UNIQUE REFERENCES iot.devices(device_id) ON DELETE SET NULL,
 			room_id BIGINT NOT NULL REFERENCES facilities.rooms(id),
 			timeframe_id BIGINT NOT NULL REFERENCES schedule.timeframes(id),
 			status occupancy_status NOT NULL DEFAULT 'active',
