@@ -70,7 +70,6 @@ func createIoTDevicesTable(ctx context.Context, db *bun.DB) error {
 			device_id TEXT NOT NULL UNIQUE,
 			device_type TEXT NOT NULL,
 			name TEXT,
-			location TEXT,
 			status device_status NOT NULL DEFAULT 'active',
 			last_seen TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
