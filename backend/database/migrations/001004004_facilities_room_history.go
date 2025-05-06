@@ -47,14 +47,14 @@ func createFacilitiesRoomHistoryTable(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS facilities.room_history (
 			id BIGSERIAL PRIMARY KEY,
-			room_id BIGINT NOT NULL REFERENCES facilities.rooms(id),
+			room_id BIGINT REFERENCES facilities.rooms(id) ON DELETE SET NULL,
 			activity_group_name TEXT NOT NULL,
 			day DATE NOT NULL,
-			timeframe_id BIGINT NOT NULL REFERENCES schedule.timeframes(id),
-			category_id BIGINT REFERENCES activities.categories(id),
-			teacher_id BIGINT NOT NULL REFERENCES users.teachers(id),
+			timeframe_id BIGINT NOT NULL REFERENCES schedule.timeframes(id) ON DELETE RESTRICT,
+			category_id BIGINT REFERENCES activities.categories(id) ON DELETE SET NULL,
+			teacher_id BIGINT NOT NULL REFERENCES users.teachers(id) ON DELETE RESTRICT,
 			max_participants INT NOT NULL DEFAULT 0,
-			group_id BIGINT REFERENCES education.groups(id),
+			group_id BIGINT REFERENCES education.groups(id) ON DELETE SET NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			-- Ensure consistent handling of category_id and group_id relationship
 			CONSTRAINT only_one_group_type CHECK (
