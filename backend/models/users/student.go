@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/uptrace/bun"
 )
 
@@ -28,8 +27,8 @@ type Student struct {
 	GroupID         *int64 `bun:"group_id" json:"group_id,omitempty"`
 
 	// Relations
-	Person *Person          `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
-	Group  *education.Group `bun:"rel:belongs-to,join:group_id=id" json:"group,omitempty"`
+	Person *Person     `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
+	Group  interface{} `bun:"rel:belongs-to,join:group_id=id,type:education.Group" json:"group,omitempty"`
 }
 
 // TableName returns the table name for the Student model

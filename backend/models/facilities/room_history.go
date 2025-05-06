@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
 
@@ -24,8 +23,8 @@ type RoomHistory struct {
 	GroupID           *int64    `bun:"group_id" json:"group_id,omitempty"`
 
 	// Relations
-	Room    *Room          `bun:"rel:belongs-to,join:room_id=id" json:"room,omitempty"`
-	Teacher *users.Teacher `bun:"rel:belongs-to,join:teacher_id=id" json:"teacher,omitempty"`
+	Room    *Room       `bun:"rel:belongs-to,join:room_id=id" json:"room,omitempty"`
+	Teacher interface{} `bun:"rel:belongs-to,join:teacher_id=id,type:users.Teacher" json:"teacher,omitempty"`
 }
 
 // TableName returns the table name for the RoomHistory model

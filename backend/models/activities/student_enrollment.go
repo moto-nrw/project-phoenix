@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
 
@@ -19,8 +18,8 @@ type StudentEnrollment struct {
 	AttendanceStatus string    `bun:"attendance_status" json:"attendance_status,omitempty"`
 
 	// Relations
-	Student       *users.Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
-	ActivityGroup *Group         `bun:"rel:belongs-to,join:activity_group_id=id" json:"activity_group,omitempty"`
+	Student       interface{} `bun:"rel:belongs-to,join:student_id=id,type:users.Student" json:"student,omitempty"`
+	ActivityGroup *Group      `bun:"rel:belongs-to,join:activity_group_id=id" json:"activity_group,omitempty"`
 }
 
 // TableName returns the table name for the StudentEnrollment model

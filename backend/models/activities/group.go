@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
 
@@ -23,9 +21,9 @@ type Group struct {
 	DateframeID     *int64 `bun:"dateframe_id" json:"dateframe_id,omitempty"`
 
 	// Relations
-	Supervisor         *users.Teacher       `bun:"rel:belongs-to,join:supervisor_id=id" json:"supervisor,omitempty"`
+	Supervisor         interface{}          `bun:"rel:belongs-to,join:supervisor_id=id,type:users.Teacher" json:"supervisor,omitempty"`
 	Category           *Category            `bun:"rel:belongs-to,join:category_id=id" json:"category,omitempty"`
-	Dateframe          *schedule.Dateframe  `bun:"rel:belongs-to,join:dateframe_id=id" json:"dateframe,omitempty"`
+	Dateframe          interface{}          `bun:"rel:belongs-to,join:dateframe_id=id,type:schedule.Dateframe" json:"dateframe,omitempty"`
 	Schedules          []*Schedule          `bun:"rel:has-many,join:id=activity_group_id" json:"schedules,omitempty"`
 	StudentEnrollments []*StudentEnrollment `bun:"rel:has-many,join:id=activity_group_id" json:"student_enrollments,omitempty"`
 }
