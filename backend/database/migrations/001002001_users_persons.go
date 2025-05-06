@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[UsersPersonsVersion] = &Migration{
 		Version:     UsersPersonsVersion,
 		Description: UsersPersonsDescription,
-		DependsOn:   []string{"1.0.3"}, // Depends on auth tables
+		DependsOn:   []string{"1.0.3", "1.2.0"}, // Depends on auth tables and RFID cards table
 	}
 
 	// Migration 1.2.1: Users persons table
@@ -53,7 +53,8 @@ func usersPersonsUp(ctx context.Context, db *bun.DB) error {
 			account_id BIGINT UNIQUE,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT fk_persons_account FOREIGN KEY (account_id) REFERENCES auth.accounts(id) ON DELETE SET NULL
+			CONSTRAINT fk_persons_account FOREIGN KEY (account_id) REFERENCES auth.accounts(id) ON DELETE SET NULL,
+			CONSTRAINT fk_persons_rfid_card FOREIGN KEY (tag_id) REFERENCES users.rfid_cards(id) ON DELETE SET NULL ON UPDATE CASCADE
 		)
 	`)
 	if err != nil {

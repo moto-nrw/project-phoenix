@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	UsersRFIDCardsVersion     = "1.2.5"
+	UsersRFIDCardsVersion     = "1.2.0"
 	UsersRFIDCardsDescription = "Users RFID cards table"
 )
 
@@ -21,7 +21,7 @@ func init() {
 		DependsOn:   []string{"1.0.3"}, // Depends on auth tables
 	}
 
-	// Migration 1.2.5: Users RFID cards table
+	// Migration 1.2.0: Users RFID cards table
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return usersRFIDCardsUp(ctx, db)
@@ -34,7 +34,7 @@ func init() {
 
 // usersRFIDCardsUp creates the users.rfid_cards table
 func usersRFIDCardsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.2.5: Creating users.rfid_cards table...")
+	fmt.Println("Migration 1.2.0: Creating users.rfid_cards table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -75,7 +75,7 @@ func usersRFIDCardsUp(ctx context.Context, db *bun.DB) error {
 
 // usersRFIDCardsDown removes the users.rfid_cards table
 func usersRFIDCardsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.2.5: Removing users.rfid_cards table...")
+	fmt.Println("Rolling back migration 1.2.0: Removing users.rfid_cards table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
