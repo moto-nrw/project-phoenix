@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	IoTDevicesVersion     = "1.5.1"
+	IoTDevicesVersion     = "1.3.5" // Changed from 1.5.1 to come before room_occupancy (1.4.1)
 	IoTDevicesDescription = "Create iot.devices table"
 )
 
@@ -21,7 +21,7 @@ func init() {
 		DependsOn:   []string{"1.2.1"}, // Depends on users.persons
 	}
 
-	// Migration 1.5.1: Create iot.devices table
+	// Migration 1.3.5: Create iot.devices table
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return createIoTDevicesTable(ctx, db)
@@ -34,7 +34,7 @@ func init() {
 
 // createIoTDevicesTable creates the iot.devices table
 func createIoTDevicesTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.5.1: Creating iot.devices table...")
+	fmt.Println("Migration 1.3.5: Creating iot.devices table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -114,7 +114,7 @@ func createIoTDevicesTable(ctx context.Context, db *bun.DB) error {
 
 // dropIoTDevicesTable drops the iot.devices table
 func dropIoTDevicesTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.5.1: Removing iot.devices table...")
+	fmt.Println("Rolling back migration 1.3.5: Removing iot.devices table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})

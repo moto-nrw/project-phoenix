@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[FacilitiesRoomOccupancyVersion] = &Migration{
 		Version:     FacilitiesRoomOccupancyVersion,
 		Description: FacilitiesRoomOccupancyDescription,
-		DependsOn:   []string{"1.1.1", "1.1.2", "1.3.2", "1.2.6"}, // Depends on rooms, timeframes, activities.groups, and education.groups
+		DependsOn:   []string{"1.1.1", "1.1.2", "1.3.2", "1.2.6", "1.3.5"}, // Depends on rooms, timeframes, activities.groups, education.groups, and iot.devices
 	}
 
 	// Migration 1.4.1: Create facilities.room_occupancy table
@@ -56,7 +56,7 @@ func createFacilitiesRoomOccupancyTable(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS facilities.room_occupancy (
 			id BIGSERIAL PRIMARY KEY,
-			device_id TEXT NOT NULL UNIQUE,
+			device_id TEXT NOT NULL UNIQUE REFERENCES iot.devices(device_id),
 			room_id BIGINT NOT NULL REFERENCES facilities.rooms(id),
 			timeframe_id BIGINT NOT NULL REFERENCES schedule.timeframes(id),
 			status occupancy_status NOT NULL DEFAULT 'active',
