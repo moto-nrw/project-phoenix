@@ -47,8 +47,8 @@ func createFacilitiesVisitsTable(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS facilities.visits (
 			id BIGSERIAL PRIMARY KEY,
-			person_id BIGINT NOT NULL REFERENCES users.persons(id),
-			room_occupancy_id BIGINT NOT NULL REFERENCES facilities.room_occupancy(id),
+			person_id BIGINT NOT NULL REFERENCES users.persons(id) ON DELETE CASCADE,
+			room_occupancy_id BIGINT NOT NULL REFERENCES facilities.room_occupancy(id) ON DELETE CASCADE,
 			entry_time TIMESTAMPTZ NOT NULL,
 			exit_time TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
