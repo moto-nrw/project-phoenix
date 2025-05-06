@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[FacilitiesRoomsVersion] = &Migration{
 		Version:     FacilitiesRoomsVersion,
 		Description: FacilitiesRoomsDescription,
-		DependsOn:   []string{"1.1.0"}, // Depends on infrastructure
+		DependsOn:   []string{"1.0.3"}, // Depends on auth tables
 	}
 
 	// Migration 1.1.1: Create facilities.rooms table

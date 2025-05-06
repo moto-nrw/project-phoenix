@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[UsersStudentsVersion] = &Migration{
 		Version:     UsersStudentsVersion,
 		Description: UsersStudentsDescription,
-		DependsOn:   []string{"1.2.1", "1.3.0"}, // Depends on persons table AND groups table
+		DependsOn:   []string{"1.2.1", "1.2.6"}, // Depends on persons table AND groups table
 	}
 
 	// Migration 1.3.5: Users students table

@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[ConfigSettingsVersion] = &Migration{
 		Version:     ConfigSettingsVersion,
 		Description: ConfigSettingsDescription,
-		DependsOn:   []string{"1.1.0"}, // Only depends on infrastructure
+		DependsOn:   []string{"1.0.3"}, // Depends on auth tables
 	}
 
 	// Migration 1.6.1: Create config.settings table

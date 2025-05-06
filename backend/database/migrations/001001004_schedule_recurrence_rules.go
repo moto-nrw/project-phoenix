@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[ScheduleRecurrenceRulesVersion] = &Migration{
 		Version:     ScheduleRecurrenceRulesVersion,
 		Description: ScheduleRecurrenceRulesDescription,
-		DependsOn:   []string{"1.1.0"}, // Only depends on infrastructure
+		DependsOn:   []string{"1.0.3"}, // Depends on auth tables
 	}
 
 	// Migration 1.1.4: Create schedule.recurrence_rules table

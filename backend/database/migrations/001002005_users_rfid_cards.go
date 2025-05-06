@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[UsersRFIDCardsVersion] = &Migration{
 		Version:     UsersRFIDCardsVersion,
 		Description: UsersRFIDCardsDescription,
-		DependsOn:   []string{"1.1.0"}, // Only depends on infrastructure
+		DependsOn:   []string{"1.0.3"}, // Depends on auth tables
 	}
 
 	// Migration 1.2.5: Users RFID cards table

@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[UsersProfilesVersion] = &Migration{
 		Version:     UsersProfilesVersion,
 		Description: UsersProfilesDescription,
-		DependsOn:   []string{"1.1.0"}, // Depends on auth tables, not persons
+		DependsOn:   []string{"1.0.3"}, // Depends on auth tables, not persons
 	}
 
 	// Migration 1.2.2: Users profiles table
