@@ -64,6 +64,8 @@ func usersStudentsUp(ctx context.Context, db *bun.DB) error {
 			id BIGSERIAL PRIMARY KEY,
 			person_id BIGINT NOT NULL UNIQUE,
 			school_class TEXT NOT NULL,
+			-- Boolean fields indicating current student location
+			-- bus: St
 			bus BOOLEAN NOT NULL DEFAULT FALSE,
 			guardian_name TEXT NOT NULL,
 			-- Legacy field maintained for backward compatibility
@@ -71,6 +73,12 @@ func usersStudentsUp(ctx context.Context, db *bun.DB) error {
 			-- New structured contact fields with validation
 			guardian_email TEXT,
 			guardian_phone TEXT,
+EXT,
+			guardian_phone TEXT,
+			-- in_house
+			-- in_house
+ide the building
+			in_house BOOLEAN NOT NU
 			in_house BOOLEAN NOT NULL DEFAULT FALSE,
 			wc BOOLEAN NOT NULL DEFAULT FALSE,
 			school_yard BOOLEAN NOT NULL DEFAULT FALSE,
@@ -85,6 +93,11 @@ func usersStudentsUp(ctx context.Context, db *bun.DB) error {
 			CONSTRAINT chk_valid_guardian_email CHECK (
 				guardian_email IS NULL OR is_valid_email(guardian_email)
 			),
+l CHECK (
+				guardian_email IS NULL OR is_valid_email(guardian_email)
+			),
+			-- Phone format validation
+			CONSTRAINT chk_valid_guardian_ph
 			-- Phone format validation
 			CONSTRAINT chk_valid_guardian_phone CHECK (
 				guardian_phone IS NULL OR is_valid_phone(guardian_phone)
@@ -98,6 +111,11 @@ func usersStudentsUp(ctx context.Context, db *bun.DB) error {
 	// Create indexes for students
 	_, err = tx.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_students_person_id ON users.students(person_id);
+ tx.ExecContext(ctx, `
+		CREATE INDEX IF NOT EXISTS idx_students_person_id ON users.students(person_id);
+		CREATE INDEX IF NOT EXISTS idx_students_school_class ON users.students(school_class);
+		CREATE INDEX IF NOT EXISTS idx_students_group_id ON users.students(group_id);
+		CREATE INDEX IF NOT EXISTS idx_students_guardian_email ON users.students(guardia
 		CREATE INDEX IF NOT EXISTS idx_students_school_class ON users.students(school_class);
 		CREATE INDEX IF NOT EXISTS idx_students_group_id ON users.students(group_id);
 		CREATE INDEX IF NOT EXISTS idx_students_guardian_email ON users.students(guardian_email);
@@ -166,6 +184,7 @@ func usersStudentsDown(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("error dropping users.students table: %w", err)
 	}
+
 
 	// Commit the transaction
 	return tx.Commit()
