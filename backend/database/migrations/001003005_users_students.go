@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	UsersStudentsVersion     = "1.3.5"
+	UsersStudentsVersion     = "1.3.6" // Changed from 1.3.5 to resolve version conflict with IoT devices
 	UsersStudentsDescription = "Users students table"
 )
 
@@ -21,7 +21,7 @@ func init() {
 		DependsOn:   []string{"1.2.1", "1.2.6"}, // Depends on persons table AND groups table
 	}
 
-	// Migration 1.3.5: Users students table
+	// Migration 1.3.6: Users students table
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return usersStudentsUp(ctx, db)
@@ -34,7 +34,7 @@ func init() {
 
 // usersStudentsUp creates the users.students table
 func usersStudentsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.3.5: Creating users.students table...")
+	fmt.Println("Migration 1.3.6: Creating users.students table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -65,23 +65,20 @@ func usersStudentsUp(ctx context.Context, db *bun.DB) error {
 			person_id BIGINT NOT NULL UNIQUE,
 			school_class TEXT NOT NULL,
 			-- Boolean fields indicating current student location
-			-- bus: St
+			-- bus: Student is in the bus
 			bus BOOLEAN NOT NULL DEFAULT FALSE,
+			-- in_house: Student is inside the building
+			in_house BOOLEAN NOT NULL DEFAULT FALSE,
+			-- wc: Student is in bathroom
+			wc BOOLEAN NOT NULL DEFAULT FALSE,
+			-- school_yard: Student is in school yard
+			school_yard BOOLEAN NOT NULL DEFAULT FALSE,
 			guardian_name TEXT NOT NULL,
 			-- Legacy field maintained for backward compatibility
 			guardian_contact TEXT NOT NULL,
 			-- New structured contact fields with validation
 			guardian_email TEXT,
 			guardian_phone TEXT,
-EXT,
-			guardian_phone TEXT,
-			-- in_house
-			-- in_house
-ide the building
-			in_house BOOLEAN NOT NU
-			in_house BOOLEAN NOT NULL DEFAULT FALSE,
-			wc BOOLEAN NOT NULL DEFAULT FALSE,
-			school_yard BOOLEAN NOT NULL DEFAULT FALSE,
 			group_id BIGINT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -93,14 +90,13 @@ ide the building
 			CONSTRAINT chk_valid_guardian_email CHECK (
 				guardian_email IS NULL OR is_valid_email(guardian_email)
 			),
-l CHECK (
-				guardian_email IS NULL OR is_valid_email(guardian_email)
-			),
-			-- Phone format validation
-			CONSTRAINT chk_valid_guardian_ph
 			-- Phone format validation
 			CONSTRAINT chk_valid_guardian_phone CHECK (
 				guardian_phone IS NULL OR is_valid_phone(guardian_phone)
+			),
+			-- Ensure only one location is set at a time
+			CONSTRAINT chk_one_location_only CHECK (
+				(bus::int + in_house::int + wc::int + school_yard::int) <= 1
 			)
 		)
 	`)
@@ -111,11 +107,6 @@ l CHECK (
 	// Create indexes for students
 	_, err = tx.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_students_person_id ON users.students(person_id);
- tx.ExecContext(ctx, `
-		CREATE INDEX IF NOT EXISTS idx_students_person_id ON users.students(person_id);
-		CREATE INDEX IF NOT EXISTS idx_students_school_class ON users.students(school_class);
-		CREATE INDEX IF NOT EXISTS idx_students_group_id ON users.students(group_id);
-		CREATE INDEX IF NOT EXISTS idx_students_guardian_email ON users.students(guardia
 		CREATE INDEX IF NOT EXISTS idx_students_school_class ON users.students(school_class);
 		CREATE INDEX IF NOT EXISTS idx_students_group_id ON users.students(group_id);
 		CREATE INDEX IF NOT EXISTS idx_students_guardian_email ON users.students(guardian_email);
@@ -144,7 +135,7 @@ l CHECK (
 
 // usersStudentsDown removes the users.students table
 func usersStudentsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.3.5: Removing users.students table...")
+	fmt.Println("Rolling back migration 1.3.6: Removing users.students table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -184,7 +175,6 @@ func usersStudentsDown(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("error dropping users.students table: %w", err)
 	}
-
 
 	// Commit the transaction
 	return tx.Commit()
