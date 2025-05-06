@@ -54,10 +54,9 @@ func usersPersonsUp(ctx context.Context, db *bun.DB) error {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			CONSTRAINT fk_persons_account FOREIGN KEY (account_id) REFERENCES auth.accounts(id) ON DELETE SET NULL,
-			CONSTRAINT fk_persons_rfid_card FOREIGN KEY (tag_id) REFERENCES users.rfid_cards(id) ON DELETE SET NULL ON UPDATE CASCADE
+			CONSTRAINT fk_persons_rfid_card FOREIGN KEY (tag_id) REFERENCES users.rfid_cards(id) ON DELETE SET NULL ON UPDATE CASCADE,
 			-- Ensure at least one identifier is present (tag_id or account_id)
-			-- CONSTRAINT at_least_one_identifier CHECK (tag_id IS NOT NULL OR account_id IS NOT NULL)
-		    -- not included right now, maybe important later on
+			CONSTRAINT at_least_one_identifier CHECK (tag_id IS NOT NULL OR account_id IS NOT NULL)
 		)
 	`)
 	if err != nil {
