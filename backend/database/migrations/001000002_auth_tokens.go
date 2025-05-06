@@ -46,7 +46,7 @@ func createAuthTokensTable(ctx context.Context, db *bun.DB) error {
 	// Create the tokens table - for auth tokens and session management
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS auth.tokens (
-			id SERIAL PRIMARY KEY,
+			id BIGSERIAL PRIMARY KEY,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			account_id BIGINT NOT NULL,

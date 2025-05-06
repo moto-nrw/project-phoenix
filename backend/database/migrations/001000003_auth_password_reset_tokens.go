@@ -46,7 +46,7 @@ func createAuthPasswordResetTokensTable(ctx context.Context, db *bun.DB) error {
 	// Create password_reset_tokens table for password management
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS auth.password_reset_tokens (
-			id SERIAL PRIMARY KEY,
+			id BIGSERIAL PRIMARY KEY,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			account_id BIGINT NOT NULL,

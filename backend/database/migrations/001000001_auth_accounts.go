@@ -61,7 +61,7 @@ func createAuthAccountsTable(ctx context.Context, db *bun.DB) error {
 	// Create the accounts table - the core login entity
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS auth.accounts (
-			id SERIAL PRIMARY KEY,
+			id BIGSERIAL PRIMARY KEY,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			last_login TIMESTAMPTZ,
