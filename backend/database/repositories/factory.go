@@ -1,12 +1,22 @@
 package repositories
 
 import (
+	"github.com/moto-nrw/project-phoenix/database/repositories/activities"
+	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
+	"github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/database/repositories/facilities"
+	"github.com/moto-nrw/project-phoenix/database/repositories/feedback"
+	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	feedbackModels "github.com/moto-nrw/project-phoenix/models/feedback"
+	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -36,11 +46,31 @@ type Factory struct {
 	CombinedGroup        educationModels.CombinedGroupRepository
 	CombinedGroupMember  educationModels.CombinedGroupMemberRepository
 	CombinedGroupTeacher educationModels.CombinedGroupTeacherRepository
-	
+
 	// Schedule domain
-	Dateframe       scheduleModels.DateframeRepository
-	Timeframe       scheduleModels.TimeframeRepository
-	RecurrenceRule  scheduleModels.RecurrenceRuleRepository
+	Dateframe      scheduleModels.DateframeRepository
+	Timeframe      scheduleModels.TimeframeRepository
+	RecurrenceRule scheduleModels.RecurrenceRuleRepository
+
+	// Auth domain
+	Account            authModels.AccountRepository
+	Token              authModels.TokenRepository
+	PasswordResetToken authModels.PasswordResetTokenRepository
+
+	// Activities domain
+	ActivityGroup     activitiesModels.GroupRepository
+	ActivityCategory  activitiesModels.CategoryRepository
+	ActivitySchedule  activitiesModels.ScheduleRepository
+	StudentEnrollment activitiesModels.StudentEnrollmentRepository
+
+	// Feedback domain
+	FeedbackEntry feedbackModels.EntryRepository
+
+	// IoT domain
+	Device iotModels.DeviceRepository
+
+	// Config domain
+	Setting configModels.SettingRepository
 
 	// Add other repositories here as they are implemented
 	// Auth domain
@@ -78,11 +108,31 @@ func NewFactory(db *bun.DB) *Factory {
 		CombinedGroup:        education.NewCombinedGroupRepository(db),
 		CombinedGroupMember:  education.NewCombinedGroupMemberRepository(db),
 		CombinedGroupTeacher: education.NewCombinedGroupTeacherRepository(db),
-		
+
 		// Schedule repositories
 		Dateframe:      schedule.NewDateframeRepository(db),
 		Timeframe:      schedule.NewTimeframeRepository(db),
 		RecurrenceRule: schedule.NewRecurrenceRuleRepository(db),
+
+		// Auth repositories
+		Account:            auth.NewAccountRepository(db),
+		Token:              auth.NewTokenRepository(db),
+		PasswordResetToken: auth.NewPasswordResetTokenRepository(db),
+
+		// Activities repositories
+		ActivityGroup:     activities.NewGroupRepository(db),
+		ActivityCategory:  activities.NewCategoryRepository(db),
+		ActivitySchedule:  activities.NewScheduleRepository(db),
+		StudentEnrollment: activities.NewStudentEnrollmentRepository(db),
+
+		// Feedback repositories
+		FeedbackEntry: feedback.NewEntryRepository(db),
+
+		// IoT repositories
+		Device: iot.NewDeviceRepository(db),
+
+		// Config repositories
+		Setting: config.NewSettingRepository(db),
 
 		// Add other repositories as they are implemented
 	}
