@@ -3,9 +3,11 @@ package repositories
 import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/database/repositories/facilities"
+	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
@@ -17,6 +19,8 @@ type Factory struct {
 	RFIDCard userModels.RFIDCardRepository
 	Student  userModels.StudentRepository
 	Teacher  userModels.TeacherRepository
+	Guest    userModels.GuestRepository
+	Profile  userModels.ProfileRepository
 
 	// Facilities domain
 	Room                 facilityModels.RoomRepository
@@ -32,6 +36,11 @@ type Factory struct {
 	CombinedGroup        educationModels.CombinedGroupRepository
 	CombinedGroupMember  educationModels.CombinedGroupMemberRepository
 	CombinedGroupTeacher educationModels.CombinedGroupTeacherRepository
+	
+	// Schedule domain
+	Dateframe       scheduleModels.DateframeRepository
+	Timeframe       scheduleModels.TimeframeRepository
+	RecurrenceRule  scheduleModels.RecurrenceRuleRepository
 
 	// Add other repositories here as they are implemented
 	// Auth domain
@@ -52,6 +61,8 @@ func NewFactory(db *bun.DB) *Factory {
 		RFIDCard: users.NewRFIDCardRepository(db),
 		Student:  users.NewStudentRepository(db),
 		Teacher:  users.NewTeacherRepository(db),
+		Guest:    users.NewGuestRepository(db),
+		Profile:  users.NewProfileRepository(db),
 
 		// Facilities repositories
 		Room:                 facilities.NewRoomRepository(db),
@@ -67,6 +78,11 @@ func NewFactory(db *bun.DB) *Factory {
 		CombinedGroup:        education.NewCombinedGroupRepository(db),
 		CombinedGroupMember:  education.NewCombinedGroupMemberRepository(db),
 		CombinedGroupTeacher: education.NewCombinedGroupTeacherRepository(db),
+		
+		// Schedule repositories
+		Dateframe:      schedule.NewDateframeRepository(db),
+		Timeframe:      schedule.NewTimeframeRepository(db),
+		RecurrenceRule: schedule.NewRecurrenceRuleRepository(db),
 
 		// Add other repositories as they are implemented
 	}
