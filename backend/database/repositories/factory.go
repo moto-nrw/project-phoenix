@@ -19,15 +19,19 @@ type Factory struct {
 	Teacher  userModels.TeacherRepository
 
 	// Facilities domain
-	Room facilityModels.RoomRepository
+	Room                 facilityModels.RoomRepository
+	RoomHistory          facilityModels.RoomHistoryRepository
+	RoomOccupancy        facilityModels.RoomOccupancyRepository
+	RoomOccupancyTeacher facilityModels.RoomOccupancyTeacherRepository
+	Visit                facilityModels.VisitRepository
 
 	// Education domain
-	Group                 educationModels.GroupRepository
-	GroupTeacher          educationModels.GroupTeacherRepository
-	GroupSubstitution     educationModels.GroupSubstitutionRepository
-	CombinedGroup         educationModels.CombinedGroupRepository
-	CombinedGroupMember   educationModels.CombinedGroupMemberRepository
-	CombinedGroupTeacher  educationModels.CombinedGroupTeacherRepository
+	Group                educationModels.GroupRepository
+	GroupTeacher         educationModels.GroupTeacherRepository
+	GroupSubstitution    educationModels.GroupSubstitutionRepository
+	CombinedGroup        educationModels.CombinedGroupRepository
+	CombinedGroupMember  educationModels.CombinedGroupMemberRepository
+	CombinedGroupTeacher educationModels.CombinedGroupTeacherRepository
 
 	// Add other repositories here as they are implemented
 	// Auth domain
@@ -50,15 +54,19 @@ func NewFactory(db *bun.DB) *Factory {
 		Teacher:  users.NewTeacherRepository(db),
 
 		// Facilities repositories
-		Room: facilities.NewRoomRepository(db),
+		Room:                 facilities.NewRoomRepository(db),
+		RoomHistory:          facilities.NewRoomHistoryRepository(db),
+		RoomOccupancy:        facilities.NewRoomOccupancyRepository(db),
+		RoomOccupancyTeacher: facilities.NewRoomOccupancyTeacherRepository(db),
+		Visit:                facilities.NewVisitRepository(db),
 
 		// Education repositories
-		Group:                 education.NewGroupRepository(db),
-		GroupTeacher:          education.NewGroupTeacherRepository(db),
-		GroupSubstitution:     education.NewGroupSubstitutionRepository(db),
-		CombinedGroup:         education.NewCombinedGroupRepository(db),
-		CombinedGroupMember:   education.NewCombinedGroupMemberRepository(db),
-		CombinedGroupTeacher:  education.NewCombinedGroupTeacherRepository(db),
+		Group:                education.NewGroupRepository(db),
+		GroupTeacher:         education.NewGroupTeacherRepository(db),
+		GroupSubstitution:    education.NewGroupSubstitutionRepository(db),
+		CombinedGroup:        education.NewCombinedGroupRepository(db),
+		CombinedGroupMember:  education.NewCombinedGroupMemberRepository(db),
+		CombinedGroupTeacher: education.NewCombinedGroupTeacherRepository(db),
 
 		// Add other repositories as they are implemented
 	}
