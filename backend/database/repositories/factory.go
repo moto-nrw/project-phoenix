@@ -1,7 +1,11 @@
 package repositories
 
 import (
+	"github.com/moto-nrw/project-phoenix/database/repositories/education"
+	"github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
+	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
@@ -11,6 +15,14 @@ type Factory struct {
 	// Users domain
 	Person   userModels.PersonRepository
 	RFIDCard userModels.RFIDCardRepository
+	Student  userModels.StudentRepository
+	Teacher  userModels.TeacherRepository
+
+	// Facilities domain
+	Room facilityModels.RoomRepository
+
+	// Education domain
+	Group educationModels.GroupRepository
 
 	// Add other repositories here as they are implemented
 	// Auth domain
@@ -29,6 +41,14 @@ func NewFactory(db *bun.DB) *Factory {
 		// Initialize all repositories
 		Person:   users.NewPersonRepository(db),
 		RFIDCard: users.NewRFIDCardRepository(db),
+		Student:  users.NewStudentRepository(db),
+		Teacher:  users.NewTeacherRepository(db),
+
+		// Facilities repositories
+		Room: facilities.NewRoomRepository(db),
+
+		// Education repositories
+		Group: education.NewGroupRepository(db),
 
 		// Add other repositories as they are implemented
 	}
