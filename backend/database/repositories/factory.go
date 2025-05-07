@@ -22,7 +22,12 @@ type Factory struct {
 	Room facilityModels.RoomRepository
 
 	// Education domain
-	Group educationModels.GroupRepository
+	Group                 educationModels.GroupRepository
+	GroupTeacher          educationModels.GroupTeacherRepository
+	GroupSubstitution     educationModels.GroupSubstitutionRepository
+	CombinedGroup         educationModels.CombinedGroupRepository
+	CombinedGroupMember   educationModels.CombinedGroupMemberRepository
+	CombinedGroupTeacher  educationModels.CombinedGroupTeacherRepository
 
 	// Add other repositories here as they are implemented
 	// Auth domain
@@ -48,7 +53,12 @@ func NewFactory(db *bun.DB) *Factory {
 		Room: facilities.NewRoomRepository(db),
 
 		// Education repositories
-		Group: education.NewGroupRepository(db),
+		Group:                 education.NewGroupRepository(db),
+		GroupTeacher:          education.NewGroupTeacherRepository(db),
+		GroupSubstitution:     education.NewGroupSubstitutionRepository(db),
+		CombinedGroup:         education.NewCombinedGroupRepository(db),
+		CombinedGroupMember:   education.NewCombinedGroupMemberRepository(db),
+		CombinedGroupTeacher:  education.NewCombinedGroupTeacherRepository(db),
 
 		// Add other repositories as they are implemented
 	}
