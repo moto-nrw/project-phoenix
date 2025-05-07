@@ -17,6 +17,8 @@ type Factory struct {
 	RFIDCard userModels.RFIDCardRepository
 	Student  userModels.StudentRepository
 	Teacher  userModels.TeacherRepository
+	Guest    userModels.GuestRepository
+	Profile  userModels.ProfileRepository
 
 	// Facilities domain
 	Room                 facilityModels.RoomRepository
@@ -52,6 +54,8 @@ func NewFactory(db *bun.DB) *Factory {
 		RFIDCard: users.NewRFIDCardRepository(db),
 		Student:  users.NewStudentRepository(db),
 		Teacher:  users.NewTeacherRepository(db),
+		Guest:    users.NewGuestRepository(db),
+		Profile:  users.NewProfileRepository(db),
 
 		// Facilities repositories
 		Room:                 facilities.NewRoomRepository(db),
