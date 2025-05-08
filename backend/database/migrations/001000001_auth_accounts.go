@@ -55,7 +55,6 @@ func createAuthAccountsTable(ctx context.Context, db *bun.DB) error {
 			email TEXT NOT NULL,
 			username TEXT UNIQUE,
 			active BOOLEAN NOT NULL DEFAULT TRUE,
-			roles TEXT[],
 			password_hash TEXT
 		)
 	`)
