@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	AuthRolePermissionsVersion     = "1.1.2"
+	AuthRolePermissionsVersion     = "1.0.6"
 	AuthRolePermissionsDescription = "Create auth.role_permissions table for role-permission mapping"
 )
 
@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[AuthRolePermissionsVersion] = &Migration{
 		Version:     AuthRolePermissionsVersion,
 		Description: AuthRolePermissionsDescription,
-		DependsOn:   []string{"1.1.0", "1.1.1"}, // Depends on auth.roles and auth.permissions
+		DependsOn:   []string{"1.0.4", "1.0.5"}, // Depends on auth.roles and auth.permissions
 		Up:          createAuthRolePermissionsTable,
 		Down:        dropAuthRolePermissionsTable,
 	}
@@ -29,7 +29,7 @@ func init() {
 
 // createAuthRolePermissionsTable creates the auth.role_permissions table
 func createAuthRolePermissionsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.1.2: Creating auth.role_permissions table...")
+	fmt.Println("Migration 1.0.6: Creating auth.role_permissions table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -130,7 +130,7 @@ func createAuthRolePermissionsTable(ctx context.Context, db *bun.DB) error {
 
 // dropAuthRolePermissionsTable drops the auth.role_permissions table
 func dropAuthRolePermissionsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.1.2: Removing auth.role_permissions table...")
+	fmt.Println("Rolling back migration 1.0.6: Removing auth.role_permissions table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})

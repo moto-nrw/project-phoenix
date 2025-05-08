@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	AuthRolesVersion     = "1.1.0"
+	AuthRolesVersion     = "1.0.4"
 	AuthRolesDescription = "Create auth.roles table for role management"
 )
 
@@ -29,7 +29,7 @@ func init() {
 
 // createAuthRolesTable creates the auth.roles table
 func createAuthRolesTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.1.0: Creating auth.roles table...")
+	fmt.Println("Migration 1.0.4: Creating auth.roles table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -94,7 +94,7 @@ func createAuthRolesTable(ctx context.Context, db *bun.DB) error {
 
 // dropAuthRolesTable drops the auth.roles table
 func dropAuthRolesTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.1.0: Removing auth.roles table...")
+	fmt.Println("Rolling back migration 1.0.4: Removing auth.roles table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
