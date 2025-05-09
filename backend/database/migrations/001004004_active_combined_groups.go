@@ -10,7 +10,7 @@ import (
 
 const (
 	ActiveCombinedGroupsVersion     = "1.4.4"
-	ActiveCombinedGroupsDescription = "Create active_combined_groups table"
+	ActiveCombinedGroupsDescription = "Create active.active_combined_groups table"
 )
 
 func init() {
@@ -18,10 +18,10 @@ func init() {
 	MigrationRegistry[ActiveCombinedGroupsVersion] = &Migration{
 		Version:     ActiveCombinedGroupsVersion,
 		Description: ActiveCombinedGroupsDescription,
-		DependsOn:   []string{"1.4.1"}, // Depends on active_groups table
+		DependsOn:   []string{"1.4.1"}, // Depends on active.active_groups table
 	}
 
-	// Migration 1.3.8: Create active_combined_groups table
+	// Migration 1.4.4: Create active.active_combined_groups table
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return createActiveCombinedGroupsTable(ctx, db)
@@ -32,9 +32,9 @@ func init() {
 	)
 }
 
-// createActiveCombinedGroupsTable creates the active_combined_groups table
+// createActiveCombinedGroupsTable creates the active.active_combined_groups table
 func createActiveCombinedGroupsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.4.4: Creating active_combined_groups table...")
+	fmt.Println("Migration 1.4.4: Creating active.active_combined_groups table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -45,7 +45,7 @@ func createActiveCombinedGroupsTable(ctx context.Context, db *bun.DB) error {
 
 	// Create the active_combined_groups table
 	_, err = tx.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS activities.active_combined_groups (
+		CREATE TABLE IF NOT EXISTS active.active_combined_groups (
 			id BIGSERIAL PRIMARY KEY,
 			start_time TIMESTAMPTZ NOT NULL, -- Required start time
 			end_time TIMESTAMPTZ,           -- Optional end time
@@ -54,22 +54,20 @@ func createActiveCombinedGroupsTable(ctx context.Context, db *bun.DB) error {
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating activities.active_combined_groups table: %w", err)
+		return fmt.Errorf("error creating active.active_combined_groups table: %w", err)
 	}
 
 	// Create indexes for active_combined_groups
 	_, err = tx.ExecContext(ctx, `
 		-- Add indexes to speed up queries
-		CREATE INDEX IF NOT EXISTS idx_active_combined_groups_start_time 
-			ON activities.active_combined_groups(start_time);
-		CREATE INDEX IF NOT EXISTS idx_active_combined_groups_end_time 
-			ON activities.active_combined_groups(end_time);
-		CREATE INDEX IF NOT EXISTS idx_active_combined_groups_combined_group_id 
-			ON activities.active_combined_groups(combined_group_id);
-		
+		CREATE INDEX IF NOT EXISTS idx_active_combined_groups_start_time
+			ON active.active_combined_groups(start_time);
+		CREATE INDEX IF NOT EXISTS idx_active_combined_groups_end_time
+			ON active.active_combined_groups(end_time);
+
 		-- Index for finding active sessions (where end_time is null)
-		CREATE INDEX IF NOT EXISTS idx_active_combined_groups_currently_active 
-			ON activities.active_combined_groups(combined_group_id) 
+		CREATE INDEX IF NOT EXISTS idx_active_combined_groups_currently_active
+			ON active.active_combined_groups(id)
 			WHERE end_time IS NULL;
 	`)
 	if err != nil {
@@ -79,9 +77,9 @@ func createActiveCombinedGroupsTable(ctx context.Context, db *bun.DB) error {
 	// Create trigger for updating updated_at column
 	_, err = tx.ExecContext(ctx, `
 		-- Trigger for active_combined_groups
-		DROP TRIGGER IF EXISTS update_active_combined_groups_updated_at ON activities.active_combined_groups;
+		DROP TRIGGER IF EXISTS update_active_combined_groups_updated_at ON active.active_combined_groups;
 		CREATE TRIGGER update_active_combined_groups_updated_at
-		BEFORE UPDATE ON activities.active_combined_groups
+		BEFORE UPDATE ON active.active_combined_groups
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
 	`)
@@ -93,9 +91,9 @@ func createActiveCombinedGroupsTable(ctx context.Context, db *bun.DB) error {
 	return tx.Commit()
 }
 
-// dropActiveCombinedGroupsTable drops the active_combined_groups table
+// dropActiveCombinedGroupsTable drops the active.active_combined_groups table
 func dropActiveCombinedGroupsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.4.4: Removing active_combined_groups table...")
+	fmt.Println("Rolling back migration 1.4.4: Removing active.active_combined_groups table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -106,7 +104,7 @@ func dropActiveCombinedGroupsTable(ctx context.Context, db *bun.DB) error {
 
 	// Drop trigger first
 	_, err = tx.ExecContext(ctx, `
-		DROP TRIGGER IF EXISTS update_active_combined_groups_updated_at ON activities.active_combined_groups;
+		DROP TRIGGER IF EXISTS update_active_combined_groups_updated_at ON active.active_combined_groups;
 	`)
 	if err != nil {
 		return fmt.Errorf("error dropping trigger for active_combined_groups table: %w", err)
@@ -114,10 +112,10 @@ func dropActiveCombinedGroupsTable(ctx context.Context, db *bun.DB) error {
 
 	// Drop the table
 	_, err = tx.ExecContext(ctx, `
-		DROP TABLE IF EXISTS activities.active_combined_groups CASCADE;
+		DROP TABLE IF EXISTS active.active_combined_groups CASCADE;
 	`)
 	if err != nil {
-		return fmt.Errorf("error dropping active_combined_groups table: %w", err)
+		return fmt.Errorf("error dropping active.active_combined_groups table: %w", err)
 	}
 
 	// Commit the transaction

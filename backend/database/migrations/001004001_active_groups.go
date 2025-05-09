@@ -10,7 +10,7 @@ import (
 
 const (
 	ActiveGroupsVersion     = "1.4.1"
-	ActiveGroupsDescription = "Create activities.active_groups table"
+	ActiveGroupsDescription = "Create active.active_groups table"
 )
 
 func init() {
@@ -21,7 +21,7 @@ func init() {
 		DependsOn:   []string{"1.3.9", "1.3.2", "1.1.1"}, // Depends on IoT devices, activity groups, and rooms
 	}
 
-	// Migration 1.3.6: Create activities.active_groups table
+	// Migration 1.4.1: Create active.active_groups table
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return createActiveGroupsTable(ctx, db)
@@ -32,9 +32,9 @@ func init() {
 	)
 }
 
-// createActiveGroupsTable creates the activities.active_groups table
+// createActiveGroupsTable creates the active.active_groups table
 func createActiveGroupsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.4.1: Creating activities.active_groups table...")
+	fmt.Println("Migration 1.4.1: Creating active.active_groups table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -65,20 +65,20 @@ func createActiveGroupsTable(ctx context.Context, db *bun.DB) error {
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating activities.active_groups table: %w", err)
+		return fmt.Errorf("error creating active.active_groups table: %w", err)
 	}
 
 	// Create indexes for active_groups - improve query performance
 	_, err = tx.ExecContext(ctx, `
 		-- Add indexes to speed up queries
-		CREATE INDEX IF NOT EXISTS idx_active_groups_start_time ON activities.active_groups(start_time);
-		CREATE INDEX IF NOT EXISTS idx_active_groups_end_time ON activities.active_groups(end_time);
-		CREATE INDEX IF NOT EXISTS idx_active_groups_group_id ON activities.active_groups(group_id);
-		CREATE INDEX IF NOT EXISTS idx_active_groups_device_id ON activities.active_groups(device_id);
-		CREATE INDEX IF NOT EXISTS idx_active_groups_room_id ON activities.active_groups(room_id);
-		
+		CREATE INDEX IF NOT EXISTS idx_active_groups_start_time ON active.active_groups(start_time);
+		CREATE INDEX IF NOT EXISTS idx_active_groups_end_time ON active.active_groups(end_time);
+		CREATE INDEX IF NOT EXISTS idx_active_groups_group_id ON active.active_groups(group_id);
+		CREATE INDEX IF NOT EXISTS idx_active_groups_device_id ON active.active_groups(device_id);
+		CREATE INDEX IF NOT EXISTS idx_active_groups_room_id ON active.active_groups(room_id);
+
 		-- Index for finding active sessions (where end_time is null)
-		CREATE INDEX IF NOT EXISTS idx_active_groups_currently_active ON activities.active_groups(group_id) 
+		CREATE INDEX IF NOT EXISTS idx_active_groups_currently_active ON active.active_groups(group_id)
 		WHERE end_time IS NULL;
 	`)
 	if err != nil {
@@ -88,9 +88,9 @@ func createActiveGroupsTable(ctx context.Context, db *bun.DB) error {
 	// Create trigger for updating updated_at column
 	_, err = tx.ExecContext(ctx, `
 		-- Trigger for active_groups
-		DROP TRIGGER IF EXISTS update_active_groups_updated_at ON activities.active_groups;
+		DROP TRIGGER IF EXISTS update_active_groups_updated_at ON active.active_groups;
 		CREATE TRIGGER update_active_groups_updated_at
-		BEFORE UPDATE ON activities.active_groups
+		BEFORE UPDATE ON active.active_groups
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
 	`)
@@ -102,9 +102,9 @@ func createActiveGroupsTable(ctx context.Context, db *bun.DB) error {
 	return tx.Commit()
 }
 
-// dropActiveGroupsTable drops the activities.active_groups table
+// dropActiveGroupsTable drops the active.active_groups table
 func dropActiveGroupsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.4.1: Removing activities.active_groups table...")
+	fmt.Println("Rolling back migration 1.4.1: Removing active.active_groups table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -115,7 +115,7 @@ func dropActiveGroupsTable(ctx context.Context, db *bun.DB) error {
 
 	// Drop trigger first
 	_, err = tx.ExecContext(ctx, `
-		DROP TRIGGER IF EXISTS update_active_groups_updated_at ON activities.active_groups;
+		DROP TRIGGER IF EXISTS update_active_groups_updated_at ON active.active_groups;
 	`)
 	if err != nil {
 		return fmt.Errorf("error dropping trigger for active_groups table: %w", err)
@@ -123,10 +123,10 @@ func dropActiveGroupsTable(ctx context.Context, db *bun.DB) error {
 
 	// Drop the table
 	_, err = tx.ExecContext(ctx, `
-		DROP TABLE IF EXISTS activities.active_groups CASCADE;
+		DROP TABLE IF EXISTS active.active_groups CASCADE;
 	`)
 	if err != nil {
-		return fmt.Errorf("error dropping activities.active_groups table: %w", err)
+		return fmt.Errorf("error dropping active.active_groups table: %w", err)
 	}
 
 	// Commit the transaction
