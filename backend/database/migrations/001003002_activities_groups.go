@@ -50,17 +50,14 @@ func createActivitiesGroupsTable(ctx context.Context, db *bun.DB) error {
 			name TEXT NOT NULL,
 			max_participants INT NOT NULL,
 			is_open BOOLEAN NOT NULL DEFAULT FALSE,
-			supervisor_id BIGINT NOT NULL,
 			category_id BIGINT NOT NULL,
-			dateframe_id BIGINT,
+			planed_room_id BIGINT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT fk_activity_groups_supervisor FOREIGN KEY (supervisor_id) 
-				REFERENCES users.teachers(id) ON DELETE RESTRICT,
 			CONSTRAINT fk_activity_groups_category FOREIGN KEY (category_id) 
 				REFERENCES activities.categories(id) ON DELETE RESTRICT,
-			CONSTRAINT fk_activity_groups_dateframe FOREIGN KEY (dateframe_id)
-				REFERENCES schedule.dateframes(id) ON DELETE SET NULL
+			CONSTRAINT fk_activity_groups_planed_room FOREIGN KEY (planed_room_id)
+				REFERENCES facilites.room(id) ON DELETE SET NULL
 		)
 	`)
 	if err != nil {
