@@ -60,7 +60,8 @@ func TestAccount_Validate(t *testing.T) {
 
 func TestAccount_HasRole(t *testing.T) {
 	admin := &Role{Name: "admin"}
-	user := &Role{Name: "user"}
+	// This variable is used to demonstrate a role that shouldn't match
+	_ = &Role{Name: "user"}
 
 	account := Account{
 		Email: "test@example.com",
@@ -89,7 +90,8 @@ func TestAccount_HasRole(t *testing.T) {
 
 func TestAccount_HasPermission(t *testing.T) {
 	readPerm := &Permission{Name: "read"}
-	writePerm := &Permission{Name: "write"}
+	// This variable is used to demonstrate a permission that shouldn't match
+	_ = &Permission{Name: "write"}
 
 	account := Account{
 		Email:       "test@example.com",
