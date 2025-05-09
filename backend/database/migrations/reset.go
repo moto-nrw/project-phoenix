@@ -33,6 +33,7 @@ func ResetDatabase() error {
 		"facilities",
 		"iot",
 		"feedback",
+		"active",
 		"config",
 		"meta",
 	}
