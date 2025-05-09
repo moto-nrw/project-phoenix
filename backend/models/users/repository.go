@@ -253,3 +253,99 @@ type PersonGuardianRepository interface {
 	// UpdatePermissions updates a guardian's permissions
 	UpdatePermissions(ctx context.Context, id int64, permissions string) error
 }
+
+// StudentGuardianRepository defines operations for managing student-guardian relationships
+type StudentGuardianRepository interface {
+	// Create inserts a new student-guardian relationship into the database
+	Create(ctx context.Context, relationship *StudentGuardian) error
+
+	// FindByID retrieves a relationship by its ID
+	FindByID(ctx context.Context, id interface{}) (*StudentGuardian, error)
+
+	// FindByStudentID retrieves relationships by student ID
+	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentGuardian, error)
+
+	// FindByGuardianID retrieves relationships by guardian account ID
+	FindByGuardianID(ctx context.Context, guardianID int64) ([]*StudentGuardian, error)
+
+	// FindPrimaryByStudentID retrieves the primary guardian for a student
+	FindPrimaryByStudentID(ctx context.Context, studentID int64) (*StudentGuardian, error)
+
+	// FindEmergencyContactsByStudentID retrieves all emergency contacts for a student
+	FindEmergencyContactsByStudentID(ctx context.Context, studentID int64) ([]*StudentGuardian, error)
+
+	// FindPickupAuthoritiesByStudentID retrieves all guardians who can pickup a student
+	FindPickupAuthoritiesByStudentID(ctx context.Context, studentID int64) ([]*StudentGuardian, error)
+
+	// FindByRelationshipType retrieves relationships by relationship type
+	FindByRelationshipType(ctx context.Context, studentID int64, relationshipType string) ([]*StudentGuardian, error)
+
+	// Update updates an existing relationship
+	Update(ctx context.Context, relationship *StudentGuardian) error
+
+	// Delete removes a relationship
+	Delete(ctx context.Context, id interface{}) error
+
+	// List retrieves relationships matching the filters
+	List(ctx context.Context, filters map[string]interface{}) ([]*StudentGuardian, error)
+
+	// SetPrimary sets a guardian as the primary guardian for a student
+	SetPrimary(ctx context.Context, id int64, isPrimary bool) error
+
+	// SetEmergencyContact sets whether a guardian is an emergency contact
+	SetEmergencyContact(ctx context.Context, id int64, isEmergencyContact bool) error
+
+	// SetCanPickup sets whether a guardian can pickup a student
+	SetCanPickup(ctx context.Context, id int64, canPickup bool) error
+
+	// UpdatePermissions updates a guardian's permissions
+	UpdatePermissions(ctx context.Context, id int64, permissions string) error
+}
+
+// PrivacyConsentRepository defines operations for managing privacy consents
+type PrivacyConsentRepository interface {
+	// Create inserts a new privacy consent into the database
+	Create(ctx context.Context, consent *PrivacyConsent) error
+
+	// FindByID retrieves a privacy consent by its ID
+	FindByID(ctx context.Context, id interface{}) (*PrivacyConsent, error)
+
+	// FindByStudentID retrieves privacy consents for a student
+	FindByStudentID(ctx context.Context, studentID int64) ([]*PrivacyConsent, error)
+
+	// FindByStudentIDAndPolicyVersion retrieves a privacy consent for a student and policy version
+	FindByStudentIDAndPolicyVersion(ctx context.Context, studentID int64, policyVersion string) (*PrivacyConsent, error)
+
+	// FindActiveByStudentID retrieves active privacy consents for a student
+	FindActiveByStudentID(ctx context.Context, studentID int64) ([]*PrivacyConsent, error)
+
+	// FindExpired retrieves all expired privacy consents
+	FindExpired(ctx context.Context) ([]*PrivacyConsent, error)
+
+	// FindNeedingRenewal retrieves all privacy consents that need renewal
+	FindNeedingRenewal(ctx context.Context) ([]*PrivacyConsent, error)
+
+	// Update updates an existing privacy consent
+	Update(ctx context.Context, consent *PrivacyConsent) error
+
+	// Delete removes a privacy consent
+	Delete(ctx context.Context, id interface{}) error
+
+	// List retrieves privacy consents matching the filters
+	List(ctx context.Context, filters map[string]interface{}) ([]*PrivacyConsent, error)
+
+	// Accept marks a privacy consent as accepted
+	Accept(ctx context.Context, id int64, acceptedAt time.Time) error
+
+	// Revoke revokes a privacy consent
+	Revoke(ctx context.Context, id int64) error
+
+	// SetExpiryDate sets the expiry date for a privacy consent
+	SetExpiryDate(ctx context.Context, id int64, expiresAt time.Time) error
+
+	// SetRenewalRequired sets whether renewal is required for a privacy consent
+	SetRenewalRequired(ctx context.Context, id int64, renewalRequired bool) error
+
+	// UpdateDetails updates the details for a privacy consent
+	UpdateDetails(ctx context.Context, id int64, details string) error
+}
