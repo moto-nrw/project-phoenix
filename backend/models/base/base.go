@@ -73,6 +73,7 @@ const (
 	SchemaFacilities = "facilities"
 	SchemaIoT        = "iot"
 	SchemaFeedback   = "feedback"
+	SchemaActive     = "active"
 	SchemaConfig     = "config"
 	SchemaMeta       = "meta"
 )
