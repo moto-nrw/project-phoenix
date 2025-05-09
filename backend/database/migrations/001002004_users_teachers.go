@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	UsersTeachersVersion     = "1.2.3"
+	UsersTeachersVersion     = "1.2.4"
 	UsersTeachersDescription = "Users teachers table"
 )
 
@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[UsersTeachersVersion] = &Migration{
 		Version:     UsersTeachersVersion,
 		Description: UsersTeachersDescription,
-		DependsOn:   []string{"1.2.1"}, // Depends on persons table
+		DependsOn:   []string{"1.2.3"}, // Depends on persons table
 	}
 
 	// Migration 1.2.3: Users teachers table
@@ -34,7 +34,7 @@ func init() {
 
 // usersTeachersUp creates the users.teachers table
 func usersTeachersUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.2.3: Creating users.teachers table...")
+	fmt.Println("Migration 1.2.4: Creating users.teachers table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -47,14 +47,14 @@ func usersTeachersUp(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS users.teachers (
 			id BIGSERIAL PRIMARY KEY,
-			person_id BIGINT NOT NULL UNIQUE,
+			staff_id BIGINT NOT NULL UNIQUE,
 			specialization TEXT NOT NULL,
 			role TEXT,
 			qualifications TEXT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT fk_teachers_person FOREIGN KEY (person_id) 
-				REFERENCES users.persons(id) ON DELETE CASCADE
+			CONSTRAINT fk_teachers_staff FOREIGN KEY (staff_id) 
+				REFERENCES users.staff(id) ON DELETE CASCADE
 		)
 	`)
 	if err != nil {
@@ -89,7 +89,7 @@ func usersTeachersUp(ctx context.Context, db *bun.DB) error {
 
 // usersTeachersDown removes the users.teachers table
 func usersTeachersDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.2.3: Removing users.teachers table...")
+	fmt.Println("Rolling back migration 1.2.4: Removing users.teachers table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})

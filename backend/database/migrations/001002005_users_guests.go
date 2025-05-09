@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	UsersGuestsVersion     = "1.2.4"
+	UsersGuestsVersion     = "1.2.5"
 	UsersGuestsDescription = "Users guests table"
 )
 
@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[UsersGuestsVersion] = &Migration{
 		Version:     UsersGuestsVersion,
 		Description: UsersGuestsDescription,
-		DependsOn:   []string{"1.2.1"}, // Depends on persons table
+		DependsOn:   []string{"1.2.3"}, // Depends on staff table
 	}
 
 	// Migration 1.2.4: Users guests table
@@ -34,7 +34,7 @@ func init() {
 
 // usersGuestsUp creates the users.guests table
 func usersGuestsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.2.4: Creating users.guests table...")
+	fmt.Println("Migration 1.2.5: Creating users.guests table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -47,7 +47,7 @@ func usersGuestsUp(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS users.guests (
 			id BIGSERIAL PRIMARY KEY,
-			person_id BIGINT NOT NULL UNIQUE,
+			staff_id BIGINT NOT NULL UNIQUE,
 			organization TEXT,
 			contact_email TEXT,
 			contact_phone TEXT,
@@ -57,8 +57,8 @@ func usersGuestsUp(ctx context.Context, db *bun.DB) error {
 			notes TEXT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT fk_guests_person FOREIGN KEY (person_id) 
-				REFERENCES users.persons(id) ON DELETE CASCADE
+			CONSTRAINT fk_guests_staff FOREIGN KEY (staff_id) 
+				REFERENCES users.staff(id) ON DELETE CASCADE
 		)
 	`)
 	if err != nil {
@@ -93,7 +93,7 @@ func usersGuestsUp(ctx context.Context, db *bun.DB) error {
 
 // usersGuestsDown removes the users.guests table
 func usersGuestsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.2.4: Removing users.guests table...")
+	fmt.Println("Rolling back migration 1.2.5: Removing users.guests table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
