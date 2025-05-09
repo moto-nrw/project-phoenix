@@ -19,12 +19,17 @@ func init() {
 		Version:     StaffGroupSupervisionVersion,
 		Description: StaffGroupSupervisionDescription,
 		DependsOn:   []string{"1.3.6", "1.2.3"}, // Depends on active_groups and users_staff
-		Up:          staffGroupSupervisionUp,
-		Down:        staffGroupSupervisionDown,
 	}
 
-	// Register the migration with Bun's migration system
-	registerMigration(MigrationRegistry[StaffGroupSupervisionVersion])
+	// Migration 1.3.7: Create activities.staff_group_supervision table
+	Migrations.MustRegister(
+		func(ctx context.Context, db *bun.DB) error {
+			return staffGroupSupervisionUp(ctx, db)
+		},
+		func(ctx context.Context, db *bun.DB) error {
+			return staffGroupSupervisionDown(ctx, db)
+		},
+	)
 }
 
 // staffGroupSupervisionUp creates the activities.staff_group_supervision table

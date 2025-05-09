@@ -19,12 +19,17 @@ func init() {
 		Version:     UsersStaffVersion,
 		Description: UsersStaffDescription,
 		DependsOn:   []string{"1.2.1"}, // Depends on persons table
-		Up:          usersStaffUp,
-		Down:        usersStaffDown,
 	}
 
-	// Register the migration with Bun's migration system
-	registerMigration(MigrationRegistry[UsersStaffVersion])
+	// Migration 1.2.3: Users staff table
+	Migrations.MustRegister(
+		func(ctx context.Context, db *bun.DB) error {
+			return usersStaffUp(ctx, db)
+		},
+		func(ctx context.Context, db *bun.DB) error {
+			return usersStaffDown(ctx, db)
+		},
+	)
 }
 
 // usersStaffUp creates the users.staff table and modifies teachers and guests tables

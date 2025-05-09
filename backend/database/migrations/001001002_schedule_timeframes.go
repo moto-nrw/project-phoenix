@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[ScheduleTimeframesVersion] = &Migration{
 		Version:     ScheduleTimeframesVersion,
 		Description: ScheduleTimeframesDescription,
-		DependsOn:   []string{"1.0.3"}, // Depends on auth tables
+		DependsOn:   []string{"1.0.9"}, // Depends on auth tables
 	}
 
 	// Migration 1.1.2: Create schedule.timeframes table
