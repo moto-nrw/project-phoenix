@@ -67,7 +67,6 @@ func createActivitiesGroupsTable(ctx context.Context, db *bun.DB) error {
 	// Create indexes for groups
 	_, err = tx.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_activity_groups_name ON activities.groups(name);
-		CREATE INDEX IF NOT EXISTS idx_activity_groups_supervisor ON activities.groups(supervisor_id);
 		CREATE INDEX IF NOT EXISTS idx_activity_groups_category ON activities.groups(category_id);
 		CREATE INDEX IF NOT EXISTS idx_activity_groups_open ON activities.groups(is_open);
 	`)
