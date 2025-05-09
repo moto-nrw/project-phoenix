@@ -6,26 +6,27 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/education"
 )
 
 // Student represents a student in the system
 type Student struct {
 	base.Model
-	PersonID       int64  `bun:"person_id,notnull" json:"person_id"`
-	SchoolClass    string `bun:"school_class,notnull" json:"school_class"`
-	Bus            bool   `bun:"bus,notnull" json:"bus"`
-	InHouse        bool   `bun:"in_house,notnull" json:"in_house"`
-	WC             bool   `bun:"wc,notnull" json:"wc"`
-	SchoolYard     bool   `bun:"school_yard,notnull" json:"school_yard"`
-	GuardianName   string `bun:"guardian_name,notnull" json:"guardian_name"`
-	GuardianContact string `bun:"guardian_contact,notnull" json:"guardian_contact"`
-	GuardianEmail  *string `bun:"guardian_email" json:"guardian_email,omitempty"`
-	GuardianPhone  *string `bun:"guardian_phone" json:"guardian_phone,omitempty"`
-	GroupID        *int64  `bun:"group_id" json:"group_id,omitempty"`
+	PersonID        int64   `bun:"person_id,notnull" json:"person_id"`
+	SchoolClass     string  `bun:"school_class,notnull" json:"school_class"`
+	Bus             bool    `bun:"bus,notnull" json:"bus"`
+	InHouse         bool    `bun:"in_house,notnull" json:"in_house"`
+	WC              bool    `bun:"wc,notnull" json:"wc"`
+	SchoolYard      bool    `bun:"school_yard,notnull" json:"school_yard"`
+	GuardianName    string  `bun:"guardian_name,notnull" json:"guardian_name"`
+	GuardianContact string  `bun:"guardian_contact,notnull" json:"guardian_contact"`
+	GuardianEmail   *string `bun:"guardian_email" json:"guardian_email,omitempty"`
+	GuardianPhone   *string `bun:"guardian_phone" json:"guardian_phone,omitempty"`
+	GroupID         *int64  `bun:"group_id" json:"group_id,omitempty"`
 
 	// Relations not stored in the database
-	Person *Person `bun:"-" json:"person,omitempty"`
-	// The Group relation will be added when we implement the Group model
+	Person *Person          `bun:"-" json:"person,omitempty"`
+	Group  *education.Group `bun:"-" json:"group,omitempty"`
 }
 
 // TableName returns the database table name
@@ -105,6 +106,16 @@ func (s *Student) SetPerson(person *Person) {
 	s.Person = person
 	if person != nil {
 		s.PersonID = person.ID
+	}
+}
+
+// SetGroup links this student to an education group
+func (s *Student) SetGroup(group *education.Group) {
+	s.Group = group
+	if group != nil {
+		s.GroupID = &group.ID
+	} else {
+		s.GroupID = nil
 	}
 }
 
