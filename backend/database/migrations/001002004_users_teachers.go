@@ -50,7 +50,6 @@ func usersTeachersUp(ctx context.Context, db *bun.DB) error {
 			person_id BIGINT NOT NULL UNIQUE,
 			specialization TEXT NOT NULL,
 			role TEXT,
-			is_password_otp BOOLEAN DEFAULT FALSE,
 			qualifications TEXT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
