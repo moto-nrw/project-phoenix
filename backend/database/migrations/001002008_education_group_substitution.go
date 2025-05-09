@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[EducationGroupSubstitutionVersion] = &Migration{
 		Version:     EducationGroupSubstitutionVersion,
 		Description: EducationGroupSubstitutionDescription,
-		DependsOn:   []string{"1.2.7"}, // Depends on education.groups and users.teachers
+		DependsOn:   []string{"1.2.3", "1.2.7"}, // Depends on education.groups and users.staff
 	}
 
 	// Migration 1.2.8: Create education.group_substitution table
@@ -48,8 +48,8 @@ func createEducationGroupSubstitutionTable(ctx context.Context, db *bun.DB) erro
 		CREATE TABLE IF NOT EXISTS education.group_substitution (
 			id BIGSERIAL PRIMARY KEY,
 			group_id BIGINT NOT NULL,
-			regular_teacher_id BIGINT NOT NULL,
-			substitute_teacher_id BIGINT NOT NULL,
+			regular_staff_id BIGINT NOT NULL,
+			substitute_staff_id BIGINT NOT NULL,
 			start_date DATE NOT NULL,
 			end_date DATE NOT NULL,
 			reason TEXT,
@@ -57,10 +57,10 @@ func createEducationGroupSubstitutionTable(ctx context.Context, db *bun.DB) erro
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			CONSTRAINT fk_group_substitution_group FOREIGN KEY (group_id) 
 				REFERENCES education.groups(id) ON DELETE CASCADE,
-			CONSTRAINT fk_group_substitution_regular_teacher FOREIGN KEY (regular_teacher_id) 
-				REFERENCES users.teachers(id) ON DELETE CASCADE,
-			CONSTRAINT fk_group_substitution_substitute_teacher FOREIGN KEY (substitute_teacher_id) 
-				REFERENCES users.teachers(id) ON DELETE CASCADE
+			CONSTRAINT fk_group_substitution_regular_staff FOREIGN KEY (regular_staff_id) 
+				REFERENCES users.staff(id) ON DELETE CASCADE,
+			CONSTRAINT fk_group_substitution_substitute_staff FOREIGN KEY (substitute_staff_id) 
+				REFERENCES users.staff(id) ON DELETE CASCADE
 		)
 	`)
 	if err != nil {
