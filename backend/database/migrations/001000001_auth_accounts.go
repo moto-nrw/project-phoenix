@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[AuthAccountsVersion] = &Migration{
 		Version:     AuthAccountsVersion,
 		Description: AuthAccountsDescription,
-		DependsOn:   []string{"0.0.0", "0.1.0", "1.0.0"}, // Depends on schemas, core functions and infrastructure
+		DependsOn:   []string{"0.0.0", "0.1.0", "0.1.1"}, // Depends on schemas, core functions and infrastructure
 	}
 
 	// Migration 1.0.1: Create auth.accounts table

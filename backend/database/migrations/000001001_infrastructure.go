@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	InfrastructureVersion     = "1.0.0"
+	InfrastructureVersion     = "0.1.1"
 	InfrastructureDescription = "Initial infrastructure setup"
 )
 
