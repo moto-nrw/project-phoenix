@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Group represents an educational group/class
@@ -16,7 +17,7 @@ type Group struct {
 
 	// Relations not stored in the database
 	Room *facilities.Room `bun:"-" json:"room,omitempty"`
-	// Teachers will be added when we implement the Teacher model
+	// Teachers are linked through the GroupTeacher model
 	// Students will be a relationship from the Student model
 }
 
@@ -59,8 +60,8 @@ type GroupTeacher struct {
 	TeacherID int64 `bun:"teacher_id,notnull" json:"teacher_id"`
 
 	// Relations not stored in the database
-	Group *Group `bun:"-" json:"group,omitempty"`
-	// Teacher will be added when we implement the Teacher model
+	Group   *Group         `bun:"-" json:"group,omitempty"`
+	Teacher *users.Teacher `bun:"-" json:"teacher,omitempty"`
 }
 
 // TableName returns the database table name
