@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[IoTDevicesVersion] = &Migration{
 		Version:     IoTDevicesVersion,
 		Description: IoTDevicesDescription,
-		DependsOn:   []string{"1.2.1"}, // Depends on users.persons
+		DependsOn:   []string{"1.2.3"}, // Depends on users.staff
 	}
 
 	// Migration 1.3.5: Create iot.devices table
