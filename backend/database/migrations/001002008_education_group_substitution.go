@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	EducationGroupSubstitutionVersion     = "1.2.7"
+	EducationGroupSubstitutionVersion     = "1.2.8"
 	EducationGroupSubstitutionDescription = "Create education.group_substitution table"
 )
 

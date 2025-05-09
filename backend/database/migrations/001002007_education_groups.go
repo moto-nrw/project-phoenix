@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	EducationGroupsVersion     = "1.2.6"
+	EducationGroupsVersion     = "1.2.7"
 	EducationGroupsDescription = "Create education.groups table"
 )
 
