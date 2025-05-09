@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[ActiveVisitsVersion] = &Migration{
 		Version:     ActiveVisitsVersion,
 		Description: ActiveVisitsDescription,
-		DependsOn:   []string{"1.3.6", "1.4.1"}, // Depends on users.students AND activities.active_groups which are both 1.3.6
+		DependsOn:   []string{"1.3.5", "1.4.1"}, // Depends on users.students AND activities.active_groups which are both 1.3.6
 	}
 
 	// Migration 1.4.0: Create activities.active_visits table
