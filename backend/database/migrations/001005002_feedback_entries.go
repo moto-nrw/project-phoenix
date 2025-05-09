@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[FeedbackEntriesVersion] = &Migration{
 		Version:     FeedbackEntriesVersion,
 		Description: FeedbackEntriesDescription,
-		DependsOn:   []string{"1.3.5"}, // Depends on users.students
+		DependsOn:   []string{"1.2.0"}, // Depends on users_rfid_cards table
 	}
 
 	// Migration 1.5.2: Create feedback.entries table
