@@ -15,11 +15,12 @@ type Group struct {
 	MaxParticipants int    `bun:"max_participants,notnull" json:"max_participants"`
 	IsOpen          bool   `bun:"is_open,notnull,default:false" json:"is_open"`
 	CategoryID      int64  `bun:"category_id,notnull" json:"category_id"`
-	PlannedRoomID   *int64 `bun:"planed_room_id" json:"planned_room_id,omitempty"`
+	PlannedRoomID   *int64 `bun:"planned_room_id" json:"planned_room_id,omitempty"`
+	SupervisorID    *int64 `bun:"supervisor_id" json:"supervisor_id,omitempty"`
 
 	// Relations - populated when using the ORM's relations
 	Category    *Category            `bun:"rel:belongs-to,join:category_id=id" json:"category,omitempty"`
-	PlannedRoom *facilities.Room     `bun:"rel:belongs-to,join:planed_room_id=id" json:"planned_room,omitempty"`
+	PlannedRoom *facilities.Room     `bun:"rel:belongs-to,join:planned_room_id=id" json:"planned_room,omitempty"`
 	Supervisors []*SupervisorPlanned `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
 	Schedules   []*Schedule          `bun:"rel:has-many,join:id=activity_group_id" json:"schedules,omitempty"`
 	Enrollments []*StudentEnrollment `bun:"rel:has-many,join:id=activity_group_id" json:"enrollments,omitempty"`
