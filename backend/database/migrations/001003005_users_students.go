@@ -21,7 +21,7 @@ func init() {
 		DependsOn:   []string{"1.2.1", "1.2.7"}, // Depends on persons table AND groups table
 	}
 
-	// Migration 1.3.6: Users students table
+	// Migration 1.3.5: Users students table
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return usersStudentsUp(ctx, db)

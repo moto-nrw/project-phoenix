@@ -21,7 +21,7 @@ func init() {
 		DependsOn:   []string{"1.2.3"}, // Depends on users.staff
 	}
 
-	// Migration 1.3.5: Create iot.devices table
+	// Migration 1.3.9: Create iot.devices table
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return createIoTDevicesTable(ctx, db)
