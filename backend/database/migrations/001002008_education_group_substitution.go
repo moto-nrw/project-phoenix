@@ -70,8 +70,8 @@ func createEducationGroupSubstitutionTable(ctx context.Context, db *bun.DB) erro
 	// Create indexes for group_substitution
 	_, err = tx.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_group_substitution_group_id ON education.group_substitution(group_id);
-		CREATE INDEX IF NOT EXISTS idx_group_substitution_regular_teacher_id ON education.group_substitution(regular_teacher_id);
-		CREATE INDEX IF NOT EXISTS idx_group_substitution_substitute_teacher_id ON education.group_substitution(substitute_teacher_id);
+		CREATE INDEX IF NOT EXISTS idx_group_substitution_regular_staff_id ON education.group_substitution(regular_staff_id);
+		CREATE INDEX IF NOT EXISTS idx_group_substitution_substitute_staff_id ON education.group_substitution(substitute_staff_id);
 		CREATE INDEX IF NOT EXISTS idx_group_substitution_dates ON education.group_substitution(start_date, end_date);
 	`)
 	if err != nil {
