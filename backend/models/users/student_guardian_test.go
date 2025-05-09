@@ -66,14 +66,14 @@ func TestStudentGuardian_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "invalid permissions JSON",
+			name: "permissions map",
 			sg: &StudentGuardian{
 				StudentID:         1,
 				GuardianAccountID: 2,
 				RelationshipType:  "parent",
-				Permissions:       "{invalid json}",
+				Permissions:       map[string]interface{}{"test": true},
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 	}
 
@@ -124,7 +124,10 @@ func TestStudentGuardian_HasPermission(t *testing.T) {
 		StudentID:         1,
 		GuardianAccountID: 2,
 		RelationshipType:  "parent",
-		Permissions:       `{"can_view_grades": true, "can_attend_meetings": false}`,
+		Permissions: map[string]interface{}{
+			"can_view_grades":     true,
+			"can_attend_meetings": false,
+		},
 	}
 
 	if !sg1.HasPermission("can_view_grades") {
@@ -144,7 +147,7 @@ func TestStudentGuardian_HasPermission(t *testing.T) {
 		StudentID:         1,
 		GuardianAccountID: 2,
 		RelationshipType:  "parent",
-		Permissions:       `{}`,
+		Permissions:       map[string]interface{}{},
 	}
 
 	if sg2.HasPermission("any_permission") {
@@ -182,7 +185,7 @@ func TestStudentGuardian_UpdatePermissions(t *testing.T) {
 		StudentID:         1,
 		GuardianAccountID: 2,
 		RelationshipType:  "parent",
-		Permissions:       `{}`,
+		Permissions:       map[string]interface{}{},
 	}
 
 	// Update permissions
