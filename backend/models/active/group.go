@@ -2,6 +2,9 @@ package active
 
 import (
 	"errors"
+	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/models/iot"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -17,11 +20,11 @@ type Group struct {
 	RoomID    int64      `bun:"room_id,notnull" json:"room_id"`
 
 	// Relations - these would be populated when using the ORM's relations
-	// ActualGroup *activities.Group `bun:"rel:belongs-to,join:group_id=id" json:"actual_group,omitempty"`
-	// Device      *iot.Device       `bun:"rel:belongs-to,join:device_id=id" json:"device,omitempty"`
-	// Room        *facilities.Room  `bun:"rel:belongs-to,join:room_id=id" json:"room,omitempty"`
-	// Visits      []*Visit          `bun:"rel:has-many,join:id=active_group_id" json:"visits,omitempty"`
-	// Supervisors []*GroupSupervisor `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
+	ActualGroup *activities.Group  `bun:"rel:belongs-to,join:group_id=id" json:"actual_group,omitempty"`
+	Device      *iot.Device        `bun:"rel:belongs-to,join:device_id=id" json:"device,omitempty"`
+	Room        *facilities.Room   `bun:"rel:belongs-to,join:room_id=id" json:"room,omitempty"`
+	Visits      []*Visit           `bun:"rel:has-many,join:id=active_group_id" json:"visits,omitempty"`
+	Supervisors []*GroupSupervisor `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
 }
 
 // GetID returns the entity's ID

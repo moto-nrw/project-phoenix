@@ -14,8 +14,8 @@ type GroupMapping struct {
 	ActiveGroupID         int64 `bun:"active_group_id,notnull" json:"active_group_id"`
 
 	// Relations - these would be populated when using the ORM's relations
-	// CombinedGroup *CombinedGroup `bun:"rel:belongs-to,join:active_combined_group_id=id" json:"combined_group,omitempty"`
-	// ActiveGroup   *Group         `bun:"rel:belongs-to,join:active_group_id=id" json:"active_group,omitempty"`
+	CombinedGroup *CombinedGroup `bun:"rel:belongs-to,join:active_combined_group_id=id" json:"combined_group,omitempty"`
+	ActiveGroup   *Group         `bun:"rel:belongs-to,join:active_group_id=id" json:"active_group,omitempty"`
 }
 
 // GetID returns the entity's ID

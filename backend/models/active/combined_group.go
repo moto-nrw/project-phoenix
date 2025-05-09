@@ -14,8 +14,8 @@ type CombinedGroup struct {
 	EndTime   *time.Time `bun:"end_time" json:"end_time,omitempty"`
 
 	// Relations - these would be populated when using the ORM's relations
-	// GroupMappings []*GroupMapping `bun:"rel:has-many,join:id=active_combined_group_id" json:"group_mappings,omitempty"`
-	// ActiveGroups  []*Group        `bun:"-" json:"active_groups,omitempty"` // This would be loaded through GroupMappings
+	GroupMappings []*GroupMapping `bun:"rel:has-many,join:id=active_combined_group_id" json:"group_mappings,omitempty"`
+	ActiveGroups  []*Group        `bun:"-" json:"active_groups,omitempty"` // This would be loaded through GroupMappings
 }
 
 // GetID returns the entity's ID

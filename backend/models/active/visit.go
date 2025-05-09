@@ -2,6 +2,7 @@ package active
 
 import (
 	"errors"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -16,8 +17,8 @@ type Visit struct {
 	ExitTime      *time.Time `bun:"exit_time" json:"exit_time,omitempty"`
 
 	// Relations - these would be populated when using the ORM's relations
-	// Student     *users.Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
-	// ActiveGroup *Group         `bun:"rel:belongs-to,join:active_group_id=id" json:"active_group,omitempty"`
+	Student     *users.Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
+	ActiveGroup *Group         `bun:"rel:belongs-to,join:active_group_id=id" json:"active_group,omitempty"`
 }
 
 // GetID returns the entity's ID

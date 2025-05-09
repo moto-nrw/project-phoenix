@@ -2,6 +2,7 @@ package active
 
 import (
 	"errors"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -17,8 +18,8 @@ type GroupSupervisor struct {
 	EndDate   *time.Time `bun:"end_date" json:"end_date,omitempty"`
 
 	// Relations - these would be populated when using the ORM's relations
-	// Staff       *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`
-	// ActiveGroup *Group       `bun:"rel:belongs-to,join:group_id=id" json:"active_group,omitempty"`
+	Staff       *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`
+	ActiveGroup *Group       `bun:"rel:belongs-to,join:group_id=id" json:"active_group,omitempty"`
 }
 
 // GetID returns the entity's ID
