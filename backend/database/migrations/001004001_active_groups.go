@@ -45,7 +45,7 @@ func createActiveGroupsTable(ctx context.Context, db *bun.DB) error {
 
 	// Create the active_groups table
 	_, err = tx.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS activities.active_groups (
+		CREATE TABLE IF NOT EXISTS active.active_groups (
 			id BIGSERIAL PRIMARY KEY,
 			start_time TIMESTAMPTZ NOT NULL, -- Required start time
 			end_time TIMESTAMPTZ,           -- Optional end time
