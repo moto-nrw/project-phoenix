@@ -43,14 +43,6 @@ func createIoTDevicesTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer tx.Rollback()
 
-	// Create IoT schema if it doesn't exist
-	_, err = tx.ExecContext(ctx, `
-		CREATE SCHEMA IF NOT EXISTS iot;
-	`)
-	if err != nil {
-		return fmt.Errorf("error creating IoT schema: %w", err)
-	}
-
 	// First, drop the type if it exists to ensure we can recreate it
 	_, err = tx.ExecContext(ctx, `
 		DROP TYPE IF EXISTS device_status CASCADE;

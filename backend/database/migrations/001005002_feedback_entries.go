@@ -43,14 +43,6 @@ func createFeedbackEntriesTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer tx.Rollback()
 
-	// Create feedback schema if it doesn't exist
-	_, err = tx.ExecContext(ctx, `
-		CREATE SCHEMA IF NOT EXISTS feedback;
-	`)
-	if err != nil {
-		return fmt.Errorf("error creating feedback schema: %w", err)
-	}
-
 	// Create feedback entries table
 	_, err = tx.ExecContext(ctx, `
 		-- Student feedback table

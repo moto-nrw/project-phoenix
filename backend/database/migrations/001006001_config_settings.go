@@ -43,14 +43,6 @@ func createConfigSettingsTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer tx.Rollback()
 
-	// Create config schema if it doesn't exist
-	_, err = tx.ExecContext(ctx, `
-		CREATE SCHEMA IF NOT EXISTS config;
-	`)
-	if err != nil {
-		return fmt.Errorf("error creating config schema: %w", err)
-	}
-
 	// Create config settings table
 	_, err = tx.ExecContext(ctx, `
 		-- System configuration table
