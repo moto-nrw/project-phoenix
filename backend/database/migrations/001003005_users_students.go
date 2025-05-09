@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	UsersStudentsVersion     = "1.3.5" // Changed from 1.3.5 to resolve version conflict with IoT devices
+	UsersStudentsVersion     = "1.3.5"
 	UsersStudentsDescription = "Users students table"
 )
 

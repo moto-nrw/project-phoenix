@@ -62,8 +62,6 @@ func usersStaffUp(ctx context.Context, db *bun.DB) error {
 	// Create indexes for staff
 	_, err = tx.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_staff_person_id ON users.staff(person_id);
-		CREATE INDEX IF NOT EXISTS idx_staff_supervisor_id ON users.staff(supervisor_id);
-		CREATE INDEX IF NOT EXISTS idx_staff_availability_status ON users.staff(availability_status);
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating indexes for staff table: %w", err)
