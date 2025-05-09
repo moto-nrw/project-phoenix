@@ -4,6 +4,7 @@ import (
 	"errors"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -14,6 +15,21 @@ type Category struct {
 	Name        string `bun:"name,notnull,unique" json:"name"`
 	Description string `bun:"description" json:"description,omitempty"`
 	Color       string `bun:"color" json:"color,omitempty"`
+}
+
+// GetID returns the entity's ID
+func (c *Category) GetID() interface{} {
+	return c.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (c *Category) GetCreatedAt() time.Time {
+	return c.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (c *Category) GetUpdatedAt() time.Time {
+	return c.UpdatedAt
 }
 
 // TableName returns the database table name
