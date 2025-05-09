@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/facilities"
 )
 
 // Group represents an activity group
@@ -16,12 +17,12 @@ type Group struct {
 	CategoryID      int64  `bun:"category_id,notnull" json:"category_id"`
 	PlannedRoomID   *int64 `bun:"planed_room_id" json:"planned_room_id,omitempty"`
 
-	// Relations - these would be populated when using the ORM's relations
-	// Category     *Category      `bun:"rel:belongs-to,join:category_id=id" json:"category,omitempty"`
-	// PlannedRoom  *facilities.Room `bun:"rel:belongs-to,join:planed_room_id=id" json:"planned_room,omitempty"`
-	// Supervisors  []*SupervisorPlanned `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
-	// Schedules    []*Schedule    `bun:"rel:has-many,join:id=activity_group_id" json:"schedules,omitempty"`
-	// Enrollments  []*StudentEnrollment `bun:"rel:has-many,join:id=activity_group_id" json:"enrollments,omitempty"`
+	// Relations - populated when using the ORM's relations
+	Category    *Category            `bun:"rel:belongs-to,join:category_id=id" json:"category,omitempty"`
+	PlannedRoom *facilities.Room     `bun:"rel:belongs-to,join:planed_room_id=id" json:"planned_room,omitempty"`
+	Supervisors []*SupervisorPlanned `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
+	Schedules   []*Schedule          `bun:"rel:has-many,join:id=activity_group_id" json:"schedules,omitempty"`
+	Enrollments []*StudentEnrollment `bun:"rel:has-many,join:id=activity_group_id" json:"enrollments,omitempty"`
 }
 
 // GetID returns the entity's ID
