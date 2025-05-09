@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
@@ -10,6 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
+
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -19,49 +22,61 @@ import (
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/uptrace/bun"
 )
 
 // Factory provides access to all repositories
 type Factory struct {
+	// Auth domain
+	Account            authModels.AccountRepository
+	AccountParent      authModels.AccountParentRepository
+	Role               authModels.RoleRepository
+	Permission         authModels.PermissionRepository
+	RolePermission     authModels.RolePermissionRepository
+	AccountRole        authModels.AccountRoleRepository
+	AccountPermission  authModels.AccountPermissionRepository
+	Token              authModels.TokenRepository
+	PasswordResetToken authModels.PasswordResetTokenRepository
+
 	// Users domain
-	Person   userModels.PersonRepository
-	RFIDCard userModels.RFIDCardRepository
-	Student  userModels.StudentRepository
-	Teacher  userModels.TeacherRepository
-	Guest    userModels.GuestRepository
-	Profile  userModels.ProfileRepository
+	Person          userModels.PersonRepository
+	RFIDCard        userModels.RFIDCardRepository
+	Staff           userModels.StaffRepository
+	Student         userModels.StudentRepository
+	Teacher         userModels.TeacherRepository
+	Guest           userModels.GuestRepository
+	Profile         userModels.ProfileRepository
+	PersonGuardian  userModels.PersonGuardianRepository
+	StudentGuardian userModels.StudentGuardianRepository
+	PrivacyConsent  userModels.PrivacyConsentRepository
 
 	// Facilities domain
-	Room                 facilityModels.RoomRepository
-	RoomHistory          facilityModels.RoomHistoryRepository
-	RoomOccupancy        facilityModels.RoomOccupancyRepository
-	RoomOccupancyTeacher facilityModels.RoomOccupancyTeacherRepository
-	Visit                facilityModels.VisitRepository
+	Room facilityModels.RoomRepository
 
 	// Education domain
-	Group                educationModels.GroupRepository
-	GroupTeacher         educationModels.GroupTeacherRepository
-	GroupSubstitution    educationModels.GroupSubstitutionRepository
-	CombinedGroup        educationModels.CombinedGroupRepository
-	CombinedGroupMember  educationModels.CombinedGroupMemberRepository
-	CombinedGroupTeacher educationModels.CombinedGroupTeacherRepository
+	Group             educationModels.GroupRepository
+	GroupTeacher      educationModels.GroupTeacherRepository
+	GroupSubstitution educationModels.GroupSubstitutionRepository
 
 	// Schedule domain
 	Dateframe      scheduleModels.DateframeRepository
 	Timeframe      scheduleModels.TimeframeRepository
 	RecurrenceRule scheduleModels.RecurrenceRuleRepository
 
-	// Auth domain
-	Account            authModels.AccountRepository
-	Token              authModels.TokenRepository
-	PasswordResetToken authModels.PasswordResetTokenRepository
-
 	// Activities domain
-	ActivityGroup     activitiesModels.GroupRepository
-	ActivityCategory  activitiesModels.CategoryRepository
-	ActivitySchedule  activitiesModels.ScheduleRepository
-	StudentEnrollment activitiesModels.StudentEnrollmentRepository
+	ActivityGroup      activitiesModels.GroupRepository
+	ActivityCategory   activitiesModels.CategoryRepository
+	ActivitySchedule   activitiesModels.ScheduleRepository
+	ActivitySupervisor activitiesModels.SupervisorPlannedRepository
+	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
+
+	// Active domain
+	ActiveGroup     activeModels.GroupRepository
+	ActiveVisit     activeModels.VisitRepository
+	GroupSupervisor activeModels.GroupSupervisorRepository
+	CombinedGroup   activeModels.CombinedGroupRepository
+	GroupMapping    activeModels.GroupMappingRepository
 
 	// Feedback domain
 	FeedbackEntry feedbackModels.EntryRepository
@@ -71,59 +86,60 @@ type Factory struct {
 
 	// Config domain
 	Setting configModels.SettingRepository
-
-	// Add other repositories here as they are implemented
-	// Auth domain
-	// Account  auth.AccountRepository
-
-	// Activities domain
-	// Activity   activities.ActivityRepository
-	// Category   activities.CategoryRepository
-
-	// ... and so on
 }
 
 // NewFactory creates a new repository factory with all repositories
 func NewFactory(db *bun.DB) *Factory {
 	return &Factory{
-		// Initialize all repositories
-		Person:   users.NewPersonRepository(db),
-		RFIDCard: users.NewRFIDCardRepository(db),
-		Student:  users.NewStudentRepository(db),
-		Teacher:  users.NewTeacherRepository(db),
-		Guest:    users.NewGuestRepository(db),
-		Profile:  users.NewProfileRepository(db),
+		// Auth repositories
+		Account:            auth.NewAccountRepository(db),
+		AccountParent:      auth.NewAccountParentRepository(db),
+		Role:               auth.NewRoleRepository(db),
+		Permission:         auth.NewPermissionRepository(db),
+		RolePermission:     auth.NewRolePermissionRepository(db),
+		AccountRole:        auth.NewAccountRoleRepository(db),
+		AccountPermission:  auth.NewAccountPermissionRepository(db),
+		Token:              auth.NewTokenRepository(db),
+		PasswordResetToken: auth.NewPasswordResetTokenRepository(db),
+
+		// Users repositories
+		Person:          users.NewPersonRepository(db),
+		RFIDCard:        users.NewRFIDCardRepository(db),
+		Staff:           users.NewStaffRepository(db),
+		Student:         users.NewStudentRepository(db),
+		Teacher:         users.NewTeacherRepository(db),
+		Guest:           users.NewGuestRepository(db),
+		Profile:         users.NewProfileRepository(db),
+		PersonGuardian:  users.NewPersonGuardianRepository(db),
+		StudentGuardian: users.NewStudentGuardianRepository(db),
+		PrivacyConsent:  users.NewPrivacyConsentRepository(db),
 
 		// Facilities repositories
-		Room:                 facilities.NewRoomRepository(db),
-		RoomHistory:          facilities.NewRoomHistoryRepository(db),
-		RoomOccupancy:        facilities.NewRoomOccupancyRepository(db),
-		RoomOccupancyTeacher: facilities.NewRoomOccupancyTeacherRepository(db),
-		Visit:                facilities.NewVisitRepository(db),
+		Room: facilities.NewRoomRepository(db),
 
 		// Education repositories
-		Group:                education.NewGroupRepository(db),
-		GroupTeacher:         education.NewGroupTeacherRepository(db),
-		GroupSubstitution:    education.NewGroupSubstitutionRepository(db),
-		CombinedGroup:        education.NewCombinedGroupRepository(db),
-		CombinedGroupMember:  education.NewCombinedGroupMemberRepository(db),
-		CombinedGroupTeacher: education.NewCombinedGroupTeacherRepository(db),
+		Group:             education.NewGroupRepository(db),
+		GroupTeacher:      education.NewGroupTeacherRepository(db),
+		GroupSubstitution: education.NewGroupSubstitutionRepository(db),
 
 		// Schedule repositories
 		Dateframe:      schedule.NewDateframeRepository(db),
 		Timeframe:      schedule.NewTimeframeRepository(db),
 		RecurrenceRule: schedule.NewRecurrenceRuleRepository(db),
 
-		// Auth repositories
-		Account:            auth.NewAccountRepository(db),
-		Token:              auth.NewTokenRepository(db),
-		PasswordResetToken: auth.NewPasswordResetTokenRepository(db),
-
 		// Activities repositories
-		ActivityGroup:     activities.NewGroupRepository(db),
-		ActivityCategory:  activities.NewCategoryRepository(db),
-		ActivitySchedule:  activities.NewScheduleRepository(db),
-		StudentEnrollment: activities.NewStudentEnrollmentRepository(db),
+		ActivityGroup:      activities.NewGroupRepository(db),
+		ActivityCategory:   activities.NewCategoryRepository(db),
+		ActivitySchedule:   activities.NewScheduleRepository(db),
+		ActivitySupervisor: activities.NewSupervisorPlannedRepository(db),
+		StudentEnrollment:  activities.NewStudentEnrollmentRepository(db),
+
+		// Active repositories
+		ActiveGroup:     active.NewGroupRepository(db),
+		ActiveVisit:     active.NewVisitRepository(db),
+		GroupSupervisor: active.NewGroupSupervisorRepository(db),
+		CombinedGroup:   active.NewCombinedGroupRepository(db),
+		GroupMapping:    active.NewGroupMappingRepository(db),
 
 		// Feedback repositories
 		FeedbackEntry: feedback.NewEntryRepository(db),
@@ -133,7 +149,5 @@ func NewFactory(db *bun.DB) *Factory {
 
 		// Config repositories
 		Setting: config.NewSettingRepository(db),
-
-		// Add other repositories as they are implemented
 	}
 }
