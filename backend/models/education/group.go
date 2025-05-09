@@ -38,16 +38,6 @@ func (g *Group) Validate() error {
 	return nil
 }
 
-// GetID returns the group's ID
-func (g *Group) GetID() int64 {
-	return g.ID
-}
-
-// GetName returns the group's name
-func (g *Group) GetName() string {
-	return g.Name
-}
-
 // SetRoom assigns this group to a room
 func (g *Group) SetRoom(room *facilities.Room) {
 	g.Room = room

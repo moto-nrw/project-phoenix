@@ -24,8 +24,8 @@ type Student struct {
 	GroupID         *int64  `bun:"group_id" json:"group_id,omitempty"`
 
 	// Relations not stored in the database
-	Person *Person   `bun:"-" json:"person,omitempty"`
-	Group  GroupLike `bun:"-" json:"group,omitempty"`
+	Person *Person `bun:"-" json:"person,omitempty"`
+	// Group relation is loaded dynamically to avoid import cycle
 }
 
 // TableName returns the database table name
@@ -111,20 +111,6 @@ func (s *Student) SetPerson(person *Person) {
 // SetGroupID sets the group ID for this student
 func (s *Student) SetGroupID(groupID *int64) {
 	s.GroupID = groupID
-	// This clears the Group relation when setting GroupID only
-	// The Group relation will need to be loaded separately
-	s.Group = nil
-}
-
-// SetGroup links this student to a group
-func (s *Student) SetGroup(group GroupLike) {
-	s.Group = group
-	if group != nil {
-		id := group.GetID()
-		s.GroupID = &id
-	} else {
-		s.GroupID = nil
-	}
 }
 
 // GetLocation returns the current location of the student
