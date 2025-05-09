@@ -19,8 +19,6 @@ func init() {
 		Version:     AuthAccountPermissionsVersion,
 		Description: AuthAccountPermissionsDescription,
 		DependsOn:   []string{"1.0.1", "1.0.5"}, // Depends on auth.accounts and auth.permissions
-		Up:          createAuthAccountPermissionsTable,
-		Down:        dropAuthAccountPermissionsTable,
 	}
 
 	// Register the migration with Bun's migration system

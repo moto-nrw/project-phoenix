@@ -18,9 +18,7 @@ func init() {
 	MigrationRegistry[AuthRolesVersion] = &Migration{
 		Version:     AuthRolesVersion,
 		Description: AuthRolesDescription,
-		DependsOn:   []string{"1.0.1"}, // Depends on auth.accounts
-		Up:          createAuthRolesTable,
-		Down:        dropAuthRolesTable,
+		DependsOn:   []string{"1.0.1"},
 	}
 
 	// Register the migration with Bun's migration system
