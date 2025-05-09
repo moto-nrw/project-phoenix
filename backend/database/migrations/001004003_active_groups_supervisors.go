@@ -48,7 +48,7 @@ func staffGroupSupervisionUp(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS active.staff_group_supervision (
 			id BIGSERIAL PRIMARY KEY,
 			staff_id BIGINT NOT NULL,             -- Reference to users.staff
-			group_id BIGINT NOT NULL,             -- Reference to active.active_groups
+			group_id BIGINT NOT NULL,             -- Reference to active.groups
 			role VARCHAR(50) NOT NULL DEFAULT 'supervisor', -- Role in the group (supervisor, assistant, etc.)
 			start_date DATE NOT NULL DEFAULT CURRENT_DATE,
 			end_date DATE,                        -- Optional end date if supervision is temporary
@@ -62,7 +62,7 @@ func staffGroupSupervisionUp(ctx context.Context, db *bun.DB) error {
 			CONSTRAINT fk_supervision_staff FOREIGN KEY (staff_id)
 				REFERENCES users.staff(id) ON DELETE CASCADE,
 			CONSTRAINT fk_supervision_group FOREIGN KEY (group_id)
-				REFERENCES active.active_groups(id) ON DELETE CASCADE
+				REFERENCES active.groups(id) ON DELETE CASCADE
 		)
 	`)
 	if err != nil {

@@ -10,7 +10,7 @@ import (
 
 const (
 	ActiveGroupMappingsVersion     = "1.4.5"
-	ActiveGroupMappingsDescription = "Create active.active_group_mappings table"
+	ActiveGroupMappingsDescription = "Create active.group_mappings table"
 )
 
 func init() {
@@ -18,10 +18,10 @@ func init() {
 	MigrationRegistry[ActiveGroupMappingsVersion] = &Migration{
 		Version:     ActiveGroupMappingsVersion,
 		Description: ActiveGroupMappingsDescription,
-		DependsOn:   []string{"1.4.4", "1.4.1"}, // Depends on active.active_combined_groups and active.active_groups tables
+		DependsOn:   []string{"1.4.4", "1.4.1"}, // Depends on active.combined_groups and active.groups tables
 	}
 
-	// Migration 1.4.5: Create active.active_group_mappings table
+	// Migration 1.4.5: Create active.group_mappings table
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return createActiveGroupMappingsTable(ctx, db)
@@ -32,9 +32,9 @@ func init() {
 	)
 }
 
-// createActiveGroupMappingsTable creates the active.active_group_mappings table
+// createActiveGroupMappingsTable creates the active.group_mappings table
 func createActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.4.5: Creating active.active_group_mappings table...")
+	fmt.Println("Migration 1.4.5: Creating active.group_mappings table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -45,7 +45,7 @@ func createActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
 
 	// Create the active_group_mappings junction table
 	_, err = tx.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS active.active_group_mappings (
+		CREATE TABLE IF NOT EXISTS active.group_mappings (
 			id BIGSERIAL PRIMARY KEY,
 			active_combined_group_id BIGINT NOT NULL,
 			active_group_id BIGINT NOT NULL,
@@ -53,25 +53,25 @@ func createActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
 
 			-- Foreign key constraints
 			CONSTRAINT fk_active_group_mappings_active_combined_group FOREIGN KEY (active_combined_group_id)
-				REFERENCES active.active_combined_groups(id) ON DELETE CASCADE,
+				REFERENCES active.combined_groups(id) ON DELETE CASCADE,
 			CONSTRAINT fk_active_group_mappings_active_group FOREIGN KEY (active_group_id)
-				REFERENCES active.active_groups(id) ON DELETE CASCADE,
+				REFERENCES active.groups(id) ON DELETE CASCADE,
 
 			-- Ensure an active_group can only be added once to an active_combined_group
 			CONSTRAINT uq_active_group_mappings UNIQUE (active_combined_group_id, active_group_id)
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating active.active_group_mappings table: %w", err)
+		return fmt.Errorf("error creating active.group_mappings table: %w", err)
 	}
 
 	// Create indexes for active_group_mappings
 	_, err = tx.ExecContext(ctx, `
 		-- Indexes to speed up lookups
 		CREATE INDEX IF NOT EXISTS idx_active_group_mappings_active_combined_group_id
-			ON active.active_group_mappings(active_combined_group_id);
+			ON active.group_mappings(active_combined_group_id);
 		CREATE INDEX IF NOT EXISTS idx_active_group_mappings_active_group_id
-			ON active.active_group_mappings(active_group_id);
+			ON active.group_mappings(active_group_id);
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating indexes for active_group_mappings table: %w", err)
@@ -81,9 +81,9 @@ func createActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
 	return tx.Commit()
 }
 
-// dropActiveGroupMappingsTable drops the active.active_group_mappings table
+// dropActiveGroupMappingsTable drops the active.group_mappings table
 func dropActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.4.5: Removing active.active_group_mappings table...")
+	fmt.Println("Rolling back migration 1.4.5: Removing active.group_mappings table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -94,10 +94,10 @@ func dropActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
 
 	// Drop the table
 	_, err = tx.ExecContext(ctx, `
-		DROP TABLE IF EXISTS active.active_group_mappings CASCADE;
+		DROP TABLE IF EXISTS active.group_mappings CASCADE;
 	`)
 	if err != nil {
-		return fmt.Errorf("error dropping active.active_group_mappings table: %w", err)
+		return fmt.Errorf("error dropping active.group_mappings table: %w", err)
 	}
 
 	// Commit the transaction
