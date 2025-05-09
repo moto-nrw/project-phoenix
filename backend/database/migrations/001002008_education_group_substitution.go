@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[EducationGroupSubstitutionVersion] = &Migration{
 		Version:     EducationGroupSubstitutionVersion,
 		Description: EducationGroupSubstitutionDescription,
-		DependsOn:   []string{"1.2.6"}, // Depends on education.groups and users.teachers
+		DependsOn:   []string{"1.2.7"}, // Depends on education.groups and users.teachers
 	}
 
 	// Migration 1.2.8: Create education.group_substitution table
