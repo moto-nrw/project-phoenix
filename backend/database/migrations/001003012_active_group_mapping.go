@@ -1,0 +1,105 @@
+package migrations
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+
+	"github.com/uptrace/bun"
+)
+
+const (
+	ActiveGroupMappingsVersion     = "1.3.9"
+	ActiveGroupMappingsDescription = "Create active_group_mappings table"
+)
+
+func init() {
+	// Register migration with explicit version
+	MigrationRegistry[ActiveGroupMappingsVersion] = &Migration{
+		Version:     ActiveGroupMappingsVersion,
+		Description: ActiveGroupMappingsDescription,
+		DependsOn:   []string{"1.3.8", "1.3.6"}, // Depends on active_combined_groups and active_groups tables
+	}
+
+	// Migration 1.3.9: Create active_group_mappings table
+	Migrations.MustRegister(
+		func(ctx context.Context, db *bun.DB) error {
+			return createActiveGroupMappingsTable(ctx, db)
+		},
+		func(ctx context.Context, db *bun.DB) error {
+			return dropActiveGroupMappingsTable(ctx, db)
+		},
+	)
+}
+
+// createActiveGroupMappingsTable creates the active_group_mappings table
+func createActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
+	fmt.Println("Migration 1.3.9: Creating active_group_mappings table...")
+
+	// Begin a transaction for atomicity
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Create the active_group_mappings junction table
+	_, err = tx.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS activities.active_group_mappings (
+			id BIGSERIAL PRIMARY KEY,
+			active_combined_group_id BIGINT NOT NULL,
+			active_group_id BIGINT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			
+			-- Foreign key constraints
+			CONSTRAINT fk_active_group_mappings_active_combined_group FOREIGN KEY (active_combined_group_id)
+				REFERENCES activities.active_combined_groups(id) ON DELETE CASCADE,
+			CONSTRAINT fk_active_group_mappings_active_group FOREIGN KEY (active_group_id)
+				REFERENCES activities.active_groups(id) ON DELETE CASCADE,
+			
+			-- Ensure an active_group can only be added once to an active_combined_group
+			CONSTRAINT uq_active_group_mappings UNIQUE (active_combined_group_id, active_group_id)
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("error creating activities.active_group_mappings table: %w", err)
+	}
+
+	// Create indexes for active_group_mappings
+	_, err = tx.ExecContext(ctx, `
+		-- Indexes to speed up lookups
+		CREATE INDEX IF NOT EXISTS idx_active_group_mappings_active_combined_group_id 
+			ON activities.active_group_mappings(active_combined_group_id);
+		CREATE INDEX IF NOT EXISTS idx_active_group_mappings_active_group_id 
+			ON activities.active_group_mappings(active_group_id);
+	`)
+	if err != nil {
+		return fmt.Errorf("error creating indexes for active_group_mappings table: %w", err)
+	}
+
+	// Commit the transaction
+	return tx.Commit()
+}
+
+// dropActiveGroupMappingsTable drops the active_group_mappings table
+func dropActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
+	fmt.Println("Rolling back migration 1.3.9: Removing active_group_mappings table...")
+
+	// Begin a transaction for atomicity
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Drop the table
+	_, err = tx.ExecContext(ctx, `
+		DROP TABLE IF EXISTS activities.active_group_mappings CASCADE;
+	`)
+	if err != nil {
+		return fmt.Errorf("error dropping active_group_mappings table: %w", err)
+	}
+
+	// Commit the transaction
+	return tx.Commit()
+}
