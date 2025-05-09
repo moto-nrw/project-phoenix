@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/education"
 )
 
 // Student represents a student in the system
@@ -25,8 +24,8 @@ type Student struct {
 	GroupID         *int64  `bun:"group_id" json:"group_id,omitempty"`
 
 	// Relations not stored in the database
-	Person *Person          `bun:"-" json:"person,omitempty"`
-	Group  *education.Group `bun:"-" json:"group,omitempty"`
+	Person *Person `bun:"-" json:"person,omitempty"`
+	// Group relation is loaded dynamically to avoid import cycle
 }
 
 // TableName returns the database table name
@@ -109,14 +108,9 @@ func (s *Student) SetPerson(person *Person) {
 	}
 }
 
-// SetGroup links this student to an education group
-func (s *Student) SetGroup(group *education.Group) {
-	s.Group = group
-	if group != nil {
-		s.GroupID = &group.ID
-	} else {
-		s.GroupID = nil
-	}
+// SetGroupID sets the group ID for this student
+func (s *Student) SetGroupID(groupID *int64) {
+	s.GroupID = groupID
 }
 
 // GetLocation returns the current location of the student
