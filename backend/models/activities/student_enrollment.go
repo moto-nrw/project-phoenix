@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Define attendance status constants
@@ -23,9 +24,9 @@ type StudentEnrollment struct {
 	EnrollmentDate   time.Time `bun:"enrollment_date,notnull" json:"enrollment_date"`
 	AttendanceStatus *string   `bun:"attendance_status" json:"attendance_status,omitempty"`
 
-	// Relations - these would be populated when using the ORM's relations
-	// Student *users.Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
-	// ActivityGroup *Group `bun:"rel:belongs-to,join:activity_group_id=id" json:"activity_group,omitempty"`
+	// Relations - populated when using the ORM's relations
+	Student       *users.Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
+	ActivityGroup *Group         `bun:"rel:belongs-to,join:activity_group_id=id" json:"activity_group,omitempty"`
 }
 
 // GetID returns the entity's ID
