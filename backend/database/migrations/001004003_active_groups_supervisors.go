@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	StaffGroupSupervisionVersion     = "1.3.7"
+	StaffGroupSupervisionVersion     = "1.4.3"
 	StaffGroupSupervisionDescription = "Create activities.staff_group_supervision table"
 )
 
@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[StaffGroupSupervisionVersion] = &Migration{
 		Version:     StaffGroupSupervisionVersion,
 		Description: StaffGroupSupervisionDescription,
-		DependsOn:   []string{"1.3.6", "1.2.3"}, // Depends on active_groups and users_staff
+		DependsOn:   []string{"1.4.1", "1.2.3"}, // Depends on active_groups and users_staff
 	}
 
 	// Migration 1.3.7: Create activities.staff_group_supervision table
@@ -62,7 +62,7 @@ func staffGroupSupervisionUp(ctx context.Context, db *bun.DB) error {
 			CONSTRAINT fk_supervision_staff FOREIGN KEY (staff_id)
 				REFERENCES users.staff(id) ON DELETE CASCADE,
 			CONSTRAINT fk_supervision_group FOREIGN KEY (group_id)
-				REFERENCES activities.groups(id) ON DELETE CASCADE
+				REFERENCES active.groups(id) ON DELETE CASCADE
 		)
 	`)
 	if err != nil {
@@ -104,7 +104,7 @@ func staffGroupSupervisionUp(ctx context.Context, db *bun.DB) error {
 
 // staffGroupSupervisionDown drops the activities.staff_group_supervision table
 func staffGroupSupervisionDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.3.7: Removing activities.staff_group_supervision table...")
+	fmt.Println("Rolling back migration 1.4.3: Removing activities.staff_group_supervision table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})

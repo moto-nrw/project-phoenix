@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ActiveCombinedGroupsVersion     = "1.3.8"
+	ActiveCombinedGroupsVersion     = "1.4.4"
 	ActiveCombinedGroupsDescription = "Create active_combined_groups table"
 )
 
@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[ActiveCombinedGroupsVersion] = &Migration{
 		Version:     ActiveCombinedGroupsVersion,
 		Description: ActiveCombinedGroupsDescription,
-		DependsOn:   []string{"1.3.7"}, // Depends on combined_groups table
+		DependsOn:   []string{"1.4.1"}, // Depends on active_groups table
 	}
 
 	// Migration 1.3.8: Create active_combined_groups table
@@ -34,7 +34,7 @@ func init() {
 
 // createActiveCombinedGroupsTable creates the active_combined_groups table
 func createActiveCombinedGroupsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.3.8: Creating active_combined_groups table...")
+	fmt.Println("Migration 1.4.4: Creating active_combined_groups table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -49,13 +49,8 @@ func createActiveCombinedGroupsTable(ctx context.Context, db *bun.DB) error {
 			id BIGSERIAL PRIMARY KEY,
 			start_time TIMESTAMPTZ NOT NULL, -- Required start time
 			end_time TIMESTAMPTZ,           -- Optional end time
-			combined_group_id BIGINT NOT NULL, -- Reference to activities.combined_groups
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			
-			-- Foreign key constraints
-			CONSTRAINT fk_active_combined_groups_combined_group FOREIGN KEY (combined_group_id)
-				REFERENCES activities.combined_groups(id) ON DELETE CASCADE
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)
 	`)
 	if err != nil {
@@ -100,7 +95,7 @@ func createActiveCombinedGroupsTable(ctx context.Context, db *bun.DB) error {
 
 // dropActiveCombinedGroupsTable drops the active_combined_groups table
 func dropActiveCombinedGroupsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.3.8: Removing active_combined_groups table...")
+	fmt.Println("Rolling back migration 1.4.4: Removing active_combined_groups table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})

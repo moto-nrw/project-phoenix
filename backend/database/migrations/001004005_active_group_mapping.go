@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ActiveGroupMappingsVersion     = "1.3.9"
+	ActiveGroupMappingsVersion     = "1.4.5"
 	ActiveGroupMappingsDescription = "Create active_group_mappings table"
 )
 
@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[ActiveGroupMappingsVersion] = &Migration{
 		Version:     ActiveGroupMappingsVersion,
 		Description: ActiveGroupMappingsDescription,
-		DependsOn:   []string{"1.3.8", "1.3.6"}, // Depends on active_combined_groups and active_groups tables
+		DependsOn:   []string{"1.4.4", "1.4.1"}, // Depends on active_combined_groups and active_groups tables
 	}
 
 	// Migration 1.3.9: Create active_group_mappings table
@@ -34,7 +34,7 @@ func init() {
 
 // createActiveGroupMappingsTable creates the active_group_mappings table
 func createActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.3.9: Creating active_group_mappings table...")
+	fmt.Println("Migration 1.4.5: Creating active_group_mappings table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -83,7 +83,7 @@ func createActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
 
 // dropActiveGroupMappingsTable drops the active_group_mappings table
 func dropActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.3.9: Removing active_group_mappings table...")
+	fmt.Println("Rolling back migration 1.4.5: Removing active_group_mappings table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
