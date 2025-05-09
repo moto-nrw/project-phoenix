@@ -147,3 +147,18 @@ func (r *RecurrenceRule) Clone() *RecurrenceRule {
 
 	return clone
 }
+
+// GetID implements the Entity interface
+func (r *RecurrenceRule) GetID() interface{} {
+	return r.ID
+}
+
+// GetCreatedAt implements the Entity interface
+func (r *RecurrenceRule) GetCreatedAt() time.Time {
+	return r.CreatedAt
+}
+
+// GetUpdatedAt implements the Entity interface
+func (r *RecurrenceRule) GetUpdatedAt() time.Time {
+	return r.UpdatedAt
+}
