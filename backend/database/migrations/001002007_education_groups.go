@@ -21,7 +21,7 @@ func init() {
 		DependsOn:   []string{"1.1.1", "1.2.4"}, // Depends on facilities.rooms and users.teachers
 	}
 
-	// Migration 1.2.6: Create education.groups table
+	// Migration 1.2.7: Create education.groups table
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return createEducationGroupsTable(ctx, db)
@@ -34,7 +34,7 @@ func init() {
 
 // createEducationGroupsTable creates the education.groups table
 func createEducationGroupsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.2.6: Creating education.groups table...")
+	fmt.Println("Migration 1.2.7: Creating education.groups table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -120,7 +120,7 @@ func createEducationGroupsTable(ctx context.Context, db *bun.DB) error {
 
 // dropEducationGroupsTable drops the education.groups and related tables
 func dropEducationGroupsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.2.6: Removing education.groups table...")
+	fmt.Println("Rolling back migration 1.2.7: Removing education.groups table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})

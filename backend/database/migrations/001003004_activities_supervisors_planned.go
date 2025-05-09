@@ -21,7 +21,7 @@ func init() {
 		DependsOn:   []string{"1.3.2", "1.2.3"}, // Depends on activity groups and staff tables
 	}
 
-	// Migration 1.3.3: Create activities.supervisors table
+	// Migration 1.3.4: Create activities.supervisors table
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return createActivitySupervisorsTable(ctx, db)
@@ -34,7 +34,7 @@ func init() {
 
 // createActivitySupervisorsTable creates the activities.supervisors table
 func createActivitySupervisorsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.3.3: Creating activities.supervisors table...")
+	fmt.Println("Migration 1.3.4: Creating activities.supervisors table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -142,7 +142,7 @@ func createActivitySupervisorsTable(ctx context.Context, db *bun.DB) error {
 
 // dropActivitySupervisorsTable drops the activities.supervisors table
 func dropActivitySupervisorsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.3.3: Removing activities.supervisors table...")
+	fmt.Println("Rolling back migration 1.3.4: Removing activities.supervisors table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
