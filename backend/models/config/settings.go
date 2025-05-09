@@ -1,0 +1,79 @@
+package config
+
+import (
+	"errors"
+	"strings"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
+)
+
+// Setting represents a system configuration setting
+type Setting struct {
+	base.Model
+	Key             string `bun:"key,notnull,unique" json:"key"`
+	Value           string `bun:"value,notnull" json:"value"`
+	Category        string `bun:"category,notnull" json:"category"`
+	Description     string `bun:"description" json:"description,omitempty"`
+	RequiresRestart bool   `bun:"requires_restart,notnull,default:false" json:"requires_restart"`
+	RequiresDBReset bool   `bun:"requires_db_reset,notnull,default:false" json:"requires_db_reset"`
+}
+
+// TableName returns the database table name
+func (s *Setting) TableName() string {
+	return "config.settings"
+}
+
+// Validate ensures setting data is valid
+func (s *Setting) Validate() error {
+	if s.Key == "" {
+		return errors.New("key is required")
+	}
+
+	if s.Value == "" {
+		return errors.New("value is required")
+	}
+
+	if s.Category == "" {
+		return errors.New("category is required")
+	}
+
+	// Normalize key to lowercase and replace spaces with underscores
+	s.Key = strings.ToLower(strings.ReplaceAll(s.Key, " ", "_"))
+
+	// Normalize category to lowercase
+	s.Category = strings.ToLower(s.Category)
+
+	return nil
+}
+
+// IsSystemSetting checks if this is a system-level setting
+func (s *Setting) IsSystemSetting() bool {
+	return s.Category == "system"
+}
+
+// GetBoolValue returns the setting value as a boolean
+func (s *Setting) GetBoolValue() bool {
+	return strings.ToLower(s.Value) == "true"
+}
+
+// GetFullKey returns a combined category and key
+func (s *Setting) GetFullKey() string {
+	return s.Category + "." + s.Key
+}
+
+// Clone creates a copy of the setting
+func (s *Setting) Clone() *Setting {
+	return &Setting{
+		Model: base.Model{
+			ID:        s.ID,
+			CreatedAt: s.CreatedAt,
+			UpdatedAt: s.UpdatedAt,
+		},
+		Key:             s.Key,
+		Value:           s.Value,
+		Category:        s.Category,
+		Description:     s.Description,
+		RequiresRestart: s.RequiresRestart,
+		RequiresDBReset: s.RequiresDBReset,
+	}
+}
