@@ -80,3 +80,18 @@ func (t *Timeframe) Overlaps(other *Timeframe) bool {
 	// Overlap if one starts before the other ends
 	return (other.StartTime.Before(*t.EndTime) && t.StartTime.Before(*other.EndTime))
 }
+
+// GetID implements the Entity interface
+func (t *Timeframe) GetID() interface{} {
+	return t.ID
+}
+
+// GetCreatedAt implements the Entity interface
+func (t *Timeframe) GetCreatedAt() time.Time {
+	return t.CreatedAt
+}
+
+// GetUpdatedAt implements the Entity interface
+func (t *Timeframe) GetUpdatedAt() time.Time {
+	return t.UpdatedAt
+}

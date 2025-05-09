@@ -65,3 +65,18 @@ func (d *Dateframe) Overlaps(other *Dateframe) bool {
 	return (other.StartDate.Before(d.EndDate) || other.StartDate.Equal(d.EndDate)) &&
 		(d.StartDate.Before(other.EndDate) || d.StartDate.Equal(other.EndDate))
 }
+
+// GetID implements the Entity interface
+func (d *Dateframe) GetID() interface{} {
+	return d.ID
+}
+
+// GetCreatedAt implements the Entity interface
+func (d *Dateframe) GetCreatedAt() time.Time {
+	return d.CreatedAt
+}
+
+// GetUpdatedAt implements the Entity interface
+func (d *Dateframe) GetUpdatedAt() time.Time {
+	return d.UpdatedAt
+}
