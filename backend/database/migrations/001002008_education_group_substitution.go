@@ -34,7 +34,7 @@ func init() {
 
 // createEducationGroupSubstitutionTable creates the education.group_substitution table
 func createEducationGroupSubstitutionTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.2.7: Creating education.group_substitution table...")
+	fmt.Println("Migration 1.2.8: Creating education.group_substitution table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -96,7 +96,7 @@ func createEducationGroupSubstitutionTable(ctx context.Context, db *bun.DB) erro
 
 // dropEducationGroupSubstitutionTable drops the education.group_substitution table
 func dropEducationGroupSubstitutionTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.2.7: Removing education.group_substitution table...")
+	fmt.Println("Rolling back migration 1.2.8: Removing education.group_substitution table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
