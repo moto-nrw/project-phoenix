@@ -34,7 +34,7 @@ func init() {
 
 // staffGroupSupervisionUp creates the activities.staff_group_supervision table
 func staffGroupSupervisionUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.3.7: Creating activities.staff_group_supervision table...")
+	fmt.Println("Migration 1.4.3: Creating activities.staff_group_supervision table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
