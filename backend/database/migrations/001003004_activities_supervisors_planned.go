@@ -43,7 +43,7 @@ func createActivitySupervisorsTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer tx.Rollback()
 
-	// Create the supervisors table - many-to-many relation between staff and activity groups // TODO: Check on delete cascade
+	// Create the supervisors table - many-to-many relation between staff and activity groups //
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS activities.supervisors (
 			id BIGSERIAL PRIMARY KEY,
