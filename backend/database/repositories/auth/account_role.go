@@ -1,0 +1,177 @@
+package auth
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/uptrace/bun"
+)
+
+// AccountRoleRepository implements auth.AccountRoleRepository interface
+type AccountRoleRepository struct {
+	*base.Repository[*auth.AccountRole]
+	db *bun.DB
+}
+
+// NewAccountRoleRepository creates a new AccountRoleRepository
+func NewAccountRoleRepository(db *bun.DB) auth.AccountRoleRepository {
+	return &AccountRoleRepository{
+		Repository: base.NewRepository[*auth.AccountRole](db, "auth.account_roles", "AccountRole"),
+		db:         db,
+	}
+}
+
+// FindByAccountID retrieves all account-role mappings for an account
+func (r *AccountRoleRepository) FindByAccountID(ctx context.Context, accountID int64) ([]*auth.AccountRole, error) {
+	var accountRoles []*auth.AccountRole
+	err := r.db.NewSelect().
+		Model(&accountRoles).
+		Where("account_id = ?", accountID).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by account ID",
+			Err: err,
+		}
+	}
+
+	return accountRoles, nil
+}
+
+// FindByRoleID retrieves all account-role mappings for a role
+func (r *AccountRoleRepository) FindByRoleID(ctx context.Context, roleID int64) ([]*auth.AccountRole, error) {
+	var accountRoles []*auth.AccountRole
+	err := r.db.NewSelect().
+		Model(&accountRoles).
+		Where("role_id = ?", roleID).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by role ID",
+			Err: err,
+		}
+	}
+
+	return accountRoles, nil
+}
+
+// FindByAccountAndRole retrieves a specific account-role mapping
+func (r *AccountRoleRepository) FindByAccountAndRole(ctx context.Context, accountID, roleID int64) (*auth.AccountRole, error) {
+	accountRole := new(auth.AccountRole)
+	err := r.db.NewSelect().
+		Model(accountRole).
+		Where("account_id = ? AND role_id = ?", accountID, roleID).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by account and role",
+			Err: err,
+		}
+	}
+
+	return accountRole, nil
+}
+
+// Create overrides the base Create method to handle validation
+func (r *AccountRoleRepository) Create(ctx context.Context, accountRole *auth.AccountRole) error {
+	if accountRole == nil {
+		return fmt.Errorf("account role cannot be nil")
+	}
+
+	// Validate accountRole
+	if err := accountRole.Validate(); err != nil {
+		return err
+	}
+
+	// Use the base Create method
+	return r.Repository.Create(ctx, accountRole)
+}
+
+// DeleteByAccountAndRole deletes a specific account-role mapping
+func (r *AccountRoleRepository) DeleteByAccountAndRole(ctx context.Context, accountID, roleID int64) error {
+	_, err := r.db.NewDelete().
+		Model((*auth.AccountRole)(nil)).
+		Where("account_id = ? AND role_id = ?", accountID, roleID).
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "delete by account and role",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+// DeleteByAccountID deletes all account-role mappings for an account
+func (r *AccountRoleRepository) DeleteByAccountID(ctx context.Context, accountID int64) error {
+	_, err := r.db.NewDelete().
+		Model((*auth.AccountRole)(nil)).
+		Where("account_id = ?", accountID).
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "delete by account ID",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+// List retrieves account-role mappings matching the provided filters
+func (r *AccountRoleRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.AccountRole, error) {
+	var accountRoles []*auth.AccountRole
+	query := r.db.NewSelect().Model(&accountRoles)
+
+	// Apply filters
+	for field, value := range filters {
+		if value != nil {
+			query = query.Where("? = ?", bun.Ident(field), value)
+		}
+	}
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list",
+			Err: err,
+		}
+	}
+
+	return accountRoles, nil
+}
+
+// FindAccountRolesWithDetails retrieves account-role mappings with account and role details
+func (r *AccountRoleRepository) FindAccountRolesWithDetails(ctx context.Context, filters map[string]interface{}) ([]*auth.AccountRole, error) {
+	var accountRoles []*auth.AccountRole
+	query := r.db.NewSelect().
+		Model(&accountRoles).
+		Relation("Account").
+		Relation("Role")
+
+	// Apply filters
+	for field, value := range filters {
+		if value != nil {
+			query = query.Where("account_role.? = ?", bun.Ident(field), value)
+		}
+	}
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find with details",
+			Err: err,
+		}
+	}
+
+	return accountRoles, nil
+}
