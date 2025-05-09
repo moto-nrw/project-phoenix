@@ -19,12 +19,17 @@ func init() {
 		Version:     AuthAccountRolesVersion,
 		Description: AuthAccountRolesDescription,
 		DependsOn:   []string{"1.0.1", "1.0.4"}, // Depends on auth.accounts and auth.roles
-		Up:          createAuthAccountRolesTable,
-		Down:        dropAuthAccountRolesTable,
 	}
 
-	// Register the migration with Bun's migration system
-	registerMigration(MigrationRegistry[AuthAccountRolesVersion])
+	// Migration 1.0.7: Create auth.account_roles table
+	Migrations.MustRegister(
+		func(ctx context.Context, db *bun.DB) error {
+			return createAuthAccountRolesTable(ctx, db)
+		},
+		func(ctx context.Context, db *bun.DB) error {
+			return dropAuthAccountRolesTable(ctx, db)
+		},
+	)
 }
 
 // createAuthAccountRolesTable creates the auth.account_roles table

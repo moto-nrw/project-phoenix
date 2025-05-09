@@ -19,12 +19,17 @@ func init() {
 		Version:     AuthPermissionsVersion,
 		Description: AuthPermissionsDescription,
 		DependsOn:   []string{"1.0.4"}, // Depends on auth.roles
-		Up:          createAuthPermissionsTable,
-		Down:        dropAuthPermissionsTable,
 	}
 
-	// Register the migration with Bun's migration system
-	registerMigration(MigrationRegistry[AuthPermissionsVersion])
+	// Migration 1.0.5: Create auth.permissions table
+	Migrations.MustRegister(
+		func(ctx context.Context, db *bun.DB) error {
+			return createAuthPermissionsTable(ctx, db)
+		},
+		func(ctx context.Context, db *bun.DB) error {
+			return dropAuthPermissionsTable(ctx, db)
+		},
+	)
 }
 
 // createAuthPermissionsTable creates the auth.permissions table
