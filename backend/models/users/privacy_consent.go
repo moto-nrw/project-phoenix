@@ -1,7 +1,6 @@
 package users
 
 import (
-	"encoding/json"
 	"errors"
 	"time"
 
@@ -11,20 +10,17 @@ import (
 // PrivacyConsent represents a privacy consent record for a student
 type PrivacyConsent struct {
 	base.Model
-	StudentID       int64      `bun:"student_id,notnull" json:"student_id"`
-	PolicyVersion   string     `bun:"policy_version,notnull" json:"policy_version"`
-	Accepted        bool       `bun:"accepted,notnull" json:"accepted"`
-	AcceptedAt      *time.Time `bun:"accepted_at" json:"accepted_at,omitempty"`
-	ExpiresAt       *time.Time `bun:"expires_at" json:"expires_at,omitempty"`
-	DurationDays    *int       `bun:"duration_days" json:"duration_days,omitempty"`
-	RenewalRequired bool       `bun:"renewal_required,notnull" json:"renewal_required"`
-	Details         string     `bun:"details" json:"details,omitempty"` // JSON string
+	StudentID       int64                  `bun:"student_id,notnull" json:"student_id"`
+	PolicyVersion   string                 `bun:"policy_version,notnull" json:"policy_version"`
+	Accepted        bool                   `bun:"accepted,notnull" json:"accepted"`
+	AcceptedAt      *time.Time             `bun:"accepted_at" json:"accepted_at,omitempty"`
+	ExpiresAt       *time.Time             `bun:"expires_at" json:"expires_at,omitempty"`
+	DurationDays    *int                   `bun:"duration_days" json:"duration_days,omitempty"`
+	RenewalRequired bool                   `bun:"renewal_required,notnull" json:"renewal_required"`
+	Details         map[string]interface{} `bun:"details,type:jsonb" json:"details,omitempty"`
 
 	// Relations not stored in the database
 	Student *Student `bun:"-" json:"student,omitempty"`
-
-	// Parsed details
-	parsedDetails map[string]interface{} `bun:"-" json:"-"`
 }
 
 // TableName returns the database table name
@@ -61,15 +57,7 @@ func (pc *PrivacyConsent) Validate() error {
 		}
 	}
 
-	// Validate details JSON if provided
-	if pc.Details != "" {
-		var details map[string]interface{}
-		if err := json.Unmarshal([]byte(pc.Details), &details); err != nil {
-			return errors.New("invalid details JSON format")
-		}
-		pc.parsedDetails = details
-	}
-
+	// No need to validate JSONB details - handled by the database
 	return nil
 }
 
@@ -124,36 +112,17 @@ func (pc *PrivacyConsent) SetStudent(student *Student) {
 	}
 }
 
-// GetDetails returns parsed details
+// GetDetails returns details map
 func (pc *PrivacyConsent) GetDetails() map[string]interface{} {
-	// Parse details if needed
-	if pc.parsedDetails == nil && pc.Details != "" {
-		var details map[string]interface{}
-		if err := json.Unmarshal([]byte(pc.Details), &details); err != nil {
-			pc.parsedDetails = make(map[string]interface{})
-		} else {
-			pc.parsedDetails = details
-		}
+	if pc.Details == nil {
+		pc.Details = make(map[string]interface{})
 	}
-
-	if pc.parsedDetails == nil {
-		pc.parsedDetails = make(map[string]interface{})
-	}
-
-	return pc.parsedDetails
+	return pc.Details
 }
 
-// UpdateDetails updates the details JSON
+// UpdateDetails updates the details map
 func (pc *PrivacyConsent) UpdateDetails(details map[string]interface{}) error {
-	pc.parsedDetails = details
-
-	// Update the JSON string
-	detailsBytes, err := json.Marshal(pc.parsedDetails)
-	if err != nil {
-		return err
-	}
-
-	pc.Details = string(detailsBytes)
+	pc.Details = details
 	return nil
 }
 

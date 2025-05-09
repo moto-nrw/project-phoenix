@@ -40,7 +40,7 @@ type Repository[T Entity] interface {
 	Delete(ctx context.Context, id interface{}) error
 
 	// List retrieves all entities matching the provided filters
-	List(ctx context.Context, filters map[string]interface{}) ([]T, error)
+	List(ctx context.Context, options *QueryOptions) ([]T, error)
 }
 
 // TableNamer is implemented by models to specify their database table name
@@ -94,7 +94,7 @@ type Service[T Entity] interface {
 	Delete(ctx context.Context, id interface{}) error
 
 	// List retrieves all entities matching the provided filters
-	List(ctx context.Context, filters map[string]interface{}) ([]T, error)
+	List(ctx context.Context, options *QueryOptions) ([]T, error)
 }
 
 // DatabaseError represents database operation errors

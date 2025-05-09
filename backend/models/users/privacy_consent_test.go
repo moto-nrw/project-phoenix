@@ -1,7 +1,6 @@
 package users
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -56,13 +55,13 @@ func TestPrivacyConsent_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "invalid details JSON",
+			name: "details map provided",
 			pc: &PrivacyConsent{
 				StudentID:     1,
 				PolicyVersion: "1.0",
-				Details:       "{invalid json}",
+				Details:       map[string]interface{}{"test": true},
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name: "auto-populate accepted_at",
@@ -349,7 +348,7 @@ func TestPrivacyConsent_UpdateDetails(t *testing.T) {
 	pc := &PrivacyConsent{
 		StudentID:     1,
 		PolicyVersion: "1.0",
-		Details:       `{}`,
+		Details:       map[string]interface{}{},
 	}
 
 	// Update details
@@ -368,28 +367,21 @@ func TestPrivacyConsent_UpdateDetails(t *testing.T) {
 		t.Errorf("PrivacyConsent.UpdateDetails() error = %v", err)
 	}
 
-	// Parse the JSON string to verify it was updated correctly
-	var parsedDetails map[string]interface{}
-	err = json.Unmarshal([]byte(pc.Details), &parsedDetails)
-	if err != nil {
-		t.Errorf("Failed to parse updated details JSON: %v", err)
-	}
-
-	// Check top-level keys
-	if _, exists := parsedDetails["data_retention"]; !exists {
+	// Check top-level keys directly in the map
+	if _, exists := pc.Details["data_retention"]; !exists {
 		t.Errorf("PrivacyConsent.UpdateDetails() failed, data_retention key not found")
 	}
 
-	if thirdParty, exists := parsedDetails["third_party_sharing"].(bool); !exists || thirdParty {
+	if thirdParty, exists := pc.Details["third_party_sharing"].(bool); !exists || thirdParty {
 		t.Errorf("PrivacyConsent.UpdateDetails() failed, third_party_sharing incorrect or not found")
 	}
 
-	if research, exists := parsedDetails["research_use"].(bool); !exists || !research {
+	if research, exists := pc.Details["research_use"].(bool); !exists || !research {
 		t.Errorf("PrivacyConsent.UpdateDetails() failed, research_use incorrect or not found")
 	}
 
 	// Check nested fields
-	dataRetention, ok := parsedDetails["data_retention"].(map[string]interface{})
+	dataRetention, ok := pc.Details["data_retention"].(map[string]interface{})
 	if !ok {
 		t.Errorf("PrivacyConsent.UpdateDetails() failed to handle nested structure")
 	} else {
