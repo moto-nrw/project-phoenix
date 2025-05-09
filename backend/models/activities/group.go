@@ -16,7 +16,6 @@ type Group struct {
 	IsOpen          bool   `bun:"is_open,notnull,default:false" json:"is_open"`
 	CategoryID      int64  `bun:"category_id,notnull" json:"category_id"`
 	PlannedRoomID   *int64 `bun:"planned_room_id" json:"planned_room_id,omitempty"`
-	SupervisorID    *int64 `bun:"supervisor_id" json:"supervisor_id,omitempty"`
 
 	// Relations - populated when using the ORM's relations
 	Category    *Category            `bun:"rel:belongs-to,join:category_id=id" json:"category,omitempty"`
