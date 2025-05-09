@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	UsersStudentsGuardiansVersion     = "1.3.7"
+	UsersStudentsGuardiansVersion     = "1.3.6"
 	UsersStudentsGuardiansDescription = "Link students directly to guardians"
 )
 
@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[UsersStudentsGuardiansVersion] = &Migration{
 		Version:     UsersStudentsGuardiansVersion,
 		Description: UsersStudentsGuardiansDescription,
-		DependsOn:   []string{"1.3.6", "1.2.6"}, // Depends on students and guardians tables
+		DependsOn:   []string{"1.3.5", "1.2.6"}, // Depends on students and guardians tables
 	}
 
 	// Migration 1.3.7: Students to guardians relationship
@@ -34,7 +34,7 @@ func init() {
 
 // usersStudentsGuardiansUp creates the relationship table between students and guardians
 func usersStudentsGuardiansUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.3.7: Creating users.students_guardians relationship table...")
+	fmt.Println("Migration 1.3.6: Creating users.students_guardians relationship table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -127,7 +127,7 @@ func usersStudentsGuardiansUp(ctx context.Context, db *bun.DB) error {
 
 // usersStudentsGuardiansDown removes the users.students_guardians relationship table
 func usersStudentsGuardiansDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.3.7: Removing users.students_guardians relationship table...")
+	fmt.Println("Rolling back migration 1.3.6: Removing users.students_guardians relationship table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})

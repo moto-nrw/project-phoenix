@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ActiveVisitsVersion     = "1.4.0"
+	ActiveVisitsVersion     = "1.4.2"
 	ActiveVisitsDescription = "Create activities.active_visits table"
 )
 
@@ -34,7 +34,7 @@ func init() {
 
 // createActiveVisitsTable creates the activities.active_visits table
 func createActiveVisitsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.4.0: Creating activities.active_visits table...")
+	fmt.Println("Migration 1.4.2: Creating activities.active_visits table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -108,7 +108,7 @@ func createActiveVisitsTable(ctx context.Context, db *bun.DB) error {
 
 // dropActiveVisitsTable drops the activities.active_visits table
 func dropActiveVisitsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.4.0: Removing activities.active_visits table...")
+	fmt.Println("Rolling back migration 1.4.2: Removing activities.active_visits table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})

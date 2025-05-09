@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[ActivitiesCategoriesVersion] = &Migration{
 		Version:     ActivitiesCategoriesVersion,
 		Description: ActivitiesCategoriesDescription,
-		DependsOn:   []string{"1.0.3"}, // Depends on auth tables
+		DependsOn:   []string{"1.0.9"}, // Depends on auth tables
 	}
 
 	// Migration 1.3.1: Create activities.categories table

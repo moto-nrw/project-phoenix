@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	IoTDevicesVersion     = "1.3.5" // Version maintained to preserve compatibility with room_occupancy
+	IoTDevicesVersion     = "1.3.9" // Version maintained to preserve compatibility with room_occupancy
 	IoTDevicesDescription = "Create iot.devices table"
 )
 
@@ -34,7 +34,7 @@ func init() {
 
 // createIoTDevicesTable creates the iot.devices table
 func createIoTDevicesTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.3.5: Creating iot.devices table...")
+	fmt.Println("Migration 1.3.9: Creating iot.devices table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -118,7 +118,7 @@ func createIoTDevicesTable(ctx context.Context, db *bun.DB) error {
 
 // dropIoTDevicesTable drops the iot.devices table
 func dropIoTDevicesTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.3.5: Removing iot.devices table...")
+	fmt.Println("Rolling back migration 1.3.9: Removing iot.devices table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})

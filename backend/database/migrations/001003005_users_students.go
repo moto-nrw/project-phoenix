@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	UsersStudentsVersion     = "1.3.6" // Changed from 1.3.5 to resolve version conflict with IoT devices
+	UsersStudentsVersion     = "1.3.5" // Changed from 1.3.5 to resolve version conflict with IoT devices
 	UsersStudentsDescription = "Users students table"
 )
 
@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[UsersStudentsVersion] = &Migration{
 		Version:     UsersStudentsVersion,
 		Description: UsersStudentsDescription,
-		DependsOn:   []string{"1.2.1", "1.2.6"}, // Depends on persons table AND groups table
+		DependsOn:   []string{"1.2.1", "1.2.7"}, // Depends on persons table AND groups table
 	}
 
 	// Migration 1.3.6: Users students table
@@ -34,7 +34,7 @@ func init() {
 
 // usersStudentsUp creates the users.students table
 func usersStudentsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.3.6: Creating users.students table...")
+	fmt.Println("Migration 1.3.5: Creating users.students table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -135,7 +135,7 @@ func usersStudentsUp(ctx context.Context, db *bun.DB) error {
 
 // usersStudentsDown removes the users.students table
 func usersStudentsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.3.6: Removing users.students table...")
+	fmt.Println("Rolling back migration 1.3.5: Removing users.students table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})

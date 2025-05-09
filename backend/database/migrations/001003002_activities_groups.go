@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[ActivitiesGroupsVersion] = &Migration{
 		Version:     ActivitiesGroupsVersion,
 		Description: ActivitiesGroupsDescription,
-		DependsOn:   []string{"1.3.1", "1.2.3", "1.1.3"}, // Depends on categories, teachers, and dateframes
+		DependsOn:   []string{"1.3.1", "1.1.1"}, // Depends on categories and rooms
 	}
 
 	// Migration 1.3.2: Create activities.groups table

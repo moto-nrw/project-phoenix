@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ActiveGroupsVersion     = "1.3.6"
+	ActiveGroupsVersion     = "1.4.1"
 	ActiveGroupsDescription = "Create activities.active_groups table"
 )
 
@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[ActiveGroupsVersion] = &Migration{
 		Version:     ActiveGroupsVersion,
 		Description: ActiveGroupsDescription,
-		DependsOn:   []string{"1.3.5", "1.3.2", "1.1.1"}, // Depends on IoT devices, activity groups, and rooms
+		DependsOn:   []string{"1.3.9", "1.3.2", "1.1.1"}, // Depends on IoT devices, activity groups, and rooms
 	}
 
 	// Migration 1.3.6: Create activities.active_groups table
@@ -34,7 +34,7 @@ func init() {
 
 // createActiveGroupsTable creates the activities.active_groups table
 func createActiveGroupsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.3.6: Creating activities.active_groups table...")
+	fmt.Println("Migration 1.4.1: Creating activities.active_groups table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -104,7 +104,7 @@ func createActiveGroupsTable(ctx context.Context, db *bun.DB) error {
 
 // dropActiveGroupsTable drops the activities.active_groups table
 func dropActiveGroupsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.3.6: Removing activities.active_groups table...")
+	fmt.Println("Rolling back migration 1.4.1: Removing activities.active_groups table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})

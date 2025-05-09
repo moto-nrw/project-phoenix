@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ActivitiesStudentEnrollmentsVersion     = "1.3.6"
+	ActivitiesStudentEnrollmentsVersion     = "1.3.8"
 	ActivitiesStudentEnrollmentsDescription = "Create activities.student_enrollments table"
 )
 
@@ -34,7 +34,7 @@ func init() {
 
 // createActivitiesStudentEnrollmentsTable creates the activities.student_enrollments table
 func createActivitiesStudentEnrollmentsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.3.6: Creating activities.student_enrollments table...")
+	fmt.Println("Migration 1.3.8: Creating activities.student_enrollments table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -93,7 +93,7 @@ func createActivitiesStudentEnrollmentsTable(ctx context.Context, db *bun.DB) er
 
 // dropActivitiesStudentEnrollmentsTable drops the activities.student_enrollments table
 func dropActivitiesStudentEnrollmentsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.3.6: Removing activities.student_enrollments table...")
+	fmt.Println("Rolling back migration 1.3.8: Removing activities.student_enrollments table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
