@@ -1,0 +1,129 @@
+package migrations
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+
+	"github.com/uptrace/bun"
+)
+
+const (
+	StaffGroupSupervisionVersion     = "1.3.7"
+	StaffGroupSupervisionDescription = "Create activities.staff_group_supervision table"
+)
+
+func init() {
+	// Register migration with explicit version
+	MigrationRegistry[StaffGroupSupervisionVersion] = &Migration{
+		Version:     StaffGroupSupervisionVersion,
+		Description: StaffGroupSupervisionDescription,
+		DependsOn:   []string{"1.3.6", "1.2.3"}, // Depends on active_groups and users_staff
+		Up:          staffGroupSupervisionUp,
+		Down:        staffGroupSupervisionDown,
+	}
+
+	// Register the migration with Bun's migration system
+	registerMigration(MigrationRegistry[StaffGroupSupervisionVersion])
+}
+
+// staffGroupSupervisionUp creates the activities.staff_group_supervision table
+func staffGroupSupervisionUp(ctx context.Context, db *bun.DB) error {
+	fmt.Println("Migration 1.3.7: Creating activities.staff_group_supervision table...")
+
+	// Begin a transaction for atomicity
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Create the staff_group_supervision table
+	_, err = tx.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS activities.staff_group_supervision (
+			id BIGSERIAL PRIMARY KEY,
+			staff_id BIGINT NOT NULL,             -- Reference to users.staff
+			group_id BIGINT NOT NULL,             -- Reference to activities.groups
+			role VARCHAR(50) NOT NULL DEFAULT 'supervisor', -- Role in the group (supervisor, assistant, etc.)
+			start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+			end_date DATE,                        -- Optional end date if supervision is temporary
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			
+			-- Composite unique constraint to prevent duplicates
+			CONSTRAINT unique_staff_group_role UNIQUE (staff_id, group_id, role),
+			
+			-- Foreign key constraints
+			CONSTRAINT fk_supervision_staff FOREIGN KEY (staff_id)
+				REFERENCES users.staff(id) ON DELETE CASCADE,
+			CONSTRAINT fk_supervision_group FOREIGN KEY (group_id)
+				REFERENCES activities.groups(id) ON DELETE CASCADE
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("error creating activities.staff_group_supervision table: %w", err)
+	}
+
+	// Create indexes to improve query performance
+	_, err = tx.ExecContext(ctx, `
+		-- Add indexes to speed up queries
+		CREATE INDEX IF NOT EXISTS idx_supervision_staff_id ON activities.staff_group_supervision(staff_id);
+		CREATE INDEX IF NOT EXISTS idx_supervision_group_id ON activities.staff_group_supervision(group_id);
+		CREATE INDEX IF NOT EXISTS idx_supervision_role ON activities.staff_group_supervision(role);
+		CREATE INDEX IF NOT EXISTS idx_supervision_date_range ON activities.staff_group_supervision(start_date, end_date);
+		
+		-- Index for finding active supervisions (where end_date is null or >= current_date)
+		CREATE INDEX IF NOT EXISTS idx_supervision_active ON activities.staff_group_supervision(staff_id, group_id) 
+		WHERE (end_date IS NULL OR end_date >= CURRENT_DATE);
+	`)
+	if err != nil {
+		return fmt.Errorf("error creating indexes for staff_group_supervision table: %w", err)
+	}
+
+	// Create trigger for updating updated_at column
+	_, err = tx.ExecContext(ctx, `
+		-- Trigger for staff_group_supervision
+		DROP TRIGGER IF EXISTS update_supervision_updated_at ON activities.staff_group_supervision;
+		CREATE TRIGGER update_supervision_updated_at
+		BEFORE UPDATE ON activities.staff_group_supervision
+		FOR EACH ROW
+		EXECUTE FUNCTION update_modified_column();
+	`)
+	if err != nil {
+		return fmt.Errorf("error creating updated_at trigger for staff_group_supervision: %w", err)
+	}
+
+	// Commit the transaction
+	return tx.Commit()
+}
+
+// staffGroupSupervisionDown drops the activities.staff_group_supervision table
+func staffGroupSupervisionDown(ctx context.Context, db *bun.DB) error {
+	fmt.Println("Rolling back migration 1.3.7: Removing activities.staff_group_supervision table...")
+
+	// Begin a transaction for atomicity
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Drop trigger first
+	_, err = tx.ExecContext(ctx, `
+		DROP TRIGGER IF EXISTS update_supervision_updated_at ON activities.staff_group_supervision;
+	`)
+	if err != nil {
+		return fmt.Errorf("error dropping trigger for staff_group_supervision table: %w", err)
+	}
+
+	// Drop the table
+	_, err = tx.ExecContext(ctx, `
+		DROP TABLE IF EXISTS activities.staff_group_supervision CASCADE;
+	`)
+	if err != nil {
+		return fmt.Errorf("error dropping activities.staff_group_supervision table: %w", err)
+	}
+
+	// Commit the transaction
+	return tx.Commit()
+}
