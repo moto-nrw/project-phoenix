@@ -44,6 +44,7 @@ func init() {
 				CREATE SCHEMA IF NOT EXISTS facilities;
 				CREATE SCHEMA IF NOT EXISTS iot;
 				CREATE SCHEMA IF NOT EXISTS feedback;
+				CREATE SCHEMA IF NOT EXISTS active;
 				CREATE SCHEMA IF NOT EXISTS config;
 				CREATE SCHEMA IF NOT EXISTS meta;
 			`)
@@ -69,6 +70,7 @@ func init() {
 			_, err = tx.ExecContext(ctx, `
 				DROP SCHEMA IF EXISTS meta;
 				DROP SCHEMA IF EXISTS config;
+				DROP SCHEMA IF EXISTS active;
 				DROP SCHEMA IF EXISTS feedback;
 				DROP SCHEMA IF EXISTS iot;
 				DROP SCHEMA IF EXISTS facilities;
