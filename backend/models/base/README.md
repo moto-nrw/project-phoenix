@@ -16,26 +16,45 @@ The new query system provides:
 
 Here's a basic example of how to use the query system:
 
-```go
-// Create a filter
-filter := base.NewFilter().
-    Equal("status", "active").
-    GreaterThan("created_at", time.Now().AddDate(0, -1, 0)).
-    In("category", "books", "electronics")
+Example Go code:
 
-// Add pagination
-options := base.NewQueryOptions().
-    WithPagination(1, 20)
-options.Filter = filter
+```
+package example
 
-// Add sorting
-sorting := base.NewSorting(
-    base.SortField{Field: "created_at", Direction: base.SortDesc},
+import (
+    "context"
+    "time"
+    
+    "github.com/moto-nrw/project-phoenix/models/base"
 )
-options.WithSorting(sorting)
 
-// Use with a repository
-entities, err := repository.List(ctx, options)
+func exampleUsage() {
+    // Create a filter
+    filter := base.NewFilter().
+        Equal("status", "active").
+        GreaterThan("created_at", time.Now().AddDate(0, -1, 0)).
+        In("category", "books", "electronics")
+    
+    // Add pagination
+    options := base.NewQueryOptions().
+        WithPagination(1, 20)
+    options.Filter = filter
+    
+    // Add sorting
+    sorting := base.NewSorting(
+        base.SortField{Field: "created_at", Direction: base.SortDesc},
+    )
+    options.WithSorting(sorting)
+    
+    // Use with a repository
+    ctx := context.Background()
+    var repository Repository // Just for example
+    entities, err := repository.List(ctx, options)
+    if err != nil {
+        // Handle error
+    }
+    // Use entities
+}
 ```
 
 ## Available Filter Operations
