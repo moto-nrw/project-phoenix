@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	StaffGroupSupervisionVersion     = "1.3.7"
+	StaffGroupSupervisionVersion     = "1.4.3"
 	StaffGroupSupervisionDescription = "Create activities.staff_group_supervision table"
 )
 
@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[StaffGroupSupervisionVersion] = &Migration{
 		Version:     StaffGroupSupervisionVersion,
 		Description: StaffGroupSupervisionDescription,
-		DependsOn:   []string{"1.3.6", "1.2.3"}, // Depends on active_groups and users_staff
+		DependsOn:   []string{"1.4.1", "1.2.3"}, // Depends on active_groups and users_staff
 	}
 
 	// Migration 1.3.7: Create activities.staff_group_supervision table
