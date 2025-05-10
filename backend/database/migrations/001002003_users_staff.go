@@ -80,74 +80,14 @@ func usersStaffUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating updated_at trigger: %w", err)
 	}
 
-	// Modify the existing teachers and guests schema to reference staff
-	// First, insert existing teachers and guests into the staff table
-	_, err = tx.ExecContext(ctx, `
-		-- Insert all persons from teachers as staff
-		INSERT INTO users.staff (person_id)
-		SELECT person_id FROM users.teachers
-		ON CONFLICT (person_id) DO NOTHING;
-		
-		-- Insert all persons from guests as staff
-		INSERT INTO users.staff (person_id)
-		SELECT person_id FROM users.guests
-		ON CONFLICT (person_id) DO NOTHING;
-	`)
-	if err != nil {
-		return fmt.Errorf("error migrating existing data to staff table: %w", err)
-	}
+	// Create staff table only
+	// We don't reference teachers or guests here since they don't exist yet
+	// Teachers and guests tables will be created in subsequent migrations
+	// No data to migrate at this stage
 
-	// Now modify the teachers table to reference staff instead of directly to persons
-	_, err = tx.ExecContext(ctx, `
-		-- First create a temporary column
-		ALTER TABLE users.teachers ADD COLUMN staff_id BIGINT;
-		
-		-- Update the staff_id column based on the person_id
-		UPDATE users.teachers t
-		SET staff_id = s.id
-		FROM users.staff s
-		WHERE t.person_id = s.person_id;
-		
-		-- Add foreign key constraint
-		ALTER TABLE users.teachers
-		ADD CONSTRAINT fk_teachers_staff
-		FOREIGN KEY (staff_id) REFERENCES users.staff(id) ON DELETE CASCADE;
-		
-		-- Create index
-		CREATE INDEX IF NOT EXISTS idx_teachers_staff_id ON users.teachers(staff_id);
-		
-		-- Make sure all rows have a valid staff_id
-		ALTER TABLE users.teachers ALTER COLUMN staff_id SET NOT NULL;
-	`)
-	if err != nil {
-		return fmt.Errorf("error modifying teachers table: %w", err)
-	}
+	// No need to modify teachers table here as it will be created in migration 1.2.4
 
-	// Modify the guests table to reference staff instead of directly to persons
-	_, err = tx.ExecContext(ctx, `
-		-- First create a temporary column
-		ALTER TABLE users.guests ADD COLUMN staff_id BIGINT;
-		
-		-- Update the staff_id column based on the person_id
-		UPDATE users.guests g
-		SET staff_id = s.id
-		FROM users.staff s
-		WHERE g.person_id = s.person_id;
-		
-		-- Add foreign key constraint
-		ALTER TABLE users.guests
-		ADD CONSTRAINT fk_guests_staff
-		FOREIGN KEY (staff_id) REFERENCES users.staff(id) ON DELETE CASCADE;
-		
-		-- Create index
-		CREATE INDEX IF NOT EXISTS idx_guests_staff_id ON users.guests(staff_id);
-		
-		-- Make sure all rows have a valid staff_id
-		ALTER TABLE users.guests ALTER COLUMN staff_id SET NOT NULL;
-	`)
-	if err != nil {
-		return fmt.Errorf("error modifying guests table: %w", err)
-	}
+	// No need to modify guests table here as it will be created in migration 1.2.5
 
 	// Commit the transaction
 	return tx.Commit()

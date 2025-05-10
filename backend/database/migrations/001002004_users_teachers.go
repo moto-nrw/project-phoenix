@@ -21,7 +21,7 @@ func init() {
 		DependsOn:   []string{"1.2.3"}, // Depends on staff table
 	}
 
-	// Migration 1.2.3: Users teachers table
+	// Migration 1.2.4: Users teachers table
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return usersTeachersUp(ctx, db)
@@ -63,7 +63,7 @@ func usersTeachersUp(ctx context.Context, db *bun.DB) error {
 
 	// Create indexes for teachers
 	_, err = tx.ExecContext(ctx, `
-		CREATE INDEX IF NOT EXISTS idx_teachers_person_id ON users.teachers(person_id);
+		CREATE INDEX IF NOT EXISTS idx_teachers_staff_id ON users.teachers(staff_id);
 		CREATE INDEX IF NOT EXISTS idx_teachers_specialization ON users.teachers(specialization);
 	`)
 	if err != nil {
