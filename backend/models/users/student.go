@@ -79,7 +79,7 @@ func (s *Student) Validate() error {
 		}
 	}
 
-	// Ensure only one location is active at a time
+	// Ensure only one loc ation is active at a time
 	locationCount := 0
 	if s.Bus {
 		locationCount++
