@@ -7,11 +7,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/uptrace/bun"
 )
 
 // Account represents an authentication account
 type Account struct {
-	base.Model
+	base.Model    `bun:"schema:auth,table:accounts,alias:account"`
 	Email         string     `bun:"email,notnull" json:"email"`
 	Username      *string    `bun:"username,unique" json:"username,omitempty"`
 	Active        bool       `bun:"active,notnull,default:true" json:"active"`
@@ -27,6 +28,23 @@ type Account struct {
 // TableName returns the database table name
 func (a *Account) TableName() string {
 	return "auth.accounts"
+}
+
+// BeforeAppendModel lets us modify query before it's executed
+func (a *Account) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.TableExpr("auth.accounts AS account")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.TableExpr("auth.accounts")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.TableExpr("auth.accounts")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.TableExpr("auth.accounts")
+	}
+	return nil
 }
 
 // Validate ensures account data is valid

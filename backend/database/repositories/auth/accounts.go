@@ -28,10 +28,12 @@ func NewAccountRepository(db *bun.DB) auth.AccountRepository {
 // FindByEmail retrieves an account by email address
 func (r *AccountRepository) FindByEmail(ctx context.Context, email string) (*auth.Account, error) {
 	account := new(auth.Account)
+
+	// Explicitly specify the schema and table
 	err := r.db.NewSelect().
-		Model(account).
+		TableExpr("auth.accounts").
 		Where("LOWER(email) = LOWER(?)", email).
-		Scan(ctx)
+		Scan(ctx, account)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -46,10 +48,12 @@ func (r *AccountRepository) FindByEmail(ctx context.Context, email string) (*aut
 // FindByUsername retrieves an account by username
 func (r *AccountRepository) FindByUsername(ctx context.Context, username string) (*auth.Account, error) {
 	account := new(auth.Account)
+
+	// Explicitly specify the schema and table
 	err := r.db.NewSelect().
-		Model(account).
+		TableExpr("auth.accounts").
 		Where("LOWER(username) = LOWER(?)", username).
-		Scan(ctx)
+		Scan(ctx, account)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -270,7 +274,7 @@ func (r *AccountRepository) FindAccountsWithRolesAndPermissions(ctx context.Cont
 	return accounts, nil
 }
 
-// Create overrides the base Create method to handle email normalization
+// Create overrides the base Create method for schema consistency
 func (r *AccountRepository) Create(ctx context.Context, account *auth.Account) error {
 	if account == nil {
 		return fmt.Errorf("account cannot be nil")
@@ -281,8 +285,29 @@ func (r *AccountRepository) Create(ctx context.Context, account *auth.Account) e
 		return err
 	}
 
-	// Use the base Create method
-	return r.Repository.Create(ctx, account)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewInsert().
+		Model(account).
+		TableExpr("auth.accounts")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewInsert().
+			Model(account).
+			TableExpr("auth.accounts")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "create",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // Update overrides the base Update method to handle email normalization

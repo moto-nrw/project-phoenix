@@ -39,7 +39,11 @@ func (r *Repository[T]) Create(ctx context.Context, entity T) error {
 		}
 	}
 
-	_, err := r.DB.NewInsert().Model(entity).Exec(ctx)
+	// Explicitly set the table name with schema
+	_, err := r.DB.NewInsert().
+		Model(entity).
+		TableExpr(r.TableName).
+		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create",

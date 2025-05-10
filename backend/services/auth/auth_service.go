@@ -194,7 +194,10 @@ func (s *Service) Register(ctx context.Context, email, username, name, password 
 
 	// Execute in transaction
 	err = s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		// Create account
+		// Store transaction in context
+		ctx = context.WithValue(ctx, "tx", &tx)
+
+		// Create account with transaction
 		if err := s.accountRepo.Create(ctx, account); err != nil {
 			return err
 		}

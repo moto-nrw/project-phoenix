@@ -26,6 +26,12 @@ func DBConn() (*bun.DB, error) {
 		return nil, err
 	}
 
+	// Set the search_path to include auth schema
+	_, err := db.Exec("SET search_path TO auth, public")
+	if err != nil {
+		return nil, err
+	}
+
 	if viper.GetBool("db_debug") {
 		db.AddQueryHook(bundebug.NewQueryHook(bundebug.WithVerbose(true)))
 	}
