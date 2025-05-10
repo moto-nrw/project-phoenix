@@ -1,4 +1,4 @@
-// components/dashboard/header.tsx
+// components/dashboard/header.tsx (Final Version mit Gradient)
 "use client";
 
 import Link from "next/link";
@@ -23,7 +23,21 @@ export function Header({ userName = "Root" }: HeaderProps) {
                   height={40}
                   className="h-10 w-auto"
               />
-              <span className="moto-logo-text">MOTO</span>
+              {/* Using Tailwind classes with custom styles */}
+              <span
+                  className="text-2xl font-extrabold inline-block"
+                  style={{
+                    fontFamily: 'var(--font-geist-sans)',
+                    letterSpacing: '-0.5px',
+                    fontWeight: 800,
+                    background: 'linear-gradient(135deg, #5080d8, #83cd2d)',
+                    WebkitBackgroundClip: 'text',
+                    backgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                  }}
+              >
+              MOTO
+            </span>
             </div>
 
             {/* Title section */}

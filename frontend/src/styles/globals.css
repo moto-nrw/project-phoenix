@@ -1,6 +1,7 @@
 /* styles/globals.css */
 @import "tailwindcss";
 @import '@fontsource/geist-sans';
+@import '@fontsource/geist-sans/800.css'; /* Ensure font-weight 800 is loaded */
 
 @theme {
   --font-geist-sans: 'Geist Sans';
@@ -8,19 +9,26 @@
   "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
-/* MOTO Logo-Text mit Farbverlauf */
+/* MOTO Logo-Text mit Farbverlauf - FIXED VERSION */
 .moto-logo-text {
   font-family: var(--font-geist-sans) !important;
   font-size: 26px !important;
   font-weight: 800 !important;
-  background: linear-gradient(135deg, #5080d8, #83cd2d) !important;
-  -webkit-background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-  background-clip: text !important;
-  text-fill-color: transparent !important;
+  background: linear-gradient(135deg, #5080d8, #83cd2d);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   letter-spacing: -0.5px !important;
   display: inline-block !important;
-  color: #5080d8 !important; /* Fallback-Farbe */
+  /* Remove the conflicting color property */
+}
+
+/* Fallback for browsers that don't support gradient text */
+@supports not (-webkit-background-clip: text) {
+  .moto-logo-text {
+    color: #5080d8;
+    -webkit-text-fill-color: inherit;
+  }
 }
 
 /* Always show scrollbar to prevent layout shifts */
