@@ -181,7 +181,7 @@ func (r *AccountPermissionRepository) RemovePermission(ctx context.Context, acco
 	return nil
 }
 
-// Create overrides the base Create method to handle validation
+// / Create overrides the base Create method for schema consistency
 func (r *AccountPermissionRepository) Create(ctx context.Context, accountPermission *auth.AccountPermission) error {
 	if accountPermission == nil {
 		return fmt.Errorf("account permission cannot be nil")
@@ -192,8 +192,67 @@ func (r *AccountPermissionRepository) Create(ctx context.Context, accountPermiss
 		return err
 	}
 
-	// Use the base Create method
-	return r.Repository.Create(ctx, accountPermission)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewInsert().
+		Model(accountPermission).
+		ModelTableExpr("auth.account_permissions")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewInsert().
+			Model(accountPermission).
+			ModelTableExpr("auth.account_permissions")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "create",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+// Update overrides the base Update method for schema consistency
+func (r *AccountPermissionRepository) Update(ctx context.Context, accountPermission *auth.AccountPermission) error {
+	if accountPermission == nil {
+		return fmt.Errorf("account permission cannot be nil")
+	}
+
+	// Validate accountPermission
+	if err := accountPermission.Validate(); err != nil {
+		return err
+	}
+
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewUpdate().
+		Model(accountPermission).
+		Where("id = ?", accountPermission.ID).
+		ModelTableExpr("auth.account_permissions")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewUpdate().
+			Model(accountPermission).
+			Where("id = ?", accountPermission.ID).
+			ModelTableExpr("auth.account_permissions")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // List retrieves account-permission mappings matching the provided filters

@@ -150,32 +150,76 @@ func (r *AccountParentRepository) List(ctx context.Context, filters map[string]i
 	return accounts, nil
 }
 
-// Create overrides the base Create method to handle email normalization
+// Create overrides the base Create method for schema consistency
 func (r *AccountParentRepository) Create(ctx context.Context, account *auth.AccountParent) error {
 	if account == nil {
 		return fmt.Errorf("account parent cannot be nil")
 	}
 
-	// Validate account - this will also normalize the email
+	// Validate account
 	if err := account.Validate(); err != nil {
 		return err
 	}
 
-	// Use the base Create method
-	return r.Repository.Create(ctx, account)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewInsert().
+		Model(account).
+		ModelTableExpr("auth.accounts_parents")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewInsert().
+			Model(account).
+			ModelTableExpr("auth.accounts_parents")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "create",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
-// Update overrides the base Update method to handle email normalization
+// Update overrides the base Update method for schema consistency
 func (r *AccountParentRepository) Update(ctx context.Context, account *auth.AccountParent) error {
 	if account == nil {
 		return fmt.Errorf("account parent cannot be nil")
 	}
 
-	// Validate account - this will also normalize the email
+	// Validate account
 	if err := account.Validate(); err != nil {
 		return err
 	}
 
-	// Use the base Update method
-	return r.Repository.Update(ctx, account)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewUpdate().
+		Model(account).
+		Where("id = ?", account.ID).
+		ModelTableExpr("auth.accounts_parents")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewUpdate().
+			Model(account).
+			Where("id = ?", account.ID).
+			ModelTableExpr("auth.accounts_parents")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update",
+			Err: err,
+		}
+	}
+
+	return nil
 }

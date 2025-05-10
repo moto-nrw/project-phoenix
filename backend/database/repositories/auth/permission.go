@@ -235,7 +235,7 @@ func (r *PermissionRepository) RemovePermissionFromRole(ctx context.Context, rol
 	return nil
 }
 
-// Create overrides the base Create method to handle name normalization
+// Create overrides the base Create method for schema consistency
 func (r *PermissionRepository) Create(ctx context.Context, permission *auth.Permission) error {
 	if permission == nil {
 		return fmt.Errorf("permission cannot be nil")
@@ -246,11 +246,32 @@ func (r *PermissionRepository) Create(ctx context.Context, permission *auth.Perm
 		return err
 	}
 
-	// Use the base Create method
-	return r.Repository.Create(ctx, permission)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewInsert().
+		Model(permission).
+		ModelTableExpr("auth.permissions")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewInsert().
+			Model(permission).
+			ModelTableExpr("auth.permissions")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "create",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
-// Update overrides the base Update method to handle name normalization
+// Update overrides the base Update method for schema consistency
 func (r *PermissionRepository) Update(ctx context.Context, permission *auth.Permission) error {
 	if permission == nil {
 		return fmt.Errorf("permission cannot be nil")
@@ -261,8 +282,31 @@ func (r *PermissionRepository) Update(ctx context.Context, permission *auth.Perm
 		return err
 	}
 
-	// Use the base Update method
-	return r.Repository.Update(ctx, permission)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewUpdate().
+		Model(permission).
+		Where("id = ?", permission.ID).
+		ModelTableExpr("auth.permissions")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewUpdate().
+			Model(permission).
+			Where("id = ?", permission.ID).
+			ModelTableExpr("auth.permissions")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // List retrieves permissions matching the provided filters

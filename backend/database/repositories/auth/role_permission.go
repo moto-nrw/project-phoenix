@@ -78,7 +78,7 @@ func (r *RolePermissionRepository) FindByRoleAndPermission(ctx context.Context, 
 	return rolePermission, nil
 }
 
-// Create overrides the base Create method to handle validation
+// Create overrides the base Create method for schema consistency
 func (r *RolePermissionRepository) Create(ctx context.Context, rolePermission *auth.RolePermission) error {
 	if rolePermission == nil {
 		return fmt.Errorf("role permission cannot be nil")
@@ -89,8 +89,67 @@ func (r *RolePermissionRepository) Create(ctx context.Context, rolePermission *a
 		return err
 	}
 
-	// Use the base Create method
-	return r.Repository.Create(ctx, rolePermission)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewInsert().
+		Model(rolePermission).
+		ModelTableExpr("auth.role_permissions")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewInsert().
+			Model(rolePermission).
+			ModelTableExpr("auth.role_permissions")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "create",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+// Update overrides the base Update method for schema consistency
+func (r *RolePermissionRepository) Update(ctx context.Context, rolePermission *auth.RolePermission) error {
+	if rolePermission == nil {
+		return fmt.Errorf("role permission cannot be nil")
+	}
+
+	// Validate rolePermission
+	if err := rolePermission.Validate(); err != nil {
+		return err
+	}
+
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewUpdate().
+		Model(rolePermission).
+		Where("id = ?", rolePermission.ID).
+		ModelTableExpr("auth.role_permissions")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewUpdate().
+			Model(rolePermission).
+			Where("id = ?", rolePermission.ID).
+			ModelTableExpr("auth.role_permissions")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // DeleteByRoleAndPermission deletes a specific role-permission mapping

@@ -151,33 +151,78 @@ func (r *RoleRepository) GetRoleWithPermissions(ctx context.Context, roleID int6
 }
 
 // Create overrides the base Create method to handle name normalization
+// Create overrides the base Create method for schema consistency
 func (r *RoleRepository) Create(ctx context.Context, role *auth.Role) error {
 	if role == nil {
 		return fmt.Errorf("role cannot be nil")
 	}
 
-	// Validate role - this will also normalize the name
+	// Validate role
 	if err := role.Validate(); err != nil {
 		return err
 	}
 
-	// Use the base Create method
-	return r.Repository.Create(ctx, role)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewInsert().
+		Model(role).
+		ModelTableExpr("auth.roles")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewInsert().
+			Model(role).
+			ModelTableExpr("auth.roles")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "create",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
-// Update overrides the base Update method to handle name normalization
+// Update overrides the base Update method for schema consistency
 func (r *RoleRepository) Update(ctx context.Context, role *auth.Role) error {
 	if role == nil {
 		return fmt.Errorf("role cannot be nil")
 	}
 
-	// Validate role - this will also normalize the name
+	// Validate role
 	if err := role.Validate(); err != nil {
 		return err
 	}
 
-	// Use the base Update method
-	return r.Repository.Update(ctx, role)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewUpdate().
+		Model(role).
+		Where("id = ?", role.ID).
+		ModelTableExpr("auth.roles")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewUpdate().
+			Model(role).
+			Where("id = ?", role.ID).
+			ModelTableExpr("auth.roles")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // List retrieves roles matching the provided filters

@@ -89,8 +89,67 @@ func (r *AccountRoleRepository) Create(ctx context.Context, accountRole *auth.Ac
 		return err
 	}
 
-	// Use the base Create method
-	return r.Repository.Create(ctx, accountRole)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewInsert().
+		Model(accountRole).
+		ModelTableExpr("auth.account_roles")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewInsert().
+			Model(accountRole).
+			ModelTableExpr("auth.account_roles")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "create",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+// Update overrides the base Update method for schema consistency
+func (r *AccountRoleRepository) Update(ctx context.Context, accountRole *auth.AccountRole) error {
+	if accountRole == nil {
+		return fmt.Errorf("account role cannot be nil")
+	}
+
+	// Validate accountRole
+	if err := accountRole.Validate(); err != nil {
+		return err
+	}
+
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewUpdate().
+		Model(accountRole).
+		Where("id = ?", accountRole.ID).
+		ModelTableExpr("auth.account_roles")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewUpdate().
+			Model(accountRole).
+			Where("id = ?", accountRole.ID).
+			ModelTableExpr("auth.account_roles")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // DeleteByAccountAndRole deletes a specific account-role mapping

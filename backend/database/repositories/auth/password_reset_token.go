@@ -151,8 +151,67 @@ func (r *PasswordResetTokenRepository) Create(ctx context.Context, token *auth.P
 		return err
 	}
 
-	// Use the base Create method
-	return r.Repository.Create(ctx, token)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewInsert().
+		Model(token).
+		ModelTableExpr("auth.password_reset_tokens")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewInsert().
+			Model(token).
+			ModelTableExpr("auth.password_reset_tokens")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "create",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+// Update overrides the base Update method for schema consistency
+func (r *PasswordResetTokenRepository) Update(ctx context.Context, token *auth.PasswordResetToken) error {
+	if token == nil {
+		return fmt.Errorf("password reset token cannot be nil")
+	}
+
+	// Validate token
+	if err := token.Validate(); err != nil {
+		return err
+	}
+
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewUpdate().
+		Model(token).
+		Where("id = ?", token.ID).
+		ModelTableExpr("auth.password_reset_tokens")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewUpdate().
+			Model(token).
+			Where("id = ?", token.ID).
+			ModelTableExpr("auth.password_reset_tokens")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // List retrieves password reset tokens matching the provided filters
