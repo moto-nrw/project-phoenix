@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	// "github.com/moto-nrw/project-phoenix/api" // Commented out temporarily until new API implementation
+	"github.com/moto-nrw/project-phoenix/api"
 	"log"
 
 	"github.com/spf13/cobra"
@@ -14,13 +14,11 @@ var serveCmd = &cobra.Command{
 	Short: "start http server with configured api",
 	Long:  `Starts a http server and serves the configured api`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Temporarily commented out until new API implementation
-		// server, err := api.NewServer()
-		// if err != nil {
-		// 	log.Fatal(err)
-		// }
-		// server.Start()
-		log.Println("API server implementation is under development")
+		server, err := api.NewServer()
+		if err != nil {
+			log.Fatal(err)
+		}
+		server.Start()
 	},
 }
 
