@@ -141,26 +141,6 @@ func createAuthAccountRolesTable(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating function and triggers for account_roles: %w", err)
 	}
 
-	// Migrate existing roles from accounts.roles array to account_roles table
-	_, err = tx.ExecContext(ctx, `
-		-- For each existing account with roles array
-		WITH account_role_expansion AS (
-			SELECT 
-				a.id AS account_id,
-				r.id AS role_id
-			FROM auth.accounts a
-			CROSS JOIN UNNEST(a.roles) AS role_name
-			JOIN auth.roles r ON r.name = role_name
-			WHERE a.roles IS NOT NULL AND array_length(a.roles, 1) > 0
-		)
-		INSERT INTO auth.account_roles (account_id, role_id)
-		SELECT account_id, role_id FROM account_role_expansion
-		ON CONFLICT (account_id, role_id) DO NOTHING
-	`)
-	if err != nil {
-		return fmt.Errorf("error migrating existing roles to account_roles table: %w", err)
-	}
-
 	// Commit the transaction
 	return tx.Commit()
 }
