@@ -22,8 +22,14 @@ var (
 	// ErrUsernameAlreadyExists returned when username is already taken
 	ErrUsernameAlreadyExists = errors.New("username already exists")
 
-	// ErrInvalidToken returned when token is invalid or expired
-	ErrInvalidToken = errors.New("invalid or expired token")
+	// ErrInvalidToken returned when token format is invalid
+	ErrInvalidToken = errors.New("invalid token format")
+
+	// ErrTokenExpired returned when token has expired
+	ErrTokenExpired = errors.New("token has expired")
+
+	// ErrTokenNotFound returned when token is not found in the database
+	ErrTokenNotFound = errors.New("token not found")
 
 	// ErrPasswordTooWeak returned when password doesn't meet complexity requirements
 	ErrPasswordTooWeak = errors.New("password doesn't meet complexity requirements")
