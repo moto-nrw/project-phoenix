@@ -5,3 +5,4 @@ export * from "./alert";
 export * from "./link";
 export * from "./example-themed-component";
 export * from "./modal";
+export * from "./help_button";

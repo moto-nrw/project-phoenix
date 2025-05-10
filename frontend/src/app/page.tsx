@@ -10,6 +10,7 @@ import {
   Button,
   Alert,
   Link,
+  HelpButton,
 } from "~/components/ui";
 
 export default function HomePage() {
@@ -48,6 +49,30 @@ export default function HomePage() {
   return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
         <div className="mx-auto max-w-2xl w-full rounded-2xl bg-white/80 p-10 text-center shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-white/90 hover:shadow-2xl">
+
+
+          {/* Help Button - positioned in top-right corner */}
+          <div className="absolute top-4 right-4">
+            <HelpButton
+                title="Hilfe"
+                content={
+                  <div>
+                    <p>Melden Sie sich mit Ihrem <strong>MOTO-Account</strong> an:</p>
+                    <ul className="mt-3 space-y-2">
+                      <li>• <strong>E-Mail:</strong> Ihre registrierte E-Mail-Adresse</li>
+                      <li>• <strong>Passwort:</strong> Ihr persönliches Passwort</li>
+                    </ul>
+                    <p className="mt-4"><strong>Probleme beim Anmelden?</strong></p>
+                    <ul className="mt-2 space-y-1 text-sm">
+                      <li>• Überprüfen Sie Ihre <strong>Internetverbindung</strong></li>
+                      <li>• Stellen Sie sicher, dass <strong>Caps Lock</strong> deaktiviert ist</li>
+                      <li>• Kontaktieren Sie den <strong>Support</strong> bei anhaltenden Problemen</li>
+                    </ul>
+                  </div>
+                }
+            />
+          </div>
+
           {/* Logo Section */}
           <div className="mb-8 flex justify-center">
             <a
@@ -114,6 +139,7 @@ export default function HomePage() {
                 type="submit"
                 isLoading={isLoading}
                 loadingText="Anmeldung läuft..."
+                size="lg"
             >
               Anmelden
             </Button>
