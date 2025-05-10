@@ -1,4 +1,4 @@
-// components/dashboard/header.tsx (Aktualisierte Version mit inline SVG)
+// components/dashboard/header.tsx (Updated with space-between layout)
 "use client";
 
 import Link from "next/link";
@@ -31,45 +31,38 @@ const LogoutIcon = ({ className }: { className?: string }) => (
 
 export function Header({ userName = "Root" }: HeaderProps) {
     return (
-        <header className="w-full bg-white/80 p-4 shadow-sm backdrop-blur-sm">
-            <div className="container mx-auto flex items-center justify-between">
-                <div className="flex items-center">
-                    {/* MOTO Logo-Text und Logo kombiniert */}
-                    <div className="flex items-center gap-3">
-                        <Image
-                            src="/images/moto_transparent.png"
-                            alt="Logo"
-                            width={40}
-                            height={40}
-                            className="h-10 w-auto"
-                        />
-                        {/* Using Tailwind classes with custom styles */}
-                        <span
-                            className="text-2xl font-extrabold inline-block"
-                            style={{
-                                fontFamily: 'var(--font-geist-sans)',
-                                letterSpacing: '-0.5px',
-                                fontWeight: 800,
-                                background: 'linear-gradient(135deg, #5080d8, #83cd2d)',
-                                WebkitBackgroundClip: 'text',
-                                backgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                            }}
-                        >
-                            MOTO
-                        </span>
-                    </div>
-
-                    {/* Title section */}
-                    <div className="flex items-center ml-6">
-                        <h1 className="text-xl font-bold">
-                            <span className="hidden md:inline">Willkommen, {userName}!</span>
-                        </h1>
-                    </div>
+        <header className="w-full bg-white/80 py-4 shadow-sm backdrop-blur-sm">
+            <div className="w-full px-4 flex items-center justify-between">
+                {/* Left container: Logo, MOTO text, and welcome message */}
+                <div className="flex items-center gap-3">
+                    <Image
+                        src="/images/moto_transparent.png"
+                        alt="Logo"
+                        width={40}
+                        height={40}
+                        className="h-10 w-auto"
+                    />
+                    <span
+                        className="text-2xl font-extrabold inline-block"
+                        style={{
+                            fontFamily: 'var(--font-geist-sans)',
+                            letterSpacing: '-0.5px',
+                            fontWeight: 800,
+                            background: 'linear-gradient(135deg, #5080d8, #83cd2d)',
+                            WebkitBackgroundClip: 'text',
+                            backgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                        }}
+                    >
+                        MOTO
+                    </span>
+                    <h1 className="text-xl font-bold ml-6">
+                        <span className="hidden md:inline">Willkommen, {userName}!</span>
+                    </h1>
                 </div>
 
-                {/* Moderner Logout button */}
-                <div>
+                {/* Right container: Logout button */}
+                <div className="flex-shrink-0">
                     <Link href="/logout">
                         <Button
                             variant="outline_danger"
