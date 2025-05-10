@@ -169,11 +169,15 @@ func (r *GuestRepository) List(ctx context.Context, filters map[string]interface
 			case "active":
 				if boolValue, ok := value.(bool); ok && boolValue {
 					now := time.Now()
-					filter.Where("(start_date IS NULL OR start_date <= ?) AND (end_date IS NULL OR end_date >= ?)", now, now)
+					// Create separate where conditions
+					filter.Where("start_date IS NULL OR start_date <= ?", modelBase.OpEqual, now)
+					filter.Where("end_date IS NULL OR end_date >= ?", modelBase.OpEqual, now)
 				}
 			case "current_date":
 				if dateValue, ok := value.(time.Time); ok {
-					filter.Where("(start_date IS NULL OR start_date <= ?) AND (end_date IS NULL OR end_date >= ?)", dateValue, dateValue)
+					// Create separate where conditions
+					filter.Where("start_date IS NULL OR start_date <= ?", modelBase.OpEqual, dateValue)
+					filter.Where("end_date IS NULL OR end_date >= ?", modelBase.OpEqual, dateValue)
 				}
 			case "has_organization":
 				if boolValue, ok := value.(bool); ok && boolValue {

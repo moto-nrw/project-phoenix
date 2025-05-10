@@ -163,8 +163,8 @@ func (r *PersonRepository) Update(ctx context.Context, person *users.Person) err
 	return r.Repository.Update(ctx, person)
 }
 
-// List retrieves persons matching the provided query options
-func (r *PersonRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Person, error) {
+// ListWithOptions retrieves persons matching the provided query options
+func (r *PersonRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Person, error) {
 	var persons []*users.Person
 	query := r.db.NewSelect().Model(&persons)
 
@@ -263,23 +263,3 @@ func (r *PersonRepository) List(ctx context.Context, filters map[string]interfac
 	return r.ListWithOptions(ctx, options)
 }
 
-// ListWithOptions provides a type-safe way to list persons with query options
-func (r *PersonRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Person, error) {
-	var persons []*users.Person
-	query := r.db.NewSelect().Model(&persons)
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list with options",
-			Err: err,
-		}
-	}
-
-	return persons, nil
-}

@@ -3,6 +3,8 @@ package users
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -23,6 +25,41 @@ func NewRFIDCardRepository(db *bun.DB) users.RFIDCardRepository {
 		Repository: base.NewRepository[*users.RFIDCard](db, "users.rfid_cards", "RFIDCard"),
 		db:         db,
 	}
+}
+
+// Delete overrides the base Delete method to match the interface
+func (r *RFIDCardRepository) Delete(ctx context.Context, id string) error {
+	_, err := r.db.NewDelete().
+		Model((*users.RFIDCard)(nil)).
+		Where("id = ?", id).
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "delete",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+// FindByID overrides the base FindByID method to match the interface
+func (r *RFIDCardRepository) FindByID(ctx context.Context, id string) (*users.RFIDCard, error) {
+	card := new(users.RFIDCard)
+	err := r.db.NewSelect().
+		Model(card).
+		Where("id = ?", id).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by id",
+			Err: err,
+		}
+	}
+
+	return card, nil
 }
 
 // Activate sets an RFID card as active
@@ -151,7 +188,7 @@ func (r *RFIDCardRepository) FindCardWithPerson(ctx context.Context, id string) 
 		Scan(ctx)
 
 	// It's OK if we don't find a person (not an error)
-	if err != nil && err != bun.ErrNoRows {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find person by tag ID",
 			Err: err,

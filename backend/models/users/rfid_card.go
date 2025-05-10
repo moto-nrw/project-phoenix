@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -72,4 +73,19 @@ func (r *RFIDCard) Activate() {
 // Deactivate sets the RFID card as inactive
 func (r *RFIDCard) Deactivate() {
 	r.Active = false
+}
+
+// GetID returns the ID of the RFID card
+func (r *RFIDCard) GetID() interface{} {
+	return r.ID
+}
+
+// GetCreatedAt returns the creation timestamp of the RFID card
+func (r *RFIDCard) GetCreatedAt() time.Time {
+	return r.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp of the RFID card
+func (r *RFIDCard) GetUpdatedAt() time.Time {
+	return r.UpdatedAt
 }

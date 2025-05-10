@@ -265,13 +265,13 @@ func (r *PrivacyConsentRepository) List(ctx context.Context, filters map[string]
 			case "active":
 				if boolValue, ok := value.(bool); ok && boolValue {
 					now := time.Now()
-					filter.Equal("accepted", true).
-						Where("expires_at IS NULL OR expires_at > ?", now)
+					filter.Equal("accepted", true)
+					filter.Where("expires_at IS NULL OR expires_at > ?", modelBase.OpEqual, now)
 				}
 			case "expired":
 				if boolValue, ok := value.(bool); ok && boolValue {
 					now := time.Now()
-					filter.Where("expires_at < ?", now)
+					filter.Where("expires_at < ?", modelBase.OpLessThan, now)
 				}
 			case "policy_version":
 				filter.Equal("policy_version", value)
