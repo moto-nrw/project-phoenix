@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	jwx "github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -222,49 +223,196 @@ func (s *Service) Register(ctx context.Context, email, username, name, password 
 }
 
 // ValidateToken validates an access token and returns the associated account
-func (s *Service) ValidateToken(ctx context.Context, token string) (*auth.Account, error) {
-	// Parse and validate token
-	// This is simplified - in a real implementation, you'd extract the claims
-	// using the JWT library
-	_, err := s.tokenAuth.JwtAuth.Decode(token)
+func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.Account, error) {
+	// Parse and validate JWT token
+	jwtToken, err := s.tokenAuth.JwtAuth.Decode(tokenString)
 	if err != nil {
 		return nil, &AuthError{Op: "validate token", Err: ErrInvalidToken}
 	}
 
-	// Assuming claims.ID is extracted and contains the account ID
-	// For now, we're just checking the token format
+	// Extract claims
+	claims := extractClaims(jwtToken)
 
-	// Get account (simplified - would use claims.ID in real implementation)
-	// Just returning nil since we can't extract the actual ID
-	return nil, &AuthError{Op: "validate token", Err: ErrInvalidToken}
+	// Parse claims into AppClaims
+	var appClaims jwt.AppClaims
+	err = appClaims.ParseClaims(claims)
+	if err != nil {
+		return nil, &AuthError{Op: "parse claims", Err: ErrInvalidToken}
+	}
+
+	// Get account by ID
+	account, err := s.accountRepo.FindByID(ctx, int64(appClaims.ID))
+	if err != nil {
+		return nil, &AuthError{Op: "get account", Err: ErrAccountNotFound}
+	}
+
+	// Ensure account is active
+	if !account.Active {
+		return nil, &AuthError{Op: "validate token", Err: ErrAccountInactive}
+	}
+
+	// Load roles if not already loaded
+	if account.Roles == nil || len(account.Roles) == 0 {
+		accountRoles, err := s.accountRoleRepo.FindByAccountID(ctx, account.ID)
+		if err == nil {
+			// Extract roles from account roles
+			for _, ar := range accountRoles {
+				if ar.Role != nil {
+					account.Roles = append(account.Roles, ar.Role)
+				}
+			}
+		}
+	}
+
+	return account, nil
 }
 
 // RefreshToken generates new token pair from a refresh token
-func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (string, string, error) {
-	// Parse refresh token and extract claims
-	// This is simplified - in a real implementation, you'd extract the token string
-	_, err := s.tokenAuth.JwtAuth.Decode(refreshToken)
+func (s *Service) RefreshToken(ctx context.Context, refreshTokenStr string) (string, string, error) {
+	// Parse JWT refresh token
+	jwtToken, err := s.tokenAuth.JwtAuth.Decode(refreshTokenStr)
 	if err != nil {
 		return "", "", &AuthError{Op: "parse refresh token", Err: ErrInvalidToken}
 	}
 
-	// Get token from repository (simplified - would use refreshClaims.Token in real implementation)
-	// For now, we're just checking the token format
-	return "", "", &AuthError{Op: "refresh token", Err: ErrInvalidToken}
+	// Extract claims
+	claims := extractClaims(jwtToken)
+
+	// Parse refresh token claims
+	var refreshClaims jwt.RefreshClaims
+	err = refreshClaims.ParseClaims(claims)
+	if err != nil {
+		return "", "", &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
+	}
+
+	// Get token from database using token string from claims
+	dbToken, err := s.tokenRepo.FindByToken(ctx, refreshClaims.Token)
+	if err != nil {
+		return "", "", &AuthError{Op: "get token", Err: ErrTokenNotFound}
+	}
+
+	// Check if token is expired
+	if time.Now().After(dbToken.Expiry) {
+		// Delete expired token
+		_ = s.tokenRepo.Delete(ctx, dbToken)
+		return "", "", &AuthError{Op: "check token expiry", Err: ErrTokenExpired}
+	}
+
+	// Get account
+	account, err := s.accountRepo.FindByID(ctx, dbToken.AccountID)
+	if err != nil {
+		return "", "", &AuthError{Op: "get account", Err: ErrAccountNotFound}
+	}
+
+	// Check if account is active
+	if !account.Active {
+		return "", "", &AuthError{Op: "check account status", Err: ErrAccountInactive}
+	}
+
+	// Generate new refresh token
+	newTokenStr := uuid.Must(uuid.NewV4()).String()
+	now := time.Now()
+
+	// Update token in database
+	dbToken.Token = newTokenStr
+	dbToken.Expiry = now.Add(s.jwtRefreshExpiry)
+
+	// Execute in transaction
+	err = s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		// Update token
+		if err := s.tokenRepo.Update(ctx, dbToken); err != nil {
+			return err
+		}
+
+		// Update last login
+		loginTime := time.Now()
+		account.LastLogin = &loginTime
+		return s.accountRepo.Update(ctx, account)
+	})
+
+	if err != nil {
+		return "", "", &AuthError{Op: "refresh transaction", Err: err}
+	}
+
+	// Load roles if not loaded
+	if account.Roles == nil || len(account.Roles) == 0 {
+		accountRoles, err := s.accountRoleRepo.FindByAccountID(ctx, account.ID)
+		if err == nil {
+			// Extract roles from account roles
+			for _, ar := range accountRoles {
+				if ar.Role != nil {
+					account.Roles = append(account.Roles, ar.Role)
+				}
+			}
+		}
+	}
+
+	// Extract roles as strings
+	var roleNames []string
+	for _, role := range account.Roles {
+		roleNames = append(roleNames, role.Name)
+	}
+
+	// Extract username
+	username := ""
+	if account.Username != nil {
+		username = *account.Username
+	}
+
+	// Generate token pair
+	appClaims := jwt.AppClaims{
+		ID:       int(account.ID),
+		Sub:      account.Email,
+		Username: username,
+		Roles:    roleNames,
+	}
+
+	newRefreshClaims := jwt.RefreshClaims{
+		ID:    int(dbToken.ID),
+		Token: dbToken.Token,
+	}
+
+	// Generate tokens
+	accessToken, newRefreshToken, err := s.tokenAuth.GenTokenPair(appClaims, newRefreshClaims)
+	if err != nil {
+		return "", "", &AuthError{Op: "generate tokens", Err: err}
+	}
+
+	return accessToken, newRefreshToken, nil
 }
 
 // Logout invalidates a refresh token
-func (s *Service) Logout(ctx context.Context, refreshToken string) error {
-	// Parse refresh token and extract claims
-	// This is simplified - in a real implementation, you'd extract the token string
-	_, err := s.tokenAuth.JwtAuth.Decode(refreshToken)
+func (s *Service) Logout(ctx context.Context, refreshTokenStr string) error {
+	// Parse JWT refresh token
+	jwtToken, err := s.tokenAuth.JwtAuth.Decode(refreshTokenStr)
 	if err != nil {
 		return &AuthError{Op: "parse refresh token", Err: ErrInvalidToken}
 	}
 
-	// Delete token (simplified - would use refreshClaims.Token in real implementation)
-	// For now, we're just checking the token format
-	return &AuthError{Op: "logout", Err: ErrInvalidToken}
+	// Extract claims
+	claims := extractClaims(jwtToken)
+
+	// Parse refresh token claims
+	var refreshClaims jwt.RefreshClaims
+	err = refreshClaims.ParseClaims(claims)
+	if err != nil {
+		return &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
+	}
+
+	// Get token from database
+	dbToken, err := s.tokenRepo.FindByToken(ctx, refreshClaims.Token)
+	if err != nil {
+		// Token not found, consider logout successful
+		return nil
+	}
+
+	// Delete token from database
+	err = s.tokenRepo.Delete(ctx, dbToken)
+	if err != nil {
+		return &AuthError{Op: "delete token", Err: err}
+	}
+
+	return nil
 }
 
 // ChangePassword updates an account's password
@@ -327,6 +475,26 @@ func (s *Service) GetAccountByEmail(ctx context.Context, email string) (*auth.Ac
 }
 
 // Helper functions
+
+// extractClaims extracts all claims from a jwt token into a map
+func extractClaims(token jwx.Token) map[string]interface{} {
+	claims := make(map[string]interface{})
+
+	// Extract private claims
+	for k, v := range token.PrivateClaims() {
+		claims[k] = v
+	}
+
+	// Add registered claims if present
+	if sub, ok := token.Get(jwx.SubjectKey); ok {
+		claims[jwx.SubjectKey] = sub
+	}
+	if exp, ok := token.Get(jwx.ExpirationKey); ok {
+		claims[jwx.ExpirationKey] = exp
+	}
+
+	return claims
+}
 
 // validatePassword validates password strength
 func validatePassword(password string) error {
