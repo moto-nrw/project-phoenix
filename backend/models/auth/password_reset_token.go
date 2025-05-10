@@ -9,11 +9,11 @@ import (
 
 // PasswordResetToken represents a token used for password reset operations
 type PasswordResetToken struct {
-	base.Model
-	AccountID int64     `bun:"account_id,notnull" json:"account_id"`
-	Token     string    `bun:"token,notnull" json:"token"`
-	Expiry    time.Time `bun:"expiry,notnull" json:"expiry"`
-	Used      bool      `bun:"used,notnull,default:false" json:"used"`
+	base.Model `bun:"schema:auth,table:password_reset_tokens"`
+	AccountID  int64     `bun:"account_id,notnull" json:"account_id"`
+	Token      string    `bun:"token,notnull" json:"token"`
+	Expiry     time.Time `bun:"expiry,notnull" json:"expiry"`
+	Used       bool      `bun:"used,notnull,default:false" json:"used"`
 
 	// Relations
 	Account *Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
@@ -22,6 +22,22 @@ type PasswordResetToken struct {
 // TableName returns the database table name
 func (t *PasswordResetToken) TableName() string {
 	return "auth.password_reset_tokens"
+}
+
+func (t *PasswordResetToken) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("auth.password_reset_tokens")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("auth.password_reset_tokens")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("auth.password_reset_tokens")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("auth.password_reset_tokens")
+	}
+	return nil
 }
 
 // Validate ensures password reset token data is valid

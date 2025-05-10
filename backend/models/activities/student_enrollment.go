@@ -18,7 +18,7 @@ const (
 
 // StudentEnrollment represents a student enrolled in an activity group
 type StudentEnrollment struct {
-	base.Model
+	base.Model       `bun:"schema:activities,table:student_enrollments"`
 	StudentID        int64     `bun:"student_id,notnull" json:"student_id"`
 	ActivityGroupID  int64     `bun:"activity_group_id,notnull" json:"activity_group_id"`
 	EnrollmentDate   time.Time `bun:"enrollment_date,notnull" json:"enrollment_date"`
@@ -27,6 +27,22 @@ type StudentEnrollment struct {
 	// Relations - populated when using the ORM's relations
 	Student       *users.Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
 	ActivityGroup *Group         `bun:"rel:belongs-to,join:activity_group_id=id" json:"activity_group,omitempty"`
+}
+
+func (se *StudentEnrollment) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("activities.student_enrollments")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("activities.student_enrollments")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("activities.student_enrollments")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("activities.student_enrollments")
+	}
+	return nil
 }
 
 // GetID returns the entity's ID

@@ -21,7 +21,7 @@ const (
 
 // Device represents an IoT device in the system
 type Device struct {
-	base.Model
+	base.Model     `bun:"schema:iot,table:devices"`
 	DeviceID       string       `bun:"device_id,notnull,unique" json:"device_id"`
 	DeviceType     string       `bun:"device_type,notnull" json:"device_type"`
 	Name           *string      `bun:"name" json:"name,omitempty"`
@@ -31,6 +31,22 @@ type Device struct {
 
 	// Relations
 	RegisteredBy *users.Person `bun:"-" json:"registered_by,omitempty"`
+}
+
+func (d *Device) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("iot.devices")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("iot.devices")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("iot.devices")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("iot.devices")
+	}
+	return nil
 }
 
 // TableName returns the database table name

@@ -21,7 +21,7 @@ const (
 
 // PersonGuardian represents the relationship between a person and their guardian
 type PersonGuardian struct {
-	base.Model
+	base.Model        `bun:"schema:users,table:persons_guardians"`
 	PersonID          int64            `bun:"person_id,notnull" json:"person_id"`
 	GuardianAccountID int64            `bun:"guardian_account_id,notnull" json:"guardian_account_id"`
 	RelationshipType  RelationshipType `bun:"relationship_type,notnull" json:"relationship_type"`
@@ -34,6 +34,22 @@ type PersonGuardian struct {
 
 	// Parsed permissions
 	parsedPermissions map[string]bool `bun:"-" json:"-"`
+}
+
+func (pg *PersonGuardian) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("users.persons_guardians")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("users.persons_guardians")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("users.persons_guardians")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("users.persons_guardians")
+	}
+	return nil
 }
 
 // TableName returns the database table name

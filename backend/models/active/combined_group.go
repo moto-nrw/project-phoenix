@@ -9,13 +9,29 @@ import (
 
 // CombinedGroup represents a combination of multiple active groups
 type CombinedGroup struct {
-	base.Model
-	StartTime time.Time  `bun:"start_time,notnull" json:"start_time"`
-	EndTime   *time.Time `bun:"end_time" json:"end_time,omitempty"`
+	base.Model `bun:"schema:active,table:combined_groups"`
+	StartTime  time.Time  `bun:"start_time,notnull" json:"start_time"`
+	EndTime    *time.Time `bun:"end_time" json:"end_time,omitempty"`
 
 	// Relations - these would be populated when using the ORM's relations
 	GroupMappings []*GroupMapping `bun:"rel:has-many,join:id=active_combined_group_id" json:"group_mappings,omitempty"`
 	ActiveGroups  []*Group        `bun:"-" json:"active_groups,omitempty"` // This would be loaded through GroupMappings
+}
+
+func (cg *CombinedGroup) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("active.combined_groups")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("active.combined_groups")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("active.combined_groups")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("active.combined_groups")
+	}
+	return nil
 }
 
 // GetID returns the entity's ID

@@ -10,7 +10,7 @@ import (
 
 // Permission represents a system permission
 type Permission struct {
-	base.Model
+	base.Model  `bun:"schema:auth,table:permissions"`
 	Name        string `bun:"name,notnull,unique" json:"name"`
 	Description string `bun:"description" json:"description"`
 	Resource    string `bun:"resource,notnull" json:"resource"`
@@ -20,6 +20,22 @@ type Permission struct {
 // TableName returns the database table name
 func (p *Permission) TableName() string {
 	return "auth.permissions"
+}
+
+func (p *Permission) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("auth.permissions")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("auth.permissions")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("auth.permissions")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("auth.permissions")
+	}
+	return nil
 }
 
 // Validate ensures permission data is valid

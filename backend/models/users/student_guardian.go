@@ -10,7 +10,7 @@ import (
 
 // StudentGuardian represents the relationship between a student and their guardian
 type StudentGuardian struct {
-	base.Model
+	base.Model         `bun:"schema:users,table:students_guardians"`
 	StudentID          int64                  `bun:"student_id,notnull" json:"student_id"`
 	GuardianAccountID  int64                  `bun:"guardian_account_id,notnull" json:"guardian_account_id"`
 	RelationshipType   string                 `bun:"relationship_type,notnull" json:"relationship_type"`
@@ -22,6 +22,22 @@ type StudentGuardian struct {
 	// Relations not stored in the database
 	Student *Student `bun:"-" json:"student,omitempty"`
 	// GuardianAccount would be a reference to auth.AccountParent
+}
+
+func (sg *StudentGuardian) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("users.students_guardians")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("users.students_guardians")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("users.students_guardians")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("users.students_guardians")
+	}
+	return nil
 }
 
 // TableName returns the database table name

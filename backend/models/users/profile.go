@@ -11,17 +11,33 @@ import (
 
 // Profile represents a user profile in the system
 type Profile struct {
-	base.Model
-	AccountID int64  `bun:"account_id,notnull,unique" json:"account_id"`
-	Avatar    string `bun:"avatar" json:"avatar,omitempty"`
-	Bio       string `bun:"bio" json:"bio,omitempty"`
-	Settings  string `bun:"settings" json:"settings,omitempty"` // JSON string
+	base.Model `bun:"schema:users,table:profiles"`
+	AccountID  int64  `bun:"account_id,notnull,unique" json:"account_id"`
+	Avatar     string `bun:"avatar" json:"avatar,omitempty"`
+	Bio        string `bun:"bio" json:"bio,omitempty"`
+	Settings   string `bun:"settings" json:"settings,omitempty"` // JSON string
 
 	// Relations not stored in the database
 	Account *auth.Account `bun:"-" json:"account,omitempty"`
 
 	// Parsed settings
 	parsedSettings map[string]interface{} `bun:"-" json:"-"`
+}
+
+func (p *Profile) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("users.profiles")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("users.profiles")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("users.profiles")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("users.profiles")
+	}
+	return nil
 }
 
 // TableName returns the database table name

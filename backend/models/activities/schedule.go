@@ -20,7 +20,7 @@ const (
 
 // Schedule represents a scheduled time for an activity group
 type Schedule struct {
-	base.Model
+	base.Model      `bun:"schema:activities,table:schedules"`
 	Weekday         string `bun:"weekday,notnull" json:"weekday"`
 	TimeframeID     *int64 `bun:"timeframe_id" json:"timeframe_id,omitempty"`
 	ActivityGroupID int64  `bun:"activity_group_id,notnull" json:"activity_group_id"`
@@ -28,6 +28,22 @@ type Schedule struct {
 	// Relations - these would be populated when using the ORM's relations
 	// ActivityGroup *Group `bun:"rel:belongs-to,join:activity_group_id=id" json:"activity_group,omitempty"`
 	// Timeframe *schedule.Timeframe `bun:"rel:belongs-to,join:timeframe_id=id" json:"timeframe,omitempty"`
+}
+
+func (s *Schedule) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("activities.schedules")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("activities.schedules")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("activities.schedules")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("activities.schedules")
+	}
+	return nil
 }
 
 // GetID returns the entity's ID

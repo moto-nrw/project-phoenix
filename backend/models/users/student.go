@@ -11,7 +11,7 @@ import (
 
 // Student represents a student in the system
 type Student struct {
-	base.Model
+	base.Model      `bun:"schema:users,table:students"`
 	PersonID        int64   `bun:"person_id,notnull" json:"person_id"`
 	SchoolClass     string  `bun:"school_class,notnull" json:"school_class"`
 	Bus             bool    `bun:"bus,notnull" json:"bus"`
@@ -27,6 +27,22 @@ type Student struct {
 	// Relations not stored in the database
 	Person *Person `bun:"-" json:"person,omitempty"`
 	// Group relation is loaded dynamically to avoid import cycle
+}
+
+func (s *Student) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("users.students")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("users.students")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("users.students")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("users.students")
+	}
+	return nil
 }
 
 // TableName returns the database table name

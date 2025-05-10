@@ -12,12 +12,12 @@ import (
 
 // Group represents an active group session in a room
 type Group struct {
-	base.Model
-	StartTime time.Time  `bun:"start_time,notnull" json:"start_time"`
-	EndTime   *time.Time `bun:"end_time" json:"end_time,omitempty"`
-	GroupID   int64      `bun:"group_id,notnull" json:"group_id"`
-	DeviceID  int64      `bun:"device_id,notnull" json:"device_id"`
-	RoomID    int64      `bun:"room_id,notnull" json:"room_id"`
+	base.Model `bun:"schema:active,table:groups"`
+	StartTime  time.Time  `bun:"start_time,notnull" json:"start_time"`
+	EndTime    *time.Time `bun:"end_time" json:"end_time,omitempty"`
+	GroupID    int64      `bun:"group_id,notnull" json:"group_id"`
+	DeviceID   int64      `bun:"device_id,notnull" json:"device_id"`
+	RoomID     int64      `bun:"room_id,notnull" json:"room_id"`
 
 	// Relations - these would be populated when using the ORM's relations
 	ActualGroup *activities.Group  `bun:"rel:belongs-to,join:group_id=id" json:"actual_group,omitempty"`
@@ -25,6 +25,22 @@ type Group struct {
 	Room        *facilities.Room   `bun:"rel:belongs-to,join:room_id=id" json:"room,omitempty"`
 	Visits      []*Visit           `bun:"rel:has-many,join:id=active_group_id" json:"visits,omitempty"`
 	Supervisors []*GroupSupervisor `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
+}
+
+func (g *Group) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("active.groups")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("active.groups")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("active.groups")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("active.groups")
+	}
+	return nil
 }
 
 // GetID returns the entity's ID

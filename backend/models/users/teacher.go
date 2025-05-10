@@ -10,7 +10,7 @@ import (
 
 // Teacher represents a pedagogical specialist in the system
 type Teacher struct {
-	base.Model
+	base.Model     `bun:"schema:users,table:teachers"`
 	StaffID        int64  `bun:"staff_id,notnull,unique" json:"staff_id"`
 	Specialization string `bun:"specialization,notnull" json:"specialization"`
 	Role           string `bun:"role" json:"role,omitempty"`
@@ -19,6 +19,22 @@ type Teacher struct {
 	// Relations not stored in the database
 	Staff *Staff `bun:"-" json:"staff,omitempty"`
 	// Groups will be managed through the education.GroupTeacher model
+}
+
+func (t *Teacher) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("users.teachers")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("users.teachers")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("users.teachers")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("users.teachers")
+	}
+	return nil
 }
 
 // TableName returns the database table name

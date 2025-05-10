@@ -11,7 +11,7 @@ import (
 
 // AccountParent represents a parent/guardian authentication account
 type AccountParent struct {
-	base.Model
+	base.Model   `bun:"schema:auth,table:accounts_parents"`
 	Email        string     `bun:"email,notnull" json:"email"`
 	Username     *string    `bun:"username,unique" json:"username,omitempty"`
 	Active       bool       `bun:"active,notnull,default:true" json:"active"`
@@ -22,6 +22,22 @@ type AccountParent struct {
 // TableName returns the database table name
 func (a *AccountParent) TableName() string {
 	return "auth.accounts_parents"
+}
+
+func (a *AccountParent) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("auth.accounts_parents")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("auth.accounts_parents")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("auth.accounts_parents")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("auth.accounts_parents")
+	}
+	return nil
 }
 
 // Validate ensures account parent data is valid

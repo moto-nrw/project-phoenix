@@ -9,12 +9,28 @@ import (
 
 // Staff represents a staff member in the system
 type Staff struct {
-	base.Model
+	base.Model `bun:"schema:users,table:staff"`
 	PersonID   int64  `bun:"person_id,notnull,unique" json:"person_id"`
 	StaffNotes string `bun:"staff_notes" json:"staff_notes,omitempty"`
 
 	// Relations not stored in the database
 	Person *Person `bun:"-" json:"person,omitempty"`
+}
+
+func (s *Staff) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("users.staff")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("users.staff")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("users.staff")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("users.staff")
+	}
+	return nil
 }
 
 // TableName returns the database table name

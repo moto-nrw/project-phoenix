@@ -10,7 +10,7 @@ import (
 
 // Group represents an activity group
 type Group struct {
-	base.Model
+	base.Model      `bun:"schema:activities,table:groups"`
 	Name            string `bun:"name,notnull" json:"name"`
 	MaxParticipants int    `bun:"max_participants,notnull" json:"max_participants"`
 	IsOpen          bool   `bun:"is_open,notnull,default:false" json:"is_open"`
@@ -23,6 +23,22 @@ type Group struct {
 	Supervisors []*SupervisorPlanned `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
 	Schedules   []*Schedule          `bun:"rel:has-many,join:id=activity_group_id" json:"schedules,omitempty"`
 	Enrollments []*StudentEnrollment `bun:"rel:has-many,join:id=activity_group_id" json:"enrollments,omitempty"`
+}
+
+func (g *Group) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("activities.groups")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("activities.groups")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("activities.groups")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("activities.groups")
+	}
+	return nil
 }
 
 // GetID returns the entity's ID

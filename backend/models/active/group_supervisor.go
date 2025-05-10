@@ -10,16 +10,32 @@ import (
 
 // GroupSupervisor represents a staff member assigned to supervise an active group
 type GroupSupervisor struct {
-	base.Model
-	StaffID   int64      `bun:"staff_id,notnull" json:"staff_id"`
-	GroupID   int64      `bun:"group_id,notnull" json:"group_id"`
-	Role      string     `bun:"role,notnull" json:"role"`
-	StartDate time.Time  `bun:"start_date,notnull" json:"start_date"`
-	EndDate   *time.Time `bun:"end_date" json:"end_date,omitempty"`
+	base.Model `bun:"schema:active,table:group_supervisors"`
+	StaffID    int64      `bun:"staff_id,notnull" json:"staff_id"`
+	GroupID    int64      `bun:"group_id,notnull" json:"group_id"`
+	Role       string     `bun:"role,notnull" json:"role"`
+	StartDate  time.Time  `bun:"start_date,notnull" json:"start_date"`
+	EndDate    *time.Time `bun:"end_date" json:"end_date,omitempty"`
 
 	// Relations - these would be populated when using the ORM's relations
 	Staff       *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`
 	ActiveGroup *Group       `bun:"rel:belongs-to,join:group_id=id" json:"active_group,omitempty"`
+}
+
+func (gs *GroupSupervisor) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("active.group_supervisors")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("active.group_supervisors")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("active.group_supervisors")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("active.group_supervisors")
+	}
+	return nil
 }
 
 // GetID returns the entity's ID

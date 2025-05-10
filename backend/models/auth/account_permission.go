@@ -9,7 +9,7 @@ import (
 
 // AccountPermission represents a direct permission assignment to an account
 type AccountPermission struct {
-	base.Model
+	base.Model   `bun:"schema:auth,table:account_permissions"`
 	AccountID    int64 `bun:"account_id,notnull" json:"account_id"`
 	PermissionID int64 `bun:"permission_id,notnull" json:"permission_id"`
 	Granted      bool  `bun:"granted,notnull,default:true" json:"granted"`
@@ -22,6 +22,22 @@ type AccountPermission struct {
 // TableName returns the database table name
 func (ap *AccountPermission) TableName() string {
 	return "auth.account_permissions"
+}
+
+func (ap *AccountPermission) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("auth.account_permissions")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("auth.account_permissions")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("auth.account_permissions")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("auth.account_permissions")
+	}
+	return nil
 }
 
 // Validate ensures account permission data is valid

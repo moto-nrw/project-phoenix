@@ -11,15 +11,31 @@ import (
 
 // Person represents a physical person in the system
 type Person struct {
-	base.Model
-	FirstName string  `bun:"first_name,notnull" json:"first_name"`
-	LastName  string  `bun:"last_name,notnull" json:"last_name"`
-	TagID     *string `bun:"tag_id" json:"tag_id,omitempty"`
-	AccountID *int64  `bun:"account_id" json:"account_id,omitempty"`
+	base.Model `bun:"schema:users,table:persons"`
+	FirstName  string  `bun:"first_name,notnull" json:"first_name"`
+	LastName   string  `bun:"last_name,notnull" json:"last_name"`
+	TagID      *string `bun:"tag_id" json:"tag_id,omitempty"`
+	AccountID  *int64  `bun:"account_id" json:"account_id,omitempty"`
 
 	// Relations not stored in the database
 	Account  *auth.Account `bun:"-" json:"account,omitempty"`
 	RFIDCard *RFIDCard     `bun:"-" json:"rfid_card,omitempty"`
+}
+
+func (p *Person) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("users.persons")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("users.persons")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("users.persons")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("users.persons")
+	}
+	return nil
 }
 
 // TableName returns the database table name

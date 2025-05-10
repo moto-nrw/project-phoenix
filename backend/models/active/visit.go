@@ -10,7 +10,7 @@ import (
 
 // Visit represents a student visit to an active group
 type Visit struct {
-	base.Model
+	base.Model    `bun:"schema:active,table:visits"`
 	StudentID     int64      `bun:"student_id,notnull" json:"student_id"`
 	ActiveGroupID int64      `bun:"active_group_id,notnull" json:"active_group_id"`
 	EntryTime     time.Time  `bun:"entry_time,notnull" json:"entry_time"`
@@ -19,6 +19,22 @@ type Visit struct {
 	// Relations - these would be populated when using the ORM's relations
 	Student     *users.Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
 	ActiveGroup *Group         `bun:"rel:belongs-to,join:active_group_id=id" json:"active_group,omitempty"`
+}
+
+func (v *Visit) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("active.visits")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("active.visits")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("active.visits")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("active.visits")
+	}
+	return nil
 }
 
 // GetID returns the entity's ID

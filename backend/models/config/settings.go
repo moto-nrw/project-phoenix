@@ -10,13 +10,29 @@ import (
 
 // Setting represents a system configuration setting
 type Setting struct {
-	base.Model
+	base.Model      `bun:"schema:config,table:settings"`
 	Key             string `bun:"key,notnull,unique" json:"key"`
 	Value           string `bun:"value,notnull" json:"value"`
 	Category        string `bun:"category,notnull" json:"category"`
 	Description     string `bun:"description" json:"description,omitempty"`
 	RequiresRestart bool   `bun:"requires_restart,notnull,default:false" json:"requires_restart"`
 	RequiresDBReset bool   `bun:"requires_db_reset,notnull,default:false" json:"requires_db_reset"`
+}
+
+func (s *Setting) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("config.settings")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("config.settings")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("config.settings")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("config.settings")
+	}
+	return nil
 }
 
 // GetID returns the entity's ID

@@ -9,11 +9,27 @@ import (
 
 // Timeframe represents a time period with start and end times
 type Timeframe struct {
-	base.Model
+	base.Model  `bun:"schema:schedule,table:timeframes"`
 	StartTime   time.Time  `bun:"start_time,notnull" json:"start_time"`
 	EndTime     *time.Time `bun:"end_time" json:"end_time,omitempty"`
 	IsActive    bool       `bun:"is_active,notnull,default:false" json:"is_active"`
 	Description string     `bun:"description" json:"description,omitempty"`
+}
+
+func (t *Timeframe) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("schedule.timeframes")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("schedule.timeframes")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("schedule.timeframes")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("schedule.timeframes")
+	}
+	return nil
 }
 
 // TableName returns the database table name

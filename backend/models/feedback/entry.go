@@ -11,7 +11,7 @@ import (
 
 // Entry represents a feedback entry from a student
 type Entry struct {
-	base.Model
+	base.Model      `bun:"schema:feedback,table:entries"`
 	Value           string    `bun:"value,notnull" json:"value"`
 	Day             time.Time `bun:"day,notnull" json:"day"`
 	Time            time.Time `bun:"time,notnull" json:"time"`
@@ -20,6 +20,22 @@ type Entry struct {
 
 	// Relations not stored in the database
 	Student *users.Student `bun:"-" json:"student,omitempty"`
+}
+
+func (e *Entry) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("feedback.entries")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("feedback.entries")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("feedback.entries")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("feedback.entries")
+	}
+	return nil
 }
 
 // TableName returns the database table name

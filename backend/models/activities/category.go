@@ -11,10 +11,26 @@ import (
 
 // Category represents a category for activities
 type Category struct {
-	base.Model
+	base.Model  `bun:"schema:activities,table:categories"`
 	Name        string `bun:"name,notnull,unique" json:"name"`
 	Description string `bun:"description" json:"description,omitempty"`
 	Color       string `bun:"color" json:"color,omitempty"`
+}
+
+func (c *Category) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("activities.categories")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("activities.categories")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("activities.categories")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("activities.categories")
+	}
+	return nil
 }
 
 // GetID returns the entity's ID

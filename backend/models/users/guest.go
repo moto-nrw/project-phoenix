@@ -12,7 +12,7 @@ import (
 
 // Guest represents a guest instructor in the system
 type Guest struct {
-	base.Model
+	base.Model        `bun:"schema:users,table:guests"`
 	StaffID           int64      `bun:"staff_id,notnull,unique" json:"staff_id"`
 	Organization      string     `bun:"organization" json:"organization,omitempty"`
 	ContactEmail      string     `bun:"contact_email" json:"contact_email,omitempty"`
@@ -24,6 +24,22 @@ type Guest struct {
 
 	// Relations not stored in the database
 	Staff *Staff `bun:"-" json:"staff,omitempty"`
+}
+
+func (s *Staff) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("users.guests")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("users.guests")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("users.guests")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("users.guests")
+	}
+	return nil
 }
 
 // TableName returns the database table name

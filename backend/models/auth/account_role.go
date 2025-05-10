@@ -9,13 +9,29 @@ import (
 
 // AccountRole represents a mapping between accounts and roles
 type AccountRole struct {
-	base.Model
-	AccountID int64 `bun:"account_id,notnull" json:"account_id"`
-	RoleID    int64 `bun:"role_id,notnull" json:"role_id"`
+	base.Model `bun:"schema:auth,table:account_roles"`
+	AccountID  int64 `bun:"account_id,notnull" json:"account_id"`
+	RoleID     int64 `bun:"role_id,notnull" json:"role_id"`
 
 	// Relations
 	Account *Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
 	Role    *Role    `bun:"rel:belongs-to,join:role_id=id" json:"role,omitempty"`
+}
+
+func (ar *AccountRole) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("auth.account_roles")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("auth.account_roles")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("auth.account_roles")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("auth.account_roles")
+	}
+	return nil
 }
 
 // TableName returns the database table name

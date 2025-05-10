@@ -10,7 +10,7 @@ import (
 
 // GroupSubstitution represents a temporary substitution of a staff member for another in a group
 type GroupSubstitution struct {
-	base.Model
+	base.Model        `bun:"schema:education,table:group_substitution"`
 	GroupID           int64     `bun:"group_id,notnull" json:"group_id"`
 	RegularStaffID    int64     `bun:"regular_staff_id,notnull" json:"regular_staff_id"`
 	SubstituteStaffID int64     `bun:"substitute_staff_id,notnull" json:"substitute_staff_id"`
@@ -22,6 +22,22 @@ type GroupSubstitution struct {
 	Group           *Group       `bun:"-" json:"group,omitempty"`
 	RegularStaff    *users.Staff `bun:"-" json:"regular_staff,omitempty"`
 	SubstituteStaff *users.Staff `bun:"-" json:"substitute_staff,omitempty"`
+}
+
+func (gs *GroupSubstitution) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("education.group_substitution")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("education.group_substitution")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("education.group_substitution")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("education.group_substitution")
+	}
+	return nil
 }
 
 // TableName returns the database table name

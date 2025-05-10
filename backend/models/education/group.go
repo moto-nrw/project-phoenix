@@ -11,14 +11,30 @@ import (
 
 // Group represents an educational group/class
 type Group struct {
-	base.Model
-	Name   string `bun:"name,notnull,unique" json:"name"`
-	RoomID *int64 `bun:"room_id" json:"room_id,omitempty"`
+	base.Model `bun:"schema:education,table:groups"`
+	Name       string `bun:"name,notnull,unique" json:"name"`
+	RoomID     *int64 `bun:"room_id" json:"room_id,omitempty"`
 
 	// Relations not stored in the database
 	Room *facilities.Room `bun:"-" json:"room,omitempty"`
 	// Teachers are linked through the GroupTeacher model
 	// Students will be a relationship from the Student model
+}
+
+func (g *Group) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("education.groups")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("education.groups")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("education.groups")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("education.groups")
+	}
+	return nil
 }
 
 // TableName returns the database table name
