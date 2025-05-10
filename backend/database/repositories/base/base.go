@@ -27,8 +27,9 @@ func NewRepository[T modelBase.Entity](db *bun.DB, tableName, entityName string)
 
 // Create inserts a new entity into the database
 func (r *Repository[T]) Create(ctx context.Context, entity T) error {
-	if entity == nil {
-		return fmt.Errorf("%s cannot be nil", r.EntityName)
+	// Check if entity is nil using reflection
+	if reflect.ValueOf(entity).IsZero() {
+		return fmt.Errorf("%s cannot be nil or zero value", r.EntityName)
 	}
 
 	// Validate entity if it implements the Validator interface
@@ -76,8 +77,9 @@ func (r *Repository[T]) FindByID(ctx context.Context, id interface{}) (T, error)
 
 // Update updates an existing entity in the database
 func (r *Repository[T]) Update(ctx context.Context, entity T) error {
-	if entity == nil {
-		return fmt.Errorf("%s cannot be nil", r.EntityName)
+	// Check if entity is nil using reflection
+	if reflect.ValueOf(entity).IsZero() {
+		return fmt.Errorf("%s cannot be nil or zero value", r.EntityName)
 	}
 
 	// Validate entity if it implements the Validator interface
