@@ -8,11 +8,12 @@ import (
 
 // Common facilities errors
 var (
-	ErrRoomNotFound          = errors.New("room not found")
-	ErrInvalidRoomData       = errors.New("invalid room data")
-	ErrRoomAlreadyExists     = errors.New("room already exists")
-	ErrInvalidCapacity       = errors.New("invalid capacity")
-	ErrInvalidSearchCriteria = errors.New("invalid search criteria")
+	ErrRoomNotFound         = errors.New("room not found")
+	ErrDuplicateRoom        = errors.New("room with this name already exists")
+	ErrInvalidRoomData      = errors.New("invalid room data")
+	ErrRoomCapacityExceeded = errors.New("room capacity exceeded")
+	ErrBuildingNotFound     = errors.New("building not found")
+	ErrCategoryNotFound     = errors.New("category not found")
 )
 
 // FacilitiesError represents a facilities-related error

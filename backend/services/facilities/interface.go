@@ -16,12 +16,15 @@ type Service interface {
 	UpdateRoom(ctx context.Context, room *facilities.Room) error
 	DeleteRoom(ctx context.Context, id int64) error
 	ListRooms(ctx context.Context, options *base.QueryOptions) ([]*facilities.Room, error)
-
-	// Room search operations
 	FindRoomByName(ctx context.Context, name string) (*facilities.Room, error)
 	FindRoomsByBuilding(ctx context.Context, building string) ([]*facilities.Room, error)
 	FindRoomsByCategory(ctx context.Context, category string) ([]*facilities.Room, error)
 	FindRoomsByFloor(ctx context.Context, building string, floor int) ([]*facilities.Room, error)
-	FindRoomsWithCapacity(ctx context.Context, minCapacity int) ([]*facilities.Room, error)
-	SearchRoomsByText(ctx context.Context, searchText string) ([]*facilities.Room, error)
+
+	// Advanced operations
+	CheckRoomAvailability(ctx context.Context, roomID int64, requiredCapacity int) (bool, error)
+	GetAvailableRooms(ctx context.Context, capacity int) ([]*facilities.Room, error)
+	GetRoomUtilization(ctx context.Context, roomID int64) (float64, error)
+	GetBuildingList(ctx context.Context) ([]string, error)
+	GetCategoryList(ctx context.Context) ([]string, error)
 }
