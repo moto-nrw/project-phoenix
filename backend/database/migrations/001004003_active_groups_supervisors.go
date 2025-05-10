@@ -77,9 +77,10 @@ func createGroupSupervisorsTable(ctx context.Context, db *bun.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_supervision_role ON active.group_supervisors(role);
 		CREATE INDEX IF NOT EXISTS idx_supervision_date_range ON active.group_supervisors(start_date, end_date);
 
-		-- Index for finding active supervisions (where end_date is null or >= current_date)
+		-- Index for finding active supervisions (where end_date is null)
+		-- Note: We can't use CURRENT_DATE in index predicate as it's not IMMUTABLE
 		CREATE INDEX IF NOT EXISTS idx_supervision_active ON active.group_supervisors(staff_id, group_id)
-		WHERE (end_date IS NULL OR end_date >= CURRENT_DATE);
+		WHERE (end_date IS NULL);
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating indexes for group_supervisors table: %w", err)
