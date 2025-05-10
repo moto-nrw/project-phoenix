@@ -7,22 +7,40 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/uptrace/bun"
 )
 
 // Room represents a physical room in a facility
 type Room struct {
-	base.Model
-	Name     string `bun:"name,notnull,unique" json:"name"`
-	Building string `bun:"building" json:"building,omitempty"`
-	Floor    int    `bun:"floor,notnull,default:0" json:"floor"`
-	Capacity int    `bun:"capacity,notnull,default:0" json:"capacity"`
-	Category string `bun:"category,notnull,default:'Other'" json:"category"`
-	Color    string `bun:"color,notnull,default:'#FFFFFF'" json:"color"`
+	base.Model `bun:"schema:facilities,table:rooms,alias:room"`
+	Name       string `bun:"name,notnull,unique" json:"name"`
+	Building   string `bun:"building" json:"building,omitempty"`
+	Floor      int    `bun:"floor,notnull,default:0" json:"floor"`
+	Capacity   int    `bun:"capacity,notnull,default:0" json:"capacity"`
+	Category   string `bun:"category,notnull,default:'Other'" json:"category"`
+	Color      string `bun:"color,notnull,default:'#FFFFFF'" json:"color"`
 }
 
 // TableName returns the database table name
 func (r *Room) TableName() string {
 	return "facilities.rooms"
+}
+
+// BeforeAppendModel lets us modify query before it's executed
+func (r *Room) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("facilities.rooms")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("facilities.rooms")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("facilities.rooms")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("facilities.rooms")
+	}
+	return nil
 }
 
 // Validate ensures room data is valid

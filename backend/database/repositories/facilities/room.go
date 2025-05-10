@@ -26,13 +26,87 @@ func NewRoomRepository(db *bun.DB) facilities.RoomRepository {
 	}
 }
 
+// Create overrides the base Create method for schema consistency
+func (r *RoomRepository) Create(ctx context.Context, room *facilities.Room) error {
+	if room == nil {
+		return fmt.Errorf("room cannot be nil")
+	}
+
+	// Validate room
+	if err := room.Validate(); err != nil {
+		return err
+	}
+
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewInsert().
+		Model(room).
+		ModelTableExpr("facilities.rooms")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewInsert().
+			Model(room).
+			ModelTableExpr("facilities.rooms")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "create",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+// Update overrides the base Update method for schema consistency
+func (r *RoomRepository) Update(ctx context.Context, room *facilities.Room) error {
+	if room == nil {
+		return fmt.Errorf("room cannot be nil")
+	}
+
+	// Validate room
+	if err := room.Validate(); err != nil {
+		return err
+	}
+
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewUpdate().
+		Model(room).
+		Where("id = ?", room.ID).
+		ModelTableExpr("facilities.rooms")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewUpdate().
+			Model(room).
+			Where("id = ?", room.ID).
+			ModelTableExpr("facilities.rooms")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
 // FindByName retrieves a room by its name
 func (r *RoomRepository) FindByName(ctx context.Context, name string) (*facilities.Room, error) {
 	room := new(facilities.Room)
 	err := r.db.NewSelect().
-		Model(room).
+		ModelTableExpr("facilities.rooms").
 		Where("LOWER(name) = LOWER(?)", name).
-		Scan(ctx)
+		Scan(ctx, room)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -100,36 +174,6 @@ func (r *RoomRepository) FindByFloor(ctx context.Context, building string, floor
 	}
 
 	return rooms, nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *RoomRepository) Create(ctx context.Context, room *facilities.Room) error {
-	if room == nil {
-		return fmt.Errorf("room cannot be nil")
-	}
-
-	// Validate room
-	if err := room.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, room)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *RoomRepository) Update(ctx context.Context, room *facilities.Room) error {
-	if room == nil {
-		return fmt.Errorf("room cannot be nil")
-	}
-
-	// Validate room
-	if err := room.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, room)
 }
 
 // List retrieves rooms matching the provided filters
