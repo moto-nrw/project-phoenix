@@ -43,7 +43,7 @@ export function Header({ userName = "Root" }: HeaderProps) {
                         className="h-10 w-auto"
                     />
                     <span
-                        className="text-2xl font-extrabold inline-block"
+                        className="text-3xl font-extrabold inline-block"
                         style={{
                             fontFamily: 'var(--font-geist-sans)',
                             letterSpacing: '-0.5px',
@@ -56,7 +56,7 @@ export function Header({ userName = "Root" }: HeaderProps) {
                     >
                         MOTO
                     </span>
-                    <h1 className="text-xl font-bold ml-6">
+                    <h1 className="text-2xl font-bold ml-6">
                         <span className="hidden md:inline">Willkommen, {userName}!</span>
                     </h1>
                 </div>
