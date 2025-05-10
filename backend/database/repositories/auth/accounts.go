@@ -288,14 +288,14 @@ func (r *AccountRepository) Create(ctx context.Context, account *auth.Account) e
 	// Get the query builder - detect if we're in a transaction
 	query := r.db.NewInsert().
 		Model(account).
-		TableExpr("auth.accounts")
+		ModelTableExpr("auth.accounts")
 
 	// Extract transaction from context if it exists
 	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
 		// Use the transaction if available
 		query = tx.NewInsert().
 			Model(account).
-			TableExpr("auth.accounts")
+			ModelTableExpr("auth.accounts")
 	}
 
 	// Execute the query

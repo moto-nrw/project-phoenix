@@ -36,7 +36,7 @@ func (a *Account) BeforeAppendModel(query any) error {
 		q.TableExpr("auth.accounts AS account")
 	}
 	if q, ok := query.(*bun.InsertQuery); ok {
-		q.TableExpr("auth.accounts")
+		q.ModelTableExpr("auth.accounts")
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.TableExpr("auth.accounts")
