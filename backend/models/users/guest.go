@@ -26,7 +26,7 @@ type Guest struct {
 	Staff *Staff `bun:"-" json:"staff,omitempty"`
 }
 
-func (s *Staff) BeforeAppendModel(query any) error {
+func (s *Guest) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
 		q.ModelTableExpr("users.guests")
 	}
