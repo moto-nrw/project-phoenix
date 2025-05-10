@@ -78,7 +78,7 @@ func (r *PermissionRepository) FindByAccountID(ctx context.Context, accountID in
 		With("all_account_permissions", r.db.NewSelect().
 			Column("permission_id").
 			TableExpr("account_permissions_direct").
-			UnionAll("SELECT permission_id FROM account_permissions_from_roles")).
+			UnionAll(r.db.NewSelect().TableExpr("account_permissions_from_roles").Column("permission_id"))).
 		Join("JOIN all_account_permissions aap ON aap.permission_id = permission.id").
 		Scan(ctx)
 
