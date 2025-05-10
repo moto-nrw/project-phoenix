@@ -150,6 +150,13 @@ func (f *Filter) DateRange(field string, start, end time.Time) *Filter {
 	return f.GreaterThanOrEqual(field, start).LessThanOrEqual(field, end)
 }
 
+// DateBetween adds a date between filter for a date contained within a range
+func (f *Filter) DateBetween(startField, endField string, date time.Time) *Filter {
+	f.LessThanOrEqual(startField, date)
+	f.GreaterThanOrEqual(endField, date)
+	return f
+}
+
 // ApplyToQuery applies the filter to a Bun query
 func (f *Filter) ApplyToQuery(query *bun.SelectQuery) *bun.SelectQuery {
 	// Apply basic conditions

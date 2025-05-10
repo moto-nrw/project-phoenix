@@ -101,3 +101,18 @@ func (gs *GroupSubstitution) SetSubstituteStaff(staff *users.Staff) {
 		gs.SubstituteStaffID = staff.ID
 	}
 }
+
+// GetID returns the entity's ID
+func (m *GroupSubstitution) GetID() interface{} {
+	return m.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (m *GroupSubstitution) GetCreatedAt() time.Time {
+	return m.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (m *GroupSubstitution) GetUpdatedAt() time.Time {
+	return m.UpdatedAt
+}

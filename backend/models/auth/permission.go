@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -68,4 +69,19 @@ func (p *Permission) Clone() *Permission {
 		Resource:    p.Resource,
 		Action:      p.Action,
 	}
+}
+
+// GetID returns the entity's ID
+func (m *Permission) GetID() interface{} {
+	return m.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (m *Permission) GetCreatedAt() time.Time {
+	return m.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (m *Permission) GetUpdatedAt() time.Time {
+	return m.UpdatedAt
 }

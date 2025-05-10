@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -16,6 +17,21 @@ type Setting struct {
 	Description     string `bun:"description" json:"description,omitempty"`
 	RequiresRestart bool   `bun:"requires_restart,notnull,default:false" json:"requires_restart"`
 	RequiresDBReset bool   `bun:"requires_db_reset,notnull,default:false" json:"requires_db_reset"`
+}
+
+// GetID returns the entity's ID
+func (s *Setting) GetID() interface{} {
+	return s.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (s *Setting) GetCreatedAt() time.Time {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (s *Setting) GetUpdatedAt() time.Time {
+	return s.UpdatedAt
 }
 
 // TableName returns the database table name

@@ -3,6 +3,7 @@ package users
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -17,8 +18,8 @@ type Person struct {
 	AccountID *int64  `bun:"account_id" json:"account_id,omitempty"`
 
 	// Relations not stored in the database
-	Account *auth.Account `bun:"-" json:"account,omitempty"`
-	RFIDCard *RFIDCard   `bun:"-" json:"rfid_card,omitempty"`
+	Account  *auth.Account `bun:"-" json:"account,omitempty"`
+	RFIDCard *RFIDCard     `bun:"-" json:"rfid_card,omitempty"`
 }
 
 // TableName returns the database table name
@@ -81,4 +82,19 @@ func (p *Person) HasRFIDCard() bool {
 // HasAccount checks if the person has an account assigned
 func (p *Person) HasAccount() bool {
 	return p.AccountID != nil && *p.AccountID > 0
+}
+
+// GetID returns the entity's ID
+func (m *Person) GetID() interface{} {
+	return m.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (m *Person) GetCreatedAt() time.Time {
+	return m.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (m *Person) GetUpdatedAt() time.Time {
+	return m.UpdatedAt
 }

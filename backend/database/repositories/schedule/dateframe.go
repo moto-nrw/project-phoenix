@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/uptrace/bun"
@@ -14,14 +13,14 @@ import (
 
 // DateframeRepository implements schedule.DateframeRepository interface
 type DateframeRepository struct {
-	*base.Repository[*schedule.Dateframe]
+	*repoBase.Repository[*schedule.Dateframe]
 	db *bun.DB
 }
 
 // NewDateframeRepository creates a new DateframeRepository
 func NewDateframeRepository(db *bun.DB) schedule.DateframeRepository {
 	return &DateframeRepository{
-		Repository: base.NewRepository[*schedule.Dateframe](db, "schedule.dateframes", "Dateframe"),
+		Repository: repoBase.NewRepository[*schedule.Dateframe](db, "schedule.dateframes", "Dateframe"),
 		db:         db,
 	}
 }

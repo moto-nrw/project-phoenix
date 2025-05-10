@@ -52,3 +52,18 @@ func (t *Token) IsExpired() bool {
 func (t *Token) SetExpiry(duration time.Duration) {
 	t.Expiry = time.Now().Add(duration)
 }
+
+// GetID returns the entity's ID
+func (m *Token) GetID() interface{} {
+	return m.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (m *Token) GetCreatedAt() time.Time {
+	return m.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (m *Token) GetUpdatedAt() time.Time {
+	return m.UpdatedAt
+}

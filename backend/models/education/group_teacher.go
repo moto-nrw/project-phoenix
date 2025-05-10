@@ -2,6 +2,7 @@ package education
 
 import (
 	"errors"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -50,4 +51,19 @@ func (gt *GroupTeacher) SetTeacher(teacher *users.Teacher) {
 	if teacher != nil {
 		gt.TeacherID = teacher.ID
 	}
+}
+
+// GetID returns the entity's ID
+func (m *GroupTeacher) GetID() interface{} {
+	return m.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (m *GroupTeacher) GetCreatedAt() time.Time {
+	return m.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (m *GroupTeacher) GetUpdatedAt() time.Time {
+	return m.UpdatedAt
 }

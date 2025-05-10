@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -81,4 +82,19 @@ func (r *Role) RemovePermission(permissionID int64) bool {
 	}
 
 	return false
+}
+
+// GetID returns the entity's ID
+func (m *Role) GetID() interface{} {
+	return m.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (m *Role) GetCreatedAt() time.Time {
+	return m.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (m *Role) GetUpdatedAt() time.Time {
+	return m.UpdatedAt
 }

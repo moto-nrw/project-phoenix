@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/uptrace/bun"
@@ -14,14 +13,14 @@ import (
 
 // SettingRepository implements config.SettingRepository interface
 type SettingRepository struct {
-	*base.Repository[*config.Setting]
+	*repoBase.Repository[*config.Setting]
 	db *bun.DB
 }
 
 // NewSettingRepository creates a new SettingRepository
 func NewSettingRepository(db *bun.DB) config.SettingRepository {
 	return &SettingRepository{
-		Repository: base.NewRepository[*config.Setting](db, "config.settings", "Setting"),
+		Repository: repoBase.NewRepository[*config.Setting](db, "config.settings", "Setting"),
 		db:         db,
 	}
 }

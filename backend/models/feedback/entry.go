@@ -92,3 +92,18 @@ func (e *Entry) GetFormattedDate() string {
 func (e *Entry) GetFormattedTime() string {
 	return e.Time.Format("15:04:05")
 }
+
+// GetID returns the entity's ID
+func (m *Entry) GetID() interface{} {
+	return m.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (m *Entry) GetCreatedAt() time.Time {
+	return m.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (m *Entry) GetUpdatedAt() time.Time {
+	return m.UpdatedAt
+}

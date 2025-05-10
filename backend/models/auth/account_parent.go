@@ -50,3 +50,18 @@ func (a *AccountParent) IsActive() bool {
 func (a *AccountParent) SetLastLogin(time time.Time) {
 	a.LastLogin = &time
 }
+
+// GetID returns the entity's ID
+func (a *AccountParent) GetID() interface{} {
+	return a.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (a *AccountParent) GetCreatedAt() time.Time {
+	return a.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (a *AccountParent) GetUpdatedAt() time.Time {
+	return a.UpdatedAt
+}

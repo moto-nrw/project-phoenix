@@ -3,6 +3,7 @@ package users
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -73,4 +74,19 @@ func (t *Teacher) GetTitle() string {
 // HasQualifications checks if the teacher has specified qualifications
 func (t *Teacher) HasQualifications() bool {
 	return t.Qualifications != ""
+}
+
+// GetID returns the entity's ID
+func (m *Teacher) GetID() interface{} {
+	return m.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (m *Teacher) GetCreatedAt() time.Time {
+	return m.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (m *Teacher) GetUpdatedAt() time.Time {
+	return m.UpdatedAt
 }

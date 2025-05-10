@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -168,4 +169,19 @@ func (pg *PersonGuardian) GetRelationshipName() string {
 	default:
 		return "Unknown"
 	}
+}
+
+// GetID returns the entity's ID
+func (m *PersonGuardian) GetID() interface{} {
+	return m.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (m *PersonGuardian) GetCreatedAt() time.Time {
+	return m.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (m *PersonGuardian) GetUpdatedAt() time.Time {
+	return m.UpdatedAt
 }

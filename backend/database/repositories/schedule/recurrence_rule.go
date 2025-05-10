@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/uptrace/bun"
@@ -14,14 +13,14 @@ import (
 
 // RecurrenceRuleRepository implements schedule.RecurrenceRuleRepository interface
 type RecurrenceRuleRepository struct {
-	*base.Repository[*schedule.RecurrenceRule]
+	*repoBase.Repository[*schedule.RecurrenceRule]
 	db *bun.DB
 }
 
 // NewRecurrenceRuleRepository creates a new RecurrenceRuleRepository
 func NewRecurrenceRuleRepository(db *bun.DB) schedule.RecurrenceRuleRepository {
 	return &RecurrenceRuleRepository{
-		Repository: base.NewRepository[*schedule.RecurrenceRule](db, "schedule.recurrence_rules", "RecurrenceRule"),
+		Repository: repoBase.NewRepository[*schedule.RecurrenceRule](db, "schedule.recurrence_rules", "RecurrenceRule"),
 		db:         db,
 	}
 }

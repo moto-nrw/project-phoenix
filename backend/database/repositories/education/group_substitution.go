@@ -177,11 +177,11 @@ func (r *GroupSubstitutionRepository) List(ctx context.Context, filters map[stri
 			case "active":
 				if boolValue, ok := value.(bool); ok && boolValue {
 					now := time.Now()
-					filter.Where("start_date <= ? AND end_date >= ?", now, now)
+					filter.DateBetween("start_date", "end_date", now)
 				}
 			case "date":
 				if dateValue, ok := value.(time.Time); ok {
-					filter.Where("start_date <= ? AND end_date >= ?", dateValue, dateValue)
+					filter.DateBetween("start_date", "end_date", dateValue)
 				}
 			case "reason_like":
 				if strValue, ok := value.(string); ok {

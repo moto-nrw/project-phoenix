@@ -4,6 +4,7 @@ import (
 	"errors"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -155,4 +156,19 @@ func (s *Student) SetLocation(location string) error {
 	}
 
 	return nil
+}
+
+// GetID returns the entity's ID
+func (m *Student) GetID() interface{} {
+	return m.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (m *Student) GetCreatedAt() time.Time {
+	return m.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (m *Student) GetUpdatedAt() time.Time {
+	return m.UpdatedAt
 }

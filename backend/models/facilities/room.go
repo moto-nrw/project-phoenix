@@ -4,6 +4,7 @@ import (
 	"errors"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -71,4 +72,19 @@ func (r *Room) GetFullName() string {
 		return r.Building + " - " + r.Name
 	}
 	return r.Name
+}
+
+// GetID returns the entity's ID
+func (r *Room) GetID() interface{} {
+	return r.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (r *Room) GetCreatedAt() time.Time {
+	return r.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (r *Room) GetUpdatedAt() time.Time {
+	return r.UpdatedAt
 }

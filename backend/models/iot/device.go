@@ -113,3 +113,18 @@ func (d *Device) IsOnline() bool {
 	// Device is considered online if seen in the last 5 minutes
 	return time.Since(*d.LastSeen) <= 5*time.Minute
 }
+
+// GetID returns the entity's ID
+func (m *Device) GetID() interface{} {
+	return m.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (m *Device) GetCreatedAt() time.Time {
+	return m.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (m *Device) GetUpdatedAt() time.Time {
+	return m.UpdatedAt
+}

@@ -122,3 +122,18 @@ func (g *Guest) AddNotes(notes string) {
 		g.Notes += "\n" + notes
 	}
 }
+
+// GetID returns the entity's ID
+func (m *Guest) GetID() interface{} {
+	return m.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (m *Guest) GetCreatedAt() time.Time {
+	return m.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (m *Guest) GetUpdatedAt() time.Time {
+	return m.UpdatedAt
+}

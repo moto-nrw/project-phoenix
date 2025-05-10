@@ -2,6 +2,7 @@ package users
 
 import (
 	"errors"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -53,4 +54,19 @@ func (s *Staff) AddNotes(notes string) {
 	} else {
 		s.StaffNotes += "\n" + notes
 	}
+}
+
+// GetID returns the entity's ID
+func (m *Staff) GetID() interface{} {
+	return m.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (m *Staff) GetCreatedAt() time.Time {
+	return m.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (m *Staff) GetUpdatedAt() time.Time {
+	return m.UpdatedAt
 }

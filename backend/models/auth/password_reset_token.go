@@ -66,3 +66,18 @@ func (t *PasswordResetToken) MarkAsUsed() {
 func (t *PasswordResetToken) SetExpiry(duration time.Duration) {
 	t.Expiry = time.Now().Add(duration)
 }
+
+// GetID returns the entity's ID
+func (m *PasswordResetToken) GetID() interface{} {
+	return m.ID
+}
+
+// GetCreatedAt returns the creation timestamp
+func (m *PasswordResetToken) GetCreatedAt() time.Time {
+	return m.CreatedAt
+}
+
+// GetUpdatedAt returns the last update timestamp
+func (m *PasswordResetToken) GetUpdatedAt() time.Time {
+	return m.UpdatedAt
+}
