@@ -88,9 +88,11 @@ func (a *API) registerRoutes() {
 	})
 
 	// Mount API resources
+	// Auth routes mounted at root level to match frontend expectations
+	a.Router.Mount("/auth", a.Auth.Router())
+
+	// Other API routes under /api prefix for organization
 	a.Router.Route("/api", func(r chi.Router) {
-		// Auth routes
-		r.Mount("/auth", a.Auth.Router())
 		// Add other resource routes here as they are implemented
 	})
 }
