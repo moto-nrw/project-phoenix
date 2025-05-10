@@ -21,7 +21,7 @@ func init() {
 		DependsOn:   []string{"1.0.9", "1.2.1"}, // Depends on auth.accounts_parents and users.persons tables
 	}
 
-	// Migration 1.2.2: Link users.persons to auth.accounts_parents
+	// Migration 1.2.6: Link users.persons to auth.accounts_parents
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return usersPersonsGuardiansUp(ctx, db)
@@ -34,7 +34,7 @@ func init() {
 
 // usersPersonsGuardiansUp creates a relationship between users.persons and auth.accounts_parents
 func usersPersonsGuardiansUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.2.2: Creating users.persons_guardians relationship table...")
+	fmt.Println("Migration 1.2.6: Creating users.persons_guardians relationship table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -77,7 +77,7 @@ func usersPersonsGuardiansUp(ctx context.Context, db *bun.DB) error {
 	// Create trigger that enforces only one primary relationship per person-guardian pair
 	_, err = tx.ExecContext(ctx, `
 		CREATE OR REPLACE FUNCTION users.enforce_single_primary_guardian()
-		RETURNS TRIGGER AS $
+		RETURNS TRIGGER AS $$
 		BEGIN
 			-- If this is being set as primary
 			IF NEW.is_primary = TRUE THEN
@@ -90,7 +90,7 @@ func usersPersonsGuardiansUp(ctx context.Context, db *bun.DB) error {
 			END IF;
 			RETURN NEW;
 		END;
-		$ LANGUAGE plpgsql;
+		$$ LANGUAGE plpgsql;
 
 		DROP TRIGGER IF EXISTS enforce_single_primary_guardian_trigger ON users.persons_guardians;
 		CREATE TRIGGER enforce_single_primary_guardian_trigger
@@ -122,7 +122,7 @@ func usersPersonsGuardiansUp(ctx context.Context, db *bun.DB) error {
 
 // usersPersonsGuardiansDown removes the users.persons_guardians relationship table
 func usersPersonsGuardiansDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.2.2: Removing users.persons_guardians relationship table...")
+	fmt.Println("Rolling back migration 1.2.6: Removing users.persons_guardians relationship table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
