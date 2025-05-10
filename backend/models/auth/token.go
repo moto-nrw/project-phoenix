@@ -5,11 +5,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/uptrace/bun"
 )
 
 // Token represents an authentication token in the system
 type Token struct {
-	base.Model
+	base.Model `bun:"schema:auth,table:tokens"`
 	AccountID  int64     `bun:"account_id,notnull" json:"account_id"`
 	Token      string    `bun:"token,notnull" json:"token"`
 	Expiry     time.Time `bun:"expiry,notnull" json:"expiry"`
@@ -66,4 +67,21 @@ func (m *Token) GetCreatedAt() time.Time {
 // GetUpdatedAt returns the last update timestamp
 func (m *Token) GetUpdatedAt() time.Time {
 	return m.UpdatedAt
+}
+
+// BeforeAppendModel lets us modify query before it's executed
+func (t *Token) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("auth.tokens")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("auth.tokens")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("auth.tokens")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("auth.tokens")
+	}
+	return nil
 }

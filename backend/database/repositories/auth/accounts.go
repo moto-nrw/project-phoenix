@@ -31,7 +31,7 @@ func (r *AccountRepository) FindByEmail(ctx context.Context, email string) (*aut
 
 	// Explicitly specify the schema and table
 	err := r.db.NewSelect().
-		TableExpr("auth.accounts").
+		ModelTableExpr("auth.accounts").
 		Where("LOWER(email) = LOWER(?)", email).
 		Scan(ctx, account)
 
@@ -51,7 +51,7 @@ func (r *AccountRepository) FindByUsername(ctx context.Context, username string)
 
 	// Explicitly specify the schema and table
 	err := r.db.NewSelect().
-		TableExpr("auth.accounts").
+		ModelTableExpr("auth.accounts").
 		Where("LOWER(username) = LOWER(?)", username).
 		Scan(ctx, account)
 
@@ -321,6 +321,29 @@ func (r *AccountRepository) Update(ctx context.Context, account *auth.Account) e
 		return err
 	}
 
-	// Use the base Update method
-	return r.Repository.Update(ctx, account)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewUpdate().
+		Model(account).
+		Where("id = ?", account.ID).
+		ModelTableExpr("auth.accounts")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewUpdate().
+			Model(account).
+			Where("id = ?", account.ID).
+			ModelTableExpr("auth.accounts")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update",
+			Err: err,
+		}
+	}
+
+	return nil
 }
