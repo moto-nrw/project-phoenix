@@ -148,7 +148,7 @@ export default function HomePage() {
           {/* Register Link */}
           <div className="mt-8 text-center text-sm text-gray-600">
             <p>
-              Noch kein Account?{" "}
+              Noch keinen Account?{" "}
               <Link href="/register" className="font-medium text-teal-600 hover:text-teal-500">
                 Jetzt registrieren
               </Link>
