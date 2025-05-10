@@ -67,13 +67,13 @@ export function Header({ userName = "Root" }: HeaderProps) {
                         <Button
                             variant="outline_danger"
                             size="sm"
-                            className="group relative flex items-center gap-2 overflow-hidden border-gray-300 hover:border-red-400 hover:bg-red-50/80 text-red-700 hover:text-red-700 transition-all duration-200"
+                            className="group relative flex items-center gap-2 overflow-hidden border-gray-300 hover:border-red-400 hover:bg-red-50/80 text-[#FF3130] hover:text-[#FF3130] transition-all duration-200"
                         >
                             {/* Icon mit Animation */}
-                            <LogoutIcon className="w-4 h-4 text-red-700 group-hover:text-red-600 transition-colors duration-200" />
+                            <LogoutIcon className="w-4 h-4 text-[#FF3130] group-hover:text-red-600 transition-colors duration-200" />
 
                             {/* Text nur auf Desktop sichtbar */}
-                            <span className="hidden sm:inline group-hover:text-red-700 transition-colors duration-200">
+                            <span className="hidden sm:inline group-hover:text-[#FF3130] transition-colors duration-200">
                                 Abmelden
                             </span>
 
