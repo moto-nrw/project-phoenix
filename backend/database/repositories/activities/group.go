@@ -201,8 +201,29 @@ func (r *GroupRepository) Create(ctx context.Context, group *activities.Group) e
 		return err
 	}
 
-	// Use the base Create method
-	return r.Repository.Create(ctx, group)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewInsert().
+		Model(group).
+		ModelTableExpr("activities.groups")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewInsert().
+			Model(group).
+			ModelTableExpr("activities.groups")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "create",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // Update overrides the base Update method to handle validation
@@ -216,8 +237,31 @@ func (r *GroupRepository) Update(ctx context.Context, group *activities.Group) e
 		return err
 	}
 
-	// Use the base Update method
-	return r.Repository.Update(ctx, group)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewUpdate().
+		Model(group).
+		Where("id = ?", group.ID).
+		ModelTableExpr("activities.groups")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewUpdate().
+			Model(group).
+			Where("id = ?", group.ID).
+			ModelTableExpr("activities.groups")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // List overrides the base List method to accept the new QueryOptions type

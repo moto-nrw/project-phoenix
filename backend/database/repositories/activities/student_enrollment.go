@@ -141,8 +141,29 @@ func (r *StudentEnrollmentRepository) Create(ctx context.Context, enrollment *ac
 		return err
 	}
 
-	// Use the base Create method
-	return r.Repository.Create(ctx, enrollment)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewInsert().
+		Model(enrollment).
+		ModelTableExpr("activities.student_enrollments")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewInsert().
+			Model(enrollment).
+			ModelTableExpr("activities.student_enrollments")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "create",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // Update overrides the base Update method to handle validation
@@ -156,8 +177,31 @@ func (r *StudentEnrollmentRepository) Update(ctx context.Context, enrollment *ac
 		return err
 	}
 
-	// Use the base Update method
-	return r.Repository.Update(ctx, enrollment)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewUpdate().
+		Model(enrollment).
+		Where("id = ?", enrollment.ID).
+		ModelTableExpr("activities.student_enrollments")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewUpdate().
+			Model(enrollment).
+			Where("id = ?", enrollment.ID).
+			ModelTableExpr("activities.student_enrollments")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // List overrides the base List method to accept the new QueryOptions type

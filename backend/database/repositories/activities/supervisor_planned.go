@@ -116,8 +116,29 @@ func (r *SupervisorPlannedRepository) Create(ctx context.Context, supervisor *ac
 		return err
 	}
 
-	// Use the base Create method
-	return r.Repository.Create(ctx, supervisor)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewInsert().
+		Model(supervisor).
+		ModelTableExpr("activities.supervisors")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewInsert().
+			Model(supervisor).
+			ModelTableExpr("activities.supervisors")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "create",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // Update overrides the base Update method to handle validation
@@ -131,8 +152,31 @@ func (r *SupervisorPlannedRepository) Update(ctx context.Context, supervisor *ac
 		return err
 	}
 
-	// Use the base Update method
-	return r.Repository.Update(ctx, supervisor)
+	// Get the query builder - detect if we're in a transaction
+	query := r.db.NewUpdate().
+		Model(supervisor).
+		Where("id = ?", supervisor.ID).
+		ModelTableExpr("activities.supervisors")
+
+	// Extract transaction from context if it exists
+	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+		// Use the transaction if available
+		query = tx.NewUpdate().
+			Model(supervisor).
+			Where("id = ?", supervisor.ID).
+			ModelTableExpr("activities.supervisors")
+	}
+
+	// Execute the query
+	_, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // List overrides the base List method to accept the new QueryOptions type
