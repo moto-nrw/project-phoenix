@@ -4,30 +4,24 @@ package services
 import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services/active"
-	"github.com/moto-nrw/project-phoenix/services/activ
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/education"
-tion"
-	"github.com/moto-nrw/project-phoenix/services/fac
 	"github.com/moto-nrw/project-phoenix/services/feedback"
-edback"
-	"github.com/moto-nrw/project-phoenix/services/iot"
-	"github.com/moto
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/uptrace/bun"
 )
 
-	Auth       auth.AuthService
-	Active     active.Service
-	Activities activities.ActivityService
-	Education  education.Service
-	Facilities facilities.Service
-	Feedback   feedback.Service
-	IoT        iot.Service
-	Config     config.Service
-	Schedule   schedule.Service
-	Users      users.PersonService
+// Factory provides access to all services
+type Factory struct {
+	Auth      auth.AuthService
+	Active    active.Service
+	Education education.Service
+	Feedback  feedback.Service
+	IoT       iot.Service
+	Config    config.Service
+	// Add other services as they are created
+	// Student StudentService
 	// Group   GroupService
 	// etc.
 }
