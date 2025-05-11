@@ -18,6 +18,7 @@ type service struct {
 	timeframeRepo      schedule.TimeframeRepository
 	recurrenceRuleRepo schedule.RecurrenceRuleRepository
 	db                 *bun.DB
+	txHandler          *base.TxHandler
 }
 
 // NewService creates a new schedule service
@@ -32,6 +33,35 @@ func NewService(
 		timeframeRepo:      timeframeRepo,
 		recurrenceRuleRepo: recurrenceRuleRepo,
 		db:                 db,
+		txHandler:          base.NewTxHandler(db),
+	}
+}
+
+// WithTx returns a new service that uses the provided transaction
+func (s *service) WithTx(tx bun.Tx) interface{} {
+	// Get repositories with transaction if they implement the TransactionalRepository interface
+	var dateframeRepo schedule.DateframeRepository = s.dateframeRepo
+	var timeframeRepo schedule.TimeframeRepository = s.timeframeRepo
+	var recurrenceRuleRepo schedule.RecurrenceRuleRepository = s.recurrenceRuleRepo
+
+	// Try to cast repositories to TransactionalRepository and apply the transaction
+	if txRepo, ok := s.dateframeRepo.(base.TransactionalRepository); ok {
+		dateframeRepo = txRepo.WithTx(tx).(schedule.DateframeRepository)
+	}
+	if txRepo, ok := s.timeframeRepo.(base.TransactionalRepository); ok {
+		timeframeRepo = txRepo.WithTx(tx).(schedule.TimeframeRepository)
+	}
+	if txRepo, ok := s.recurrenceRuleRepo.(base.TransactionalRepository); ok {
+		recurrenceRuleRepo = txRepo.WithTx(tx).(schedule.RecurrenceRuleRepository)
+	}
+
+	// Return a new service with the transaction
+	return &service{
+		dateframeRepo:      dateframeRepo,
+		timeframeRepo:      timeframeRepo,
+		recurrenceRuleRepo: recurrenceRuleRepo,
+		db:                 s.db,
+		txHandler:          s.txHandler.WithTx(tx),
 	}
 }
 
@@ -93,6 +123,7 @@ func (s *service) ListDateframes(ctx context.Context, options *base.QueryOptions
 
 // FindDateframesByDate finds all dateframes that include the given date
 func (s *service) FindDateframesByDate(ctx context.Context, date time.Time) ([]*schedule.Dateframe, error) {
+	// This method doesn't require a transaction, so we can directly call the repository
 	dateframes, err := s.dateframeRepo.FindByDate(ctx, date)
 	if err != nil {
 		return nil, &ScheduleError{Op: "find dateframes by date", Err: err}
