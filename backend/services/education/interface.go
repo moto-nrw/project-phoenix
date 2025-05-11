@@ -12,6 +12,7 @@ import (
 
 // Service defines operations for managing educational groups and their relationships
 type Service interface {
+	base.TransactionalService
 	// Group operations
 	GetGroup(ctx context.Context, id int64) (*education.Group, error)
 	CreateGroup(ctx context.Context, group *education.Group) error
