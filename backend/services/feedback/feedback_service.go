@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 	"github.com/uptrace/bun"
 )
@@ -12,7 +13,7 @@ import (
 type feedbackService struct {
 	db        *bun.DB
 	entryRepo feedback.EntryRepository
-	tx        *bun.Tx
+	txHandler *base.TxHandler
 }
 
 // NewService creates a new feedback service
@@ -20,31 +21,29 @@ func NewService(entryRepo feedback.EntryRepository, db *bun.DB) Service {
 	return &feedbackService{
 		entryRepo: entryRepo,
 		db:        db,
+		txHandler: base.NewTxHandler(db),
 	}
 }
 
 // WithTx returns a new service that uses the provided transaction
-func (s *feedbackService) WithTx(tx bun.Tx) Service {
+func (s *feedbackService) WithTx(tx bun.Tx) interface{} {
+	// Get repositories with transaction if they implement the TransactionalRepository interface
+	var entryRepo feedback.EntryRepository = s.entryRepo
+
+	// Try to cast repository to TransactionalRepository and apply the transaction
+	if txRepo, ok := s.entryRepo.(base.TransactionalRepository); ok {
+		entryRepo = txRepo.WithTx(tx).(feedback.EntryRepository)
+	}
+
+	// Return a new service with the transaction
 	return &feedbackService{
 		db:        s.db,
-		entryRepo: s.entryRepo,
-		tx:        &tx,
+		entryRepo: entryRepo,
+		txHandler: s.txHandler.WithTx(tx),
 	}
 }
 
-// getTx returns the current transaction or creates a new one
-func (s *feedbackService) getTx(ctx context.Context) (bun.Tx, bool, error) {
-	if s.tx != nil {
-		return *s.tx, false, nil
-	}
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return tx, false, err
-	}
-
-	return tx, true, nil
-}
+// No longer need the getTx method as we're using txHandler
 
 // CreateEntry creates a new feedback entry
 func (s *feedbackService) CreateEntry(ctx context.Context, entry *feedback.Entry) error {
@@ -229,32 +228,36 @@ func (s *feedbackService) CreateEntries(ctx context.Context, entries []*feedback
 		return nil, nil
 	}
 
-	// Start a transaction if one doesn't exist
-	tx, shouldCommit, err := s.getTx(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if shouldCommit {
-		defer tx.Rollback()
-	}
-
-	// Create service with transaction
-	txService := s.WithTx(tx)
-
-	// Process all entries and collect errors
 	var errors []error
-	for _, entry := range entries {
-		if err := txService.CreateEntry(ctx, entry); err != nil {
+
+	// Execute in transaction using txHandler
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(Service)
+
+		// Process all entries and collect errors
+		for _, entry := range entries {
+			if err := txService.CreateEntry(ctx, entry); err != nil {
+				errors = append(errors, err)
+			}
+		}
+
+		// If any errors occurred, rollback the transaction
+		if len(errors) > 0 {
+			return &BatchOperationError{Errors: errors}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		// Include the transaction error in the list of errors
+		if len(errors) == 0 {
+			errors = []error{err}
+		} else {
 			errors = append(errors, err)
 		}
-	}
-
-	// Commit transaction if we started it
-	if shouldCommit && len(errors) == 0 {
-		if err := tx.Commit(); err != nil {
-			return errors, err
-		}
+		return errors, &BatchOperationError{Errors: errors}
 	}
 
 	if len(errors) > 0 {

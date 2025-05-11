@@ -4,12 +4,13 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
-	"github.com/uptrace/bun"
 )
 
 // Service defines the feedback service operations
 type Service interface {
+	base.TransactionalService
 	// Core operations
 	CreateEntry(ctx context.Context, entry *feedback.Entry) error
 	GetEntryByID(ctx context.Context, id int64) (*feedback.Entry, error)
@@ -32,6 +33,5 @@ type Service interface {
 	// Batch operations
 	CreateEntries(ctx context.Context, entries []*feedback.Entry) ([]error, error)
 
-	// Transaction support
-	WithTx(tx bun.Tx) Service
+	// Transaction support is provided by base.TransactionalService
 }
