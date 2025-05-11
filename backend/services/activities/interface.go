@@ -4,11 +4,14 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // ActivityService defines operations for activity management
 type ActivityService interface {
+	base.TransactionalService
+
 	// Category operations
 	CreateCategory(ctx context.Context, category *activities.Category) (*activities.Category, error)
 	GetCategory(ctx context.Context, id int64) (*activities.Category, error)
