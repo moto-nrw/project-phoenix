@@ -6,6 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/uptrace/bun"
 )
 
 // personService implements the PersonService interface
@@ -14,6 +15,8 @@ type personService struct {
 	rfidRepo           userModels.RFIDCardRepository
 	accountRepo        auth.AccountRepository
 	personGuardianRepo userModels.PersonGuardianRepository
+	db                 *bun.DB
+	txHandler          *base.TxHandler
 }
 
 // NewPersonService creates a new person service
@@ -22,12 +25,48 @@ func NewPersonService(
 	rfidRepo userModels.RFIDCardRepository,
 	accountRepo auth.AccountRepository,
 	personGuardianRepo userModels.PersonGuardianRepository,
+	db *bun.DB,
 ) PersonService {
 	return &personService{
 		personRepo:         personRepo,
 		rfidRepo:           rfidRepo,
 		accountRepo:        accountRepo,
 		personGuardianRepo: personGuardianRepo,
+		db:                 db,
+		txHandler:          base.NewTxHandler(db),
+	}
+}
+
+// WithTx returns a new service that uses the provided transaction
+func (s *personService) WithTx(tx bun.Tx) interface{} {
+	// Get repositories with transaction if they implement the TransactionalRepository interface
+	var personRepo userModels.PersonRepository = s.personRepo
+	var rfidRepo userModels.RFIDCardRepository = s.rfidRepo
+	var accountRepo auth.AccountRepository = s.accountRepo
+	var personGuardianRepo userModels.PersonGuardianRepository = s.personGuardianRepo
+
+	// Try to cast repositories to TransactionalRepository and apply the transaction
+	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok {
+		personRepo = txRepo.WithTx(tx).(userModels.PersonRepository)
+	}
+	if txRepo, ok := s.rfidRepo.(base.TransactionalRepository); ok {
+		rfidRepo = txRepo.WithTx(tx).(userModels.RFIDCardRepository)
+	}
+	if txRepo, ok := s.accountRepo.(base.TransactionalRepository); ok {
+		accountRepo = txRepo.WithTx(tx).(auth.AccountRepository)
+	}
+	if txRepo, ok := s.personGuardianRepo.(base.TransactionalRepository); ok {
+		personGuardianRepo = txRepo.WithTx(tx).(userModels.PersonGuardianRepository)
+	}
+
+	// Return a new service with the transaction
+	return &personService{
+		personRepo:         personRepo,
+		rfidRepo:           rfidRepo,
+		accountRepo:        accountRepo,
+		personGuardianRepo: personGuardianRepo,
+		db:                 s.db,
+		txHandler:          s.txHandler.WithTx(tx),
 	}
 }
 
@@ -285,34 +324,47 @@ func (s *personService) UnlinkFromRFIDCard(ctx context.Context, personID int64) 
 
 // GetFullProfile retrieves a person with all related entities
 func (s *personService) GetFullProfile(ctx context.Context, personID int64) (*userModels.Person, error) {
-	// Get the basic person record
-	person, err := s.personRepo.FindByID(ctx, personID)
+	var result *userModels.Person
+
+	// Use transaction to ensure consistent data across all fetches
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(PersonService)
+
+		// Get the basic person record
+		person, err := txService.Get(ctx, personID)
+		if err != nil {
+			return err
+		}
+
+		// Fetch related account if AccountID is set
+		if person.AccountID != nil {
+			account, err := s.accountRepo.FindByID(ctx, *person.AccountID)
+			if err != nil {
+				return &UsersError{Op: "get full profile - fetch account", Err: err}
+			}
+			person.Account = account
+		}
+
+		// Fetch related RFID card if TagID is set
+		if person.TagID != nil {
+			card, err := s.rfidRepo.FindByID(ctx, *person.TagID)
+			if err != nil {
+				return &UsersError{Op: "get full profile - fetch RFID card", Err: err}
+			}
+			person.RFIDCard = card
+		}
+
+		// Save the result for returning after transaction completes
+		result = person
+		return nil
+	})
+
 	if err != nil {
 		return nil, &UsersError{Op: "get full profile", Err: err}
 	}
-	if person == nil {
-		return nil, &UsersError{Op: "get full profile", Err: ErrPersonNotFound}
-	}
 
-	// Fetch related account if AccountID is set
-	if person.AccountID != nil {
-		account, err := s.accountRepo.FindByID(ctx, *person.AccountID)
-		if err != nil {
-			return nil, &UsersError{Op: "get full profile - fetch account", Err: err}
-		}
-		person.Account = account
-	}
-
-	// Fetch related RFID card if TagID is set
-	if person.TagID != nil {
-		card, err := s.rfidRepo.FindByID(ctx, *person.TagID)
-		if err != nil {
-			return nil, &UsersError{Op: "get full profile - fetch RFID card", Err: err}
-		}
-		person.RFIDCard = card
-	}
-
-	return person, nil
+	return result, nil
 }
 
 // FindByGuardianID finds all persons with a guardian relationship to the specified account

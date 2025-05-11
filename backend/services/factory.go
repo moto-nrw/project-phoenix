@@ -105,6 +105,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.RFIDCard,
 		repos.Account,
 		repos.PersonGuardian,
+		db,
 	)
 
 	// Initialize auth service

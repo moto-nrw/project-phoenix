@@ -2,13 +2,14 @@ package users
 
 import (
 	"context"
-	
+
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // PersonService defines the operations available in the person service layer
 type PersonService interface {
+	base.TransactionalService
 	// Get retrieves a person by their ID
 	Get(ctx context.Context, id interface{}) (*userModels.Person, error)
 
