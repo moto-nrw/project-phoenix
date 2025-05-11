@@ -97,29 +97,8 @@ func (r *ScheduleRepository) Create(ctx context.Context, schedule *activities.Sc
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewInsert().
-		Model(schedule).
-		ModelTableExpr("activities.schedules")
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewInsert().
-			Model(schedule).
-			ModelTableExpr("activities.schedules")
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "create",
-			Err: err,
-		}
-	}
-
-	return nil
+	// Use the base Create method which now uses ModelTableExpr
+	return r.Repository.Create(ctx, schedule)
 }
 
 // Update overrides the base Update method to handle validation

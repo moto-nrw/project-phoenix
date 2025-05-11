@@ -116,29 +116,8 @@ func (r *SupervisorPlannedRepository) Create(ctx context.Context, supervisor *ac
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewInsert().
-		Model(supervisor).
-		ModelTableExpr("activities.supervisors")
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewInsert().
-			Model(supervisor).
-			ModelTableExpr("activities.supervisors")
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "create",
-			Err: err,
-		}
-	}
-
-	return nil
+	// Use the base Create method which now uses ModelTableExpr
+	return r.Repository.Create(ctx, supervisor)
 }
 
 // Update overrides the base Update method to handle validation

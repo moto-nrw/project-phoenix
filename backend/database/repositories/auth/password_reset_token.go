@@ -151,29 +151,8 @@ func (r *PasswordResetTokenRepository) Create(ctx context.Context, token *auth.P
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewInsert().
-		Model(token).
-		ModelTableExpr("auth.password_reset_tokens")
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewInsert().
-			Model(token).
-			ModelTableExpr("auth.password_reset_tokens")
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "create",
-			Err: err,
-		}
-	}
-
-	return nil
+	// Use the base Create method which now uses ModelTableExpr
+	return r.Repository.Create(ctx, token)
 }
 
 // Update overrides the base Update method for schema consistency

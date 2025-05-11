@@ -138,7 +138,7 @@ func (r *TokenRepository) DeleteByAccountIDAndIdentifier(ctx context.Context, ac
 	return nil
 }
 
-// Create overrides the base Create method to handle validation and schema
+// Create overrides the base Create method to handle validation
 func (r *TokenRepository) Create(ctx context.Context, token *auth.Token) error {
 	if token == nil {
 		return fmt.Errorf("token cannot be nil")
@@ -149,29 +149,8 @@ func (r *TokenRepository) Create(ctx context.Context, token *auth.Token) error {
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewInsert().
-		Model(token).
-		ModelTableExpr("auth.tokens")
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewInsert().
-			Model(token).
-			ModelTableExpr("auth.tokens")
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "create",
-			Err: err,
-		}
-	}
-
-	return nil
+	// Use the base Create method which now uses ModelTableExpr
+	return r.Repository.Create(ctx, token)
 }
 
 // FindValidTokens retrieves all valid (non-expired) tokens matching the filters

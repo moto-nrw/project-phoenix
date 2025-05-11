@@ -42,7 +42,7 @@ func (r *Repository[T]) Create(ctx context.Context, entity T) error {
 	// Explicitly set the table name with schema
 	_, err := r.DB.NewInsert().
 		Model(entity).
-		TableExpr(r.TableName).
+		ModelTableExpr(r.TableName).
 		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
