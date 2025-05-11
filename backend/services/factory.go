@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/feedback"
+	"github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/uptrace/bun"
 )
 
@@ -16,6 +17,7 @@ type Factory struct {
 	Active    active.Service
 	Education education.Service
 	Feedback  feedback.Service
+	IoT       iot.Service
 	// Add other services as they are created
 	// Student StudentService
 	// Group   GroupService
@@ -62,11 +64,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
+	// Initialize IoT service
+	iotService := iot.NewService(
+		repos.Device,
+		db,
+	)
+
 	return &Factory{
 		Auth:      authService,
 		Active:    activeService,
 		Education: educationService,
 		Feedback:  feedbackService,
+		IoT:       iotService,
 		// Initialize other services as they are created
 	}, nil
 }
