@@ -342,3 +342,21 @@ func (r *PermissionRepository) List(ctx context.Context, filters map[string]inte
 
 	return permissions, nil
 }
+
+// FindByRoleByName retrieves a role by its name
+func (r *PermissionRepository) FindByRoleByName(ctx context.Context, roleName string) (*auth.Role, error) {
+	role := new(auth.Role)
+	err := r.db.NewSelect().
+		Model(role).
+		Where("LOWER(name) = LOWER(?)", roleName).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find role by name",
+			Err: err,
+		}
+	}
+
+	return role, nil
+}

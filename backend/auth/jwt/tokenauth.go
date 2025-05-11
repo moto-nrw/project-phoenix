@@ -117,7 +117,7 @@ func ParseStructToMap(c any) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	err = json.Unmarshal(inrec, &claims)
 	if err != nil {
 		return nil, err
@@ -128,7 +128,10 @@ func ParseStructToMap(c any) (map[string]any, error) {
 	if appClaims, ok := c.(AppClaims); ok {
 		// Make sure roles is explicitly set
 		claims["roles"] = appClaims.Roles
-		
+
+		// Make sure permissions is explicitly set
+		claims["permissions"] = appClaims.Permissions
+
 		// Set common claims manually to ensure they're included
 		claims["exp"] = appClaims.ExpiresAt
 		claims["iat"] = appClaims.IssuedAt

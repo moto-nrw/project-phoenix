@@ -44,6 +44,7 @@ type PermissionRepository interface {
 	FindByResourceAction(ctx context.Context, resource, action string) (*Permission, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*Permission, error)
+	FindByRoleByName(ctx context.Context, roleName string) (*Role, error)
 	AssignPermissionToAccount(ctx context.Context, accountID int64, permissionID int64) error
 	RemovePermissionFromAccount(ctx context.Context, accountID int64, permissionID int64) error
 	AssignPermissionToRole(ctx context.Context, roleID int64, permissionID int64) error
