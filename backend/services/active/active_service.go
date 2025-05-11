@@ -18,6 +18,7 @@ type service struct {
 	combinedGroupRepo active.CombinedGroupRepository
 	groupMappingRepo  active.GroupMappingRepository
 	db                *bun.DB
+	txHandler         *base.TxHandler
 }
 
 // NewService creates a new active service instance
@@ -36,6 +37,45 @@ func NewService(
 		combinedGroupRepo: combinedGroupRepo,
 		groupMappingRepo:  groupMappingRepo,
 		db:                db,
+		txHandler:         base.NewTxHandler(db),
+	}
+}
+
+// WithTx returns a new service that uses the provided transaction
+func (s *service) WithTx(tx bun.Tx) interface{} {
+	// Get repositories with transaction if they implement the TransactionalRepository interface
+	var groupRepo active.GroupRepository = s.groupRepo
+	var visitRepo active.VisitRepository = s.visitRepo
+	var supervisorRepo active.GroupSupervisorRepository = s.supervisorRepo
+	var combinedGroupRepo active.CombinedGroupRepository = s.combinedGroupRepo
+	var groupMappingRepo active.GroupMappingRepository = s.groupMappingRepo
+
+	// Try to cast repositories to TransactionalRepository and apply the transaction
+	if txRepo, ok := s.groupRepo.(base.TransactionalRepository); ok {
+		groupRepo = txRepo.WithTx(tx).(active.GroupRepository)
+	}
+	if txRepo, ok := s.visitRepo.(base.TransactionalRepository); ok {
+		visitRepo = txRepo.WithTx(tx).(active.VisitRepository)
+	}
+	if txRepo, ok := s.supervisorRepo.(base.TransactionalRepository); ok {
+		supervisorRepo = txRepo.WithTx(tx).(active.GroupSupervisorRepository)
+	}
+	if txRepo, ok := s.combinedGroupRepo.(base.TransactionalRepository); ok {
+		combinedGroupRepo = txRepo.WithTx(tx).(active.CombinedGroupRepository)
+	}
+	if txRepo, ok := s.groupMappingRepo.(base.TransactionalRepository); ok {
+		groupMappingRepo = txRepo.WithTx(tx).(active.GroupMappingRepository)
+	}
+
+	// Return a new service with the transaction
+	return &service{
+		groupRepo:         groupRepo,
+		visitRepo:         visitRepo,
+		supervisorRepo:    supervisorRepo,
+		combinedGroupRepo: combinedGroupRepo,
+		groupMappingRepo:  groupMappingRepo,
+		db:                s.db,
+		txHandler:         s.txHandler.WithTx(tx),
 	}
 }
 
@@ -435,7 +475,7 @@ func (s *service) DeleteCombinedGroup(ctx context.Context, id int64) error {
 	}
 
 	// Execute in transaction to ensure all mappings are deleted as well
-	err = s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		// Delete all group mappings
 		mappings, err := s.groupMappingRepo.FindByActiveCombinedGroupID(ctx, id)
 		if err != nil {

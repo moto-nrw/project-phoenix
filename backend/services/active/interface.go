@@ -10,6 +10,8 @@ import (
 
 // Service defines operations for managing active groups and visits
 type Service interface {
+	base.TransactionalService
+
 	// Active Group operations
 	GetActiveGroup(ctx context.Context, id int64) (*active.Group, error)
 	CreateActiveGroup(ctx context.Context, group *active.Group) error
