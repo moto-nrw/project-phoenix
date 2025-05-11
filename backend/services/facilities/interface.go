@@ -10,6 +10,7 @@ import (
 
 // Service defines operations for managing facilities
 type Service interface {
+	base.TransactionalService
 	// Room operations
 	GetRoom(ctx context.Context, id int64) (*facilities.Room, error)
 	CreateRoom(ctx context.Context, room *facilities.Room) error

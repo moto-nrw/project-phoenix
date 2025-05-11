@@ -12,15 +12,35 @@ import (
 
 // service implements the facilities.Service interface
 type service struct {
-	roomRepo facilities.RoomRepository
-	db       *bun.DB
+	roomRepo  facilities.RoomRepository
+	db        *bun.DB
+	txHandler *base.TxHandler
 }
 
 // NewService creates a new facilities service
 func NewService(roomRepo facilities.RoomRepository, db *bun.DB) Service {
 	return &service{
-		roomRepo: roomRepo,
-		db:       db,
+		roomRepo:  roomRepo,
+		db:        db,
+		txHandler: base.NewTxHandler(db),
+	}
+}
+
+// WithTx returns a new service that uses the provided transaction
+func (s *service) WithTx(tx bun.Tx) interface{} {
+	// Get repository with transaction if it implements the TransactionalRepository interface
+	var roomRepo facilities.RoomRepository = s.roomRepo
+
+	// Try to cast repository to TransactionalRepository and apply the transaction
+	if txRepo, ok := s.roomRepo.(base.TransactionalRepository); ok {
+		roomRepo = txRepo.WithTx(tx).(facilities.RoomRepository)
+	}
+
+	// Return a new service with the transaction
+	return &service{
+		roomRepo:  roomRepo,
+		db:        s.db,
+		txHandler: s.txHandler.WithTx(tx),
 	}
 }
 
