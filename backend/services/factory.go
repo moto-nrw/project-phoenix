@@ -6,6 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/education"
+	"github.com/moto-nrw/project-phoenix/services/feedback"
 	"github.com/uptrace/bun"
 )
 
@@ -14,6 +15,7 @@ type Factory struct {
 	Auth      auth.AuthService
 	Active    active.Service
 	Education education.Service
+	Feedback  feedback.Service
 	// Add other services as they are created
 	// Student StudentService
 	// Group   GroupService
@@ -54,10 +56,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
+	// Initialize feedback service
+	feedbackService := feedback.NewService(
+		repos.FeedbackEntry,
+		db,
+	)
+
 	return &Factory{
 		Auth:      authService,
 		Active:    activeService,
 		Education: educationService,
+		Feedback:  feedbackService,
 		// Initialize other services as they are created
 	}, nil
 }
