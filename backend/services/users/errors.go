@@ -1,24 +1,49 @@
 package users
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
-// Domain-specific errors for the person service
+// Common error variables for the users service
 var (
-	// ErrPersonIdentifierRequired indicates that a person must have either a TagID or AccountID
-	ErrPersonIdentifierRequired = errors.New("either TagID or AccountID must be set for a person")
-
-	// ErrPersonNotFound indicates that the requested person doesn't exist
+	// ErrPersonNotFound indicates a person could not be found
 	ErrPersonNotFound = errors.New("person not found")
 
-	// ErrAccountNotFound indicates that the referenced account doesn't exist
+	// ErrInvalidPersonData indicates invalid person data
+	ErrInvalidPersonData = errors.New("invalid person data")
+
+	// ErrPersonIdentifierRequired indicates missing required identifier
+	ErrPersonIdentifierRequired = errors.New("either tag ID or account ID is required")
+
+	// ErrAccountNotFound indicates an account could not be found
 	ErrAccountNotFound = errors.New("account not found")
 
-	// ErrRFIDCardNotFound indicates that the referenced RFID card doesn't exist
+	// ErrRFIDCardNotFound indicates an RFID card could not be found
 	ErrRFIDCardNotFound = errors.New("RFID card not found")
 
-	// ErrAccountAlreadyLinked indicates that the account is already linked to another person
-	ErrAccountAlreadyLinked = errors.New("account already linked to another person")
+	// ErrAccountAlreadyLinked indicates an account is already linked to another person
+	ErrAccountAlreadyLinked = errors.New("account is already linked to another person")
 
-	// ErrRFIDCardAlreadyLinked indicates that the RFID card is already linked to another person
-	ErrRFIDCardAlreadyLinked = errors.New("RFID card already linked to another person")
+	// ErrRFIDCardAlreadyLinked indicates an RFID card is already linked to another person
+	ErrRFIDCardAlreadyLinked = errors.New("RFID card is already linked to another person")
+
+	// ErrGuardianNotFound indicates a guardian could not be found
+	ErrGuardianNotFound = errors.New("guardian not found")
 )
+
+// UsersError represents an error in the users service
+type UsersError struct {
+	Op  string // Operation that failed
+	Err error  // Underlying error
+}
+
+// Error returns the error message
+func (e *UsersError) Error() string {
+	return fmt.Sprintf("users.%s: %v", e.Op, e.Err)
+}
+
+// Unwrap returns the underlying error
+func (e *UsersError) Unwrap() error {
+	return e.Err
+}

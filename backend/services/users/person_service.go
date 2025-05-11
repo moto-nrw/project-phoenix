@@ -33,29 +33,36 @@ func NewPersonService(
 
 // Get retrieves a person by their ID
 func (s *personService) Get(ctx context.Context, id interface{}) (*userModels.Person, error) {
-	return s.personRepo.FindByID(ctx, id)
+	person, err := s.personRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, &UsersError{Op: "get person", Err: err}
+	}
+	if person == nil {
+		return nil, &UsersError{Op: "get person", Err: ErrPersonNotFound}
+	}
+	return person, nil
 }
 
 // Create creates a new person
 func (s *personService) Create(ctx context.Context, person *userModels.Person) error {
 	// Apply business rules and validation
 	if err := person.Validate(); err != nil {
-		return err
+		return &UsersError{Op: "create person", Err: err}
 	}
 
 	// Additional business rule: Either TagID or AccountID must be set
 	if person.TagID == nil && person.AccountID == nil {
-		return ErrPersonIdentifierRequired
+		return &UsersError{Op: "create person", Err: ErrPersonIdentifierRequired}
 	}
 
 	// Check if the account exists if AccountID is set
 	if person.AccountID != nil {
 		account, err := s.accountRepo.FindByID(ctx, *person.AccountID)
 		if err != nil {
-			return err
+			return &UsersError{Op: "create person", Err: err}
 		}
 		if account == nil {
-			return ErrAccountNotFound
+			return &UsersError{Op: "create person", Err: ErrAccountNotFound}
 		}
 	}
 
@@ -63,35 +70,39 @@ func (s *personService) Create(ctx context.Context, person *userModels.Person) e
 	if person.TagID != nil {
 		card, err := s.rfidRepo.FindByID(ctx, *person.TagID)
 		if err != nil {
-			return err
+			return &UsersError{Op: "create person", Err: err}
 		}
 		if card == nil {
-			return ErrRFIDCardNotFound
+			return &UsersError{Op: "create person", Err: ErrRFIDCardNotFound}
 		}
 	}
 
-	return s.personRepo.Create(ctx, person)
+	if err := s.personRepo.Create(ctx, person); err != nil {
+		return &UsersError{Op: "create person", Err: err}
+	}
+
+	return nil
 }
 
 // Update updates an existing person
 func (s *personService) Update(ctx context.Context, person *userModels.Person) error {
 	// Apply business rules and validation
 	if err := person.Validate(); err != nil {
-		return err
+		return &UsersError{Op: "update person", Err: err}
 	}
 
 	// Additional business rule: Either TagID or AccountID must be set
 	if person.TagID == nil && person.AccountID == nil {
-		return ErrPersonIdentifierRequired
+		return &UsersError{Op: "update person", Err: ErrPersonIdentifierRequired}
 	}
 
 	// Check if the person exists
 	existingPerson, err := s.personRepo.FindByID(ctx, person.ID)
 	if err != nil {
-		return err
+		return &UsersError{Op: "update person", Err: err}
 	}
 	if existingPerson == nil {
-		return ErrPersonNotFound
+		return &UsersError{Op: "update person", Err: ErrPersonNotFound}
 	}
 
 	// Check if the account exists if AccountID is set and changed
@@ -99,10 +110,10 @@ func (s *personService) Update(ctx context.Context, person *userModels.Person) e
 		(existingPerson.AccountID == nil || *existingPerson.AccountID != *person.AccountID) {
 		account, err := s.accountRepo.FindByID(ctx, *person.AccountID)
 		if err != nil {
-			return err
+			return &UsersError{Op: "update person", Err: err}
 		}
 		if account == nil {
-			return ErrAccountNotFound
+			return &UsersError{Op: "update person", Err: ErrAccountNotFound}
 		}
 	}
 
@@ -111,19 +122,35 @@ func (s *personService) Update(ctx context.Context, person *userModels.Person) e
 		(existingPerson.TagID == nil || *existingPerson.TagID != *person.TagID) {
 		card, err := s.rfidRepo.FindByID(ctx, *person.TagID)
 		if err != nil {
-			return err
+			return &UsersError{Op: "update person", Err: err}
 		}
 		if card == nil {
-			return ErrRFIDCardNotFound
+			return &UsersError{Op: "update person", Err: ErrRFIDCardNotFound}
 		}
 	}
 
-	return s.personRepo.Update(ctx, person)
+	if err := s.personRepo.Update(ctx, person); err != nil {
+		return &UsersError{Op: "update person", Err: err}
+	}
+
+	return nil
 }
 
 // Delete removes a person
 func (s *personService) Delete(ctx context.Context, id interface{}) error {
-	return s.personRepo.Delete(ctx, id)
+	// Verify the person exists
+	person, err := s.personRepo.FindByID(ctx, id)
+	if err != nil {
+		return &UsersError{Op: "delete person", Err: err}
+	}
+	if person == nil {
+		return &UsersError{Op: "delete person", Err: ErrPersonNotFound}
+	}
+
+	if err := s.personRepo.Delete(ctx, id); err != nil {
+		return &UsersError{Op: "delete person", Err: err}
+	}
+	return nil
 }
 
 // List retrieves persons matching the provided query options
@@ -135,17 +162,35 @@ func (s *personService) List(ctx context.Context, options *base.QueryOptions) ([
 		// For simplicity, this implementation is abbreviated
 	}
 
-	return s.personRepo.List(ctx, filters)
+	persons, err := s.personRepo.List(ctx, filters)
+	if err != nil {
+		return nil, &UsersError{Op: "list persons", Err: err}
+	}
+	return persons, nil
 }
 
 // FindByTagID finds a person by their RFID tag ID
 func (s *personService) FindByTagID(ctx context.Context, tagID string) (*userModels.Person, error) {
-	return s.personRepo.FindByTagID(ctx, tagID)
+	person, err := s.personRepo.FindByTagID(ctx, tagID)
+	if err != nil {
+		return nil, &UsersError{Op: "find person by tag ID", Err: err}
+	}
+	if person == nil {
+		return nil, &UsersError{Op: "find person by tag ID", Err: ErrPersonNotFound}
+	}
+	return person, nil
 }
 
 // FindByAccountID finds a person by their account ID
 func (s *personService) FindByAccountID(ctx context.Context, accountID int64) (*userModels.Person, error) {
-	return s.personRepo.FindByAccountID(ctx, accountID)
+	person, err := s.personRepo.FindByAccountID(ctx, accountID)
+	if err != nil {
+		return nil, &UsersError{Op: "find person by account ID", Err: err}
+	}
+	if person == nil {
+		return nil, &UsersError{Op: "find person by account ID", Err: ErrPersonNotFound}
+	}
+	return person, nil
 }
 
 // FindByName finds persons matching the provided name
@@ -163,7 +208,11 @@ func (s *personService) FindByName(ctx context.Context, firstName, lastName stri
 
 	options.Filter = filter
 
-	return s.List(ctx, options)
+	persons, err := s.List(ctx, options)
+	if err != nil {
+		return nil, &UsersError{Op: "find persons by name", Err: err}
+	}
+	return persons, nil
 }
 
 // LinkToAccount associates a person with an account
@@ -171,27 +220,33 @@ func (s *personService) LinkToAccount(ctx context.Context, personID int64, accou
 	// Verify the account exists
 	account, err := s.accountRepo.FindByID(ctx, accountID)
 	if err != nil {
-		return err
+		return &UsersError{Op: "link to account", Err: err}
 	}
 	if account == nil {
-		return ErrAccountNotFound
+		return &UsersError{Op: "link to account", Err: ErrAccountNotFound}
 	}
 
 	// Check if the account is already linked to another person
 	existingPerson, err := s.personRepo.FindByAccountID(ctx, accountID)
 	if err != nil {
-		return err
+		return &UsersError{Op: "link to account", Err: err}
 	}
 	if existingPerson != nil && existingPerson.ID != personID {
-		return ErrAccountAlreadyLinked
+		return &UsersError{Op: "link to account", Err: ErrAccountAlreadyLinked}
 	}
 
-	return s.personRepo.LinkToAccount(ctx, personID, accountID)
+	if err := s.personRepo.LinkToAccount(ctx, personID, accountID); err != nil {
+		return &UsersError{Op: "link to account", Err: err}
+	}
+	return nil
 }
 
 // UnlinkFromAccount removes account association from a person
 func (s *personService) UnlinkFromAccount(ctx context.Context, personID int64) error {
-	return s.personRepo.UnlinkFromAccount(ctx, personID)
+	if err := s.personRepo.UnlinkFromAccount(ctx, personID); err != nil {
+		return &UsersError{Op: "unlink from account", Err: err}
+	}
+	return nil
 }
 
 // LinkToRFIDCard associates a person with an RFID card
@@ -199,27 +254,33 @@ func (s *personService) LinkToRFIDCard(ctx context.Context, personID int64, tagI
 	// Verify the RFID card exists
 	card, err := s.rfidRepo.FindByID(ctx, tagID)
 	if err != nil {
-		return err
+		return &UsersError{Op: "link to RFID card", Err: err}
 	}
 	if card == nil {
-		return ErrRFIDCardNotFound
+		return &UsersError{Op: "link to RFID card", Err: ErrRFIDCardNotFound}
 	}
 
 	// Check if the card is already linked to another person
 	existingPerson, err := s.personRepo.FindByTagID(ctx, tagID)
 	if err != nil {
-		return err
+		return &UsersError{Op: "link to RFID card", Err: err}
 	}
 	if existingPerson != nil && existingPerson.ID != personID {
-		return ErrRFIDCardAlreadyLinked
+		return &UsersError{Op: "link to RFID card", Err: ErrRFIDCardAlreadyLinked}
 	}
 
-	return s.personRepo.LinkToRFIDCard(ctx, personID, tagID)
+	if err := s.personRepo.LinkToRFIDCard(ctx, personID, tagID); err != nil {
+		return &UsersError{Op: "link to RFID card", Err: err}
+	}
+	return nil
 }
 
 // UnlinkFromRFIDCard removes RFID card association from a person
 func (s *personService) UnlinkFromRFIDCard(ctx context.Context, personID int64) error {
-	return s.personRepo.UnlinkFromRFIDCard(ctx, personID)
+	if err := s.personRepo.UnlinkFromRFIDCard(ctx, personID); err != nil {
+		return &UsersError{Op: "unlink from RFID card", Err: err}
+	}
+	return nil
 }
 
 // GetFullProfile retrieves a person with all related entities
@@ -227,17 +288,17 @@ func (s *personService) GetFullProfile(ctx context.Context, personID int64) (*us
 	// Get the basic person record
 	person, err := s.personRepo.FindByID(ctx, personID)
 	if err != nil {
-		return nil, err
+		return nil, &UsersError{Op: "get full profile", Err: err}
 	}
 	if person == nil {
-		return nil, ErrPersonNotFound
+		return nil, &UsersError{Op: "get full profile", Err: ErrPersonNotFound}
 	}
 
 	// Fetch related account if AccountID is set
 	if person.AccountID != nil {
 		account, err := s.accountRepo.FindByID(ctx, *person.AccountID)
 		if err != nil {
-			return nil, err
+			return nil, &UsersError{Op: "get full profile - fetch account", Err: err}
 		}
 		person.Account = account
 	}
@@ -246,7 +307,7 @@ func (s *personService) GetFullProfile(ctx context.Context, personID int64) (*us
 	if person.TagID != nil {
 		card, err := s.rfidRepo.FindByID(ctx, *person.TagID)
 		if err != nil {
-			return nil, err
+			return nil, &UsersError{Op: "get full profile - fetch RFID card", Err: err}
 		}
 		person.RFIDCard = card
 	}
@@ -260,7 +321,7 @@ func (s *personService) FindByGuardianID(ctx context.Context, guardianAccountID 
 	// Changed from FindByGuardianAccountID to FindByGuardianID to match the repository interface
 	relationships, err := s.personGuardianRepo.FindByGuardianID(ctx, guardianAccountID)
 	if err != nil {
-		return nil, err
+		return nil, &UsersError{Op: "find by guardian ID", Err: err}
 	}
 
 	// Extract person IDs from relationships
@@ -279,5 +340,9 @@ func (s *personService) FindByGuardianID(ctx context.Context, guardianAccountID 
 	filter := base.NewFilter().In("id", personIDs...)
 	options.Filter = filter
 
-	return s.List(ctx, options)
+	persons, err := s.List(ctx, options)
+	if err != nil {
+		return nil, &UsersError{Op: "find by guardian ID", Err: err}
+	}
+	return persons, nil
 }
