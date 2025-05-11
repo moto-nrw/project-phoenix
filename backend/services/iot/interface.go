@@ -4,12 +4,13 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/uptrace/bun"
 )
 
 // Service defines the IoT service operations
 type Service interface {
+	base.TransactionalService
 	// Core device operations
 	CreateDevice(ctx context.Context, device *iot.Device) error
 	GetDeviceByID(ctx context.Context, id int64) (*iot.Device, error)
@@ -37,6 +38,5 @@ type Service interface {
 	DetectNewDevices(ctx context.Context) ([]*iot.Device, error)
 	ScanNetwork(ctx context.Context) (map[string]string, error)
 
-	// Transaction support
-	WithTx(tx bun.Tx) Service
+	// Transaction support is provided by base.TransactionalService
 }
