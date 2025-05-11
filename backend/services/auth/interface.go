@@ -4,10 +4,13 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // AuthService defines the operations for authentication and user management
 type AuthService interface {
+	base.TransactionalService
+
 	// Login authenticates a user and returns access and refresh tokens
 	Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
 

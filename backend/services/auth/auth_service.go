@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
 
@@ -21,10 +22,10 @@ type Service struct {
 	accountPermissionRepo auth.AccountPermissionRepository
 	permissionRepo        auth.PermissionRepository
 	tokenRepo             auth.TokenRepository
-	db                    *bun.DB
 	tokenAuth             *jwt.TokenAuth
 	jwtExpiry             time.Duration
 	jwtRefreshExpiry      time.Duration
+	txHandler             *base.TxHandler
 }
 
 // NewService creates a new auth service
@@ -43,11 +44,51 @@ func NewService(accountRepo auth.AccountRepository, accountRoleRepo auth.Account
 		accountPermissionRepo: accountPermissionRepo,
 		permissionRepo:        permissionRepo,
 		tokenRepo:             tokenRepo,
-		db:                    db,
 		tokenAuth:             tokenAuth,
 		jwtExpiry:             tokenAuth.JwtExpiry,
 		jwtRefreshExpiry:      tokenAuth.JwtRefreshExpiry,
+		txHandler:             base.NewTxHandler(db),
 	}, nil
+}
+
+// WithTx returns a new service that uses the provided transaction
+func (s *Service) WithTx(tx bun.Tx) interface{} {
+	// Get repositories with transaction if they implement the TransactionalRepository interface
+	var accountRepo auth.AccountRepository = s.accountRepo
+	var accountRoleRepo auth.AccountRoleRepository = s.accountRoleRepo
+	var accountPermissionRepo auth.AccountPermissionRepository = s.accountPermissionRepo
+	var permissionRepo auth.PermissionRepository = s.permissionRepo
+	var tokenRepo auth.TokenRepository = s.tokenRepo
+
+	// Try to cast repositories to TransactionalRepository and apply the transaction
+	if txRepo, ok := s.accountRepo.(base.TransactionalRepository); ok {
+		accountRepo = txRepo.WithTx(tx).(auth.AccountRepository)
+	}
+	if txRepo, ok := s.accountRoleRepo.(base.TransactionalRepository); ok {
+		accountRoleRepo = txRepo.WithTx(tx).(auth.AccountRoleRepository)
+	}
+	if txRepo, ok := s.accountPermissionRepo.(base.TransactionalRepository); ok {
+		accountPermissionRepo = txRepo.WithTx(tx).(auth.AccountPermissionRepository)
+	}
+	if txRepo, ok := s.permissionRepo.(base.TransactionalRepository); ok {
+		permissionRepo = txRepo.WithTx(tx).(auth.PermissionRepository)
+	}
+	if txRepo, ok := s.tokenRepo.(base.TransactionalRepository); ok {
+		tokenRepo = txRepo.WithTx(tx).(auth.TokenRepository)
+	}
+
+	// Return a new service with the transaction
+	return &Service{
+		accountRepo:           accountRepo,
+		accountRoleRepo:       accountRoleRepo,
+		accountPermissionRepo: accountPermissionRepo,
+		permissionRepo:        permissionRepo,
+		tokenRepo:             tokenRepo,
+		tokenAuth:             s.tokenAuth,
+		jwtExpiry:             s.jwtExpiry,
+		jwtRefreshExpiry:      s.jwtRefreshExpiry,
+		txHandler:             s.txHandler.WithTx(tx),
+	}
 }
 
 // Login authenticates a user and returns access and refresh tokens
@@ -88,17 +129,20 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, st
 		Identifier: &identifier,
 	}
 
-	// Execute in transaction
-	err = s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		// Create token
-		if err := s.tokenRepo.Create(ctx, token); err != nil {
+	// Execute in transaction using txHandler
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(AuthService)
+
+		// Create token using the transaction-aware repositories
+		if err := txService.(*Service).tokenRepo.Create(ctx, token); err != nil {
 			return err
 		}
 
 		// Update last login
 		loginTime := time.Now()
 		account.LastLogin = &loginTime
-		return s.accountRepo.Update(ctx, account)
+		return txService.(*Service).accountRepo.Update(ctx, account)
 	})
 
 	if err != nil {
@@ -212,27 +256,25 @@ func (s *Service) Register(ctx context.Context, email, username, name, password 
 		LastLogin:    &now,
 	}
 
-	// Execute in transaction
-	err = s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		// Store transaction in context
-		ctx = context.WithValue(ctx, "tx", &tx)
+	// Execute in transaction using txHandler
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(AuthService)
 
 		// Create account with transaction
-		if err := s.accountRepo.Create(ctx, account); err != nil {
+		if err := txService.(*Service).accountRepo.Create(ctx, account); err != nil {
 			return err
 		}
 
 		// Find the default user role
-		// This is simplified - in a real implementation you'd need to
-		// retrieve the role ID from the database
-		userRole, err := s.getRoleByName(ctx, "user")
+		userRole, err := txService.(*Service).getRoleByName(ctx, "user")
 		if err == nil && userRole != nil {
 			// Create account role mapping
 			accountRole := &auth.AccountRole{
 				AccountID: account.ID,
 				RoleID:    userRole.ID,
 			}
-			err = s.accountRoleRepo.Create(ctx, accountRole)
+			err = txService.(*Service).accountRoleRepo.Create(ctx, accountRole)
 			if err != nil {
 				// Log error but continue
 			}
@@ -351,17 +393,20 @@ func (s *Service) RefreshToken(ctx context.Context, refreshTokenStr string) (str
 	dbToken.Token = newTokenStr
 	dbToken.Expiry = now.Add(s.jwtRefreshExpiry)
 
-	// Execute in transaction
-	err = s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+	// Execute in transaction using txHandler
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(AuthService)
+
 		// Update token
-		if err := s.tokenRepo.Update(ctx, dbToken); err != nil {
+		if err := txService.(*Service).tokenRepo.Update(ctx, dbToken); err != nil {
 			return err
 		}
 
 		// Update last login
 		loginTime := time.Now()
 		account.LastLogin = &loginTime
-		return s.accountRepo.Update(ctx, account)
+		return txService.(*Service).accountRepo.Update(ctx, account)
 	})
 
 	if err != nil {
