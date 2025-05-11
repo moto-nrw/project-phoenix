@@ -25,6 +25,7 @@ func NewResource(authService authService.AuthService) *Resource {
 	return &Resource{
 		AuthService: authService,
 	}
+
 }
 
 // Router returns a configured router for auth endpoints
