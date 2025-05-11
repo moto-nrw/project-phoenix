@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/uptrace/bun"
 )
 
 // GroupTeacher represents the many-to-many relationship between groups and teachers
