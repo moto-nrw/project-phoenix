@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/uptrace/bun"
 )
@@ -15,6 +16,7 @@ import (
 type service struct {
 	settingRepo config.SettingRepository
 	db          *bun.DB
+	txHandler   *base.TxHandler
 }
 
 // NewService creates a new config service
@@ -22,15 +24,25 @@ func NewService(settingRepo config.SettingRepository, db *bun.DB) Service {
 	return &service{
 		settingRepo: settingRepo,
 		db:          db,
+		txHandler:   base.NewTxHandler(db),
 	}
 }
 
 // WithTx returns a new service that uses the provided transaction
-func (s *service) WithTx(tx bun.Tx) Service {
-	// Clone the service with the transaction
+func (s *service) WithTx(tx bun.Tx) interface{} {
+	// Get repositories with transaction if they implement the TransactionalRepository interface
+	var settingRepo config.SettingRepository = s.settingRepo
+
+	// Try to cast repository to TransactionalRepository and apply the transaction
+	if txRepo, ok := s.settingRepo.(base.TransactionalRepository); ok {
+		settingRepo = txRepo.WithTx(tx).(config.SettingRepository)
+	}
+
+	// Return a new service with the transaction
 	return &service{
-		settingRepo: s.settingRepo,
+		settingRepo: settingRepo,
 		db:          s.db,
+		txHandler:   s.txHandler.WithTx(tx),
 	}
 }
 
@@ -319,12 +331,15 @@ func (s *service) ImportSettings(ctx context.Context, settings []*config.Setting
 
 	var errors []error
 
-	// Execute in transaction
-	err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+	// Execute in transaction using txHandler
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(Service)
+
 		// Process all settings
 		for _, setting := range settings {
 			// Check if setting exists
-			existingSetting, err := s.settingRepo.FindByKeyAndCategory(ctx, setting.Key, setting.Category)
+			existingSetting, err := txService.GetSettingByKeyAndCategory(ctx, setting.Key, setting.Category)
 			if err == nil && existingSetting != nil && existingSetting.ID > 0 {
 				// Update existing setting
 				existingSetting.Value = setting.Value
@@ -332,12 +347,12 @@ func (s *service) ImportSettings(ctx context.Context, settings []*config.Setting
 				existingSetting.RequiresRestart = setting.RequiresRestart
 				existingSetting.RequiresDBReset = setting.RequiresDBReset
 
-				if err := s.settingRepo.Update(ctx, existingSetting); err != nil {
+				if err := txService.UpdateSetting(ctx, existingSetting); err != nil {
 					errors = append(errors, &ConfigError{Op: "ImportSettings", Err: err})
 				}
 			} else {
 				// Create new setting
-				if err := s.settingRepo.Create(ctx, setting); err != nil {
+				if err := txService.CreateSetting(ctx, setting); err != nil {
 					errors = append(errors, &ConfigError{Op: "ImportSettings", Err: err})
 				}
 			}
@@ -484,14 +499,17 @@ func (s *service) InitializeDefaultSettings(ctx context.Context) error {
 		},
 	}
 
-	// Execute in transaction
-	return s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+	// Execute in transaction using txHandler
+	return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(Service)
+
 		for _, setting := range defaultSettings {
 			// Check if setting exists
-			existingSetting, err := s.settingRepo.FindByKeyAndCategory(ctx, setting.Key, setting.Category)
+			existingSetting, err := txService.GetSettingByKeyAndCategory(ctx, setting.Key, setting.Category)
 			if err != nil || existingSetting == nil || existingSetting.ID <= 0 {
 				// Create if it doesn't exist
-				if err := s.settingRepo.Create(ctx, setting); err != nil {
+				if err := txService.CreateSetting(ctx, setting); err != nil {
 					return &ConfigError{Op: "InitializeDefaultSettings", Err: err}
 				}
 			}

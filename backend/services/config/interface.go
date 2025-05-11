@@ -3,12 +3,13 @@ package config
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/uptrace/bun"
 )
 
 // Service defines the configuration service operations
 type Service interface {
+	base.TransactionalService
 	// Core operations
 	CreateSetting(ctx context.Context, setting *config.Setting) error
 	GetSettingByID(ctx context.Context, id int64) (*config.Setting, error)
@@ -37,5 +38,5 @@ type Service interface {
 	RequiresDatabaseReset(ctx context.Context) (bool, error)
 
 	// Transaction support
-	WithTx(tx bun.Tx) Service
+	// WithTx is already defined in base.TransactionalService
 }
