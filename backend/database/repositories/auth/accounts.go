@@ -274,7 +274,7 @@ func (r *AccountRepository) FindAccountsWithRolesAndPermissions(ctx context.Cont
 	return accounts, nil
 }
 
-// Create overrides the base Create method for schema consistency
+// Create overrides the base Create method for validation
 func (r *AccountRepository) Create(ctx context.Context, account *auth.Account) error {
 	if account == nil {
 		return fmt.Errorf("account cannot be nil")
@@ -285,29 +285,8 @@ func (r *AccountRepository) Create(ctx context.Context, account *auth.Account) e
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewInsert().
-		Model(account).
-		ModelTableExpr("auth.accounts")
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewInsert().
-			Model(account).
-			ModelTableExpr("auth.accounts")
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "create",
-			Err: err,
-		}
-	}
-
-	return nil
+	// Use the base Create method which now uses ModelTableExpr
+	return r.Repository.Create(ctx, account)
 }
 
 // Update overrides the base Update method to handle email normalization

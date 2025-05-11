@@ -96,7 +96,7 @@ func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*acti
 	}
 	var counts []countResult
 	err = r.db.NewSelect().
-		TableExpr("activities.student_enrollments").
+		ModelTableExpr("activities.student_enrollments").
 		Column("activity_group_id").
 		ColumnExpr("COUNT(*) AS count").
 		Where("activity_group_id IN (?)", bun.In(groupIDs)).
@@ -201,29 +201,8 @@ func (r *GroupRepository) Create(ctx context.Context, group *activities.Group) e
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewInsert().
-		Model(group).
-		ModelTableExpr("activities.groups")
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewInsert().
-			Model(group).
-			ModelTableExpr("activities.groups")
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "create",
-			Err: err,
-		}
-	}
-
-	return nil
+	// Use the base Create method which now uses ModelTableExpr
+	return r.Repository.Create(ctx, group)
 }
 
 // Update overrides the base Update method to handle validation

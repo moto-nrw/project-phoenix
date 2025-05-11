@@ -141,29 +141,8 @@ func (r *StudentEnrollmentRepository) Create(ctx context.Context, enrollment *ac
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewInsert().
-		Model(enrollment).
-		ModelTableExpr("activities.student_enrollments")
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewInsert().
-			Model(enrollment).
-			ModelTableExpr("activities.student_enrollments")
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "create",
-			Err: err,
-		}
-	}
-
-	return nil
+	// Use the base Create method which now uses ModelTableExpr
+	return r.Repository.Create(ctx, enrollment)
 }
 
 // Update overrides the base Update method to handle validation

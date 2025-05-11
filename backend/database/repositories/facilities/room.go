@@ -26,7 +26,7 @@ func NewRoomRepository(db *bun.DB) facilities.RoomRepository {
 	}
 }
 
-// Create overrides the base Create method for schema consistency
+// Create overrides the base Create method to handle validation
 func (r *RoomRepository) Create(ctx context.Context, room *facilities.Room) error {
 	if room == nil {
 		return fmt.Errorf("room cannot be nil")
@@ -37,29 +37,8 @@ func (r *RoomRepository) Create(ctx context.Context, room *facilities.Room) erro
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewInsert().
-		Model(room).
-		ModelTableExpr("facilities.rooms")
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewInsert().
-			Model(room).
-			ModelTableExpr("facilities.rooms")
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "create",
-			Err: err,
-		}
-	}
-
-	return nil
+	// Use the base Create method which now uses ModelTableExpr
+	return r.Repository.Create(ctx, room)
 }
 
 // Update overrides the base Update method for schema consistency

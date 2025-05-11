@@ -235,7 +235,7 @@ func (r *PermissionRepository) RemovePermissionFromRole(ctx context.Context, rol
 	return nil
 }
 
-// Create overrides the base Create method for schema consistency
+// Create overrides the base Create method to handle validation
 func (r *PermissionRepository) Create(ctx context.Context, permission *auth.Permission) error {
 	if permission == nil {
 		return fmt.Errorf("permission cannot be nil")
@@ -246,29 +246,8 @@ func (r *PermissionRepository) Create(ctx context.Context, permission *auth.Perm
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewInsert().
-		Model(permission).
-		ModelTableExpr("auth.permissions")
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewInsert().
-			Model(permission).
-			ModelTableExpr("auth.permissions")
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "create",
-			Err: err,
-		}
-	}
-
-	return nil
+	// Use the base Create method which now uses ModelTableExpr
+	return r.Repository.Create(ctx, permission)
 }
 
 // Update overrides the base Update method for schema consistency
