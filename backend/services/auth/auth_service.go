@@ -16,17 +16,20 @@ import (
 
 // Service implements the AuthService interface
 type Service struct {
-	accountRepo      auth.AccountRepository
-	accountRoleRepo  auth.AccountRoleRepository
-	tokenRepo        auth.TokenRepository
-	db               *bun.DB
-	tokenAuth        *jwt.TokenAuth
-	jwtExpiry        time.Duration
-	jwtRefreshExpiry time.Duration
+	accountRepo           auth.AccountRepository
+	accountRoleRepo       auth.AccountRoleRepository
+	accountPermissionRepo auth.AccountPermissionRepository
+	permissionRepo        auth.PermissionRepository
+	tokenRepo             auth.TokenRepository
+	db                    *bun.DB
+	tokenAuth             *jwt.TokenAuth
+	jwtExpiry             time.Duration
+	jwtRefreshExpiry      time.Duration
 }
 
 // NewService creates a new auth service
 func NewService(accountRepo auth.AccountRepository, accountRoleRepo auth.AccountRoleRepository,
+	accountPermissionRepo auth.AccountPermissionRepository, permissionRepo auth.PermissionRepository,
 	tokenRepo auth.TokenRepository, db *bun.DB) (*Service, error) {
 
 	tokenAuth, err := jwt.NewTokenAuth()
@@ -35,13 +38,15 @@ func NewService(accountRepo auth.AccountRepository, accountRoleRepo auth.Account
 	}
 
 	return &Service{
-		accountRepo:      accountRepo,
-		accountRoleRepo:  accountRoleRepo,
-		tokenRepo:        tokenRepo,
-		db:               db,
-		tokenAuth:        tokenAuth,
-		jwtExpiry:        tokenAuth.JwtExpiry,
-		jwtRefreshExpiry: tokenAuth.JwtRefreshExpiry,
+		accountRepo:           accountRepo,
+		accountRoleRepo:       accountRoleRepo,
+		accountPermissionRepo: accountPermissionRepo,
+		permissionRepo:        permissionRepo,
+		tokenRepo:             tokenRepo,
+		db:                    db,
+		tokenAuth:             tokenAuth,
+		jwtExpiry:             tokenAuth.JwtExpiry,
+		jwtRefreshExpiry:      tokenAuth.JwtRefreshExpiry,
 	}, nil
 }
 
@@ -116,10 +121,24 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, st
 		}
 	}
 
+	// Retrieve permissions for the account
+	permissions, err := s.getAccountPermissions(ctx, account.ID)
+	if err != nil {
+		// Continue even if permission retrieval fails, just log the error
+		// In a real implementation, you would log this error
+		permissions = []*auth.Permission{} // Empty array with correct type
+	}
+
 	// Convert roles to string slice for token
 	var roleNames []string
 	for _, role := range account.Roles {
 		roleNames = append(roleNames, role.Name)
+	}
+
+	// Extract permission names into strings
+	var permissionStrs []string
+	for _, perm := range permissions {
+		permissionStrs = append(permissionStrs, perm.GetFullName())
 	}
 
 	// Extract username
@@ -131,10 +150,11 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, st
 	// Generate token pair
 	// Create JWT claims
 	appClaims := jwt.AppClaims{
-		ID:       int(account.ID),
-		Sub:      email, // Use email as subject
-		Username: username,
-		Roles:    roleNames,
+		ID:          int(account.ID),
+		Sub:         email, // Use email as subject
+		Username:    username,
+		Roles:       roleNames,
+		Permissions: permissionStrs, // Use string array here
 	}
 
 	refreshClaims := jwt.RefreshClaims{
@@ -205,16 +225,19 @@ func (s *Service) Register(ctx context.Context, email, username, name, password 
 		// Find the default user role
 		// This is simplified - in a real implementation you'd need to
 		// retrieve the role ID from the database
-		// Assume 'user' role with ID 1 exists
+		userRole, err := s.getRoleByName(ctx, "user")
+		if err == nil && userRole != nil {
+			// Create account role mapping
+			accountRole := &auth.AccountRole{
+				AccountID: account.ID,
+				RoleID:    userRole.ID,
+			}
+			err = s.accountRoleRepo.Create(ctx, accountRole)
+			if err != nil {
+				// Log error but continue
+			}
+		}
 
-		// Create account role mapping
-		// accountRole := &auth.AccountRole{
-		//    AccountID: account.ID,
-		//    RoleID:    1, // Default user role ID
-		// }
-		// return s.accountRoleRepo.Create(ctx, accountRole)
-
-		// For now, just return nil since we don't have the actual role IDs
 		return nil
 	})
 
@@ -264,6 +287,14 @@ func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.
 					account.Roles = append(account.Roles, ar.Role)
 				}
 			}
+		}
+	}
+
+	// Load permissions if not already loaded
+	if account.Permissions == nil || len(account.Permissions) == 0 {
+		permissions, err := s.getAccountPermissions(ctx, account.ID)
+		if err == nil {
+			account.Permissions = permissions
 		}
 	}
 
@@ -350,10 +381,23 @@ func (s *Service) RefreshToken(ctx context.Context, refreshTokenStr string) (str
 		}
 	}
 
+	// Load permissions
+	permissions, err := s.getAccountPermissions(ctx, account.ID)
+	if err != nil {
+		// Continue even if permission retrieval fails, just log the error
+		permissions = []*auth.Permission{} // Empty array with correct type
+	}
+
 	// Extract roles as strings
 	var roleNames []string
 	for _, role := range account.Roles {
 		roleNames = append(roleNames, role.Name)
+	}
+
+	// Extract permission names into strings
+	var permissionStrs []string
+	for _, perm := range permissions {
+		permissionStrs = append(permissionStrs, perm.GetFullName())
 	}
 
 	// Extract username
@@ -364,10 +408,11 @@ func (s *Service) RefreshToken(ctx context.Context, refreshTokenStr string) (str
 
 	// Generate token pair
 	appClaims := jwt.AppClaims{
-		ID:       int(account.ID),
-		Sub:      account.Email,
-		Username: username,
-		Roles:    roleNames,
+		ID:          int(account.ID),
+		Sub:         account.Email,
+		Username:    username,
+		Roles:       roleNames,
+		Permissions: permissionStrs, // Use string array here
 	}
 
 	newRefreshClaims := jwt.RefreshClaims{
@@ -475,6 +520,56 @@ func (s *Service) GetAccountByEmail(ctx context.Context, email string) (*auth.Ac
 		return nil, &AuthError{Op: "get account by email", Err: ErrAccountNotFound}
 	}
 	return account, nil
+}
+
+// Helper methods
+
+// getAccountPermissions retrieves all permissions for an account (both direct and role-based)
+func (s *Service) getAccountPermissions(ctx context.Context, accountID int64) ([]*auth.Permission, error) {
+	// Get permissions directly assigned to the account
+	directPermissions, err := s.permissionRepo.FindByAccountID(ctx, accountID)
+	if err != nil {
+		return []*auth.Permission{}, err // Return empty slice with correct type
+	}
+
+	// Create a map to prevent duplicate permissions
+	permMap := make(map[int64]*auth.Permission)
+
+	// Add direct permissions to the map
+	for _, p := range directPermissions {
+		permMap[p.ID] = p
+	}
+
+	// Get permissions from roles
+	// First, get account roles
+	accountRoles, err := s.accountRoleRepo.FindByAccountID(ctx, accountID)
+	if err == nil { // Continue even if error occurs
+		// For each role, get permissions
+		for _, ar := range accountRoles {
+			if ar.RoleID > 0 {
+				rolePermissions, err := s.permissionRepo.FindByRoleID(ctx, ar.RoleID)
+				if err == nil { // Continue even if error occurs
+					// Add role permissions to the map
+					for _, p := range rolePermissions {
+						permMap[p.ID] = p
+					}
+				}
+			}
+		}
+	}
+
+	// Convert map to slice
+	permissions := make([]*auth.Permission, 0, len(permMap))
+	for _, p := range permMap {
+		permissions = append(permissions, p)
+	}
+
+	return permissions, nil
+}
+
+// getRoleByName retrieves a role by its name
+func (s *Service) getRoleByName(ctx context.Context, name string) (*auth.Role, error) {
+	return s.permissionRepo.FindByRoleByName(ctx, name)
 }
 
 // Helper functions

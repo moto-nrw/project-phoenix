@@ -16,11 +16,21 @@ type ctxKey int
 const (
 	ctxClaims ctxKey = iota
 	ctxRefreshToken
+	ctxPermissions // New context key for permissions
 )
 
 // ClaimsFromCtx retrieves the parsed AppClaims from request context.
 func ClaimsFromCtx(ctx context.Context) AppClaims {
 	return ctx.Value(ctxClaims).(AppClaims)
+}
+
+// PermissionsFromCtx retrieves the permissions array from request context.
+func PermissionsFromCtx(ctx context.Context) []string {
+	perms, ok := ctx.Value(ctxPermissions).([]string)
+	if !ok {
+		return []string{}
+	}
+	return perms
 }
 
 // RefreshTokenFromCtx retrieves the parsed refresh token from context.
@@ -57,6 +67,10 @@ func Authenticator(next http.Handler) http.Handler {
 
 		// Set AppClaims on context
 		ctx := context.WithValue(r.Context(), ctxClaims, c)
+
+		// Also set permissions on context for easier access
+		ctx = context.WithValue(ctx, ctxPermissions, c.Permissions)
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

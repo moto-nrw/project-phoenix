@@ -32,3 +32,5 @@ type AuthService interface {
 	// GetAccountByEmail retrieves an account by email
 	GetAccountByEmail(ctx context.Context, email string) (*auth.Account, error)
 }
+
+// Note: The NewService function is implemented in auth_service.go
