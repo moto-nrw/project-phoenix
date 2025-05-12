@@ -51,7 +51,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-2xl w-full rounded-2xl bg-white/80 p-10 text-center shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-white/90 hover:shadow-2xl">
 
 
-          {/* Help Button - positioned in top-right corner */}
+          {/* Help Button */}
           <div className="absolute top-4 right-4">
             <HelpButton
                 title="Hilfe"

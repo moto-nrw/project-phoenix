@@ -15,7 +15,7 @@ interface InfoCardProps {
 }
 
 const InfoCard: React.FC<InfoCardProps> = ({ title, children, href }) => (
-    <div className="rounded-lg border border-gray-100 bg-white p-6 shadow-sm">
+    <div className="rounded-lg border border-gray-100 bg-white p-6 shadow-md">
         <div className="mb-4 flex items-center justify-between">
             <h3 className="text-lg font-semibold">{title}</h3>
             {href && (
@@ -244,12 +244,12 @@ export default function DashboardPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen">
             {/* Header */}
             <Header userName={session?.user?.name ?? "Root"} />
 
             <div className="flex">
-                {/* Sidebar Navigation - Jetzt als separate Komponente */}
+                {/* Sidebar Navigation */}
                 <Sidebar />
 
                 {/* Main Content */}
