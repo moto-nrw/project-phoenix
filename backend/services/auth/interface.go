@@ -11,29 +11,68 @@ import (
 type AuthService interface {
 	base.TransactionalService
 
-	// Login authenticates a user and returns access and refresh tokens
+	// Existing methods
 	Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
-
-	// Register creates a new user account
 	Register(ctx context.Context, email, username, name, password string) (*auth.Account, error)
-
-	// ValidateToken validates an access token and returns the associated account
 	ValidateToken(ctx context.Context, token string) (*auth.Account, error)
-
-	// RefreshToken generates new token pair from a refresh token
 	RefreshToken(ctx context.Context, refreshToken string) (accessToken, newRefreshToken string, err error)
-
-	// Logout invalidates a refresh token
 	Logout(ctx context.Context, refreshToken string) error
-
-	// ChangePassword updates an account's password
 	ChangePassword(ctx context.Context, accountID int, currentPassword, newPassword string) error
-
-	// GetAccountByID retrieves an account by ID
 	GetAccountByID(ctx context.Context, id int) (*auth.Account, error)
-
-	// GetAccountByEmail retrieves an account by email
 	GetAccountByEmail(ctx context.Context, email string) (*auth.Account, error)
+
+	// Role Management
+	CreateRole(ctx context.Context, name, description string) (*auth.Role, error)
+	GetRoleByID(ctx context.Context, id int) (*auth.Role, error)
+	GetRoleByName(ctx context.Context, name string) (*auth.Role, error)
+	UpdateRole(ctx context.Context, role *auth.Role) error
+	DeleteRole(ctx context.Context, id int) error
+	ListRoles(ctx context.Context, filters map[string]interface{}) ([]*auth.Role, error)
+	AssignRoleToAccount(ctx context.Context, accountID, roleID int) error
+	RemoveRoleFromAccount(ctx context.Context, accountID, roleID int) error
+	GetAccountRoles(ctx context.Context, accountID int) ([]*auth.Role, error)
+
+	// Permission Management
+	CreatePermission(ctx context.Context, name, description, resource, action string) (*auth.Permission, error)
+	GetPermissionByID(ctx context.Context, id int) (*auth.Permission, error)
+	GetPermissionByName(ctx context.Context, name string) (*auth.Permission, error)
+	UpdatePermission(ctx context.Context, permission *auth.Permission) error
+	DeletePermission(ctx context.Context, id int) error
+	ListPermissions(ctx context.Context, filters map[string]interface{}) ([]*auth.Permission, error)
+	GrantPermissionToAccount(ctx context.Context, accountID, permissionID int) error
+	DenyPermissionToAccount(ctx context.Context, accountID, permissionID int) error
+	RemovePermissionFromAccount(ctx context.Context, accountID, permissionID int) error
+	GetAccountPermissions(ctx context.Context, accountID int) ([]*auth.Permission, error)
+	AssignPermissionToRole(ctx context.Context, roleID, permissionID int) error
+	RemovePermissionFromRole(ctx context.Context, roleID, permissionID int) error
+	GetRolePermissions(ctx context.Context, roleID int) ([]*auth.Permission, error)
+
+	// Account Management Extensions
+	ActivateAccount(ctx context.Context, accountID int) error
+	DeactivateAccount(ctx context.Context, accountID int) error
+	UpdateAccount(ctx context.Context, account *auth.Account) error
+	ListAccounts(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error)
+	GetAccountsByRole(ctx context.Context, roleName string) ([]*auth.Account, error)
+	GetAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error)
+
+	// Password Reset
+	InitiatePasswordReset(ctx context.Context, email string) (*auth.PasswordResetToken, error)
+	ResetPassword(ctx context.Context, token, newPassword string) error
+
+	// Token Management
+	CleanupExpiredTokens(ctx context.Context) (int, error)
+	CleanupExpiredPasswordResetTokens(ctx context.Context) (int, error)
+	RevokeAllTokens(ctx context.Context, accountID int) error
+	GetActiveTokens(ctx context.Context, accountID int) ([]*auth.Token, error)
+
+	// Parent Account Management
+	CreateParentAccount(ctx context.Context, email, username, password string) (*auth.AccountParent, error)
+	GetParentAccountByID(ctx context.Context, id int) (*auth.AccountParent, error)
+	GetParentAccountByEmail(ctx context.Context, email string) (*auth.AccountParent, error)
+	UpdateParentAccount(ctx context.Context, account *auth.AccountParent) error
+	ActivateParentAccount(ctx context.Context, accountID int) error
+	DeactivateParentAccount(ctx context.Context, accountID int) error
+	ListParentAccounts(ctx context.Context, filters map[string]interface{}) ([]*auth.AccountParent, error)
 }
 
 // Note: The NewService function is implemented in auth_service.go
