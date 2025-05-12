@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
+	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
@@ -36,6 +37,7 @@ type API struct {
 	Feedback   *feedbackAPI.Resource
 	Schedules  *schedulesAPI.Resource
 	Config     *configAPI.Resource
+	Active     *activeAPI.Resource
 }
 
 // New creates a new API instance
@@ -89,6 +91,7 @@ func New(enableCORS bool) (*API, error) {
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
 	api.Config = configAPI.NewResource(api.Services.Config)
+	api.Active = activeAPI.NewResource(api.Services.Active)
 
 	// Register routes
 	api.registerRoutes()
@@ -140,6 +143,9 @@ func (a *API) registerRoutes() {
 
 		// Mount config resources
 		r.Mount("/config", a.Config.Router())
+
+		// Mount active resources
+		r.Mount("/active", a.Active.Router())
 
 		// Add other resource routes here as they are implemented
 	})
