@@ -1,4 +1,4 @@
-package auth
+package rooms
 
 import (
 	"errors"
@@ -10,9 +10,6 @@ import (
 // Common error variables
 var (
 	ErrInvalidRequest   = errors.New("invalid request")
-	ErrInvalidLogin     = errors.New("invalid login credentials")
-	ErrUnauthorized     = errors.New("unauthorized")
-	ErrForbidden        = errors.New("forbidden")
 	ErrInternalServer   = errors.New("internal server error")
 	ErrResourceNotFound = errors.New("resource not found")
 )
@@ -20,16 +17,6 @@ var (
 // ErrorInvalidRequest returns a 400 Bad Request error response
 func ErrorInvalidRequest(err error) render.Renderer {
 	return common.ErrorInvalidRequest(err)
-}
-
-// ErrorUnauthorized returns a 401 Unauthorized error response
-func ErrorUnauthorized(err error) render.Renderer {
-	return common.ErrorUnauthorized(err)
-}
-
-// ErrorForbidden returns a 403 Forbidden error response
-func ErrorForbidden(err error) render.Renderer {
-	return common.ErrorForbidden(err)
 }
 
 // ErrorInternalServer returns a 500 Internal Server Error response

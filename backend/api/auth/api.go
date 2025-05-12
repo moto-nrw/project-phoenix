@@ -11,6 +11,7 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/go-ozzo/ozzo-validation/is"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -115,6 +116,7 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Special case for login endpoint - frontend expects direct token response
 	render.JSON(w, r, TokenResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
@@ -205,8 +207,7 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.Roles = roleNames
 
-	render.Status(r, http.StatusCreated)
-	render.JSON(w, r, resp)
+	common.Respond(w, r, http.StatusCreated, resp, "Account registered successfully")
 }
 
 // refreshToken handles token refresh
@@ -238,6 +239,7 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Special case for token refresh endpoint - frontend expects direct token response
 	render.JSON(w, r, TokenResponse{
 		AccessToken:  accessToken,
 		RefreshToken: newRefreshToken,
@@ -255,7 +257,7 @@ func (rs *Resource) logout(w http.ResponseWriter, r *http.Request) {
 		// Just log the error on the server side
 	}
 
-	render.NoContent(w, r)
+	common.RespondNoContent(w, r)
 }
 
 // ChangePasswordRequest represents the change password request payload
@@ -310,7 +312,7 @@ func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.NoContent(w, r)
+	common.RespondNoContent(w, r)
 }
 
 // getAccount returns the current user's account details
@@ -351,5 +353,5 @@ func (rs *Resource) getAccount(w http.ResponseWriter, r *http.Request) {
 	// Include permissions from JWT claims
 	resp.Permissions = claims.Permissions
 
-	render.JSON(w, r, resp)
+	common.Respond(w, r, http.StatusOK, resp, "Account information retrieved successfully")
 }

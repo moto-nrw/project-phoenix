@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/cors"
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
+	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -19,7 +20,8 @@ type API struct {
 	Router   chi.Router
 
 	// API Resources
-	Auth *authAPI.Resource
+	Auth  *authAPI.Resource
+	Rooms *roomsAPI.Resource
 }
 
 // New creates a new API instance
@@ -65,6 +67,7 @@ func New(enableCORS bool) (*API, error) {
 
 	// Initialize API resources
 	api.Auth = authAPI.NewResource(api.Services.Auth)
+	api.Rooms = roomsAPI.NewResource(api.Services.Facilities)
 
 	// Register routes
 	api.registerRoutes()
@@ -93,6 +96,9 @@ func (a *API) registerRoutes() {
 
 	// Other API routes under /api prefix for organization
 	a.Router.Route("/api", func(r chi.Router) {
+		// Mount room resources
+		r.Mount("/rooms", a.Rooms.Router())
+
 		// Add other resource routes here as they are implemented
 	})
 }
