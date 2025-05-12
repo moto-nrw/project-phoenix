@@ -11,6 +11,8 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/go-ozzo/ozzo-validation/is"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
@@ -52,7 +54,11 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
-		r.Post("/password", rs.changePassword)
+
+		// Password change requires auth:update permission
+		r.With(authorize.RequiresPermission(permissions.AuthManage)).Post("/password", rs.changePassword)
+
+		// Account info requires just authentication, no specific permission
 		r.Get("/account", rs.getAccount)
 	})
 
@@ -146,11 +152,12 @@ func (req *RegisterRequest) Bind(r *http.Request) error {
 
 // AccountResponse represents the account response payload
 type AccountResponse struct {
-	ID       int64    `json:"id"`
-	Email    string   `json:"email"`
-	Username string   `json:"username,omitempty"`
-	Active   bool     `json:"active"`
-	Roles    []string `json:"roles,omitempty"`
+	ID          int64    `json:"id"`
+	Email       string   `json:"email"`
+	Username    string   `json:"username,omitempty"`
+	Active      bool     `json:"active"`
+	Roles       []string `json:"roles,omitempty"`
+	Permissions []string `json:"permissions,omitempty"`
 }
 
 // register handles user registration
@@ -308,7 +315,7 @@ func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 
 // getAccount returns the current user's account details
 func (rs *Resource) getAccount(w http.ResponseWriter, r *http.Request) {
-	// Get user ID from JWT claims
+	// Get user ID and permissions from JWT claims
 	claims := jwt.ClaimsFromCtx(r.Context())
 
 	account, err := rs.AuthService.GetAccountByID(r.Context(), claims.ID)
@@ -340,6 +347,9 @@ func (rs *Resource) getAccount(w http.ResponseWriter, r *http.Request) {
 		roleNames = append(roleNames, role.Name)
 	}
 	resp.Roles = roleNames
+
+	// Include permissions from JWT claims
+	resp.Permissions = claims.Permissions
 
 	render.JSON(w, r, resp)
 }
