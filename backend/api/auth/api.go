@@ -95,13 +95,12 @@ func (rs *Resource) Router() chi.Router {
 				r.With(authorize.RequiresPermission("users:list")).Get("/", rs.listAccounts)
 				r.With(authorize.RequiresPermission("users:read")).Get("/by-role/{roleName}", rs.getAccountsByRole)
 
-				r.Route("/{id}", func(r chi.Router) {
+				r.Route("/{accountId}", func(r chi.Router) {
+					// Account update operations
 					r.With(authorize.RequiresPermission("users:update")).Put("/", rs.updateAccount)
 					r.With(authorize.RequiresPermission("users:update")).Put("/activate", rs.activateAccount)
 					r.With(authorize.RequiresPermission("users:update")).Put("/deactivate", rs.deactivateAccount)
-				})
 
-				r.Route("/{accountId}", func(r chi.Router) {
 					// Role assignments
 					r.Route("/roles", func(r chi.Router) {
 						r.With(authorize.RequiresPermission("users:manage")).Get("/", rs.getAccountRoles)
