@@ -12,6 +12,7 @@ import (
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
+	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	"github.com/moto-nrw/project-phoenix/database"
@@ -32,6 +33,7 @@ type API struct {
 	Activities *activitiesAPI.Resource
 	Staff      *staffAPI.Resource
 	Feedback   *feedbackAPI.Resource
+	Schedules  *schedulesAPI.Resource
 }
 
 // New creates a new API instance
@@ -83,6 +85,7 @@ func New(enableCORS bool) (*API, error) {
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education)
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback)
+	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
 
 	// Register routes
 	api.registerRoutes()
@@ -128,6 +131,9 @@ func (a *API) registerRoutes() {
 
 		// Mount feedback resources
 		r.Mount("/feedback", a.Feedback.Router())
+
+		// Mount schedule resources
+		r.Mount("/schedules", a.Schedules.Router())
 
 		// Add other resource routes here as they are implemented
 	})
