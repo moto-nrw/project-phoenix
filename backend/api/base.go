@@ -11,6 +11,7 @@ import (
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
+	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -28,6 +29,7 @@ type API struct {
 	Students   *studentsAPI.Resource
 	Groups     *groupsAPI.Resource
 	Activities *activitiesAPI.Resource
+	Staff      *staffAPI.Resource
 }
 
 // New creates a new API instance
@@ -77,6 +79,7 @@ func New(enableCORS bool) (*API, error) {
 	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student)
 	api.Groups = groupsAPI.NewResource(api.Services.Education)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities)
+	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education)
 
 	// Register routes
 	api.registerRoutes()
@@ -116,6 +119,9 @@ func (a *API) registerRoutes() {
 
 		// Mount activities resources
 		r.Mount("/activities", a.Activities.Router())
+
+		// Mount staff resources
+		r.Mount("/staff", a.Staff.Router())
 
 		// Add other resource routes here as they are implemented
 	})

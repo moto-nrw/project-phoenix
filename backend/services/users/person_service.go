@@ -15,6 +15,8 @@ type personService struct {
 	rfidRepo           userModels.RFIDCardRepository
 	accountRepo        auth.AccountRepository
 	personGuardianRepo userModels.PersonGuardianRepository
+	staffRepo          userModels.StaffRepository
+	teacherRepo        userModels.TeacherRepository
 	db                 *bun.DB
 	txHandler          *base.TxHandler
 }
@@ -25,6 +27,8 @@ func NewPersonService(
 	rfidRepo userModels.RFIDCardRepository,
 	accountRepo auth.AccountRepository,
 	personGuardianRepo userModels.PersonGuardianRepository,
+	staffRepo userModels.StaffRepository,
+	teacherRepo userModels.TeacherRepository,
 	db *bun.DB,
 ) PersonService {
 	return &personService{
@@ -32,6 +36,8 @@ func NewPersonService(
 		rfidRepo:           rfidRepo,
 		accountRepo:        accountRepo,
 		personGuardianRepo: personGuardianRepo,
+		staffRepo:          staffRepo,
+		teacherRepo:        teacherRepo,
 		db:                 db,
 		txHandler:          base.NewTxHandler(db),
 	}
@@ -44,6 +50,8 @@ func (s *personService) WithTx(tx bun.Tx) interface{} {
 	var rfidRepo userModels.RFIDCardRepository = s.rfidRepo
 	var accountRepo auth.AccountRepository = s.accountRepo
 	var personGuardianRepo userModels.PersonGuardianRepository = s.personGuardianRepo
+	var staffRepo userModels.StaffRepository = s.staffRepo
+	var teacherRepo userModels.TeacherRepository = s.teacherRepo
 
 	// Try to cast repositories to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok {
@@ -58,6 +66,12 @@ func (s *personService) WithTx(tx bun.Tx) interface{} {
 	if txRepo, ok := s.personGuardianRepo.(base.TransactionalRepository); ok {
 		personGuardianRepo = txRepo.WithTx(tx).(userModels.PersonGuardianRepository)
 	}
+	if txRepo, ok := s.staffRepo.(base.TransactionalRepository); ok {
+		staffRepo = txRepo.WithTx(tx).(userModels.StaffRepository)
+	}
+	if txRepo, ok := s.teacherRepo.(base.TransactionalRepository); ok {
+		teacherRepo = txRepo.WithTx(tx).(userModels.TeacherRepository)
+	}
 
 	// Return a new service with the transaction
 	return &personService{
@@ -65,6 +79,8 @@ func (s *personService) WithTx(tx bun.Tx) interface{} {
 		rfidRepo:           rfidRepo,
 		accountRepo:        accountRepo,
 		personGuardianRepo: personGuardianRepo,
+		staffRepo:          staffRepo,
+		teacherRepo:        teacherRepo,
 		db:                 s.db,
 		txHandler:          s.txHandler.WithTx(tx),
 	}
@@ -397,4 +413,14 @@ func (s *personService) FindByGuardianID(ctx context.Context, guardianAccountID 
 		return nil, &UsersError{Op: "find by guardian ID", Err: err}
 	}
 	return persons, nil
+}
+
+// StaffRepository returns the staff repository
+func (s *personService) StaffRepository() userModels.StaffRepository {
+	return s.staffRepo
+}
+
+// TeacherRepository returns the teacher repository
+func (s *personService) TeacherRepository() userModels.TeacherRepository {
+	return s.teacherRepo
 }

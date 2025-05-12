@@ -51,4 +51,10 @@ type PersonService interface {
 
 	// FindByGuardianID finds all persons with a guardian relationship to the specified account
 	FindByGuardianID(ctx context.Context, guardianAccountID int64) ([]*userModels.Person, error)
+
+	// StaffRepository returns the staff repository
+	StaffRepository() userModels.StaffRepository
+
+	// TeacherRepository returns the teacher repository
+	TeacherRepository() userModels.TeacherRepository
 }

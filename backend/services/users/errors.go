@@ -30,6 +30,18 @@ var (
 
 	// ErrGuardianNotFound indicates a guardian could not be found
 	ErrGuardianNotFound = errors.New("guardian not found")
+
+	// ErrStaffNotFound indicates a staff member could not be found
+	ErrStaffNotFound = errors.New("staff member not found")
+
+	// ErrTeacherNotFound indicates a teacher could not be found
+	ErrTeacherNotFound = errors.New("teacher not found")
+
+	// ErrStaffAlreadyExists indicates a staff member already exists for the person
+	ErrStaffAlreadyExists = errors.New("staff member already exists for this person")
+
+	// ErrTeacherAlreadyExists indicates a teacher already exists for the staff member
+	ErrTeacherAlreadyExists = errors.New("teacher already exists for this staff member")
 )
 
 // UsersError represents an error in the users service
