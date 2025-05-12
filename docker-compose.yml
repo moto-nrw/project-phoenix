@@ -12,6 +12,7 @@ services:
       LOG_TEXTLOGGING: "true"
       PORT: 8080
       DB_DSN: postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
+      DB_DEBUG: "true"
       #AUTH_JWT_EXPIRY: 1h
       #AUTH_JWT_REFRESH_EXPIRY: 72h
       #AUTH_JWT_SECRET: my secret
@@ -22,6 +23,7 @@ services:
       #EMAIL_SMTP_USER:
       #EMAIL_SMTP_PASSWORD:
       ENABLE_CORS: "true"
+    command: ["./main", "serve", "--db_debug"]
 
   frontend:
     build:

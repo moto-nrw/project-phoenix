@@ -1,0 +1,665 @@
+package auth
+
+import (
+	"context"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/gofrs/uuid"
+	jwx "github.com/lestrrat-go/jwx/v2/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/userpass"
+	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/uptrace/bun"
+)
+
+// Service implements the AuthService interface
+type Service struct {
+	accountRepo           auth.AccountRepository
+	accountRoleRepo       auth.AccountRoleRepository
+	accountPermissionRepo auth.AccountPermissionRepository
+	permissionRepo        auth.PermissionRepository
+	tokenRepo             auth.TokenRepository
+	tokenAuth             *jwt.TokenAuth
+	jwtExpiry             time.Duration
+	jwtRefreshExpiry      time.Duration
+	txHandler             *base.TxHandler
+}
+
+// NewService creates a new auth service
+func NewService(accountRepo auth.AccountRepository, accountRoleRepo auth.AccountRoleRepository,
+	accountPermissionRepo auth.AccountPermissionRepository, permissionRepo auth.PermissionRepository,
+	tokenRepo auth.TokenRepository, db *bun.DB) (*Service, error) {
+
+	tokenAuth, err := jwt.NewTokenAuth()
+	if err != nil {
+		return nil, &AuthError{Op: "create token auth", Err: err}
+	}
+
+	return &Service{
+		accountRepo:           accountRepo,
+		accountRoleRepo:       accountRoleRepo,
+		accountPermissionRepo: accountPermissionRepo,
+		permissionRepo:        permissionRepo,
+		tokenRepo:             tokenRepo,
+		tokenAuth:             tokenAuth,
+		jwtExpiry:             tokenAuth.JwtExpiry,
+		jwtRefreshExpiry:      tokenAuth.JwtRefreshExpiry,
+		txHandler:             base.NewTxHandler(db),
+	}, nil
+}
+
+// WithTx returns a new service that uses the provided transaction
+func (s *Service) WithTx(tx bun.Tx) interface{} {
+	// Get repositories with transaction if they implement the TransactionalRepository interface
+	var accountRepo auth.AccountRepository = s.accountRepo
+	var accountRoleRepo auth.AccountRoleRepository = s.accountRoleRepo
+	var accountPermissionRepo auth.AccountPermissionRepository = s.accountPermissionRepo
+	var permissionRepo auth.PermissionRepository = s.permissionRepo
+	var tokenRepo auth.TokenRepository = s.tokenRepo
+
+	// Try to cast repositories to TransactionalRepository and apply the transaction
+	if txRepo, ok := s.accountRepo.(base.TransactionalRepository); ok {
+		accountRepo = txRepo.WithTx(tx).(auth.AccountRepository)
+	}
+	if txRepo, ok := s.accountRoleRepo.(base.TransactionalRepository); ok {
+		accountRoleRepo = txRepo.WithTx(tx).(auth.AccountRoleRepository)
+	}
+	if txRepo, ok := s.accountPermissionRepo.(base.TransactionalRepository); ok {
+		accountPermissionRepo = txRepo.WithTx(tx).(auth.AccountPermissionRepository)
+	}
+	if txRepo, ok := s.permissionRepo.(base.TransactionalRepository); ok {
+		permissionRepo = txRepo.WithTx(tx).(auth.PermissionRepository)
+	}
+	if txRepo, ok := s.tokenRepo.(base.TransactionalRepository); ok {
+		tokenRepo = txRepo.WithTx(tx).(auth.TokenRepository)
+	}
+
+	// Return a new service with the transaction
+	return &Service{
+		accountRepo:           accountRepo,
+		accountRoleRepo:       accountRoleRepo,
+		accountPermissionRepo: accountPermissionRepo,
+		permissionRepo:        permissionRepo,
+		tokenRepo:             tokenRepo,
+		tokenAuth:             s.tokenAuth,
+		jwtExpiry:             s.jwtExpiry,
+		jwtRefreshExpiry:      s.jwtRefreshExpiry,
+		txHandler:             s.txHandler.WithTx(tx),
+	}
+}
+
+// Login authenticates a user and returns access and refresh tokens
+func (s *Service) Login(ctx context.Context, email, password string) (string, string, error) {
+	// Normalize email
+	email = strings.TrimSpace(strings.ToLower(email))
+
+	// Get account by email
+	account, err := s.accountRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return "", "", &AuthError{Op: "login", Err: ErrAccountNotFound}
+	}
+
+	// Check if account is active
+	if !account.Active {
+		return "", "", &AuthError{Op: "login", Err: ErrAccountInactive}
+	}
+
+	// Verify password
+	if account.PasswordHash == nil || *account.PasswordHash == "" {
+		return "", "", &AuthError{Op: "login", Err: ErrInvalidCredentials}
+	}
+
+	valid, err := userpass.VerifyPassword(password, *account.PasswordHash)
+	if err != nil || !valid {
+		return "", "", &AuthError{Op: "login", Err: ErrInvalidCredentials}
+	}
+
+	// Create refresh token
+	tokenStr := uuid.Must(uuid.NewV4()).String()
+	identifier := "Service login"
+	now := time.Now()
+	token := &auth.Token{
+		Token:      tokenStr,
+		AccountID:  account.ID,
+		Expiry:     now.Add(s.jwtRefreshExpiry),
+		Mobile:     false, // This would come from a user agent in a real request
+		Identifier: &identifier,
+	}
+
+	// Execute in transaction using txHandler
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(AuthService)
+
+		// Create token using the transaction-aware repositories
+		if err := txService.(*Service).tokenRepo.Create(ctx, token); err != nil {
+			return err
+		}
+
+		// Update last login
+		loginTime := time.Now()
+		account.LastLogin = &loginTime
+		return txService.(*Service).accountRepo.Update(ctx, account)
+	})
+
+	if err != nil {
+		return "", "", &AuthError{Op: "login transaction", Err: err}
+	}
+
+	// Retrieve account roles if not loaded
+	if account.Roles == nil || len(account.Roles) == 0 {
+		accountRoles, err := s.accountRoleRepo.FindByAccountID(ctx, account.ID)
+		if err != nil {
+			// Continue even if role retrieval fails, just log the error
+			// In a real implementation, you would log this error
+		} else {
+			// Extract roles from account roles
+			for _, ar := range accountRoles {
+				if ar.Role != nil {
+					account.Roles = append(account.Roles, ar.Role)
+				}
+			}
+		}
+	}
+
+	// Retrieve permissions for the account
+	permissions, err := s.getAccountPermissions(ctx, account.ID)
+	if err != nil {
+		// Continue even if permission retrieval fails, just log the error
+		// In a real implementation, you would log this error
+		permissions = []*auth.Permission{} // Empty array with correct type
+	}
+
+	// Convert roles to string slice for token
+	var roleNames []string
+	for _, role := range account.Roles {
+		roleNames = append(roleNames, role.Name)
+	}
+
+	// Extract permission names into strings
+	var permissionStrs []string
+	for _, perm := range permissions {
+		permissionStrs = append(permissionStrs, perm.GetFullName())
+	}
+
+	// Extract username
+	username := ""
+	if account.Username != nil {
+		username = *account.Username
+	}
+
+	// Generate token pair
+	// Create JWT claims
+	appClaims := jwt.AppClaims{
+		ID:          int(account.ID),
+		Sub:         email, // Use email as subject
+		Username:    username,
+		Roles:       roleNames,
+		Permissions: permissionStrs, // Use string array here
+	}
+
+	refreshClaims := jwt.RefreshClaims{
+		ID:    int(token.ID),
+		Token: token.Token,
+	}
+
+	// Generate tokens
+	accessToken, refreshToken, err := s.tokenAuth.GenTokenPair(appClaims, refreshClaims)
+	if err != nil {
+		return "", "", &AuthError{Op: "generate tokens", Err: err}
+	}
+
+	return accessToken, refreshToken, nil
+}
+
+// Register creates a new user account
+func (s *Service) Register(ctx context.Context, email, username, name, password string) (*auth.Account, error) {
+	// Normalize input
+	email = strings.TrimSpace(strings.ToLower(email))
+	username = strings.TrimSpace(username)
+
+	// Validate password strength
+	if err := validatePassword(password); err != nil {
+		return nil, &AuthError{Op: "register", Err: err}
+	}
+
+	// Check if email already exists
+	_, err := s.accountRepo.FindByEmail(ctx, email)
+	if err == nil {
+		return nil, &AuthError{Op: "register", Err: ErrEmailAlreadyExists}
+	}
+
+	// Check if username already exists
+	_, err = s.accountRepo.FindByUsername(ctx, username)
+	if err == nil {
+		return nil, &AuthError{Op: "register", Err: ErrUsernameAlreadyExists}
+	}
+
+	// Hash password
+	passwordHash, err := userpass.HashPassword(password, userpass.DefaultParams())
+	if err != nil {
+		return nil, &AuthError{Op: "hash password", Err: err}
+	}
+
+	usernamePtr := &username
+	now := time.Now()
+
+	// Create account
+	account := &auth.Account{
+		Email:        email,
+		Username:     usernamePtr,
+		Active:       true,
+		PasswordHash: &passwordHash,
+		LastLogin:    &now,
+	}
+
+	// Execute in transaction using txHandler
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(AuthService)
+
+		// Create account with transaction
+		if err := txService.(*Service).accountRepo.Create(ctx, account); err != nil {
+			return err
+		}
+
+		// Find the default user role
+		userRole, err := txService.(*Service).getRoleByName(ctx, "user")
+		if err == nil && userRole != nil {
+			// Create account role mapping
+			accountRole := &auth.AccountRole{
+				AccountID: account.ID,
+				RoleID:    userRole.ID,
+			}
+			err = txService.(*Service).accountRoleRepo.Create(ctx, accountRole)
+			if err != nil {
+				// Log error but continue
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, &AuthError{Op: "register transaction", Err: err}
+	}
+
+	return account, nil
+}
+
+// ValidateToken validates an access token and returns the associated account
+func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.Account, error) {
+	// Parse and validate JWT token
+	jwtToken, err := s.tokenAuth.JwtAuth.Decode(tokenString)
+	if err != nil {
+		return nil, &AuthError{Op: "validate token", Err: ErrInvalidToken}
+	}
+
+	// Extract claims
+	claims := extractClaims(jwtToken)
+
+	// Parse claims into AppClaims
+	var appClaims jwt.AppClaims
+	err = appClaims.ParseClaims(claims)
+	if err != nil {
+		return nil, &AuthError{Op: "parse claims", Err: ErrInvalidToken}
+	}
+
+	// Get account by ID
+	account, err := s.accountRepo.FindByID(ctx, int64(appClaims.ID))
+	if err != nil {
+		return nil, &AuthError{Op: "get account", Err: ErrAccountNotFound}
+	}
+
+	// Ensure account is active
+	if !account.Active {
+		return nil, &AuthError{Op: "validate token", Err: ErrAccountInactive}
+	}
+
+	// Load roles if not already loaded
+	if account.Roles == nil || len(account.Roles) == 0 {
+		accountRoles, err := s.accountRoleRepo.FindByAccountID(ctx, account.ID)
+		if err == nil {
+			// Extract roles from account roles
+			for _, ar := range accountRoles {
+				if ar.Role != nil {
+					account.Roles = append(account.Roles, ar.Role)
+				}
+			}
+		}
+	}
+
+	// Load permissions if not already loaded
+	if account.Permissions == nil || len(account.Permissions) == 0 {
+		permissions, err := s.getAccountPermissions(ctx, account.ID)
+		if err == nil {
+			account.Permissions = permissions
+		}
+	}
+
+	return account, nil
+}
+
+// RefreshToken generates new token pair from a refresh token
+func (s *Service) RefreshToken(ctx context.Context, refreshTokenStr string) (string, string, error) {
+	// Parse JWT refresh token
+	jwtToken, err := s.tokenAuth.JwtAuth.Decode(refreshTokenStr)
+	if err != nil {
+		return "", "", &AuthError{Op: "parse refresh token", Err: ErrInvalidToken}
+	}
+
+	// Extract claims
+	claims := extractClaims(jwtToken)
+
+	// Parse refresh token claims
+	var refreshClaims jwt.RefreshClaims
+	err = refreshClaims.ParseClaims(claims)
+	if err != nil {
+		return "", "", &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
+	}
+
+	// Get token from database using token string from claims
+	dbToken, err := s.tokenRepo.FindByToken(ctx, refreshClaims.Token)
+	if err != nil {
+		return "", "", &AuthError{Op: "get token", Err: ErrTokenNotFound}
+	}
+
+	// Check if token is expired
+	if time.Now().After(dbToken.Expiry) {
+		// Delete expired token
+		_ = s.tokenRepo.Delete(ctx, dbToken)
+		return "", "", &AuthError{Op: "check token expiry", Err: ErrTokenExpired}
+	}
+
+	// Get account
+	account, err := s.accountRepo.FindByID(ctx, dbToken.AccountID)
+	if err != nil {
+		return "", "", &AuthError{Op: "get account", Err: ErrAccountNotFound}
+	}
+
+	// Check if account is active
+	if !account.Active {
+		return "", "", &AuthError{Op: "check account status", Err: ErrAccountInactive}
+	}
+
+	// Generate new refresh token
+	newTokenStr := uuid.Must(uuid.NewV4()).String()
+	now := time.Now()
+
+	// Update token in database
+	dbToken.Token = newTokenStr
+	dbToken.Expiry = now.Add(s.jwtRefreshExpiry)
+
+	// Execute in transaction using txHandler
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(AuthService)
+
+		// Update token
+		if err := txService.(*Service).tokenRepo.Update(ctx, dbToken); err != nil {
+			return err
+		}
+
+		// Update last login
+		loginTime := time.Now()
+		account.LastLogin = &loginTime
+		return txService.(*Service).accountRepo.Update(ctx, account)
+	})
+
+	if err != nil {
+		return "", "", &AuthError{Op: "refresh transaction", Err: err}
+	}
+
+	// Load roles if not loaded
+	if account.Roles == nil || len(account.Roles) == 0 {
+		accountRoles, err := s.accountRoleRepo.FindByAccountID(ctx, account.ID)
+		if err == nil {
+			// Extract roles from account roles
+			for _, ar := range accountRoles {
+				if ar.Role != nil {
+					account.Roles = append(account.Roles, ar.Role)
+				}
+			}
+		}
+	}
+
+	// Load permissions
+	permissions, err := s.getAccountPermissions(ctx, account.ID)
+	if err != nil {
+		// Continue even if permission retrieval fails, just log the error
+		permissions = []*auth.Permission{} // Empty array with correct type
+	}
+
+	// Extract roles as strings
+	var roleNames []string
+	for _, role := range account.Roles {
+		roleNames = append(roleNames, role.Name)
+	}
+
+	// Extract permission names into strings
+	var permissionStrs []string
+	for _, perm := range permissions {
+		permissionStrs = append(permissionStrs, perm.GetFullName())
+	}
+
+	// Extract username
+	username := ""
+	if account.Username != nil {
+		username = *account.Username
+	}
+
+	// Generate token pair
+	appClaims := jwt.AppClaims{
+		ID:          int(account.ID),
+		Sub:         account.Email,
+		Username:    username,
+		Roles:       roleNames,
+		Permissions: permissionStrs, // Use string array here
+	}
+
+	newRefreshClaims := jwt.RefreshClaims{
+		ID:    int(dbToken.ID),
+		Token: dbToken.Token,
+	}
+
+	// Generate tokens
+	accessToken, newRefreshToken, err := s.tokenAuth.GenTokenPair(appClaims, newRefreshClaims)
+	if err != nil {
+		return "", "", &AuthError{Op: "generate tokens", Err: err}
+	}
+
+	return accessToken, newRefreshToken, nil
+}
+
+// Logout invalidates a refresh token
+func (s *Service) Logout(ctx context.Context, refreshTokenStr string) error {
+	// Parse JWT refresh token
+	jwtToken, err := s.tokenAuth.JwtAuth.Decode(refreshTokenStr)
+	if err != nil {
+		return &AuthError{Op: "parse refresh token", Err: ErrInvalidToken}
+	}
+
+	// Extract claims
+	claims := extractClaims(jwtToken)
+
+	// Parse refresh token claims
+	var refreshClaims jwt.RefreshClaims
+	err = refreshClaims.ParseClaims(claims)
+	if err != nil {
+		return &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
+	}
+
+	// Get token from database
+	dbToken, err := s.tokenRepo.FindByToken(ctx, refreshClaims.Token)
+	if err != nil {
+		// Token not found, consider logout successful
+		return nil
+	}
+
+	// Delete token from database
+	err = s.tokenRepo.Delete(ctx, dbToken)
+	if err != nil {
+		return &AuthError{Op: "delete token", Err: err}
+	}
+
+	return nil
+}
+
+// ChangePassword updates an account's password
+func (s *Service) ChangePassword(ctx context.Context, accountID int, currentPassword, newPassword string) error {
+	// Get account
+	account, err := s.accountRepo.FindByID(ctx, int64(accountID))
+	if err != nil {
+		return &AuthError{Op: "get account", Err: ErrAccountNotFound}
+	}
+
+	// Verify current password
+	if account.PasswordHash == nil || *account.PasswordHash == "" {
+		return &AuthError{Op: "verify password", Err: ErrInvalidCredentials}
+	}
+
+	valid, err := userpass.VerifyPassword(currentPassword, *account.PasswordHash)
+	if err != nil || !valid {
+		return &AuthError{Op: "verify password", Err: ErrInvalidCredentials}
+	}
+
+	// Validate new password
+	if err := validatePassword(newPassword); err != nil {
+		return &AuthError{Op: "validate password", Err: err}
+	}
+
+	// Hash new password
+	passwordHash, err := userpass.HashPassword(newPassword, userpass.DefaultParams())
+	if err != nil {
+		return &AuthError{Op: "hash password", Err: err}
+	}
+
+	// Update password
+	account.PasswordHash = &passwordHash
+	if err := s.accountRepo.Update(ctx, account); err != nil {
+		return &AuthError{Op: "update account", Err: err}
+	}
+
+	return nil
+}
+
+// GetAccountByID retrieves an account by ID
+func (s *Service) GetAccountByID(ctx context.Context, id int) (*auth.Account, error) {
+	account, err := s.accountRepo.FindByID(ctx, int64(id))
+	if err != nil {
+		return nil, &AuthError{Op: "get account", Err: ErrAccountNotFound}
+	}
+	return account, nil
+}
+
+// GetAccountByEmail retrieves an account by email
+func (s *Service) GetAccountByEmail(ctx context.Context, email string) (*auth.Account, error) {
+	// Normalize email
+	email = strings.TrimSpace(strings.ToLower(email))
+
+	account, err := s.accountRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return nil, &AuthError{Op: "get account by email", Err: ErrAccountNotFound}
+	}
+	return account, nil
+}
+
+// Helper methods
+
+// getAccountPermissions retrieves all permissions for an account (both direct and role-based)
+func (s *Service) getAccountPermissions(ctx context.Context, accountID int64) ([]*auth.Permission, error) {
+	// Get permissions directly assigned to the account
+	directPermissions, err := s.permissionRepo.FindByAccountID(ctx, accountID)
+	if err != nil {
+		return []*auth.Permission{}, err // Return empty slice with correct type
+	}
+
+	// Create a map to prevent duplicate permissions
+	permMap := make(map[int64]*auth.Permission)
+
+	// Add direct permissions to the map
+	for _, p := range directPermissions {
+		permMap[p.ID] = p
+	}
+
+	// Get permissions from roles
+	// First, get account roles
+	accountRoles, err := s.accountRoleRepo.FindByAccountID(ctx, accountID)
+	if err == nil { // Continue even if error occurs
+		// For each role, get permissions
+		for _, ar := range accountRoles {
+			if ar.RoleID > 0 {
+				rolePermissions, err := s.permissionRepo.FindByRoleID(ctx, ar.RoleID)
+				if err == nil { // Continue even if error occurs
+					// Add role permissions to the map
+					for _, p := range rolePermissions {
+						permMap[p.ID] = p
+					}
+				}
+			}
+		}
+	}
+
+	// Convert map to slice
+	permissions := make([]*auth.Permission, 0, len(permMap))
+	for _, p := range permMap {
+		permissions = append(permissions, p)
+	}
+
+	return permissions, nil
+}
+
+// getRoleByName retrieves a role by its name
+func (s *Service) getRoleByName(ctx context.Context, name string) (*auth.Role, error) {
+	return s.permissionRepo.FindByRoleByName(ctx, name)
+}
+
+// Helper functions
+
+// extractClaims extracts all claims from a jwt token into a map
+func extractClaims(token jwx.Token) map[string]interface{} {
+	claims := make(map[string]interface{})
+
+	// Extract private claims
+	for k, v := range token.PrivateClaims() {
+		claims[k] = v
+	}
+
+	// Add registered claims if present
+	if sub, ok := token.Get(jwx.SubjectKey); ok {
+		claims[jwx.SubjectKey] = sub
+	}
+	if exp, ok := token.Get(jwx.ExpirationKey); ok {
+		claims[jwx.ExpirationKey] = exp
+	}
+
+	return claims
+}
+
+// validatePassword validates password strength
+func validatePassword(password string) error {
+	if len(password) < 8 {
+		return ErrPasswordTooWeak
+	}
+
+	if !regexp.MustCompile(`[A-Z]`).MatchString(password) {
+		return ErrPasswordTooWeak
+	}
+
+	if !regexp.MustCompile(`[a-z]`).MatchString(password) {
+		return ErrPasswordTooWeak
+	}
+
+	if !regexp.MustCompile(`[0-9]`).MatchString(password) {
+		return ErrPasswordTooWeak
+	}
+
+	if !regexp.MustCompile(`[^a-zA-Z0-9]`).MatchString(password) {
+		return ErrPasswordTooWeak
+	}
+
+	return nil
+}

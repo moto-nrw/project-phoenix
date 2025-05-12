@@ -2,13 +2,13 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/moto-nrw/project-phoenix/api"
+	// "github.com/moto-nrw/project-phoenix/api" // Commented out temporarily until new API implementation
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 
-	"github.com/go-chi/docgen"
+	// "github.com/go-chi/docgen"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 )
@@ -53,21 +53,23 @@ func init() {
 }
 
 func genRoutesDoc() {
-	api, err := api.New(false)
-	if err != nil {
-		log.Fatalf("Failed to initialize API: %v", err)
-	}
-
-	fmt.Print("Generating routes markdown file: ")
-	md := docgen.MarkdownRoutesDoc(api, docgen.MarkdownOpts{
-		ProjectPath: "github.com/moto-nrw/project-phoenix",
-		Intro:       "MOTO REST API for RFID-based system.",
-	})
-	if err := os.WriteFile("routes.md", []byte(md), 0644); err != nil {
-		log.Println(err)
-		return
-	}
-	fmt.Println("OK")
+	// Temporarily commented out until new API implementation
+	// api, err := api.New(false)
+	// if err != nil {
+	// 	log.Fatalf("Failed to initialize API: %v", err)
+	// }
+	//
+	// fmt.Print("Generating routes markdown file: ")
+	// md := docgen.MarkdownRoutesDoc(api, docgen.MarkdownOpts{
+	// 	ProjectPath: "github.com/moto-nrw/project-phoenix",
+	// 	Intro:       "MOTO REST API for RFID-based system.",
+	// })
+	// if err := os.WriteFile("routes.md", []byte(md), 0644); err != nil {
+	// 	log.Println(err)
+	// 	return
+	// }
+	// fmt.Println("OK")
+	fmt.Println("Routes documentation generation is temporarily disabled during API refactoring")
 }
 
 func genOpenAPIDoc() {

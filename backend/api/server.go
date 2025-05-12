@@ -7,18 +7,20 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
 
-// Server provides an http.Server.
+// Server provides an HTTP server for the API
 type Server struct {
 	*http.Server
 }
 
-// NewServer creates and configures an APIServer serving all application routes.
+// NewServer creates and configures a new API server
 func NewServer() (*Server, error) {
-	log.Println("configuring server...")
+	log.Println("Initializing API server...")
+
 	api, err := New(viper.GetBool("enable_cors"))
 	if err != nil {
 		return nil, err
@@ -27,39 +29,52 @@ func NewServer() (*Server, error) {
 	var addr string
 	port := viper.GetString("port")
 
-	// allow port to be set as localhost:8080 in env during development to avoid "accept incoming network connection" request on restarts
+	// Allow port to be set as localhost:8080 in env during development
 	if strings.Contains(port, ":") {
 		addr = port
 	} else {
 		addr = ":" + port
 	}
 
-	srv := http.Server{
-		Addr:    addr,
-		Handler: api,
+	srv := &Server{
+		&http.Server{
+			Addr:         addr,
+			Handler:      api,
+			ReadTimeout:  15 * time.Second,
+			WriteTimeout: 15 * time.Second,
+			IdleTimeout:  60 * time.Second,
+		},
 	}
 
-	return &Server{&srv}, nil
+	return srv, nil
 }
 
-// Start runs ListenAndServe on the http.Server with graceful shutdown.
+// Start runs the server with graceful shutdown
 func (srv *Server) Start() {
-	log.Println("starting server...")
+	// Start server in a goroutine so that it doesn't block
 	go func() {
-		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-			panic(err)
+		log.Printf("Server listening on %s\n", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server error: %v", err)
 		}
 	}()
-	log.Printf("Listening on %s\n", srv.Addr)
 
+	// Set up channel to listen for signals
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt)
-	sig := <-quit
-	log.Println("Shutting down server... Reason:", sig)
-	// teardown logic...
 
-	if err := srv.Shutdown(context.Background()); err != nil {
-		panic(err)
+	// Block until we receive a signal
+	sig := <-quit
+	log.Printf("Server shutting down due to %s signal", sig)
+
+	// Create a deadline for graceful shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Attempt graceful shutdown
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
 	}
+
 	log.Println("Server gracefully stopped")
 }
