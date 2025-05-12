@@ -18,6 +18,7 @@ import (
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
+	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -40,6 +41,7 @@ type API struct {
 	Config     *configAPI.Resource
 	Active     *activeAPI.Resource
 	IoT        *iotAPI.Resource
+	Users      *usersAPI.Resource
 }
 
 // New creates a new API instance
@@ -95,6 +97,7 @@ func New(enableCORS bool) (*API, error) {
 	api.Config = configAPI.NewResource(api.Services.Config)
 	api.Active = activeAPI.NewResource(api.Services.Active)
 	api.IoT = iotAPI.NewResource(api.Services.IoT)
+	api.Users = usersAPI.NewResource(api.Services.Users)
 
 	// Register routes
 	api.registerRoutes()
@@ -152,6 +155,9 @@ func (a *API) registerRoutes() {
 
 		// Mount IoT resources
 		r.Mount("/iot", a.IoT.Router())
+
+		// Mount users resources
+		r.Mount("/users", a.Users.Router())
 
 		// Add other resource routes here as they are implemented
 	})
