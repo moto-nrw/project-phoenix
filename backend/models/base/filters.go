@@ -157,6 +157,27 @@ func (f *Filter) DateBetween(startField, endField string, date time.Time) *Filte
 	return f
 }
 
+// ToMap converts a filter to a simple map for repository use
+func (f *Filter) ToMap() map[string]interface{} {
+	result := make(map[string]interface{})
+
+	// Apply basic conditions
+	for _, condition := range f.conditions {
+		// Currently, we only add Equality conditions to the map
+		// as this is mostly what the repositories expect
+		if condition.Operator == OpEqual {
+			result[condition.Field] = condition.Value
+		}
+		// For LIKE/ILIKE, we could add them too but repository would need
+		// to know how to handle them
+	}
+
+	// Note: OR and AND conditions are not supported in the simple map format
+	// Complex filtering should use the ApplyToQuery method directly
+
+	return result
+}
+
 // ApplyToQuery applies the filter to a Bun query
 func (f *Filter) ApplyToQuery(query *bun.SelectQuery) *bun.SelectQuery {
 	// Apply basic conditions

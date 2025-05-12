@@ -214,7 +214,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	queryOptions.Filter = filter
 
 	// Get all students
-	students, err := rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
+	students, err := rs.StudentRepo.List(r.Context(), queryOptions.Filter.ToMap())
 	if err != nil {
 		render.Render(w, r, ErrorInternalServer(err))
 		return
