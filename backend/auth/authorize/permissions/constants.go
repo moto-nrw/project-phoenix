@@ -20,6 +20,7 @@ const (
 	ResourceConfig     = "config"
 	ResourceAuth       = "auth"
 	ResourceIOT        = "iot"
+	ResourceSchedules  = "schedules"
 )
 
 // Admin permissions
@@ -101,4 +102,13 @@ const (
 // Auth permissions
 const (
 	AuthManage = ResourceAuth + ":" + ActionManage
+)
+
+const (
+	SchedulesCreate = ResourceSchedules + ":" + ActionCreate
+	SchedulesRead   = ResourceSchedules + ":" + ActionRead
+	SchedulesUpdate = ResourceSchedules + ":" + ActionUpdate
+	SchedulesDelete = ResourceSchedules + ":" + ActionDelete
+	SchedulesList   = ResourceSchedules + ":" + ActionList
+	SchedulesManage = ResourceSchedules + ":" + ActionManage
 )
