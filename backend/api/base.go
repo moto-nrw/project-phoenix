@@ -9,6 +9,7 @@ import (
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
+	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -20,8 +21,9 @@ type API struct {
 	Router   chi.Router
 
 	// API Resources
-	Auth  *authAPI.Resource
-	Rooms *roomsAPI.Resource
+	Auth     *authAPI.Resource
+	Rooms    *roomsAPI.Resource
+	Students *studentsAPI.Resource
 }
 
 // New creates a new API instance
