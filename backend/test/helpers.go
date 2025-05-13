@@ -164,7 +164,6 @@ func CreateTestData(t *testing.T) *TestData {
 		GroupID:   data.Group1.ID,
 		RoomID:    1,
 		StartTime: time.Now().Add(-1 * time.Hour),
-		Group:     data.Group1,
 	}
 
 	data.ActiveGroup2 = &active.Group{
@@ -174,7 +173,6 @@ func CreateTestData(t *testing.T) *TestData {
 		GroupID:   data.Group2.ID,
 		RoomID:    2,
 		StartTime: time.Now().Add(-1 * time.Hour),
-		Group:     data.Group2,
 	}
 
 	// Create visits
