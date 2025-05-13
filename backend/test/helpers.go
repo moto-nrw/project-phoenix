@@ -105,12 +105,16 @@ func CreateTestData(t *testing.T) *TestData {
 
 	// Create groups
 	data.Group1 = &education.Group{
-		ID:   1,
+		Model: base.Model{
+			ID: 1,
+		},
 		Name: "Class A",
 	}
 
 	data.Group2 = &education.Group{
-		ID:   2,
+		Model: base.Model{
+			ID: 2,
+		},
 		Name: "Class B",
 	}
 

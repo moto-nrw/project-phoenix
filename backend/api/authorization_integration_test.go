@@ -385,8 +385,8 @@ func TestVisitAPI_ResourceAuthorization(t *testing.T) {
 			// Create request
 			req := httptest.NewRequest(tt.method, tt.path, nil)
 			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", strconv.FormatInt(visitID, 10))
 			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-			chi.URLParam(req, "id", string(visitID))
 
 			// Add authorization header
 			req.Header.Set("Authorization", "Bearer "+token)
