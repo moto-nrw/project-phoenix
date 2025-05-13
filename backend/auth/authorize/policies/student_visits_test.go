@@ -171,14 +171,16 @@ func TestStudentVisitPolicy_Evaluate(t *testing.T) {
 			setupMocks: func(eduService *MockEducationService, userService *MockUserService, activeService *MockActiveService, studentRepo *MockStudentRepository, staffRepo *MockStaffRepository, teacherRepo *MockTeacherRepository) {
 				// Mock getting visit to find student ID
 				visit := &active.Visit{
-					ID:        789,
+					Model: base.Model{
+						ID: 789,
+					},
 					StudentID: 100,
 				}
 				activeService.On("GetVisit", mock.Anything, int64(789)).Return(visit, nil)
 
 				// Mock finding person by account ID
 				person := &userModels.Person{
-					BaseModel: base.BaseModel{ID: 10},
+					Model:     base.Model{ID: 10},
 					AccountID: &[]int64{3}[0],
 				}
 				userService.On("FindByAccountID", mock.Anything, int64(3)).Return(person, nil)
@@ -186,8 +188,8 @@ func TestStudentVisitPolicy_Evaluate(t *testing.T) {
 				// Mock student repository
 				userService.On("StudentRepository").Return(studentRepo)
 				student := &userModels.Student{
-					BaseModel: base.BaseModel{ID: 100},
-					PersonID:  10,
+					Model:    base.Model{ID: 100},
+					PersonID: 10,
 				}
 				studentRepo.On("FindByPersonID", mock.Anything, int64(10)).Return(student, nil)
 
@@ -219,7 +221,7 @@ func TestStudentVisitPolicy_Evaluate(t *testing.T) {
 
 				// Mock finding person by account ID
 				person := &userModels.Person{
-					BaseModel: base.BaseModel{ID: 20},
+					Model:     base.Model{ID: 20},
 					AccountID: &[]int64{4}[0],
 				}
 				userService.On("FindByAccountID", mock.Anything, int64(4)).Return(person, nil)
@@ -227,16 +229,16 @@ func TestStudentVisitPolicy_Evaluate(t *testing.T) {
 				// Mock staff repository
 				userService.On("StaffRepository").Return(staffRepo)
 				staff := &userModels.Staff{
-					BaseModel: base.BaseModel{ID: 30},
-					PersonID:  20,
+					Model:    base.Model{ID: 30},
+					PersonID: 20,
 				}
 				staffRepo.On("FindByPersonID", mock.Anything, int64(20)).Return(staff, nil)
 
 				// Mock teacher repository
 				userService.On("TeacherRepository").Return(teacherRepo)
 				teacher := &userModels.Teacher{
-					BaseModel: base.BaseModel{ID: 40},
-					StaffID:   30,
+					Model:   base.Model{ID: 40},
+					StaffID: 30,
 				}
 				teacherRepo.On("FindByStaffID", mock.Anything, int64(30)).Return(teacher, nil)
 
@@ -251,9 +253,9 @@ func TestStudentVisitPolicy_Evaluate(t *testing.T) {
 				userService.On("StudentRepository").Return(studentRepo)
 				groupID := int64(2)
 				student := &userModels.Student{
-					BaseModel: base.BaseModel{ID: 200},
-					PersonID:  50,
-					GroupID:   &groupID,
+					Model:    base.Model{ID: 200},
+					PersonID: 50,
+					GroupID:  &groupID,
 				}
 				studentRepo.On("FindByID", mock.Anything, int64(200)).Return(student, nil)
 			},
@@ -281,7 +283,7 @@ func TestStudentVisitPolicy_Evaluate(t *testing.T) {
 
 				// Mock finding person by account ID
 				person := &userModels.Person{
-					BaseModel: base.BaseModel{ID: 60},
+					Model:     base.Model{ID: 60},
 					AccountID: &[]int64{5}[0],
 				}
 				userService.On("FindByAccountID", mock.Anything, int64(5)).Return(person, nil)
@@ -289,16 +291,16 @@ func TestStudentVisitPolicy_Evaluate(t *testing.T) {
 				// Mock staff repository
 				userService.On("StaffRepository").Return(staffRepo)
 				staff := &userModels.Staff{
-					BaseModel: base.BaseModel{ID: 70},
-					PersonID:  60,
+					Model:    base.Model{ID: 70},
+					PersonID: 60,
 				}
 				staffRepo.On("FindByPersonID", mock.Anything, int64(60)).Return(staff, nil)
 
 				// Mock teacher repository
 				userService.On("TeacherRepository").Return(teacherRepo)
 				teacher := &userModels.Teacher{
-					BaseModel: base.BaseModel{ID: 80},
-					StaffID:   70,
+					Model:   base.Model{ID: 80},
+					StaffID: 70,
 				}
 				teacherRepo.On("FindByStaffID", mock.Anything, int64(70)).Return(teacher, nil)
 
@@ -313,9 +315,9 @@ func TestStudentVisitPolicy_Evaluate(t *testing.T) {
 				userService.On("StudentRepository").Return(studentRepo)
 				groupID := int64(3) // Different group
 				student := &userModels.Student{
-					BaseModel: base.BaseModel{ID: 300},
-					PersonID:  90,
-					GroupID:   &groupID,
+					Model:    base.Model{ID: 300},
+					PersonID: 90,
+					GroupID:  &groupID,
 				}
 				studentRepo.On("FindByID", mock.Anything, int64(300)).Return(student, nil)
 			},
@@ -343,7 +345,7 @@ func TestStudentVisitPolicy_Evaluate(t *testing.T) {
 
 				// Mock finding person by account ID
 				person := &userModels.Person{
-					BaseModel: base.BaseModel{ID: 100},
+					Model:     base.Model{ID: 100},
 					AccountID: &[]int64{6}[0],
 				}
 				userService.On("FindByAccountID", mock.Anything, int64(6)).Return(person, nil)

@@ -2,9 +2,11 @@ package api_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -382,7 +384,8 @@ func TestVisitAPI_ResourceAuthorization(t *testing.T) {
 
 			// Create request
 			req := httptest.NewRequest(tt.method, tt.path, nil)
-			req = req.WithContext(chi.NewRouteContext(req.Context()))
+			rctx := chi.NewRouteContext()
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 			chi.URLParam(req, "id", string(visitID))
 
 			// Add authorization header

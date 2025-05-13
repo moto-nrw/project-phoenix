@@ -62,7 +62,7 @@ func CreateTestData(t *testing.T) *TestData {
 	// Create admin user
 	adminID := int64(1)
 	data.AdminUser = &userModels.Person{
-		BaseModel: base.BaseModel{
+		Model: base.Model{
 			ID: 1,
 		},
 		FirstName: "Admin",
@@ -73,7 +73,7 @@ func CreateTestData(t *testing.T) *TestData {
 	// Create teacher user
 	teacherID := int64(2)
 	data.TeacherUser = &userModels.Person{
-		BaseModel: base.BaseModel{
+		Model: base.Model{
 			ID: 2,
 		},
 		FirstName: "Teacher",
@@ -84,7 +84,7 @@ func CreateTestData(t *testing.T) *TestData {
 	// Create student user
 	studentID := int64(3)
 	data.StudentUser = &userModels.Person{
-		BaseModel: base.BaseModel{
+		Model: base.Model{
 			ID: 3,
 		},
 		FirstName: "Student",
@@ -95,7 +95,7 @@ func CreateTestData(t *testing.T) *TestData {
 	// Create regular user
 	userID := int64(4)
 	data.RegularUser = &userModels.Person{
-		BaseModel: base.BaseModel{
+		Model: base.Model{
 			ID: 4,
 		},
 		FirstName: "Regular",
@@ -116,7 +116,7 @@ func CreateTestData(t *testing.T) *TestData {
 
 	// Create teacher staff
 	data.TeacherStaff = &userModels.Staff{
-		BaseModel: base.BaseModel{
+		Model: base.Model{
 			ID: 1,
 		},
 		PersonID: data.TeacherUser.ID,
@@ -125,7 +125,7 @@ func CreateTestData(t *testing.T) *TestData {
 
 	// Create teacher
 	data.Teacher1 = &userModels.Teacher{
-		BaseModel: base.BaseModel{
+		Model: base.Model{
 			ID: 1,
 		},
 		StaffID: data.TeacherStaff.ID,
@@ -135,7 +135,7 @@ func CreateTestData(t *testing.T) *TestData {
 	// Create students
 	groupID1 := data.Group1.ID
 	data.Student1 = &userModels.Student{
-		BaseModel: base.BaseModel{
+		Model: base.Model{
 			ID: 1,
 		},
 		PersonID: data.StudentUser.ID,
@@ -146,7 +146,7 @@ func CreateTestData(t *testing.T) *TestData {
 
 	groupID2 := data.Group2.ID
 	data.Student2 = &userModels.Student{
-		BaseModel: base.BaseModel{
+		Model: base.Model{
 			ID: 2,
 		},
 		PersonID: 5, // Different person
@@ -292,7 +292,7 @@ func CreateTestActiveGroup(groupID int64, roomID int64) *active.Group {
 // CreateTestStudent creates a test student
 func CreateTestStudent(personID int64, groupID *int64) *userModels.Student {
 	return &userModels.Student{
-		BaseModel: base.BaseModel{
+		Model: base.Model{
 			ID: 100 + personID,
 		},
 		PersonID: personID,
@@ -307,7 +307,7 @@ func CreateTestPerson(accountID *int64, firstName, lastName string) *userModels.
 		id = *accountID
 	}
 	return &userModels.Person{
-		BaseModel: base.BaseModel{
+		Model: base.Model{
 			ID: id,
 		},
 		FirstName: firstName,
