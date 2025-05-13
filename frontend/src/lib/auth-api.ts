@@ -72,7 +72,7 @@ export async function handleAuthFailure(): Promise<boolean> {
 
     // If we're in the browser, redirect to login
     if (typeof window !== "undefined") {
-      window.location.href = "/login";
+      window.location.href = "/";
     }
 
     return false;

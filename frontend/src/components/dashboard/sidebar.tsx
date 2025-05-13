@@ -4,57 +4,199 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { HelpButton } from "@/components/ui/help_button";
+import type {ReactNode} from "react";
 
 // Type für Navigation Items
 interface NavItem {
     href: string;
     label: string;
     icon: string;
+    helpContent?: ReactNode;
 }
 
-// Navigation Items als konstante Daten
+// Navigation Items als konstante Daten mit Hilfe-Inhalten
 const NAV_ITEMS: NavItem[] = [
     {
         href: "/dashboard",
         label: "Home",
-        icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"
+        icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
+        helpContent: (
+            <div>
+                <p className="mb-4">Willkommen im <strong>Dashboard-Hilfesystem</strong>!</p>
+
+                <h3 className="font-semibold text-lg mb-2">Verfügbare Funktionen:</h3>
+                <ul className="list-disc list-inside space-y-1 mb-4">
+                    <li><strong>Home</strong>: Übersicht über aktuelle Aktivitäten</li>
+                    <li><strong>OGS Gruppe</strong>: Verwalten Sie Ganztagsgruppen</li>
+                    <li><strong>Schüler</strong>: Suchen und verwalten Sie Schülerdaten</li>
+                    <li><strong>Räume</strong>: Raumverwaltung und -zuweisung</li>
+                    <li><strong>Aktivitäten</strong>: Erstellen und bearbeiten Sie Aktivitäten</li>
+                    <li><strong>Statistiken</strong>: Einblick in wichtige Kennzahlen</li>
+                    <li><strong>Vertretungen</strong>: Vertretungsplan verwalten</li>
+                    <li><strong>Einstellungen</strong>: System konfigurieren</li>
+                </ul>
+
+                <p className="text-sm text-gray-600">
+                    Klicken Sie auf einen <strong>Menüpunkt</strong>, um loszulegen.
+                </p>
+            </div>
+        )
     },
     {
-        href: "/ogs-groups",
+        href: "/ogs_groups",
         label: "OGS Gruppe",
-        icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+        icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
+        helpContent: (
+            <div>
+                <p>In der <strong>OGS-Gruppenansicht</strong> können Sie:</p>
+                <ul className="mt-3 space-y-2">
+                    <li>• <strong>Schüler verfolgen:</strong> Sehen, wo sich alle Kinder Ihrer Gruppe befinden</li>
+                    <li>• <strong>Status einsehen:</strong> Im Gruppenraum, Schulhof, Toilette, Unterwegs oder Zuhause</li>
+                    <li>• <strong>Filtern und suchen:</strong> Nach Name oder Jahrgang sortieren</li>
+                </ul>
+                <p className="mt-4"><strong>Statuserklärungen:</strong></p>
+                <ul className="mt-2 space-y-1 text-sm">
+                    <li>• <strong>Im Gruppenraum:</strong> Kind befindet sich im angegebenen OGS-Raum</li>
+                    <li>• <strong>Schulhof:</strong> Kind ist auf dem Außengelände</li>
+                    <li>• <strong>Toilette:</strong> Kind ist auf der Toilette</li>
+                    <li>• <strong>Unterwegs:</strong> Kind ist in einer Aktivität oder wechselt gerade einen Raum</li>
+                    <li>• <strong>Zuhause:</strong> Kind wurde abgeholt oder ist abgemeldet</li>
+                </ul>
+            </div>
+        )
     },
     {
         href: "/students/search",
         label: "Schüler",
-        icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+        icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
+        helpContent: (
+            <div>
+                <p>In der <strong>Schülersuche</strong> können Sie:</p>
+                <ul className="mt-3 space-y-2">
+                    <li>• <strong>Schüler finden:</strong> Suche nach Namen, Klasse oder anderen Merkmalen</li>
+                    <li>• <strong>Informationen einsehen:</strong> Persönliche Daten, Anwesenheiten und Aktivitäten</li>
+                    <li>• <strong>Schnellfilter nutzen:</strong> Nach Jahrgangsstufe oder Anwesenheitsstatus filtern</li>
+                </ul>
+                <p className="mt-4"><strong>Tipps zur Suche:</strong></p>
+                <ul className="mt-2 space-y-1 text-sm">
+                    <li>• Nutzen Sie die <strong>Filteroptionen</strong> für spezifischere Ergebnisse</li>
+                    <li>• Die Suche berücksichtigt Vor- und Nachnamen</li>
+                    <li>• Klicken Sie auf einen Schüler, um sein Profil zu öffnen</li>
+                    <li>• Exportieren Sie Ergebnisse mit dem Export-Button</li>
+                </ul>
+            </div>
+        )
     },
     {
         href: "/rooms",
         label: "Räume",
-        icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+        icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
+        helpContent: (
+            <div>
+                <p>In der <strong>Raumverwaltung</strong> können Sie:</p>
+                <ul className="mt-3 space-y-2">
+                    <li>• <strong>Räume einsehen:</strong> Übersicht aller verfügbaren Räume</li>
+                    <li>• <strong>Belegung prüfen:</strong> Aktuelle und geplante Raumbelegungen</li>
+                    <li>• <strong>Räume zuweisen:</strong> Für Gruppen oder Aktivitäten</li>
+                </ul>
+                <p className="mt-4"><strong>Funktionen:</strong></p>
+                <ul className="mt-2 space-y-1 text-sm">
+                    <li>• <strong>Raumplan:</strong> Visuelle Darstellung der Raumbelegung</li>
+                    <li>• <strong>Kalenderansicht:</strong> Zeitliche Übersicht der Raumbelegungen</li>
+                    <li>• <strong>Konfliktprüfung:</strong> Automatische Erkennung von Doppelbelegungen</li>
+                    <li>• <strong>Ausstattungsfilter:</strong> Suche nach Räumen mit bestimmter Ausstattung</li>
+                </ul>
+            </div>
+        )
     },
-
     {
         href: "/database/activities",
         label: "Aktivitäten",
-        icon: "M17 14v6m-3-3h6M6 10h2a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2zm10 0h2a2 2 0 002-2V6a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2zM6 20h2a2 2 0 002-2v-2a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z"
+        icon: "M17 14v6m-3-3h6M6 10h2a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2zm10 0h2a2 2 0 002-2V6a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2zM6 20h2a2 2 0 002-2v-2a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z",
+        helpContent: (
+            <div>
+                <p>In der <strong>Aktivitätenverwaltung</strong> können Sie:</p>
+                <ul className="mt-3 space-y-2">
+                    <li>• <strong>Aktivitäten erstellen:</strong> Neue Angebote für Schüler anlegen</li>
+                    <li>• <strong>Teilnehmer verwalten:</strong> Schüler zu Aktivitäten hinzufügen oder entfernen</li>
+                    <li>• <strong>Zeitplanung:</strong> Termine und Zeiträume festlegen</li>
+                </ul>
+                <p className="mt-4"><strong>Kategorien und Funktionen:</strong></p>
+                <ul className="mt-2 space-y-1 text-sm">
+                    <li>• <strong>Sport:</strong> Sportliche Aktivitäten wie Fußball oder Turnen</li>
+                    <li>• <strong>Kreativ:</strong> Bastel- und Kunstangebote</li>
+                    <li>• <strong>Musik:</strong> Musikalische Angebote und Instrumente</li>
+                    <li>• <strong>Lernen:</strong> Hausaufgabenhilfe und Förderangebote</li>
+                    <li>• <strong>Spiel:</strong> Gesellschaftsspiele und freies Spielen</li>
+                </ul>
+            </div>
+        )
     },
     {
         href: "/metrics",
         label: "Statistiken",
-        icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+        icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
+        helpContent: (
+            <div>
+                <p>In der <strong>Statistikansicht</strong> finden Sie:</p>
+                <ul className="mt-3 space-y-2">
+                    <li>• <strong>Anwesenheitsstatistiken:</strong> Tägliche, wöchentliche und monatliche Übersichten</li>
+                    <li>• <strong>Gruppenzahlen:</strong> Auslastung der OGS-Gruppen</li>
+                    <li>• <strong>Aktivitätenanalyse:</strong> Beliebtheit und Teilnehmerzahlen</li>
+                </ul>
+                <p className="mt-4"><strong>Funktionen:</strong></p>
+                <ul className="mt-2 space-y-1 text-sm">
+                    <li>• <strong>Exportieren:</strong> Daten als Excel oder PDF herunterladen</li>
+                    <li>• <strong>Zeitraumfilter:</strong> Daten für bestimmte Zeiträume anzeigen</li>
+                    <li>• <strong>Vergleichsfunktion:</strong> Daten verschiedener Zeiträume vergleichen</li>
+                    <li>• <strong>Diagramme:</strong> Visuelle Darstellung wichtiger Kennzahlen</li>
+                </ul>
+            </div>
+        )
     },
     {
         href: "/substitutions",
         label: "Vertretungen",
-        icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+        icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
+        helpContent: (
+            <div>
+                <p>Im Bereich <strong>Vertretungen</strong> können Sie:</p>
+                <ul className="mt-3 space-y-2">
+                    <li>• <strong>Ausfälle erfassen:</strong> Abwesenheiten von Betreuern dokumentieren</li>
+                    <li>• <strong>Vertretungen planen:</strong> Ersatzpersonal für abwesende Betreuer einteilen</li>
+                    <li>• <strong>Konflikte erkennen:</strong> Unterbesetzte Gruppen identifizieren</li>
+                </ul>
+                <p className="mt-4"><strong>Weitere Funktionen:</strong></p>
+                <ul className="mt-2 space-y-1 text-sm">
+                    <li>• <strong>Kalenderansicht:</strong> Übersicht aller geplanten Vertretungen</li>
+                    <li>• <strong>Benachrichtigungen:</strong> Betroffene Mitarbeiter informieren</li>
+                    <li>• <strong>Auslastungsanzeige:</strong> Verfügbarkeit von Vertretungskräften prüfen</li>
+                    <li>• <strong>Notfallplan:</strong> Vorgehen bei unerwarteten Ausfällen</li>
+                </ul>
+            </div>
+        )
     },
-
     {
         href: "/settings",
         label: "Einstellungen",
-        icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+        icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z",
+        helpContent: (
+            <div>
+                <p>In den <strong>Einstellungen</strong> können Sie:</p>
+                <ul className="mt-3 space-y-2">
+                    <li>• <strong>Benutzerprofil:</strong> Persönliche Daten und Zugangsdaten verwalten</li>
+                    <li>• <strong>Benachrichtigungen:</strong> E-Mail und Push-Benachrichtigungen konfigurieren</li>
+                    <li>• <strong>Erscheinungsbild:</strong> Anpassen der Benutzeroberfläche</li>
+                </ul>
+                <p className="mt-4"><strong>Administrative Einstellungen:</strong></p>
+                <ul className="mt-2 space-y-1 text-sm">
+                    <li>• <strong>Benutzer verwalten:</strong> Neue Konten erstellen und Berechtigungen zuweisen</li>
+                    <li>• <strong>Schuljahr konfigurieren:</strong> Ferien und Feiertage festlegen</li>
+                    <li>• <strong>Systemeinstellungen:</strong> Grundlegende Konfiguration des Systems</li>
+                    <li>• <strong>Datensicherung:</strong> Backups erstellen und wiederherstellen</li>
+                </ul>
+            </div>
+        )
     },
 ];
 
@@ -75,6 +217,29 @@ export function Sidebar({ className = "" }: SidebarProps) {
 
         // Für andere Routen prüfen, ob der aktuelle Pfad mit dem Link-Pfad beginnt
         return pathname.startsWith(href);
+    };
+
+    // Den richtigen Hilfetext basierend auf der aktuellen Route finden
+    const getActiveHelpContent = (): ReactNode => {
+        // Finde das NavItem, das der aktuellen Route entspricht
+        const activeItem = NAV_ITEMS.find(item => {
+            if (item.href === "/dashboard") {
+                return pathname === "/dashboard";
+            }
+            return pathname.startsWith(item.href);
+        });
+
+        // Wenn ein aktives Item gefunden wurde, gib dessen Hilfetext zurück, sonst den Standard-Hilfetext
+        // Return the help content or default
+        if (activeItem?.helpContent) {
+            return activeItem.helpContent;
+        }
+        return NAV_ITEMS[0]?.helpContent ?? (
+            <div>
+                <p><strong>Willkommen</strong></p>
+                <p>Wählen Sie eine Option aus dem Menü, um weitere Informationen zu erhalten.</p>
+            </div>
+        );
     };
 
     // CSS-Klassen für aktive und normale Links
@@ -107,32 +272,12 @@ export function Sidebar({ className = "" }: SidebarProps) {
                 </div>
             </aside>
 
-            {/* Hilfe-Button fixiert am unteren linken Bildschirmrand - gleiches Breite wie Sidebar */}
+            {/* Hilfe-Button fixiert am unteren linken Bildschirmrand - dynamischer Hilfetext basierend auf der aktiven Route */}
             <div className="fixed bottom-0 left-0 z-50 w-64 p-4 bg-white border-t border-r border-gray-200">
                 <div className="flex items-center justify-start">
                     <HelpButton
-                        title="Allgemeine Hilfe"
-                        content={
-                            <div>
-                                <p className="mb-4">Willkommen im <strong>Dashboard-Hilfesystem</strong>!</p>
-
-                                <h3 className="font-semibold text-lg mb-2">Verfügbare Funktionen:</h3>
-                                <ul className="list-disc list-inside space-y-1 mb-4">
-                                    <li><strong>Home</strong>: Übersicht über aktuelle Aktivitäten</li>
-                                    <li><strong>OGS Gruppe</strong>: Verwalten Sie Ganztagsgruppen</li>
-                                    <li><strong>Schüler</strong>: Suchen und verwalten Sie Schülerdaten</li>
-                                    <li><strong>Räume</strong>: Raumverwaltung und -zuweisung</li>
-                                    <li><strong>Aktivitäten</strong>: Erstellen und bearbeiten Sie Aktivitäten</li>
-                                    <li><strong>Statistiken</strong>: Einblick in wichtige Kennzahlen</li>
-                                    <li><strong>Vertretungen</strong>: Vertretungsplan verwalten</li>
-                                    <li><strong>Einstellungen</strong>: System konfigurieren</li>
-                                </ul>
-
-                                <p className="text-sm text-gray-600">
-                                    Klicken Sie auf einen <strong>Menüpunkt</strong>, um loszulegen.
-                                </p>
-                            </div>
-                        }
+                        title={isActiveLink("/ogs_groups") ? "OGS-Gruppenansicht Hilfe" : "Allgemeine Hilfe"}
+                        content={getActiveHelpContent()}
                         buttonClassName="mr-2"
                     />
                     <span className="text-sm text-gray-600">Hilfe</span>
