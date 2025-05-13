@@ -47,8 +47,8 @@ func (p *StudentVisitPolicy) Evaluate(ctx context.Context, authCtx *policy.Conte
 	}
 
 	// Users with specific permissions can access
-	if hasPermission(authCtx.Subject.Permissions, "visits:read") ||
-		hasPermission(authCtx.Subject.Permissions, "visits:manage") {
+	if hasPermission(authCtx.Subject.Permissions, permissions.VisitsRead) ||
+		hasPermission(authCtx.Subject.Permissions, permissions.VisitsManage) {
 		return true, nil
 	}
 
@@ -123,13 +123,6 @@ func (p *StudentVisitPolicy) Evaluate(ctx context.Context, authCtx *policy.Conte
 				return true, nil // Teacher supervises student's group
 			}
 		}
-	}
-
-	// Get the requesting user's person record
-	person, err := p.usersService.FindByAccountID(ctx, authCtx.Subject.AccountID)
-	if err != nil {
-		// Log the error but don't expose internal errors
-		return false, nil
 	}
 
 	return false, nil

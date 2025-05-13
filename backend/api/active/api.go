@@ -64,7 +64,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/visits", func(r chi.Router) {
 			// Read operations
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.listVisits)
-			r.With(authorize.CombinePermissionAndResource(permissions.GroupsRead, "visit", policy.ActionView, authorize.URLParamExtractor("id"))).Get("/{id}", rs.getVisit)
+			r.With(authorize.GetResourceAuthorizer().RequiresResourceAccess("visit", policy.ActionView, VisitIDExtractor())).Get("/{id}", rs.getVisit)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}", rs.getStudentVisits)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}/current", rs.getStudentCurrentVisit)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/group/{groupId}", rs.getVisitsByGroup)
@@ -127,6 +127,24 @@ func (rs *Resource) Router() chi.Router {
 	})
 
 	return r
+}
+
+// VisitIDExtractor extracts visit information for authorization
+func VisitIDExtractor() authorize.ResourceExtractor {
+	return func(r *http.Request) (interface{}, map[string]interface{}) {
+		idStr := chi.URLParam(r, "id")
+		if idStr == "" {
+			return nil, nil
+		}
+
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			return nil, nil
+		}
+
+		// Return the visit ID as the resource ID
+		return id, nil
+	}
 }
 
 // ===== Response Types =====

@@ -112,3 +112,13 @@ const (
 	SchedulesList   = ResourceSchedules + ":" + ActionList
 	SchedulesManage = ResourceSchedules + ":" + ActionManage
 )
+
+// Visit permissions
+const (
+	VisitsCreate = "visits:create"
+	VisitsRead   = "visits:read"
+	VisitsUpdate = "visits:update"
+	VisitsDelete = "visits:delete"
+	VisitsList   = "visits:list"
+	VisitsManage = "visits:manage"
+)
