@@ -145,7 +145,6 @@ func CreateTestData(t *testing.T) *TestData {
 		PersonID: data.StudentUser.ID,
 		Person:   data.StudentUser,
 		GroupID:  &groupID1,
-		Group:    data.Group1,
 	}
 
 	groupID2 := data.Group2.ID
@@ -155,7 +154,6 @@ func CreateTestData(t *testing.T) *TestData {
 		},
 		PersonID: 5, // Different person
 		GroupID:  &groupID2,
-		Group:    data.Group2,
 	}
 
 	// Create active groups

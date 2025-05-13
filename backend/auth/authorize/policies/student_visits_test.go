@@ -246,8 +246,14 @@ func TestStudentVisitPolicy_Evaluate(t *testing.T) {
 
 				// Mock getting teacher's groups
 				groups := []*education.Group{
-					{ID: 1, Name: "Class A"},
-					{ID: 2, Name: "Class B"},
+					{
+						Model: base.Model{ID: 1},
+						Name:  "Class A",
+					},
+					{
+						Model: base.Model{ID: 2},
+						Name:  "Class B",
+					},
 				}
 				eduService.On("GetTeacherGroups", mock.Anything, int64(40)).Return(groups, nil)
 
