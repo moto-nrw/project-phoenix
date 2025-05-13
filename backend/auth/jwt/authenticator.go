@@ -22,11 +22,10 @@ const (
 // For backward compatibility
 type ctxKey = CtxKey
 
-const 
+const (
 	ctxClaims       = CtxClaims
-	ctxClaims = CtxClaims
+	ctxRefreshToken = CtxRefreshToken
 	ctxPermissions  = CtxPermissions
-	ctxPermissions = CtxPermissions
 )
 
 // ClaimsFromCtx retrieves the parsed AppClaims from request context.
