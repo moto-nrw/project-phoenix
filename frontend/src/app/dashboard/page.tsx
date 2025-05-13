@@ -17,7 +17,7 @@ interface InfoCardProps {
 }
 
 const InfoCard: React.FC<InfoCardProps> = ({ title, children, href, className, fixedHeight }) => (
-    <div className={`rounded-lg border border-gray-100 bg-white p-6 shadow-md ${fixedHeight ? 'h-[420px]' : 'h-full'} ${className || ""}`}>
+    <div className={`rounded-lg border border-gray-100 bg-white p-6 shadow-md ${fixedHeight ? 'h-[420px]' : 'h-full'} ${className ?? ""}`}>
         <div className="mb-4 flex items-center justify-between">
             <h3 className="text-lg font-semibold">{title}</h3>
             {href && (
