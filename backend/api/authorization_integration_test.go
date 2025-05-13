@@ -12,19 +12,21 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/active"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // setupTestAPI creates a test API instance with mocked dependencies
 func setupTestAPI(t *testing.T) (*api.API, func()) {
-	// Create a test database connection
-	db, cleanup := database.SetupTestDB(t)
-
-	// Initialize the API
+	// Create a test API without database dependency
+	// For unit tests, we mock the services instead of using real database
 	testAPI, err := api.New(false)
 	require.NoError(t, err)
+
+	// Create cleanup function
+	cleanup := func() {
+		// Clean up any test resources if needed
+	}
 
 	return testAPI, cleanup
 }

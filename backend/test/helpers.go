@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/require"
@@ -61,7 +62,9 @@ func CreateTestData(t *testing.T) *TestData {
 	// Create admin user
 	adminID := int64(1)
 	data.AdminUser = &userModels.Person{
-		ID:        1,
+		BaseModel: base.BaseModel{
+			ID: 1,
+		},
 		FirstName: "Admin",
 		LastName:  "User",
 		AccountID: &adminID,
@@ -70,7 +73,9 @@ func CreateTestData(t *testing.T) *TestData {
 	// Create teacher user
 	teacherID := int64(2)
 	data.TeacherUser = &userModels.Person{
-		ID:        2,
+		BaseModel: base.BaseModel{
+			ID: 2,
+		},
 		FirstName: "Teacher",
 		LastName:  "User",
 		AccountID: &teacherID,
@@ -79,7 +84,9 @@ func CreateTestData(t *testing.T) *TestData {
 	// Create student user
 	studentID := int64(3)
 	data.StudentUser = &userModels.Person{
-		ID:        3,
+		BaseModel: base.BaseModel{
+			ID: 3,
+		},
 		FirstName: "Student",
 		LastName:  "User",
 		AccountID: &studentID,
@@ -88,7 +95,9 @@ func CreateTestData(t *testing.T) *TestData {
 	// Create regular user
 	userID := int64(4)
 	data.RegularUser = &userModels.Person{
-		ID:        4,
+		BaseModel: base.BaseModel{
+			ID: 4,
+		},
 		FirstName: "Regular",
 		LastName:  "User",
 		AccountID: &userID,
@@ -107,14 +116,18 @@ func CreateTestData(t *testing.T) *TestData {
 
 	// Create teacher staff
 	data.TeacherStaff = &userModels.Staff{
-		ID:       1,
+		BaseModel: base.BaseModel{
+			ID: 1,
+		},
 		PersonID: data.TeacherUser.ID,
 		Person:   data.TeacherUser,
 	}
 
 	// Create teacher
 	data.Teacher1 = &userModels.Teacher{
-		ID:      1,
+		BaseModel: base.BaseModel{
+			ID: 1,
+		},
 		StaffID: data.TeacherStaff.ID,
 		Staff:   data.TeacherStaff,
 	}
@@ -122,7 +135,9 @@ func CreateTestData(t *testing.T) *TestData {
 	// Create students
 	groupID1 := data.Group1.ID
 	data.Student1 = &userModels.Student{
-		ID:       1,
+		BaseModel: base.BaseModel{
+			ID: 1,
+		},
 		PersonID: data.StudentUser.ID,
 		Person:   data.StudentUser,
 		GroupID:  &groupID1,
@@ -131,7 +146,9 @@ func CreateTestData(t *testing.T) *TestData {
 
 	groupID2 := data.Group2.ID
 	data.Student2 = &userModels.Student{
-		ID:       2,
+		BaseModel: base.BaseModel{
+			ID: 2,
+		},
 		PersonID: 5, // Different person
 		GroupID:  &groupID2,
 		Group:    data.Group2,
@@ -275,7 +292,9 @@ func CreateTestActiveGroup(groupID int64, roomID int64) *active.Group {
 // CreateTestStudent creates a test student
 func CreateTestStudent(personID int64, groupID *int64) *userModels.Student {
 	return &userModels.Student{
-		ID:       100 + personID,
+		BaseModel: base.BaseModel{
+			ID: 100 + personID,
+		},
 		PersonID: personID,
 		GroupID:  groupID,
 	}
@@ -288,7 +307,9 @@ func CreateTestPerson(accountID *int64, firstName, lastName string) *userModels.
 		id = *accountID
 	}
 	return &userModels.Person{
-		ID:        id,
+		BaseModel: base.BaseModel{
+			ID: id,
+		},
 		FirstName: firstName,
 		LastName:  lastName,
 		AccountID: accountID,
