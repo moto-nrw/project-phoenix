@@ -230,7 +230,16 @@ export function Sidebar({ className = "" }: SidebarProps) {
         });
 
         // Wenn ein aktives Item gefunden wurde, gib dessen Hilfetext zurück, sonst den Standard-Hilfetext
-        return activeItem?.helpContent ?? NAV_ITEMS[0].helpContent;
+        // Return the help content or default
+        if (activeItem?.helpContent) {
+            return activeItem.helpContent;
+        }
+        return NAV_ITEMS[0]?.helpContent ?? (
+            <div>
+                <p><strong>Willkommen</strong></p>
+                <p>Wählen Sie eine Option aus dem Menü, um weitere Informationen zu erhalten.</p>
+            </div>
+        );
     };
 
     // CSS-Klassen für aktive und normale Links
