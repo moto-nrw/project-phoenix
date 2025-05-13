@@ -82,17 +82,6 @@ func (p *StudentVisitPolicy) Evaluate(ctx context.Context, authCtx *policy.Conte
 		return true, nil // Students can view their own visits
 	}
 
-	// Check if person is a parent accessing their child's visits
-	children, err := p.usersService.FindByGuardianID(ctx, authCtx.Subject.AccountID)
-	if err == nil {
-		for _, child := range children {
-			childStudent, err := p.usersService.StudentRepository().FindByPersonID(ctx, child.ID)
-			if err == nil && childStudent != nil && childStudent.ID == studentID {
-				return true, nil // Parents can view their children's visits
-			}
-		}
-	}
-
 	// Check if person is a staff member
 	staff, err := p.usersService.StaffRepository().FindByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
