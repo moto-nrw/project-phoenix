@@ -8,12 +8,35 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
+	jwtpkg "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// setupTestAuth sets up authentication for testing
+func setupTestAuth(t *testing.T) {
+	// Create a JWT auth service with test secret
+	tokenAuth, err := CreateTestJWTAuth()
+	require.NoError(t, err)
+
+	// Set it as the default in the authorization system
+	jwtpkg.SetDefaultTokenAuth(tokenAuth)
+}
+
+// setupTestEnvironment sets up the test environment, including database and auth
+func setupTestEnvironment(t *testing.T) {
+	// Setup database connection for tests
+	SetupTestDatabase()
+
+	// Setup authentication for tests
+	setupTestAuth(t)
+}
+
 // TestAuthorizationSystem performs comprehensive tests of the authorization system
 func TestAuthorizationSystem(t *testing.T) {
+	// Set up test environment
+	setupTestEnvironment(t)
+
 	// Create test data
 	testData := CreateTestData(t)
 

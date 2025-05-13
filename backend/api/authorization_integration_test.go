@@ -14,12 +14,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/active"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// setupTestEnvironment configures the test environment
+func setupTestEnvironment(t *testing.T) {
+	// Configure test database
+	viper.Set("test_db_dsn", "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable")
+	// You could also use an in-memory database for faster tests
+}
+
 // setupTestAPI creates a test API instance with mocked dependencies
 func setupTestAPI(t *testing.T) (*api.API, func()) {
+	// Setup the test environment
+	setupTestEnvironment(t)
+
 	// Create a test API without database dependency
 	// For unit tests, we mock the services instead of using real database
 	testAPI, err := api.New(false)
@@ -35,8 +46,8 @@ func setupTestAPI(t *testing.T) (*api.API, func()) {
 
 // setupTestUser creates a test user with specific permissions
 func setupTestUser(t *testing.T, username string, roles []string, permissions []string) (string, jwt.AppClaims) {
-	// Create JWT service
-	tokenAuth, err := jwt.NewTokenAuth()
+	// Create JWT service with test secret for consistency
+	tokenAuth, err := jwt.NewTokenAuthWithSecret("test-secret-key-thats-at-least-32-chars-long")
 	require.NoError(t, err)
 
 	// Create claims

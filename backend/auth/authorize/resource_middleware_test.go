@@ -124,7 +124,9 @@ func TestResourceAuthorizer_RequiresResourceAccess(t *testing.T) {
 
 			// Setup context with claims and permissions
 			ctx := context.WithValue(req.Context(), ctxKeyClaims, tt.claims)
-			ctx = context.WithValue(ctx, ctxKeyPermissions, tt.permissions)
+			// Use JWT context keys for the actual implementation
+			ctx = context.WithValue(ctx, jwt.CtxClaims, tt.claims)
+			ctx = context.WithValue(ctx, jwt.CtxPermissions, tt.permissions)
 			req = req.WithContext(ctx)
 
 			// Setup mock expectations
@@ -292,7 +294,9 @@ func TestCombinePermissionAndResource(t *testing.T) {
 	permissions := []string{"students:read"}
 
 	ctx := context.WithValue(req.Context(), ctxKeyClaims, claims)
-	ctx = context.WithValue(ctx, ctxKeyPermissions, permissions)
+	// Use JWT context keys for the actual implementation
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
+	ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
 	req = req.WithContext(ctx)
 
 	// Mock authorization service to deny access
@@ -311,7 +315,9 @@ func TestCombinePermissionAndResource(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 }
 
-// Context keys for testing
+// Context keys for testing with a different name to avoid conflicts
+type rmCtxKey int
+
 const (
-	ctxKeyClaims ctxKey = iota + 10
+	ctxKeyClaims rmCtxKey = iota + 10
 )

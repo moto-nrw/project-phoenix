@@ -11,12 +11,22 @@ import (
 	"github.com/go-chi/render"
 )
 
-type ctxKey int
+type CtxKey int
 
 const (
-	ctxClaims ctxKey = iota
-	ctxRefreshToken
-	ctxPermissions // New context key for permissions
+	CtxClaims CtxKey = iota
+	CtxRefreshToken
+	CtxPermissions // Context key for permissions
+)
+
+// For backward compatibility
+type ctxKey = CtxKey
+
+const 
+	ctxClaims       = CtxClaims
+	ctxClaims = CtxClaims
+	ctxPermissions  = CtxPermissions
+	ctxPermissions = CtxPermissions
 )
 
 // ClaimsFromCtx retrieves the parsed AppClaims from request context.

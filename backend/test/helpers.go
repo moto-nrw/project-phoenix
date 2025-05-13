@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,12 +52,28 @@ type TestData struct {
 	UserToken    string
 }
 
+// CreateTestJWTAuth creates a JWT auth service with a test secret
+func CreateTestJWTAuth() (*jwt.TokenAuth, error) {
+	// Use a fixed test secret
+	return jwt.NewTokenAuthWithSecret("test-secret-key-thats-at-least-32-chars-long")
+}
+
+// SetupTestDatabase configures the test database connection
+func SetupTestDatabase() {
+	// Set test database configuration for in-memory or test database
+	viper.Set("test_db_dsn", "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable")
+	// You could also use an in-memory SQLite database for tests if desired
+}
+
 // CreateTestData creates a comprehensive test data set
 func CreateTestData(tb testing.TB) *TestData {
 	data := &TestData{}
 
-	// Create JWT auth service
-	tokenAuth, err := jwt.NewTokenAuth()
+	// Setup test database
+	SetupTestDatabase()
+
+	// Create JWT auth service with test secret
+	tokenAuth, err := CreateTestJWTAuth()
 	require.NoError(tb, err)
 
 	// Create admin user
