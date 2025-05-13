@@ -11,12 +11,21 @@ import (
 	"github.com/go-chi/render"
 )
 
-type ctxKey int
+type CtxKey int
 
 const (
-	ctxClaims ctxKey = iota
-	ctxRefreshToken
-	ctxPermissions // New context key for permissions
+	CtxClaims CtxKey = iota
+	CtxRefreshToken
+	CtxPermissions // Context key for permissions
+)
+
+// For backward compatibility
+type ctxKey = CtxKey
+
+const (
+	ctxClaims       = CtxClaims
+	ctxRefreshToken = CtxRefreshToken
+	ctxPermissions  = CtxPermissions
 )
 
 // ClaimsFromCtx retrieves the parsed AppClaims from request context.
@@ -46,12 +55,19 @@ func Authenticator(next http.Handler) http.Handler {
 		token, claims, err := jwtauth.FromContext(r.Context())
 
 		if err != nil {
-			logging.GetLogEntry(r).Warn(err)
+			logging.GetLogEntry(r).Warn("JWT error:", err)
+			render.Render(w, r, ErrUnauthorized(ErrTokenUnauthorized))
+			return
+		}
+
+		if token == nil {
+			logging.GetLogEntry(r).Warn("No token found in context")
 			render.Render(w, r, ErrUnauthorized(ErrTokenUnauthorized))
 			return
 		}
 
 		if err := jwt.Validate(token); err != nil {
+			logging.GetLogEntry(r).Warn("Token validation failed:", err)
 			render.Render(w, r, ErrUnauthorized(ErrTokenExpired))
 			return
 		}
@@ -60,7 +76,7 @@ func Authenticator(next http.Handler) http.Handler {
 		var c AppClaims
 		err = c.ParseClaims(claims)
 		if err != nil {
-			logging.GetLogEntry(r).Error(err)
+			logging.GetLogEntry(r).Error("Failed to parse claims:", err)
 			render.Render(w, r, ErrUnauthorized(ErrInvalidAccessToken))
 			return
 		}
@@ -71,6 +87,7 @@ func Authenticator(next http.Handler) http.Handler {
 		// Also set permissions on context for easier access
 		ctx = context.WithValue(ctx, ctxPermissions, c.Permissions)
 
+		// Call the next handler with updated context
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

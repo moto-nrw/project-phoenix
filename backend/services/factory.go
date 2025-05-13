@@ -2,6 +2,8 @@
 package services
 
 import (
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
@@ -105,6 +107,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.RFIDCard,
 		repos.Account,
 		repos.PersonGuardian,
+		repos.Student,
 		repos.Staff,
 		repos.Teacher,
 		db,
@@ -126,6 +129,26 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Initialize authorization
+	authorizationService := authorize.NewAuthorizationService()
+
+	// Create policy registry
+	policyRegistry := policies.NewPolicyRegistry(
+		educationService,
+		usersService,
+		activeService,
+	)
+
+	// Register all policies
+	if err := policyRegistry.RegisterAll(authorizationService); err != nil {
+		return nil, err
+	}
+
+	// Set global resource authorizer
+	authorize.SetResourceAuthorizer(
+		authorize.NewResourceAuthorizer(authorizationService),
+	)
 
 	return &Factory{
 		Auth:       authService,
