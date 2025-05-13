@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -63,7 +64,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/visits", func(r chi.Router) {
 			// Read operations
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.listVisits)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getVisit)
+			r.With(authorize.CombinePermissionAndResource(permissions.GroupsRead, "visit", policy.ActionView, authorize.URLParamExtractor("id"))).Get("/{id}", rs.getVisit)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}", rs.getStudentVisits)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}/current", rs.getStudentCurrentVisit)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/group/{groupId}", rs.getVisitsByGroup)

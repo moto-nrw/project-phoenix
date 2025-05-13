@@ -125,6 +125,13 @@ func (p *StudentVisitPolicy) Evaluate(ctx context.Context, authCtx *policy.Conte
 		}
 	}
 
+	// Get the requesting user's person record
+	person, err := p.usersService.FindByAccountID(ctx, authCtx.Subject.AccountID)
+	if err != nil {
+		// Log the error but don't expose internal errors
+		return false, nil
+	}
+
 	return false, nil
 }
 
