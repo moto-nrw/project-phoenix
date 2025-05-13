@@ -158,7 +158,9 @@ func CreateTestData(t *testing.T) *TestData {
 
 	// Create active groups
 	data.ActiveGroup1 = &active.Group{
-		ID:        1,
+		Model: base.Model{
+			ID: 1,
+		},
 		GroupID:   data.Group1.ID,
 		RoomID:    1,
 		StartTime: time.Now().Add(-1 * time.Hour),
@@ -166,7 +168,9 @@ func CreateTestData(t *testing.T) *TestData {
 	}
 
 	data.ActiveGroup2 = &active.Group{
-		ID:        2,
+		Model: base.Model{
+			ID: 2,
+		},
 		GroupID:   data.Group2.ID,
 		RoomID:    2,
 		StartTime: time.Now().Add(-1 * time.Hour),
@@ -175,7 +179,9 @@ func CreateTestData(t *testing.T) *TestData {
 
 	// Create visits
 	data.Visit1 = &active.Visit{
-		ID:            1,
+		Model: base.Model{
+			ID: 1,
+		},
 		StudentID:     data.Student1.ID,
 		ActiveGroupID: data.ActiveGroup1.ID,
 		EntryTime:     time.Now().Add(-30 * time.Minute),
@@ -184,7 +190,9 @@ func CreateTestData(t *testing.T) *TestData {
 	}
 
 	data.Visit2 = &active.Visit{
-		ID:            2,
+		Model: base.Model{
+			ID: 2,
+		},
 		StudentID:     data.Student2.ID,
 		ActiveGroupID: data.ActiveGroup2.ID,
 		EntryTime:     time.Now().Add(-30 * time.Minute),
@@ -274,7 +282,9 @@ func AssertPermissionGranted(t *testing.T, err error) {
 // CreateTestVisitForStudent creates a test visit for a student
 func CreateTestVisitForStudent(studentID int64, activeGroupID int64) *active.Visit {
 	return &active.Visit{
-		ID:            100 + studentID,
+		Model: base.Model{
+			ID: 100 + studentID,
+		},
 		StudentID:     studentID,
 		ActiveGroupID: activeGroupID,
 		EntryTime:     time.Now().Add(-30 * time.Minute),
@@ -284,7 +294,9 @@ func CreateTestVisitForStudent(studentID int64, activeGroupID int64) *active.Vis
 // CreateTestActiveGroup creates a test active group
 func CreateTestActiveGroup(groupID int64, roomID int64) *active.Group {
 	return &active.Group{
-		ID:        100 + groupID,
+		Model: base.Model{
+			ID: 100 + groupID,
+		},
 		GroupID:   groupID,
 		RoomID:    roomID,
 		StartTime: time.Now().Add(-1 * time.Hour),

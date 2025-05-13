@@ -284,7 +284,9 @@ func TestStudentVisitPolicy_Evaluate(t *testing.T) {
 			setupMocks: func(eduService *MockEducationService, userService *MockUserService, activeService *MockActiveService, studentRepo *MockStudentRepository, staffRepo *MockStaffRepository, teacherRepo *MockTeacherRepository) {
 				// Mock getting visit to find student ID
 				visit := &active.Visit{
-					ID:        777,
+					Model: base.Model{
+						ID: 777,
+					},
 					StudentID: 300,
 				}
 				activeService.On("GetVisit", mock.Anything, int64(777)).Return(visit, nil)
@@ -346,7 +348,9 @@ func TestStudentVisitPolicy_Evaluate(t *testing.T) {
 			setupMocks: func(eduService *MockEducationService, userService *MockUserService, activeService *MockActiveService, studentRepo *MockStudentRepository, staffRepo *MockStaffRepository, teacherRepo *MockTeacherRepository) {
 				// Mock getting visit to find student ID
 				visit := &active.Visit{
-					ID:        555,
+					Model: base.Model{
+						ID: 555,
+					},
 					StudentID: 400,
 				}
 				activeService.On("GetVisit", mock.Anything, int64(555)).Return(visit, nil)
