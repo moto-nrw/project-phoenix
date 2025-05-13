@@ -1,0 +1,325 @@
+components:
+  schemas:
+    Setting:
+      properties:
+        category:
+          description: Category the setting belongs to
+          type: string
+        created_at:
+          description: Timestamp when the setting was created
+          format: date-time
+          type: string
+        description:
+          description: Description of the setting
+          type: string
+        id:
+          description: Unique identifier for the setting
+          format: int64
+          type: integer
+        key:
+          description: Unique key identifying the setting
+          type: string
+        modified_at:
+          description: Timestamp when the setting was last modified
+          format: date-time
+          type: string
+        requires_db_reset:
+          description: Indicates if the database needs to be reset for the setting
+            to take effect
+          type: boolean
+        requires_restart:
+          description: Indicates if the system needs to be restarted for the setting
+            to take effect
+          type: boolean
+        value:
+          description: Value of the setting
+          type: string
+      required:
+      - id
+      - key
+      - value
+      - category
+      type: object
+    SettingRequest:
+      properties:
+        category:
+          description: Category the setting belongs to
+          type: string
+        description:
+          description: Description of the setting
+          type: string
+        key:
+          description: Unique key identifying the setting
+          type: string
+        requires_db_reset:
+          description: Indicates if the database needs to be reset for the setting
+            to take effect
+          type: boolean
+        requires_restart:
+          description: Indicates if the system needs to be restarted for the setting
+            to take effect
+          type: boolean
+        value:
+          description: Value of the setting
+          type: string
+      required:
+      - key
+      - value
+      - category
+      type: object
+  securitySchemes:
+    apiKeyAuth:
+      description: API key for device authentication. Provide the API key as a Bearer
+        token.
+      in: header
+      name: Authorization
+      type: apiKey
+    bearerAuth:
+      bearerFormat: JWT
+      scheme: bearer
+      type: http
+info:
+  contact:
+    name: MOTO Support
+  description: API for the MOTO school management system
+  title: MOTO API
+  version: 1.0.0
+openapi: 3.0.3
+paths:
+  /settings:
+    get:
+      description: Returns a list of all system settings
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/Setting'
+                type: array
+          description: Successfully retrieved settings list
+        "401":
+          description: Unauthorized - Authentication required
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: List all settings
+      tags:
+      - Settings
+    post:
+      description: Creates a new system setting
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettingRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+          description: Setting created successfully
+        "400":
+          description: Invalid request
+        "401":
+          description: Unauthorized - Authentication required
+        "409":
+          description: Conflict - Setting with this key already exists
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: Create a new setting
+      tags:
+      - Settings
+  /settings/{id}:
+    delete:
+      description: Deletes a setting by its ID
+      parameters:
+      - description: Setting ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Setting deleted successfully
+        "401":
+          description: Unauthorized - Authentication required
+        "404":
+          description: Setting not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: Delete a setting by ID
+      tags:
+      - Settings
+    get:
+      description: Returns a single setting by its ID
+      parameters:
+      - description: Setting ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+          description: Successfully retrieved setting
+        "401":
+          description: Unauthorized - Authentication required
+        "404":
+          description: Setting not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: Get a setting by ID
+      tags:
+      - Settings
+    put:
+      description: Updates an existing setting by its ID
+      parameters:
+      - description: Setting ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettingRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+          description: Setting updated successfully
+        "400":
+          description: Invalid request
+        "401":
+          description: Unauthorized - Authentication required
+        "404":
+          description: Setting not found
+        "409":
+          description: Conflict - Setting with this key already exists
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: Update a setting by ID
+      tags:
+      - Settings
+  /settings/category/{category}:
+    get:
+      description: Returns all settings in a specific category
+      parameters:
+      - description: Settings category
+        in: path
+        name: category
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/Setting'
+                type: array
+          description: Successfully retrieved settings
+        "401":
+          description: Unauthorized - Authentication required
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: Get settings by category
+      tags:
+      - Settings
+  /settings/key/{key}:
+    get:
+      description: Returns a single setting by its key
+      parameters:
+      - description: Setting key
+        in: path
+        name: key
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+          description: Successfully retrieved setting
+        "401":
+          description: Unauthorized - Authentication required
+        "404":
+          description: Setting not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: Get a setting by key
+      tags:
+      - Settings
+    patch:
+      description: Updates the value of an existing setting by its key
+      parameters:
+      - description: Setting key
+        in: path
+        name: key
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                value:
+                  description: New value for the setting
+                  type: string
+              required:
+              - value
+              type: object
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+          description: Setting value updated successfully
+        "400":
+          description: Invalid request
+        "401":
+          description: Unauthorized - Authentication required
+        "404":
+          description: Setting not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: Update a setting value by key
+      tags:
+      - Settings
+servers:
+- description: API Base URL
+  url: /api
