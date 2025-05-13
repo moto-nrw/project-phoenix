@@ -107,6 +107,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.RFIDCard,
 		repos.Account,
 		repos.PersonGuardian,
+		repos.Student,
 		repos.Staff,
 		repos.Teacher,
 		db,

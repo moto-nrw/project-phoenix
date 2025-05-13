@@ -15,6 +15,7 @@ type personService struct {
 	rfidRepo           userModels.RFIDCardRepository
 	accountRepo        auth.AccountRepository
 	personGuardianRepo userModels.PersonGuardianRepository
+	studentRepo        userModels.StudentRepository
 	staffRepo          userModels.StaffRepository
 	teacherRepo        userModels.TeacherRepository
 	db                 *bun.DB
@@ -27,6 +28,7 @@ func NewPersonService(
 	rfidRepo userModels.RFIDCardRepository,
 	accountRepo auth.AccountRepository,
 	personGuardianRepo userModels.PersonGuardianRepository,
+	studentRepo userModels.StudentRepository,
 	staffRepo userModels.StaffRepository,
 	teacherRepo userModels.TeacherRepository,
 	db *bun.DB,
@@ -36,6 +38,7 @@ func NewPersonService(
 		rfidRepo:           rfidRepo,
 		accountRepo:        accountRepo,
 		personGuardianRepo: personGuardianRepo,
+		studentRepo:        studentRepo,
 		staffRepo:          staffRepo,
 		teacherRepo:        teacherRepo,
 		db:                 db,
@@ -50,6 +53,7 @@ func (s *personService) WithTx(tx bun.Tx) interface{} {
 	var rfidRepo userModels.RFIDCardRepository = s.rfidRepo
 	var accountRepo auth.AccountRepository = s.accountRepo
 	var personGuardianRepo userModels.PersonGuardianRepository = s.personGuardianRepo
+	var studentRepo userModels.StudentRepository = s.studentRepo
 	var staffRepo userModels.StaffRepository = s.staffRepo
 	var teacherRepo userModels.TeacherRepository = s.teacherRepo
 
@@ -66,6 +70,9 @@ func (s *personService) WithTx(tx bun.Tx) interface{} {
 	if txRepo, ok := s.personGuardianRepo.(base.TransactionalRepository); ok {
 		personGuardianRepo = txRepo.WithTx(tx).(userModels.PersonGuardianRepository)
 	}
+	if txRepo, ok := s.studentRepo.(base.TransactionalRepository); ok {
+		studentRepo = txRepo.WithTx(tx).(userModels.StudentRepository)
+	}
 	if txRepo, ok := s.staffRepo.(base.TransactionalRepository); ok {
 		staffRepo = txRepo.WithTx(tx).(userModels.StaffRepository)
 	}
@@ -79,6 +86,7 @@ func (s *personService) WithTx(tx bun.Tx) interface{} {
 		rfidRepo:           rfidRepo,
 		accountRepo:        accountRepo,
 		personGuardianRepo: personGuardianRepo,
+		studentRepo:        studentRepo,
 		staffRepo:          staffRepo,
 		teacherRepo:        teacherRepo,
 		db:                 s.db,
@@ -414,6 +422,9 @@ func (s *personService) FindByGuardianID(ctx context.Context, guardianAccountID 
 	}
 	return persons, nil
 }
+
+// StudentRepository returns the student repository
+func (s *personService) StudentRepository() userModels.StudentRepository { return s.studentRepo }
 
 // StaffRepository returns the staff repository
 func (s *personService) StaffRepository() userModels.StaffRepository {
