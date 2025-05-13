@@ -59,6 +59,58 @@ go test ./...
 npm run lint && npm run typecheck
 ```
 
+## Command Reference
+
+### Backend (Go) Commands
+```bash
+# Server and database
+go run main.go serve            # Start the backend server
+go run main.go migrate          # Run database migrations
+
+# Testing
+go test ./...                   # Run all backend tests
+go test ./api/users -run TestFunction  # Run specific test
+
+# Documentation
+go run main.go gendoc           # Generate API documentation (routes.md and OpenAPI)
+go run main.go gendoc --routes  # Generate only routes documentation
+go run main.go gendoc --openapi # Generate only OpenAPI specification
+
+# Dependencies
+go mod tidy                     # Clean up and organize Go dependencies
+go get -u ./...                 # Update all dependencies
+```
+
+### Frontend (Next.js/npm) Commands
+```bash
+# Development
+npm run dev                     # Start development server with turbo
+npm run build                   # Build for production
+npm run start                   # Start production server
+npm run preview                 # Build and preview production version
+
+# Linting and Type Checking
+npm run lint                    # Run ESLint to check for code issues
+npm run lint:fix                # Automatically fix linting issues
+npm run typecheck               # Run TypeScript type checking
+npm run check                   # Run both lint and type checking
+
+# Formatting
+npm run format:check            # Check code formatting with Prettier
+npm run format:write            # Fix code formatting issues
+```
+
+### Docker Commands
+```bash
+docker compose up               # Start all services
+docker compose up -d            # Start all services in detached mode
+docker compose up -d postgres   # Start only the database
+docker compose run server ./main migrate  # Run migrations in docker
+docker compose run frontend npm run lint  # Run frontend lint checks in docker
+docker compose logs postgres    # Check database logs
+docker compose down             # Stop all services
+```
+
 ## Documentation
 
 - API endpoints: See `backend/routes.md`
