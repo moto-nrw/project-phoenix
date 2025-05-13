@@ -372,6 +372,7 @@ func testEdgeCases(t *testing.T, testData *TestData) {
 
 // BenchmarkAuthorization benchmarks the authorization system
 func BenchmarkAuthorization(b *testing.B) {
+	// Create a testing.T from testing.B using the TB interface
 	testData := CreateTestData(b)
 	authService := CreateTestAuthorizationService(b)
 

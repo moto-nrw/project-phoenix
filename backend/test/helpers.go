@@ -52,12 +52,12 @@ type TestData struct {
 }
 
 // CreateTestData creates a comprehensive test data set
-func CreateTestData(t *testing.T) *TestData {
+func CreateTestData(tb testing.TB) *TestData {
 	data := &TestData{}
 
 	// Create JWT auth service
 	tokenAuth, err := jwt.NewTokenAuth()
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	// Create admin user
 	adminID := int64(1)
@@ -206,7 +206,7 @@ func CreateTestData(t *testing.T) *TestData {
 		Permissions: []string{"admin:*"},
 	}
 	data.AdminToken, err = tokenAuth.CreateJWT(adminClaims)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	teacherClaims := jwt.AppClaims{
 		ID:          2,
@@ -215,7 +215,7 @@ func CreateTestData(t *testing.T) *TestData {
 		Permissions: []string{"groups:read", "visits:read"},
 	}
 	data.TeacherToken, err = tokenAuth.CreateJWT(teacherClaims)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	studentClaims := jwt.AppClaims{
 		ID:          3,
@@ -224,7 +224,7 @@ func CreateTestData(t *testing.T) *TestData {
 		Permissions: []string{},
 	}
 	data.StudentToken, err = tokenAuth.CreateJWT(studentClaims)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	userClaims := jwt.AppClaims{
 		ID:          4,
@@ -233,13 +233,13 @@ func CreateTestData(t *testing.T) *TestData {
 		Permissions: []string{},
 	}
 	data.UserToken, err = tokenAuth.CreateJWT(userClaims)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	return data
 }
 
 // CreateTestAuthorizationService creates a test authorization service with registered policies
-func CreateTestAuthorizationService(t *testing.T) authorize.AuthorizationService {
+func CreateTestAuthorizationService(tb testing.TB) authorize.AuthorizationService {
 	authService := authorize.NewAuthorizationService()
 
 	// Register test policies here as needed

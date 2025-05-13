@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
@@ -14,6 +15,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/uptrace/bun"
 )
 
 // Mock services
@@ -425,3 +427,205 @@ func TestStudentVisitPolicy_Metadata(t *testing.T) {
 	assert.Equal(t, "student_visit_access", policy.Name())
 	assert.Equal(t, "visit", policy.ResourceType())
 }
+
+func (m *MockEducationService) AddTeacherToGroup(ctx context.Context, groupID, teacherID int64) error {
+	args := m.Called(ctx, groupID, teacherID)
+	return args.Error(0)
+}
+
+func (m *MockEducationService) RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID int64) error {
+	args := m.Called(ctx, groupID, teacherID)
+	return args.Error(0)
+}
+
+func (m *MockEducationService) CreateGroup(ctx context.Context, group *education.Group) error {
+	args := m.Called(ctx, group)
+	return args.Error(0)
+}
+
+func (m *MockEducationService) UpdateGroup(ctx context.Context, group *education.Group) error {
+	args := m.Called(ctx, group)
+	return args.Error(0)
+}
+
+func (m *MockEducationService) DeleteGroup(ctx context.Context, id int64) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockEducationService) GetGroup(ctx context.Context, id int64) (*education.Group, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*education.Group), args.Error(1)
+}
+
+func (m *MockEducationService) ListGroups(ctx context.Context, options *base.QueryOptions) ([]*education.Group, error) {
+	args := m.Called(ctx, options)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*education.Group), args.Error(1)
+}
+
+func (m *MockEducationService) AssignSubstituteTeacher(ctx context.Context, groupID, substituteTeacherID int64, startDate, endDate time.Time) error {
+	args := m.Called(ctx, groupID, substituteTeacherID, startDate, endDate)
+	return args.Error(0)
+}
+
+func (m *MockEducationService) GetActiveSubstitutions(ctx context.Context, teacherID int64) ([]*education.GroupSubstitution, error) {
+	args := m.Called(ctx, teacherID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*education.GroupSubstitution), args.Error(1)
+}
+
+// Add these missing methods to MockUserService
+
+func (m *MockUserService) Get(ctx context.Context, id interface{}) (*userModels.Person, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*userModels.Person), args.Error(1)
+}
+
+func (m *MockUserService) Create(ctx context.Context, person *userModels.Person) error {
+	args := m.Called(ctx, person)
+	return args.Error(0)
+}
+
+func (m *MockUserService) Update(ctx context.Context, person *userModels.Person) error {
+	args := m.Called(ctx, person)
+	return args.Error(0)
+}
+
+func (m *MockUserService) Delete(ctx context.Context, id interface{}) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockUserService) List(ctx context.Context, options *base.QueryOptions) ([]*userModels.Person, error) {
+	args := m.Called(ctx, options)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*userModels.Person), args.Error(1)
+}
+
+func (m *MockUserService) FindByTagID(ctx context.Context, tagID string) (*userModels.Person, error) {
+	args := m.Called(ctx, tagID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*userModels.Person), args.Error(1)
+}
+
+func (m *MockUserService) FindByName(ctx context.Context, firstName, lastName string) ([]*userModels.Person, error) {
+	args := m.Called(ctx, firstName, lastName)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*userModels.Person), args.Error(1)
+}
+
+func (m *MockUserService) LinkToAccount(ctx context.Context, personID int64, accountID int64) error {
+	args := m.Called(ctx, personID, accountID)
+	return args.Error(0)
+}
+
+func (m *MockUserService) UnlinkFromAccount(ctx context.Context, personID int64) error {
+	args := m.Called(ctx, personID)
+	return args.Error(0)
+}
+
+func (m *MockUserService) LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error {
+	args := m.Called(ctx, personID, tagID)
+	return args.Error(0)
+}
+
+func (m *MockUserService) UnlinkFromRFIDCard(ctx context.Context, personID int64) error {
+	args := m.Called(ctx, personID)
+	return args.Error(0)
+}
+
+func (m *MockUserService) GetFullProfile(ctx context.Context, personID int64) (*userModels.Person, error) {
+	args := m.Called(ctx, personID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*userModels.Person), args.Error(1)
+}
+
+func (m *MockUserService) FindByGuardianID(ctx context.Context, guardianAccountID int64) ([]*userModels.Person, error) {
+	args := m.Called(ctx, guardianAccountID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*userModels.Person), args.Error(1)
+}
+
+func (m *MockUserService) WithTx(tx bun.Tx) interface{} {
+	args := m.Called(tx)
+	return args.Get(0)
+}
+
+// Add all missing methods for active.Service interface
+
+func (m *MockActiveService) CreateActiveGroup(ctx context.Context, group *active.Group) error {
+	args := m.Called(ctx, group)
+	return args.Error(0)
+}
+
+func (m *MockActiveService) UpdateActiveGroup(ctx context.Context, group *active.Group) error {
+	args := m.Called(ctx, group)
+	return args.Error(0)
+}
+
+func (m *MockActiveService) DeleteActiveGroup(ctx context.Context, id int64) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockActiveService) GetActiveGroup(ctx context.Context, id int64) (*active.Group, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*active.Group), args.Error(1)
+}
+
+func (m *MockActiveService) ListActiveGroups(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error) {
+	args := m.Called(ctx, options)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*active.Group), args.Error(1)
+}
+
+func (m *MockActiveService) CreateVisit(ctx context.Context, visit *active.Visit) error {
+	args := m.Called(ctx, visit)
+	return args.Error(0)
+}
+
+func (m *MockActiveService) UpdateVisit(ctx context.Context, visit *active.Visit) error {
+	args := m.Called(ctx, visit)
+	return args.Error(0)
+}
+
+func (m *MockActiveService) DeleteVisit(ctx context.Context, id int64) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockActiveService) ListVisits(ctx context.Context, options *base.QueryOptions) ([]*active.Visit, error) {
+	args := m.Called(ctx, options)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*active.Visit), args.Error(1)
+}
+
+// Add remaining methods...
