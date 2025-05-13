@@ -1,7 +1,6 @@
 package authorize
 
 import (
-	"context"
 	"net/http"
 	"strconv"
 
