@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/stretchr/testify/assert"
 )
 

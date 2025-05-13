@@ -1,4 +1,4 @@
-package policies
+package policies_test
 
 import (
 	"context"
