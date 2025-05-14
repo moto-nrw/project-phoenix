@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { env } from "~/env";
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
     try {
         const session = await auth();
 
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        const data = await response.json();
+        const data: unknown = await response.json();
         return NextResponse.json(data);
     } catch (error) {
         console.error("Get account route error:", error);

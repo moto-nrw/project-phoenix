@@ -32,6 +32,18 @@ import {
     type BackendParentAccount,
 } from "./auth-helpers";
 
+// Generic API response interface
+interface ApiResponse<T> {
+    success: boolean;
+    message: string;
+    data: T;
+}
+
+// Specific response types
+interface TokenCleanupResponse {
+    cleaned_tokens: number;
+}
+
 export const authService = {
     // Public endpoints
     login: async (credentials: LoginRequest): Promise<TokenResponse> => {
@@ -56,8 +68,8 @@ export const authService = {
 
                 return await response.json() as TokenResponse;
             } else {
-                const response = await api.post(url, credentials);
-                return response.data as TokenResponse;
+                const response = await api.post<TokenResponse>(url, credentials);
+                return response.data;
             }
         } catch (error) {
             console.error("Login error:", error);
@@ -91,21 +103,17 @@ export const authService = {
                     throw new Error(`Registration failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                // The response has a data field containing the account
-                const backendAccount = responseData.data as BackendAccount;
-                return mapAccountResponse(backendAccount);
+                const responseData = await response.json() as ApiResponse<BackendAccount>;
+                return mapAccountResponse(responseData.data);
             } else {
-                const response = await api.post(url, {
+                const response = await api.post<ApiResponse<BackendAccount>>(url, {
                     email: data.email,
                     username: data.username,
                     name: data.name,
                     password: data.password,
                     confirm_password: data.confirmPassword,
                 });
-                const responseData = response.data;
-                const backendAccount = responseData.data as BackendAccount;
-                return mapAccountResponse(backendAccount);
+                return mapAccountResponse(response.data.data);
             }
         } catch (error) {
             console.error("Registration error:", error);
@@ -170,10 +178,10 @@ export const authService = {
 
                 return await response.json() as TokenResponse;
             } else {
-                const response = await api.post(url, {}, {
+                const response = await api.post<TokenResponse>(url, {}, {
                     headers: { Authorization: `Bearer ${refreshToken}` },
                 });
-                return response.data as TokenResponse;
+                return response.data;
             }
         } catch (error) {
             console.error("Token refresh error:", error);
@@ -268,14 +276,11 @@ export const authService = {
                     throw new Error(`Get account failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                const backendAccount = responseData.data as BackendAccount;
-                return mapAccountResponse(backendAccount);
+                const responseData = await response.json() as ApiResponse<BackendAccount>;
+                return mapAccountResponse(responseData.data);
             } else {
-                const response = await api.get(url);
-                const responseData = response.data;
-                const backendAccount = responseData.data as BackendAccount;
-                return mapAccountResponse(backendAccount);
+                const response = await api.get<ApiResponse<BackendAccount>>(url);
+                return mapAccountResponse(response.data.data);
             }
         } catch (error) {
             console.error("Get account error:", error);
@@ -348,14 +353,11 @@ export const authService = {
                     throw new Error(`Create role failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                const backendRole = responseData.data as BackendRole;
-                return mapRoleResponse(backendRole);
+                const responseData = await response.json() as ApiResponse<BackendRole>;
+                return mapRoleResponse(responseData.data);
             } else {
-                const response = await api.post(url, data);
-                const responseData = response.data;
-                const backendRole = responseData.data as BackendRole;
-                return mapRoleResponse(backendRole);
+                const response = await api.post<ApiResponse<BackendRole>>(url, data);
+                return mapRoleResponse(response.data.data);
             }
         } catch (error) {
             console.error("Create role error:", error);
@@ -393,14 +395,11 @@ export const authService = {
                     throw new Error(`Get roles failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                const backendRoles = responseData.data as BackendRole[];
-                return backendRoles.map(mapRoleResponse);
+                const responseData = await response.json() as ApiResponse<BackendRole[]>;
+                return responseData.data.map(mapRoleResponse);
             } else {
-                const response = await api.get(url, { params });
-                const responseData = response.data;
-                const backendRoles = responseData.data as BackendRole[];
-                return backendRoles.map(mapRoleResponse);
+                const response = await api.get<ApiResponse<BackendRole[]>>(url, { params });
+                return response.data.data.map(mapRoleResponse);
             }
         } catch (error) {
             console.error("Get roles error:", error);
@@ -430,14 +429,11 @@ export const authService = {
                     throw new Error(`Get role failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                const backendRole = responseData.data as BackendRole;
-                return mapRoleResponse(backendRole);
+                const responseData = await response.json() as ApiResponse<BackendRole>;
+                return mapRoleResponse(responseData.data);
             } else {
-                const response = await api.get(url);
-                const responseData = response.data;
-                const backendRole = responseData.data as BackendRole;
-                return mapRoleResponse(backendRole);
+                const response = await api.get<ApiResponse<BackendRole>>(url);
+                return mapRoleResponse(response.data.data);
             }
         } catch (error) {
             console.error("Get role error:", error);
@@ -530,14 +526,11 @@ export const authService = {
                     throw new Error(`Get role permissions failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                const backendPermissions = responseData.data as BackendPermission[];
-                return backendPermissions.map(mapPermissionResponse);
+                const responseData = await response.json() as ApiResponse<BackendPermission[]>;
+                return responseData.data.map(mapPermissionResponse);
             } else {
-                const response = await api.get(url);
-                const responseData = response.data;
-                const backendPermissions = responseData.data as BackendPermission[];
-                return backendPermissions.map(mapPermissionResponse);
+                const response = await api.get<ApiResponse<BackendPermission[]>>(url);
+                return response.data.data.map(mapPermissionResponse);
             }
         } catch (error) {
             console.error("Get role permissions error:", error);
@@ -632,14 +625,11 @@ export const authService = {
                     throw new Error(`Create permission failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                const backendPermission = responseData.data as BackendPermission;
-                return mapPermissionResponse(backendPermission);
+                const responseData = await response.json() as ApiResponse<BackendPermission>;
+                return mapPermissionResponse(responseData.data);
             } else {
-                const response = await api.post(url, data);
-                const responseData = response.data;
-                const backendPermission = responseData.data as BackendPermission;
-                return mapPermissionResponse(backendPermission);
+                const response = await api.post<ApiResponse<BackendPermission>>(url, data);
+                return mapPermissionResponse(response.data.data);
             }
         } catch (error) {
             console.error("Create permission error:", error);
@@ -678,14 +668,11 @@ export const authService = {
                     throw new Error(`Get permissions failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                const backendPermissions = responseData.data as BackendPermission[];
-                return backendPermissions.map(mapPermissionResponse);
+                const responseData = await response.json() as ApiResponse<BackendPermission[]>;
+                return responseData.data.map(mapPermissionResponse);
             } else {
-                const response = await api.get(url, { params });
-                const responseData = response.data;
-                const backendPermissions = responseData.data as BackendPermission[];
-                return backendPermissions.map(mapPermissionResponse);
+                const response = await api.get<ApiResponse<BackendPermission[]>>(url, { params });
+                return response.data.data.map(mapPermissionResponse);
             }
         } catch (error) {
             console.error("Get permissions error:", error);
@@ -715,14 +702,11 @@ export const authService = {
                     throw new Error(`Get permission failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                const backendPermission = responseData.data as BackendPermission;
-                return mapPermissionResponse(backendPermission);
+                const responseData = await response.json() as ApiResponse<BackendPermission>;
+                return mapPermissionResponse(responseData.data);
             } else {
-                const response = await api.get(url);
-                const responseData = response.data;
-                const backendPermission = responseData.data as BackendPermission;
-                return mapPermissionResponse(backendPermission);
+                const response = await api.get<ApiResponse<BackendPermission>>(url);
+                return mapPermissionResponse(response.data.data);
             }
         } catch (error) {
             console.error("Get permission error:", error);
@@ -825,14 +809,11 @@ export const authService = {
                     throw new Error(`Get accounts failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                const backendAccounts = responseData.data as BackendAccount[];
-                return backendAccounts.map(mapAccountResponse);
+                const responseData = await response.json() as ApiResponse<BackendAccount[]>;
+                return responseData.data.map(mapAccountResponse);
             } else {
-                const response = await api.get(url, { params });
-                const responseData = response.data;
-                const backendAccounts = responseData.data as BackendAccount[];
-                return backendAccounts.map(mapAccountResponse);
+                const response = await api.get<ApiResponse<BackendAccount[]>>(url, { params });
+                return response.data.data.map(mapAccountResponse);
             }
         } catch (error) {
             console.error("Get accounts error:", error);
@@ -862,14 +843,11 @@ export const authService = {
                     throw new Error(`Get account failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                const backendAccount = responseData.data as BackendAccount;
-                return mapAccountResponse(backendAccount);
+                const responseData = await response.json() as ApiResponse<BackendAccount>;
+                return mapAccountResponse(responseData.data);
             } else {
-                const response = await api.get(url);
-                const responseData = response.data;
-                const backendAccount = responseData.data as BackendAccount;
-                return mapAccountResponse(backendAccount);
+                const response = await api.get<ApiResponse<BackendAccount>>(url);
+                return mapAccountResponse(response.data.data);
             }
         } catch (error) {
             console.error("Get account error:", error);
@@ -993,14 +971,11 @@ export const authService = {
                     throw new Error(`Get accounts by role failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                const backendAccounts = responseData.data as BackendAccount[];
-                return backendAccounts.map(mapAccountResponse);
+                const responseData = await response.json() as ApiResponse<BackendAccount[]>;
+                return responseData.data.map(mapAccountResponse);
             } else {
-                const response = await api.get(url);
-                const responseData = response.data;
-                const backendAccounts = responseData.data as BackendAccount[];
-                return backendAccounts.map(mapAccountResponse);
+                const response = await api.get<ApiResponse<BackendAccount[]>>(url);
+                return response.data.data.map(mapAccountResponse);
             }
         } catch (error) {
             console.error("Get accounts by role error:", error);
@@ -1092,14 +1067,11 @@ export const authService = {
                     throw new Error(`Get account roles failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                const backendRoles = responseData.data as BackendRole[];
-                return backendRoles.map(mapRoleResponse);
+                const responseData = await response.json() as ApiResponse<BackendRole[]>;
+                return responseData.data.map(mapRoleResponse);
             } else {
-                const response = await api.get(url);
-                const responseData = response.data;
-                const backendRoles = responseData.data as BackendRole[];
-                return backendRoles.map(mapRoleResponse);
+                const response = await api.get<ApiResponse<BackendRole[]>>(url);
+                return response.data.data.map(mapRoleResponse);
             }
         } catch (error) {
             console.error("Get account roles error:", error);
@@ -1129,14 +1101,11 @@ export const authService = {
                     throw new Error(`Get account permissions failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                const backendPermissions = responseData.data as BackendPermission[];
-                return backendPermissions.map(mapPermissionResponse);
+                const responseData = await response.json() as ApiResponse<BackendPermission[]>;
+                return responseData.data.map(mapPermissionResponse);
             } else {
-                const response = await api.get(url);
-                const responseData = response.data;
-                const backendPermissions = responseData.data as BackendPermission[];
-                return backendPermissions.map(mapPermissionResponse);
+                const response = await api.get<ApiResponse<BackendPermission[]>>(url);
+                return response.data.data.map(mapPermissionResponse);
             }
         } catch (error) {
             console.error("Get account permissions error:", error);
@@ -1260,14 +1229,11 @@ export const authService = {
                     throw new Error(`Get active tokens failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                const backendTokens = responseData.data as BackendToken[];
-                return backendTokens.map(mapTokenResponse);
+                const responseData = await response.json() as ApiResponse<BackendToken[]>;
+                return responseData.data.map(mapTokenResponse);
             } else {
-                const response = await api.get(url);
-                const responseData = response.data;
-                const backendTokens = responseData.data as BackendToken[];
-                return backendTokens.map(mapTokenResponse);
+                const response = await api.get<ApiResponse<BackendToken[]>>(url);
+                return response.data.data.map(mapTokenResponse);
             }
         } catch (error) {
             console.error("Get active tokens error:", error);
@@ -1329,12 +1295,11 @@ export const authService = {
                     throw new Error(`Cleanup expired tokens failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                return responseData.data.cleaned_tokens as number;
+                const responseData = await response.json() as ApiResponse<TokenCleanupResponse>;
+                return responseData.data.cleaned_tokens;
             } else {
-                const response = await api.delete(url);
-                const responseData = response.data;
-                return responseData.data.cleaned_tokens as number;
+                const response = await api.delete<ApiResponse<TokenCleanupResponse>>(url);
+                return response.data.data.cleaned_tokens;
             }
         } catch (error) {
             console.error("Cleanup expired tokens error:", error);
@@ -1372,19 +1337,16 @@ export const authService = {
                     throw new Error(`Create parent account failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                const backendParentAccount = responseData.data as BackendParentAccount;
-                return mapParentAccountResponse(backendParentAccount);
+                const responseData = await response.json() as ApiResponse<BackendParentAccount>;
+                return mapParentAccountResponse(responseData.data);
             } else {
-                const response = await api.post(url, {
+                const response = await api.post<ApiResponse<BackendParentAccount>>(url, {
                     email: data.email,
                     username: data.username,
                     password: data.password,
                     confirm_password: data.confirmPassword,
                 });
-                const responseData = response.data;
-                const backendParentAccount = responseData.data as BackendParentAccount;
-                return mapParentAccountResponse(backendParentAccount);
+                return mapParentAccountResponse(response.data.data);
             }
         } catch (error) {
             console.error("Create parent account error:", error);
@@ -1423,14 +1385,11 @@ export const authService = {
                     throw new Error(`Get parent accounts failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                const backendParentAccounts = responseData.data as BackendParentAccount[];
-                return backendParentAccounts.map(mapParentAccountResponse);
+                const responseData = await response.json() as ApiResponse<BackendParentAccount[]>;
+                return responseData.data.map(mapParentAccountResponse);
             } else {
-                const response = await api.get(url, { params });
-                const responseData = response.data;
-                const backendParentAccounts = responseData.data as BackendParentAccount[];
-                return backendParentAccounts.map(mapParentAccountResponse);
+                const response = await api.get<ApiResponse<BackendParentAccount[]>>(url, { params });
+                return response.data.data.map(mapParentAccountResponse);
             }
         } catch (error) {
             console.error("Get parent accounts error:", error);
@@ -1460,14 +1419,11 @@ export const authService = {
                     throw new Error(`Get parent account failed: ${response.status}`);
                 }
 
-                const responseData = await response.json();
-                const backendParentAccount = responseData.data as BackendParentAccount;
-                return mapParentAccountResponse(backendParentAccount);
+                const responseData = await response.json() as ApiResponse<BackendParentAccount>;
+                return mapParentAccountResponse(responseData.data);
             } else {
-                const response = await api.get(url);
-                const responseData = response.data;
-                const backendParentAccount = responseData.data as BackendParentAccount;
-                return mapParentAccountResponse(backendParentAccount);
+                const response = await api.get<ApiResponse<BackendParentAccount>>(url);
+                return mapParentAccountResponse(response.data.data);
             }
         } catch (error) {
             console.error("Get parent account error:", error);

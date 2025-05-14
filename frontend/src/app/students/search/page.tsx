@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Header } from "~/components/dashboard/header";
@@ -151,16 +151,12 @@ export default function StudentSearchPage() {
     }
   ];
 
-  // Load initial data
-  useEffect(() => {
-    void fetchStudents();
-  }, []);
-
-  async function fetchStudents(filters?: {
+  // Define fetchStudents with useCallback to avoid unnecessary re-renders
+  const fetchStudents = useCallback(async (filters?: {
     search?: string;
     inHouse?: boolean;
     groupId?: string;
-  }) {
+  }) => {
     setIsSearching(true);
     setError(null);
 
@@ -201,7 +197,12 @@ export default function StudentSearchPage() {
       setStudents([]);
       setIsSearching(false);
     }
-  }
+  }, [exampleStudents])
+
+  // Load initial data when component mounts
+  useEffect(() => {
+    void fetchStudents();
+  }, [fetchStudents]);
 
   const handleSearch = async () => {
     const filters: {

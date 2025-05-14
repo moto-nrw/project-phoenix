@@ -1,9 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { env } from "~/env";
 
+interface PasswordResetConfirmRequest {
+    token: string;
+    password: string;
+}
+
+interface PasswordResetConfirmResponse {
+    message: string;
+}
+
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
+        const body = await request.json() as PasswordResetConfirmRequest;
 
         const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/password-reset/confirm`, {
             method: "POST",
@@ -19,9 +28,9 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const data = await response.json();
+        const data = await response.json() as PasswordResetConfirmResponse;
         return NextResponse.json(data);
-    } catch (error) {
+    } catch (error: unknown) {
         console.error("Password reset confirm route error:", error);
         return NextResponse.json(
             { error: "Internal Server Error" },

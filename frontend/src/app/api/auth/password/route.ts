@@ -2,6 +2,11 @@ import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { env } from "~/env";
 
+interface PasswordChangeRequest {
+    currentPassword: string;
+    newPassword: string;
+}
+
 export async function POST(request: NextRequest) {
     try {
         const session = await auth();
@@ -13,7 +18,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const body = await request.json();
+        const body = await request.json() as PasswordChangeRequest;
 
         const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/password`, {
             method: "POST",
