@@ -1,123 +1,64 @@
-export async function GET(request: NextRequest, { params }: RouteParams) {
-    try {
-        const session = await auth();
+// app/api/active/supervisors/[id]/route.ts
+import type { NextRequest } from "next/server";
+import { apiDelete, apiGet, apiPut } from "~/lib/api-helpers";
+import { createDeleteHandler, createGetHandler, createPutHandler } from "~/lib/route-wrapper";
 
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const response = await fetch(
-            `${env.NEXT_PUBLIC_API_URL}/active/supervisors/${params.id}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${session.user.token}`,
-                    "Content-Type": "application/json",
-                },
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Get supervisor route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
+/**
+ * Type definition for supervisor update request
+ */
+interface SupervisorUpdateRequest {
+  staff_id?: string;
+  active_group_id?: string;
+  // Add any other fields that can be updated
 }
 
-export async function PUT(request: NextRequest, { params }: RouteParams) {
-    try {
-        const session = await auth();
-
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const body = await request.json();
-
-        const response = await fetch(
-            `${env.NEXT_PUBLIC_API_URL}/active/supervisors/${params.id}`,
-            {
-                method: "PUT",
-                headers: {
-                    Authorization: `Bearer ${session.user.token}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(body),
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Update supervisor route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
+/**
+ * Type guard to check if parameter exists and is a string
+ */
+function isStringParam(param: unknown): param is string {
+  return typeof param === 'string';
 }
 
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
-    try {
-        const session = await auth();
+/**
+ * Handler for GET /api/active/supervisors/[id]
+ * Returns details of a specific supervisor
+ */
+export const GET = createGetHandler(async (_request: NextRequest, token: string, params) => {
+  if (!isStringParam(params.id)) {
+    throw new Error('Invalid id parameter');
+  }
+  
+  // Fetch supervisor details from the API
+  return await apiGet(`/active/supervisors/${params.id}`, token);
+});
 
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const response = await fetch(
-            `${env.NEXT_PUBLIC_API_URL}/active/supervisors/${params.id}`,
-            {
-                method: "DELETE",
-                headers: {
-                    Authorization: `Bearer ${session.user.token}`,
-                    "Content-Type": "application/json",
-                },
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        return new NextResponse(null, { status: 204 });
-    } catch (error) {
-        console.error("Delete supervisor route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
+/**
+ * Handler for PUT /api/active/supervisors/[id]
+ * Updates a supervisor
+ */
+export const PUT = createPutHandler<unknown, SupervisorUpdateRequest>(
+  async (_request: NextRequest, body: SupervisorUpdateRequest, token: string, params) => {
+    if (!isStringParam(params.id)) {
+      throw new Error('Invalid id parameter');
     }
-}
+    
+    // Update the supervisor via the API
+    return await apiPut(`/active/supervisors/${params.id}`, token, body);
+  }
+);
+
+/**
+ * Handler for DELETE /api/active/supervisors/[id]
+ * Deletes a supervisor
+ */
+export const DELETE = createDeleteHandler(async (_request: NextRequest, token: string, params) => {
+  if (!isStringParam(params.id)) {
+    throw new Error('Invalid id parameter');
+  }
+  
+  // Delete the supervisor via the API
+  await apiDelete(`/active/supervisors/${params.id}`, token);
+  
+  // Return 204 No Content response
+  return null;
+});

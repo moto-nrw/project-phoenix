@@ -1,39 +1,24 @@
-export async function GET(request: NextRequest, { params }: RouteParams) {
-    try {
-        const session = await auth();
+// app/api/active/groups/[id]/visits/route.ts
+import type { NextRequest } from "next/server";
+import { apiGet } from "~/lib/api-helpers";
+import { createGetHandler } from "~/lib/route-wrapper";
 
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const response = await fetch(
-            `${env.NEXT_PUBLIC_API_URL}/active/groups/${params.id}/visits`,
-            {
-                headers: {
-                    Authorization: `Bearer ${session.user.token}`,
-                    "Content-Type": "application/json",
-                },
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Get group visits route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
+/**
+ * Type guard to check if parameter exists and is a string
+ */
+function isStringParam(param: unknown): param is string {
+  return typeof param === 'string';
 }
+
+/**
+ * Handler for GET /api/active/groups/[id]/visits
+ * Returns visits for a specific active group
+ */
+export const GET = createGetHandler(async (_request: NextRequest, token: string, params) => {
+  if (!isStringParam(params.id)) {
+    throw new Error('Invalid id parameter');
+  }
+  
+  // Fetch group visits from the API
+  return await apiGet(`/active/groups/${params.id}/visits`, token);
+});

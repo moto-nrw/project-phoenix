@@ -1,84 +1,45 @@
-export async function GET(request: NextRequest) {
-    try {
-        const session = await auth();
+// app/api/active/visits/route.ts
+import type { NextRequest } from "next/server";
+import { apiGet, apiPost } from "~/lib/api-helpers";
+import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
+import { extractParams } from "~/lib/api-helpers";
 
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const url = new URL(`${env.NEXT_PUBLIC_API_URL}/active/visits`);
-        const searchParams = request.nextUrl.searchParams;
-
-        searchParams.forEach((value, key) => {
-            url.searchParams.append(key, value);
-        });
-
-        const response = await fetch(url.toString(), {
-            headers: {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-            },
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Get visits route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
+/**
+ * Type definition for visit creation request
+ */
+interface VisitCreateRequest {
+  student_id: string;
+  active_group_id: string;
+  start_time?: string;
+  // Add any other required fields
 }
 
-export async function POST(request: NextRequest) {
-    try {
-        const session = await auth();
+/**
+ * Handler for GET /api/active/visits
+ * Returns list of active visits, with optional query filters
+ */
+export const GET = createGetHandler(async (request: NextRequest, token: string, params) => {
+  // Extract query params
+  const queryParams = extractParams(request, params);
+  
+  // Construct query string
+  let endpoint = '/active/visits';
+  const queryString = new URLSearchParams(queryParams).toString();
+  if (queryString) {
+    endpoint += `?${queryString}`;
+  }
+  
+  // Fetch visits from the API
+  return await apiGet(endpoint, token);
+});
 
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const body = await request.json();
-
-        const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/active/visits`, {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(body),
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Create visit route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
-}
+/**
+ * Handler for POST /api/active/visits
+ * Creates a new visit
+ */
+export const POST = createPostHandler<unknown, VisitCreateRequest>(
+  async (_request: NextRequest, body: VisitCreateRequest, token: string, _params) => {
+    // Create a new visit via the API
+    return await apiPost('/active/visits', token, body);
+  }
+);

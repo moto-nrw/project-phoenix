@@ -1,88 +1,42 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "~/server/auth";
-import { env } from "~/env";
+// app/api/active/groups/route.ts
+import type { NextRequest } from "next/server";
+import { apiGet, apiPost } from "~/lib/api-helpers";
+import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 
-export async function GET(request: NextRequest) {
-    try {
-        const session = await auth();
-
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const url = new URL(`${env.NEXT_PUBLIC_API_URL}/active/groups`);
-        const searchParams = request.nextUrl.searchParams;
-
-        searchParams.forEach((value, key) => {
-            url.searchParams.append(key, value);
-        });
-
-        const response = await fetch(url.toString(), {
-            headers: {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-            },
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Get active groups route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
+/**
+ * Type definition for group creation request
+ */
+interface GroupCreateRequest {
+  name: string;
+  description?: string;
+  room_id?: string;
+  // Add other properties as needed
 }
 
-export async function POST(request: NextRequest) {
-    try {
-        const session = await auth();
+/**
+ * Handler for GET /api/active/groups
+ * Returns a list of active groups, optionally filtered by query parameters
+ */
+export const GET = createGetHandler(async (request: NextRequest, token: string) => {
+  // Build URL with any query parameters
+  const queryParams = new URLSearchParams();
+  request.nextUrl.searchParams.forEach((value, key) => {
+    queryParams.append(key, value);
+  });
+  
+  const endpoint = `/active/groups${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+  
+  // Fetch active groups from the API
+  return await apiGet(endpoint, token);
+});
 
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const body = await request.json();
-
-        const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/active/groups`, {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(body),
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Create active group route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
-}
+/**
+ * Handler for POST /api/active/groups
+ * Creates a new active group
+ */
+export const POST = createPostHandler<unknown, GroupCreateRequest>(
+  async (_request: NextRequest, body: GroupCreateRequest, token: string) => {
+    // Create the active group via the API
+    return await apiPost("/active/groups", token, body);
+  }
+);

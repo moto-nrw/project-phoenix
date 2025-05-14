@@ -1,45 +1,24 @@
-interface GroupParams {
-    params: {
-        groupId: string;
-    };
+// app/api/active/groups/group/[groupId]/route.ts
+import type { NextRequest } from "next/server";
+import { apiGet } from "~/lib/api-helpers";
+import { createGetHandler } from "~/lib/route-wrapper";
+
+/**
+ * Type guard to check if parameter exists and is a string
+ */
+function isStringParam(param: unknown): param is string {
+  return typeof param === 'string';
 }
 
-export async function GET(request: NextRequest, { params }: GroupParams) {
-    try {
-        const session = await auth();
-
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const response = await fetch(
-            `${env.NEXT_PUBLIC_API_URL}/active/groups/group/${params.groupId}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${session.user.token}`,
-                    "Content-Type": "application/json",
-                },
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Get groups by group route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
-}
+/**
+ * Handler for GET /api/active/groups/group/[groupId]
+ * Returns active groups for a specific education group
+ */
+export const GET = createGetHandler(async (_request: NextRequest, token: string, params) => {
+  if (!isStringParam(params.groupId)) {
+    throw new Error('Invalid groupId parameter');
+  }
+  
+  // Fetch active groups by education group from the API
+  return await apiGet(`/active/groups/group/${params.groupId}`, token);
+});

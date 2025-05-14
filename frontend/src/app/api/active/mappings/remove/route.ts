@@ -1,40 +1,23 @@
-export async function POST(request: NextRequest) {
-    try {
-        const session = await auth();
+// app/api/active/mappings/remove/route.ts
+import type { NextRequest } from "next/server";
+import { apiPost } from "~/lib/api-helpers";
+import { createPostHandler } from "~/lib/route-wrapper";
 
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const body = await request.json();
-
-        const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/active/mappings/remove`, {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(body),
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Remove group from combination route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
+/**
+ * Type definition for remove mapping request
+ */
+interface RemoveMappingRequest {
+  combined_id: string;
+  group_id: string;
 }
+
+/**
+ * Handler for POST /api/active/mappings/remove
+ * Removes a group from a combined group
+ */
+export const POST = createPostHandler<unknown, RemoveMappingRequest>(
+  async (_request: NextRequest, body: RemoveMappingRequest, token: string, _params) => {
+    // Remove group mapping via the API
+    return await apiPost('/active/mappings/remove', token, body);
+  }
+);

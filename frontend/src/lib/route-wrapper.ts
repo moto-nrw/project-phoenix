@@ -32,7 +32,12 @@ export function createGetHandler<T>(
       }
 
       const data = await handler(request, session.user.token, params);
-      return NextResponse.json(data);
+      // Wrap the response in ApiResponse format if it's not already
+      const response: ApiResponse<T> = typeof data === 'object' && data !== null && 'success' in data
+        ? (data as unknown as ApiResponse<T>)
+        : { success: true, message: "Success", data };
+        
+      return NextResponse.json(response);
     } catch (error) {
       return handleApiError(error);
     }
@@ -68,7 +73,12 @@ export function createPostHandler<T, B = unknown>(
 
       const body = await request.json() as B;
       const data = await handler(request, body, session.user.token, params);
-      return NextResponse.json(data);
+      // Wrap the response in ApiResponse format if it's not already
+      const response: ApiResponse<T> = typeof data === 'object' && data !== null && 'success' in data
+        ? (data as unknown as ApiResponse<T>)
+        : { success: true, message: "Success", data };
+        
+      return NextResponse.json(response);
     } catch (error) {
       return handleApiError(error);
     }
@@ -104,7 +114,12 @@ export function createPutHandler<T, B = unknown>(
 
       const body = await request.json() as B;
       const data = await handler(request, body, session.user.token, params);
-      return NextResponse.json(data);
+      // Wrap the response in ApiResponse format if it's not already
+      const response: ApiResponse<T> = typeof data === 'object' && data !== null && 'success' in data
+        ? (data as unknown as ApiResponse<T>)
+        : { success: true, message: "Success", data };
+        
+      return NextResponse.json(response);
     } catch (error) {
       return handleApiError(error);
     }
@@ -138,7 +153,17 @@ export function createDeleteHandler<T>(
       }
 
       const data = await handler(request, session.user.token, params);
-      return NextResponse.json(data);
+      // For delete operations with no content, return 204 status
+      if (data === null || data === undefined) {
+        return new NextResponse(null, { status: 204 });
+      }
+      
+      // Wrap the response in ApiResponse format if it's not already
+      const response: ApiResponse<T> = typeof data === 'object' && data !== null && 'success' in data
+        ? (data as unknown as ApiResponse<T>)
+        : { success: true, message: "Success", data };
+        
+      return NextResponse.json(response);
     } catch (error) {
       return handleApiError(error);
     }
