@@ -144,7 +144,7 @@ export function mapActivityStudentResponse(backendStudent: BackendActivityStuden
         student_id: String(backendStudent.student_id),
         name: backendStudent.name,
         school_class: backendStudent.school_class,
-        in_house: backendStudent.in_house || false, // Default to false if not present
+        in_house: backendStudent.in_house ?? false, // Default to false if not present
         created_at: new Date(backendStudent.created_at),
         updated_at: new Date(backendStudent.updated_at),
     };

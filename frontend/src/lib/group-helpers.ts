@@ -102,9 +102,9 @@ export function mapGroupResponse(backendGroup: BackendGroup): Group {
     if (Array.isArray(backendGroup.students)) {
         group.students = backendGroup.students.map(student => ({
             id: String(student.id),
-            name: student.name || 'Unnamed Student',
-            school_class: student.school_class || '',
-            in_house: student.in_house || false
+            name: student.name ?? 'Unnamed Student',
+            school_class: student.school_class ?? '',
+            in_house: student.in_house ?? false
         }));
     }
     
@@ -172,8 +172,8 @@ export function prepareCombinedGroupForBackend(group: Partial<CombinedGroup>): P
         groups: group.groups?.map(g => ({
             id: parseInt(g.id, 10),
             name: g.name,
-            created_at: g.created_at || new Date().toISOString(),
-            updated_at: g.updated_at || new Date().toISOString()
+            created_at: g.created_at ?? new Date().toISOString(),
+            updated_at: g.updated_at ?? new Date().toISOString()
         } as BackendGroup)),
         access_specialists: group.access_specialists?.map(s => ({ 
             id: parseInt(s.id, 10), 

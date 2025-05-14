@@ -60,14 +60,14 @@ export default function ActivityStudentsPage() {
             id as string,
           );
           // Convert ActivityStudent[] to Student[] with proper type conversion
-          const convertedStudents = (enrolledStudents || []).map(s => ({
+          const convertedStudents = (enrolledStudents ?? []).map(s => ({
             id: s.id,
-            name: s.name || 'Unnamed Student', // Ensure name is never undefined
-            school_class: s.school_class || '', // Ensure school_class is never undefined
+            name: s.name ?? 'Unnamed Student', // Ensure name is never undefined
+            school_class: s.school_class ?? '', // Ensure school_class is never undefined
             in_house: s.in_house,
             // Include other Student properties with defaults
-            first_name: s.name?.split(' ')[0] || '',
-            second_name: s.name?.split(' ')[1] || '',
+            first_name: s.name?.split(' ')[0] ?? '',
+            second_name: s.name?.split(' ')[1] ?? '',
             // Other optional properties can be undefined
             wc: false,
             school_yard: false,

@@ -91,7 +91,7 @@ const TimeSlotEditor = ({
   // const [timespanId, setTimespanId] = useState('');
   const [isCreatingTimespan, setIsCreatingTimespan] = useState(false);
   // Use parent activity ID if provided, or default to a temporary one
-  const activityId = parentActivityId || "temp";
+  const activityId = parentActivityId ?? "temp";
 
   const weekdays = [
     "Monday",

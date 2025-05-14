@@ -4,7 +4,6 @@ import { getSession } from "next-auth/react";
 import { env } from "~/env";
 import {
   mapSingleStudentResponse,
-  mapStudentResponse,
   mapStudentsResponse,
   prepareStudentForBackend,
 } from "./student-helpers";
