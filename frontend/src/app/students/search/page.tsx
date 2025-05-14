@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Header } from "~/components/dashboard/header";
@@ -151,16 +151,12 @@ export default function StudentSearchPage() {
     }
   ];
 
-  // Load initial data
-  useEffect(() => {
-    void fetchStudents();
-  }, []);
-
-  async function fetchStudents(filters?: {
+  // Using useCallback to memoize the fetchStudents function
+  const fetchStudents = useCallback(async (filters?: {
     search?: string;
     inHouse?: boolean;
     groupId?: string;
-  }) {
+  }) => {
     setIsSearching(true);
     setError(null);
 
@@ -201,7 +197,12 @@ export default function StudentSearchPage() {
       setStudents([]);
       setIsSearching(false);
     }
-  }
+  }, []);  // Empty dependency array as it doesn't depend on any state or props
+
+  // Load initial data - now includes fetchStudents in the dependency array
+  useEffect(() => {
+    void fetchStudents();
+  }, [fetchStudents]);
 
   const handleSearch = async () => {
     const filters: {
@@ -462,16 +463,16 @@ export default function StudentSearchPage() {
 
                                       <div className="flex flex-col">
                                         <div className="flex items-center">
-                                  <span className="font-medium text-gray-900 transition-colors group-hover:text-blue-600">
-                                    {student.first_name} {student.second_name}
-                                  </span>
+                                          <span className="font-medium text-gray-900 transition-colors group-hover:text-blue-600">
+                                            {student.first_name} {student.second_name}
+                                          </span>
                                           {/* Year indicator */}
                                           <span className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`} title={`Jahrgang ${year}`}></span>
                                         </div>
                                         <span className="text-sm text-gray-500">
-                                  Klasse: {student.school_class}
+                                          Klasse: {student.school_class}
                                           {student.group_name && ` | Gruppe: ${student.group_name}`}
-                                </span>
+                                        </span>
                                       </div>
                                     </div>
 
@@ -484,8 +485,8 @@ export default function StudentSearchPage() {
                                         >
                                           {student.in_house && (
                                               <span className="absolute -top-0.5 -left-0.5 flex h-5 w-5">
-                                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-                                    </span>
+                                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
+                                              </span>
                                           )}
                                         </div>
                                       </div>
