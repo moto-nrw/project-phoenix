@@ -25,6 +25,106 @@ interface Student {
   bus: boolean;
 }
 
+// Demo data for students - defined outside component to avoid dependency issues
+const exampleStudents: Student[] = [
+  {
+    id: "1",
+    first_name: "Emma",
+    second_name: "Müller",
+    school_class: "1a",
+    group_id: "g1",
+    group_name: "Bären",
+    in_house: true,
+    wc: false,
+    school_yard: false,
+    bus: false
+  },
+  {
+    id: "2",
+    first_name: "Max",
+    second_name: "Schmidt",
+    school_class: "1b",
+    group_id: "g1",
+    group_name: "Bären",
+    in_house: false,
+    wc: true,
+    school_yard: false,
+    bus: false
+  },
+  {
+    id: "3",
+    first_name: "Sophie",
+    second_name: "Wagner",
+    school_class: "2a",
+    group_id: "g2",
+    group_name: "Füchse",
+    in_house: true,
+    wc: false,
+    school_yard: false,
+    bus: false
+  },
+  {
+    id: "4",
+    first_name: "Leon",
+    second_name: "Fischer",
+    school_class: "2b",
+    group_id: "g2",
+    group_name: "Füchse",
+    in_house: true,
+    wc: false,
+    school_yard: false,
+    bus: false
+  },
+  {
+    id: "5",
+    first_name: "Mia",
+    second_name: "Weber",
+    school_class: "3a",
+    group_id: "g3",
+    group_name: "Eulen",
+    in_house: true,
+    wc: false,
+    school_yard: false,
+    bus: false
+  },
+  {
+    id: "6",
+    first_name: "Noah",
+    second_name: "Becker",
+    school_class: "3b",
+    group_id: "g3",
+    group_name: "Eulen",
+    in_house: false,
+    wc: false,
+    school_yard: true,
+    bus: false
+  },
+  {
+    id: "7",
+    first_name: "Lina",
+    second_name: "Schulz",
+    school_class: "4a",
+    group_id: "g4",
+    group_name: "Wölfe",
+    in_house: false,
+    wc: false,
+    school_yard: false,
+    bus: true
+  },
+  {
+    id: "8",
+    first_name: "Felix",
+    second_name: "Hoffmann",
+    school_class: "4b",
+    group_id: "g4",
+    group_name: "Wölfe",
+    in_house: true,
+    wc: false,
+    school_yard: false,
+    bus: false
+  }
+];
+
 export default function StudentSearchPage() {
   const router = useRouter();
   const { data: session, status } = useSession({
@@ -51,105 +151,7 @@ export default function StudentSearchPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // Demo data for students
-  const exampleStudents: Student[] = [
-    {
-      id: "1",
-      first_name: "Emma",
-      second_name: "Müller",
-      school_class: "1a",
-      group_id: "g1",
-      group_name: "Bären",
-      in_house: true,
-      wc: false,
-      school_yard: false,
-      bus: false
-    },
-    {
-      id: "2",
-      first_name: "Max",
-      second_name: "Schmidt",
-      school_class: "1b",
-      group_id: "g1",
-      group_name: "Bären",
-      in_house: false,
-      wc: true,
-      school_yard: false,
-      bus: false
-    },
-    {
-      id: "3",
-      first_name: "Sophie",
-      second_name: "Wagner",
-      school_class: "2a",
-      group_id: "g2",
-      group_name: "Füchse",
-      in_house: true,
-      wc: false,
-      school_yard: false,
-      bus: false
-    },
-    {
-      id: "4",
-      first_name: "Leon",
-      second_name: "Fischer",
-      school_class: "2b",
-      group_id: "g2",
-      group_name: "Füchse",
-      in_house: true,
-      wc: false,
-      school_yard: false,
-      bus: false
-    },
-    {
-      id: "5",
-      first_name: "Mia",
-      second_name: "Weber",
-      school_class: "3a",
-      group_id: "g3",
-      group_name: "Eulen",
-      in_house: true,
-      wc: false,
-      school_yard: false,
-      bus: false
-    },
-    {
-      id: "6",
-      first_name: "Noah",
-      second_name: "Becker",
-      school_class: "3b",
-      group_id: "g3",
-      group_name: "Eulen",
-      in_house: false,
-      wc: false,
-      school_yard: true,
-      bus: false
-    },
-    {
-      id: "7",
-      first_name: "Lina",
-      second_name: "Schulz",
-      school_class: "4a",
-      group_id: "g4",
-      group_name: "Wölfe",
-      in_house: false,
-      wc: false,
-      school_yard: false,
-      bus: true
-    },
-    {
-      id: "8",
-      first_name: "Felix",
-      second_name: "Hoffmann",
-      school_class: "4b",
-      group_id: "g4",
-      group_name: "Wölfe",
-      in_house: true,
-      wc: false,
-      school_yard: false,
-      bus: false
-    }
-  ];
+  // exampleStudents is now defined outside the component
 
   // Define fetchStudents with useCallback to avoid unnecessary re-renders
   const fetchStudents = useCallback(async (filters?: {
@@ -197,7 +199,7 @@ export default function StudentSearchPage() {
       setStudents([]);
       setIsSearching(false);
     }
-  }, [exampleStudents])
+  }, [])
 
   // Load initial data when component mounts
   useEffect(() => {

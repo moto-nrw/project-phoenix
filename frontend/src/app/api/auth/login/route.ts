@@ -3,7 +3,7 @@ import { env } from "~/env";
 
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
+        const body: unknown = await request.json();
 
         const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/login`, {
             method: "POST",
