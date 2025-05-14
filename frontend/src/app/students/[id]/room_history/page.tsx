@@ -322,8 +322,8 @@ export default function StudentRoomHistoryPage() {
                                         <span className="mx-2">•</span>
                                         <span className="opacity-90">Gruppe: {student.group_name}</span>
                                     </div>
-                                    <div className="mt-3">
-                                        <span className="text-white font-medium">Raumverlauf</span>
+                                    <div className="mt-4">
+                                        <h2 className="text-2xl font-semibold text-white">Raumverlauf</h2>
                                     </div>
                                 </div>
                             </div>
