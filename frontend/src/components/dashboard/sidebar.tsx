@@ -14,6 +14,46 @@ interface NavItem {
     helpContent?: ReactNode;
 }
 
+// Additional Help Content for Specific Pages
+const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
+    // Student Detail Page Help Content
+    "student-detail": (
+        <div>
+            <p>Im <strong>Schülerprofil</strong> finden Sie:</p>
+            <ul className="mt-3 space-y-2">
+                <li>• <strong>Persönliche Daten:</strong> Name, Klasse, Gruppe und Geburtsdatum</li>
+                <li>• <strong>Aktueller Standort:</strong> Wo sich der Schüler gerade befindet</li>
+                <li>• <strong>Erziehungsberechtigte:</strong> Kontaktdaten für Notfälle</li>
+            </ul>
+            <p className="mt-4"><strong>Verfügbare Funktionen:</strong></p>
+            <ul className="mt-2 space-y-1 text-sm">
+                <li>• <strong>Raumverlauf:</strong> Chronologische Übersicht der besuchten Räume</li>
+                <li>• <strong>Feedbackhistorie:</strong> Pädagogische Rückmeldungen und Notizen</li>
+                <li>• <strong>Mensaverlauf:</strong> Teilnahme am Mittagessen</li>
+                <li>• <strong>Schnellkontakt:</strong> Direkter Kontakt zu Erziehungsberechtigten</li>
+            </ul>
+        </div>
+    ),
+    // Room History Page Help Content
+    "room_history": (
+        <div>
+            <p>Im <strong>Raumverlauf</strong> können Sie:</p>
+            <ul className="mt-3 space-y-2">
+                <li>• <strong>Chronologisch verfolgen:</strong> Welche Räume ein Schüler wann besucht hat</li>
+                <li>• <strong>Verweildauer einsehen:</strong> Wie lange sich ein Schüler in jedem Raum aufgehalten hat</li>
+                <li>• <strong>Nach Zeiträumen filtern:</strong> Heute, Diese Woche, Letzte 7 Tage oder Diesen Monat</li>
+            </ul>
+            <p className="mt-4"><strong>Anwendungsmöglichkeiten:</strong></p>
+            <ul className="mt-2 space-y-1 text-sm">
+                <li>• <strong>Anwesenheitskontrolle:</strong> Überprüfen, ob ein Schüler an bestimmten Aktivitäten teilgenommen hat</li>
+                <li>• <strong>Verhaltensanalyse:</strong> Raumbewegungen eines Schülers nachvollziehen</li>
+                <li>• <strong>Konfliktsituationen klären:</strong> Bei Unstimmigkeiten den tatsächlichen Aufenthaltsort ermitteln</li>
+                <li>• <strong>Abholsituation prüfen:</strong> Wann ein Schüler die Einrichtung verlassen hat</li>
+            </ul>
+        </div>
+    )
+};
+
 // Navigation Items als konstante Daten mit Hilfe-Inhalten
 const NAV_ITEMS: NavItem[] = [
     {
@@ -221,6 +261,13 @@ export function Sidebar({ className = "" }: SidebarProps) {
 
     // Den richtigen Hilfetext basierend auf der aktuellen Route finden
     const getActiveHelpContent = (): ReactNode => {
+        // Spezielle Seiten prüfen (Student Detail und Room History)
+        if (/\/students\/[^\/]+$/.exec(pathname)) {
+            return SPECIFIC_PAGE_HELP["student-detail"];
+        } else if (/\/students\/[^\/]+\/room_history/.exec(pathname)) {
+            return SPECIFIC_PAGE_HELP.room_history;
+        }
+
         // Finde das NavItem, das der aktuellen Route entspricht
         const activeItem = NAV_ITEMS.find(item => {
             if (item.href === "/dashboard") {
@@ -230,7 +277,6 @@ export function Sidebar({ className = "" }: SidebarProps) {
         });
 
         // Wenn ein aktives Item gefunden wurde, gib dessen Hilfetext zurück, sonst den Standard-Hilfetext
-        // Return the help content or default
         if (activeItem?.helpContent) {
             return activeItem.helpContent;
         }
@@ -276,7 +322,15 @@ export function Sidebar({ className = "" }: SidebarProps) {
             <div className="fixed bottom-0 left-0 z-50 w-64 p-4 bg-white border-t border-r border-gray-200">
                 <div className="flex items-center justify-start">
                     <HelpButton
-                        title={isActiveLink("/ogs_groups") ? "OGS-Gruppenansicht Hilfe" : "Allgemeine Hilfe"}
+                        title={
+                            (/\/students\/[^\/]+$/.exec(pathname))
+                                ? "Schülerprofil Hilfe"
+                                : (/\/students\/[^\/]+\/room_history/.exec(pathname))
+                                    ? "Raumverlauf Hilfe"
+                                    : isActiveLink("/ogs_groups")
+                                        ? "OGS-Gruppenansicht Hilfe"
+                                        : "Allgemeine Hilfe"
+                        }
                         content={getActiveHelpContent()}
                         buttonClassName="mr-2"
                     />
