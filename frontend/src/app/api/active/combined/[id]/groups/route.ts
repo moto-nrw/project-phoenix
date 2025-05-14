@@ -1,39 +1,15 @@
-export async function GET(request: NextRequest, { params }: RouteParams) {
-    try {
-        const session = await auth();
+// app/api/active/combined/[id]/groups/route.ts
+import type { NextRequest } from "next/server";
+import { apiGet } from "~/lib/api-helpers";
+import { createGetHandler } from "~/lib/route-wrapper";
 
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const response = await fetch(
-            `${env.NEXT_PUBLIC_API_URL}/active/combined/${params.id}/groups`,
-            {
-                headers: {
-                    Authorization: `Bearer ${session.user.token}`,
-                    "Content-Type": "application/json",
-                },
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Get combined group groups route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
-}
+/**
+ * Handler for GET /api/active/combined/[id]/groups
+ * Returns the groups in a combined group
+ */
+export const GET = createGetHandler(async (_request: NextRequest, token: string, params) => {
+  const id = params.id as string;
+  
+  // Fetch groups in the combined group via the API
+  return await apiGet(`/active/combined/${id}/groups`, token);
+});

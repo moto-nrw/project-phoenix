@@ -1,40 +1,15 @@
-export async function POST(request: NextRequest, { params }: RouteParams) {
-    try {
-        const session = await auth();
+// app/api/active/combined/[id]/end/route.ts
+import type { NextRequest } from "next/server";
+import { apiPost } from "~/lib/api-helpers";
+import { createPostHandler } from "~/lib/route-wrapper";
 
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const response = await fetch(
-            `${env.NEXT_PUBLIC_API_URL}/active/combined/${params.id}/end`,
-            {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${session.user.token}`,
-                    "Content-Type": "application/json",
-                },
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("End combined group route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
-}
+/**
+ * Handler for POST /api/active/combined/[id]/end
+ * Ends an active combined group
+ */
+export const POST = createPostHandler(async (_request: NextRequest, _body: Record<string, never>, token: string, params) => {
+  const id = params.id as string;
+  
+  // End the combined group via the API
+  return await apiPost(`/active/combined/${id}/end`, token);
+});

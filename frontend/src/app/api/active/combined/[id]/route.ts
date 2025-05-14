@@ -1,123 +1,52 @@
-export async function GET(request: NextRequest, { params }: RouteParams) {
-    try {
-        const session = await auth();
+// app/api/active/combined/[id]/route.ts
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { apiDelete, apiGet, apiPut } from "~/lib/api-helpers";
+import { createDeleteHandler, createGetHandler, createPutHandler } from "~/lib/route-wrapper";
 
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const response = await fetch(
-            `${env.NEXT_PUBLIC_API_URL}/active/combined/${params.id}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${session.user.token}`,
-                    "Content-Type": "application/json",
-                },
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Get combined group route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
+/**
+ * Type definition for combined group update request
+ */
+interface CombinedGroupUpdateRequest {
+  name?: string;
+  description?: string;
+  room_id?: string;
 }
 
-export async function PUT(request: NextRequest, { params }: RouteParams) {
-    try {
-        const session = await auth();
+/**
+ * Handler for GET /api/active/combined/[id]
+ * Returns details of a specific combined group
+ */
+export const GET = createGetHandler(async (_request: NextRequest, token: string, params) => {
+  const id = params.id as string;
+  
+  // Fetch combined group details from the API
+  return await apiGet(`/active/combined/${id}`, token);
+});
 
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
+/**
+ * Handler for PUT /api/active/combined/[id]
+ * Updates a combined group
+ */
+export const PUT = createPutHandler<unknown, CombinedGroupUpdateRequest>(
+  async (_request: NextRequest, body: CombinedGroupUpdateRequest, token: string, params) => {
+    const id = params.id as string;
+    
+    // Update the combined group via the API
+    return await apiPut(`/active/combined/${id}`, token, body);
+  }
+);
 
-        const body = await request.json();
-
-        const response = await fetch(
-            `${env.NEXT_PUBLIC_API_URL}/active/combined/${params.id}`,
-            {
-                method: "PUT",
-                headers: {
-                    Authorization: `Bearer ${session.user.token}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(body),
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Update combined group route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
-}
-
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
-    try {
-        const session = await auth();
-
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const response = await fetch(
-            `${env.NEXT_PUBLIC_API_URL}/active/combined/${params.id}`,
-            {
-                method: "DELETE",
-                headers: {
-                    Authorization: `Bearer ${session.user.token}`,
-                    "Content-Type": "application/json",
-                },
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        return new NextResponse(null, { status: 204 });
-    } catch (error) {
-        console.error("Delete combined group route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
-}
+/**
+ * Handler for DELETE /api/active/combined/[id]
+ * Deletes a combined group
+ */
+export const DELETE = createDeleteHandler(async (_request: NextRequest, token: string, params) => {
+  const id = params.id as string;
+  
+  // Delete the combined group via the API
+  await apiDelete(`/active/combined/${id}`, token);
+  
+  // Return 204 No Content response
+  return null;
+});

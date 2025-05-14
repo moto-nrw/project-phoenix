@@ -1,39 +1,13 @@
-export async function GET(request: NextRequest) {
-    try {
-        const session = await auth();
+// app/api/active/analytics/counts/route.ts
+import type { NextRequest } from "next/server";
+import { apiGet } from "~/lib/api-helpers";
+import { createGetHandler } from "~/lib/route-wrapper";
 
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const response = await fetch(
-            `${env.NEXT_PUBLIC_API_URL}/active/analytics/counts`,
-            {
-                headers: {
-                    Authorization: `Bearer ${session.user.token}`,
-                    "Content-Type": "application/json",
-                },
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Get analytics counts route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
-}
+/**
+ * Handler for GET /api/active/analytics/counts
+ * Returns counts of active groups, visits, and supervisors
+ */
+export const GET = createGetHandler(async (_request: NextRequest, token: string) => {
+  // Fetch counts from the API
+  return await apiGet("/active/analytics/counts", token);
+});

@@ -1,39 +1,15 @@
-export async function GET(request: NextRequest, { params }: StudentParams) {
-    try {
-        const session = await auth();
+// app/api/active/analytics/student/[studentId]/attendance/route.ts
+import type { NextRequest } from "next/server";
+import { apiGet } from "~/lib/api-helpers";
+import { createGetHandler } from "~/lib/route-wrapper";
 
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const response = await fetch(
-            `${env.NEXT_PUBLIC_API_URL}/active/analytics/student/${params.studentId}/attendance`,
-            {
-                headers: {
-                    Authorization: `Bearer ${session.user.token}`,
-                    "Content-Type": "application/json",
-                },
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Get student attendance route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
-}
+/**
+ * Handler for GET /api/active/analytics/student/[studentId]/attendance
+ * Returns attendance data for a specific student
+ */
+export const GET = createGetHandler(async (_request: NextRequest, token: string, params) => {
+  const studentId = params.studentId as string;
+  
+  // Fetch student attendance data from the API
+  return await apiGet(`/active/analytics/student/${studentId}/attendance`, token);
+});
