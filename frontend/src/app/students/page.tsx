@@ -88,7 +88,7 @@ export default function StudentDetailPage() {
     // Helper function to determine status label and color
     const getStatusDetails = () => {
         if (student?.in_house) {
-            return { label: student.current_room || "Im Haus", bgColor: "bg-green-500", textColor: "text-green-800", bgLight: "bg-green-100" };
+            return { label: student.current_room ?? "Im Haus", bgColor: "bg-green-500", textColor: "text-green-800", bgLight: "bg-green-100" };
         } else if (student?.wc) {
             return { label: "Toilette", bgColor: "bg-blue-500", textColor: "text-blue-800", bgLight: "bg-blue-100" };
         } else if (student?.school_yard) {
