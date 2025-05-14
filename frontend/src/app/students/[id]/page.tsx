@@ -1,5 +1,7 @@
 "use client";
 
+
+
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Header } from "~/components/dashboard/header";
@@ -252,7 +254,7 @@ export default function StudentDetailPage() {
                             <button
                                 className="flex flex-col items-center justify-center rounded-lg bg-white p-4 shadow-sm transition-all hover:shadow-md border border-gray-100 hover:border-blue-200"
                                 onClick={() => router.push(`/students/${studentId}/mensa-history?from=${referrer}`)}
-                            >
+                             >
                                 {/* Gabel Icon für Mensa */}
 
 
