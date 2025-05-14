@@ -171,9 +171,10 @@ const dummyRooms: Room[] = [
 
 export default function RoomsPage() {
     const router = useRouter();
-    const [rooms, setRooms] = useState<Room[]>(dummyRooms);
+    // Removed unused 'rooms' and 'setRooms' state
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    // Kept error state but not 'setError' as it seems to be needed elsewhere
+    const [error] = useState<string | null>(null);
     const [searchFilter, setSearchFilter] = useState("");
     const [buildingFilter, setBuildingFilter] = useState<string | null>(null);
     const [floorFilter, setFloorFilter] = useState<string | null>(null);
@@ -192,8 +193,8 @@ export default function RoomsPage() {
             const searchLower = searchFilter.toLowerCase();
             filtered = filtered.filter(room =>
                 room.name.toLowerCase().includes(searchLower) ??
-                (room.groupName && room.groupName.toLowerCase().includes(searchLower)) ??
-                (room.activityName && room.activityName.toLowerCase().includes(searchLower))
+                room.groupName?.toLowerCase().includes(searchLower) ??
+                room.activityName?.toLowerCase().includes(searchLower)
             );
         }
 
@@ -229,6 +230,7 @@ export default function RoomsPage() {
         }, 300);
 
         return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchFilter, buildingFilter, floorFilter, categoryFilter, occupiedFilter]);
 
     // Handle room selection
@@ -334,7 +336,7 @@ export default function RoomsPage() {
                                     >
                                         <option value="">Alle Gebäude</option>
                                         {uniqueBuildings.map((building) => (
-                                            <option key={building} value={building as string}>
+                                            <option key={building} value={building}>
                                                 {building}
                                             </option>
                                         ))}
@@ -448,7 +450,7 @@ export default function RoomsPage() {
                                         {/* Top colored bar based on room category */}
                                         <div
                                             className="h-2"
-                                            style={{ backgroundColor: categoryColors[room.category] || "#6B7280" }}
+                                            style={{ backgroundColor: categoryColors[room.category] ?? "#6B7280" }}
                                         />
                                         <div className="p-4">
                                             <div className="mb-2 flex items-center justify-between">
@@ -461,7 +463,7 @@ export default function RoomsPage() {
                                                 ></span>
                                             </div>
                                             <div className="text-sm text-gray-600">
-                                                <p className="mb-1">Gebäude: {room.building || "Unbekannt"}, Etage {room.floor}</p>
+                                                <p className="mb-1">Gebäude: {room.building ?? "Unbekannt"}, Etage {room.floor}</p>
                                                 <p>Kapazität: {room.capacity} Personen</p>
                                             </div>
                                             {/* Zeige Kategorie, Aktivität etc. für alle Räume an, nicht nur für belegte */}
@@ -470,7 +472,7 @@ export default function RoomsPage() {
                                                     <span className="block flex items-center">
                                                         <span
                                                             className="inline-block h-3 w-3 rounded-full mr-1.5"
-                                                            style={{ backgroundColor: categoryColors[room.category] || "#6B7280" }}
+                                                            style={{ backgroundColor: categoryColors[room.category] ?? "#6B7280" }}
                                                         ></span>
                                                         Kategorie: {room.category}
                                                     </span>
