@@ -54,7 +54,7 @@ export function Header({ userName = "Root" }: HeaderProps) {
                             WebkitTextFillColor: 'transparent',
                         }}
                     >
-                        MOTO
+                        moto
                     </span>
                     <h1 className="text-2xl font-bold ml-6">
                         <span className="hidden md:inline">Willkommen, {userName}!</span>
