@@ -190,6 +190,25 @@ func (r *GroupRepository) FindWithSchedules(ctx context.Context, groupID int64) 
 	return group, schedules, nil
 }
 
+// FindByStaffSupervisor finds all activity groups where a staff member is a supervisor
+func (r *GroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int64) ([]*activities.Group, error) {
+	var groups []*activities.Group
+	err := r.db.NewSelect().
+		Model(&groups).
+		Join("JOIN activities.supervisors AS s ON s.group_id = activities.groups.id").
+		Where("s.staff_id = ?", staffID).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by staff supervisor",
+			Err: err,
+		}
+	}
+
+	return groups, nil
+}
+
 // Create overrides the base Create method to handle validation
 func (r *GroupRepository) Create(ctx context.Context, group *activities.Group) error {
 	if group == nil {

@@ -230,7 +230,7 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 // GetMyActivityGroups retrieves activity groups associated with the current user
 func (s *userContextService) GetMyActivityGroups(ctx context.Context) ([]*activities.Group, error) {
 	// Try to get the current staff
-	_, err := s.GetCurrentStaff(ctx)
+	staff, err := s.GetCurrentStaff(ctx)
 	if err != nil {
 		if !errors.Is(err, ErrUserNotLinkedToStaff) {
 			return nil, err
@@ -241,18 +241,24 @@ func (s *userContextService) GetMyActivityGroups(ctx context.Context) ([]*activi
 	}
 
 	// Get activity groups where the staff is a supervisor
-	// Note: This implementation would need to be adapted based on how activity groups and supervisors are related
-	// Placeholder implementation returning empty list
-	groups := []*activities.Group{}
-	// TODO: Implement proper lookup through supervisor repository
+	// First, get all planned supervisions for this staff member
+	plannedSupervisions, err := s.activityGroupRepo.FindByStaffSupervisor(ctx, staff.ID)
+	if err != nil {
+		return nil, &UserContextError{Op: "get my activity groups", Err: err}
+	}
 
-	return groups, nil
+	// If no groups found, return empty list
+	if len(plannedSupervisions) == 0 {
+		return []*activities.Group{}, nil
+	}
+
+	return plannedSupervisions, nil
 }
 
 // GetMyActiveGroups retrieves active groups associated with the current user
 func (s *userContextService) GetMyActiveGroups(ctx context.Context) ([]*active.Group, error) {
 	// Try to get the current staff
-	_, err := s.GetCurrentStaff(ctx)
+	staff, err := s.GetCurrentStaff(ctx)
 	if err != nil {
 		if !errors.Is(err, ErrUserNotLinkedToStaff) {
 			return nil, err
@@ -262,29 +268,81 @@ func (s *userContextService) GetMyActiveGroups(ctx context.Context) ([]*active.G
 		return []*active.Group{}, nil
 	}
 
-	// Get active groups linked to educational groups or activity groups the staff is associated with
-	// This is a placeholder implementation - the actual logic would depend on how
-	// active groups are linked to staff members
-	filterOptions := &base.QueryOptions{}
-	groups, err := s.activeGroupRepo.List(ctx, filterOptions)
-	if err != nil {
-		return nil, &UserContextError{Op: "get my active groups", Err: err}
-	}
-
-	// Filter groups based on staff access - this would be better implemented
-	// directly in the repository with a proper query
-	var accessibleGroups []*active.Group
-	for _, group := range groups {
-		// Check if staff has access to this group
-		// This is a placeholder - actual implementation would check against group ownership,
-		// supervisor status, etc.
-		hasAccess := true // Simplified for now
-		if hasAccess {
-			accessibleGroups = append(accessibleGroups, group)
+	// First, get the educational groups this staff member is associated with
+	teacher, err := s.GetCurrentTeacher(ctx)
+	var educationalGroupIDs []int64
+	
+	// Only proceed with teacher checks if the user is a teacher
+	if err == nil && teacher != nil {
+		// Get the teacher's educational groups
+		educationGroups, err := s.educationGroupRepo.FindByTeacher(ctx, teacher.ID)
+		if err != nil {
+			return nil, &UserContextError{Op: "get my active groups - education groups", Err: err}
+		}
+		
+		// Extract IDs for filtering
+		for _, group := range educationGroups {
+			educationalGroupIDs = append(educationalGroupIDs, group.ID)
 		}
 	}
-
-	return accessibleGroups, nil
+	
+	// Get activity groups where the staff is a supervisor
+	activityGroups, err := s.activityGroupRepo.FindByStaffSupervisor(ctx, staff.ID)
+	if err != nil {
+		return nil, &UserContextError{Op: "get my active groups - activity groups", Err: err}
+	}
+	
+	var activityGroupIDs []int64
+	for _, group := range activityGroups {
+		activityGroupIDs = append(activityGroupIDs, group.ID)
+	}
+	
+	// Get active groups related to the staff's educational and activity groups
+	var activeGroups []*active.Group
+	
+	// Get active groups from educational group IDs
+	if len(educationalGroupIDs) > 0 {
+		eduActiveGroups, err := s.activeGroupRepo.FindBySourceIDs(ctx, educationalGroupIDs, "education_group")
+		if err != nil {
+			return nil, &UserContextError{Op: "get my active groups - education active", Err: err}
+		}
+		activeGroups = append(activeGroups, eduActiveGroups...)
+	}
+	
+	// Get active groups from activity group IDs
+	if len(activityGroupIDs) > 0 {
+		activityActiveGroups, err := s.activeGroupRepo.FindBySourceIDs(ctx, activityGroupIDs, "activity_group")
+		if err != nil {
+			return nil, &UserContextError{Op: "get my active groups - activity active", Err: err}
+		}
+		activeGroups = append(activeGroups, activityActiveGroups...)
+	}
+	
+	// Also include any active groups this staff member is currently supervising
+	supervisedGroups, err := s.GetMySupervisedGroups(ctx)
+	if err != nil {
+		return nil, &UserContextError{Op: "get my active groups - supervised", Err: err}
+	}
+	
+	// Add supervised groups, avoiding duplicates
+	groupMap := make(map[int64]*active.Group)
+	for _, group := range activeGroups {
+		groupMap[group.ID] = group
+	}
+	
+	for _, group := range supervisedGroups {
+		if _, exists := groupMap[group.ID]; !exists {
+			groupMap[group.ID] = group
+		}
+	}
+	
+	// Convert map back to slice
+	result := make([]*active.Group, 0, len(groupMap))
+	for _, group := range groupMap {
+		result = append(result, group)
+	}
+	
+	return result, nil
 }
 
 // GetMySupervisedGroups retrieves active groups supervised by the current user
@@ -334,15 +392,15 @@ func (s *userContextService) GetMySupervisedGroups(ctx context.Context) ([]*acti
 	return groups, nil
 }
 
-// GetGroupStudents retrieves students in a specific group where the current user has access
-func (s *userContextService) GetGroupStudents(ctx context.Context, groupID int64) ([]*users.Student, error) {
+// checkGroupAccess is a helper function to check if the current user has access to a specific group
+func (s *userContextService) checkGroupAccess(ctx context.Context, groupID int64) (*active.Group, error) {
 	// Verify group exists
 	group, err := s.activeGroupRepo.FindByID(ctx, groupID)
 	if err != nil {
-		return nil, &UserContextError{Op: "get group students", Err: err}
+		return nil, err
 	}
 	if group == nil {
-		return nil, &UserContextError{Op: "get group students", Err: ErrGroupNotFound}
+		return nil, ErrGroupNotFound
 	}
 
 	// Check if current user has access to this group
@@ -376,7 +434,18 @@ func (s *userContextService) GetGroupStudents(ctx context.Context, groupID int64
 	}
 
 	if !hasAccess {
-		return nil, &UserContextError{Op: "get group students", Err: ErrUserNotAuthorized}
+		return nil, ErrUserNotAuthorized
+	}
+
+	return group, nil
+}
+
+// GetGroupStudents retrieves students in a specific group where the current user has access
+func (s *userContextService) GetGroupStudents(ctx context.Context, groupID int64) ([]*users.Student, error) {
+	// Check access to the group
+	_, err := s.checkGroupAccess(ctx, groupID)
+	if err != nil {
+		return nil, &UserContextError{Op: "get group students", Err: err}
 	}
 
 	// Get all visits for this group
@@ -419,47 +488,10 @@ func (s *userContextService) GetGroupStudents(ctx context.Context, groupID int64
 
 // GetGroupVisits retrieves active visits for a specific group where the current user has access
 func (s *userContextService) GetGroupVisits(ctx context.Context, groupID int64) ([]*active.Visit, error) {
-	// Verify group exists
-	group, err := s.activeGroupRepo.FindByID(ctx, groupID)
+	// Check access to the group
+	_, err := s.checkGroupAccess(ctx, groupID)
 	if err != nil {
 		return nil, &UserContextError{Op: "get group visits", Err: err}
-	}
-	if group == nil {
-		return nil, &UserContextError{Op: "get group visits", Err: ErrGroupNotFound}
-	}
-
-	// Check if current user has access to this group
-	// This could be more sophisticated checking specific permissions
-	// For now, we'll assume the user has access if they can see the group in their supervised/active groups
-	userGroups, err := s.GetMyActiveGroups(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	hasAccess := false
-	for _, g := range userGroups {
-		if g.ID == groupID {
-			hasAccess = true
-			break
-		}
-	}
-
-	if !hasAccess {
-		// Try supervised groups if not found in active groups
-		supervisedGroups, err := s.GetMySupervisedGroups(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, g := range supervisedGroups {
-			if g.ID == groupID {
-				hasAccess = true
-				break
-			}
-		}
-	}
-
-	if !hasAccess {
-		return nil, &UserContextError{Op: "get group visits", Err: ErrUserNotAuthorized}
 	}
 
 	// Get active visits for this group

@@ -192,3 +192,25 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, id int64) (*a
 
 	return group, nil
 }
+
+// FindBySourceIDs finds active groups based on source IDs and source type
+func (r *GroupRepository) FindBySourceIDs(ctx context.Context, sourceIDs []int64, sourceType string) ([]*active.Group, error) {
+	if len(sourceIDs) == 0 {
+		return []*active.Group{}, nil
+	}
+
+	var groups []*active.Group
+	err := r.db.NewSelect().
+		Model(&groups).
+		Where("source_id IN (?) AND source_type = ? AND end_time IS NULL", bun.In(sourceIDs), sourceType).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by source IDs",
+			Err: err,
+		}
+	}
+
+	return groups, nil
+}
