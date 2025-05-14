@@ -1,8 +1,9 @@
 // lib/route-wrapper.ts
-import type { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "../server/auth";
-import { ApiErrorResponse, ApiResponse, handleApiError } from "./api-helpers";
+import type { ApiErrorResponse, ApiResponse } from "./api-helpers";
+import { handleApiError } from "./api-helpers";
 
 /**
  * Wrapper function for handling GET API routes

@@ -4,12 +4,21 @@ import { apiPost } from "~/lib/api-helpers";
 import { createPostHandler } from "~/lib/route-wrapper";
 
 /**
+ * Type guard to check if parameter exists and is a string
+ */
+function isStringParam(param: unknown): param is string {
+  return typeof param === 'string';
+}
+
+/**
  * Handler for POST /api/active/combined/[id]/end
  * Ends an active combined group
  */
 export const POST = createPostHandler(async (_request: NextRequest, _body: Record<string, never>, token: string, params) => {
-  const id = params.id as string;
+  if (!isStringParam(params.id)) {
+    throw new Error('Invalid id parameter');
+  }
   
   // End the combined group via the API
-  return await apiPost(`/active/combined/${id}/end`, token);
+  return await apiPost(`/active/combined/${params.id}/end`, token);
 });

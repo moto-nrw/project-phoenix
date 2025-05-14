@@ -1,6 +1,6 @@
 // lib/api-helpers.ts
-import type { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { env } from "~/env";
 import { auth } from "../server/auth";
 
@@ -187,7 +187,7 @@ export function extractParams(
   // Extract from URL params object
   Object.keys(params).forEach(key => {
     if (params[key] && typeof params[key] === 'string') {
-      urlParams[key] = params[key] as string;
+      urlParams[key] = params[key];
     }
   });
   

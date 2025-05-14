@@ -1,84 +1,41 @@
-export async function GET(request: NextRequest) {
-    try {
-        const session = await auth();
+// app/api/active/combined/route.ts
+import type { NextRequest } from "next/server";
+import { apiGet, apiPost } from "~/lib/api-helpers";
+import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const url = new URL(`${env.NEXT_PUBLIC_API_URL}/active/combined`);
-        const searchParams = request.nextUrl.searchParams;
-
-        searchParams.forEach((value, key) => {
-            url.searchParams.append(key, value);
-        });
-
-        const response = await fetch(url.toString(), {
-            headers: {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-            },
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Get combined groups route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
+/**
+ * Type definition for combined group creation request
+ */
+interface CombinedGroupCreateRequest {
+  name: string;
+  description?: string;
+  room_id?: string;
 }
 
-export async function POST(request: NextRequest) {
-    try {
-        const session = await auth();
+/**
+ * Handler for GET /api/active/combined
+ * Returns list of combined groups with optional filters
+ */
+export const GET = createGetHandler(async (request: NextRequest, token: string) => {
+  // Construct a URL with all query parameters
+  const queryParams = new URLSearchParams();
+  request.nextUrl.searchParams.forEach((value, key) => {
+    queryParams.append(key, value);
+  });
+  
+  const endpoint = `/active/combined${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+  
+  // Fetch combined groups from the API
+  return await apiGet(endpoint, token);
+});
 
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const body = await request.json();
-
-        const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/active/combined`, {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(body),
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Create combined group route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
-}
+/**
+ * Handler for POST /api/active/combined
+ * Creates a new combined group
+ */
+export const POST = createPostHandler<unknown, CombinedGroupCreateRequest>(
+  async (_request: NextRequest, body: CombinedGroupCreateRequest, token: string) => {
+    // Create the combined group via the API
+    return await apiPost("/active/combined", token, body);
+  }
+);

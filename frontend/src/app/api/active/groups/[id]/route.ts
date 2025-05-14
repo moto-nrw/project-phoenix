@@ -1,129 +1,65 @@
-interface RouteParams {
-    params: {
-        id: string;
-    };
+// app/api/active/groups/[id]/route.ts
+import type { NextRequest } from "next/server";
+import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers";
+import { createGetHandler, createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
+
+/**
+ * Type definition for group update request
+ */
+interface GroupUpdateRequest {
+  name?: string;
+  description?: string;
+  room_id?: string;
+  // Add other properties as needed
 }
 
-export async function GET(request: NextRequest, { params }: RouteParams) {
-    try {
-        const session = await auth();
+/**
+ * Type guard to check if parameter exists and is a string
+ */
+function isStringParam(param: unknown): param is string {
+  return typeof param === 'string';
+}
 
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
+/**
+ * Handler for GET /api/active/groups/[id]
+ * Returns details of a specific active group
+ */
+export const GET = createGetHandler(async (_request: NextRequest, token: string, params) => {
+  if (!isStringParam(params.id)) {
+    throw new Error('Invalid id parameter');
+  }
+  
+  // Fetch active group details from the API
+  return await apiGet(`/active/groups/${params.id}`, token);
+});
 
-        const response = await fetch(
-            `${env.NEXT_PUBLIC_API_URL}/active/groups/${params.id}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${session.user.token}`,
-                    "Content-Type": "application/json",
-                },
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Get active group route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
+/**
+ * Handler for PUT /api/active/groups/[id]
+ * Updates an active group
+ */
+export const PUT = createPutHandler<unknown, GroupUpdateRequest>(
+  async (_request: NextRequest, body: GroupUpdateRequest, token: string, params) => {
+    if (!isStringParam(params.id)) {
+      throw new Error('Invalid id parameter');
     }
-}
+    
+    // Update the active group via the API
+    return await apiPut(`/active/groups/${params.id}`, token, body);
+  }
+);
 
-export async function PUT(request: NextRequest, { params }: RouteParams) {
-    try {
-        const session = await auth();
-
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const body = await request.json();
-
-        const response = await fetch(
-            `${env.NEXT_PUBLIC_API_URL}/active/groups/${params.id}`,
-            {
-                method: "PUT",
-                headers: {
-                    Authorization: `Bearer ${session.user.token}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(body),
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) {
-        console.error("Update active group route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
-}
-
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
-    try {
-        const session = await auth();
-
-        if (!session?.user?.token) {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        const response = await fetch(
-            `${env.NEXT_PUBLIC_API_URL}/active/groups/${params.id}`,
-            {
-                method: "DELETE",
-                headers: {
-                    Authorization: `Bearer ${session.user.token}`,
-                    "Content-Type": "application/json",
-                },
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText },
-                { status: response.status }
-            );
-        }
-
-        return new NextResponse(null, { status: 204 });
-    } catch (error) {
-        console.error("Delete active group route error:", error);
-        return NextResponse.json(
-            { error: "Internal Server Error" },
-            { status: 500 }
-        );
-    }
-}
+/**
+ * Handler for DELETE /api/active/groups/[id]
+ * Deletes an active group
+ */
+export const DELETE = createDeleteHandler(async (_request: NextRequest, token: string, params) => {
+  if (!isStringParam(params.id)) {
+    throw new Error('Invalid id parameter');
+  }
+  
+  // Delete the active group via the API
+  await apiDelete(`/active/groups/${params.id}`, token);
+  
+  // Return 204 No Content response
+  return null;
+});
