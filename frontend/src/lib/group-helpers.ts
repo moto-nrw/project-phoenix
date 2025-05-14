@@ -2,6 +2,14 @@
 // Type definitions and helper functions for groups
 
 // Backend types (from Go structs)
+// Define a simple backend student structure
+interface BackendGroupStudent {
+    id: number;
+    name?: string;
+    school_class?: string;
+    in_house?: boolean;
+}
+
 export interface BackendGroup {
     id: number;
     name: string;
@@ -13,6 +21,7 @@ export interface BackendGroup {
     supervisor_count?: number;
     created_at: string;
     updated_at: string;
+    students?: BackendGroupStudent[];
 }
 
 export interface BackendCombinedGroup {
@@ -33,6 +42,14 @@ export interface BackendCombinedGroup {
 }
 
 // Frontend types
+// Define a compatible StudentForGroup interface that matches the required properties of Student in api.ts
+export interface StudentForGroup {
+    id: string;
+    name: string;
+    school_class: string;
+    in_house: boolean;
+}
+
 export interface Group {
     id: string;
     name: string;
@@ -44,7 +61,7 @@ export interface Group {
     supervisor_count?: number;
     created_at?: string;
     updated_at?: string;
-    students?: Array<{ id: string; name: string }>;
+    students?: StudentForGroup[];
     supervisors?: Array<{ id: string; name: string }>;
 }
 
@@ -67,7 +84,8 @@ export interface CombinedGroup {
 
 // Mapping functions
 export function mapGroupResponse(backendGroup: BackendGroup): Group {
-    return {
+    // Create the basic group properties
+    const group: Group = {
         id: String(backendGroup.id),
         name: backendGroup.name,
         room_id: backendGroup.room_id ? String(backendGroup.room_id) : undefined,
@@ -79,6 +97,18 @@ export function mapGroupResponse(backendGroup: BackendGroup): Group {
         created_at: backendGroup.created_at,
         updated_at: backendGroup.updated_at,
     };
+    
+    // If the backend group has students, map them to StudentForGroup objects
+    if (Array.isArray(backendGroup.students)) {
+        group.students = backendGroup.students.map(student => ({
+            id: String(student.id),
+            name: student.name || 'Unnamed Student',
+            school_class: student.school_class || '',
+            in_house: student.in_house || false
+        }));
+    }
+    
+    return group;
 }
 
 export function mapCombinedGroupResponse(backendGroup: BackendCombinedGroup): CombinedGroup {
@@ -138,8 +168,17 @@ export function prepareCombinedGroupForBackend(group: Partial<CombinedGroup>): P
         valid_until: group.valid_until,
         access_policy: group.access_policy,
         specific_group_id: group.specific_group_id ? parseInt(group.specific_group_id, 10) : undefined,
-        groups: group.groups?.map(g => ({ id: parseInt(g.id, 10) })),
-        access_specialists: group.access_specialists?.map(s => ({ id: parseInt(s.id, 10), name: s.name })),
+        // Create a complete BackendGroup for each group, not just the ID
+        groups: group.groups?.map(g => ({
+            id: parseInt(g.id, 10),
+            name: g.name,
+            created_at: g.created_at || new Date().toISOString(),
+            updated_at: g.updated_at || new Date().toISOString()
+        } as BackendGroup)),
+        access_specialists: group.access_specialists?.map(s => ({ 
+            id: parseInt(s.id, 10), 
+            name: s.name 
+        })),
     };
 }
 
