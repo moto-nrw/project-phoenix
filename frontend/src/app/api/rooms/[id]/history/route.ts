@@ -51,6 +51,21 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
     endpoint += `?${queryParams.toString()}`;
   }
   
-  // Try to fetch from API
-  return await apiGet<BackendRoomHistoryEntry[]>(endpoint, token);
+  try {
+    // Try to fetch from API
+    return await apiGet<BackendRoomHistoryEntry[]>(endpoint, token);
+  } catch (error) {
+    console.error(`Error fetching room history for room ${params.id}:`, error);
+    
+    // Handle common error cases
+    if (error instanceof Error && 
+        (error.message.includes('404') || 
+         error.message.includes('relation "rooms" does not exist'))) {
+      // Return empty array rather than throwing
+      return [];
+    }
+    
+    // Re-throw other errors
+    throw error;
+  }
 });

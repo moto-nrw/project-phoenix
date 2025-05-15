@@ -19,7 +19,7 @@ export function createGetHandler<T>(
 ) {
   return async (
     request: NextRequest,
-    { params }: { params: Record<string, unknown> }
+    context: { params: Record<string, unknown> }
   ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse>> => {
     try {
       const session = await auth();
@@ -31,7 +31,16 @@ export function createGetHandler<T>(
         );
       }
 
-      const data = await handler(request, session.user.token, params);
+      // Ensure params are properly awaited and typed
+      const safeParams: Record<string, unknown> = {};
+      // Copy all properties from context.params
+      if (context && context.params) {
+        Object.keys(context.params).forEach(key => {
+          safeParams[key] = context.params[key];
+        });
+      }
+      
+      const data = await handler(request, session.user.token, safeParams);
       
       // For the rooms endpoint, we need to pass the raw data directly
       // This is a special case for the rooms endpoint which needs to return the array directly
@@ -107,7 +116,7 @@ export function createPutHandler<T, B = unknown>(
 ) {
   return async (
     request: NextRequest,
-    { params }: { params: Record<string, unknown> }
+    context: { params: Record<string, unknown> }
   ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse>> => {
     try {
       const session = await auth();
@@ -119,8 +128,17 @@ export function createPutHandler<T, B = unknown>(
         );
       }
 
+      // Ensure params are properly awaited and typed
+      const safeParams: Record<string, unknown> = {};
+      // Copy all properties from context.params
+      if (context && context.params) {
+        Object.keys(context.params).forEach(key => {
+          safeParams[key] = context.params[key];
+        });
+      }
+
       const body = await request.json() as B;
-      const data = await handler(request, body, session.user.token, params);
+      const data = await handler(request, body, session.user.token, safeParams);
       // Wrap the response in ApiResponse format if it's not already
       const response: ApiResponse<T> = typeof data === 'object' && data !== null && 'success' in data
         ? (data as unknown as ApiResponse<T>)
@@ -147,7 +165,7 @@ export function createDeleteHandler<T>(
 ) {
   return async (
     request: NextRequest,
-    { params }: { params: Record<string, unknown> }
+    context: { params: Record<string, unknown> }
   ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse>> => {
     try {
       const session = await auth();
@@ -159,7 +177,16 @@ export function createDeleteHandler<T>(
         );
       }
 
-      const data = await handler(request, session.user.token, params);
+      // Ensure params are properly awaited and typed
+      const safeParams: Record<string, unknown> = {};
+      // Copy all properties from context.params
+      if (context && context.params) {
+        Object.keys(context.params).forEach(key => {
+          safeParams[key] = context.params[key];
+        });
+      }
+
+      const data = await handler(request, session.user.token, safeParams);
       // For delete operations with no content, return 204 status
       if (data === null || data === undefined) {
         return new NextResponse(null, { status: 204 });

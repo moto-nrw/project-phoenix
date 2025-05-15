@@ -68,7 +68,15 @@ func (r *Repository[T]) FindByID(ctx context.Context, id interface{}) (T, error)
 
 	entityVal := reflect.New(entityType).Interface().(T)
 
-	err := r.DB.NewSelect().Model(entityVal).Where("id = ?", id).Scan(ctx)
+	// Use ModelTableExpr to specify the schema-qualified table name with the standard "room" alias
+	// This keeps consistency with the rest of the codebase
+	tableExpr := fmt.Sprintf("%s AS room", r.TableName)
+
+	err := r.DB.NewSelect().
+		Model(entityVal).
+		ModelTableExpr(tableExpr).
+		Where("id = ?", id).
+		Scan(ctx)
 	if err != nil {
 		return entity, &modelBase.DatabaseError{
 			Op:  "find by id",
@@ -77,6 +85,16 @@ func (r *Repository[T]) FindByID(ctx context.Context, id interface{}) (T, error)
 	}
 
 	return entityVal, nil
+}
+
+// lastIndexOfChar returns the last index of the character c in string s, or -1 if not found
+func lastIndexOfChar(s string, c byte) int {
+	for i := len(s) - 1; i >= 0; i-- {
+		if s[i] == c {
+			return i
+		}
+	}
+	return -1
 }
 
 // Update updates an existing entity in the database
@@ -93,7 +111,15 @@ func (r *Repository[T]) Update(ctx context.Context, entity T) error {
 		}
 	}
 
-	_, err := r.DB.NewUpdate().Model(entity).WherePK().Exec(ctx)
+	// Use ModelTableExpr to specify the schema-qualified table name with the standard "room" alias
+	// This keeps consistency with the rest of the codebase
+	tableExpr := fmt.Sprintf("%s AS room", r.TableName)
+
+	_, err := r.DB.NewUpdate().
+		Model(entity).
+		ModelTableExpr(tableExpr).
+		WherePK().
+		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
@@ -116,7 +142,15 @@ func (r *Repository[T]) Delete(ctx context.Context, id interface{}) error {
 
 	entityVal := reflect.New(entityType).Interface()
 
-	_, err := r.DB.NewDelete().Model(entityVal).Where("id = ?", id).Exec(ctx)
+	// Use ModelTableExpr to specify the schema-qualified table name with the standard "room" alias
+	// This keeps consistency with the rest of the codebase
+	tableExpr := fmt.Sprintf("%s AS room", r.TableName)
+
+	_, err := r.DB.NewDelete().
+		Model(entityVal).
+		ModelTableExpr(tableExpr).
+		Where("id = ?", id).
+		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete",
@@ -131,7 +165,13 @@ func (r *Repository[T]) Delete(ctx context.Context, id interface{}) error {
 func (r *Repository[T]) List(ctx context.Context, filters map[string]interface{}) ([]T, error) {
 	var entities []T
 
-	query := r.DB.NewSelect().Model(&entities)
+	// Use ModelTableExpr to specify the schema-qualified table name with the standard "room" alias
+	// This keeps consistency with the rest of the codebase
+	tableExpr := fmt.Sprintf("%s AS room", r.TableName)
+
+	query := r.DB.NewSelect().
+		Model(&entities).
+		ModelTableExpr(tableExpr)
 
 	// Apply filters
 	for field, value := range filters {
@@ -163,7 +203,14 @@ func (r *Repository[T]) Count(ctx context.Context, filters map[string]interface{
 
 	entityVal := reflect.New(entityType).Interface()
 
-	query := r.DB.NewSelect().Model(entityVal).Column("id")
+	// Use ModelTableExpr to specify the schema-qualified table name with the standard "room" alias
+	// This keeps consistency with the rest of the codebase
+	tableExpr := fmt.Sprintf("%s AS room", r.TableName)
+
+	query := r.DB.NewSelect().
+		Model(entityVal).
+		ModelTableExpr(tableExpr).
+		Column("id")
 
 	// Apply filters
 	for field, value := range filters {

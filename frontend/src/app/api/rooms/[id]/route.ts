@@ -33,8 +33,20 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     throw new Error('Invalid id parameter');
   }
   
-  // Call the backend API to get the room data
-  return await apiGet<BackendRoom>(`/api/rooms/${params.id}`, token);
+  try {
+    // Call the backend API to get the room data
+    return await apiGet<BackendRoom>(`/api/rooms/${params.id}`, token);
+  } catch (error) {
+    console.error(`Error fetching room ${params.id}:`, error);
+    // If we get a 404 or database error, return a properly formatted error
+    if (error instanceof Error && 
+        (error.message.includes('404') || 
+         error.message.includes('relation "rooms" does not exist'))) {
+      throw new Error(`Room with ID ${params.id} not found`);
+    }
+    // Re-throw other errors
+    throw error;
+  }
 });
 
 /**
@@ -52,8 +64,20 @@ export const PUT = createPutHandler<BackendRoom, RoomUpdateRequest>(
       throw new Error('Capacity must be greater than 0');
     }
     
-    // Update the room via the API
-    return await apiPut<BackendRoom>(`/api/rooms/${params.id}`, token, body);
+    try {
+      // Update the room via the API
+      return await apiPut<BackendRoom>(`/api/rooms/${params.id}`, token, body);
+    } catch (error) {
+      console.error(`Error updating room ${params.id}:`, error);
+      // If we get a 404 or database error, return a properly formatted error
+      if (error instanceof Error && 
+          (error.message.includes('404') || 
+           error.message.includes('relation "rooms" does not exist'))) {
+        throw new Error(`Room with ID ${params.id} not found`);
+      }
+      // Re-throw other errors
+      throw error;
+    }
   }
 );
 
@@ -66,9 +90,21 @@ export const DELETE = createDeleteHandler(async (_request: NextRequest, token: s
     throw new Error('Invalid id parameter');
   }
   
-  // Delete the room via the API
-  await apiDelete(`/api/rooms/${params.id}`, token);
-  
-  // Return 204 No Content response
-  return null;
+  try {
+    // Delete the room via the API
+    await apiDelete(`/api/rooms/${params.id}`, token);
+    
+    // Return 204 No Content response
+    return null;
+  } catch (error) {
+    console.error(`Error deleting room ${params.id}:`, error);
+    // If we get a 404 or database error, return a properly formatted error
+    if (error instanceof Error && 
+        (error.message.includes('404') || 
+         error.message.includes('relation "rooms" does not exist'))) {
+      throw new Error(`Room with ID ${params.id} not found`);
+    }
+    // Re-throw other errors
+    throw error;
+  }
 });
