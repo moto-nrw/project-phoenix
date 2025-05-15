@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## 1. Project Identity and Role
 
 **You are:** A highly skilled and helpful AI assistant named Claude, specialized in software development and code-related tasks within the context of this project.
@@ -10,56 +12,44 @@
 
 **Project Name:** Project-Phoenix
 
-**Project Description (Brief):** A web application for managing student attendance and location tracking using RFID technology.
+**Project Description:** A web application for managing student attendance and location tracking using RFID technology in educational institutions. Tracks student presence, room occupancy, and provides comprehensive management for rooms, activities, and student groups.
 
 **Programming Languages Used:** Go, TypeScript, JavaScript
 
-**Key Technologies and Frameworks:** React, Docker, PostgreSQL, Next.js, Tailwind CSS
-
-**Codebase Location (if applicable):** /backend is my go code, /frontend is my react code
-
-**Relevant Documentation:** /docs contains API documentation, architecture diagrams, and other relevant documents.
-
-**Project Architecture Overview:** The system follows a microservices architecture with:
-- Frontend: Next.js React application with Tailwind CSS
-- Backend: Go API server with RESTful endpoints
-- Database: PostgreSQL for persistent data storage
+**Key Technologies and Frameworks:**
+- Backend: Go with Chi router, Bun ORM for PostgreSQL
+- Frontend: Next.js (v15+) with React (v19+), Tailwind CSS (v4+)
+- Database: PostgreSQL
 - Authentication: JWT-based auth system
 - RFID Integration: Custom API endpoints for device communication
+- Deployment: Docker/Docker Compose
 
-## 3. Coding Style and Conventions
+**Project Architecture Overview:**
+- **Frontend:** Next.js App Router architecture with TypeScript
+- **Backend:** Go API server with RESTful endpoints organized in domain-specific packages
+- **Database:** PostgreSQL with multi-schema design (auth, users, education, facilities, activities, etc.)
+- **Auth System:** JWT-based authentication with comprehensive role-based access control
+- **API Structure:** Follows resource-oriented design with clear domain boundaries
 
-**Coding Style Guide:** Clean Code principles, idiomatic Go, and TypeScript conventions. Please refer to the Lintings i use in my GitHub actions and workflows.
+## 3. Code Structure and Organization
 
-**Formatting and Indentation:** Adhere to already used formatting styles in the codebase
+### Backend (Go)
+- **api/**: API handlers and route definitions organized by domain
+- **auth/**: Authentication and authorization mechanisms
+- **cmd/**: CLI commands for server, migrations, and documentation
+- **database/**: Database connections and migrations
+- **models/**: Data models with validation and business logic
+- **services/**: Core business logic organized by domain
+- **email/**: Email templating and delivery services
+- **logging/**: Structured logging utilities
 
-**Naming Conventions:** Use best practices for naming variables, functions, and classes for idiomatic Go and best practice React and Next.js
-
-## 4. Workflow and Collaboration
-
-**Version Control:** Git, with a focus on clear commit and conventional commits and meaningful pull requests.
-
-## 5. Specific Instructions and Constraints
-
-**Things to Avoid:** remove deprecated code, avoid using outdated libraries or frameworks, and do not introduce breaking changes without prior discussion.
-
-**Security Considerations:** Always validate and sanitize user inputs, especially in API endpoints. Be cautious with sensitive data and ensure proper authentication and authorization mechanisms are in place.
-
-## 6. Ongoing Learning and Adaptation
-
-You are expected to learn and adapt based on the user's feedback and the context of the ongoing conversation. If something is unclear, ask clarifying questions.
-
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+### Frontend (Next.js)
+- **src/app/**: Next.js App Router pages and API routes
+- **src/components/**: Reusable UI components organized by domain/function
+- **src/lib/**: Utility functions, API clients, and helpers
+- **src/styles/**: Global CSS and Tailwind configuration
 
 ## Build/Test Commands
-- Start database: `docker compose up -d postgres`
-- Run migrations: `docker compose run server ./main migrate`
-- Start all services: `docker compose up`
-- Backend tests: `go test ./...` or specific: `go test ./api/rfid -run TestFunction`
-- Run frontend dev: `npm run dev` or with docker: `docker compose up frontend`
-- Frontend checks: `npm run lint && npm run typecheck`
-- Avoid running tests in docker when possible (creates unused containers)
 
 ### Backend (Go) Commands
 ```bash
@@ -111,7 +101,52 @@ docker compose logs postgres    # Check database logs
 docker compose down             # Stop all services
 ```
 
+## Environment Setup
+
+### Quick Start
+- Start database: `docker compose up -d postgres`
+- Run migrations: `docker compose run server ./main migrate`
+- Start all services: `docker compose up`
+- Frontend checks: `npm run lint && npm run typecheck`
+- Avoid running tests in docker when possible (creates unused containers)
+
+### Backend Environment Variables (.env)
+- `LOG_LEVEL`: Set to `debug` for development
+- `DB_DSN`: Database connection string
+- `DB_DEBUG`: Set to `true` to see SQL queries
+- `AUTH_JWT_SECRET`: Secret key for JWT generation
+- `ENABLE_CORS`: Set to `true` for local development
+
+### Frontend Environment Variables
+- `NEXT_PUBLIC_API_URL`: Backend API URL
+- `NEXTAUTH_URL`: Frontend URL for authentication
+- `NEXTAUTH_SECRET`: Secret for NextAuth
+
+## Database Structure
+
+The database uses multiple schemas to organize tables by domain:
+
+- **auth**: Authentication-related tables (accounts, tokens, permissions)
+- **users**: User profile and identity tables (persons, students, teachers)
+- **education**: Group and class management
+- **schedule**: Time and schedule management
+- **activities**: Student activities and enrollments
+- **facilities**: Rooms and physical locations
+- **iot**: IoT device management
+- **feedback**: User feedback
+- **config**: System configuration
+
+## Key API Endpoints
+
+- Authentication: `/api/auth/token`, `/api/auth/login`
+- Students: `/api/students`
+- Rooms: `/api/rooms`
+- Activities: `/api/activities`
+- Groups: `/api/groups`
+- Active visits: `/api/active/visits`
+
 ## Debugging Tips
+
 - Backend logging: Check `logging/logger.go` for available log levels
 - RFID device issues: See `/docs/rfid-integration-guide.md` for troubleshooting
 - JWT authentication: Use debug endpoint `api/auth/debug-token/` to inspect tokens
@@ -120,6 +155,7 @@ docker compose down             # Stop all services
 - API response problems: Use the network tab to inspect request/response payloads
 
 ## Code Style Guidelines
+
 - Go: Follow idiomatic patterns with consistent error handling
 - TypeScript: Use type imports (`import type { X }`) with inline style
 - Frontend components: PascalCase for components, camelCase for functions
