@@ -19,7 +19,7 @@ export function createGetHandler<T>(
 ) {
   return async (
     request: NextRequest,
-    { params }: { params: Record<string, unknown> }
+    context: { params: Promise<Record<string, string | string[] | undefined>> }
   ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse>> => {
     try {
       const session = await auth();
@@ -31,6 +31,7 @@ export function createGetHandler<T>(
         );
       }
 
+      const params = await context.params;
       const data = await handler(request, session.user.token, params);
       // Wrap the response in ApiResponse format if it's not already
       const response: ApiResponse<T> = typeof data === 'object' && data !== null && 'success' in data
@@ -59,7 +60,7 @@ export function createPostHandler<T, B = unknown>(
 ) {
   return async (
     request: NextRequest,
-    { params }: { params: Record<string, unknown> }
+    context: { params: Promise<Record<string, string | string[] | undefined>> }
   ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse>> => {
     try {
       const session = await auth();
@@ -71,6 +72,7 @@ export function createPostHandler<T, B = unknown>(
         );
       }
 
+      const params = await context.params;
       const body = await request.json() as B;
       const data = await handler(request, body, session.user.token, params);
       // Wrap the response in ApiResponse format if it's not already
@@ -100,7 +102,7 @@ export function createPutHandler<T, B = unknown>(
 ) {
   return async (
     request: NextRequest,
-    { params }: { params: Record<string, unknown> }
+    context: { params: Promise<Record<string, string | string[] | undefined>> }
   ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse>> => {
     try {
       const session = await auth();
@@ -112,6 +114,7 @@ export function createPutHandler<T, B = unknown>(
         );
       }
 
+      const params = await context.params;
       const body = await request.json() as B;
       const data = await handler(request, body, session.user.token, params);
       // Wrap the response in ApiResponse format if it's not already
@@ -140,7 +143,7 @@ export function createDeleteHandler<T>(
 ) {
   return async (
     request: NextRequest,
-    { params }: { params: Record<string, unknown> }
+    context: { params: Promise<Record<string, string | string[] | undefined>> }
   ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse>> => {
     try {
       const session = await auth();
@@ -152,6 +155,7 @@ export function createDeleteHandler<T>(
         );
       }
 
+      const params = await context.params;
       const data = await handler(request, session.user.token, params);
       // For delete operations with no content, return 204 status
       if (data === null || data === undefined) {
