@@ -2,7 +2,7 @@
 import type { NextRequest } from "next/server";
 import { apiGet, apiPost } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
-import type { BackendRoom, Room } from "~/lib/room-helpers";
+import type { BackendRoom } from "~/lib/room-helpers";
 
 /**
  * Type definition for room creation request

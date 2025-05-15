@@ -1540,13 +1540,19 @@ export const roomService = {
           throw new Error(`API error: ${response.status}`);
         }
 
-        const responseData = await response.json();
+        interface RoomApiResponse {
+          data?: BackendRoom;
+          id?: number;
+          [key: string]: unknown;
+        }
+        
+        const responseData = await response.json() as RoomApiResponse;
         
         // Handle different response formats
         if (responseData && typeof responseData === 'object') {
           if ('data' in responseData && responseData.data) {
             // Wrapped response format with nested data property
-            return mapSingleRoomResponse({ data: responseData.data as BackendRoom });
+            return mapSingleRoomResponse({ data: responseData.data });
           } else if ('id' in responseData) {
             // Direct room object without nesting
             return mapSingleRoomResponse({ data: responseData as BackendRoom });
@@ -1561,11 +1567,17 @@ export const roomService = {
         const response = await api.get(url);
         
         // For axios, the response is always in response.data
-        const responseData = response.data;
+        interface RoomApiResponse {
+          data?: BackendRoom;
+          id?: number;
+          [key: string]: unknown;
+        }
+        
+        const responseData = response.data as RoomApiResponse;
         if (responseData && typeof responseData === 'object') {
           if ('data' in responseData && responseData.data) {
             // Wrapped response format with nested data property
-            return mapSingleRoomResponse({ data: responseData.data as BackendRoom });
+            return mapSingleRoomResponse({ data: responseData.data });
           } else if ('id' in responseData) {
             // Direct room object without nesting
             return mapSingleRoomResponse({ data: responseData as BackendRoom });
