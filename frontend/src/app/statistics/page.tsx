@@ -7,6 +7,10 @@ import { redirect } from "next/navigation";
 import { Header } from "~/components/dashboard/header";
 import { Sidebar } from "~/components/dashboard/sidebar";
 import { Alert } from "~/components/ui/alert";
+import { jsPDF } from "jspdf";
+import * as XLSX from "xlsx";
+import html2canvas from "html2canvas";
+
 
 // Type definitions for statistics
 interface SchoolStats {
