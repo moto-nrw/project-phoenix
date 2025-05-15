@@ -207,24 +207,26 @@ const NAV_ITEMS: NavItem[] = [
         )
     },
     {
-        href: "/database/activities",
+        href: "/activities",
         label: "Aktivitäten",
-        icon: "M17 14v6m-3-3h6M6 10h2a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2zm10 0h2a2 2 0 002-2V6a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2zM6 20h2a2 2 0 002-2v-2a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z",
+        icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
         helpContent: (
             <div>
-                <p>In der <strong>Aktivitätenverwaltung</strong> können Sie:</p>
+                <p>In der <strong>Aktivitätenübersicht</strong> können Sie:</p>
                 <ul className="mt-3 space-y-2">
-                    <li>• <strong>Aktivitäten erstellen:</strong> Neue Angebote für Schüler anlegen</li>
-                    <li>• <strong>Teilnehmer verwalten:</strong> Schüler zu Aktivitäten hinzufügen oder entfernen</li>
-                    <li>• <strong>Zeitplanung:</strong> Termine und Zeiträume festlegen</li>
+                    <li>• <strong>Aktivitäten einsehen:</strong> Übersicht aller verfügbaren Aktivitäten</li>
+                    <li>• <strong>Filtern:</strong> Nach Kategorie, Status, Teilnahmemöglichkeit und Gebäude</li>
+                    <li>• <strong>Detailansicht:</strong> Informationen zu Leitung, Teilnehmerzahl und Ort</li>
                 </ul>
-                <p className="mt-4"><strong>Kategorien und Funktionen:</strong></p>
+                <p className="mt-4"><strong>Kategorien:</strong></p>
                 <ul className="mt-2 space-y-1 text-sm">
-                    <li>• <strong>Sport:</strong> Sportliche Aktivitäten wie Fußball oder Turnen</li>
-                    <li>• <strong>Kreativ:</strong> Bastel- und Kunstangebote</li>
-                    <li>• <strong>Musik:</strong> Musikalische Angebote und Instrumente</li>
-                    <li>• <strong>Lernen:</strong> Hausaufgabenhilfe und Förderangebote</li>
-                    <li>• <strong>Spiel:</strong> Gesellschaftsspiele und freies Spielen</li>
+                    <li>• <strong>Kreatives/Musik:</strong> Chor, Theaterprojekt und andere kreative Angebote</li>
+                    <li>• <strong>NW/Technik:</strong> Informatik AG und technische Aktivitäten</li>
+                    <li>• <strong>Bewegen/Ruhe:</strong> Sport-AGs wie Basketball</li>
+                    <li>• <strong>Lernen:</strong> Lesegruppe und andere Bildungsangebote</li>
+                    <li>• <strong>Hauswirtschaft:</strong> Praktische Aktivitäten</li>
+                    <li>• <strong>Natur:</strong> Garten AG und naturnahe Angebote</li>
+                    <li>• <strong>Spielen:</strong> Verschiedene Spiel- und Freizeitaktivitäten</li>
                 </ul>
             </div>
         )
