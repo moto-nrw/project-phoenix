@@ -9,9 +9,10 @@ RUN npm ci
 # Copy source files
 COPY . .
 
-ENV NEXT_TELEMETRY_DISABLED 1
-ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
 
 EXPOSE 3000
 
-CMD ["npm", "run", "dev"]
+RUN npm run build
+CMD ["npm", "start"]

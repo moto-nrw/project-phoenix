@@ -57,7 +57,7 @@ export default function HomePage() {
                 title="Hilfe"
                 content={
                   <div>
-                    <p>Melden Sie sich mit Ihrem <strong>MOTO-Account</strong> an:</p>
+                    <p>Melden Sie sich mit Ihrem <strong>moto-Account</strong> an:</p>
                     <ul className="mt-3 space-y-2">
                       <li>• <strong>E-Mail:</strong> Ihre registrierte E-Mail-Adresse</li>
                       <li>• <strong>Passwort:</strong> Ihr persönliches Passwort</li>
@@ -93,7 +93,7 @@ export default function HomePage() {
 
           {/* Welcome Text */}
           <h1 className="bg-gradient-to-r from-teal-600 to-blue-600 bg-clip-text text-4xl md:text-5xl font-bold text-transparent mb-2">
-            Willkommen bei MOTO!
+            Willkommen bei moto!
           </h1>
           <p className="text-xl text-gray-700 mb-10">
             Ganztag. Digital.
