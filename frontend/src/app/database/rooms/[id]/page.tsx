@@ -11,7 +11,7 @@ export default function RoomDetailPage() {
   const router = useRouter();
   const params = useParams();
   // Ensure we handle both string and array ID formats from Next.js
-  const roomId = Array.isArray(params.id) ? params.id[0] : params.id!;
+  const roomId = Array.isArray(params.id) ? params.id[0] : (params.id || "");
 
   const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,6 +20,12 @@ export default function RoomDetailPage() {
 
   useEffect(() => {
     const fetchRoom = async () => {
+      if (!roomId) {
+        setError("Keine Raum-ID angegeben");
+        setLoading(false);
+        return;
+      }
+      
       try {
         setLoading(true);
         const data = await roomService.getRoom(roomId);
@@ -36,12 +42,15 @@ export default function RoomDetailPage() {
       }
     };
 
-    if (roomId) {
-      void fetchRoom();
-    }
+    void fetchRoom();
   }, [roomId]);
 
   const handleUpdate = async (formData: Partial<Room>) => {
+    if (!roomId) {
+      setError("Keine Raum-ID angegeben");
+      return;
+    }
+    
     try {
       setLoading(true);
       setError(null);
@@ -77,6 +86,11 @@ export default function RoomDetailPage() {
   };
 
   const handleDelete = async () => {
+    if (!roomId) {
+      setError("Keine Raum-ID angegeben");
+      return;
+    }
+    
     if (
       window.confirm("Sind Sie sicher, dass Sie diesen Raum löschen möchten?")
     ) {
@@ -334,7 +348,7 @@ export default function RoomDetailPage() {
             
             {/* Room History Component */}
             <div className="mt-8">
-              <RoomHistory roomId={roomId} />
+              {roomId && <RoomHistory roomId={roomId} />}
             </div>
           </div>
         )}

@@ -1555,7 +1555,25 @@ export const roomService = {
             return mapSingleRoomResponse({ data: responseData.data });
           } else if ('id' in responseData) {
             // Direct room object without nesting
-            return mapSingleRoomResponse({ data: responseData as BackendRoom });
+            // Convert to proper BackendRoom
+            const roomData: BackendRoom = {
+              id: Number(responseData.id),
+              name: String(responseData.name ?? ""),
+              building: responseData.building as string | undefined,
+              floor: Number(responseData.floor ?? 0),
+              capacity: Number(responseData.capacity ?? 0),
+              category: String(responseData.category ?? ""),
+              color: String(responseData.color ?? ""),
+              device_id: responseData.device_id as string | undefined,
+              is_occupied: Boolean(responseData.is_occupied),
+              activity_name: responseData.activity_name as string | undefined,
+              group_name: responseData.group_name as string | undefined,
+              supervisor_name: responseData.supervisor_name as string | undefined,
+              student_count: responseData.student_count as number | undefined,
+              created_at: String(responseData.created_at ?? ""),
+              updated_at: String(responseData.updated_at ?? "")
+            };
+            return mapSingleRoomResponse({ data: roomData });
           }
         }
         
@@ -1580,7 +1598,25 @@ export const roomService = {
             return mapSingleRoomResponse({ data: responseData.data });
           } else if ('id' in responseData) {
             // Direct room object without nesting
-            return mapSingleRoomResponse({ data: responseData as BackendRoom });
+            // Convert to proper BackendRoom
+            const roomData: BackendRoom = {
+              id: Number(responseData.id),
+              name: String(responseData.name ?? ""),
+              building: responseData.building as string | undefined,
+              floor: Number(responseData.floor ?? 0),
+              capacity: Number(responseData.capacity ?? 0),
+              category: String(responseData.category ?? ""),
+              color: String(responseData.color ?? ""),
+              device_id: responseData.device_id as string | undefined,
+              is_occupied: Boolean(responseData.is_occupied),
+              activity_name: responseData.activity_name as string | undefined,
+              group_name: responseData.group_name as string | undefined,
+              supervisor_name: responseData.supervisor_name as string | undefined,
+              student_count: responseData.student_count as number | undefined,
+              created_at: String(responseData.created_at ?? ""),
+              updated_at: String(responseData.updated_at ?? "")
+            };
+            return mapSingleRoomResponse({ data: roomData });
           }
         }
         

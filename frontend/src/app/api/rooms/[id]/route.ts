@@ -179,19 +179,8 @@ export const PUT = createPutHandler<BackendRoom, RoomUpdateRequest>(
       console.log("Room updated successfully:", updatedRoom);
       
       // Make sure we return a properly formatted response with all fields
-      return {
-        id: updatedRoom.id,
-        name: updatedRoom.name,
-        building: updatedRoom.building,
-        floor: updatedRoom.floor,
-        capacity: updatedRoom.capacity,
-        category: updatedRoom.category,
-        color: updatedRoom.color,
-        device_id: updatedRoom.device_id ?? null,
-        is_occupied: updatedRoom.is_occupied ?? false,
-        created_at: updatedRoom.created_at,
-        updated_at: updatedRoom.updated_at
-      };
+      // Return the result directly as a BackendRoom
+      return updatedRoom;
     } catch (error) {
       console.error(`Error updating room ${params.id}:`, error);
       // If we get a 404 or database error, return a properly formatted error
