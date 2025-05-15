@@ -7,7 +7,7 @@ import { createGetHandler } from "~/lib/route-wrapper";
  * Handler for GET /api/active/analytics/counts
  * Returns counts of active groups, visits, and supervisors
  */
-export const GET = createGetHandler(async (_request: NextRequest, token: string) => {
+export const GET = createGetHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
   // Fetch counts from the API
   return await apiGet("/active/analytics/counts", token);
 });
