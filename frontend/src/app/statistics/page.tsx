@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { Header } from "~/components/dashboard/header";
 import { Sidebar } from "~/components/dashboard/sidebar";
 import { Alert } from "~/components/ui/alert";
+import { BackgroundWrapper } from "~/components/background-wrapper";
 
 
 // Type definitions for statistics
@@ -166,7 +167,7 @@ export default function StatisticsPage() {
 
     if (status === "loading" || loading) {
         return (
-            <div className="min-h-screen bg-gray-50">
+            <div className="min-h-screen">
                 <Header userName={session?.user?.name ?? "Benutzer"} />
                 <div className="flex">
                     <Sidebar />
@@ -185,7 +186,7 @@ export default function StatisticsPage() {
 
     if (error) {
         return (
-            <div className="min-h-screen bg-gray-50">
+            <div className="min-h-screen">
                 <Header userName={session?.user?.name ?? "Benutzer"} />
                 <div className="flex">
                     <Sidebar />
@@ -200,7 +201,7 @@ export default function StatisticsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen">
             {/* Header */}
             <Header userName={session?.user?.name ?? "Benutzer"} />
 
