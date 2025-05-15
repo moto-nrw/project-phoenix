@@ -89,16 +89,17 @@ export function RoomHistory({ roomId, dateRange }: RoomHistoryProps) {
           
           if (roomResponse.ok) {
             const roomData = await roomResponse.json();
+            // Map from backend properties to frontend properties
             setRoom({
               id: String(roomData.id),
-              name: roomData.room_name,
+              name: roomData.name || roomData.room_name, // Support both name formats
               building: roomData.building,
               floor: roomData.floor,
               capacity: roomData.capacity,
               category: roomData.category,
               color: roomData.color,
               deviceId: roomData.device_id,
-              isOccupied: roomData.is_occupied,
+              isOccupied: roomData.is_occupied || false,
               activityName: roomData.activity_name,
               groupName: roomData.group_name,
               supervisorName: roomData.supervisor_name,

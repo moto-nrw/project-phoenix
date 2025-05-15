@@ -10,7 +10,8 @@ import { roomService } from "@/lib/api";
 export default function RoomDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const roomId = params.id as string;
+  // Ensure we handle both string and array ID formats from Next.js
+  const roomId = Array.isArray(params.id) ? params.id[0] : params.id as string;
 
   const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);

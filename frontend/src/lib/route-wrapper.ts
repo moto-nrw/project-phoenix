@@ -31,13 +31,11 @@ export function createGetHandler<T>(
         );
       }
 
-      // Ensure params are properly awaited and typed
+      // In Next.js App Router, params should be handled as an awaitable
+      // Extract only the id parameter if it exists
       const safeParams: Record<string, unknown> = {};
-      // Copy all properties from context.params
-      if (context && context.params) {
-        Object.keys(context.params).forEach(key => {
-          safeParams[key] = context.params[key];
-        });
+      if (context?.params?.id) {
+        safeParams.id = context.params.id;
       }
       
       const data = await handler(request, session.user.token, safeParams);
@@ -128,13 +126,11 @@ export function createPutHandler<T, B = unknown>(
         );
       }
 
-      // Ensure params are properly awaited and typed
+      // In Next.js App Router, params should be handled as an awaitable
+      // Extract only the id parameter if it exists
       const safeParams: Record<string, unknown> = {};
-      // Copy all properties from context.params
-      if (context && context.params) {
-        Object.keys(context.params).forEach(key => {
-          safeParams[key] = context.params[key];
-        });
+      if (context?.params?.id) {
+        safeParams.id = context.params.id;
       }
 
       const body = await request.json() as B;
@@ -177,13 +173,11 @@ export function createDeleteHandler<T>(
         );
       }
 
-      // Ensure params are properly awaited and typed
+      // In Next.js App Router, params should be handled as an awaitable
+      // Extract only the id parameter if it exists
       const safeParams: Record<string, unknown> = {};
-      // Copy all properties from context.params
-      if (context && context.params) {
-        Object.keys(context.params).forEach(key => {
-          safeParams[key] = context.params[key];
-        });
+      if (context?.params?.id) {
+        safeParams.id = context.params.id;
       }
 
       const data = await handler(request, session.user.token, safeParams);

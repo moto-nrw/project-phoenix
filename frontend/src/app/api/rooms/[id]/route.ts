@@ -35,7 +35,58 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
   
   try {
     // Call the backend API to get the room data
-    return await apiGet<BackendRoom>(`/api/rooms/${params.id}`, token);
+    const response = await apiGet<any>(`/api/rooms/${params.id}`, token);
+    
+    // Check if the response is in the expected format
+    console.log("Room API response:", JSON.stringify(response));
+    
+    // Handle different response formats
+    if (response && typeof response === 'object') {
+      if ('data' in response && typeof response.data === 'object') {
+        // Wrapped response format - normalize field names
+        const roomData = response.data;
+        return {
+          id: roomData.id,
+          name: roomData.name,
+          building: roomData.building,
+          floor: roomData.floor,
+          capacity: roomData.capacity,
+          category: roomData.category,
+          color: roomData.color,
+          device_id: roomData.device_id,
+          is_occupied: roomData.is_occupied || false,
+          activity_name: roomData.activity_name,
+          group_name: roomData.group_name,
+          supervisor_name: roomData.supervisor_name,
+          student_count: roomData.student_count,
+          created_at: roomData.created_at,
+          updated_at: roomData.updated_at
+        };
+      } else if ('id' in response) {
+        // Direct room object - ensure all fields use snake_case
+        return {
+          id: response.id,
+          name: response.name, 
+          building: response.building,
+          floor: response.floor,
+          capacity: response.capacity,
+          category: response.category,
+          color: response.color,
+          device_id: response.device_id,
+          is_occupied: response.is_occupied || false,
+          activity_name: response.activity_name,
+          group_name: response.group_name,
+          supervisor_name: response.supervisor_name,
+          student_count: response.student_count,
+          created_at: response.created_at,
+          updated_at: response.updated_at
+        };
+      }
+    }
+    
+    // If format is unexpected, throw error
+    console.error("Unexpected room response format:", response);
+    throw new Error("Unexpected room response format");
   } catch (error) {
     console.error(`Error fetching room ${params.id}:`, error);
     // If we get a 404 or database error, return a properly formatted error

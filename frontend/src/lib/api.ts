@@ -1540,12 +1540,40 @@ export const roomService = {
           throw new Error(`API error: ${response.status}`);
         }
 
-        const data = (await response.json()) as BackendRoom;
-        return mapSingleRoomResponse({ data });
+        const responseData = await response.json();
+        
+        // Handle different response formats
+        if (responseData && typeof responseData === 'object') {
+          if ('data' in responseData && responseData.data) {
+            // Wrapped response format
+            return mapSingleRoomResponse({ data: responseData.data as BackendRoom });
+          } else if ('id' in responseData) {
+            // Direct room object
+            return mapSingleRoomResponse({ data: responseData as BackendRoom });
+          }
+        }
+        
+        // If nothing matched, log and return empty
+        console.warn("Unexpected room response format:", responseData);
+        throw new Error("Unexpected room response format");
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapSingleRoomResponse({ data: response.data as BackendRoom });
+        
+        // For axios, the response is always in response.data
+        const responseData = response.data;
+        if (responseData && typeof responseData === 'object') {
+          if ('data' in responseData && responseData.data) {
+            // Wrapped response format
+            return mapSingleRoomResponse({ data: responseData.data as BackendRoom });
+          } else if ('id' in responseData) {
+            // Direct room object
+            return mapSingleRoomResponse({ data: responseData as BackendRoom });
+          }
+        }
+        
+        console.warn("Unexpected server room response format:", responseData);
+        throw new Error("Unexpected room response format");
       }
     } catch (error) {
       console.error(`Error fetching room ${id}:`, error);
