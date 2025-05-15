@@ -171,9 +171,7 @@ const dummyRooms: Room[] = [
 
 export default function RoomsPage() {
     const router = useRouter();
-    // Removed unused 'rooms' and 'setRooms' state
     const [loading, setLoading] = useState(false);
-    // Kept error state but not 'setError' as it seems to be needed elsewhere
     const [error] = useState<string | null>(null);
     const [searchFilter, setSearchFilter] = useState("");
     const [buildingFilter, setBuildingFilter] = useState<string | null>(null);
@@ -233,7 +231,7 @@ export default function RoomsPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchFilter, buildingFilter, floorFilter, categoryFilter, occupiedFilter]);
 
-    // Handle room selection
+    // Handle room selection - Navigiere zur Raumdetailseite
     const handleSelectRoom = (room: Room) => {
         router.push(`/rooms/${room.id}`);
     };

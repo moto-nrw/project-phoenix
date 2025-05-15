@@ -51,6 +51,63 @@ const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
                 <li>• <strong>Abholsituation prüfen:</strong> Wann ein Schüler die Einrichtung verlassen hat</li>
             </ul>
         </div>
+    ),
+    // Feedback History Page Help Content
+    "feedback_history": (
+        <div>
+            <p>In der <strong>Feedbackhistorie</strong> finden Sie:</p>
+            <ul className="mt-3 space-y-2">
+                <li>• <strong>Pädagogische Rückmeldungen:</strong> Wichtige Beobachtungen zum Schüler</li>
+                <li>• <strong>Verhaltensnotizen:</strong> Dokumentierte Verhaltensauffälligkeiten und positive Entwicklungen</li>
+                <li>• <strong>Elterngespräche:</strong> Protokolle zu Gesprächen mit Erziehungsberechtigten</li>
+            </ul>
+            <p className="mt-4"><strong>Funktionen und Möglichkeiten:</strong></p>
+            <ul className="mt-2 space-y-1 text-sm">
+                <li>• <strong>Chronologische Sortierung:</strong> Feedback-Einträge nach Datum geordnet</li>
+                <li>• <strong>Kategorisierung:</strong> Farbliche Kennzeichnung nach Art des Feedbacks</li>
+                <li>• <strong>Filtermöglichkeiten:</strong> Nach Zeitraum, Kategorie oder Verfasser filtern</li>
+                <li>• <strong>Neues Feedback hinzufügen:</strong> Direkt neue Beobachtungen dokumentieren</li>
+                <li>• <strong>Exportfunktion:</strong> Feedbackhistorie für Elterngespräche ausdrucken</li>
+            </ul>
+        </div>
+    ),
+    // Mensa History Page Help Content
+    "mensa_history": (
+        <div>
+            <p>Im <strong>Mensaverlauf</strong> können Sie einsehen:</p>
+            <ul className="mt-3 space-y-2">
+                <li>• <strong>Mahlzeitenteilnahme:</strong> An welchen Tagen der Schüler am Mittagessen teilgenommen hat</li>
+                <li>• <strong>Essensauswahl:</strong> Welche Menüs ausgewählt wurden (wenn angeboten)</li>
+                <li>• <strong>Besonderheiten:</strong> Allergien, Unverträglichkeiten oder persönliche Vorlieben</li>
+            </ul>
+            <p className="mt-4"><strong>Nützliche Funktionen:</strong></p>
+            <ul className="mt-2 space-y-1 text-sm">
+                <li>• <strong>Monatsübersicht:</strong> Kalendarische Darstellung der Teilnahme</li>
+                <li>• <strong>Statistiken:</strong> Übersicht der häufigsten Menüwahlen und Teilnahmequote</li>
+                <li>• <strong>An-/Abmeldung:</strong> Möglichkeit, den Schüler für bestimmte Tage an-/abzumelden</li>
+                <li>• <strong>Essenspläne:</strong> Zukünftige Menüs einsehen und vorbestellen</li>
+                <li>• <strong>Kostenübersicht:</strong> Kosten für vergangene Mahlzeiten und offene Beträge</li>
+            </ul>
+        </div>
+    ),
+    // Room Detail Page Help Content
+    "room-detail": (
+        <div>
+            <p>In der <strong>Raumdetailansicht</strong> finden Sie:</p>
+            <ul className="mt-3 space-y-2">
+                <li>• <strong>Allgemeine Informationen:</strong> Name, Gebäude, Etage und Kapazität des Raums</li>
+                <li>• <strong>Aktuelle Belegung:</strong> Ob und von wem der Raum aktuell genutzt wird</li>
+                <li>• <strong>Belegungshistorie:</strong> Chronologische Übersicht aller vergangenen Nutzungen</li>
+            </ul>
+            <p className="mt-4"><strong>Funktionen und Informationen:</strong></p>
+            <ul className="mt-2 space-y-1 text-sm">
+                <li>• <strong>Statusanzeige:</strong> Farbliche Markierung ob der Raum frei oder belegt ist</li>
+                <li>• <strong>Aktivitätsdetails:</strong> Welche Gruppe mit welcher Aktivität den Raum nutzt/genutzt hat</li>
+                <li>• <strong>Zeitliche Informationen:</strong> Beginn, Ende und Dauer jeder Raumbelegung</li>
+                <li>• <strong>Kategorie-Farbcodierung:</strong> Visuelle Unterscheidung der Raumnutzungsarten</li>
+                <li>• <strong>Aufsichtspersonen:</strong> Verantwortliche Betreuer für jede Aktivität</li>
+            </ul>
+        </div>
     )
 };
 
@@ -261,11 +318,17 @@ export function Sidebar({ className = "" }: SidebarProps) {
 
     // Den richtigen Hilfetext basierend auf der aktuellen Route finden
     const getActiveHelpContent = (): ReactNode => {
-        // Spezielle Seiten prüfen (Student Detail und Room History)
+        // Spezielle Seiten prüfen
         if (/\/students\/[^\/]+$/.exec(pathname)) {
             return SPECIFIC_PAGE_HELP["student-detail"];
         } else if (/\/students\/[^\/]+\/room_history/.exec(pathname)) {
             return SPECIFIC_PAGE_HELP.room_history;
+        } else if (/\/students\/[^\/]+\/feedback_history/.exec(pathname)) {
+            return SPECIFIC_PAGE_HELP.feedback_history;
+        } else if (/\/students\/[^\/]+\/mensa_history/.exec(pathname)) {
+            return SPECIFIC_PAGE_HELP.mensa_history;
+        } else if (/\/rooms\/[^\/]+$/.exec(pathname)) {
+            return SPECIFIC_PAGE_HELP["room-detail"];
         }
 
         // Finde das NavItem, das der aktuellen Route entspricht
@@ -297,6 +360,27 @@ export function Sidebar({ className = "" }: SidebarProps) {
         return `${baseClasses} ${isActiveLink(href) ? activeClasses : inactiveClasses}`;
     };
 
+    // Bestimmen des Hilfetitels basierend auf der aktuellen Route
+    const getHelpButtonTitle = (): string => {
+        if (/\/students\/[^\/]+$/.exec(pathname)) {
+            return "Schülerprofil Hilfe";
+        } else if (/\/students\/[^\/]+\/room_history/.exec(pathname)) {
+            return "Raumverlauf Hilfe";
+        } else if (/\/students\/[^\/]+\/feedback_history/.exec(pathname)) {
+            return "Feedbackhistorie Hilfe";
+        } else if (/\/students\/[^\/]+\/mensa_history/.exec(pathname)) {
+            return "Mensaverlauf Hilfe";
+        } else if (/\/rooms\/[^\/]+$/.exec(pathname)) {
+            return "Raumdetail Hilfe";
+        } else if (isActiveLink("/ogs_groups")) {
+            return "OGS-Gruppenansicht Hilfe";
+        } else if (isActiveLink("/rooms")) {
+            return "Raumverwaltung Hilfe";
+        } else {
+            return "Allgemeine Hilfe";
+        }
+    };
+
     return (
         <>
             <aside className={`w-64 bg-white border-r border-gray-200 min-h-screen overflow-y-auto ${className}`}>
@@ -322,15 +406,7 @@ export function Sidebar({ className = "" }: SidebarProps) {
             <div className="fixed bottom-0 left-0 z-50 w-64 p-4 bg-white border-t border-r border-gray-200">
                 <div className="flex items-center justify-start">
                     <HelpButton
-                        title={
-                            (/\/students\/[^\/]+$/.exec(pathname))
-                                ? "Schülerprofil Hilfe"
-                                : (/\/students\/[^\/]+\/room_history/.exec(pathname))
-                                    ? "Raumverlauf Hilfe"
-                                    : isActiveLink("/ogs_groups")
-                                        ? "OGS-Gruppenansicht Hilfe"
-                                        : "Allgemeine Hilfe"
-                        }
+                        title={getHelpButtonTitle()}
                         content={getActiveHelpContent()}
                         buttonClassName="mr-2"
                     />
