@@ -3,8 +3,7 @@ import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
-// We still need the type import for the response object shape, but not for the return type
-import type { ApiResponse } from "~/lib/api-helpers";
+// No need for the ApiResponse type import anymore since we're using NextResponse directly
 
 // Backend interface for room history entries
 export interface BackendRoomHistoryEntry {
