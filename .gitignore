@@ -366,7 +366,6 @@ cython_debug/
 # Generated binary files
 **/project-phoenix
 backend/project-phoenix
-/CLAUDE.md
 # Do NOT exclude package.json files - they should be tracked
 !/frontend/package.json
 !/frontend/package-lock.json

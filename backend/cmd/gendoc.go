@@ -2,13 +2,16 @@ package cmd
 
 import (
 	"fmt"
-	// "github.com/moto-nrw/project-phoenix/api" // Commented out temporarily until new API implementation
+	"github.com/moto-nrw/project-phoenix/api"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strings"
 
-	// "github.com/go-chi/docgen"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/docgen"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 )
@@ -53,27 +56,32 @@ func init() {
 }
 
 func genRoutesDoc() {
-	// Temporarily commented out until new API implementation
-	// api, err := api.New(false)
-	// if err != nil {
-	// 	log.Fatalf("Failed to initialize API: %v", err)
-	// }
-	//
-	// fmt.Print("Generating routes markdown file: ")
-	// md := docgen.MarkdownRoutesDoc(api, docgen.MarkdownOpts{
-	// 	ProjectPath: "github.com/moto-nrw/project-phoenix",
-	// 	Intro:       "MOTO REST API for RFID-based system.",
-	// })
-	// if err := os.WriteFile("routes.md", []byte(md), 0644); err != nil {
-	// 	log.Println(err)
-	// 	return
-	// }
-	// fmt.Println("OK")
-	fmt.Println("Routes documentation generation is temporarily disabled during API refactoring")
+	apiInstance, err := api.New(false)
+	if err != nil {
+		log.Fatalf("Failed to initialize API: %v", err)
+	}
+
+	// Use the Router field from the API instance, which is a chi.Router
+	fmt.Print("Generating routes markdown file: ")
+	md := docgen.MarkdownRoutesDoc(apiInstance.Router, docgen.MarkdownOpts{
+		ProjectPath: "github.com/moto-nrw/project-phoenix",
+		Intro:       "MOTO REST API for RFID-based system.",
+	})
+	if err := os.WriteFile("routes.md", []byte(md), 0644); err != nil {
+		log.Println(err)
+		return
+	}
+	fmt.Println("OK")
 }
 
 func genOpenAPIDoc() {
 	fmt.Print("Generating OpenAPI specification: ")
+
+	// Initialize API to get the router
+	apiInstance, err := api.New(false)
+	if err != nil {
+		log.Fatalf("Failed to initialize API: %v", err)
+	}
 
 	// Ensure docs directory exists
 	docsDir := "docs"
@@ -86,13 +94,18 @@ func genOpenAPIDoc() {
 	// Define the OpenAPI specification
 	openAPIPath := filepath.Join(docsDir, "openapi.yaml")
 
-	// Check if we need to update an existing spec or create a new one
-	if _, err := os.Stat(openAPIPath); os.IsNotExist(err) {
-		// Create a new specification file
-		createBaseOpenAPISpec(openAPIPath)
-	} else {
-		// Update the existing specification
-		updateOpenAPISpec(openAPIPath)
+	// Create base specification
+	spec := createBaseOpenAPISpecFromRouter(apiInstance.Router)
+
+	// Convert to YAML
+	data, err := yaml.Marshal(spec)
+	if err != nil {
+		log.Fatalf("Failed to marshal OpenAPI spec: %v", err)
+	}
+
+	// Write to file
+	if err := os.WriteFile(openAPIPath, data, 0644); err != nil {
+		log.Fatalf("Failed to write OpenAPI spec to file: %v", err)
 	}
 
 	// Run swagger CLI to validate the spec if swag is installed
@@ -106,6 +119,197 @@ func genOpenAPIDoc() {
 	}
 
 	fmt.Println("OK - OpenAPI specification generated/updated at", openAPIPath)
+}
+
+// createBaseOpenAPISpecFromRouter creates an OpenAPI specification from the chi router
+func createBaseOpenAPISpecFromRouter(router chi.Router) map[string]interface{} {
+	// Define the base OpenAPI specification
+	spec := map[string]interface{}{
+		"openapi": "3.0.3",
+		"info": map[string]interface{}{
+			"title":       "MOTO API",
+			"description": "API for the MOTO school management system",
+			"version":     "1.0.0",
+			"contact": map[string]interface{}{
+				"name": "MOTO Support",
+			},
+		},
+		"servers": []map[string]interface{}{
+			{
+				"url":         "/api",
+				"description": "API Base URL",
+			},
+		},
+		"components": map[string]interface{}{
+			"securitySchemes": map[string]interface{}{
+				"bearerAuth": map[string]interface{}{
+					"type":         "http",
+					"scheme":       "bearer",
+					"bearerFormat": "JWT",
+				},
+				"apiKeyAuth": map[string]interface{}{
+					"type":        "apiKey",
+					"in":          "header",
+					"name":        "Authorization",
+					"description": "API key for device authentication. Provide the API key as a Bearer token.",
+				},
+			},
+			"schemas": map[string]interface{}{},
+		},
+		"paths": map[string]interface{}{},
+	}
+
+	// Extract path information from the router using docgen's MarkdownRoutesDoc
+	md := docgen.MarkdownRoutesDoc(router, docgen.MarkdownOpts{})
+
+	// Parse the routes document to extract paths and methods
+	paths := spec["paths"].(map[string]interface{})
+
+	// Parse the routes from the markdown document
+	// Since we can't directly walk the router, we'll extract routes from the markdown
+
+	// Get all routes from our markdown doc
+	lines := strings.Split(md, "\n")
+	var currentRoute string
+
+	for _, line := range lines {
+		// Look for route patterns in the markdown using the summary tag format
+		if strings.Contains(line, "`") && strings.Contains(line, "<summary>") {
+			// Extract the route pattern
+			routeStartIdx := strings.Index(line, "`") + 1
+			routeEndIdx := strings.LastIndex(line, "`")
+			if routeStartIdx > 0 && routeEndIdx > routeStartIdx {
+				currentRoute = line[routeStartIdx:routeEndIdx]
+
+				// Skip empty routes and middleware-only routes
+				if currentRoute == "" || currentRoute == "*" {
+					continue
+				}
+
+				// Initialize path if it doesn't exist
+				if paths[currentRoute] == nil {
+					paths[currentRoute] = map[string]interface{}{}
+				}
+			}
+		} else if strings.Contains(line, "_GET_") && currentRoute != "" {
+			addMethod(paths, currentRoute, "GET")
+		} else if strings.Contains(line, "_POST_") && currentRoute != "" {
+			addMethod(paths, currentRoute, "POST")
+		} else if strings.Contains(line, "_PUT_") && currentRoute != "" {
+			addMethod(paths, currentRoute, "PUT")
+		} else if strings.Contains(line, "_DELETE_") && currentRoute != "" {
+			addMethod(paths, currentRoute, "DELETE")
+		} else if strings.Contains(line, "_PATCH_") && currentRoute != "" {
+			addMethod(paths, currentRoute, "PATCH")
+		}
+	}
+
+	// Add the settings schemas from the existing function
+	schemas := spec["components"].(map[string]interface{})["schemas"].(map[string]interface{})
+	settingSchemas := getSettingsSchemas()
+	for name, schema := range settingSchemas {
+		schemas[name] = schema
+	}
+
+	return spec
+}
+
+// extractPathParams extracts URL parameters from a path pattern like /users/{id}
+func extractPathParams(pattern string) []string {
+	var params []string
+
+	// Chi uses {paramName} for URL parameters
+	// Regex to match {paramName} in the URL pattern
+	r := regexp.MustCompile(`\{([^/]+)\}`)
+	matches := r.FindAllStringSubmatch(pattern, -1)
+
+	for _, match := range matches {
+		if len(match) > 1 {
+			params = append(params, match[1])
+		}
+	}
+
+	return params
+}
+
+// getTagsFromPath returns API tags based on the URL path
+func getTagsFromPath(path string) []string {
+	parts := strings.Split(path, "/")
+
+	// Find the first meaningful part of the path for tag
+	for _, part := range parts {
+		if part != "" && part != "api" {
+			// Capitalize first letter of tag
+			if len(part) > 0 {
+				part = strings.ToUpper(part[:1]) + part[1:]
+			}
+			return []string{part}
+		}
+	}
+
+	return []string{"API"}
+}
+
+// addMethod adds a method to a route in the paths map
+func addMethod(paths map[string]interface{}, route string, method string) {
+	// Get or create methods map for this path
+	pathInfo := paths[route].(map[string]interface{})
+
+	// Convert to lowercase for OpenAPI
+	methodLower := strings.ToLower(method)
+
+	// Skip if method already exists
+	if pathInfo[methodLower] != nil {
+		return
+	}
+
+	// Create a basic operation for this method
+	pathInfo[methodLower] = map[string]interface{}{
+		"summary":     fmt.Sprintf("%s %s", method, route),
+		"description": "Generated from routes",
+		"tags":        getTagsFromPath(route),
+		"security": []map[string][]string{
+			{"bearerAuth": {}},
+		},
+		"responses": map[string]interface{}{
+			"200": map[string]interface{}{
+				"description": "Successful operation",
+			},
+			"400": map[string]interface{}{
+				"description": "Bad request",
+			},
+			"401": map[string]interface{}{
+				"description": "Unauthorized",
+			},
+			"404": map[string]interface{}{
+				"description": "Not found",
+			},
+			"500": map[string]interface{}{
+				"description": "Internal server error",
+			},
+		},
+	}
+
+	// Add path parameters if any are in the route pattern
+	pathParams := extractPathParams(route)
+	if len(pathParams) > 0 {
+		operation := pathInfo[methodLower].(map[string]interface{})
+		parameters := []map[string]interface{}{}
+
+		for _, param := range pathParams {
+			parameters = append(parameters, map[string]interface{}{
+				"name":        param,
+				"in":          "path",
+				"required":    true,
+				"description": fmt.Sprintf("%s parameter", param),
+				"schema": map[string]interface{}{
+					"type": "string", // Default to string type, can be refined manually later
+				},
+			})
+		}
+
+		operation["parameters"] = parameters
+	}
 }
 
 func createBaseOpenAPISpec(filePath string) {

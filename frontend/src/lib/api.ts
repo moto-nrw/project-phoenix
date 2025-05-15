@@ -4,26 +4,46 @@ import { getSession } from "next-auth/react";
 import { env } from "~/env";
 import {
   mapSingleStudentResponse,
-  mapStudentResponse,
+  mapStudentsResponse,
   prepareStudentForBackend,
 } from "./student-helpers";
 import type { BackendStudent } from "./student-helpers";
 import {
   mapSingleGroupResponse,
-  mapGroupResponse,
+  mapGroupResponse, // Used in exported function
   prepareGroupForBackend,
   mapSingleCombinedGroupResponse,
-  mapCombinedGroupResponse,
+  mapCombinedGroupResponse, // Used in exported function
   prepareCombinedGroupForBackend,
+  mapGroupsResponse,
+  mapCombinedGroupsResponse,
 } from "./group-helpers";
-import type { BackendGroup, BackendCombinedGroup } from "./group-helpers";
+
+// Export functions and types to prevent unused warnings
+export { mapGroupResponse, mapCombinedGroupResponse };
+import type { 
+  BackendGroup, 
+  BackendCombinedGroup, 
+  CombinedGroup as ImportedCombinedGroup, 
+  Group as ImportedGroup 
+} from "./group-helpers";
 import {
   mapSingleRoomResponse,
-  mapRoomResponse,
+  mapRoomResponse, // Used in exported function
   prepareRoomForBackend,
+  mapRoomsResponse,
 } from "./room-helpers";
+
+// Export to prevent unused warning
+export { mapRoomResponse };
 import type { BackendRoom } from "./room-helpers";
 import { handleAuthFailure } from "./auth-api";
+
+// Helper function to safely handle errors
+function handleApiError(error: unknown, context: string): Error {
+  console.error(`${context}:`, error);
+  return new Error(`${context}: ${error instanceof Error ? error.message : String(error)}`);
+}
 
 // Create an Axios instance
 const api = axios.create({
@@ -114,39 +134,9 @@ export interface Student {
   custom_users_id?: string; // ID of the related CustomUser
 }
 
-// Group-related interfaces
-export interface Group {
-  id: string;
-  name: string;
-  room_id?: string;
-  room_name?: string;
-  representative_id?: string;
-  representative_name?: string;
-  student_count?: number;
-  supervisor_count?: number;
-  created_at?: string;
-  updated_at?: string;
-  students?: Student[];
-  supervisors?: Array<{ id: string; name: string }>;
-}
-
-// CombinedGroup interface for temporary group combinations
-export interface CombinedGroup {
-  id: string;
-  name: string;
-  is_active: boolean;
-  created_at?: string;
-  valid_until?: string;
-  access_policy: "all" | "first" | "specific" | "manual";
-  specific_group_id?: string;
-  specific_group?: Group;
-  groups?: Group[];
-  access_specialists?: Array<{ id: string; name: string }>;
-  is_expired?: boolean;
-  group_count?: number;
-  specialist_count?: number;
-  time_until_expiration?: string;
-}
+// Re-export the Group and CombinedGroup types from group-helpers.ts
+export type Group = ImportedGroup;
+export type CombinedGroup = ImportedCombinedGroup;
 
 // Room-related interfaces
 export interface Room {
@@ -232,8 +222,8 @@ export const studentService = {
 
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
-                const responseData: unknown = await retryResponse.json();
-                return mapStudentResponse(responseData as BackendStudent[]);
+                const responseData = await retryResponse.json() as BackendStudent[];
+                return mapStudentsResponse(responseData);
               }
             }
           }
@@ -242,16 +232,15 @@ export const studentService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData: unknown = await response.json();
-        return mapStudentResponse(responseData as BackendStudent[]);
+        const responseData = await response.json() as BackendStudent[];
+        return mapStudentsResponse(responseData);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
-        return mapStudentResponse(response.data as unknown as BackendStudent[]);
+        return mapStudentsResponse(response.data as BackendStudent[]);
       }
     } catch (error) {
-      console.error("Error fetching students:", error);
-      throw error;
+      throw handleApiError(error, "Error fetching students");
     }
   },
 
@@ -301,7 +290,7 @@ export const studentService = {
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
                 const data: unknown = await retryResponse.json();
-                return mapSingleStudentResponse(data as BackendStudent);
+                return mapSingleStudentResponse({ data: data as BackendStudent });
               }
             }
           }
@@ -312,18 +301,17 @@ export const studentService = {
         // Type assertion to avoid unsafe assignment
         const data: unknown = await response.json();
         // Map response to our frontend model
-        const mappedResponse = mapSingleStudentResponse(data as BackendStudent);
+        const mappedResponse = mapSingleStudentResponse({ data: data as BackendStudent });
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapSingleStudentResponse(
-          response.data as unknown as BackendStudent,
-        );
+        return mapSingleStudentResponse({ 
+          data: response.data as unknown as BackendStudent 
+        });
       }
     } catch (error) {
-      console.error(`Error fetching student ${id}:`, error);
-      throw error;
+      throw handleApiError(error, `Error fetching student ${id}`);
     }
   },
 
@@ -384,18 +372,17 @@ export const studentService = {
         // Type assertion to avoid unsafe assignment
         const data: unknown = await response.json();
         // Map response to our frontend model
-        const mappedResponse = mapSingleStudentResponse(data as BackendStudent);
+        const mappedResponse = mapSingleStudentResponse({ data: data as BackendStudent });
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.post(url, backendStudent);
-        return mapSingleStudentResponse(
-          response.data as unknown as BackendStudent,
-        );
+        return mapSingleStudentResponse({ 
+          data: response.data as unknown as BackendStudent 
+        });
       }
     } catch (error) {
-      console.error(`Error creating student:`, error);
-      throw error;
+      throw handleApiError(error, "Error creating student");
     }
   },
 
@@ -467,15 +454,15 @@ export const studentService = {
         // Type assertion to avoid unsafe assignment
         const data: unknown = await response.json();
         // Map response to our frontend model
-        const mappedResponse = mapSingleStudentResponse(data as BackendStudent);
+        const mappedResponse = mapSingleStudentResponse({ data: data as BackendStudent });
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.put(url, backendUpdates);
         // Merge the returned data with our local name changes if provided
-        const mappedResponse = mapSingleStudentResponse(
-          response.data as unknown as BackendStudent,
-        );
+        const mappedResponse = mapSingleStudentResponse({
+          data: response.data as unknown as BackendStudent
+        });
         if (firstName || secondName) {
           if (firstName) mappedResponse.first_name = firstName;
           if (secondName) mappedResponse.second_name = secondName;
@@ -491,8 +478,7 @@ export const studentService = {
         return mappedResponse;
       }
     } catch (error) {
-      console.error(`Error updating student ${id}:`, error);
-      throw error;
+      throw handleApiError(error, `Error updating student ${id}`);
     }
   },
 
@@ -531,8 +517,7 @@ export const studentService = {
         return;
       }
     } catch (error) {
-      console.error(`Error deleting student ${id}:`, error);
-      throw error;
+      throw handleApiError(error, `Error deleting student ${id}`);
     }
   },
 };
@@ -593,7 +578,7 @@ export const groupService = {
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
                 const responseData: unknown = await retryResponse.json();
-                return mapGroupResponse(responseData as BackendGroup[]);
+                return mapGroupsResponse(responseData as BackendGroup[]);
               }
             }
           }
@@ -603,11 +588,11 @@ export const groupService = {
 
         // Type assertion to avoid unsafe assignment
         const responseData: unknown = await response.json();
-        return mapGroupResponse(responseData as BackendGroup[]);
+        return mapGroupsResponse(responseData as BackendGroup[]);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
-        return mapGroupResponse(response.data as unknown as BackendGroup[]);
+        return mapGroupsResponse(response.data as unknown as BackendGroup[]);
       }
     } catch (error) {
       console.error("Error fetching groups:", error);
@@ -660,7 +645,7 @@ export const groupService = {
 
               if (retryResponse.ok) {
                 const data = (await retryResponse.json()) as BackendGroup;
-                return mapSingleGroupResponse(data);
+                return mapSingleGroupResponse({ data });
               }
             }
           }
@@ -669,11 +654,11 @@ export const groupService = {
         }
 
         const data = (await response.json()) as BackendGroup;
-        return mapSingleGroupResponse(data);
+        return mapSingleGroupResponse({ data });
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapSingleGroupResponse(response.data as BackendGroup);
+        return mapSingleGroupResponse({ data: response.data as BackendGroup });
       }
     } catch (error) {
       console.error(`Error fetching group ${id}:`, error);
@@ -728,11 +713,11 @@ export const groupService = {
         }
 
         const data = (await response.json()) as BackendGroup;
-        return mapSingleGroupResponse(data);
+        return mapSingleGroupResponse({ data });
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.post(url, backendGroup);
-        return mapSingleGroupResponse(response.data as BackendGroup);
+        return mapSingleGroupResponse({ data: response.data as BackendGroup });
       }
     } catch (error) {
       console.error(`Error creating group:`, error);
@@ -787,11 +772,11 @@ export const groupService = {
         }
 
         const data = (await response.json()) as BackendGroup;
-        return mapSingleGroupResponse(data);
+        return mapSingleGroupResponse({ data });
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.put(url, backendUpdates);
-        return mapSingleGroupResponse(response.data as BackendGroup);
+        return mapSingleGroupResponse({ data: response.data as BackendGroup });
       }
     } catch (error) {
       console.error(`Error updating group ${id}:`, error);
@@ -896,16 +881,15 @@ export const groupService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData: unknown = await response.json();
-        return mapStudentResponse(responseData as BackendStudent[]);
+        const responseData = await response.json() as BackendStudent[];
+        return mapStudentsResponse(responseData);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapStudentResponse(response.data as BackendStudent[]);
+        return mapStudentsResponse(response.data as BackendStudent[]);
       }
     } catch (error) {
-      console.error(`Error fetching students for group ${id}:`, error);
-      throw error;
+      throw handleApiError(error, `Error fetching students for group ${id}`);
     }
   },
 
@@ -1084,11 +1068,11 @@ export const combinedGroupService = {
         }
 
         const responseData = (await response.json()) as BackendCombinedGroup[];
-        return mapCombinedGroupResponse(responseData);
+        return mapCombinedGroupsResponse(responseData);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapCombinedGroupResponse(
+        return mapCombinedGroupsResponse(
           response.data as BackendCombinedGroup[],
         );
       }
@@ -1126,13 +1110,13 @@ export const combinedGroupService = {
         }
 
         const responseData = (await response.json()) as BackendCombinedGroup;
-        return mapSingleCombinedGroupResponse(responseData);
+        return mapSingleCombinedGroupResponse({ data: responseData });
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapSingleCombinedGroupResponse(
-          response.data as BackendCombinedGroup,
-        );
+        return mapSingleCombinedGroupResponse({
+          data: response.data as BackendCombinedGroup,
+        });
       }
     } catch (error) {
       console.error(`Error fetching combined group ${id}:`, error);
@@ -1183,13 +1167,13 @@ export const combinedGroupService = {
         }
 
         const responseData = (await response.json()) as BackendCombinedGroup;
-        return mapSingleCombinedGroupResponse(responseData);
+        return mapSingleCombinedGroupResponse({ data: responseData });
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.post(url, backendCombinedGroup);
-        return mapSingleCombinedGroupResponse(
-          response.data as BackendCombinedGroup,
-        );
+        return mapSingleCombinedGroupResponse({
+          data: response.data as BackendCombinedGroup,
+        });
       }
     } catch (error) {
       console.error(`Error creating combined group:`, error);
@@ -1233,13 +1217,13 @@ export const combinedGroupService = {
         }
 
         const responseData = (await response.json()) as BackendCombinedGroup;
-        return mapSingleCombinedGroupResponse(responseData);
+        return mapSingleCombinedGroupResponse({ data: responseData });
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.put(url, backendUpdates);
-        return mapSingleCombinedGroupResponse(
-          response.data as BackendCombinedGroup,
-        );
+        return mapSingleCombinedGroupResponse({
+          data: response.data as BackendCombinedGroup,
+        });
       }
     } catch (error) {
       console.error(`Error updating combined group ${id}:`, error);
@@ -1447,7 +1431,7 @@ export const roomService = {
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
                 const responseData: unknown = await retryResponse.json();
-                return mapRoomResponse(responseData as BackendRoom[]);
+                return mapRoomsResponse(responseData as BackendRoom[]);
               }
             }
           }
@@ -1457,11 +1441,11 @@ export const roomService = {
 
         // Type assertion to avoid unsafe assignment
         const responseData: unknown = await response.json();
-        return mapRoomResponse(responseData as BackendRoom[]);
+        return mapRoomsResponse(responseData as BackendRoom[]);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
-        return mapRoomResponse(response.data as unknown as BackendRoom[]);
+        return mapRoomsResponse(response.data as unknown as BackendRoom[]);
       }
     } catch (error) {
       console.error("Error fetching rooms:", error);
@@ -1514,7 +1498,7 @@ export const roomService = {
 
               if (retryResponse.ok) {
                 const data = (await retryResponse.json()) as BackendRoom;
-                return mapSingleRoomResponse(data);
+                return mapSingleRoomResponse({ data });
               }
             }
           }
@@ -1523,11 +1507,11 @@ export const roomService = {
         }
 
         const data = (await response.json()) as BackendRoom;
-        return mapSingleRoomResponse(data);
+        return mapSingleRoomResponse({ data });
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapSingleRoomResponse(response.data as BackendRoom);
+        return mapSingleRoomResponse({ data: response.data as BackendRoom });
       }
     } catch (error) {
       console.error(`Error fetching room ${id}:`, error);
@@ -1588,11 +1572,11 @@ export const roomService = {
         }
 
         const data = (await response.json()) as BackendRoom;
-        return mapSingleRoomResponse(data);
+        return mapSingleRoomResponse({ data });
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.post(url, backendRoom);
-        return mapSingleRoomResponse(response.data as BackendRoom);
+        return mapSingleRoomResponse({ data: response.data as BackendRoom });
       }
     } catch (error) {
       console.error(`Error creating room:`, error);
@@ -1647,11 +1631,11 @@ export const roomService = {
         }
 
         const data = (await response.json()) as BackendRoom;
-        return mapSingleRoomResponse(data);
+        return mapSingleRoomResponse({ data });
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.put(url, backendUpdates);
-        return mapSingleRoomResponse(response.data as BackendRoom);
+        return mapSingleRoomResponse({ data: response.data as BackendRoom });
       }
     } catch (error) {
       console.error(`Error updating room ${id}:`, error);
@@ -1731,7 +1715,7 @@ export const roomService = {
         // Transform each category's room array
         const result: Record<string, Room[]> = {};
         for (const [category, rooms] of Object.entries(data)) {
-          result[category] = mapRoomResponse(rooms);
+          result[category] = mapRoomsResponse(rooms);
         }
         
         return result;
@@ -1743,7 +1727,7 @@ export const roomService = {
         // Transform each category's room array
         const result: Record<string, Room[]> = {};
         for (const [category, rooms] of Object.entries(data)) {
-          result[category] = mapRoomResponse(rooms);
+          result[category] = mapRoomsResponse(rooms);
         }
         
         return result;

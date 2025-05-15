@@ -14,22 +14,24 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/feedback"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
 
 // Factory provides access to all services
 type Factory struct {
-	Auth       auth.AuthService
-	Active     active.Service
-	Activities activities.ActivityService
-	Education  education.Service
-	Facilities facilities.Service
-	Feedback   feedback.Service
-	IoT        iot.Service
-	Config     config.Service
-	Schedule   schedule.Service
-	Users      users.PersonService
+	Auth         auth.AuthService
+	Active       active.Service
+	Activities   activities.ActivityService
+	Education    education.Service
+	Facilities   facilities.Service
+	Feedback     feedback.Service
+	IoT          iot.Service
+	Config       config.Service
+	Schedule     schedule.Service
+	Users        users.PersonService
+	UserContext  usercontext.UserContextService
 }
 
 // NewFactory creates a new services factory
@@ -150,16 +152,32 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		authorize.NewResourceAuthorizer(authorizationService),
 	)
 
+	// Initialize user context service
+	userContextService := usercontext.NewUserContextService(
+		repos.Account,
+		repos.Person,
+		repos.Staff,
+		repos.Teacher,
+		repos.Student,
+		repos.Group,
+		repos.ActivityGroup,
+		repos.ActiveGroup,
+		repos.ActiveVisit,
+		repos.GroupSupervisor,
+		db,
+	)
+
 	return &Factory{
-		Auth:       authService,
-		Active:     activeService,
-		Activities: activitiesService,
-		Education:  educationService,
-		Facilities: facilitiesService,
-		Feedback:   feedbackService,
-		IoT:        iotService,
-		Config:     configService,
-		Schedule:   scheduleService,
-		Users:      usersService,
+		Auth:         authService,
+		Active:       activeService,
+		Activities:   activitiesService,
+		Education:    educationService,
+		Facilities:   facilitiesService,
+		Feedback:     feedbackService,
+		IoT:          iotService,
+		Config:       configService,
+		Schedule:     scheduleService,
+		Users:        usersService,
+		UserContext:  userContextService,
 	}, nil
 }

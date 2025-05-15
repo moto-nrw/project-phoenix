@@ -36,6 +36,9 @@ type GroupRepository interface {
 
 	// FindWithSchedules returns a group with its scheduled times
 	FindWithSchedules(ctx context.Context, groupID int64) (*Group, []*Schedule, error)
+	
+	// FindByStaffSupervisor finds all activity groups where a staff member is a supervisor
+	FindByStaffSupervisor(ctx context.Context, staffID int64) ([]*Group, error)
 }
 
 // ScheduleRepository defines operations for managing activity schedules

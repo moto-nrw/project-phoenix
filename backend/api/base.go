@@ -18,6 +18,7 @@ import (
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
+	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -30,18 +31,19 @@ type API struct {
 	Router   chi.Router
 
 	// API Resources
-	Auth       *authAPI.Resource
-	Rooms      *roomsAPI.Resource
-	Students   *studentsAPI.Resource
-	Groups     *groupsAPI.Resource
-	Activities *activitiesAPI.Resource
-	Staff      *staffAPI.Resource
-	Feedback   *feedbackAPI.Resource
-	Schedules  *schedulesAPI.Resource
-	Config     *configAPI.Resource
-	Active     *activeAPI.Resource
-	IoT        *iotAPI.Resource
-	Users      *usersAPI.Resource
+	Auth        *authAPI.Resource
+	Rooms       *roomsAPI.Resource
+	Students    *studentsAPI.Resource
+	Groups      *groupsAPI.Resource
+	Activities  *activitiesAPI.Resource
+	Staff       *staffAPI.Resource
+	Feedback    *feedbackAPI.Resource
+	Schedules   *schedulesAPI.Resource
+	Config      *configAPI.Resource
+	Active      *activeAPI.Resource
+	IoT         *iotAPI.Resource
+	Users       *usersAPI.Resource
+	UserContext *usercontextAPI.Resource
 }
 
 // New creates a new API instance
@@ -98,6 +100,7 @@ func New(enableCORS bool) (*API, error) {
 	api.Active = activeAPI.NewResource(api.Services.Active)
 	api.IoT = iotAPI.NewResource(api.Services.IoT)
 	api.Users = usersAPI.NewResource(api.Services.Users)
+	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext)
 
 	// Register routes
 	api.registerRoutes()
@@ -158,6 +161,9 @@ func (a *API) registerRoutes() {
 
 		// Mount users resources
 		r.Mount("/users", a.Users.Router())
+
+		// Mount user context resources
+		r.Mount("/me", a.UserContext.Router())
 
 		// Add other resource routes here as they are implemented
 	})

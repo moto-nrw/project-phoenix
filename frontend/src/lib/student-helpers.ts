@@ -1,105 +1,152 @@
-import type { Student } from "./api";
+// lib/student-helpers.ts
+// Type definitions and helper functions for students
 
+// Backend types (from Go structs)
 export interface BackendStudent {
-  id: number;
-  custom_user?: {
-    first_name: string;
-    second_name: string;
-  };
-  school_class: string;
-  group?: { name: string };
-  in_house: boolean;
-  wc: boolean;
-  school_yard: boolean;
-  bus: boolean;
-  name_lg: string;
-  contact_lg: string;
-  custom_users_id?: number;
-  group_id: number;
+    id: number;
+    first_name?: string;
+    second_name?: string;
+    school_class?: string;
+    grade?: string;
+    student_id?: string;
+    group_id?: number;
+    group_name?: string;
+    created_at: string;
+    updated_at: string;
+    in_house: boolean;
+    wc?: boolean;
+    school_yard?: boolean;
+    bus?: boolean;
+    name_lg?: string; // Legal Guardian name
+    contact_lg?: string; // Legal Guardian contact
+    custom_users_id?: number;
 }
 
-/**
- * Maps a list of backend student responses to frontend student models
- */
-export function mapStudentResponse(data: BackendStudent[]): Student[] {
-  return data.map((student) => mapSingleStudentResponse(student));
+// Frontend types (mapped from backend)
+export interface Student {
+    id: string;
+    name: string; // Derived from FirstName + SecondName
+    first_name?: string;
+    second_name?: string;
+    school_class: string;
+    grade?: string;
+    studentId?: string;
+    group_name?: string;
+    group_id?: string;
+    in_house: boolean;
+    wc?: boolean;
+    school_yard?: boolean;
+    bus?: boolean;
+    name_lg?: string;
+    contact_lg?: string;
+    custom_users_id?: string;
 }
 
-/**
- * Maps a single backend student response to frontend student model
- */
-export function mapSingleStudentResponse(student: BackendStudent): Student {
-  return {
-    id: student.id.toString(),
-    name: student.custom_user
-      ? `${student.custom_user.first_name} ${student.custom_user.second_name}`
-      : "Unknown",
-    // Store first_name and second_name separately
-    first_name: student.custom_user?.first_name ?? "",
-    second_name: student.custom_user?.second_name ?? "",
-    school_class: student.school_class,
-    // Use school_class as grade for display consistency
-    grade: student.school_class,
-    // Use student ID as studentId for clarity
-    studentId: student.id.toString(),
-    group_name: student.group?.name,
-    group_id: student.group_id?.toString(),
-    in_house: student.in_house,
-    wc: student.wc ?? false,
-    school_yard: student.school_yard ?? false,
-    bus: student.bus ?? false,
-    name_lg: student.name_lg ?? "",
-    contact_lg: student.contact_lg ?? "",
-    custom_users_id: student.custom_users_id?.toString(),
-  };
+// Mapping functions
+export function mapStudentResponse(backendStudent: BackendStudent): Student {
+    // Construct the full name from first and second name
+    const name = [backendStudent.first_name, backendStudent.second_name]
+        .filter(Boolean)
+        .join(' ');
+    
+    return {
+        id: String(backendStudent.id),
+        name: name ?? 'Unnamed Student',
+        first_name: backendStudent.first_name,
+        second_name: backendStudent.second_name,
+        school_class: backendStudent.school_class ?? '',
+        grade: backendStudent.grade,
+        studentId: backendStudent.student_id,
+        group_name: backendStudent.group_name,
+        group_id: backendStudent.group_id ? String(backendStudent.group_id) : undefined,
+        in_house: backendStudent.in_house,
+        wc: backendStudent.wc,
+        school_yard: backendStudent.school_yard,
+        bus: backendStudent.bus,
+        name_lg: backendStudent.name_lg,
+        contact_lg: backendStudent.contact_lg,
+        custom_users_id: backendStudent.custom_users_id ? String(backendStudent.custom_users_id) : undefined,
+    };
 }
 
-/**
- * Prepares a student object for sending to the backend API
- */
-export function prepareStudentForBackend(
-  student: Partial<Student>,
-): Record<string, unknown> {
-  const backendStudent: Record<string, unknown> = {};
+// Map array of students
+export function mapStudentsResponse(backendStudents: BackendStudent[]): Student[] {
+    return backendStudents.map(mapStudentResponse);
+}
 
-  // Map fields to backend model
-  // School class is required - prioritize school_class, fall back to grade
-  backendStudent.school_class = student.school_class ?? student.grade ?? "";
+// Map a single student
+export function mapSingleStudentResponse(response: { data: BackendStudent }): Student {
+    return mapStudentResponse(response.data);
+}
 
-  // Legal guardian info is required
-  backendStudent.name_lg = student.name_lg ?? "";
-  backendStudent.contact_lg = student.contact_lg ?? "";
+// Prepare frontend student for backend
+export function prepareStudentForBackend(student: Partial<Student>): Partial<BackendStudent> {
+    return {
+        id: student.id ? parseInt(student.id, 10) : undefined,
+        first_name: student.first_name,
+        second_name: student.second_name,
+        school_class: student.school_class,
+        grade: student.grade,
+        student_id: student.studentId,
+        group_id: student.group_id ? parseInt(student.group_id, 10) : undefined,
+        in_house: student.in_house,
+        wc: student.wc,
+        school_yard: student.school_yard,
+        bus: student.bus,
+        name_lg: student.name_lg,
+        contact_lg: student.contact_lg,
+        custom_users_id: student.custom_users_id ? parseInt(student.custom_users_id, 10) : undefined,
+    };
+}
 
-  // Status fields
-  if (student.bus !== undefined) backendStudent.bus = student.bus;
-  if (student.in_house !== undefined)
-    backendStudent.in_house = student.in_house;
-  if (student.wc !== undefined) backendStudent.wc = student.wc;
-  if (student.school_yard !== undefined)
-    backendStudent.school_yard = student.school_yard;
+// Request/Response types
+export interface CreateStudentRequest {
+    first_name?: string;
+    second_name?: string;
+    school_class?: string;
+    grade?: string;
+    student_id?: string;
+    group_id?: number;
+    in_house?: boolean;
+    name_lg?: string;
+    contact_lg?: string;
+    custom_users_id?: number;
+}
 
-  // For updates, custom_users_id is required
-  // For new students (create), the backend will create a new user
-  if (student.custom_users_id) {
-    backendStudent.custom_users_id = parseInt(student.custom_users_id, 10);
-  }
+export interface UpdateStudentRequest {
+    first_name?: string;
+    second_name?: string;
+    school_class?: string;
+    grade?: string;
+    student_id?: string;
+    group_id?: number;
+    in_house?: boolean;
+    name_lg?: string;
+    contact_lg?: string;
+    custom_users_id?: number;
+}
 
-  // Group ID is required
-  if (student.group_id) {
-    backendStudent.group_id = parseInt(student.group_id, 10);
-  } else {
-    // Default to group ID 1 if not provided (this should be updated based on your application logic)
-    backendStudent.group_id = 1;
-  }
+// Helper functions
+export function formatStudentName(student: Student): string {
+    if (student.name) return student.name;
+    
+    return [student.first_name, student.second_name]
+        .filter(Boolean)
+        .join(' ') || 'Unnamed Student';
+}
 
-  // Handle name fields - these will be used to update the CustomUser record
-  if (student.first_name) {
-    backendStudent.first_name = student.first_name;
-  }
+export function formatStudentStatus(student: Student): string {
+    if (student.in_house) return 'Anwesend';
+    if (student.wc) return 'Toilette';
+    if (student.school_yard) return 'Schulhof';
+    if (student.bus) return 'Bus';
+    return 'Abwesend';
+}
 
-  if (student.second_name) {
-    backendStudent.second_name = student.second_name;
-  }
-
-  return backendStudent;
+export function getStatusColor(student: Student): string {
+    if (student.in_house) return 'green';
+    if (student.wc) return 'blue';
+    if (student.school_yard) return 'yellow';
+    if (student.bus) return 'purple';
+    return 'red';
 }
