@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Header } from "~/components/dashboard/header";
 import { Sidebar } from "~/components/dashboard/sidebar";
 import { Alert } from "~/components/ui/alert";
+import { BackgroundWrapper } from "~/components/background-wrapper";
 
 // Student type (reused from student page)
 interface Student {
@@ -215,7 +216,6 @@ export default function StudentFeedbackHistoryPage() {
     };
 
     // Format date function is actually used in the dateObj.toLocaleDateString call
-
     // Format time for display
     const formatTime = (dateString: string): string => {
         const date = new Date(dateString);
@@ -280,185 +280,191 @@ export default function StudentFeedbackHistoryPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-50">
-                <Header userName="Benutzer" />
-                <div className="flex">
-                    <Sidebar />
-                    <main className="flex-1 p-8">
-                        <div className="flex min-h-[80vh] items-center justify-center">
-                            <div className="flex flex-col items-center">
-                                <div className="h-12 w-12 rounded-full border-4 border-t-blue-500 border-b-blue-500 border-l-transparent border-r-transparent animate-spin"></div>
-                                <p className="mt-4 text-gray-600">Daten werden geladen...</p>
+            <BackgroundWrapper>
+                <div className="min-h-screen">
+                    <Header userName="Benutzer" />
+                    <div className="flex">
+                        <Sidebar />
+                        <main className="flex-1 p-8">
+                            <div className="flex min-h-[80vh] items-center justify-center">
+                                <div className="flex flex-col items-center gap-4">
+                                    <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+                                    <p className="text-gray-600">Daten werden geladen...</p>
+                                </div>
                             </div>
-                        </div>
-                    </main>
+                        </main>
+                    </div>
                 </div>
-            </div>
+            </BackgroundWrapper>
         );
     }
 
     if (error || !student) {
         return (
-            <div className="min-h-screen bg-gray-50">
-                <Header userName="Benutzer" />
-                <div className="flex">
-                    <Sidebar />
-                    <main className="flex-1 p-8">
-                        <div className="flex min-h-[80vh] flex-col items-center justify-center">
-                            <Alert
-                                type="error"
-                                message={error ?? "Schüler nicht gefunden"}
-                            />
-                            <button
-                                onClick={() => router.push(referrer)}
-                                className="mt-4 rounded bg-blue-100 px-4 py-2 text-blue-800 transition-colors hover:bg-blue-200"
-                            >
-                                Zurück
-                            </button>
-                        </div>
-                    </main>
+            <BackgroundWrapper>
+                <div className="min-h-screen">
+                    <Header userName="Benutzer" />
+                    <div className="flex">
+                        <Sidebar />
+                        <main className="flex-1 p-8">
+                            <div className="flex min-h-[80vh] flex-col items-center justify-center">
+                                <Alert
+                                    type="error"
+                                    message={error ?? "Schüler nicht gefunden"}
+                                />
+                                <button
+                                    onClick={() => router.push(referrer)}
+                                    className="mt-4 rounded bg-blue-100 px-4 py-2 text-blue-800 transition-colors hover:bg-blue-200"
+                                >
+                                    Zurück
+                                </button>
+                            </div>
+                        </main>
+                    </div>
                 </div>
-            </div>
+            </BackgroundWrapper>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Header */}
-            <Header userName="Benutzer" />
+        <BackgroundWrapper>
+            <div className="min-h-screen">
+                {/* Header */}
+                <Header userName="Benutzer" />
 
-            <div className="flex">
-                {/* Sidebar */}
-                <Sidebar />
+                <div className="flex">
+                    {/* Sidebar */}
+                    <Sidebar />
 
-                {/* Main Content */}
-                <main className="flex-1 p-8">
-                    <div className="mx-auto max-w-7xl">
-                        {/* Back Button */}
-                        <div className="mb-6">
-                            <button
-                                onClick={() => router.push(`/students/${studentId}?from=${referrer}`)}
-                                className="flex items-center text-gray-600 hover:text-blue-600 transition-colors"
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-5 w-5 mr-1"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
+                    {/* Main Content */}
+                    <main className="flex-1 p-8">
+                        <div className="mx-auto max-w-7xl">
+                            {/* Back Button */}
+                            <div className="mb-6">
+                                <button
+                                    onClick={() => router.push(`/students/${studentId}?from=${referrer}`)}
+                                    className="flex items-center text-gray-600 hover:text-blue-600 transition-colors"
                                 >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                                    />
-                                </svg>
-                                Zurück zum Schülerprofil
-                            </button>
-                        </div>
-
-                        {/* Student Profile Header with Status */}
-                        <div className="relative mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white shadow-md">
-                            <div className="flex items-center">
-                                <div className="mr-6 flex h-24 w-24 items-center justify-center rounded-full bg-white/30 text-4xl font-bold">
-                                    {student.first_name[0]}{student.second_name[0]}
-                                </div>
-                                <div>
-                                    <h1 className="text-3xl font-bold">{student.name}</h1>
-                                    <div className="flex items-center mt-1">
-                                        <span className="opacity-90">Klasse {student.school_class}</span>
-                                        <span className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`} title={`Jahrgang ${year}`}></span>
-                                        <span className="mx-2">•</span>
-                                        <span className="opacity-90">Gruppe: {student.group_name}</span>
-                                    </div>
-                                    <div className="mt-4">
-                                        <h2 className="text-2xl font-semibold text-white">Feedbackhistorie</h2>
-                                    </div>
-                                </div>
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-5 w-5 mr-1"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                                        />
+                                    </svg>
+                                    Zurück zum Schülerprofil
+                                </button>
                             </div>
-                        </div>
 
-                        {/* Filter Controls and Feedback Overview */}
-                        <div className="mb-8">
-                            <div className="bg-white rounded-lg shadow-sm p-4">
-                                <div className="flex flex-col md:flex-row md:justify-between">
-                                    {/* Time Range Filter */}
-                                    <div className="mb-4 md:mb-0">
-                                        <h2 className="text-lg font-medium text-gray-800 mb-3">Filter</h2>
-                                        <div className="flex flex-wrap gap-2">
-                                            <button
-                                                className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "all" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
-                                                onClick={() => setTimeRange("all")}
-                                            >
-                                                Alle
-                                            </button>
-                                            <button
-                                                className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "today" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
-                                                onClick={() => setTimeRange("today")}
-                                            >
-                                                Heute
-                                            </button>
-                                            <button
-                                                className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "week" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
-                                                onClick={() => setTimeRange("week")}
-                                            >
-                                                Diese Woche
-                                            </button>
-                                            <button
-                                                className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "7days" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
-                                                onClick={() => setTimeRange("7days")}
-                                            >
-                                                Letzte 7 Tage
-                                            </button>
-                                            <button
-                                                className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "month" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
-                                                onClick={() => setTimeRange("month")}
-                                            >
-                                                Diesen Monat
-                                            </button>
-                                        </div>
+                            {/* Student Profile Header with Status */}
+                            <div className="relative mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white shadow-md">
+                                <div className="flex items-center">
+                                    <div className="mr-6 flex h-24 w-24 items-center justify-center rounded-full bg-white/30 text-4xl font-bold">
+                                        {student.first_name[0]}{student.second_name[0]}
                                     </div>
-
-                                    {/* Feedback Overview - now placed beside the filter */}
                                     <div>
-                                        <h2 className="text-lg font-medium text-gray-800 mb-3">Feedback-Übersicht</h2>
-                                        <div className="flex gap-4">
-                                            {/* Positive Feedback */}
-                                            <div className="bg-green-50 border border-green-100 rounded-lg p-3">
-                                                <div className="flex items-center">
-                                                    <div className="text-2xl mr-2">😊</div>
-                                                    <div>
-                                                        <h3 className="text-sm font-medium text-green-800">Positiv</h3>
-                                                        <p className="text-xl font-bold text-green-600">
-                                                            {positiveFeedbackCount} <span className="text-sm font-normal">({positivePercentage}%)</span>
-                                                        </p>
+                                        <h1 className="text-3xl font-bold">{student.name}</h1>
+                                        <div className="flex items-center mt-1">
+                                            <span className="opacity-90">Klasse {student.school_class}</span>
+                                            <span className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`} title={`Jahrgang ${year}`}></span>
+                                            <span className="mx-2">•</span>
+                                            <span className="opacity-90">Gruppe: {student.group_name}</span>
+                                        </div>
+                                        <div className="mt-4">
+                                            <h2 className="text-2xl font-semibold text-white">Feedbackhistorie</h2>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Filter Controls and Feedback Overview */}
+                            <div className="mb-8">
+                                <div className="bg-white rounded-lg shadow-sm p-4">
+                                    <div className="flex flex-col md:flex-row md:justify-between">
+                                        {/* Time Range Filter */}
+                                        <div className="mb-4 md:mb-0">
+                                            <h2 className="text-lg font-medium text-gray-800 mb-3">Filter</h2>
+                                            <div className="flex flex-wrap gap-2">
+                                                <button
+                                                    className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "all" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
+                                                    onClick={() => setTimeRange("all")}
+                                                >
+                                                    Alle
+                                                </button>
+                                                <button
+                                                    className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "today" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
+                                                    onClick={() => setTimeRange("today")}
+                                                >
+                                                    Heute
+                                                </button>
+                                                <button
+                                                    className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "week" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
+                                                    onClick={() => setTimeRange("week")}
+                                                >
+                                                    Diese Woche
+                                                </button>
+                                                <button
+                                                    className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "7days" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
+                                                    onClick={() => setTimeRange("7days")}
+                                                >
+                                                    Letzte 7 Tage
+                                                </button>
+                                                <button
+                                                    className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "month" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
+                                                    onClick={() => setTimeRange("month")}
+                                                >
+                                                    Diesen Monat
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Feedback Overview - now placed beside the filter */}
+                                        <div>
+                                            <h2 className="text-lg font-medium text-gray-800 mb-3">Feedback-Übersicht</h2>
+                                            <div className="flex gap-4">
+                                                {/* Positive Feedback */}
+                                                <div className="bg-green-50 border border-green-100 rounded-lg p-3">
+                                                    <div className="flex items-center">
+                                                        <div className="text-2xl mr-2">😊</div>
+                                                        <div>
+                                                            <h3 className="text-sm font-medium text-green-800">Positiv</h3>
+                                                            <p className="text-xl font-bold text-green-600">
+                                                                {positiveFeedbackCount} <span className="text-sm font-normal">({positivePercentage}%)</span>
+                                                            </p>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
 
-                                            {/* Neutral Feedback */}
-                                            <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-3">
-                                                <div className="flex items-center">
-                                                    <div className="text-2xl mr-2">😐</div>
-                                                    <div>
-                                                        <h3 className="text-sm font-medium text-yellow-800">Neutral</h3>
-                                                        <p className="text-xl font-bold text-yellow-600">
-                                                            {neutralFeedbackCount} <span className="text-sm font-normal">({neutralPercentage}%)</span>
-                                                        </p>
+                                                {/* Neutral Feedback */}
+                                                <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-3">
+                                                    <div className="flex items-center">
+                                                        <div className="text-2xl mr-2">😐</div>
+                                                        <div>
+                                                            <h3 className="text-sm font-medium text-yellow-800">Neutral</h3>
+                                                            <p className="text-xl font-bold text-yellow-600">
+                                                                {neutralFeedbackCount} <span className="text-sm font-normal">({neutralPercentage}%)</span>
+                                                            </p>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
 
-                                            {/* Negative Feedback */}
-                                            <div className="bg-red-50 border border-red-100 rounded-lg p-3">
-                                                <div className="flex items-center">
-                                                    <div className="text-2xl mr-2">😔</div>
-                                                    <div>
-                                                        <h3 className="text-sm font-medium text-red-800">Negativ</h3>
-                                                        <p className="text-xl font-bold text-red-600">
-                                                            {negativeFeedbackCount} <span className="text-sm font-normal">({negativePercentage}%)</span>
-                                                        </p>
+                                                {/* Negative Feedback */}
+                                                <div className="bg-red-50 border border-red-100 rounded-lg p-3">
+                                                    <div className="flex items-center">
+                                                        <div className="text-2xl mr-2">😔</div>
+                                                        <div>
+                                                            <h3 className="text-sm font-medium text-red-800">Negativ</h3>
+                                                            <p className="text-xl font-bold text-red-600">
+                                                                {negativeFeedbackCount} <span className="text-sm font-normal">({negativePercentage}%)</span>
+                                                            </p>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -466,68 +472,68 @@ export default function StudentFeedbackHistoryPage() {
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Feedback History */}
-                        <div className="space-y-6">
-                            {filteredFeedbackHistory.length === 0 ? (
-                                <div className="bg-white rounded-lg p-8 text-center shadow-sm">
-                                    <p className="text-gray-500">Kein Feedback für den ausgewählten Zeitraum verfügbar.</p>
-                                </div>
-                            ) : (
-                                <div>
-                                    {sortedDates.map(dateString => {
-                                        const feedbackForDate = groupedFeedbackHistory[dateString] ?? [];
-                                        const dateObj = new Date(feedbackForDate[0]?.timestamp ?? dateString);
+                            {/* Feedback History */}
+                            <div className="space-y-6">
+                                {filteredFeedbackHistory.length === 0 ? (
+                                    <div className="bg-white rounded-lg p-8 text-center shadow-sm">
+                                        <p className="text-gray-500">Kein Feedback für den ausgewählten Zeitraum verfügbar.</p>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        {sortedDates.map(dateString => {
+                                            const feedbackForDate = groupedFeedbackHistory[dateString] ?? [];
+                                            const dateObj = new Date(feedbackForDate[0]?.timestamp ?? dateString);
 
-                                        return (
-                                            <div key={dateString} className="bg-white rounded-lg shadow-sm overflow-hidden mb-4">
-                                                <div className="bg-blue-50 px-6 py-3 border-b border-blue-100">
-                                                    <h3 className="font-medium text-blue-800">
-                                                        {dateObj.toLocaleDateString('de-DE', {
-                                                            weekday: 'long',
-                                                            year: 'numeric',
-                                                            month: 'long',
-                                                            day: 'numeric'
-                                                        })}
-                                                    </h3>
-                                                </div>
-                                                <div className="px-6 py-4">
-                                                    {feedbackForDate.length > 0 ? (
-                                                        feedbackForDate.map(feedback => (
-                                                            <div key={feedback.id} className="flex items-center gap-3 mb-3 last:mb-0">
-                                                                {renderFeedbackEmoji(feedback.feedback_type)}
-                                                                <div className="flex flex-col">
-                                                                    <span className="font-medium text-gray-900">
-                                                                        {feedback.feedback_type === "positive" ? "Positives Feedback" :
-                                                                            feedback.feedback_type === "neutral" ? "Neutrales Feedback" :
-                                                                                "Negatives Feedback"}
-                                                                        <span className="ml-2 text-sm text-gray-500">{formatTime(feedback.timestamp)}</span>
-                                                                    </span>
-                                                                    {feedback.is_valid === true && (
-                                                                        <span className="text-sm text-red-500 mt-1">
-                                                                            Ungültiges Feedback
+                                            return (
+                                                <div key={dateString} className="bg-white rounded-lg shadow-sm overflow-hidden mb-4">
+                                                    <div className="bg-blue-50 px-6 py-3 border-b border-blue-100">
+                                                        <h3 className="font-medium text-blue-800">
+                                                            {dateObj.toLocaleDateString('de-DE', {
+                                                                weekday: 'long',
+                                                                year: 'numeric',
+                                                                month: 'long',
+                                                                day: 'numeric'
+                                                            })}
+                                                        </h3>
+                                                    </div>
+                                                    <div className="px-6 py-4">
+                                                        {feedbackForDate.length > 0 ? (
+                                                            feedbackForDate.map(feedback => (
+                                                                <div key={feedback.id} className="flex items-center gap-3 mb-3 last:mb-0">
+                                                                    {renderFeedbackEmoji(feedback.feedback_type)}
+                                                                    <div className="flex flex-col">
+                                                                        <span className="font-medium text-gray-900">
+                                                                            {feedback.feedback_type === "positive" ? "Positives Feedback" :
+                                                                                feedback.feedback_type === "neutral" ? "Neutrales Feedback" :
+                                                                                    "Negatives Feedback"}
+                                                                            <span className="ml-2 text-sm text-gray-500">{formatTime(feedback.timestamp)}</span>
                                                                         </span>
-                                                                    )}
-                                                                    {feedback.comment && (
-                                                                        <p className="text-sm text-gray-600 mt-1">{feedback.comment}</p>
-                                                                    )}
+                                                                        {feedback.is_valid === false && (
+                                                                            <span className="text-sm text-red-500 mt-1">
+                                                                                Ungültiges Feedback
+                                                                            </span>
+                                                                        )}
+                                                                        {feedback.comment && (
+                                                                            <p className="text-sm text-gray-600 mt-1">{feedback.comment}</p>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                        ))
-                                                    ) : (
-                                                        <p className="text-gray-500 italic">Kein Feedback an diesem Tag</p>
-                                                    )}
+                                                            ))
+                                                        ) : (
+                                                            <p className="text-gray-500 italic">Kein Feedback an diesem Tag</p>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    </div>
-                </main>
+                    </main>
+                </div>
             </div>
-        </div>
+        </BackgroundWrapper>
     );
 }

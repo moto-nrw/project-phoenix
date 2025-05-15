@@ -36,7 +36,7 @@ jobs:
       
       - name: Lint frontend code
         working-directory: frontend
-        run: npm run lint
+        run: npm run lint -- --max-warnings 0
       
       - name: Type check frontend code
         working-directory: frontend
