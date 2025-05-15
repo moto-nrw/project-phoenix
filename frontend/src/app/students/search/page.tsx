@@ -151,9 +151,109 @@ export default function StudentSearchPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // exampleStudents is now defined outside the component
 
-  // Define fetchStudents with useCallback to avoid unnecessary re-renders
+
+  // Demo data for students
+  const exampleStudents: Student[] = [
+    {
+      id: "1",
+      first_name: "Emma",
+      second_name: "Müller",
+      school_class: "1a",
+      group_id: "g1",
+      group_name: "Bären",
+      in_house: true,
+      wc: false,
+      school_yard: false,
+      bus: false
+    },
+    {
+      id: "2",
+      first_name: "Max",
+      second_name: "Schmidt",
+      school_class: "1b",
+      group_id: "g1",
+      group_name: "Bären",
+      in_house: false,
+      wc: true,
+      school_yard: false,
+      bus: false
+    },
+    {
+      id: "3",
+      first_name: "Sophie",
+      second_name: "Wagner",
+      school_class: "2a",
+      group_id: "g2",
+      group_name: "Füchse",
+      in_house: true,
+      wc: false,
+      school_yard: false,
+      bus: false
+    },
+    {
+      id: "4",
+      first_name: "Leon",
+      second_name: "Fischer",
+      school_class: "2b",
+      group_id: "g2",
+      group_name: "Füchse",
+      in_house: true,
+      wc: false,
+      school_yard: false,
+      bus: false
+    },
+    {
+      id: "5",
+      first_name: "Mia",
+      second_name: "Weber",
+      school_class: "3a",
+      group_id: "g3",
+      group_name: "Eulen",
+      in_house: true,
+      wc: false,
+      school_yard: false,
+      bus: false
+    },
+    {
+      id: "6",
+      first_name: "Noah",
+      second_name: "Becker",
+      school_class: "3b",
+      group_id: "g3",
+      group_name: "Eulen",
+      in_house: false,
+      wc: false,
+      school_yard: true,
+      bus: false
+    },
+    {
+      id: "7",
+      first_name: "Lina",
+      second_name: "Schulz",
+      school_class: "4a",
+      group_id: "g4",
+      group_name: "Wölfe",
+      in_house: false,
+      wc: false,
+      school_yard: false,
+      bus: true
+    },
+    {
+      id: "8",
+      first_name: "Felix",
+      second_name: "Hoffmann",
+      school_class: "4b",
+      group_id: "g4",
+      group_name: "Wölfe",
+      in_house: true,
+      wc: false,
+      school_yard: false,
+      bus: false
+    }
+  ];
+
+  // Using useCallback to memoize the fetchStudents function
   const fetchStudents = useCallback(async (filters?: {
     search?: string;
     inHouse?: boolean;
@@ -199,9 +299,9 @@ export default function StudentSearchPage() {
       setStudents([]);
       setIsSearching(false);
     }
-  }, [])
+  }, []);  // Empty dependency array as it doesn't depend on any state or props
 
-  // Load initial data when component mounts
+  // Load initial data - now includes fetchStudents in the dependency array
   useEffect(() => {
     void fetchStudents();
   }, [fetchStudents]);
@@ -465,16 +565,16 @@ export default function StudentSearchPage() {
 
                                       <div className="flex flex-col">
                                         <div className="flex items-center">
-                                  <span className="font-medium text-gray-900 transition-colors group-hover:text-blue-600">
-                                    {student.first_name} {student.second_name}
-                                  </span>
+                                          <span className="font-medium text-gray-900 transition-colors group-hover:text-blue-600">
+                                            {student.first_name} {student.second_name}
+                                          </span>
                                           {/* Year indicator */}
                                           <span className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`} title={`Jahrgang ${year}`}></span>
                                         </div>
                                         <span className="text-sm text-gray-500">
-                                  Klasse: {student.school_class}
+                                          Klasse: {student.school_class}
                                           {student.group_name && ` | Gruppe: ${student.group_name}`}
-                                </span>
+                                        </span>
                                       </div>
                                     </div>
 
@@ -487,8 +587,8 @@ export default function StudentSearchPage() {
                                         >
                                           {student.in_house && (
                                               <span className="absolute -top-0.5 -left-0.5 flex h-5 w-5">
-                                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-                                    </span>
+                                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
+                                              </span>
                                           )}
                                         </div>
                                       </div>
