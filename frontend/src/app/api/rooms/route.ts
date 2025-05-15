@@ -2,7 +2,7 @@
 import type { NextRequest } from "next/server";
 import { apiGet, apiPost } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
-import type { BackendRoom } from "~/lib/room-helpers";
+import type { BackendRoom, Room } from "~/lib/room-helpers";
 
 /**
  * Type definition for room creation request
@@ -15,6 +15,32 @@ interface RoomCreateRequest {
   category: string;
   color: string;
   device_id?: string;
+}
+
+/**
+ * Type definition for API response format
+ */
+interface ApiRoomsResponse {
+  status: string;
+  data: BackendRoomResponse[];
+}
+
+/**
+ * Partial backend room response type to handle the raw API data
+ */
+interface BackendRoomResponse {
+  id: number;
+  name: string;
+  room_name?: string;
+  building?: string;
+  floor: number;
+  capacity: number;
+  category: string;
+  color: string;
+  device_id?: string;
+  is_occupied: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 /**
@@ -32,7 +58,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
   
   try {
     // Fetch rooms from backend API
-    const response = await apiGet<any>(endpoint, token);
+    const response = await apiGet<ApiRoomsResponse>(endpoint, token);
     
     // Handle null or undefined response
     if (!response) {
@@ -46,18 +72,18 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
     // The response has a nested structure with the rooms in the data field
     if (response.status === "success" && Array.isArray(response.data)) {
       // Map the response data to ensure consistent field names
-      const mappedRooms = response.data.map((room: any) => ({
+      const mappedRooms = response.data.map((room: BackendRoomResponse) => ({
         ...room,
         // Ensure all required fields exist
         id: String(room.id), // Convert to string to match frontend expectations
-        name: room.name || room.room_name || "",
-        isOccupied: room.is_occupied || false,
-        capacity: room.capacity || 0,
-        category: room.category || "Other",
-        color: room.color || "#FFFFFF",
-        deviceId: room.device_id || "",
-        createdAt: room.created_at || "",
-        updatedAt: room.updated_at || ""
+        name: room.name ?? room.room_name ?? "",
+        isOccupied: room.is_occupied ?? false,
+        capacity: room.capacity ?? 0,
+        category: room.category ?? "Other",
+        color: room.color ?? "#FFFFFF",
+        deviceId: room.device_id ?? "",
+        createdAt: room.created_at ?? "",
+        updatedAt: room.updated_at ?? ""
       }));
       
       return mappedRooms;

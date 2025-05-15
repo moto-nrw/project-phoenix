@@ -12,6 +12,10 @@ interface RoomIntegrationsProps {
   onRoomSelect?: (room: Room) => void;
 }
 
+interface RoomFilters {
+  category?: string;
+}
+
 export function RoomIntegrations({
   roomId,
   categoryFilter,
@@ -26,7 +30,7 @@ export function RoomIntegrations({
   
   // Fetch room data
   useEffect(() => {
-    async function fetchRooms() {
+    void (async function fetchRooms() {
       try {
         setLoading(true);
         setError(null);
@@ -38,9 +42,7 @@ export function RoomIntegrations({
           setRooms([room]);
         } else {
           // Fetch rooms with optional filters
-          const filters: {
-            category?: string;
-          } = {};
+          const filters: RoomFilters = {};
           
           if (categoryFilter) {
             filters.category = categoryFilter;
@@ -55,9 +57,7 @@ export function RoomIntegrations({
       } finally {
         setLoading(false);
       }
-    }
-    
-    fetchRooms();
+    })();
   }, [roomId, categoryFilter]);
   
   const handleRoomClick = (room: Room) => {
@@ -274,7 +274,9 @@ export function RoomIntegrations({
           
           <div className="mt-4 flex justify-end">
             <button
-              onClick={() => router.push(`/database/rooms/${selectedRoom.id}`)}
+              onClick={() => {
+                void router.push(`/database/rooms/${selectedRoom.id}`);
+              }}
               className="rounded bg-blue-600 px-3 py-1 text-sm text-white transition hover:bg-blue-700"
             >
               Details anzeigen

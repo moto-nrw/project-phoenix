@@ -60,7 +60,7 @@ export function mapRoomResponse(backendRoom: BackendRoom): Room {
     };
 }
 
-export function mapRoomsResponse(backendRooms: BackendRoom[] | null | any): Room[] {
+export function mapRoomsResponse(backendRooms: BackendRoom[] | null | {data: BackendRoom[]}): Room[] {
     // Handle nested API response structure (from server API)
     if (backendRooms && typeof backendRooms === 'object' && 'data' in backendRooms && Array.isArray(backendRooms.data)) {
         console.log("Handling nested API response for rooms");

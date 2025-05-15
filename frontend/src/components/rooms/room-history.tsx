@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { getSession } from "next-auth/react";
 import type { Room } from "@/lib/api";
-import type { RoomHistoryEntry } from "@/lib/room-history-helpers";
+import type { RoomHistoryEntry, BackendRoomHistoryEntry } from "@/lib/room-history-helpers";
 import { formatDate, formatDuration } from "@/lib/room-history-helpers";
 
 interface RoomHistoryProps {
@@ -14,6 +14,25 @@ interface RoomHistoryProps {
   };
 }
 
+interface BackendRoomResponse {
+  id: number;
+  name: string;
+  room_name?: string;
+  building?: string;
+  floor: number;
+  capacity: number;
+  category: string;
+  color: string;
+  device_id?: string;
+  is_occupied: boolean;
+  activity_name?: string;
+  group_name?: string;
+  supervisor_name?: string;
+  student_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export function RoomHistory({ roomId, dateRange }: RoomHistoryProps) {
   const [historyData, setHistoryData] = useState<RoomHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,7 +41,7 @@ export function RoomHistory({ roomId, dateRange }: RoomHistoryProps) {
 
   // Fetch history data
   useEffect(() => {
-    async function fetchRoomHistory() {
+    void (async function fetchRoomHistory() {
       try {
         setLoading(true);
         setError(null);
@@ -59,10 +78,10 @@ export function RoomHistory({ roomId, dateRange }: RoomHistoryProps) {
           throw new Error(`Failed to fetch room history: ${historyResponse.status}`);
         }
 
-        const historyResponseData = await historyResponse.json();
+        const historyResponseData = await historyResponse.json() as BackendRoomHistoryEntry[];
         
         // Map backend types to frontend types
-        const frontendHistoryData: RoomHistoryEntry[] = historyResponseData.map((entry: any) => ({
+        const frontendHistoryData: RoomHistoryEntry[] = historyResponseData.map((entry) => ({
           id: String(entry.id),
           roomId: String(entry.room_id),
           date: entry.date,
@@ -88,18 +107,18 @@ export function RoomHistory({ roomId, dateRange }: RoomHistoryProps) {
           });
           
           if (roomResponse.ok) {
-            const roomData = await roomResponse.json();
+            const roomData = await roomResponse.json() as BackendRoomResponse;
             // Map from backend properties to frontend properties
             setRoom({
               id: String(roomData.id),
-              name: roomData.name || roomData.room_name, // Support both name formats
+              name: roomData.name ?? roomData.room_name ?? "", // Support both name formats
               building: roomData.building,
               floor: roomData.floor,
               capacity: roomData.capacity,
               category: roomData.category,
               color: roomData.color,
               deviceId: roomData.device_id,
-              isOccupied: roomData.is_occupied || false,
+              isOccupied: roomData.is_occupied ?? false,
               activityName: roomData.activity_name,
               groupName: roomData.group_name,
               supervisorName: roomData.supervisor_name,
@@ -115,10 +134,8 @@ export function RoomHistory({ roomId, dateRange }: RoomHistoryProps) {
       } finally {
         setLoading(false);
       }
-    }
-    
-    fetchRoomHistory();
-  }, [roomId, dateRange]);
+    })();
+  }, [roomId, dateRange, room]);
   
   if (loading) {
     return (

@@ -95,7 +95,7 @@ export function RoomForm({
         setError("Bitte geben Sie einen Raumnamen ein.");
       } else {
         // Clear error if there was a name-related error
-        if (error && error.includes("Raumnamen")) {
+        if (error?.includes("Raumnamen")) {
           setError(null);
         }
       }

@@ -19,7 +19,7 @@ export function createGetHandler<T>(
 ) {
   return async (
     request: NextRequest,
-    context: { params: Record<string, unknown> }
+    _context: { params: Record<string, unknown> }
   ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse>> => {
     try {
       const session = await auth();
@@ -82,7 +82,7 @@ export function createPostHandler<T, B = unknown>(
 ) {
   return async (
     request: NextRequest,
-    context: { params: Record<string, unknown> }
+    _context: { params: Record<string, unknown> }
   ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse>> => {
     try {
       const session = await auth();
@@ -139,7 +139,7 @@ export function createPutHandler<T, B = unknown>(
 ) {
   return async (
     request: NextRequest,
-    context: { params: Record<string, unknown> }
+    _context: { params: Record<string, unknown> }
   ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse>> => {
     try {
       const session = await auth();
@@ -195,7 +195,7 @@ export function createDeleteHandler<T>(
 ) {
   return async (
     request: NextRequest,
-    context: { params: Record<string, unknown> }
+    _context: { params: Record<string, unknown> }
   ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse>> => {
     try {
       const session = await auth();

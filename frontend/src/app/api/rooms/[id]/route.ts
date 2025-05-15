@@ -23,6 +23,44 @@ interface RoomUpdateRequest {
 }
 
 /**
+ * Interface for the backend room response object
+ */
+interface BackendRoomResponse {
+  data?: {
+    id: number;
+    name: string;
+    building?: string;
+    floor: number;
+    capacity: number;
+    category: string;
+    color: string;
+    device_id?: string;
+    is_occupied: boolean;
+    activity_name?: string;
+    group_name?: string;
+    supervisor_name?: string;
+    student_count?: number;
+    created_at: string;
+    updated_at: string;
+  };
+  id?: number;
+  name?: string;
+  building?: string;
+  floor?: number;
+  capacity?: number;
+  category?: string;
+  color?: string;
+  device_id?: string;
+  is_occupied?: boolean;
+  activity_name?: string;
+  group_name?: string;
+  supervisor_name?: string;
+  student_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
  * Type guard to check if parameter exists and is a string
  */
 function isStringParam(param: unknown): param is string {
@@ -40,7 +78,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
   
   try {
     // Call the backend API to get the room data
-    const response = await apiGet<any>(`/api/rooms/${params.id}`, token);
+    const response = await apiGet<BackendRoomResponse>(`/api/rooms/${params.id}`, token);
     
     // Check if the response is in the expected format
     console.log("Room API response:", JSON.stringify(response));
@@ -59,7 +97,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
           category: roomData.category,
           color: roomData.color,
           device_id: roomData.device_id,
-          is_occupied: roomData.is_occupied || false,
+          is_occupied: roomData.is_occupied ?? false,
           activity_name: roomData.activity_name,
           group_name: roomData.group_name,
           supervisor_name: roomData.supervisor_name,
@@ -78,7 +116,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
           category: response.category,
           color: response.color,
           device_id: response.device_id,
-          is_occupied: response.is_occupied || false,
+          is_occupied: response.is_occupied ?? false,
           activity_name: response.activity_name,
           group_name: response.group_name,
           supervisor_name: response.supervisor_name,
@@ -132,7 +170,7 @@ export const PUT = createPutHandler<BackendRoom, RoomUpdateRequest>(
         category: body.category,
         color: body.color,
         // Handle deviceId (camelCase from frontend) to device_id (snake_case for backend)
-        device_id: body.device_id || body.deviceId
+        device_id: body.device_id ?? body.deviceId
       };
       
       // Update the room via the API and get the updated room data
@@ -149,8 +187,8 @@ export const PUT = createPutHandler<BackendRoom, RoomUpdateRequest>(
         capacity: updatedRoom.capacity,
         category: updatedRoom.category,
         color: updatedRoom.color,
-        device_id: updatedRoom.device_id || null,
-        is_occupied: updatedRoom.is_occupied || false,
+        device_id: updatedRoom.device_id ?? null,
+        is_occupied: updatedRoom.is_occupied ?? false,
         created_at: updatedRoom.created_at,
         updated_at: updatedRoom.updated_at
       };

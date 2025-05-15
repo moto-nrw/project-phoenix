@@ -214,16 +214,7 @@ export default function StudentFeedbackHistoryPage() {
         }
     };
 
-    // Format date for display
-    const formatDate = (dateString: string): string => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('de-DE', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
-    };
+    // Format date function is actually used in the dateObj.toLocaleDateString call
 
     // Format time for display
     const formatTime = (dateString: string): string => {

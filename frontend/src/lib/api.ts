@@ -1545,10 +1545,10 @@ export const roomService = {
         // Handle different response formats
         if (responseData && typeof responseData === 'object') {
           if ('data' in responseData && responseData.data) {
-            // Wrapped response format
+            // Wrapped response format with nested data property
             return mapSingleRoomResponse({ data: responseData.data as BackendRoom });
           } else if ('id' in responseData) {
-            // Direct room object
+            // Direct room object without nesting
             return mapSingleRoomResponse({ data: responseData as BackendRoom });
           }
         }
@@ -1564,10 +1564,10 @@ export const roomService = {
         const responseData = response.data;
         if (responseData && typeof responseData === 'object') {
           if ('data' in responseData && responseData.data) {
-            // Wrapped response format
+            // Wrapped response format with nested data property
             return mapSingleRoomResponse({ data: responseData.data as BackendRoom });
           } else if ('id' in responseData) {
-            // Direct room object
+            // Direct room object without nesting
             return mapSingleRoomResponse({ data: responseData as BackendRoom });
           }
         }
