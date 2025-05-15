@@ -10,9 +10,8 @@ RUN npm ci
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
+ENV NODE_ENV=development
 
 EXPOSE 3000
 
-RUN npm run build
-CMD ["npm", "start"]
+CMD ["npm", "run", "dev"]

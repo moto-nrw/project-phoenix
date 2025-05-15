@@ -22,8 +22,7 @@ export interface BackendRoomHistoryEntry {
  * Returns history of a specific room's usage
  */
 export async function GET(
-  request: NextRequest,
-  context: { params: { id: string } }
+  request: NextRequest
 ): Promise<NextResponse> {
   try {
     const session = await auth();
@@ -35,9 +34,10 @@ export async function GET(
       );
     }
 
-    // Extract roomId from context.params
-    // This is the correct way to access dynamic route parameters in Next.js App Router
-    const roomId = context.params.id;
+    // Extract roomId from URL path
+    const pathParts = request.nextUrl.pathname.split('/');
+    const roomIdIndex = pathParts.findIndex(part => part === 'rooms') + 1;
+    const roomId = roomIdIndex > 0 && roomIdIndex < pathParts.length ? pathParts[roomIdIndex] : null;
 
     if (!roomId) {
       return NextResponse.json(

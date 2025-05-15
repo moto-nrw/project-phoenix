@@ -18,8 +18,7 @@ export function createGetHandler<T>(
   ) => Promise<T>
 ) {
   return async (
-    request: NextRequest,
-    _context: { params: Record<string, unknown> }
+    request: NextRequest
   ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> => {
     try {
       const session = await auth();
@@ -31,21 +30,26 @@ export function createGetHandler<T>(
         );
       }
 
-      // In Next.js App Router, dynamic params need to be properly handled to avoid
-      // "params should be awaited before using its properties" error
+      // Extract parameters from URL path
       const safeParams: Record<string, unknown> = {};
       
-      // Create a new object with only the properties we need
-      // This avoids direct property access on context.params which can trigger the error
-      // Extract ID from URL path instead of accessing context.params directly
-      const pathParts = request.nextUrl.pathname.split('/');
-      const lastPathPart = pathParts[pathParts.length - 1];
-      // Detect if the last path part is a numeric ID
-      const id = lastPathPart && /^\d+$/.test(lastPathPart) ? lastPathPart : undefined;
+      // Parse the URL to extract parameters
+      const url = new URL(request.url);
+      const pathParts = url.pathname.split('/');
       
-      if (id) {
-        safeParams.id = id;
+      // Try to extract ID from URL path parts
+      // Common patterns in this app: /api/resource/:id, /api/resource/action/:id
+      const potentialIds = pathParts.filter(part => /^\d+$/.test(part));
+      
+      if (potentialIds.length > 0) {
+        // Use the last numeric part as ID
+        safeParams.id = potentialIds[potentialIds.length - 1];
       }
+      
+      // Extract search params
+      url.searchParams.forEach((value, key) => {
+        safeParams[key] = value;
+      });
       
       const data = await handler(request, session.user.token, safeParams);
       
@@ -81,8 +85,7 @@ export function createPostHandler<T, B = unknown>(
   ) => Promise<T>
 ) {
   return async (
-    request: NextRequest,
-    _context: { params: Record<string, unknown> }
+    request: NextRequest
   ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> => {
     try {
       const session = await auth();
@@ -94,21 +97,26 @@ export function createPostHandler<T, B = unknown>(
         );
       }
 
-      // In Next.js App Router, dynamic params need to be properly handled to avoid
-      // "params should be awaited before using its properties" error
+      // Extract parameters from URL path
       const safeParams: Record<string, unknown> = {};
       
-      // Create a new object with only the properties we need
-      // This avoids direct property access on context.params which can trigger the error
-      // Extract ID from URL path instead of accessing context.params directly
-      const pathParts = request.nextUrl.pathname.split('/');
-      const lastPathPart = pathParts[pathParts.length - 1];
-      // Detect if the last path part is a numeric ID
-      const id = lastPathPart && /^\d+$/.test(lastPathPart) ? lastPathPart : undefined;
+      // Parse the URL to extract parameters
+      const url = new URL(request.url);
+      const pathParts = url.pathname.split('/');
       
-      if (id) {
-        safeParams.id = id;
+      // Try to extract ID from URL path parts
+      // Common patterns in this app: /api/resource/:id, /api/resource/action/:id
+      const potentialIds = pathParts.filter(part => /^\d+$/.test(part));
+      
+      if (potentialIds.length > 0) {
+        // Use the last numeric part as ID
+        safeParams.id = potentialIds[potentialIds.length - 1];
       }
+      
+      // Extract search params
+      url.searchParams.forEach((value, key) => {
+        safeParams[key] = value;
+      });
 
       const body = await request.json() as B;
       const data = await handler(request, body, session.user.token, safeParams);
@@ -138,8 +146,7 @@ export function createPutHandler<T, B = unknown>(
   ) => Promise<T>
 ) {
   return async (
-    request: NextRequest,
-    _context: { params: Record<string, unknown> }
+    request: NextRequest
   ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> => {
     try {
       const session = await auth();
@@ -151,21 +158,26 @@ export function createPutHandler<T, B = unknown>(
         );
       }
 
-      // In Next.js App Router, dynamic params need to be properly handled to avoid
-      // "params should be awaited before using its properties" error
+      // Extract parameters from URL path
       const safeParams: Record<string, unknown> = {};
       
-      // Create a new object with only the properties we need
-      // This avoids direct property access on context.params which can trigger the error
-      // Extract ID from URL path instead of accessing context.params directly
-      const pathParts = request.nextUrl.pathname.split('/');
-      const lastPathPart = pathParts[pathParts.length - 1];
-      // Detect if the last path part is a numeric ID
-      const id = lastPathPart && /^\d+$/.test(lastPathPart) ? lastPathPart : undefined;
+      // Parse the URL to extract parameters
+      const url = new URL(request.url);
+      const pathParts = url.pathname.split('/');
       
-      if (id) {
-        safeParams.id = id;
+      // Try to extract ID from URL path parts
+      // Common patterns in this app: /api/resource/:id, /api/resource/action/:id
+      const potentialIds = pathParts.filter(part => /^\d+$/.test(part));
+      
+      if (potentialIds.length > 0) {
+        // Use the last numeric part as ID
+        safeParams.id = potentialIds[potentialIds.length - 1];
       }
+      
+      // Extract search params
+      url.searchParams.forEach((value, key) => {
+        safeParams[key] = value;
+      });
 
       const body = await request.json() as B;
       const data = await handler(request, body, session.user.token, safeParams);
@@ -194,8 +206,7 @@ export function createDeleteHandler<T>(
   ) => Promise<T>
 ) {
   return async (
-    request: NextRequest,
-    _context: { params: Record<string, unknown> }
+    request: NextRequest
   ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> => {
     try {
       const session = await auth();
@@ -207,21 +218,26 @@ export function createDeleteHandler<T>(
         );
       }
 
-      // In Next.js App Router, dynamic params need to be properly handled to avoid
-      // "params should be awaited before using its properties" error
+      // Extract parameters from URL path
       const safeParams: Record<string, unknown> = {};
       
-      // Create a new object with only the properties we need
-      // This avoids direct property access on context.params which can trigger the error
-      // Extract ID from URL path instead of accessing context.params directly
-      const pathParts = request.nextUrl.pathname.split('/');
-      const lastPathPart = pathParts[pathParts.length - 1];
-      // Detect if the last path part is a numeric ID
-      const id = lastPathPart && /^\d+$/.test(lastPathPart) ? lastPathPart : undefined;
+      // Parse the URL to extract parameters
+      const url = new URL(request.url);
+      const pathParts = url.pathname.split('/');
       
-      if (id) {
-        safeParams.id = id;
+      // Try to extract ID from URL path parts
+      // Common patterns in this app: /api/resource/:id, /api/resource/action/:id
+      const potentialIds = pathParts.filter(part => /^\d+$/.test(part));
+      
+      if (potentialIds.length > 0) {
+        // Use the last numeric part as ID
+        safeParams.id = potentialIds[potentialIds.length - 1];
       }
+      
+      // Extract search params
+      url.searchParams.forEach((value, key) => {
+        safeParams[key] = value;
+      });
 
       const data = await handler(request, session.user.token, safeParams);
       // For delete operations with no content, return 204 status

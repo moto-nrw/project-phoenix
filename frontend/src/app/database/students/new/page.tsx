@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/dashboard";
 import StudentForm from "@/components/students/student-form";
 import type { Student } from "@/lib/api";
 import { studentService, groupService } from "@/lib/api";
 
-export default function NewStudentPage() {
+// Component that uses searchParams needs to be wrapped in Suspense
+function StudentPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const groupId = searchParams.get("groupId");
@@ -115,5 +116,20 @@ export default function NewStudentPage() {
         />
       </main>
     </div>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function NewStudentPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 p-4">
+        <div className="mx-auto max-w-4xl text-center">
+          <p className="text-lg font-medium">Lade Formular...</p>
+        </div>
+      </div>
+    }>
+      <StudentPageContent />
+    </Suspense>
   );
 }
