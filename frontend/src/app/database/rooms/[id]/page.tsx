@@ -11,7 +11,7 @@ export default function RoomDetailPage() {
   const router = useRouter();
   const params = useParams();
   // Ensure we handle both string and array ID formats from Next.js
-  const roomId = Array.isArray(params.id) ? params.id[0] : (params.id || "");
+  const roomId = Array.isArray(params.id) ? params.id[0] : (params.id ?? "");
 
   const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
