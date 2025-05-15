@@ -32,6 +32,13 @@ export function createGetHandler<T>(
       }
 
       const data = await handler(request, session.user.token, params);
+      
+      // For the rooms endpoint, we need to pass the raw data directly
+      // This is a special case for the rooms endpoint which needs to return the array directly
+      if (request.nextUrl.pathname === '/api/rooms') {
+        return NextResponse.json(data);
+      }
+      
       // Wrap the response in ApiResponse format if it's not already
       const response: ApiResponse<T> = typeof data === 'object' && data !== null && 'success' in data
         ? (data as unknown as ApiResponse<T>)

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/dashboard";
-import { RoomForm } from "@/components/rooms";
+import { RoomForm, RoomHistory } from "@/components/rooms";
 import type { Room } from "@/lib/api";
 import { roomService } from "@/lib/api";
 
@@ -314,6 +314,11 @@ export default function RoomDetailPage() {
                   )}
                 </div>
               </div>
+            </div>
+            
+            {/* Room History Component */}
+            <div className="mt-8">
+              <RoomHistory roomId={roomId} />
             </div>
           </div>
         )}

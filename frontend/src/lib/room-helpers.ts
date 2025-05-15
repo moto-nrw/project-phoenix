@@ -4,7 +4,7 @@
 // Backend types (from Go structs)
 export interface BackendRoom {
     id: number;
-    room_name: string;
+    name: string;     // Changed to match backend API which uses "name"
     building?: string;
     floor: number;
     capacity: number;
@@ -43,7 +43,7 @@ export interface Room {
 export function mapRoomResponse(backendRoom: BackendRoom): Room {
     return {
         id: String(backendRoom.id),
-        name: backendRoom.room_name,
+        name: backendRoom.name, // Changed from room_name to name to match backend API
         building: backendRoom.building,
         floor: backendRoom.floor,
         capacity: backendRoom.capacity,
@@ -60,7 +60,20 @@ export function mapRoomResponse(backendRoom: BackendRoom): Room {
     };
 }
 
-export function mapRoomsResponse(backendRooms: BackendRoom[]): Room[] {
+export function mapRoomsResponse(backendRooms: BackendRoom[] | null | any): Room[] {
+    // Handle nested API response structure (from server API)
+    if (backendRooms && typeof backendRooms === 'object' && 'data' in backendRooms && Array.isArray(backendRooms.data)) {
+        console.log("Handling nested API response for rooms");
+        return backendRooms.data.map(mapRoomResponse);
+    }
+    
+    // Handle null, undefined or non-array responses
+    if (!backendRooms || !Array.isArray(backendRooms)) {
+        console.warn("Received invalid response format for rooms:", backendRooms);
+        return [];
+    }
+    
+    // Standard array response
     return backendRooms.map(mapRoomResponse);
 }
 
@@ -70,9 +83,12 @@ export function mapSingleRoomResponse(response: { data: BackendRoom }): Room {
 
 // Prepare frontend room for backend
 export function prepareRoomForBackend(room: Partial<Room>): Partial<BackendRoom> {
+    // Make sure we don't send an empty name
+    if (room.name === "") return {};
+    
     return {
         id: room.id ? parseInt(room.id, 10) : undefined,
-        room_name: room.name,
+        name: room.name, // Changed from room_name to name to match backend API
         building: room.building,
         floor: room.floor ?? 0,
         capacity: room.capacity ?? 0,
@@ -85,7 +101,7 @@ export function prepareRoomForBackend(room: Partial<Room>): Partial<BackendRoom>
 
 // Request/Response types
 export interface CreateRoomRequest {
-    room_name: string;
+    name: string;
     building?: string;
     floor: number;
     capacity: number;
@@ -95,7 +111,7 @@ export interface CreateRoomRequest {
 }
 
 export interface UpdateRoomRequest {
-    room_name: string;
+    name: string;
     building?: string;
     floor: number;
     capacity: number;

@@ -56,7 +56,7 @@ func (r *RoomRepository) Update(ctx context.Context, room *facilities.Room) erro
 	query := r.db.NewUpdate().
 		Model(room).
 		Where("id = ?", room.ID).
-		ModelTableExpr("facilities.rooms")
+		ModelTableExpr("facilities.rooms AS room")
 
 	// Extract transaction from context if it exists
 	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
@@ -64,7 +64,7 @@ func (r *RoomRepository) Update(ctx context.Context, room *facilities.Room) erro
 		query = tx.NewUpdate().
 			Model(room).
 			Where("id = ?", room.ID).
-			ModelTableExpr("facilities.rooms")
+			ModelTableExpr("facilities.rooms AS room")
 	}
 
 	// Execute the query
@@ -83,7 +83,7 @@ func (r *RoomRepository) Update(ctx context.Context, room *facilities.Room) erro
 func (r *RoomRepository) FindByName(ctx context.Context, name string) (*facilities.Room, error) {
 	room := new(facilities.Room)
 	err := r.db.NewSelect().
-		ModelTableExpr("facilities.rooms").
+		ModelTableExpr("facilities.rooms AS room").
 		Where("LOWER(name) = LOWER(?)", name).
 		Scan(ctx, room)
 
@@ -102,6 +102,7 @@ func (r *RoomRepository) FindByBuilding(ctx context.Context, building string) ([
 	var rooms []*facilities.Room
 	err := r.db.NewSelect().
 		Model(&rooms).
+		ModelTableExpr("facilities.rooms AS room").
 		Where("LOWER(building) = LOWER(?)", building).
 		Scan(ctx)
 
@@ -120,6 +121,7 @@ func (r *RoomRepository) FindByCategory(ctx context.Context, category string) ([
 	var rooms []*facilities.Room
 	err := r.db.NewSelect().
 		Model(&rooms).
+		ModelTableExpr("facilities.rooms AS room").
 		Where("LOWER(category) = LOWER(?)", category).
 		Scan(ctx)
 
@@ -136,7 +138,9 @@ func (r *RoomRepository) FindByCategory(ctx context.Context, category string) ([
 // FindByFloor retrieves rooms by building and floor
 func (r *RoomRepository) FindByFloor(ctx context.Context, building string, floor int) ([]*facilities.Room, error) {
 	var rooms []*facilities.Room
-	query := r.db.NewSelect().Model(&rooms)
+	query := r.db.NewSelect().
+		Model(&rooms).
+		ModelTableExpr("facilities.rooms AS room")
 
 	if building != "" {
 		query = query.Where("LOWER(building) = LOWER(?)", building)
@@ -160,7 +164,9 @@ func (r *RoomRepository) FindByFloor(ctx context.Context, building string, floor
 // but should be migrated to QueryOptions in the future
 func (r *RoomRepository) List(ctx context.Context, filters map[string]interface{}) ([]*facilities.Room, error) {
 	var rooms []*facilities.Room
-	query := r.db.NewSelect().Model(&rooms)
+	query := r.db.NewSelect().
+		Model(&rooms).
+		ModelTableExpr("facilities.rooms AS room") // Use proper table alias
 
 	// Apply filters
 	for field, value := range filters {
@@ -222,7 +228,9 @@ func (r *RoomRepository) List(ctx context.Context, filters map[string]interface{
 // ListWithOptions retrieves rooms with the new type-safe query options system
 func (r *RoomRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*facilities.Room, error) {
 	var rooms []*facilities.Room
-	query := r.db.NewSelect().Model(&rooms)
+	query := r.db.NewSelect().
+		Model(&rooms).
+		ModelTableExpr("facilities.rooms AS room") // Use proper table alias
 
 	// Apply query options
 	if options != nil {
@@ -245,6 +253,7 @@ func (r *RoomRepository) FindWithCapacity(ctx context.Context, minCapacity int) 
 	var rooms []*facilities.Room
 	err := r.db.NewSelect().
 		Model(&rooms).
+		ModelTableExpr("facilities.rooms AS room").
 		Where("capacity >= ?", minCapacity).
 		Scan(ctx)
 
@@ -269,6 +278,7 @@ func (r *RoomRepository) SearchByText(ctx context.Context, searchText string) ([
 
 	err := r.db.NewSelect().
 		Model(&rooms).
+		ModelTableExpr("facilities.rooms AS room").
 		Where("LOWER(name) LIKE ? OR LOWER(building) LIKE ? OR LOWER(category) LIKE ?",
 			searchPattern, searchPattern, searchPattern).
 		Scan(ctx)

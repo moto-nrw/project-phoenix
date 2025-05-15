@@ -36,11 +36,15 @@ export default function RoomsPage() {
       try {
         // Fetch from the real API using our room service
         const data = await roomService.getRooms(filters);
+        
+        // Log the data received from the API
+        console.log("Rooms data received:", data);
 
         if (data.length === 0 && !search) {
           console.log("No rooms returned from API, checking connection");
         }
 
+        // Set the rooms data in state
         setRooms(data);
         setError(null);
       } catch (apiErr) {
@@ -145,7 +149,10 @@ export default function RoomsPage() {
             </div>
 
             <Link href="/database/rooms/new" className="w-full sm:w-auto">
-              <button className="group flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-teal-500 to-blue-600 px-4 py-3 text-white transition-all duration-200 hover:scale-[1.02] hover:from-teal-600 hover:to-blue-700 hover:shadow-lg sm:w-auto sm:justify-start">
+              <button 
+                className="group flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-teal-500 to-blue-600 px-4 py-3 text-white transition-all duration-200 hover:scale-[1.02] hover:from-teal-600 hover:to-blue-700 hover:shadow-lg sm:w-auto sm:justify-start"
+                title="Sie benötigen die 'rooms:create' Berechtigung, um Räume zu erstellen"
+              >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"

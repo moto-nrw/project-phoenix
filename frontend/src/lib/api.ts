@@ -1429,9 +1429,21 @@ export const roomService = {
               });
 
               if (retryResponse.ok) {
-                // Type assertion to avoid unsafe assignment
-                const responseData: unknown = await retryResponse.json();
-                return mapRoomsResponse(responseData as BackendRoom[]);
+                try {
+                  // Type assertion to avoid unsafe assignment
+                  const responseData: unknown = await retryResponse.json();
+                  
+                  // Handle null or non-array responses
+                  if (!responseData || !Array.isArray(responseData)) {
+                    console.warn("API retry returned invalid response format for rooms:", responseData);
+                    return [];
+                  }
+                  
+                  return mapRoomsResponse(responseData as BackendRoom[]);
+                } catch (parseError) {
+                  console.error("Error parsing API retry response:", parseError);
+                  return [];
+                }
               }
             }
           }
@@ -1440,12 +1452,34 @@ export const roomService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData: unknown = await response.json();
-        return mapRoomsResponse(responseData as BackendRoom[]);
+        try {
+          const responseData: unknown = await response.json();
+          
+          // Handle null or non-array responses
+          if (!responseData || !Array.isArray(responseData)) {
+            console.warn("API returned invalid response format for rooms:", responseData);
+            return [];
+          }
+          
+          return mapRoomsResponse(responseData as BackendRoom[]);
+        } catch (parseError) {
+          console.error("Error parsing API response:", parseError);
+          return [];
+        }
       } else {
         // Server-side: use axios with the API URL directly
-        const response = await api.get(url, { params });
-        return mapRoomsResponse(response.data as unknown as BackendRoom[]);
+        try {
+          const response = await api.get(url, { params });
+          // Handle null or non-array responses
+          if (!response.data || !Array.isArray(response.data)) {
+            console.warn("API returned invalid response format for rooms:", response.data);
+            return [];
+          }
+          return mapRoomsResponse(response.data as unknown as BackendRoom[]);
+        } catch (error) {
+          console.error("Error fetching rooms from API:", error);
+          return [];
+        }
       }
     } catch (error) {
       console.error("Error fetching rooms:", error);
@@ -1521,18 +1555,23 @@ export const roomService = {
 
   // Create a new room
   createRoom: async (room: Omit<Room, "id" | "isOccupied">): Promise<Room> => {
+    // Frontend validation before we transform the model
+    if (!room.name) {
+      throw new Error("Missing required field: name");
+    }
+    if (room.capacity === undefined || room.capacity <= 0) {
+      throw new Error("Missing required field: capacity must be greater than 0");
+    }
+    if (!room.category) {
+      throw new Error("Missing required field: category");
+    }
+    
     // Transform from frontend model to backend model
     const backendRoom = prepareRoomForBackend(room);
 
-    // Basic validation for room creation
-    if (!backendRoom.room_name) {
-      throw new Error("Missing required field: room_name");
-    }
-    if (backendRoom.capacity === undefined || backendRoom.capacity <= 0) {
-      throw new Error("Missing required field: capacity must be greater than 0");
-    }
-    if (!backendRoom.category) {
-      throw new Error("Missing required field: category");
+    // Backend model validation
+    if (!backendRoom.name) {
+      throw new Error("Missing required field: name");
     }
 
     const useProxyApi = typeof window !== "undefined";
