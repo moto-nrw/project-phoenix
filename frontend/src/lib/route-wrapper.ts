@@ -31,11 +31,20 @@ export function createGetHandler<T>(
         );
       }
 
-      // In Next.js App Router, params should be handled as an awaitable
-      // Extract only the id parameter if it exists
+      // In Next.js App Router, dynamic params need to be properly handled to avoid
+      // "params should be awaited before using its properties" error
       const safeParams: Record<string, unknown> = {};
-      if (context?.params?.id) {
-        safeParams.id = context.params.id;
+      
+      // Create a new object with only the properties we need
+      // This avoids direct property access on context.params which can trigger the error
+      // Extract ID from URL path instead of accessing context.params directly
+      const pathParts = request.nextUrl.pathname.split('/');
+      const lastPathPart = pathParts[pathParts.length - 1];
+      // Detect if the last path part is a numeric ID
+      const id = lastPathPart && /^\d+$/.test(lastPathPart) ? lastPathPart : undefined;
+      
+      if (id) {
+        safeParams.id = id;
       }
       
       const data = await handler(request, session.user.token, safeParams);
@@ -73,7 +82,7 @@ export function createPostHandler<T, B = unknown>(
 ) {
   return async (
     request: NextRequest,
-    { params }: { params: Record<string, unknown> }
+    context: { params: Record<string, unknown> }
   ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse>> => {
     try {
       const session = await auth();
@@ -85,8 +94,24 @@ export function createPostHandler<T, B = unknown>(
         );
       }
 
+      // In Next.js App Router, dynamic params need to be properly handled to avoid
+      // "params should be awaited before using its properties" error
+      const safeParams: Record<string, unknown> = {};
+      
+      // Create a new object with only the properties we need
+      // This avoids direct property access on context.params which can trigger the error
+      // Extract ID from URL path instead of accessing context.params directly
+      const pathParts = request.nextUrl.pathname.split('/');
+      const lastPathPart = pathParts[pathParts.length - 1];
+      // Detect if the last path part is a numeric ID
+      const id = lastPathPart && /^\d+$/.test(lastPathPart) ? lastPathPart : undefined;
+      
+      if (id) {
+        safeParams.id = id;
+      }
+
       const body = await request.json() as B;
-      const data = await handler(request, body, session.user.token, params);
+      const data = await handler(request, body, session.user.token, safeParams);
       // Wrap the response in ApiResponse format if it's not already
       const response: ApiResponse<T> = typeof data === 'object' && data !== null && 'success' in data
         ? (data as unknown as ApiResponse<T>)
@@ -126,11 +151,20 @@ export function createPutHandler<T, B = unknown>(
         );
       }
 
-      // In Next.js App Router, params should be handled as an awaitable
-      // Extract only the id parameter if it exists
+      // In Next.js App Router, dynamic params need to be properly handled to avoid
+      // "params should be awaited before using its properties" error
       const safeParams: Record<string, unknown> = {};
-      if (context?.params?.id) {
-        safeParams.id = context.params.id;
+      
+      // Create a new object with only the properties we need
+      // This avoids direct property access on context.params which can trigger the error
+      // Extract ID from URL path instead of accessing context.params directly
+      const pathParts = request.nextUrl.pathname.split('/');
+      const lastPathPart = pathParts[pathParts.length - 1];
+      // Detect if the last path part is a numeric ID
+      const id = lastPathPart && /^\d+$/.test(lastPathPart) ? lastPathPart : undefined;
+      
+      if (id) {
+        safeParams.id = id;
       }
 
       const body = await request.json() as B;
@@ -173,11 +207,20 @@ export function createDeleteHandler<T>(
         );
       }
 
-      // In Next.js App Router, params should be handled as an awaitable
-      // Extract only the id parameter if it exists
+      // In Next.js App Router, dynamic params need to be properly handled to avoid
+      // "params should be awaited before using its properties" error
       const safeParams: Record<string, unknown> = {};
-      if (context?.params?.id) {
-        safeParams.id = context.params.id;
+      
+      // Create a new object with only the properties we need
+      // This avoids direct property access on context.params which can trigger the error
+      // Extract ID from URL path instead of accessing context.params directly
+      const pathParts = request.nextUrl.pathname.split('/');
+      const lastPathPart = pathParts[pathParts.length - 1];
+      // Detect if the last path part is a numeric ID
+      const id = lastPathPart && /^\d+$/.test(lastPathPart) ? lastPathPart : undefined;
+      
+      if (id) {
+        safeParams.id = id;
       }
 
       const data = await handler(request, session.user.token, safeParams);

@@ -118,7 +118,7 @@ export function RoomHistory({ roomId, dateRange }: RoomHistoryProps) {
     }
     
     fetchRoomHistory();
-  }, [roomId, dateRange, room]);
+  }, [roomId, dateRange]);
   
   if (loading) {
     return (

@@ -6,14 +6,19 @@ import type { BackendRoom } from "~/lib/room-helpers";
 
 /**
  * Type definition for room update request
+ * Accommodates both camelCase (frontend) and snake_case (backend) field names
  */
 interface RoomUpdateRequest {
-  room_name?: string;
+  // Frontend form fields (camelCase)
+  name?: string;
   building?: string;
   floor?: number;
   capacity?: number;
   category?: string;
   color?: string;
+  deviceId?: string;
+  
+  // Backend fields (snake_case) - for compatibility
   device_id?: string;
 }
 
@@ -116,8 +121,39 @@ export const PUT = createPutHandler<BackendRoom, RoomUpdateRequest>(
     }
     
     try {
-      // Update the room via the API
-      return await apiPut<BackendRoom>(`/api/rooms/${params.id}`, token, body);
+      // Prepare payload for backend API
+      // Map frontend form fields to backend field names
+      // The backend API expects snake_case while frontend uses camelCase
+      const backendBody = {
+        name: body.name,
+        building: body.building,
+        floor: body.floor,
+        capacity: body.capacity,
+        category: body.category,
+        color: body.color,
+        // Handle deviceId (camelCase from frontend) to device_id (snake_case for backend)
+        device_id: body.device_id || body.deviceId
+      };
+      
+      // Update the room via the API and get the updated room data
+      const updatedRoom = await apiPut<BackendRoom>(`/api/rooms/${params.id}`, token, backendBody);
+      
+      console.log("Room updated successfully:", updatedRoom);
+      
+      // Make sure we return a properly formatted response with all fields
+      return {
+        id: updatedRoom.id,
+        name: updatedRoom.name,
+        building: updatedRoom.building,
+        floor: updatedRoom.floor,
+        capacity: updatedRoom.capacity,
+        category: updatedRoom.category,
+        color: updatedRoom.color,
+        device_id: updatedRoom.device_id || null,
+        is_occupied: updatedRoom.is_occupied || false,
+        created_at: updatedRoom.created_at,
+        updated_at: updatedRoom.updated_at
+      };
     } catch (error) {
       console.error(`Error updating room ${params.id}:`, error);
       // If we get a 404 or database error, return a properly formatted error

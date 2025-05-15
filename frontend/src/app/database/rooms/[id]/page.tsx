@@ -46,9 +46,24 @@ export default function RoomDetailPage() {
       setLoading(true);
       setError(null);
 
+      console.log("Updating room with data:", formData);
+      
       // Update room
       const updatedRoom = await roomService.updateRoom(roomId, formData);
-      setRoom(updatedRoom);
+      console.log("Room updated successfully, received:", updatedRoom);
+      
+      // After updating, fetch the room again to make sure we have the latest data
+      try {
+        console.log("Re-fetching room data to ensure we have the latest");
+        const refreshedRoom = await roomService.getRoom(roomId);
+        console.log("Room refreshed data:", refreshedRoom);
+        setRoom(refreshedRoom);
+      } catch (refreshError) {
+        console.error("Error refreshing room data:", refreshError);
+        // Use the updatedRoom data from the update API if refresh fails
+        setRoom(updatedRoom);
+      }
+      
       setIsEditing(false);
     } catch (err) {
       console.error("Error updating room:", err);
