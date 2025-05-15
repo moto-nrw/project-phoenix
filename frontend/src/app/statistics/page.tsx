@@ -126,11 +126,11 @@ export default function StatisticsPage() {
                     { activity: "Fußball AG", students: 12, totalSlots: 15, category: "Bewegen/Ruhe" },
                     { activity: "Coding Club", students: 8, totalSlots: 10, category: "NW/Technik" },
                     { activity: "Musikgruppe", students: 14, totalSlots: 15, category: "Kreatives/Musik" },
-                    { activity: "Kunstwerkstatt", students: 10, totalSlots: 12, category: "Kreatives/Musik" },
                     { activity: "Lesezirkel", students: 7, totalSlots: 10, category: "Lernen" },
                     { activity: "Kochgruppe", students: 9, totalSlots: 12, category: "Hauswirtschaft" },
                     { activity: "Naturerkundung", students: 11, totalSlots: 15, category: "Natur" },
                     { activity: "Schach AG", students: 6, totalSlots: 8, category: "Spielen" },
+                    { activity: "Kunstwerkstatt", students: 10, totalSlots: 12, category: "Sonstiges" },
                 ];
 
                 // Mock feedback summary data
@@ -291,7 +291,7 @@ export default function StatisticsPage() {
                                     <div className="rounded-lg bg-green-50 p-4 text-center">
                                         <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
                                             <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                                             </svg>
                                         </div>
                                         <p className="text-2xl font-bold text-green-800">{schoolStats?.presentStudents}</p>
@@ -302,7 +302,7 @@ export default function StatisticsPage() {
                                     <div className="rounded-lg bg-blue-50 p-4 text-center">
                                         <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
                                             <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 5l-4-4-4 4M8 9v10M16 19V9M12 1v18M3 19h18" />
                                             </svg>
                                         </div>
                                         <p className="text-2xl font-bold text-blue-800">{schoolStats?.schoolyard}</p>
@@ -333,7 +333,7 @@ export default function StatisticsPage() {
                                     <div className="rounded-lg bg-red-50 p-4 text-center">
                                         <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
                                             <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                                             </svg>
                                         </div>
                                         <p className="text-2xl font-bold text-red-800">{schoolStats?.absentStudents}</p>
@@ -464,10 +464,10 @@ export default function StatisticsPage() {
                                             );
                                         })}
 
-                                        {/* Legend */}
-                                        <circle cx="600" y="30" r="4" fill="#4F46E5" />
+                                        {/* Legend - KORRIGIERT: Richtiges cy-Attribut statt y und besser positioniert */}
+                                        <circle cx="600" cy="30" r="4" fill="#4F46E5" />
                                         <text x="610" y="34" fill="#111827" fontSize="12">Anwesend</text>
-                                        <circle cx="680" y="30" r="4" fill="#EF4444" />
+                                        <circle cx="680" cy="30" r="4" fill="#EF4444" />
                                         <text x="690" y="34" fill="#111827" fontSize="12">Abwesend</text>
                                     </svg>
                                 </div>
@@ -488,14 +488,12 @@ export default function StatisticsPage() {
                                                 </div>
                                                 <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-200">
                                                     <div
-                                                        className="h-full rounded-full"
+                                                        className="h-full rounded-full bg-blue-500"
                                                         style={{
-                                                            width: `${room.usagePercent}%`,
-                                                            backgroundColor: categoryColors[room.category] ?? '#6B7280',
+                                                            width: `${room.usagePercent}%`
                                                         }}
                                                     ></div>
                                                 </div>
-                                                <span className="absolute right-0 top-6 text-xs text-gray-500">{room.category}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -515,8 +513,7 @@ export default function StatisticsPage() {
                                         {activityParticipation.map((activity, index) => (
                                             <div key={index} className="relative">
                                                 <div className="flex items-center justify-between mb-1">
-                                                    <span className="font-medium text-gray-800">{activity.activity}</span>
-                                                    <span className="text-sm text-gray-600">{activity.students}/{activity.totalSlots} Teilnehmer</span>
+                                                    <span className="font-medium text-gray-800">{activity.category}</span>
                                                 </div>
                                                 <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-200">
                                                     <div
@@ -527,7 +524,6 @@ export default function StatisticsPage() {
                                                         }}
                                                     ></div>
                                                 </div>
-                                                <span className="absolute right-0 top-6 text-xs text-gray-500">{activity.category}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -556,17 +552,17 @@ export default function StatisticsPage() {
                                                     {/* Positive Feedback (Green) */}
                                                     <path
                                                         d={`M 0 0 L ${Math.cos(0) * 100} ${Math.sin(0) * 100} A 100 100 0 ${(feedbackSummary.positive / feedbackSummary.total) * 360 > 180 ? 1 : 0} 1 ${Math.cos((feedbackSummary.positive / feedbackSummary.total) * Math.PI * 2) * 100} ${Math.sin((feedbackSummary.positive / feedbackSummary.total) * Math.PI * 2) * 100} Z`}
-                                                        fill="#10B981"
+                                                        fill="#83CD2D"
                                                     />
-                                                    {/* Neutral Feedback (Yellow) */}
+                                                    {/* Neutral Feedback (Orange) */}
                                                     <path
                                                         d={`M 0 0 L ${Math.cos((feedbackSummary.positive / feedbackSummary.total) * Math.PI * 2) * 100} ${Math.sin((feedbackSummary.positive / feedbackSummary.total) * Math.PI * 2) * 100} A 100 100 0 ${(feedbackSummary.neutral / feedbackSummary.total) * 360 > 180 ? 1 : 0} 1 ${Math.cos(((feedbackSummary.positive + feedbackSummary.neutral) / feedbackSummary.total) * Math.PI * 2) * 100} ${Math.sin(((feedbackSummary.positive + feedbackSummary.neutral) / feedbackSummary.total) * Math.PI * 2) * 100} Z`}
-                                                        fill="#F59E0B"
+                                                        fill="#F78C10"
                                                     />
                                                     {/* Negative Feedback (Red) */}
                                                     <path
                                                         d={`M 0 0 L ${Math.cos(((feedbackSummary.positive + feedbackSummary.neutral) / feedbackSummary.total) * Math.PI * 2) * 100} ${Math.sin(((feedbackSummary.positive + feedbackSummary.neutral) / feedbackSummary.total) * Math.PI * 2) * 100} A 100 100 0 ${(feedbackSummary.negative / feedbackSummary.total) * 360 > 180 ? 1 : 0} 1 ${Math.cos(0) * 100} ${Math.sin(0) * 100} Z`}
-                                                        fill="#EF4444"
+                                                        fill="#FF3130"
                                                     />
                                                     {/* Center hole */}
                                                     <circle cx="0" cy="0" r="60" fill="white" />
@@ -587,42 +583,42 @@ export default function StatisticsPage() {
                                         <div className="mb-6 space-y-4">
                                             {/* Positive Feedback */}
                                             <div className="flex items-center">
-                                                <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                                                <div className="w-3 h-3 rounded-full bg-[#83CD2D] mr-2"></div>
                                                 <div className="flex-1">
                                                     <div className="flex justify-between">
                                                         <span className="text-sm font-medium text-gray-700">Positiv</span>
                                                         <span className="text-sm text-gray-500">{feedbackSummary?.positive}%</span>
                                                     </div>
                                                     <div className="mt-1 h-1.5 w-full rounded-full bg-gray-200">
-                                                        <div className="h-full rounded-full bg-green-500" style={{ width: `${feedbackSummary?.positive}%` }}></div>
+                                                        <div className="h-full rounded-full bg-[#83CD2D]" style={{ width: `${feedbackSummary?.positive}%` }}></div>
                                                     </div>
                                                 </div>
                                             </div>
 
                                             {/* Neutral Feedback */}
                                             <div className="flex items-center">
-                                                <div className="w-3 h-3 rounded-full bg-yellow-500 mr-2"></div>
+                                                <div className="w-3 h-3 rounded-full bg-[#F78C10] mr-2"></div>
                                                 <div className="flex-1">
                                                     <div className="flex justify-between">
                                                         <span className="text-sm font-medium text-gray-700">Neutral</span>
                                                         <span className="text-sm text-gray-500">{feedbackSummary?.neutral}%</span>
                                                     </div>
                                                     <div className="mt-1 h-1.5 w-full rounded-full bg-gray-200">
-                                                        <div className="h-full rounded-full bg-yellow-500" style={{ width: `${feedbackSummary?.neutral}%` }}></div>
+                                                        <div className="h-full rounded-full bg-[#F78C10]" style={{ width: `${feedbackSummary?.neutral}%` }}></div>
                                                     </div>
                                                 </div>
                                             </div>
 
                                             {/* Negative Feedback */}
                                             <div className="flex items-center">
-                                                <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
+                                                <div className="w-3 h-3 rounded-full bg-[#FF3130] mr-2"></div>
                                                 <div className="flex-1">
                                                     <div className="flex justify-between">
                                                         <span className="text-sm font-medium text-gray-700">Negativ</span>
                                                         <span className="text-sm text-gray-500">{feedbackSummary?.negative}%</span>
                                                     </div>
                                                     <div className="mt-1 h-1.5 w-full rounded-full bg-gray-200">
-                                                        <div className="h-full rounded-full bg-red-500" style={{ width: `${feedbackSummary?.negative}%` }}></div>
+                                                        <div className="h-full rounded-full bg-[#FF3130]" style={{ width: `${feedbackSummary?.negative}%` }}></div>
                                                     </div>
                                                 </div>
                                             </div>
