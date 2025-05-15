@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Header } from "~/components/dashboard/header";
 import { Sidebar } from "~/components/dashboard/sidebar";
 import { Alert } from "~/components/ui/alert";
+import { BackgroundWrapper } from "~/components/background-wrapper";
 
 // Student type (reused from student page)
 interface Student {
@@ -229,199 +230,205 @@ export default function StudentRoomHistoryPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-50">
-                <Header userName="Benutzer" />
-                <div className="flex">
-                    <Sidebar />
-                    <main className="flex-1 p-8">
-                        <div className="flex min-h-[80vh] items-center justify-center">
-                            <div className="flex flex-col items-center">
-                                <div className="h-12 w-12 rounded-full border-4 border-t-blue-500 border-b-blue-500 border-l-transparent border-r-transparent animate-spin"></div>
-                                <p className="mt-4 text-gray-600">Daten werden geladen...</p>
+            <BackgroundWrapper>
+                <div className="min-h-screen">
+                    <Header userName="Benutzer" />
+                    <div className="flex">
+                        <Sidebar />
+                        <main className="flex-1 p-8">
+                            <div className="flex min-h-[80vh] items-center justify-center">
+                                <div className="flex flex-col items-center gap-4">
+                                    <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+                                    <p className="text-gray-600">Daten werden geladen...</p>
+                                </div>
                             </div>
-                        </div>
-                    </main>
+                        </main>
+                    </div>
                 </div>
-            </div>
+            </BackgroundWrapper>
         );
     }
 
     if (error || !student) {
         return (
-            <div className="min-h-screen bg-gray-50">
-                <Header userName="Benutzer" />
-                <div className="flex">
-                    <Sidebar />
-                    <main className="flex-1 p-8">
-                        <div className="flex min-h-[80vh] flex-col items-center justify-center">
-                            <Alert
-                                type="error"
-                                message={error ?? "Schüler nicht gefunden"}
-                            />
-                            <button
-                                onClick={() => router.push(referrer)}
-                                className="mt-4 rounded bg-blue-100 px-4 py-2 text-blue-800 transition-colors hover:bg-blue-200"
-                            >
-                                Zurück
-                            </button>
-                        </div>
-                    </main>
+            <BackgroundWrapper>
+                <div className="min-h-screen">
+                    <Header userName="Benutzer" />
+                    <div className="flex">
+                        <Sidebar />
+                        <main className="flex-1 p-8">
+                            <div className="flex min-h-[80vh] flex-col items-center justify-center">
+                                <Alert
+                                    type="error"
+                                    message={error ?? "Schüler nicht gefunden"}
+                                />
+                                <button
+                                    onClick={() => router.push(referrer)}
+                                    className="mt-4 rounded bg-blue-100 px-4 py-2 text-blue-800 transition-colors hover:bg-blue-200"
+                                >
+                                    Zurück
+                                </button>
+                            </div>
+                        </main>
+                    </div>
                 </div>
-            </div>
+            </BackgroundWrapper>
         );
     }
 
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Header */}
-            <Header userName="Benutzer" />
+        <BackgroundWrapper>
+            <div className="min-h-screen">
+                {/* Header */}
+                <Header userName="Benutzer" />
 
-            <div className="flex">
-                {/* Sidebar */}
-                <Sidebar />
+                <div className="flex">
+                    {/* Sidebar */}
+                    <Sidebar />
 
-                {/* Main Content */}
-                <main className="flex-1 p-8">
-                    <div className="mx-auto max-w-7xl">
-                        {/* Back Button */}
-                        <div className="mb-6">
-                            <button
-                                onClick={() => router.push(`/students/${studentId}?from=${referrer}`)}
-                                className="flex items-center text-gray-600 hover:text-blue-600 transition-colors"
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-5 w-5 mr-1"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
+                    {/* Main Content */}
+                    <main className="flex-1 p-8">
+                        <div className="mx-auto max-w-7xl">
+                            {/* Back Button */}
+                            <div className="mb-6">
+                                <button
+                                    onClick={() => router.push(`/students/${studentId}?from=${referrer}`)}
+                                    className="flex items-center text-gray-600 hover:text-blue-600 transition-colors"
                                 >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                                    />
-                                </svg>
-                                Zurück zum Schülerprofil
-                            </button>
-                        </div>
-
-                        {/* Student Profile Header with Status */}
-                        <div className="relative mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white shadow-md">
-                            <div className="flex items-center">
-                                <div className="mr-6 flex h-24 w-24 items-center justify-center rounded-full bg-white/30 text-4xl font-bold">
-                                    {student.first_name[0]}{student.second_name[0]}
-                                </div>
-                                <div>
-                                    <h1 className="text-3xl font-bold">{student.name}</h1>
-                                    <div className="flex items-center mt-1">
-                                        <span className="opacity-90">Klasse {student.school_class}</span>
-                                        <span className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`} title={`Jahrgang ${year}`}></span>
-                                        <span className="mx-2">•</span>
-                                        <span className="opacity-90">Gruppe: {student.group_name}</span>
-                                    </div>
-                                    <div className="mt-4">
-                                        <h2 className="text-2xl font-semibold text-white">Raumverlauf</h2>
-                                    </div>
-                                </div>
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="h-5 w-5 mr-1"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                                        />
+                                    </svg>
+                                    Zurück zum Schülerprofil
+                                </button>
                             </div>
-                        </div>
 
-                        {/* Time Range Filter */}
-                        <div className="mb-8">
-                            <div className="bg-white rounded-lg shadow-sm p-4">
-                                <h2 className="text-lg font-medium text-gray-800 mb-3">Zeitraum auswählen</h2>
-                                <div className="flex flex-wrap gap-2">
-                                    <button
-                                        className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "today" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
-                                        onClick={() => setTimeRange("today")}
-                                    >
-                                        Heute
-                                    </button>
-                                    <button
-                                        className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "week" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
-                                        onClick={() => setTimeRange("week")}
-                                    >
-                                        Diese Woche
-                                    </button>
-                                    <button
-                                        className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "7days" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
-                                        onClick={() => setTimeRange("7days")}
-                                    >
-                                        Letzte 7 Tage
-                                    </button>
-                                    <button
-                                        className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "month" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
-                                        onClick={() => setTimeRange("month")}
-                                    >
-                                        Diesen Monat
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Room History Timeline */}
-                        <div className="space-y-6">
-                            {roomHistory.length === 0 ? (
-                                <div className="bg-white rounded-lg p-8 text-center shadow-sm">
-                                    <p className="text-gray-500">Keine Raumhistorie für den ausgewählten Zeitraum verfügbar.</p>
-                                </div>
-                            ) : (
-                                sortedDates.map(date => (
-                                    <div key={date} className="bg-white rounded-lg shadow-sm overflow-hidden">
-                                        <div className="bg-blue-50 px-6 py-3 border-b border-blue-100">
-                                            <h3 className="font-medium text-blue-800">
-                                                {groupedRoomHistory[date]?.[0]?.timestamp ? formatDate(groupedRoomHistory[date][0].timestamp) : ''}
-                                            </h3>
+                            {/* Student Profile Header with Status */}
+                            <div className="relative mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white shadow-md">
+                                <div className="flex items-center">
+                                    <div className="mr-6 flex h-24 w-24 items-center justify-center rounded-full bg-white/30 text-4xl font-bold">
+                                        {student.first_name[0]}{student.second_name[0]}
+                                    </div>
+                                    <div>
+                                        <h1 className="text-3xl font-bold">{student.name}</h1>
+                                        <div className="flex items-center mt-1">
+                                            <span className="opacity-90">Klasse {student.school_class}</span>
+                                            <span className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`} title={`Jahrgang ${year}`}></span>
+                                            <span className="mx-2">•</span>
+                                            <span className="opacity-90">Gruppe: {student.group_name}</span>
                                         </div>
-                                        <div className="px-6 py-2">
-                                            <ul className="relative">
-                                                {groupedRoomHistory[date]?.
+                                        <div className="mt-4">
+                                            <h2 className="text-2xl font-semibold text-white">Raumverlauf</h2>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Time Range Filter */}
+                            <div className="mb-8">
+                                <div className="bg-white rounded-lg shadow-sm p-4">
+                                    <h2 className="text-lg font-medium text-gray-800 mb-3">Zeitraum auswählen</h2>
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "today" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
+                                            onClick={() => setTimeRange("today")}
+                                        >
+                                            Heute
+                                        </button>
+                                        <button
+                                            className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "week" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
+                                            onClick={() => setTimeRange("week")}
+                                        >
+                                            Diese Woche
+                                        </button>
+                                        <button
+                                            className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "7days" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
+                                            onClick={() => setTimeRange("7days")}
+                                        >
+                                            Letzte 7 Tage
+                                        </button>
+                                        <button
+                                            className={`px-4 py-2 rounded-lg transition-colors ${timeRange === "month" ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
+                                            onClick={() => setTimeRange("month")}
+                                        >
+                                            Diesen Monat
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Room History Timeline */}
+                            <div className="space-y-6">
+                                {roomHistory.length === 0 ? (
+                                    <div className="bg-white rounded-lg p-8 text-center shadow-sm">
+                                        <p className="text-gray-500">Keine Raumhistorie für den ausgewählten Zeitraum verfügbar.</p>
+                                    </div>
+                                ) : (
+                                    sortedDates.map(date => (
+                                        <div key={date} className="bg-white rounded-lg shadow-sm overflow-hidden">
+                                            <div className="bg-blue-50 px-6 py-3 border-b border-blue-100">
+                                                <h3 className="font-medium text-blue-800">
+                                                    {groupedRoomHistory[date]?.[0]?.timestamp ? formatDate(groupedRoomHistory[date][0].timestamp) : ''}
+                                                </h3>
+                                            </div>
+                                            <div className="px-6 py-2">
+                                                <ul className="relative">
+                                                    {groupedRoomHistory[date]?.
                                                     sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-                                                    .map((entry, index) => (
-                                                        <li key={entry.id} className="relative pl-8 py-4 border-l-2 border-gray-200">
-                                                            {/* Time dot */}
-                                                            <div className="absolute -left-[5px] mt-1.5 h-3 w-3 rounded-full bg-blue-500"></div>
+                                                        .map((entry, index) => (
+                                                            <li key={entry.id} className="relative pl-8 py-4 border-l-2 border-gray-200">
+                                                                {/* Time dot */}
+                                                                <div className="absolute -left-[5px] mt-1.5 h-3 w-3 rounded-full bg-blue-500"></div>
 
-                                                            <div className="flex flex-col space-y-1">
-                                                                <span className="text-sm text-gray-500">{formatTime(entry.timestamp)}</span>
+                                                                <div className="flex flex-col space-y-1">
+                                                                    <span className="text-sm text-gray-500">{formatTime(entry.timestamp)}</span>
 
-                                                                <div className="flex items-start gap-2">
-                                                                    <span className="font-medium text-gray-900">{entry.room_name}</span>
+                                                                    <div className="flex items-start gap-2">
+                                                                        <span className="font-medium text-gray-900">{entry.room_name}</span>
 
-                                                                    {entry.reason && (
-                                                                        <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
-                                                                            {entry.reason}
+                                                                        {entry.reason && (
+                                                                            <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                                                                                {entry.reason}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+
+                                                                    {entry.duration_minutes && (
+                                                                        <span className="text-sm text-gray-600">
+                                                                            Dauer: {Math.floor(entry.duration_minutes / 60) > 0
+                                                                            ? `${Math.floor(entry.duration_minutes / 60)} Std. ${entry.duration_minutes % 60} Min.`
+                                                                            : `${entry.duration_minutes} Min.`}
                                                                         </span>
                                                                     )}
                                                                 </div>
 
-                                                                {entry.duration_minutes && (
-                                                                    <span className="text-sm text-gray-600">
-                                                                        Dauer: {Math.floor(entry.duration_minutes / 60) > 0
-                                                                        ? `${Math.floor(entry.duration_minutes / 60)} Std. ${entry.duration_minutes % 60} Min.`
-                                                                        : `${entry.duration_minutes} Min.`}
-                                                                    </span>
+                                                                {/* Last item in the day doesn't need connecting line to next item */}
+                                                                {groupedRoomHistory[date] && index !== groupedRoomHistory[date].length - 1 && (
+                                                                    <div className="absolute left-[-2px] top-10 bottom-0 w-0.5 bg-gray-200"></div>
                                                                 )}
-                                                            </div>
-
-                                                            {/* Last item in the day doesn't need connecting line to next item */}
-                                                            {groupedRoomHistory[date] && index !== groupedRoomHistory[date].length - 1 && (
-                                                                <div className="absolute left-[-2px] top-10 bottom-0 w-0.5 bg-gray-200"></div>
-                                                            )}
-                                                        </li>
-                                                    ))}
-                                            </ul>
+                                                            </li>
+                                                        ))}
+                                                </ul>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))
-                            )}
+                                    ))
+                                )}
+                            </div>
                         </div>
-                    </div>
-                </main>
+                    </main>
+                </div>
             </div>
-        </div>
+        </BackgroundWrapper>
     );
 }
