@@ -78,19 +78,45 @@ export function RoomHistory({ roomId, dateRange }: RoomHistoryProps) {
           throw new Error(`Failed to fetch room history: ${historyResponse.status}`);
         }
 
-        const historyResponseData = await historyResponse.json() as BackendRoomHistoryEntry[];
+        // Safely parse the response
+        const historyResponseData = await historyResponse.json() as unknown;
         
-        // Map backend types to frontend types
-        const frontendHistoryData: RoomHistoryEntry[] = historyResponseData.map((entry) => ({
-          id: String(entry.id),
-          roomId: String(entry.room_id),
-          date: entry.date,
-          groupName: entry.group_name,
-          activityName: entry.activity_name,
-          supervisorName: entry.supervisor_name,
-          studentCount: entry.student_count,
-          duration: entry.duration
-        }));
+        // Check if response follows ApiResponse format or is a direct array
+        // Type-safe approach to handle different response formats
+        const backendEntries = Array.isArray(historyResponseData) 
+          ? historyResponseData as BackendRoomHistoryEntry[] 
+          : (
+              typeof historyResponseData === 'object' && 
+              historyResponseData !== null && 
+              'data' in historyResponseData && 
+              Array.isArray((historyResponseData as Record<string, unknown>).data)
+            )
+            ? (historyResponseData as { data: BackendRoomHistoryEntry[] }).data
+            : null;
+        
+        if (!backendEntries) {
+          throw new Error("Invalid response format from room history API");
+        }
+        
+        // Map backend types to frontend types using our helper function
+        const frontendHistoryData = backendEntries.map((entry: BackendRoomHistoryEntry): RoomHistoryEntry => {
+          if (typeof entry.id !== 'number' || typeof entry.room_id !== 'number' || 
+              typeof entry.date !== 'string' || typeof entry.group_name !== 'string' ||
+              typeof entry.student_count !== 'number' || typeof entry.duration !== 'number') {
+            throw new Error("Invalid entry data in room history response");
+          }
+          
+          return {
+            id: String(entry.id),
+            roomId: String(entry.room_id),
+            date: entry.date,
+            groupName: entry.group_name,
+            activityName: entry.activity_name,
+            supervisorName: entry.supervisor_name,
+            studentCount: entry.student_count,
+            duration: entry.duration
+          };
+        });
         
         setHistoryData(frontendHistoryData);
         
