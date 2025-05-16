@@ -83,6 +83,19 @@ export function HelpButton({ title, content, buttonClassName = "" }: HelpButtonP
                             </svg>
                         </button>
                     </div>
+
+                    {/* Impressum Link */}
+                    <div className="mt-4 text-center">
+                        <a
+                            href="https://moto.nrw/impressum/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gray-400 text-xs hover:text-gray-600 transition-colors duration-200 underline"
+                            aria-label="Zum Impressum"
+                        >
+                            Impressum
+                        </a>
+                    </div>
                 </div>
             </Modal>
         </>
