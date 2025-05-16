@@ -35,11 +35,13 @@ import type { NextRequest } from "next/server";
 
         // Get params from context
         const contextParams = await context.params;
-        Object.entries(contextParams).forEach(([key, value]) => {
-          if (value !== undefined) {
-            safeParams[key] = value;
-          }
-        });
+        if (contextParams) {
+          Object.entries(contextParams).forEach(([key, value]) => {
+            if (value !== undefined) {
+              safeParams[key] = value;
+            }
+          });
+        }
 
         // Extract parameters from URL path
         const url = new URL(request.url);
@@ -110,11 +112,13 @@ import type { NextRequest } from "next/server";
 
         // Get params from context
         const contextParams = await context.params;
-        Object.entries(contextParams).forEach(([key, value]) => {
-          if (value !== undefined) {
-            safeParams[key] = value;
-          }
-        });
+        if (contextParams) {
+          Object.entries(contextParams).forEach(([key, value]) => {
+            if (value !== undefined) {
+              safeParams[key] = value;
+            }
+          });
+        }
 
         // Extract parameters from URL path
         const url = new URL(request.url);
@@ -181,11 +185,13 @@ import type { NextRequest } from "next/server";
 
         // Get params from context
         const contextParams = await context.params;
-        Object.entries(contextParams).forEach(([key, value]) => {
-          if (value !== undefined) {
-            safeParams[key] = value;
-          }
-        });
+        if (contextParams) {
+          Object.entries(contextParams).forEach(([key, value]) => {
+            if (value !== undefined) {
+              safeParams[key] = value;
+            }
+          });
+        }
 
         // Extract parameters from URL path
         const url = new URL(request.url);
@@ -251,11 +257,13 @@ import type { NextRequest } from "next/server";
 
         // Get params from context
         const contextParams = await context.params;
-        Object.entries(contextParams).forEach(([key, value]) => {
-          if (value !== undefined) {
-            safeParams[key] = value;
-          }
-        });
+        if (contextParams) {
+          Object.entries(contextParams).forEach(([key, value]) => {
+            if (value !== undefined) {
+              safeParams[key] = value;
+            }
+          });
+        }
 
         // Extract parameters from URL path
         const url = new URL(request.url);

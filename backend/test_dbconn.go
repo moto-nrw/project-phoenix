@@ -1,3 +1,4 @@
+//go:build ignore
 // +build ignore
 
 package main
@@ -15,6 +16,6 @@ func main() {
 		log.Fatalf("Error connecting to database: %v", err)
 	}
 	defer db.Close()
-	
+
 	fmt.Println("Successfully connected to database!")
 }

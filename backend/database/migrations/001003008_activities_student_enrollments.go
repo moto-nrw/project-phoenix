@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"log"
 	"context"
 	"database/sql"
 	"fmt"
@@ -41,7 +42,11 @@ func createActivitiesStudentEnrollmentsTable(ctx context.Context, db *bun.DB) er
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
+			log.Printf("Error rolling back transaction: %v", err)
+		}
+	}()
 
 	// Create the student_enrollments table - for student participation in activities
 	_, err = tx.ExecContext(ctx, `
@@ -100,7 +105,11 @@ func dropActivitiesStudentEnrollmentsTable(ctx context.Context, db *bun.DB) erro
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
+			log.Printf("Error rolling back transaction: %v", err)
+		}
+	}()
 
 	// Drop trigger first
 	_, err = tx.ExecContext(ctx, `

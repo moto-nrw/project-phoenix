@@ -1,6 +1,8 @@
 package email
 
 import (
+	"fmt"
+
 	"github.com/spf13/viper"
 	"github.com/wneessen/go-mail"
 )
@@ -53,8 +55,12 @@ func (m *SMTPMailer) Send(email Message) error {
 	}
 
 	msg := mail.NewMsg()
-	msg.SetAddrHeader("From", email.From.Address, email.From.Name)
-	msg.SetAddrHeader("To", email.To.Address, email.To.Name)
+	if err := msg.SetAddrHeader("From", email.From.Address, email.From.Name); err != nil {
+		return fmt.Errorf("failed to set from address: %w", err)
+	}
+	if err := msg.SetAddrHeader("To", email.To.Address, email.To.Name); err != nil {
+		return fmt.Errorf("failed to set to address: %w", err)
+	}
 	msg.Subject(email.Subject)
 	msg.SetBodyString(mail.TypeTextPlain, email.text)
 	msg.AddAlternativeString(mail.TypeTextHTML, email.html)

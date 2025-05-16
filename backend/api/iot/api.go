@@ -1,6 +1,7 @@
 package iot
 
 import (
+	"log"
 	"errors"
 	"net/http"
 	"strconv"
@@ -205,7 +206,9 @@ func (rs *Resource) listDevices(w http.ResponseWriter, r *http.Request) {
 	// Get devices
 	devices, err := rs.IoTService.ListDevices(r.Context(), filters)
 	if err != nil {
-		render.Render(w, r, ErrorInternalServer(err))
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -223,14 +226,18 @@ func (rs *Resource) getDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("invalid device ID")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid device ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get device
 	device, err := rs.IoTService.GetDeviceByID(r.Context(), id)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -242,14 +249,18 @@ func (rs *Resource) getDeviceByDeviceID(w http.ResponseWriter, r *http.Request) 
 	// Get device ID from URL
 	deviceID := chi.URLParam(r, "deviceId")
 	if deviceID == "" {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("device ID is required")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("device ID is required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get device
 	device, err := rs.IoTService.GetDeviceByDeviceID(r.Context(), deviceID)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -261,7 +272,9 @@ func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &DeviceRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -282,7 +295,9 @@ func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
 
 	// Create device
 	if err := rs.IoTService.CreateDevice(r.Context(), device); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -294,21 +309,27 @@ func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("invalid device ID")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid device ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Parse request
 	req := &DeviceRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
 	// Get existing device
 	device, err := rs.IoTService.GetDeviceByID(r.Context(), id)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -324,7 +345,9 @@ func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 
 	// Update device
 	if err := rs.IoTService.UpdateDevice(r.Context(), device); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -336,13 +359,17 @@ func (rs *Resource) deleteDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("invalid device ID")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid device ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Delete device
 	if err := rs.IoTService.DeleteDevice(r.Context(), id); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -354,20 +381,26 @@ func (rs *Resource) updateDeviceStatus(w http.ResponseWriter, r *http.Request) {
 	// Get device ID from URL
 	deviceID := chi.URLParam(r, "deviceId")
 	if deviceID == "" {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("device ID is required")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("device ID is required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Parse request
 	req := &DeviceStatusRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
 	// Update device status
 	if err := rs.IoTService.UpdateDeviceStatus(r.Context(), deviceID, iot.DeviceStatus(req.Status)); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -379,13 +412,17 @@ func (rs *Resource) pingDevice(w http.ResponseWriter, r *http.Request) {
 	// Get device ID from URL
 	deviceID := chi.URLParam(r, "deviceId")
 	if deviceID == "" {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("device ID is required")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("device ID is required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Ping device
 	if err := rs.IoTService.PingDevice(r.Context(), deviceID); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -397,14 +434,18 @@ func (rs *Resource) getDevicesByType(w http.ResponseWriter, r *http.Request) {
 	// Get type from URL
 	deviceType := chi.URLParam(r, "type")
 	if deviceType == "" {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("device type is required")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("device type is required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get devices by type
 	devices, err := rs.IoTService.GetDevicesByType(r.Context(), deviceType)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -422,21 +463,27 @@ func (rs *Resource) getDevicesByStatus(w http.ResponseWriter, r *http.Request) {
 	// Get status from URL
 	status := chi.URLParam(r, "status")
 	if status == "" {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("status is required")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("status is required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Validate status
 	deviceStatus := iot.DeviceStatus(status)
 	if !isValidDeviceStatus(deviceStatus) {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("invalid device status")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid device status"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get devices by status
 	devices, err := rs.IoTService.GetDevicesByStatus(r.Context(), deviceStatus)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -454,14 +501,18 @@ func (rs *Resource) getDevicesByRegisteredBy(w http.ResponseWriter, r *http.Requ
 	// Parse person ID from URL
 	personID, err := strconv.ParseInt(chi.URLParam(r, "personId"), 10, 64)
 	if err != nil {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("invalid person ID")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get devices
 	devices, err := rs.IoTService.GetDevicesByRegisteredBy(r.Context(), personID)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -479,7 +530,9 @@ func (rs *Resource) getActiveDevices(w http.ResponseWriter, r *http.Request) {
 	// Get active devices
 	devices, err := rs.IoTService.GetActiveDevices(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -497,7 +550,9 @@ func (rs *Resource) getDevicesRequiringMaintenance(w http.ResponseWriter, r *htt
 	// Get devices requiring maintenance
 	devices, err := rs.IoTService.GetDevicesRequiringMaintenance(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -525,7 +580,9 @@ func (rs *Resource) getOfflineDevices(w http.ResponseWriter, r *http.Request) {
 	// Get offline devices
 	devices, err := rs.IoTService.GetOfflineDevices(r.Context(), duration)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -543,21 +600,27 @@ func (rs *Resource) getDeviceStatistics(w http.ResponseWriter, r *http.Request) 
 	// Get device type statistics
 	typeStats, err := rs.IoTService.GetDeviceTypeStatistics(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get active devices count
 	activeDevices, err := rs.IoTService.GetActiveDevices(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get offline devices count (devices offline for more than 5 minutes)
 	offlineDevices, err := rs.IoTService.GetOfflineDevices(r.Context(), 5*time.Minute)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -584,7 +647,9 @@ func (rs *Resource) detectNewDevices(w http.ResponseWriter, r *http.Request) {
 	// Detect new devices
 	devices, err := rs.IoTService.DetectNewDevices(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -602,7 +667,9 @@ func (rs *Resource) scanNetwork(w http.ResponseWriter, r *http.Request) {
 	// Scan network
 	scanResults, err := rs.IoTService.ScanNetwork(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 

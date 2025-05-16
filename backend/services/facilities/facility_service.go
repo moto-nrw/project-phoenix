@@ -29,7 +29,7 @@ func NewService(roomRepo facilities.RoomRepository, db *bun.DB) Service {
 // WithTx returns a new service that uses the provided transaction
 func (s *service) WithTx(tx bun.Tx) interface{} {
 	// Get repository with transaction if it implements the TransactionalRepository interface
-	var roomRepo facilities.RoomRepository = s.roomRepo
+	var roomRepo = s.roomRepo
 
 	// Try to cast repository to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.roomRepo.(base.TransactionalRepository); ok {
@@ -129,6 +129,8 @@ func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]
 		// You might want to implement a conversion from QueryOptions to the old format
 		// For now we'll just set some basic filters if available
 		// This is not a complete conversion, just a simple example
+		// TODO: Implement filter conversion
+		_ = options.Filter // Mark as intentionally unused for now
 	}
 
 	rooms, err := s.roomRepo.List(ctx, filters)

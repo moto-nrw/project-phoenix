@@ -31,7 +31,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("failed to begin transaction: %w", err)
 			}
-			defer tx.Rollback()
+			defer func() { _ = tx.Rollback() }()
 
 			// Add any PostgreSQL core functions needed
 			// For example, utility functions for auditing, etc.
@@ -61,7 +61,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("failed to begin transaction: %w", err)
 			}
-			defer tx.Rollback()
+			defer func() { _ = tx.Rollback() }()
 
 			// Drop any functions created in Up
 			_, err = tx.ExecContext(ctx, `

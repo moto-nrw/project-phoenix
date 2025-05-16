@@ -2,8 +2,9 @@ package active
 
 import (
 	"errors"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/users"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"

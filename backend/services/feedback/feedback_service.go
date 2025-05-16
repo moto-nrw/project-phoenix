@@ -28,7 +28,7 @@ func NewService(entryRepo feedback.EntryRepository, db *bun.DB) Service {
 // WithTx returns a new service that uses the provided transaction
 func (s *feedbackService) WithTx(tx bun.Tx) interface{} {
 	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var entryRepo feedback.EntryRepository = s.entryRepo
+	var entryRepo = s.entryRepo
 
 	// Try to cast repository to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.entryRepo.(base.TransactionalRepository); ok {

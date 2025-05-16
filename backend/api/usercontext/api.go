@@ -1,6 +1,7 @@
 package usercontext
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -25,7 +26,7 @@ func NewResource(service usercontext.UserContextService) *Resource {
 		service: service,
 		router:  chi.NewRouter(),
 	}
-	
+
 	// Setup routes
 	r.router.Use(jwt.Authenticator)
 
@@ -49,7 +50,7 @@ func NewResource(service usercontext.UserContextService) *Resource {
 			router.Get("/visits", r.getGroupVisits)
 		})
 	})
-	
+
 	return r
 }
 
@@ -62,120 +63,164 @@ func (r *Resource) Router() chi.Router {
 func (res *Resource) getCurrentUser(w http.ResponseWriter, r *http.Request) {
 	user, err := res.service.GetCurrentUser(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 	render.Status(r, http.StatusOK)
-	render.Render(w, r, common.NewResponse(user, "Current user retrieved successfully"))
+	if err := render.Render(w, r, common.NewResponse(user, "Current user retrieved successfully")); err != nil {
+		log.Printf("Error rendering response: %v", err)
+	}
 }
 
 // getCurrentPerson returns the current user's person profile
 func (res *Resource) getCurrentPerson(w http.ResponseWriter, r *http.Request) {
 	person, err := res.service.GetCurrentPerson(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 	render.Status(r, http.StatusOK)
-	render.Render(w, r, common.NewResponse(person, "Current profile retrieved successfully"))
+	if err := render.Render(w, r, common.NewResponse(person, "Current profile retrieved successfully")); err != nil {
+		log.Printf("Error rendering response: %v", err)
+	}
 }
 
 // getCurrentStaff returns the current user's staff profile
 func (res *Resource) getCurrentStaff(w http.ResponseWriter, r *http.Request) {
 	staff, err := res.service.GetCurrentStaff(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 	render.Status(r, http.StatusOK)
-	render.Render(w, r, common.NewResponse(staff, "Current staff profile retrieved successfully"))
+	if err := render.Render(w, r, common.NewResponse(staff, "Current staff profile retrieved successfully")); err != nil {
+		log.Printf("Error rendering error response: %v", err)
+	}
 }
 
 // getCurrentTeacher returns the current user's teacher profile
 func (res *Resource) getCurrentTeacher(w http.ResponseWriter, r *http.Request) {
 	teacher, err := res.service.GetCurrentTeacher(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 	render.Status(r, http.StatusOK)
-	render.Render(w, r, common.NewResponse(teacher, "Current teacher profile retrieved successfully"))
+	if err := render.Render(w, r, common.NewResponse(teacher, "Current teacher profile retrieved successfully")); err != nil {
+		log.Printf("Error rendering error response: %v", err)
+	}
 }
 
 // getMyGroups returns the educational groups associated with the current user
 func (res *Resource) getMyGroups(w http.ResponseWriter, r *http.Request) {
 	groups, err := res.service.GetMyGroups(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 	render.Status(r, http.StatusOK)
-	render.Render(w, r, common.NewResponse(groups, "Educational groups retrieved successfully"))
+	if err := render.Render(w, r, common.NewResponse(groups, "Educational groups retrieved successfully")); err != nil {
+		log.Printf("Error rendering error response: %v", err)
+	}
 }
 
 // getMyActivityGroups returns the activity groups associated with the current user
 func (res *Resource) getMyActivityGroups(w http.ResponseWriter, r *http.Request) {
 	groups, err := res.service.GetMyActivityGroups(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 	render.Status(r, http.StatusOK)
-	render.Render(w, r, common.NewResponse(groups, "Activity groups retrieved successfully"))
+	if err := render.Render(w, r, common.NewResponse(groups, "Activity groups retrieved successfully")); err != nil {
+		log.Printf("Error rendering error response: %v", err)
+	}
 }
 
 // getMyActiveGroups returns the active groups associated with the current user
 func (res *Resource) getMyActiveGroups(w http.ResponseWriter, r *http.Request) {
 	groups, err := res.service.GetMyActiveGroups(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 	render.Status(r, http.StatusOK)
-	render.Render(w, r, common.NewResponse(groups, "Active groups retrieved successfully"))
+	if err := render.Render(w, r, common.NewResponse(groups, "Active groups retrieved successfully")); err != nil {
+		log.Printf("Error rendering error response: %v", err)
+	}
 }
 
 // getMySupervisedGroups returns the active groups supervised by the current user
 func (res *Resource) getMySupervisedGroups(w http.ResponseWriter, r *http.Request) {
 	groups, err := res.service.GetMySupervisedGroups(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 	render.Status(r, http.StatusOK)
-	render.Render(w, r, common.NewResponse(groups, "Supervised groups retrieved successfully"))
+	if err := render.Render(w, r, common.NewResponse(groups, "Supervised groups retrieved successfully")); err != nil {
+		log.Printf("Error rendering error response: %v", err)
+	}
 }
 
 // getGroupStudents returns the students in a specific group where the current user has access
 func (res *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 	groupID, err := strconv.ParseInt(chi.URLParam(r, "groupID"), 10, 64)
 	if err != nil {
-		render.Render(w, r, common.ErrorInvalidRequest(err))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	students, err := res.service.GetGroupStudents(r.Context(), groupID)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 	render.Status(r, http.StatusOK)
-	render.Render(w, r, common.NewResponse(students, "Group students retrieved successfully"))
+	if err := render.Render(w, r, common.NewResponse(students, "Group students retrieved successfully")); err != nil {
+		log.Printf("Error rendering error response: %v", err)
+	}
 }
 
 // getGroupVisits returns the active visits for a specific group where the current user has access
 func (res *Resource) getGroupVisits(w http.ResponseWriter, r *http.Request) {
 	groupID, err := strconv.ParseInt(chi.URLParam(r, "groupID"), 10, 64)
 	if err != nil {
-		render.Render(w, r, common.ErrorInvalidRequest(err))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	visits, err := res.service.GetGroupVisits(r.Context(), groupID)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 	render.Status(r, http.StatusOK)
-	render.Render(w, r, common.NewResponse(visits, "Group visits retrieved successfully"))
+	if err := render.Render(w, r, common.NewResponse(visits, "Group visits retrieved successfully")); err != nil {
+		log.Printf("Error rendering error response: %v", err)
+	}
 }

@@ -46,7 +46,7 @@ func RunInTx(ctx context.Context, db *bun.DB, fn func(ctx context.Context, tx bu
 	}
 
 	// Always rollback on panic
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Add transaction to context
 	txCtx := ContextWithTx(ctx, &tx)
@@ -114,7 +114,7 @@ func (h *TxHandler) RunInTx(ctx context.Context, fn func(ctx context.Context, tx
 
 	// If we created a new transaction, we need to handle commit/rollback
 	if isNew {
-		defer tx.Rollback()
+		defer func() { _ = tx.Rollback() }()
 	}
 
 	// Add transaction to context

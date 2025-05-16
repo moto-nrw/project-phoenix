@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -41,7 +42,12 @@ func createAuthTokensTable(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			// Log error or handle as appropriate
+			log.Printf("Failed to rollback transaction: %v", err)
+		}
+	}()
 
 	// Create the tokens table - for auth tokens and session management
 	_, err = tx.ExecContext(ctx, `
@@ -97,7 +103,12 @@ func dropAuthTokensTable(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			// Log error or handle as appropriate
+			log.Printf("Failed to rollback transaction in down migration: %v", err)
+		}
+	}()
 
 	// Drop trigger first
 	_, err = tx.ExecContext(ctx, `

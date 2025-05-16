@@ -31,7 +31,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("failed to begin transaction: %w", err)
 			}
-			defer tx.Rollback()
+			defer func() { _ = tx.Rollback() }()
 
 			// Create the migration_metadata table in the meta schema
 			_, err = tx.ExecContext(ctx, `
@@ -79,7 +79,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("failed to begin transaction: %w", err)
 			}
-			defer tx.Rollback()
+			defer func() { _ = tx.Rollback() }()
 
 			// Drop the migration_metadata table in meta schema
 			_, err = tx.ExecContext(ctx, `

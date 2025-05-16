@@ -136,12 +136,3 @@ func hasPermission(permissions []string, permission string) bool {
 	}
 	return false
 }
-
-func hasAnyPermission(permissions []string, checkPermissions ...string) bool {
-	for _, checkPerm := range checkPermissions {
-		if hasPermission(permissions, checkPerm) {
-			return true
-		}
-	}
-	return false
-}

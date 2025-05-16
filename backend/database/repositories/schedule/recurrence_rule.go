@@ -50,7 +50,7 @@ func (r *RecurrenceRuleRepository) FindByWeekday(ctx context.Context, weekday st
 	// Convert weekday to uppercase for consistency
 	upperWeekday := weekday
 	if weekday != "" {
-		upperWeekday = fmt.Sprintf("%s", weekday)
+		upperWeekday = weekday
 	}
 
 	err := r.db.NewSelect().

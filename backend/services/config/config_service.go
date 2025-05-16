@@ -31,7 +31,7 @@ func NewService(settingRepo config.SettingRepository, db *bun.DB) Service {
 // WithTx returns a new service that uses the provided transaction
 func (s *service) WithTx(tx bun.Tx) interface{} {
 	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var settingRepo config.SettingRepository = s.settingRepo
+	var settingRepo = s.settingRepo
 
 	// Try to cast repository to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.settingRepo.(base.TransactionalRepository); ok {
@@ -231,9 +231,10 @@ func (s *service) GetBoolValue(ctx context.Context, key string, defaultValue boo
 	}
 
 	value := strings.ToLower(setting.Value)
-	if value == "true" || value == "1" || value == "yes" || value == "y" {
+	switch value {
+	case "true", "1", "yes", "y":
 		return true, nil
-	} else if value == "false" || value == "0" || value == "no" || value == "n" {
+	case "false", "0", "no", "n":
 		return false, nil
 	}
 

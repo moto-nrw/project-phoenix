@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -41,7 +42,11 @@ func createAuthPasswordResetTokensTable(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			log.Printf("Failed to rollback transaction in password reset tokens migration: %v", err)
+		}
+	}()
 
 	// Create password_reset_tokens table for password management
 	_, err = tx.ExecContext(ctx, `
@@ -96,7 +101,11 @@ func dropAuthPasswordResetTokensTable(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			log.Printf("Failed to rollback transaction in password reset tokens down migration: %v", err)
+		}
+	}()
 
 	// Drop trigger first
 	_, err = tx.ExecContext(ctx, `

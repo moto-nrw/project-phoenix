@@ -464,7 +464,7 @@ func TestAuthorizationIntegration(t *testing.T) {
 	)
 
 	ctx := MockJWTContext(req.Context(), claims, claims.Permissions)
-	req = req.WithContext(ctx)
+	_ = req.WithContext(ctx)
 
 	// 3. Simulate middleware checks
 	t.Run("Permission middleware", func(t *testing.T) {

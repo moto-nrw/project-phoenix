@@ -1,8 +1,9 @@
 package cmd
 
 import (
-	"github.com/moto-nrw/project-phoenix/api"
 	"log"
+
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
