@@ -89,6 +89,21 @@ export function RoomForm({
         ...prev,
         [name]: value === "" ? 0 : parseInt(value, 10),
       }));
+    } else if (name === "name") {
+      // For the name field, immediately show validation error if empty after typing
+      if (!value.trim()) {
+        setError("Bitte geben Sie einen Raumnamen ein.");
+      } else {
+        // Clear error if there was a name-related error
+        if (error?.includes("Raumnamen")) {
+          setError(null);
+        }
+      }
+      
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
     } else {
       setFormData((prev) => ({
         ...prev,
@@ -100,11 +115,14 @@ export function RoomForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate form
-    if (!formData.name) {
+    // Validate form - check for empty or whitespace-only names
+    if (!formData.name || formData.name.trim() === '') {
       setError("Bitte geben Sie einen Raumnamen ein.");
       return;
     }
+
+    // Trim whitespace from name before submitting
+    formData.name = formData.name.trim();
 
     if (formData.capacity <= 0) {
       setError("Die Kapazität muss größer als 0 sein.");

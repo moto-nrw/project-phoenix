@@ -1429,9 +1429,21 @@ export const roomService = {
               });
 
               if (retryResponse.ok) {
-                // Type assertion to avoid unsafe assignment
-                const responseData: unknown = await retryResponse.json();
-                return mapRoomsResponse(responseData as BackendRoom[]);
+                try {
+                  // Type assertion to avoid unsafe assignment
+                  const responseData: unknown = await retryResponse.json();
+                  
+                  // Handle null or non-array responses
+                  if (!responseData || !Array.isArray(responseData)) {
+                    console.warn("API retry returned invalid response format for rooms:", responseData);
+                    return [];
+                  }
+                  
+                  return mapRoomsResponse(responseData as BackendRoom[]);
+                } catch (parseError) {
+                  console.error("Error parsing API retry response:", parseError);
+                  return [];
+                }
               }
             }
           }
@@ -1440,12 +1452,34 @@ export const roomService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData: unknown = await response.json();
-        return mapRoomsResponse(responseData as BackendRoom[]);
+        try {
+          const responseData: unknown = await response.json();
+          
+          // Handle null or non-array responses
+          if (!responseData || !Array.isArray(responseData)) {
+            console.warn("API returned invalid response format for rooms:", responseData);
+            return [];
+          }
+          
+          return mapRoomsResponse(responseData as BackendRoom[]);
+        } catch (parseError) {
+          console.error("Error parsing API response:", parseError);
+          return [];
+        }
       } else {
         // Server-side: use axios with the API URL directly
-        const response = await api.get(url, { params });
-        return mapRoomsResponse(response.data as unknown as BackendRoom[]);
+        try {
+          const response = await api.get(url, { params });
+          // Handle null or non-array responses
+          if (!response.data || !Array.isArray(response.data)) {
+            console.warn("API returned invalid response format for rooms:", response.data);
+            return [];
+          }
+          return mapRoomsResponse(response.data as unknown as BackendRoom[]);
+        } catch (error) {
+          console.error("Error fetching rooms from API:", error);
+          return [];
+        }
       }
     } catch (error) {
       console.error("Error fetching rooms:", error);
@@ -1506,12 +1540,96 @@ export const roomService = {
           throw new Error(`API error: ${response.status}`);
         }
 
-        const data = (await response.json()) as BackendRoom;
-        return mapSingleRoomResponse({ data });
+        interface RoomApiResponse {
+          data?: BackendRoom;
+          id?: number;
+          [key: string]: unknown;
+        }
+        
+        const responseData = await response.json() as RoomApiResponse;
+        
+        // Handle different response formats
+        if (responseData && typeof responseData === 'object') {
+          if ('data' in responseData && responseData.data) {
+            // Wrapped response format with nested data property
+            return mapSingleRoomResponse({ data: responseData.data });
+          } else if ('id' in responseData) {
+            // Direct room object without nesting
+            // Convert to proper BackendRoom
+            // Convert responseData to proper BackendRoom with safe type conversions
+            const roomData: BackendRoom = {
+              id: typeof responseData.id === 'number' ? responseData.id : 
+                  typeof responseData.id === 'string' ? parseInt(responseData.id, 10) : 0,
+              name: typeof responseData.name === 'string' ? responseData.name : "",
+              building: typeof responseData.building === 'string' ? responseData.building : undefined,
+              floor: typeof responseData.floor === 'number' ? responseData.floor :
+                    typeof responseData.floor === 'string' ? parseInt(responseData.floor, 10) : 0,
+              capacity: typeof responseData.capacity === 'number' ? responseData.capacity :
+                        typeof responseData.capacity === 'string' ? parseInt(responseData.capacity, 10) : 0,
+              category: typeof responseData.category === 'string' ? responseData.category : "",
+              color: typeof responseData.color === 'string' ? responseData.color : "",
+              device_id: typeof responseData.device_id === 'string' ? responseData.device_id : undefined,
+              is_occupied: Boolean(responseData.is_occupied),
+              activity_name: typeof responseData.activity_name === 'string' ? responseData.activity_name : undefined,
+              group_name: typeof responseData.group_name === 'string' ? responseData.group_name : undefined,
+              supervisor_name: typeof responseData.supervisor_name === 'string' ? responseData.supervisor_name : undefined,
+              student_count: typeof responseData.student_count === 'number' ? responseData.student_count : undefined,
+              created_at: typeof responseData.created_at === 'string' ? responseData.created_at : "",
+              updated_at: typeof responseData.updated_at === 'string' ? responseData.updated_at : ""
+            };
+            return mapSingleRoomResponse({ data: roomData });
+          }
+        }
+        
+        // If nothing matched, log and return empty
+        console.warn("Unexpected room response format:", responseData);
+        throw new Error("Unexpected room response format");
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapSingleRoomResponse({ data: response.data as BackendRoom });
+        
+        // For axios, the response is always in response.data
+        interface RoomApiResponse {
+          data?: BackendRoom;
+          id?: number;
+          [key: string]: unknown;
+        }
+        
+        const responseData = response.data as RoomApiResponse;
+        if (responseData && typeof responseData === 'object') {
+          if ('data' in responseData && responseData.data) {
+            // Wrapped response format with nested data property
+            return mapSingleRoomResponse({ data: responseData.data });
+          } else if ('id' in responseData) {
+            // Direct room object without nesting
+            // Convert to proper BackendRoom
+            // Convert responseData to proper BackendRoom with safe type conversions
+            const roomData: BackendRoom = {
+              id: typeof responseData.id === 'number' ? responseData.id : 
+                  typeof responseData.id === 'string' ? parseInt(responseData.id, 10) : 0,
+              name: typeof responseData.name === 'string' ? responseData.name : "",
+              building: typeof responseData.building === 'string' ? responseData.building : undefined,
+              floor: typeof responseData.floor === 'number' ? responseData.floor :
+                    typeof responseData.floor === 'string' ? parseInt(responseData.floor, 10) : 0,
+              capacity: typeof responseData.capacity === 'number' ? responseData.capacity :
+                        typeof responseData.capacity === 'string' ? parseInt(responseData.capacity, 10) : 0,
+              category: typeof responseData.category === 'string' ? responseData.category : "",
+              color: typeof responseData.color === 'string' ? responseData.color : "",
+              device_id: typeof responseData.device_id === 'string' ? responseData.device_id : undefined,
+              is_occupied: Boolean(responseData.is_occupied),
+              activity_name: typeof responseData.activity_name === 'string' ? responseData.activity_name : undefined,
+              group_name: typeof responseData.group_name === 'string' ? responseData.group_name : undefined,
+              supervisor_name: typeof responseData.supervisor_name === 'string' ? responseData.supervisor_name : undefined,
+              student_count: typeof responseData.student_count === 'number' ? responseData.student_count : undefined,
+              created_at: typeof responseData.created_at === 'string' ? responseData.created_at : "",
+              updated_at: typeof responseData.updated_at === 'string' ? responseData.updated_at : ""
+            };
+            return mapSingleRoomResponse({ data: roomData });
+          }
+        }
+        
+        console.warn("Unexpected server room response format:", responseData);
+        throw new Error("Unexpected room response format");
       }
     } catch (error) {
       console.error(`Error fetching room ${id}:`, error);
@@ -1521,18 +1639,23 @@ export const roomService = {
 
   // Create a new room
   createRoom: async (room: Omit<Room, "id" | "isOccupied">): Promise<Room> => {
+    // Frontend validation before we transform the model
+    if (!room.name) {
+      throw new Error("Missing required field: name");
+    }
+    if (room.capacity === undefined || room.capacity <= 0) {
+      throw new Error("Missing required field: capacity must be greater than 0");
+    }
+    if (!room.category) {
+      throw new Error("Missing required field: category");
+    }
+    
     // Transform from frontend model to backend model
     const backendRoom = prepareRoomForBackend(room);
 
-    // Basic validation for room creation
-    if (!backendRoom.room_name) {
-      throw new Error("Missing required field: room_name");
-    }
-    if (backendRoom.capacity === undefined || backendRoom.capacity <= 0) {
-      throw new Error("Missing required field: capacity must be greater than 0");
-    }
-    if (!backendRoom.category) {
-      throw new Error("Missing required field: category");
+    // Backend model validation
+    if (!backendRoom.name) {
+      throw new Error("Missing required field: name");
     }
 
     const useProxyApi = typeof window !== "undefined";

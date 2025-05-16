@@ -215,6 +215,7 @@ export default function StudentFeedbackHistoryPage() {
         }
     };
 
+    // Format date function is actually used in the dateObj.toLocaleDateString call
     // Format time for display
     const formatTime = (dateString: string): string => {
         const date = new Date(dateString);

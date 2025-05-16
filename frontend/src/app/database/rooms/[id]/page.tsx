@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/dashboard";
-import { RoomForm } from "@/components/rooms";
+import { RoomForm, RoomHistory } from "@/components/rooms";
 import type { Room } from "@/lib/api";
 import { roomService } from "@/lib/api";
 
 export default function RoomDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const roomId = params.id as string;
+  // Ensure we handle both string and array ID formats from Next.js
+  const roomId = Array.isArray(params.id) ? params.id[0] : (params.id ?? "");
 
   const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
@@ -19,6 +20,12 @@ export default function RoomDetailPage() {
 
   useEffect(() => {
     const fetchRoom = async () => {
+      if (!roomId) {
+        setError("Keine Raum-ID angegeben");
+        setLoading(false);
+        return;
+      }
+      
       try {
         setLoading(true);
         const data = await roomService.getRoom(roomId);
@@ -35,19 +42,37 @@ export default function RoomDetailPage() {
       }
     };
 
-    if (roomId) {
-      void fetchRoom();
-    }
+    void fetchRoom();
   }, [roomId]);
 
   const handleUpdate = async (formData: Partial<Room>) => {
+    if (!roomId) {
+      setError("Keine Raum-ID angegeben");
+      return;
+    }
+    
     try {
       setLoading(true);
       setError(null);
 
+      console.log("Updating room with data:", formData);
+      
       // Update room
       const updatedRoom = await roomService.updateRoom(roomId, formData);
-      setRoom(updatedRoom);
+      console.log("Room updated successfully, received:", updatedRoom);
+      
+      // After updating, fetch the room again to make sure we have the latest data
+      try {
+        console.log("Re-fetching room data to ensure we have the latest");
+        const refreshedRoom = await roomService.getRoom(roomId);
+        console.log("Room refreshed data:", refreshedRoom);
+        setRoom(refreshedRoom);
+      } catch (refreshError) {
+        console.error("Error refreshing room data:", refreshError);
+        // Use the updatedRoom data from the update API if refresh fails
+        setRoom(updatedRoom);
+      }
+      
       setIsEditing(false);
     } catch (err) {
       console.error("Error updating room:", err);
@@ -61,6 +86,11 @@ export default function RoomDetailPage() {
   };
 
   const handleDelete = async () => {
+    if (!roomId) {
+      setError("Keine Raum-ID angegeben");
+      return;
+    }
+    
     if (
       window.confirm("Sind Sie sicher, dass Sie diesen Raum löschen möchten?")
     ) {
@@ -314,6 +344,11 @@ export default function RoomDetailPage() {
                   )}
                 </div>
               </div>
+            </div>
+            
+            {/* Room History Component */}
+            <div className="mt-8">
+              {roomId && <RoomHistory roomId={roomId} />}
             </div>
           </div>
         )}

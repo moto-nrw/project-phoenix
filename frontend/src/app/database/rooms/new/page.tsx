@@ -42,10 +42,22 @@ export default function NewRoomPage() {
       router.push("/database/rooms");
     } catch (err) {
       console.error("Error creating room:", err);
-      setError(
-        "Fehler beim Erstellen des Raums. Bitte versuchen Sie es später erneut."
-      );
-      throw err; // Re-throw to be caught by the form component
+      
+      // Check if it's a permissions error (403)
+      if (err instanceof Error && err.message.includes("403")) {
+        setError(
+          "Sie haben keine Berechtigung zum Erstellen von Räumen. Bitte wenden Sie sich an einen Administrator."
+        );
+      } else {
+        setError(
+          "Fehler beim Erstellen des Raums. Bitte versuchen Sie es später erneut."
+        );
+      }
+      
+      // Don't re-throw for permission errors to avoid form reset
+      if (!(err instanceof Error && err.message.includes("403"))) {
+        throw err; // Re-throw other errors to be caught by the form component
+      }
     } finally {
       setLoading(false);
     }

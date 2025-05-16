@@ -8,8 +8,7 @@ RUN npm ci
 
 # Copy source files
 COPY . .
-
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=development
 
 EXPOSE 3000

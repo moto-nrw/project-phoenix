@@ -7,7 +7,8 @@ import StudentForm from "@/components/students/student-form";
 import type { Student } from "@/lib/api";
 import { studentService, groupService } from "@/lib/api";
 
-function NewStudentContent() {
+// Component that uses searchParams needs to be wrapped in Suspense
+function StudentPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const groupId = searchParams.get("groupId");
@@ -118,6 +119,7 @@ function NewStudentContent() {
   );
 }
 
+// Main page component with Suspense boundary
 export default function NewStudentPage() {
   return (
     <Suspense 
@@ -130,7 +132,7 @@ export default function NewStudentPage() {
         </div>
       }
     >
-      <NewStudentContent />
+      <StudentPageContent />
     </Suspense>
   );
 }

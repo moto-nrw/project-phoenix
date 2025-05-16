@@ -134,12 +134,12 @@ export async function apiPut<T, B = unknown>(
  * Make a DELETE request to the API
  * @param endpoint API endpoint to request
  * @param token Authentication token
- * @returns Promise with the response data
+ * @returns Promise with the response data, or void for 204 No Content responses
  */
 export async function apiDelete<T>(
   endpoint: string,
   token: string
-): Promise<T> {
+): Promise<T | void> {
   const response = await fetch(
     `${env.NEXT_PUBLIC_API_URL}${endpoint}`,
     {
@@ -154,6 +154,11 @@ export async function apiDelete<T>(
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`API error (${response.status}): ${errorText}`);
+  }
+
+  // Return void for 204 No Content responses
+  if (response.status === 204) {
+    return;
   }
 
   return (await response.json()) as T;
