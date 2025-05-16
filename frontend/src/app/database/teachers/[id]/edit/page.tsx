@@ -42,7 +42,7 @@ export default function EditTeacherPage() {
                 if (!response.ok) {
                     throw new Error("Failed to fetch RFID cards");
                 }
-                const cardsData = await response.json();
+                const cardsData = await response.json() as Array<{ id: string; label: string }>;
                 setRfidCards(cardsData);
 
                 setError(null);

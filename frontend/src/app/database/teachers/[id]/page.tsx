@@ -5,6 +5,7 @@ import { redirect, useRouter, useParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
 import { teacherService, type Teacher } from "@/lib/teacher-api";
+import type { Activity } from "@/lib/activity-helpers";
 import { DeleteModal } from "@/components/ui";
 import Link from "next/link";
 
@@ -268,7 +269,7 @@ export default function TeacherDetailsPage() {
                             Geleitete Aktivitäten
                         </h3>
                         <div className="space-y-2">
-                            {teacher.activities.map((activity) => (
+                            {teacher.activities.map((activity: Activity) => (
                                 <div
                                     key={activity.id}
                                     className="group rounded-lg border border-gray-100 p-3 transition-all hover:border-blue-200 hover:bg-blue-50"

@@ -4,7 +4,6 @@ import { useSession } from "next-auth/react";
 import { redirect, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
-import TeacherList from "@/components/teachers/teacher-list";
 import { teacherService, type Teacher } from "@/lib/teacher-api";
 import Link from "next/link";
 
@@ -110,7 +109,7 @@ export default function TeachersPage() {
         (teacher) =>
             teacher.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
             teacher.specialization.toLowerCase().includes(searchFilter.toLowerCase()) ||
-            (teacher.role && teacher.role.toLowerCase().includes(searchFilter.toLowerCase()))
+            teacher.role?.toLowerCase().includes(searchFilter.toLowerCase())
     );
 
     return (

@@ -9,7 +9,7 @@ import { teacherService, type Teacher } from "@/lib/teacher-api";
 
 export default function NewTeacherPage() {
     const router = useRouter();
-    const [loading, setLoading] = useState(false);
+    const [, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [rfidCards, setRfidCards] = useState<Array<{ id: string; label: string }>>([]);
@@ -29,7 +29,7 @@ export default function NewTeacherPage() {
             // Fetch available RFID cards
             const response = await fetch("/api/rfid-cards");
             if (response.ok) {
-                const cardsData = await response.json();
+                const cardsData = await response.json() as Array<{ id: string; label: string }>;
                 setRfidCards(cardsData);
             } else {
                 console.error("Failed to fetch RFID cards");
@@ -62,10 +62,10 @@ export default function NewTeacherPage() {
                 first_name: formData.first_name,
                 last_name: formData.last_name,
                 specialization: formData.specialization,
-                role: formData.role || null,
-                qualifications: formData.qualifications || null,
-                tag_id: formData.tag_id || null,
-                staff_notes: formData.staff_notes || null
+                role: formData.role ?? null,
+                qualifications: formData.qualifications ?? null,
+                tag_id: formData.tag_id ?? null,
+                staff_notes: formData.staff_notes ?? null
             };
 
             // Create the teacher

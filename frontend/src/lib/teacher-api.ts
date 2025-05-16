@@ -1,5 +1,8 @@
 // This file contains the Teacher API service and related types
 
+import type { Activity, BackendActivity } from "./activity-helpers";
+import { mapActivityResponse } from "./activity-helpers";
+
 // Define Teacher interface aligned with database structure
 export interface Teacher {
     id: string;
@@ -13,7 +16,7 @@ export interface Teacher {
     staff_notes?: string | null;
     created_at?: string;
     updated_at?: string;
-    activities?: any[]; // Using any[] to avoid circular dependencies
+    activities?: Activity[];
 }
 
 // Teacher service with API methods
@@ -40,8 +43,8 @@ class TeacherService {
                 throw new Error(`Failed to fetch teachers: ${response.statusText}`);
             }
 
-            const data = await response.json();
-            return data as Teacher[];
+            const data = await response.json() as Teacher[];
+            return data;
         } catch (error) {
             console.error("Error fetching teachers:", error);
             throw error;
@@ -56,8 +59,8 @@ class TeacherService {
                 throw new Error(`Failed to fetch teacher: ${response.statusText}`);
             }
 
-            const data = await response.json();
-            return data as Teacher;
+            const data = await response.json() as Teacher;
+            return data;
         } catch (error) {
             console.error(`Error fetching teacher with ID ${id}:`, error);
             throw error;
@@ -79,8 +82,8 @@ class TeacherService {
                 throw new Error(`Failed to create teacher: ${response.statusText}`);
             }
 
-            const data = await response.json();
-            return data as Teacher;
+            const data = await response.json() as Teacher;
+            return data;
         } catch (error) {
             console.error("Error creating teacher:", error);
             throw error;
@@ -102,8 +105,8 @@ class TeacherService {
                 throw new Error(`Failed to update teacher: ${response.statusText}`);
             }
 
-            const data = await response.json();
-            return data as Teacher;
+            const data = await response.json() as Teacher;
+            return data;
         } catch (error) {
             console.error(`Error updating teacher with ID ${id}:`, error);
             throw error;
@@ -127,15 +130,15 @@ class TeacherService {
     }
 
     // Get activities for a teacher
-    async getTeacherActivities(id: string): Promise<any[]> {
+    async getTeacherActivities(id: string): Promise<Activity[]> {
         try {
             const response = await fetch(`/api/teachers/${id}/activities`);
             if (!response.ok) {
                 throw new Error(`Failed to fetch teacher activities: ${response.statusText}`);
             }
 
-            const data = await response.json();
-            return data;
+            const data = await response.json() as BackendActivity[];
+            return data.map(mapActivityResponse);
         } catch (error) {
             console.error(`Error fetching activities for teacher with ID ${id}:`, error);
             throw error;

@@ -21,17 +21,17 @@ export default function TeacherForm({
                                         rfidCards = [],
                                     }: TeacherFormProps) {
     // Form state
-    const [firstName, setFirstName] = useState(initialData.first_name || "");
-    const [lastName, setLastName] = useState(initialData.last_name || "");
+    const [firstName, setFirstName] = useState(initialData.first_name ?? "");
+    const [lastName, setLastName] = useState(initialData.last_name ?? "");
     const [specialization, setSpecialization] = useState(
-        initialData.specialization || ""
+        initialData.specialization ?? ""
     );
-    const [role, setRole] = useState(initialData.role || "");
+    const [role, setRole] = useState(initialData.role ?? "");
     const [qualifications, setQualifications] = useState(
-        initialData.qualifications || ""
+        initialData.qualifications ?? ""
     );
-    const [tagId, setTagId] = useState(initialData.tag_id || "");
-    const [staffNotes, setStaffNotes] = useState(initialData.staff_notes || "");
+    const [tagId, setTagId] = useState(initialData.tag_id ?? "");
+    const [staffNotes, setStaffNotes] = useState(initialData.staff_notes ?? "");
 
     // Form validation
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -40,13 +40,13 @@ export default function TeacherForm({
     // Update form when initialData changes
     useEffect(() => {
         if (initialData) {
-            setFirstName(initialData.first_name || "");
-            setLastName(initialData.last_name || "");
-            setSpecialization(initialData.specialization || "");
-            setRole(initialData.role || "");
-            setQualifications(initialData.qualifications || "");
-            setTagId(initialData.tag_id || "");
-            setStaffNotes(initialData.staff_notes || "");
+            setFirstName(initialData.first_name ?? "");
+            setLastName(initialData.last_name ?? "");
+            setSpecialization(initialData.specialization ?? "");
+            setRole(initialData.role ?? "");
+            setQualifications(initialData.qualifications ?? "");
+            setTagId(initialData.tag_id ?? "");
+            setStaffNotes(initialData.staff_notes ?? "");
         }
     }, [initialData]);
 
@@ -87,7 +87,7 @@ export default function TeacherForm({
                 last_name: lastName.trim(),
                 specialization: specialization.trim(),
                 role: role.trim() || null,
-                qualifications: qualifications.trim() || null,
+                qualifications: qualifications.trim() || null,  
                 tag_id: tagId || null,
                 staff_notes: staffNotes.trim() || null,
             };
