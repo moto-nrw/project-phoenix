@@ -136,7 +136,8 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     if (error instanceof Error && 
         (error.message.includes('404') || 
          error.message.includes('relation "rooms" does not exist'))) {
-      throw new Error(`Room with ID ${params.id} not found`);
+      // Preserve the status code in the error message
+      throw new Error(`API error (404): Room with ID ${params.id} not found`);
     }
     // Re-throw other errors
     throw error;
