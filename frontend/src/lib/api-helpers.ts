@@ -171,6 +171,20 @@ export async function apiDelete<T>(
  */
 export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
   console.error("API route error:", error);
+  
+  // If it's an Error with a specific status code pattern, extract it
+  if (error instanceof Error) {
+    const match = error.message.match(/API error \((\d+)\):/);
+    if (match) {
+      const status = parseInt(match[1]);
+      return NextResponse.json(
+        { error: error.message },
+        { status }
+      );
+    }
+  }
+  
+  // Default to 500 for unknown errors
   return NextResponse.json(
     { error: "Internal Server Error" },
     { status: 500 }
