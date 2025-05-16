@@ -31,3 +31,11 @@ main
 **/dev.env
 /.jwt-dev-secret.key
 /phoenix-test
+
+# Backup files
+*.bak
+*.bak2
+*.safe_bak
+
+# Shell scripts
+*.sh

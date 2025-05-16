@@ -1,6 +1,7 @@
 package users
 
 import (
+	"log"
 	"errors"
 	"net/http"
 	"strconv"
@@ -192,7 +193,9 @@ func (rs *Resource) listPersons(w http.ResponseWriter, r *http.Request) {
 	// Get persons from service
 	persons, err := rs.PersonService.List(r.Context(), queryOptions)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -210,14 +213,18 @@ func (rs *Resource) getPerson(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID")))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get person from service
 	person, err := rs.PersonService.Get(r.Context(), id)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -229,14 +236,18 @@ func (rs *Resource) getPersonByTag(w http.ResponseWriter, r *http.Request) {
 	// Get tag ID from URL
 	tagID := chi.URLParam(r, "tagId")
 	if tagID == "" {
-		render.Render(w, r, common.ErrorInvalidRequest(errors.New("tag ID is required")))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("tag ID is required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get person from service
 	person, err := rs.PersonService.FindByTagID(r.Context(), tagID)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -248,14 +259,18 @@ func (rs *Resource) getPersonByAccount(w http.ResponseWriter, r *http.Request) {
 	// Parse account ID from URL
 	accountID, err := strconv.ParseInt(chi.URLParam(r, "accountId"), 10, 64)
 	if err != nil {
-		render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid account ID")))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid account ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get person from service
 	person, err := rs.PersonService.FindByAccountID(r.Context(), accountID)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -270,14 +285,18 @@ func (rs *Resource) searchPersons(w http.ResponseWriter, r *http.Request) {
 
 	// At least one search parameter is required
 	if firstName == "" && lastName == "" {
-		render.Render(w, r, common.ErrorInvalidRequest(errors.New("at least one search parameter is required")))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("at least one search parameter is required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Search for persons by name
 	persons, err := rs.PersonService.FindByName(r.Context(), firstName, lastName)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -330,14 +349,18 @@ func (rs *Resource) updatePerson(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID")))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get existing person
 	person, err := rs.PersonService.Get(r.Context(), id)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -377,7 +400,9 @@ func (rs *Resource) deletePerson(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID")))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -395,7 +420,9 @@ func (rs *Resource) linkRFID(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID")))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -415,7 +442,9 @@ func (rs *Resource) linkRFID(w http.ResponseWriter, r *http.Request) {
 	// Get updated person
 	person, err := rs.PersonService.Get(r.Context(), id)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -427,7 +456,9 @@ func (rs *Resource) unlinkRFID(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID")))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -440,7 +471,9 @@ func (rs *Resource) unlinkRFID(w http.ResponseWriter, r *http.Request) {
 	// Get updated person
 	person, err := rs.PersonService.Get(r.Context(), id)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -452,7 +485,9 @@ func (rs *Resource) linkAccount(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID")))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -472,7 +507,9 @@ func (rs *Resource) linkAccount(w http.ResponseWriter, r *http.Request) {
 	// Get updated person
 	person, err := rs.PersonService.Get(r.Context(), id)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -484,7 +521,9 @@ func (rs *Resource) unlinkAccount(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID")))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -497,7 +536,9 @@ func (rs *Resource) unlinkAccount(w http.ResponseWriter, r *http.Request) {
 	// Get updated person
 	person, err := rs.PersonService.Get(r.Context(), id)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -509,14 +550,18 @@ func (rs *Resource) getFullProfile(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID")))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid person ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get full profile from service
 	person, err := rs.PersonService.GetFullProfile(r.Context(), id)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 

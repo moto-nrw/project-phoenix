@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"errors"
 	"net/http"
 	"strconv"
@@ -174,7 +175,9 @@ func (rs *Resource) listSettings(w http.ResponseWriter, r *http.Request) {
 	// Get settings
 	settings, err := rs.ConfigService.ListSettings(r.Context(), filters)
 	if err != nil {
-		render.Render(w, r, ErrorInternalServer(err))
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -192,14 +195,18 @@ func (rs *Resource) getSetting(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("invalid setting ID")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid setting ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get setting
 	setting, err := rs.ConfigService.GetSettingByID(r.Context(), id)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -211,14 +218,18 @@ func (rs *Resource) getSettingByKey(w http.ResponseWriter, r *http.Request) {
 	// Get key from URL
 	key := chi.URLParam(r, "key")
 	if key == "" {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("key is required")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("key is required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get setting
 	setting, err := rs.ConfigService.GetSettingByKey(r.Context(), key)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -230,14 +241,18 @@ func (rs *Resource) getSettingsByCategory(w http.ResponseWriter, r *http.Request
 	// Get category from URL
 	category := chi.URLParam(r, "category")
 	if category == "" {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("category is required")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("category is required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get settings
 	settings, err := rs.ConfigService.GetSettingsByCategory(r.Context(), category)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -282,7 +297,9 @@ func (rs *Resource) updateSetting(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("invalid setting ID")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid setting ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -296,7 +313,9 @@ func (rs *Resource) updateSetting(w http.ResponseWriter, r *http.Request) {
 	// Get existing setting
 	setting, err := rs.ConfigService.GetSettingByID(r.Context(), id)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -322,7 +341,9 @@ func (rs *Resource) updateSettingValue(w http.ResponseWriter, r *http.Request) {
 	// Get key from URL
 	key := chi.URLParam(r, "key")
 	if key == "" {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("key is required")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("key is required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -342,7 +363,9 @@ func (rs *Resource) updateSettingValue(w http.ResponseWriter, r *http.Request) {
 	// Get updated setting to return
 	setting, err := rs.ConfigService.GetSettingByKey(r.Context(), key)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -354,7 +377,9 @@ func (rs *Resource) deleteSetting(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("invalid setting ID")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid setting ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -404,7 +429,9 @@ func (rs *Resource) importSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -429,14 +456,18 @@ func (rs *Resource) getSystemStatus(w http.ResponseWriter, r *http.Request) {
 	// Check if restart is required
 	requiresRestart, err := rs.ConfigService.RequiresRestart(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorInternalServer(err))
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Check if database reset is required
 	requiresDBReset, err := rs.ConfigService.RequiresDatabaseReset(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorInternalServer(err))
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 

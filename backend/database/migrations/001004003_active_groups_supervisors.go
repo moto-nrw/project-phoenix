@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"log"
 	"context"
 	"database/sql"
 	"fmt"
@@ -41,7 +42,11 @@ func createGroupSupervisorsTable(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
+			log.Printf("Error rolling back transaction: %v", err)
+		}
+	}()
 
 	// Create the group_supervisors table
 	_, err = tx.ExecContext(ctx, `
@@ -112,7 +117,11 @@ func dropGroupSupervisorsTable(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
+			log.Printf("Error rolling back transaction: %v", err)
+		}
+	}()
 
 	// Drop trigger first
 	_, err = tx.ExecContext(ctx, `

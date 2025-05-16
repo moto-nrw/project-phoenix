@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -179,7 +180,9 @@ type TokenResponse struct {
 func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	req := &LoginRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -189,9 +192,13 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
-				render.Render(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
+				if err := render.Render(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials)); err != nil {
+					log.Printf("Error rendering error response: %v", err)
+				}
 			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				render.Render(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials)) // Mask the specific error
+				if err := render.Render(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials)); err != nil { // Mask the specific error
+					log.Printf("Error rendering error response: %v", err)
+				}
 			case errors.Is(authErr.Err, authService.ErrAccountInactive):
 				render.Render(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
 			default:

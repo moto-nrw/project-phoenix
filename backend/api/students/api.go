@@ -1,6 +1,7 @@
 package students
 
 import (
+	"log"
 	"errors"
 	"net/http"
 	"strconv"
@@ -216,7 +217,9 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Get all students
 	students, err := rs.StudentRepo.List(r.Context(), queryOptions.Filter.ToMap())
 	if err != nil {
-		render.Render(w, r, ErrorInternalServer(err))
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -252,21 +255,27 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get student
 	student, err := rs.StudentRepo.FindByID(r.Context(), id)
 	if err != nil {
-		render.Render(w, r, ErrorNotFound(errors.New("student not found")))
+		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get person data
 	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
 	if err != nil {
-		render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for student")))
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for student"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -331,7 +340,9 @@ func (rs *Resource) createStudentWithUser(w http.ResponseWriter, r *http.Request
 	if err := rs.StudentRepo.Create(r.Context(), student); err != nil {
 		// Attempt to clean up person if student creation fails
 		_ = rs.PersonService.Delete(r.Context(), person.ID)
-		render.Render(w, r, ErrorInternalServer(err))
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
