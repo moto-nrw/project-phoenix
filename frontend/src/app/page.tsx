@@ -66,7 +66,7 @@ export default function HomePage() {
 
         // Calculate a direction that avoids the logo center
         // This ensures confetti moves outward in all directions and doesn't fly back inward
-        let angle;
+        let angle = 0;
         // Divide the circle into 4 quadrants and pick a random angle within each quadrant
         const quadrant = Math.floor(Math.random() * 4);
         switch(quadrant) {
