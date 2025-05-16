@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { Modal } from "./modal";
 
 interface HelpButtonProps {
@@ -12,6 +13,8 @@ interface HelpButtonProps {
 
 export function HelpButton({ title, content, buttonClassName = "" }: HelpButtonProps) {
     const [isOpen, setIsOpen] = useState(false);
+    const pathname = usePathname();
+    const isLoginPage = pathname === "/";
 
     return (
         <>
@@ -84,18 +87,20 @@ export function HelpButton({ title, content, buttonClassName = "" }: HelpButtonP
                         </button>
                     </div>
 
-                    {/* Impressum Link */}
-                    <div className="mt-4 text-center">
-                        <a
-                            href="https://moto.nrw/impressum/"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-gray-400 text-xs hover:text-gray-600 transition-colors duration-200 underline"
-                            aria-label="Zum Impressum"
-                        >
-                            Impressum
-                        </a>
-                    </div>
+                    {/* Impressum Link - nur auf der Login-Seite anzeigen */}
+                    {isLoginPage && (
+                        <div className="mt-4 text-center">
+                            <a
+                                href="https://moto.nrw/impressum/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-gray-400 text-xs hover:text-gray-600 transition-colors duration-200 underline"
+                                aria-label="Zum Impressum"
+                            >
+                                Impressum
+                            </a>
+                        </div>
+                    )}
                 </div>
             </Modal>
         </>
