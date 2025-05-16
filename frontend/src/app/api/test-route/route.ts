@@ -20,7 +20,7 @@ export async function GET(
       success: true, 
       message: "Test route successful" 
     });
-  } catch (_error) {
+  } catch {
     return NextResponse.json(
       { error: "An error occurred" },
       { status: 500 }

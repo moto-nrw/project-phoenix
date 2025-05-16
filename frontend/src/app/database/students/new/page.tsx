@@ -122,16 +122,6 @@ function StudentPageContent() {
 // Main page component with Suspense boundary
 export default function NewStudentPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gray-50 p-4">
-        <div className="mx-auto max-w-4xl text-center">
-          <p className="text-lg font-medium">Lade Formular...</p>
-        </div>
-      </div>
-    }>
-      <StudentPageContent />
-export default function NewStudentPage() {
-  return (
     <Suspense 
       fallback={
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -142,7 +132,7 @@ export default function NewStudentPage() {
         </div>
       }
     >
-      <NewStudentContent />
+      <StudentPageContent />
     </Suspense>
   );
 }
