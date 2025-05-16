@@ -6,8 +6,10 @@ import { Header } from "~/components/dashboard/header";
 import { Sidebar } from "~/components/dashboard/sidebar";
 import { Alert } from "~/components/ui/alert";
 import { BackgroundWrapper } from "~/components/background-wrapper";
+import { env } from "~/env";
+import { getSession } from "next-auth/react";
 
-// Room interface (from rooms page)
+// Room interface
 interface Room {
     id: string;
     name: string;
@@ -30,7 +32,7 @@ interface RoomHistoryEntry {
     timestamp: string;
     groupName?: string;
     activityName?: string;
-    category?: string; // Added category field
+    category?: string;
     supervisorName?: string;
     studentCount?: number;
     duration_minutes?: number;
@@ -58,7 +60,41 @@ interface DateGroup {
     entries: Activity[];
 }
 
-// Kategorie-zu-Farbe Mapping (from rooms page)
+// Backend response interfaces
+interface BackendRoom {
+    id: number | string;
+    name: string;
+    room_name?: string;
+    building?: string;
+    floor: number;
+    capacity: number;
+    category: string;
+    is_occupied: boolean;
+    group_name?: string;
+    activity_name?: string;
+    supervisor_name?: string;
+    device_id?: string;
+    student_count?: number;
+    color?: string;
+    created_at?: string;
+    updated_at?: string;
+}
+
+interface BackendRoomHistoryEntry {
+    id: number | string;
+    room_id: number | string;
+    timestamp: string;
+    group_name?: string;
+    activity_name?: string;
+    category?: string;
+    supervisor_name?: string;
+    student_count?: number;
+    duration_minutes?: number;
+    entry_type: "entry" | "exit";
+    reason?: string;
+}
+
+// Kategorie-zu-Farbe Mapping
 const categoryColors: Record<string, string> = {
     "Gruppenraum": "#4F46E5", // Blau für Gruppenraum
     "Lernen": "#10B981",      // Grün für Lernen
@@ -68,7 +104,43 @@ const categoryColors: Record<string, string> = {
     "Natur": "#22C55E",       // Grün für Natur
     "Kreatives/Musik": "#8B5CF6", // Lila für Kreatives/Musik
     "NW/Technik": "#06B6D4",  // Türkis für NW/Technik
+    "Klassenzimmer": "#4F46E5", // Blau für Klassenzimmer (wie Gruppenraum)
 };
+
+// Helper function to convert Backend Room to Frontend Room
+function mapBackendToFrontendRoom(backendRoom: BackendRoom): Room {
+    return {
+        id: String(backendRoom.id),
+        name: backendRoom.name ?? backendRoom.room_name ?? "",
+        building: backendRoom.building,
+        floor: backendRoom.floor,
+        capacity: backendRoom.capacity,
+        category: backendRoom.category,
+        isOccupied: backendRoom.is_occupied,
+        groupName: backendRoom.group_name,
+        activityName: backendRoom.activity_name,
+        supervisorName: backendRoom.supervisor_name,
+        deviceId: backendRoom.device_id,
+        studentCount: backendRoom.student_count,
+        color: backendRoom.color ?? categoryColors[backendRoom.category] ?? "#6B7280"
+    };
+}
+
+// Helper function to convert Backend History Entry to Frontend History Entry
+function mapBackendToFrontendHistoryEntry(backendEntry: BackendRoomHistoryEntry): RoomHistoryEntry {
+    return {
+        id: String(backendEntry.id),
+        timestamp: backendEntry.timestamp,
+        groupName: backendEntry.group_name,
+        activityName: backendEntry.activity_name,
+        category: backendEntry.category,
+        supervisorName: backendEntry.supervisor_name,
+        studentCount: backendEntry.student_count,
+        duration_minutes: backendEntry.duration_minutes,
+        entry_type: backendEntry.entry_type,
+        reason: backendEntry.reason
+    };
+}
 
 export default function RoomDetailPage() {
     const router = useRouter();
@@ -81,165 +153,96 @@ export default function RoomDetailPage() {
     const [roomHistory, setRoomHistory] = useState<RoomHistoryEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [errorStatus, setErrorStatus] = useState<number | null>(null);
 
     // Fetch room data and room history
     useEffect(() => {
-        setLoading(true);
-        setError(null);
+        const fetchRoomData = async () => {
+            setLoading(true);
+            setError(null);
+            setErrorStatus(null);
 
-        // Simulate API request with timeout
-        const timer = setTimeout(() => {
             try {
-                // Mock room data
-                const mockRoom: Room = {
-                    id: roomId,
-                    name: "Klassenraum 101",
-                    building: "Hauptgebäude",
-                    floor: 1,
-                    capacity: 30,
-                    category: "Gruppenraum",
-                    isOccupied: true,
-                    groupName: "Regenbogengruppe",
-                    activityName: "Gruppenraum",
-                    supervisorName: "Fr. Schmidt",
-                    studentCount: 25
-                };
+                // Get user session
+                const session = await getSession();
+                const authHeaders = session?.user?.token
+                    ? { Authorization: `Bearer ${session.user.token}` }
+                    : undefined;
 
-                // Mock room history data - adding categories to match room categories
-                const mockRoomHistory: RoomHistoryEntry[] = [
-                    {
-                        id: "1",
-                        timestamp: "2025-05-14T08:00:00",
-                        groupName: "Zebragruppe",
-                        activityName: "Lesen",
-                        category: "Lernen",
-                        supervisorName: "Fr. Schmidt",
-                        studentCount: 25,
-                        entry_type: "entry",
-                        duration_minutes: 45
-                    },
-                    {
-                        id: "2",
-                        timestamp: "2025-05-14T08:45:00",
-                        groupName: "Zebragruppe",
-                        activityName: "Schach",
-                        category: "Lernen",
-                        supervisorName: "Fr. Schmidt",
-                        entry_type: "exit"
-                    },
-                    {
-                        id: "3",
-                        timestamp: "2025-05-14T09:00:00",
-                        groupName: "Affengruppe",
-                        activityName: "Strategiespiele",
-                        category: "Lernen",
-                        supervisorName: "Hr. Weber",
-                        studentCount: 27,
-                        entry_type: "entry",
-                        duration_minutes: 45
-                    },
-                    {
-                        id: "4",
-                        timestamp: "2025-05-14T09:45:00",
-                        groupName: "Affengruppe",
-                        activityName: "Hausaufgabenbetreuung",
-                        category: "Lernen",
-                        supervisorName: "Hr. Weber",
-                        entry_type: "exit"
-                    },
-                    {
-                        id: "5",
-                        timestamp: "2025-05-14T10:00:00",
-                        groupName: "Wengerforpresidentgruppe",
-                        activityName: "Hausaufgabenbetreuung",
-                        category: "Lernen",
-                        supervisorName: "Fr. Klein",
-                        studentCount: 24,
-                        entry_type: "entry",
-                        duration_minutes: 45
-                    },
-                    {
-                        id: "6",
-                        timestamp: "2025-05-14T10:45:00",
-                        groupName: "Wengerforpresidentgruppe",
-                        activityName: "Hausaufgabenbetreuung",
-                        category: "Lernen",
-                        supervisorName: "Fr. Klein",
-                        entry_type: "exit"
-                    },
-                    {
-                        id: "7",
-                        timestamp: "2025-05-14T11:00:00",
-                        groupName: "Pandagruppe",
-                        activityName: "Fahrzeugkunde",
-                        category: "NW/Technik",
-                        supervisorName: "Hr. Müller",
-                        studentCount: 26,
-                        entry_type: "entry",
-                        duration_minutes: 45
-                    },
-                    {
-                        id: "8",
-                        timestamp: "2025-05-14T11:45:00",
-                        groupName: "Pandagruppe",
-                        activityName: "Fahrzeugkunde",
-                        category: "NW/Technik",
-                        supervisorName: "Hr. Müller",
-                        entry_type: "exit"
-                    },
-                    {
-                        id: "9",
-                        timestamp: "2025-05-13T08:00:00",
-                        groupName: "Regenbogengruppe",
-                        activityName: "Hausaufgabenbetreuung",
-                        category: "Lernen",
-                        supervisorName: "Fr. Schmidt",
-                        studentCount: 25,
-                        entry_type: "entry",
-                        duration_minutes: 45
-                    },
-                    {
-                        id: "10",
-                        timestamp: "2025-05-13T08:45:00",
-                        groupName: "Regenbogengruppe",
-                        activityName: "Hausaufgabenbetreuung",
-                        category: "Lernen",
-                        supervisorName: "Fr. Schmidt",
-                        entry_type: "exit"
-                    },
-                    {
-                        id: "11",
-                        timestamp: "2025-05-13T09:00:00",
-                        groupName: "Sonnengruppe",
-                        activityName: "Malen",
-                        category: "Kreatives/Musik",
-                        supervisorName: "Hr. Bauer",
-                        studentCount: 15,
-                        entry_type: "entry",
-                        duration_minutes: 90,
-                    },
-                    {
-                        id: "12",
-                        timestamp: "2025-05-13T10:30:00",
-                        groupName: "Sonnengruppe",
-                        activityName: "Malen",
-                        category: "Kreatives/Musik",
-                        supervisorName: "Hr. Bauer",
-                        entry_type: "exit"
+                // Fetch room data
+                const roomResponse = await fetch(`/api/rooms/${roomId}`, {
+                    credentials: "include",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...authHeaders
                     }
-                ];
+                });
 
-                setRoom(mockRoom);
-                setRoomHistory(mockRoomHistory);
-                setLoading(false);
+                if (!roomResponse.ok) {
+                    const statusCode = roomResponse.status;
+                    setErrorStatus(statusCode);
+
+                    if (statusCode === 404) {
+                        throw new Error(`Der Raum mit der ID ${roomId} wurde nicht gefunden.`);
+                    } else if (statusCode === 401 || statusCode === 403) {
+                        throw new Error("Sie haben keine Berechtigung, diesen Raum anzuzeigen.");
+                    } else {
+                        const errorText = await roomResponse.text();
+                        throw new Error(`Fehler beim Abrufen des Raums: ${errorText || statusCode}`);
+                    }
+                }
+
+                const roomData = await roomResponse.json() as BackendRoom;
+                const frontendRoom = mapBackendToFrontendRoom(roomData);
+                setRoom(frontendRoom);
+
+                // Fetch room history data
+                const historyResponse = await fetch(`/api/rooms/${roomId}/history`, {
+                    credentials: "include",
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...authHeaders
+                    }
+                });
+
+                if (!historyResponse.ok) {
+                    const statusCode = historyResponse.status;
+                    console.warn(`Warning: Failed to fetch room history: ${statusCode}`);
+                    // We'll continue even if history fails - just won't show history
+                }
+                else {
+                    // Parse history data, handling different response formats
+                    const historyResponseData = await historyResponse.json() as BackendRoomHistoryEntry[] | { data: BackendRoomHistoryEntry[] };
+
+                    // Handle possible response formats (direct array or data property)
+                    const backendHistoryEntries = Array.isArray(historyResponseData)
+                        ? historyResponseData
+                        : (historyResponseData?.data && Array.isArray(historyResponseData.data))
+                            ? historyResponseData.data
+                            : [];
+
+                    // Convert backend history entries to frontend format
+                    const frontendHistoryEntries = backendHistoryEntries.map(
+                        (entry: BackendRoomHistoryEntry) => mapBackendToFrontendHistoryEntry(entry)
+                    );
+
+                    setRoomHistory(frontendHistoryEntries);
+                }
             } catch (err) {
                 console.error("Error fetching data:", err);
-                setError("Fehler beim Laden der Daten.");
+
+                // Extract error message
+                const errorMessage = err instanceof Error
+                    ? err.message
+                    : "Ein unbekannter Fehler ist aufgetreten.";
+
+                setError(errorMessage);
+            } finally {
                 setLoading(false);
             }
-        }, 800);
+        };
 
-        return () => clearTimeout(timer);
+        void fetchRoomData();
     }, [roomId]);
 
     // Format date for display
@@ -375,6 +378,7 @@ export default function RoomDetailPage() {
     const activities = groupHistoryByActivity(roomHistory);
     const groupedActivities = groupByDate(activities);
 
+    // Render loading state
     if (loading) {
         return (
             <BackgroundWrapper>
@@ -396,7 +400,23 @@ export default function RoomDetailPage() {
         );
     }
 
+    // Render error state
     if (error || !room) {
+        // Get a user-friendly error message
+        let errorTitle = "Fehler";
+        let errorMessage = error || "Der Raum konnte nicht geladen werden.";
+
+        if (errorStatus === 404 || (error && error.includes("nicht gefunden"))) {
+            errorTitle = "Raum nicht gefunden";
+            errorMessage = `Der Raum mit der ID ${roomId} existiert nicht oder wurde gelöscht.`;
+        } else if (errorStatus === 401 || errorStatus === 403) {
+            errorTitle = "Zugriff verweigert";
+            errorMessage = "Sie haben keine Berechtigung, diesen Raum anzuzeigen.";
+        } else if (errorStatus === 500) {
+            errorTitle = "Serverfehler";
+            errorMessage = "Es ist ein interner Serverfehler aufgetreten. Bitte versuchen Sie es später erneut.";
+        }
+
         return (
             <BackgroundWrapper>
                 <div className="min-h-screen">
@@ -404,17 +424,41 @@ export default function RoomDetailPage() {
                     <div className="flex">
                         <Sidebar />
                         <main className="flex-1 p-8">
-                            <div className="flex min-h-[80vh] flex-col items-center justify-center">
-                                <Alert
-                                    type="error"
-                                    message={error ?? "Raum nicht gefunden"}
-                                />
-                                <button
-                                    onClick={() => router.push(referrer)}
-                                    className="mt-4 rounded bg-blue-100 px-4 py-2 text-blue-800 transition-colors hover:bg-blue-200"
-                                >
-                                    Zurück
-                                </button>
+                            <div className="flex min-h-[50vh] flex-col items-center justify-center">
+                                <div className="w-full max-w-lg mx-auto p-6 bg-white rounded-lg shadow-sm">
+                                    <div className="flex items-center justify-center mb-6">
+                                        <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center">
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                className="h-6 w-6 text-red-600"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                                                />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <h2 className="text-xl font-semibold text-center text-gray-800 mb-2">
+                                        {errorTitle}
+                                    </h2>
+                                    <p className="text-center text-gray-600 mb-6">
+                                        {errorMessage}
+                                    </p>
+                                    <div className="flex justify-center">
+                                        <button
+                                            onClick={() => router.push(referrer)}
+                                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors"
+                                        >
+                                            Zurück zur Raumübersicht
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </main>
                     </div>
@@ -594,7 +638,9 @@ export default function RoomDetailPage() {
                                                         activity.exitTimestamp
                                                     );
                                                     const duration = activity.duration_minutes ?? actualDuration;
-                                                    const categoryColor = activity.category ? categoryColors[activity.category] : "#6B7280";
+                                                    const categoryColor = activity.category
+                                                        ? categoryColors[activity.category] ?? "#6B7280"
+                                                        : "#6B7280";
 
                                                     return (
                                                         <div
@@ -626,7 +672,6 @@ export default function RoomDetailPage() {
                                                                             {activity.groupName}
                                                                         </span>
                                                                     )}
-                                                                    {/* Das reason-Tag wurde entfernt */}
                                                                 </div>
 
                                                                 <div className="mt-3 text-sm text-gray-600">
@@ -637,7 +682,7 @@ export default function RoomDetailPage() {
                                                                         <div>
                                                                             <span className="font-medium">Kategorie:</span> {activity.category}
                                                                         </div>
-                                                                        {activity.studentCount && (
+                                                                        {activity.studentCount !== undefined && (
                                                                             <div>
                                                                                 <span className="font-medium">Teilnehmer:</span> {activity.studentCount}
                                                                             </div>
