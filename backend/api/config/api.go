@@ -270,7 +270,9 @@ func (rs *Resource) createSetting(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &SettingRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -285,7 +287,9 @@ func (rs *Resource) createSetting(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.ConfigService.CreateSetting(r.Context(), setting); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -306,7 +310,9 @@ func (rs *Resource) updateSetting(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &SettingRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -329,7 +335,9 @@ func (rs *Resource) updateSetting(w http.ResponseWriter, r *http.Request) {
 
 	// Update setting
 	if err := rs.ConfigService.UpdateSetting(r.Context(), setting); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -350,13 +358,17 @@ func (rs *Resource) updateSettingValue(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &SettingValueRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
 	// Update setting value
 	if err := rs.ConfigService.UpdateSettingValue(r.Context(), key, req.Value); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -385,7 +397,9 @@ func (rs *Resource) deleteSetting(w http.ResponseWriter, r *http.Request) {
 
 	// Delete setting
 	if err := rs.ConfigService.DeleteSetting(r.Context(), id); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -397,7 +411,9 @@ func (rs *Resource) importSettings(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &ImportSettingsRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -444,7 +460,9 @@ func (rs *Resource) importSettings(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) initializeDefaults(w http.ResponseWriter, r *http.Request) {
 	// Initialize default settings
 	if err := rs.ConfigService.InitializeDefaultSettings(r.Context()); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 

@@ -359,7 +359,9 @@ func (rs *Resource) createDateframe(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &DateframeRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -389,7 +391,9 @@ func (rs *Resource) createDateframe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.ScheduleService.CreateDateframe(r.Context(), dateframe); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -409,7 +413,9 @@ func (rs *Resource) updateDateframe(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &DateframeRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -447,7 +453,9 @@ func (rs *Resource) updateDateframe(w http.ResponseWriter, r *http.Request) {
 
 	// Update dateframe
 	if err := rs.ScheduleService.UpdateDateframe(r.Context(), dateframe); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -466,7 +474,9 @@ func (rs *Resource) deleteDateframe(w http.ResponseWriter, r *http.Request) {
 
 	// Delete dateframe
 	if err := rs.ScheduleService.DeleteDateframe(r.Context(), id); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -644,7 +654,9 @@ func (rs *Resource) createTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &TimeframeRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -677,7 +689,9 @@ func (rs *Resource) createTimeframe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.ScheduleService.CreateTimeframe(r.Context(), timeframe); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -697,7 +711,9 @@ func (rs *Resource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &TimeframeRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -740,7 +756,9 @@ func (rs *Resource) updateTimeframe(w http.ResponseWriter, r *http.Request) {
 
 	// Update timeframe
 	if err := rs.ScheduleService.UpdateTimeframe(r.Context(), timeframe); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -759,7 +777,9 @@ func (rs *Resource) deleteTimeframe(w http.ResponseWriter, r *http.Request) {
 
 	// Delete timeframe
 	if err := rs.ScheduleService.DeleteTimeframe(r.Context(), id); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -906,7 +926,9 @@ func (rs *Resource) createRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	// Parse request
 	req := &RecurrenceRuleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -932,7 +954,9 @@ func (rs *Resource) createRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := rs.ScheduleService.CreateRecurrenceRule(r.Context(), rule); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -952,7 +976,9 @@ func (rs *Resource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request)
 	// Parse request
 	req := &RecurrenceRuleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -988,7 +1014,9 @@ func (rs *Resource) updateRecurrenceRule(w http.ResponseWriter, r *http.Request)
 
 	// Update recurrence rule
 	if err := rs.ScheduleService.UpdateRecurrenceRule(r.Context(), rule); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -1007,7 +1035,9 @@ func (rs *Resource) deleteRecurrenceRule(w http.ResponseWriter, r *http.Request)
 
 	// Delete recurrence rule
 	if err := rs.ScheduleService.DeleteRecurrenceRule(r.Context(), id); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -1083,7 +1113,9 @@ func (rs *Resource) generateEvents(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &GenerateEventsRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -1131,7 +1163,9 @@ func (rs *Resource) checkConflict(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &CheckConflictRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -1177,7 +1211,9 @@ func (rs *Resource) findAvailableSlots(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &FindAvailableSlotsRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 

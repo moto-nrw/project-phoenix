@@ -289,7 +289,9 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &ActivityRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -351,7 +353,9 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &ActivityRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -419,7 +423,9 @@ func (rs *Resource) deleteActivity(w http.ResponseWriter, r *http.Request) {
 
 	// Delete the activity
 	if err := rs.ActivityService.DeleteGroup(r.Context(), id); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -517,7 +523,9 @@ func (rs *Resource) enrollStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Enroll student
 	if err := rs.ActivityService.EnrollStudent(r.Context(), activityID, studentID); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 

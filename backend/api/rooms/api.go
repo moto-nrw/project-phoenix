@@ -253,7 +253,9 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &RoomRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, common.ErrorInvalidRequest(err))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -267,13 +269,17 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 
 	// Validate the room
 	if err := room.Validate(); err != nil {
-		render.Render(w, r, common.ErrorInvalidRequest(err))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
 	// Update room using service
 	if err := rs.FacilityService.UpdateRoom(r.Context(), room); err != nil {
-		render.Render(w, r, common.ErrorInternalServer(err))
+		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -294,7 +300,9 @@ func (rs *Resource) deleteRoom(w http.ResponseWriter, r *http.Request) {
 
 	// Delete room using service
 	if err := rs.FacilityService.DeleteRoom(r.Context(), id); err != nil {
-		render.Render(w, r, common.ErrorInternalServer(err))
+		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 

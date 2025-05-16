@@ -287,7 +287,9 @@ func (rs *Resource) createStudentWithUser(w http.ResponseWriter, r *http.Request
 	// Parse request
 	req := &StudentWithUserRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -309,7 +311,9 @@ func (rs *Resource) createStudentWithUser(w http.ResponseWriter, r *http.Request
 
 	// Create person
 	if err := rs.PersonService.Create(r.Context(), person); err != nil {
-		render.Render(w, r, ErrorInternalServer(err))
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 

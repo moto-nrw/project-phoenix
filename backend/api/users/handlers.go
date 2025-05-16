@@ -314,7 +314,9 @@ func (rs *Resource) createPerson(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &PersonRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, common.ErrorInvalidRequest(err))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -337,7 +339,9 @@ func (rs *Resource) createPerson(w http.ResponseWriter, r *http.Request) {
 
 	// Create person using service
 	if err := rs.PersonService.Create(r.Context(), person); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -367,7 +371,9 @@ func (rs *Resource) updatePerson(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &PersonRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, common.ErrorInvalidRequest(err))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -388,7 +394,9 @@ func (rs *Resource) updatePerson(w http.ResponseWriter, r *http.Request) {
 
 	// Update person using service
 	if err := rs.PersonService.Update(r.Context(), person); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -408,7 +416,9 @@ func (rs *Resource) deletePerson(w http.ResponseWriter, r *http.Request) {
 
 	// Delete person using service
 	if err := rs.PersonService.Delete(r.Context(), id); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -429,13 +439,17 @@ func (rs *Resource) linkRFID(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &RFIDLinkRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, common.ErrorInvalidRequest(err))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
 	// Link RFID card to person
 	if err := rs.PersonService.LinkToRFIDCard(r.Context(), id, req.TagID); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -464,7 +478,9 @@ func (rs *Resource) unlinkRFID(w http.ResponseWriter, r *http.Request) {
 
 	// Unlink RFID card from person
 	if err := rs.PersonService.UnlinkFromRFIDCard(r.Context(), id); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -494,13 +510,17 @@ func (rs *Resource) linkAccount(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &AccountLinkRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, common.ErrorInvalidRequest(err))
+		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
 	// Link account to person
 	if err := rs.PersonService.LinkToAccount(r.Context(), id, req.AccountID); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -529,7 +549,9 @@ func (rs *Resource) unlinkAccount(w http.ResponseWriter, r *http.Request) {
 
 	// Unlink account from person
 	if err := rs.PersonService.UnlinkFromAccount(r.Context(), id); err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 

@@ -306,7 +306,9 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &StaffRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -327,7 +329,9 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 
 	// Create staff record
 	if err := rs.StaffRepo.Create(r.Context(), staff); err != nil {
-		render.Render(w, r, ErrorInternalServer(err))
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -379,7 +383,9 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &StaffRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -420,7 +426,9 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 
 	// Update staff record
 	if err := rs.StaffRepo.Update(r.Context(), staff); err != nil {
-		render.Render(w, r, ErrorInternalServer(err))
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -497,14 +505,18 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	if err == nil && teacher != nil {
 		// Delete teacher record first
 		if err := rs.TeacherRepo.Delete(r.Context(), teacher.ID); err != nil {
-			render.Render(w, r, ErrorInternalServer(errors.New("failed to delete teacher record")))
+			if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to delete teacher record"))); err != nil {
+				log.Printf("Render error: %v", err)
+			}
 			return
 		}
 	}
 
 	// Delete staff member
 	if err := rs.StaffRepo.Delete(r.Context(), id); err != nil {
-		render.Render(w, r, ErrorInternalServer(err))
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
