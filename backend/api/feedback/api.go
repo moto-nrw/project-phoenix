@@ -2,6 +2,7 @@ package feedback
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -220,7 +221,9 @@ func (rs *Resource) listFeedback(w http.ResponseWriter, r *http.Request) {
 	// Get feedback entries
 	entries, err := rs.FeedbackService.ListEntries(r.Context(), filters)
 	if err != nil {
-		render.Render(w, r, ErrorInternalServer(err))
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering response: %v", err)
+		}
 		return
 	}
 
@@ -238,14 +241,18 @@ func (rs *Resource) getFeedback(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("invalid feedback ID")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid feedback ID"))); err != nil {
+			log.Printf("Error rendering response: %v", err)
+		}
 		return
 	}
 
 	// Get feedback entry
 	entry, err := rs.FeedbackService.GetEntryByID(r.Context(), id)
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering response: %v", err)
+		}
 		return
 	}
 
@@ -360,14 +367,17 @@ func (rs *Resource) getDateRangeFeedback(w http.ResponseWriter, r *http.Request)
 
 		// Get feedback entries for student within date range
 		entries, err = rs.FeedbackService.GetEntriesByStudentAndDateRange(r.Context(), studentID, startDate, endDate)
+		if err != nil {
+			render.Render(w, r, ErrorRenderer(err))
+			return
+		}
 	} else {
 		// Get feedback entries for all students within date range
 		entries, err = rs.FeedbackService.GetEntriesByDateRange(r.Context(), startDate, endDate)
-	}
-
-	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
-		return
+		if err != nil {
+			render.Render(w, r, ErrorRenderer(err))
+			return
+		}
 	}
 
 	// Build response

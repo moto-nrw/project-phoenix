@@ -17,7 +17,7 @@ func RequiresPermission(permission string) func(next http.Handler) http.Handler 
 
 			// Check for required permission
 			if !hasPermission(permission, permissions) {
-				render.Render(w, r, ErrForbidden)
+				_ = render.Render(w, r, ErrForbidden)
 				return
 			}
 
@@ -44,7 +44,7 @@ func RequiresAnyPermission(permissions ...string) func(next http.Handler) http.H
 			}
 
 			if !hasAny {
-				render.Render(w, r, ErrForbidden)
+				_ = render.Render(w, r, ErrForbidden)
 				return
 			}
 
@@ -64,7 +64,7 @@ func RequiresAllPermissions(permissions ...string) func(next http.Handler) http.
 			// Check for all required permissions
 			for _, perm := range permissions {
 				if !hasPermission(perm, userPermissions) {
-					render.Render(w, r, ErrForbidden)
+					_ = render.Render(w, r, ErrForbidden)
 					return
 				}
 			}

@@ -61,16 +61,22 @@ func (ra *ResourceAuthorizer) RequiresResourceAccess(resourceType string, action
 			// Authorize
 			allowed, err := ra.authService.AuthorizeResource(r.Context(), subject, resource, action, extra)
 			if err != nil {
-				render.Render(w, r, &ErrResponse{
+				if renderErr := render.Render(w, r, &ErrResponse{
 					HTTPStatusCode: http.StatusInternalServerError,
 					StatusText:     "Authorization error",
 					ErrorText:      err.Error(),
-				})
+				}); renderErr != nil {
+					// Error already occurred while sending the response
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				}
 				return
 			}
 
 			if !allowed {
-				render.Render(w, r, ErrForbidden)
+				if renderErr := render.Render(w, r, ErrForbidden); renderErr != nil {
+					// Error already occurred while sending the response
+					http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+				}
 				return
 			}
 

@@ -16,18 +16,18 @@ import (
 
 // userContextService implements the UserContextService interface
 type userContextService struct {
-	accountRepo       auth.AccountRepository
-	personRepo        users.PersonRepository
-	staffRepo         users.StaffRepository
-	teacherRepo       users.TeacherRepository
-	studentRepo       users.StudentRepository
+	accountRepo        auth.AccountRepository
+	personRepo         users.PersonRepository
+	staffRepo          users.StaffRepository
+	teacherRepo        users.TeacherRepository
+	studentRepo        users.StudentRepository
 	educationGroupRepo education.GroupRepository
-	activityGroupRepo activities.GroupRepository
-	activeGroupRepo   active.GroupRepository
-	visitsRepo        active.VisitRepository
-	supervisorRepo    active.GroupSupervisorRepository
-	db                *bun.DB
-	txHandler         *base.TxHandler
+	activityGroupRepo  activities.GroupRepository
+	activeGroupRepo    active.GroupRepository
+	visitsRepo         active.VisitRepository
+	supervisorRepo     active.GroupSupervisorRepository
+	db                 *bun.DB
+	txHandler          *base.TxHandler
 }
 
 // NewUserContextService creates a new user context service
@@ -45,34 +45,34 @@ func NewUserContextService(
 	db *bun.DB,
 ) UserContextService {
 	return &userContextService{
-		accountRepo:       accountRepo,
-		personRepo:        personRepo,
-		staffRepo:         staffRepo,
-		teacherRepo:       teacherRepo,
-		studentRepo:       studentRepo,
+		accountRepo:        accountRepo,
+		personRepo:         personRepo,
+		staffRepo:          staffRepo,
+		teacherRepo:        teacherRepo,
+		studentRepo:        studentRepo,
 		educationGroupRepo: educationGroupRepo,
-		activityGroupRepo: activityGroupRepo,
-		activeGroupRepo:   activeGroupRepo,
-		visitsRepo:        visitsRepo,
-		supervisorRepo:    supervisorRepo,
-		db:                db,
-		txHandler:         base.NewTxHandler(db),
+		activityGroupRepo:  activityGroupRepo,
+		activeGroupRepo:    activeGroupRepo,
+		visitsRepo:         visitsRepo,
+		supervisorRepo:     supervisorRepo,
+		db:                 db,
+		txHandler:          base.NewTxHandler(db),
 	}
 }
 
 // WithTx returns a new service that uses the provided transaction
 func (s *userContextService) WithTx(tx bun.Tx) interface{} {
 	// Get repositories with transaction
-	var accountRepo auth.AccountRepository = s.accountRepo
-	var personRepo users.PersonRepository = s.personRepo
-	var staffRepo users.StaffRepository = s.staffRepo
-	var teacherRepo users.TeacherRepository = s.teacherRepo
-	var studentRepo users.StudentRepository = s.studentRepo
-	var educationGroupRepo education.GroupRepository = s.educationGroupRepo
-	var activityGroupRepo activities.GroupRepository = s.activityGroupRepo
-	var activeGroupRepo active.GroupRepository = s.activeGroupRepo
-	var visitsRepo active.VisitRepository = s.visitsRepo
-	var supervisorRepo active.GroupSupervisorRepository = s.supervisorRepo
+	var accountRepo = s.accountRepo
+	var personRepo = s.personRepo
+	var staffRepo = s.staffRepo
+	var teacherRepo = s.teacherRepo
+	var studentRepo = s.studentRepo
+	var educationGroupRepo = s.educationGroupRepo
+	var activityGroupRepo = s.activityGroupRepo
+	var activeGroupRepo = s.activeGroupRepo
+	var visitsRepo = s.visitsRepo
+	var supervisorRepo = s.supervisorRepo
 
 	// Apply transaction to repositories that implement TransactionalRepository
 	if txRepo, ok := s.accountRepo.(base.TransactionalRepository); ok {
@@ -108,18 +108,18 @@ func (s *userContextService) WithTx(tx bun.Tx) interface{} {
 
 	// Return a new service with the transaction
 	return &userContextService{
-		accountRepo:       accountRepo,
-		personRepo:        personRepo,
-		staffRepo:         staffRepo,
-		teacherRepo:       teacherRepo,
-		studentRepo:       studentRepo,
+		accountRepo:        accountRepo,
+		personRepo:         personRepo,
+		staffRepo:          staffRepo,
+		teacherRepo:        teacherRepo,
+		studentRepo:        studentRepo,
 		educationGroupRepo: educationGroupRepo,
-		activityGroupRepo: activityGroupRepo,
-		activeGroupRepo:   activeGroupRepo,
-		visitsRepo:        visitsRepo,
-		supervisorRepo:    supervisorRepo,
-		db:                s.db,
-		txHandler:         s.txHandler.WithTx(tx),
+		activityGroupRepo:  activityGroupRepo,
+		activeGroupRepo:    activeGroupRepo,
+		visitsRepo:         visitsRepo,
+		supervisorRepo:     supervisorRepo,
+		db:                 s.db,
+		txHandler:          s.txHandler.WithTx(tx),
 	}
 }
 
@@ -213,7 +213,7 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 		if !errors.Is(err, ErrUserNotLinkedToTeacher) && !errors.Is(err, ErrUserNotLinkedToStaff) {
 			return nil, err
 		}
-		
+
 		// User is not a teacher, return empty list (could expand to other user types later)
 		return []*education.Group{}, nil
 	}
@@ -235,7 +235,7 @@ func (s *userContextService) GetMyActivityGroups(ctx context.Context) ([]*activi
 		if !errors.Is(err, ErrUserNotLinkedToStaff) {
 			return nil, err
 		}
-		
+
 		// User is not staff, return empty list (could expand to other user types later)
 		return []*activities.Group{}, nil
 	}
@@ -263,7 +263,7 @@ func (s *userContextService) GetMyActiveGroups(ctx context.Context) ([]*active.G
 		if !errors.Is(err, ErrUserNotLinkedToStaff) {
 			return nil, err
 		}
-		
+
 		// User is not staff, return empty list
 		return []*active.Group{}, nil
 	}
@@ -271,7 +271,7 @@ func (s *userContextService) GetMyActiveGroups(ctx context.Context) ([]*active.G
 	// First, get the educational groups this staff member is associated with
 	teacher, err := s.GetCurrentTeacher(ctx)
 	var educationalGroupIDs []int64
-	
+
 	// Only proceed with teacher checks if the user is a teacher
 	if err == nil && teacher != nil {
 		// Get the teacher's educational groups
@@ -279,27 +279,27 @@ func (s *userContextService) GetMyActiveGroups(ctx context.Context) ([]*active.G
 		if err != nil {
 			return nil, &UserContextError{Op: "get my active groups - education groups", Err: err}
 		}
-		
+
 		// Extract IDs for filtering
 		for _, group := range educationGroups {
 			educationalGroupIDs = append(educationalGroupIDs, group.ID)
 		}
 	}
-	
+
 	// Get activity groups where the staff is a supervisor
 	activityGroups, err := s.activityGroupRepo.FindByStaffSupervisor(ctx, staff.ID)
 	if err != nil {
 		return nil, &UserContextError{Op: "get my active groups - activity groups", Err: err}
 	}
-	
+
 	var activityGroupIDs []int64
 	for _, group := range activityGroups {
 		activityGroupIDs = append(activityGroupIDs, group.ID)
 	}
-	
+
 	// Get active groups related to the staff's educational and activity groups
 	var activeGroups []*active.Group
-	
+
 	// Get active groups from educational group IDs
 	if len(educationalGroupIDs) > 0 {
 		eduActiveGroups, err := s.activeGroupRepo.FindBySourceIDs(ctx, educationalGroupIDs, "education_group")
@@ -308,7 +308,7 @@ func (s *userContextService) GetMyActiveGroups(ctx context.Context) ([]*active.G
 		}
 		activeGroups = append(activeGroups, eduActiveGroups...)
 	}
-	
+
 	// Get active groups from activity group IDs
 	if len(activityGroupIDs) > 0 {
 		activityActiveGroups, err := s.activeGroupRepo.FindBySourceIDs(ctx, activityGroupIDs, "activity_group")
@@ -317,31 +317,31 @@ func (s *userContextService) GetMyActiveGroups(ctx context.Context) ([]*active.G
 		}
 		activeGroups = append(activeGroups, activityActiveGroups...)
 	}
-	
+
 	// Also include any active groups this staff member is currently supervising
 	supervisedGroups, err := s.GetMySupervisedGroups(ctx)
 	if err != nil {
 		return nil, &UserContextError{Op: "get my active groups - supervised", Err: err}
 	}
-	
+
 	// Add supervised groups, avoiding duplicates
 	groupMap := make(map[int64]*active.Group)
 	for _, group := range activeGroups {
 		groupMap[group.ID] = group
 	}
-	
+
 	for _, group := range supervisedGroups {
 		if _, exists := groupMap[group.ID]; !exists {
 			groupMap[group.ID] = group
 		}
 	}
-	
+
 	// Convert map back to slice
 	result := make([]*active.Group, 0, len(groupMap))
 	for _, group := range groupMap {
 		result = append(result, group)
 	}
-	
+
 	return result, nil
 }
 
@@ -353,7 +353,7 @@ func (s *userContextService) GetMySupervisedGroups(ctx context.Context) ([]*acti
 		if !errors.Is(err, ErrUserNotLinkedToStaff) {
 			return nil, err
 		}
-		
+
 		// User is not staff, return empty list
 		return []*active.Group{}, nil
 	}

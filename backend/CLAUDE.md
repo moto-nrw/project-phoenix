@@ -2,281 +2,185 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Context
+## Build and Development Commands
 
-**Project Name:** Project-Phoenix Backend
-
-**Description:** Go API server for managing student attendance and location tracking using RFID technology in educational institutions. Provides RESTful APIs for tracking student presence, room occupancy, and comprehensive management of educational resources.
-
-**Key Technologies:**
-- Go 1.23+
-- Chi router for HTTP routing
-- Bun ORM for PostgreSQL interactions
-- JWT authentication with lestrrat-go/jwx
-- Cobra CLI framework
-- Docker for containerization
-
-## Common Development Commands
-
-### Backend (Go) Commands
 ```bash
-# Server and database
-go run main.go serve                      # Start the backend server on port 8080
-go run main.go migrate                    # Run database migrations
-go run main.go migrate reset              # Reset database and run all migrations (WARNING: destroys all data)
-go run main.go migrate status             # Show migration status
-go run main.go migrate validate           # Validate migration dependencies
+# Start the backend server
+go run main.go serve            # Starts server on port 8080 (or PORT env var)
 
-# Documentation
-go run main.go gendoc                     # Generate both API docs (routes.md and OpenAPI spec)
-go run main.go gendoc --routes            # Generate only routes documentation
-go run main.go gendoc --openapi           # Generate only OpenAPI specification
+# Database operations
+go run main.go migrate          # Run database migrations
+go run main.go migrate status   # Show migration status
+go run main.go migrate validate # Validate migration dependencies
+go run main.go migrate reset    # WARNING: Reset database and run all migrations
+
+# Documentation generation
+go run main.go gendoc           # Generate both routes.md and OpenAPI spec
+go run main.go gendoc --routes  # Generate only routes documentation
+go run main.go gendoc --openapi # Generate only OpenAPI specification
 
 # Testing
-go test ./...                             # Run all tests
-go test -v ./...                          # Run tests with verbose output
-go test ./api/users -run TestFunction     # Run specific test
-go test -cover ./...                      # Run tests with coverage
+go test ./...                   # Run all tests
+go test -v ./...               # Run tests with verbose output
+go test -race ./...            # Run tests with race condition detection
+go test ./api/auth -run TestLogin  # Run specific test
+
+# Linting
+golangci-lint run --timeout 10m  # Run linter (install: brew install golangci-lint)
+golangci-lint run --fix         # Auto-fix some linting issues
+go fmt ./...                    # Format code
+/Users/yonnock/go/bin/goimports -w .  # Organize imports
 
 # Dependencies
-go mod tidy                               # Clean up and organize dependencies
-go get -u ./...                           # Update all dependencies
+go mod tidy                     # Clean up dependencies
+go get -u ./...                # Update all dependencies
 ```
 
-### Docker Commands
+## Docker Development
+
 ```bash
-# Quick start development
-docker compose up -d postgres             # Start only the database
-docker compose run server ./main migrate  # Run migrations
-docker compose up                         # Start all services (frontend, backend, database)
+# Start PostgreSQL only
+docker compose up -d postgres
 
-# Other useful commands
-docker compose down                       # Stop and remove all containers
-docker compose logs -f server            # Follow server logs
-docker compose logs postgres             # View database logs
-docker compose exec postgres psql -U postgres  # Access database directly
+# Run migrations in docker
+docker compose run server ./main migrate
+
+# Start all services
+docker compose up
+
+# View logs
+docker compose logs -f server
+docker compose logs postgres
 ```
 
-## Code Architecture
+## Environment Setup
 
-### High-Level Architecture
+The backend uses `dev.env` file for local configuration. Copy `dev.env.example` to `dev.env` and configure:
 
-The backend follows a layered architecture with clear separation of concerns:
+```bash
+cp dev.env.example dev.env
+```
 
-1. **API Layer** (`/api/`): HTTP handlers and route definitions
-   - Each domain has its own package (auth, students, rooms, etc.)
-   - Handlers use `render.Bind` for request parsing and `render.JSON` for responses
-   - Error responses use domain-specific error types
+Key environment variables:
+- `DB_DSN`: PostgreSQL connection string
+- `AUTH_JWT_SECRET`: JWT secret key (change in production)
+- `ENABLE_CORS`: Set to `true` for cross-origin requests during development
+- `LOG_LEVEL`: Options: debug, info, warn, error
+- `DB_DEBUG`: Set to `true` to log SQL queries
 
-2. **Service Layer** (`/services/`): Business logic and orchestration
-   - Services encapsulate complex operations
-   - Handle transactions and cross-domain operations
-   - Return domain-specific errors
+## Architecture Overview
 
-3. **Model Layer** (`/models/`): Data models and validation
-   - Each model embeds `base.Model` for common fields
-   - Validation using ozzo-validation
-   - Repository interfaces for data access patterns
+The backend follows a layered architecture:
 
-4. **Database Layer** (`/database/`): Database operations
-   - Migrations organized by domain and order
-   - Repositories implement data access
-   - Uses Bun ORM for PostgreSQL operations
+```
+api/            # HTTP handlers and routing
+├── active/     # Active sessions management
+├── auth/       # Authentication endpoints
+├── users/      # User management
+└── ...
 
-### Database Schema Organization
+services/       # Business logic layer
+├── auth/       # Authentication services
+├── active/     # Active session services
+└── ...
 
-The database uses multiple schemas to organize tables by domain:
+models/         # Data models and interfaces
+├── base/       # Base model and repository interfaces
+├── auth/       # Authentication models
+└── ...
 
-- **auth**: Authentication (accounts, tokens, permissions, roles)
-- **users**: User profiles (persons, students, teachers, staff)
-- **education**: Educational structures (groups, substitutions)
-- **activities**: Student activities and schedules
-- **facilities**: Physical locations (rooms)
-- **schedule**: Time management (timeframes, recurrence rules)
-- **active**: Real-time tracking (visits, active groups)
-- **iot**: Device management (RFID devices)
-- **feedback**: User feedback entries
-- **config**: System configuration
+database/
+├── migrations/ # Database migration files
+└── repositories/ # Data access layer
+
+auth/           # Authentication subsystem
+├── authorize/  # Authorization and permissions
+├── jwt/        # JWT token handling
+└── userpass/   # Username/password auth
+```
 
 ### Key Patterns
 
-**Repository Pattern**:
-```go
-type StudentRepository interface {
-    base.Repository[Student]
-    FindByPersonID(ctx context.Context, personID int64) (*Student, error)
-}
-```
+1. **Repository Pattern**: Each domain has a repository interface in `models/` and implementation in `database/repositories/`
 
-**Service Pattern**:
-```go
-type UserService interface {
-    GetStudent(ctx context.Context, id int64) (*Student, error)
-    CreateStudent(ctx context.Context, student *Student) error
-}
-```
+2. **Service Layer**: Business logic is in `services/`, keeping HTTP handlers thin
 
-**Error Handling**:
-```go
-var (
-    ErrStudentNotFound = NewHTTPError(http.StatusNotFound, "student not found", "STU001")
-    ErrInvalidStudentData = NewHTTPError(http.StatusBadRequest, "invalid student data", "STU002")
-)
-```
+3. **Factory Pattern**: Both services and repositories use factories for dependency injection
 
-**API Handler Pattern**:
-```go
-func handleGetStudent(svc services.StudentService) http.HandlerFunc {
-    return func(w http.ResponseWriter, r *http.Request) {
-        id := chi.URLParam(r, "id")
-        student, err := svc.GetStudent(r.Context(), id)
-        if err != nil {
-            render.Render(w, r, ErrInvalidRequest(err))
-            return
-        }
-        render.JSON(w, r, student)
-    }
-}
-```
+4. **Migration System**: Numbered migrations with dependency tracking in `database/migrations/`
 
-## Authentication & Authorization
+5. **Error Handling**: Each package has its own `errors.go` with domain-specific errors
 
-- JWT-based authentication using lestrrat-go/jwx
-- Role-based access control (RBAC) with permissions
-- Policy-based authorization for complex rules
-- API key authentication for IoT devices
+6. **JWT Authentication**: Access tokens (15min) and refresh tokens (1hr) with role-based permissions
 
-Key roles:
-- `admin`: Full system access
-- `teacher`: Educational resource management
-- `student`: Limited personal data access
-- `user`: Basic authenticated access
-
-## Environment Configuration
-
-Copy `dev.env.example` to `dev.env` and configure:
-
-Essential variables:
-- `DB_DSN`: PostgreSQL connection string
-- `AUTH_JWT_SECRET`: Secret for JWT signing (generate securely)
-- `ADMIN_EMAIL`/`ADMIN_PASSWORD`: Initial admin account
-- `LOG_LEVEL`: Set to `debug` for development
-- `ENABLE_CORS`: Set to `true` for frontend development
-
-## Testing Strategy
-
-The project uses table-driven tests with testify for assertions:
+## Testing
 
 ```go
-func TestStudentValidation(t *testing.T) {
-    tests := []struct {
-        name    string
-        student Student
-        wantErr bool
-    }{
-        // Test cases
-    }
+// Example test structure
+func TestUserLogin(t *testing.T) {
+    // Test setup uses test database
+    db := setupTestDB(t)
+    defer cleanupTestDB(db)
     
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            err := tt.student.Validate()
-            if tt.wantErr {
-                assert.Error(t, err)
-            } else {
-                assert.NoError(t, err)
-            }
-        })
-    }
+    // Create test data
+    user := createTestUser(t, db)
+    
+    // Test the functionality
+    result, err := authService.Login(ctx, user.Email, password)
+    require.NoError(t, err)
+    assert.NotEmpty(t, result.AccessToken)
 }
 ```
 
-## Key API Endpoints
+Test helpers are in `test/helpers.go`. Integration tests use a real test database.
 
-### Authentication
-- `POST /api/auth/login` - User login
-- `POST /api/auth/register` - User registration  
-- `POST /api/auth/refresh` - Refresh JWT tokens
-- `GET /api/auth/debug-token` - Debug JWT tokens (dev only)
+## Common Linting Issues
 
-### Core Resources
-- `/api/students` - Student management
-- `/api/rooms` - Room tracking
-- `/api/activities` - Activity management
-- `/api/groups` - Group management
-- `/api/active/visits` - Real-time visit tracking
-- `/api/active/groups` - Active group sessions
+From `docs/linting-issues.md`:
 
-### RFID Integration
-- `/api/iot/devices` - Device management
-- `/api/iot/authenticate` - Device authentication
-- Special endpoints for RFID event processing
+1. **Unchecked errors** (errcheck):
+   ```go
+   // Fix by checking error returns
+   if _, err := w.Write(data); err != nil {
+       log.Printf("write failed: %v", err)
+   }
+   ```
 
-## Migration Management
+2. **Context key type** (staticcheck):
+   ```go
+   // Define proper context keys
+   type contextKey string
+   const userContextKey = contextKey("user")
+   ```
 
-Migrations follow a structured naming convention:
-```
-XXXYYY_schema_description.go
-```
-Where:
-- `XXX`: Schema order (000-999)
-- `YYY`: Migration order within schema
-- `schema`: Target schema name
-- `description`: Migration purpose
+3. **Ineffective assignments**: Remove unused variable assignments
 
-Migration commands:
-```bash
-go run main.go migrate                    # Run pending migrations
-go run main.go migrate status            # Check migration status
-go run main.go migrate validate          # Validate dependencies
-go run main.go migrate reset            # Reset and re-run all
-```
+4. **Empty branches**: Add implementation or remove unnecessary conditions
 
-## Code Style Guidelines
+## API Documentation
 
-- Follow standard Go conventions (gofmt, golint)
-- Use meaningful variable names
-- Keep functions small and focused
-- Return early for error conditions
-- Use context for cancellation and timeouts
-- Log errors at appropriate levels
-- Document public APIs with godoc comments
+- Routes are documented in `routes.md` (generated)
+- OpenAPI spec in `docs/openapi.yaml` (generated)
+- RFID integration guides in `docs/rfid-*.md`
 
-## Debugging Tips
+## Database Schema
 
-1. Enable debug logging: `LOG_LEVEL=debug`
-2. Enable SQL logging: `DB_DEBUG=true`
-3. Check JWT tokens: Use `/api/auth/debug-token` endpoint
-4. Monitor database: `docker compose logs postgres`
-5. Use `httputil.DumpRequest` for request debugging
-6. Check migration status if database errors occur
+The database uses multiple PostgreSQL schemas:
+- `auth`: Authentication and authorization
+- `users`: User profiles and identity
+- `education`: Groups and educational structures
+- `activities`: Student activities
+- `facilities`: Rooms and locations
+- `active`: Real-time session tracking
+- `schedule`: Scheduling system
+- `iot`: Device management
+- `feedback`: User feedback
+- `config`: System configuration
 
-## Common Patterns to Follow
+## RFID Integration
 
-### Error Response
-```go
-render.Render(w, r, ErrInvalidRequest(err))
-```
-
-### Context Usage
-```go
-ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-defer cancel()
-```
-
-### Transaction Handling
-```go
-err := svc.db.WithTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-    // Operations within transaction
-    return nil
-})
-```
-
-### Validation
-```go
-func (s *Student) Validate() error {
-    return validation.ValidateStruct(s,
-        validation.Field(&s.PersonID, validation.Required),
-        validation.Field(&s.GroupID, validation.Required),
-    )
-}
-```
+The system integrates with RFID readers for tracking:
+- Device authentication via API endpoints
+- Real-time student location tracking
+- Room occupancy monitoring
+- See `docs/rfid-integration-guide.md` for details

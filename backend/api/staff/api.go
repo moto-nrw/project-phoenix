@@ -281,8 +281,6 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 
 	teacher, err = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
 	if err == nil && teacher != nil {
-		isTeacher = true
-
 		// Create teacher response
 		response := newTeacherResponse(staff, teacher)
 		common.Respond(w, r, http.StatusOK, response, "Teacher retrieved successfully")
@@ -411,7 +409,7 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	isTeacher := false
 	var teacher *users.Teacher
 
-	teacher, err = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
+	teacher, _ = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
 
 	// Handle teacher record modifications
 	if req.IsTeacher {
@@ -427,8 +425,6 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 				common.Respond(w, r, http.StatusOK, response, "Staff member updated successfully, but failed to update teacher record")
 				return
 			}
-
-			isTeacher = true
 		} else {
 			// Create new teacher record
 			teacher = &users.Teacher{
@@ -444,8 +440,6 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 				common.Respond(w, r, http.StatusOK, response, "Staff member updated successfully, but failed to create teacher record")
 				return
 			}
-
-			isTeacher = true
 		}
 
 		// Return teacher response
@@ -456,7 +450,6 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 		// User no longer wants this to be a teacher - we should keep the teacher record
 		// but note that it's no longer considered active
 		// In a real implementation, you might want to delete the teacher record or mark it as inactive
-		isTeacher = true
 
 		// Return teacher response
 		response := newTeacherResponse(staff, teacher)

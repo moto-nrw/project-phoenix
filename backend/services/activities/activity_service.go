@@ -45,11 +45,11 @@ func NewService(
 // WithTx returns a new service that uses the provided transaction
 func (s *Service) WithTx(tx bun.Tx) interface{} {
 	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var categoryRepo activities.CategoryRepository = s.categoryRepo
-	var groupRepo activities.GroupRepository = s.groupRepo
-	var scheduleRepo activities.ScheduleRepository = s.scheduleRepo
-	var supervisorRepo activities.SupervisorPlannedRepository = s.supervisorRepo
-	var enrollmentRepo activities.StudentEnrollmentRepository = s.enrollmentRepo
+	var categoryRepo = s.categoryRepo
+	var groupRepo = s.groupRepo
+	var scheduleRepo = s.scheduleRepo
+	var supervisorRepo = s.supervisorRepo
+	var enrollmentRepo = s.enrollmentRepo
 
 	// Try to cast repositories to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.categoryRepo.(base.TransactionalRepository); ok {
@@ -291,7 +291,7 @@ func (s *Service) ListGroups(ctx context.Context, filters map[string]interface{}
 	options := base.NewQueryOptions()
 
 	// Apply filters if provided
-	if filters != nil && len(filters) > 0 {
+	if len(filters) > 0 {
 		for key, value := range filters {
 			options.Filter.Equal(key, value)
 		}

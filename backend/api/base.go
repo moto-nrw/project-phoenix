@@ -116,11 +116,11 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // registerRoutes registers all API routes
 func (a *API) registerRoutes() {
 	a.Router.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("MOTO API - Phoenix Project"))
+		_, _ = w.Write([]byte("MOTO API - Phoenix Project"))
 	})
 
 	a.Router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	})
 
 	// Mount API resources

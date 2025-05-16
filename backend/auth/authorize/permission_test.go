@@ -68,7 +68,7 @@ func TestRequiresPermission(t *testing.T) {
 			// Create test handler
 			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte("Success"))
+				_, _ = w.Write([]byte("Success"))
 			})
 
 			// Create middleware chain
@@ -203,24 +203,6 @@ func TestRequiresAllPermissions(t *testing.T) {
 			protectedHandler.ServeHTTP(rr, req)
 
 			assert.Equal(t, tt.expectedStatus, rr.Code)
-		})
-	}
-}
-
-// Context key for testing
-type ctxKey int
-
-const ctxKeyPermissions ctxKey = iota
-
-// Helper function to setup test middleware that injects permissions into context
-// This simulates what the JWT middleware would do
-func setupTestMiddleware(permissions []string) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Use both test and JWT context keys
-			ctx := context.WithValue(r.Context(), ctxKeyPermissions, permissions)
-			ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
-			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }

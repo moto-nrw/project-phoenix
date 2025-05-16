@@ -40,9 +40,9 @@ func NewService(
 // WithTx returns a new service that uses the provided transaction
 func (s *service) WithTx(tx bun.Tx) interface{} {
 	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var dateframeRepo schedule.DateframeRepository = s.dateframeRepo
-	var timeframeRepo schedule.TimeframeRepository = s.timeframeRepo
-	var recurrenceRuleRepo schedule.RecurrenceRuleRepository = s.recurrenceRuleRepo
+	var dateframeRepo = s.dateframeRepo
+	var timeframeRepo = s.timeframeRepo
+	var recurrenceRuleRepo = s.recurrenceRuleRepo
 
 	// Try to cast repositories to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.dateframeRepo.(base.TransactionalRepository); ok {

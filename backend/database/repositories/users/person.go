@@ -262,4 +262,3 @@ func (r *PersonRepository) List(ctx context.Context, filters map[string]interfac
 
 	return r.ListWithOptions(ctx, options)
 }
-

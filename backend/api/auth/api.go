@@ -342,6 +342,8 @@ func (rs *Resource) logout(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Even if there's an error, we want to consider the logout successful from the client's perspective
 		// Just log the error on the server side
+		// TODO: Log the error properly
+		_ = err
 	}
 
 	common.RespondNoContent(w, r)
@@ -1263,9 +1265,10 @@ func (rs *Resource) listAccounts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if active := r.URL.Query().Get("active"); active != "" {
-		if active == "true" {
+		switch active {
+		case "true":
 			filters["active"] = true
-		} else if active == "false" {
+		case "false":
 			filters["active"] = false
 		}
 	}
@@ -1581,9 +1584,10 @@ func (rs *Resource) listParentAccounts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if active := r.URL.Query().Get("active"); active != "" {
-		if active == "true" {
+		switch active {
+		case "true":
 			filters["active"] = true
-		} else if active == "false" {
+		case "false":
 			filters["active"] = false
 		}
 	}

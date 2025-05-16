@@ -106,7 +106,7 @@ func TestResourceAuthorizer_RequiresResourceAccess(t *testing.T) {
 			// Create test handler
 			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte("Success"))
+				_, _ = w.Write([]byte("Success"))
 			})
 
 			// Create extractor that returns test data
@@ -269,7 +269,7 @@ func TestCombinePermissionAndResource(t *testing.T) {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Success"))
+		_, _ = w.Write([]byte("Success"))
 	})
 
 	// Create combined middleware

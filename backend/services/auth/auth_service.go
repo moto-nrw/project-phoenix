@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -42,9 +43,9 @@ func NewService(
 	accountPermissionRepo auth.AccountPermissionRepository,
 	permissionRepo auth.PermissionRepository,
 	tokenRepo auth.TokenRepository,
-	accountParentRepo auth.AccountParentRepository,           // Add this
-	roleRepo auth.RoleRepository,                             // Add this
-	rolePermissionRepo auth.RolePermissionRepository,         // Add this
+	accountParentRepo auth.AccountParentRepository, // Add this
+	roleRepo auth.RoleRepository, // Add this
+	rolePermissionRepo auth.RolePermissionRepository, // Add this
 	passwordResetTokenRepo auth.PasswordResetTokenRepository, // Add this
 	db *bun.DB,
 ) (*Service, error) {
@@ -75,15 +76,15 @@ func NewService(
 
 func (s *Service) WithTx(tx bun.Tx) interface{} {
 	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var accountRepo auth.AccountRepository = s.accountRepo
-	var accountParentRepo auth.AccountParentRepository = s.accountParentRepo // Add this
-	var accountRoleRepo auth.AccountRoleRepository = s.accountRoleRepo
-	var accountPermissionRepo auth.AccountPermissionRepository = s.accountPermissionRepo
-	var permissionRepo auth.PermissionRepository = s.permissionRepo
-	var roleRepo auth.RoleRepository = s.roleRepo                               // Add this
-	var rolePermissionRepo auth.RolePermissionRepository = s.rolePermissionRepo // Add this
-	var tokenRepo auth.TokenRepository = s.tokenRepo
-	var passwordResetTokenRepo auth.PasswordResetTokenRepository = s.passwordResetTokenRepo // Add this
+	var accountRepo = s.accountRepo
+	var accountParentRepo = s.accountParentRepo // Add this
+	var accountRoleRepo = s.accountRoleRepo
+	var accountPermissionRepo = s.accountPermissionRepo
+	var permissionRepo = s.permissionRepo
+	var roleRepo = s.roleRepo                     // Add this
+	var rolePermissionRepo = s.rolePermissionRepo // Add this
+	var tokenRepo = s.tokenRepo
+	var passwordResetTokenRepo = s.passwordResetTokenRepo // Add this
 
 	// Try to cast repositories to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.accountRepo.(base.TransactionalRepository); ok {
@@ -191,7 +192,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, st
 	}
 
 	// Retrieve account roles if not loaded
-	if account.Roles == nil || len(account.Roles) == 0 {
+	if len(account.Roles) == 0 {
 		accountRoles, err := s.accountRoleRepo.FindByAccountID(ctx, account.ID)
 		if err != nil {
 			// Continue even if role retrieval fails, just log the error
@@ -318,6 +319,7 @@ func (s *Service) Register(ctx context.Context, email, username, name, password 
 			err = txService.(*Service).accountRoleRepo.Create(ctx, accountRole)
 			if err != nil {
 				// Log error but continue
+				log.Printf("Failed to create account role: %v", err)
 			}
 		}
 
@@ -361,7 +363,7 @@ func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.
 	}
 
 	// Load roles if not already loaded
-	if account.Roles == nil || len(account.Roles) == 0 {
+	if len(account.Roles) == 0 {
 		accountRoles, err := s.accountRoleRepo.FindByAccountID(ctx, account.ID)
 		if err == nil {
 			// Extract roles from account roles
@@ -374,7 +376,7 @@ func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.
 	}
 
 	// Load permissions if not already loaded
-	if account.Permissions == nil || len(account.Permissions) == 0 {
+	if len(account.Permissions) == 0 {
 		permissions, err := s.getAccountPermissions(ctx, account.ID)
 		if err == nil {
 			account.Permissions = permissions
@@ -455,7 +457,7 @@ func (s *Service) RefreshToken(ctx context.Context, refreshTokenStr string) (str
 	}
 
 	// Load roles if not loaded
-	if account.Roles == nil || len(account.Roles) == 0 {
+	if len(account.Roles) == 0 {
 		accountRoles, err := s.accountRoleRepo.FindByAccountID(ctx, account.ID)
 		if err == nil {
 			// Extract roles from account roles
@@ -1025,6 +1027,7 @@ func (s *Service) DeactivateAccount(ctx context.Context, accountID int) error {
 	// Also invalidate all tokens for this account
 	if err := s.tokenRepo.DeleteByAccountID(ctx, int64(accountID)); err != nil {
 		// Log error but don't fail the deactivation
+		log.Printf("Failed to delete tokens for account %d: %v", accountID, err)
 	}
 
 	return nil
@@ -1094,6 +1097,7 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, email string) (*aut
 	// Invalidate any existing reset tokens
 	if err := s.passwordResetTokenRepo.InvalidateTokensByAccountID(ctx, account.ID); err != nil {
 		// Log error but continue
+		log.Printf("Failed to invalidate reset tokens for account %d: %v", account.ID, err)
 	}
 
 	// Generate new token
@@ -1149,6 +1153,7 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 		// Invalidate all existing auth tokens for security
 		if err := txService.(*Service).tokenRepo.DeleteByAccountID(ctx, resetToken.AccountID); err != nil {
 			// Log error but don't fail the password reset
+			log.Printf("Failed to delete tokens during password reset for account %d: %v", resetToken.AccountID, err)
 		}
 
 		return nil

@@ -1,6 +1,7 @@
 package usercontext
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -25,7 +26,7 @@ func NewResource(service usercontext.UserContextService) *Resource {
 		service: service,
 		router:  chi.NewRouter(),
 	}
-	
+
 	// Setup routes
 	r.router.Use(jwt.Authenticator)
 
@@ -49,7 +50,7 @@ func NewResource(service usercontext.UserContextService) *Resource {
 			router.Get("/visits", r.getGroupVisits)
 		})
 	})
-	
+
 	return r
 }
 
@@ -62,22 +63,30 @@ func (r *Resource) Router() chi.Router {
 func (res *Resource) getCurrentUser(w http.ResponseWriter, r *http.Request) {
 	user, err := res.service.GetCurrentUser(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 	render.Status(r, http.StatusOK)
-	render.Render(w, r, common.NewResponse(user, "Current user retrieved successfully"))
+	if err := render.Render(w, r, common.NewResponse(user, "Current user retrieved successfully")); err != nil {
+		log.Printf("Error rendering response: %v", err)
+	}
 }
 
 // getCurrentPerson returns the current user's person profile
 func (res *Resource) getCurrentPerson(w http.ResponseWriter, r *http.Request) {
 	person, err := res.service.GetCurrentPerson(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 	render.Status(r, http.StatusOK)
-	render.Render(w, r, common.NewResponse(person, "Current profile retrieved successfully"))
+	if err := render.Render(w, r, common.NewResponse(person, "Current profile retrieved successfully")); err != nil {
+		log.Printf("Error rendering response: %v", err)
+	}
 }
 
 // getCurrentStaff returns the current user's staff profile

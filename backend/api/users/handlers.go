@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -522,10 +521,4 @@ func (rs *Resource) getFullProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, newPersonProfileResponse(person), "Person profile retrieved successfully")
-}
-
-// Helper function to check if a string contains another string, ignoring case
-func containsIgnoreCase(s, substr string) bool {
-	s, substr = strings.ToLower(s), strings.ToLower(substr)
-	return strings.Contains(s, substr)
 }
