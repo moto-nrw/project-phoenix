@@ -18,7 +18,7 @@ import type { NextRequest } from "next/server";
   ) {
     return async (
       request: NextRequest,
-      context?: { params: Promise<Record<string, string | string[] | undefined>> }
+      context: { params: Promise<Record<string, string | string[] | undefined>> }
     ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> => {
       try {
         const session = await auth();
@@ -33,15 +33,13 @@ import type { NextRequest } from "next/server";
         // Extract parameters from both context and URL
         const safeParams: Record<string, unknown> = {};
 
-        // Get params from context if available
-        if (context?.params) {
-          const contextParams = await context.params;
-          Object.entries(contextParams).forEach(([key, value]) => {
-            if (value !== undefined) {
-              safeParams[key] = value;
-            }
-          });
-        }
+        // Get params from context
+        const contextParams = await context.params;
+        Object.entries(contextParams).forEach(([key, value]) => {
+          if (value !== undefined) {
+            safeParams[key] = value;
+          }
+        });
 
         // Extract parameters from URL path
         const url = new URL(request.url);
@@ -95,7 +93,7 @@ import type { NextRequest } from "next/server";
   ) {
     return async (
       request: NextRequest,
-      context?: { params: Promise<Record<string, string | string[] | undefined>> }
+      context: { params: Promise<Record<string, string | string[] | undefined>> }
     ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> => {
       try {
         const session = await auth();
@@ -110,15 +108,13 @@ import type { NextRequest } from "next/server";
         // Extract parameters from both context and URL
         const safeParams: Record<string, unknown> = {};
 
-        // Get params from context if available
-        if (context?.params) {
-          const contextParams = await context.params;
-          Object.entries(contextParams).forEach(([key, value]) => {
-            if (value !== undefined) {
-              safeParams[key] = value;
-            }
-          });
-        }
+        // Get params from context
+        const contextParams = await context.params;
+        Object.entries(contextParams).forEach(([key, value]) => {
+          if (value !== undefined) {
+            safeParams[key] = value;
+          }
+        });
 
         // Extract parameters from URL path
         const url = new URL(request.url);
@@ -168,7 +164,7 @@ import type { NextRequest } from "next/server";
   ) {
     return async (
       request: NextRequest,
-      context?: { params: Promise<Record<string, string | string[] | undefined>> }
+      context: { params: Promise<Record<string, string | string[] | undefined>> }
     ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> => {
       try {
         const session = await auth();
@@ -183,15 +179,13 @@ import type { NextRequest } from "next/server";
         // Extract parameters from both context and URL
         const safeParams: Record<string, unknown> = {};
 
-        // Get params from context if available
-        if (context?.params) {
-          const contextParams = await context.params;
-          Object.entries(contextParams).forEach(([key, value]) => {
-            if (value !== undefined) {
-              safeParams[key] = value;
-            }
-          });
-        }
+        // Get params from context
+        const contextParams = await context.params;
+        Object.entries(contextParams).forEach(([key, value]) => {
+          if (value !== undefined) {
+            safeParams[key] = value;
+          }
+        });
 
         // Extract parameters from URL path
         const url = new URL(request.url);
@@ -240,7 +234,7 @@ import type { NextRequest } from "next/server";
   ) {
     return async (
       request: NextRequest,
-      context?: { params: Promise<Record<string, string | string[] | undefined>> }
+      context: { params: Promise<Record<string, string | string[] | undefined>> }
     ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> => {
       try {
         const session = await auth();
@@ -255,15 +249,13 @@ import type { NextRequest } from "next/server";
         // Extract parameters from both context and URL
         const safeParams: Record<string, unknown> = {};
 
-        // Get params from context if available
-        if (context?.params) {
-          const contextParams = await context.params;
-          Object.entries(contextParams).forEach(([key, value]) => {
-            if (value !== undefined) {
-              safeParams[key] = value;
-            }
-          });
-        }
+        // Get params from context
+        const contextParams = await context.params;
+        Object.entries(contextParams).forEach(([key, value]) => {
+          if (value !== undefined) {
+            safeParams[key] = value;
+          }
+        });
 
         // Extract parameters from URL path
         const url = new URL(request.url);
