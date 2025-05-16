@@ -4,9 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Header } from "~/components/dashboard/header";
 import { Sidebar } from "~/components/dashboard/sidebar";
-import { Alert } from "~/components/ui/alert";
 import { BackgroundWrapper } from "~/components/background-wrapper";
-import { env } from "~/env";
 import { getSession } from "next-auth/react";
 
 // Room interface
@@ -404,9 +402,9 @@ export default function RoomDetailPage() {
     if (error || !room) {
         // Get a user-friendly error message
         let errorTitle = "Fehler";
-        let errorMessage = error || "Der Raum konnte nicht geladen werden.";
+        let errorMessage = error ?? "Der Raum konnte nicht geladen werden.";
 
-        if (errorStatus === 404 || (error && error.includes("nicht gefunden"))) {
+        if (errorStatus === 404 || error?.includes("nicht gefunden")) {
             errorTitle = "Raum nicht gefunden";
             errorMessage = `Der Raum mit der ID ${roomId} existiert nicht oder wurde gelöscht.`;
         } else if (errorStatus === 401 || errorStatus === 403) {

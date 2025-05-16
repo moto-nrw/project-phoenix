@@ -174,9 +174,10 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
   
   // If it's an Error with a specific status code pattern, extract it
   if (error instanceof Error) {
-    const match = error.message.match(/API error \((\d+)\):/);
-    if (match) {
-      const status = parseInt(match[1]);
+    const regex = /API error \((\d+)\):/;
+    const match = regex.exec(error.message);
+    if (match?.[1]) {
+      const status = parseInt(match[1], 10);
       return NextResponse.json(
         { error: error.message },
         { status }
