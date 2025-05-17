@@ -53,7 +53,7 @@ interface ApiStaffResponse {
  * Returns a single staff member by ID
  */
 export const GET = createGetHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
-  const id = params.id;
+  const id = params.id as string;
   
   if (!id) {
     throw new Error('Staff ID is required');
@@ -84,6 +84,8 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       staff_notes: staff.staff_notes ?? null,
       created_at: staff.created_at,
       updated_at: staff.updated_at,
+      // Include person_id for updates
+      person_id: staff.person_id,
     };
   } catch (error) {
     console.error("Error fetching staff member:", error);
@@ -104,6 +106,7 @@ interface TeacherResponse {
   staff_notes: string | null;
   created_at: string;
   updated_at: string;
+  person_id?: number;
 }
 
 /**
@@ -112,14 +115,14 @@ interface TeacherResponse {
  */
 export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
   async (_request: NextRequest, body: StaffUpdateRequest, token: string, params: Record<string, unknown>) => {
-    const id = params.id;
+    const id = params.id as string;
     
     if (!id) {
       throw new Error('Staff ID is required');
     }
     
     // If updating a teacher, specialization is required
-    if (body.is_teacher && body.specialization !== undefined && body.specialization.trim() === '') {
+    if (body.is_teacher && (!body.specialization || body.specialization.trim() === '')) {
       throw new Error('Specialization is required for teachers');
     }
     
@@ -129,7 +132,6 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
       
       // Map the response to match the Teacher interface from teacher-api.ts
       return {
-        ...response,
         id: String(response.id),
         name: response.person ? `${response.person.first_name} ${response.person.last_name}` : "",
         first_name: response.person?.first_name ?? "",
@@ -139,6 +141,8 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
         qualifications: response.qualifications ?? null,
         tag_id: response.person?.tag_id ?? null,
         staff_notes: response.staff_notes ?? null,
+        created_at: response.created_at,
+        updated_at: response.updated_at,
       };
     } catch (error) {
       // Check for permission errors (403 Forbidden)
@@ -172,7 +176,7 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
  * Deletes a staff member
  */
 export const DELETE = createDeleteHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
-  const id = params.id;
+  const id = params.id as string;
   
   if (!id) {
     throw new Error('Staff ID is required');

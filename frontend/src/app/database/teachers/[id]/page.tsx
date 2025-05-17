@@ -36,6 +36,7 @@ export default function TeacherDetailsPage() {
             try {
                 // Fetch teacher from API
                 const data = await teacherService.getTeacher(id as string);
+                console.log("Teacher data received:", data);
                 setTeacher(data);
                 setError(null);
             } catch (apiErr) {

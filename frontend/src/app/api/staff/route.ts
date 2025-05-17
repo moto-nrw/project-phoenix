@@ -65,7 +65,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
   
   try {
     // Fetch staff from backend API
-    const response = await apiGet(endpoint, token);
+    const response = await apiGet<BackendStaffResponse[] | ApiStaffResponse>(endpoint, token);
     
     // Handle null or undefined response
     if (!response) {
@@ -80,8 +80,8 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
     if (Array.isArray(response)) {
       // Direct array response - filter and map
       const mappedStaff = response
-        .filter((staff: any) => staff.is_teacher) // Only include teachers
-        .map((staff: any) => ({
+        .filter((staff: BackendStaffResponse) => staff.is_teacher) // Only include teachers
+        .map((staff: BackendStaffResponse) => ({
           id: String(staff.id), // Convert to string to match frontend expectations
           name: staff.person ? `${staff.person.first_name} ${staff.person.last_name}` : "",
           first_name: staff.person?.first_name ?? "",
@@ -99,11 +99,11 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
     }
     
     // Check for nested data structure
-    if (response.data && Array.isArray(response.data)) {
+    if ('data' in response && Array.isArray(response.data)) {
       // Map the response data to match the Teacher interface from teacher-api.ts
       const mappedStaff = response.data
-        .filter((staff: any) => staff.is_teacher) // Only include teachers
-        .map((staff: any) => ({
+        .filter((staff: BackendStaffResponse) => staff.is_teacher) // Only include teachers
+        .map((staff: BackendStaffResponse) => ({
           id: String(staff.id), // Convert to string to match frontend expectations
           name: staff.person ? `${staff.person.first_name} ${staff.person.last_name}` : "",
           first_name: staff.person?.first_name ?? "",

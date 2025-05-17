@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -41,7 +42,11 @@ func createAuthRolesTable(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			log.Printf("Failed to rollback transaction in auth roles migration: %v", err)
+		}
+	}()
 
 	// Create the roles table - for defining application roles
 	_, err = tx.ExecContext(ctx, `
@@ -106,7 +111,11 @@ func dropAuthRolesTable(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
+			log.Printf("Error rolling back transaction: %v", err)
+		}
+	}()
 
 	// Drop trigger first
 	_, err = tx.ExecContext(ctx, `

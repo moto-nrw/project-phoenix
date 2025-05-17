@@ -3,7 +3,7 @@ import type { Teacher } from "@/lib/teacher-api";
 
 interface TeacherFormProps {
     initialData: Partial<Teacher>;
-    onSubmitAction: (data: Partial<Teacher>) => Promise<void>;
+    onSubmitAction: (data: Partial<Teacher> & { password?: string }) => Promise<void>;
     onCancelAction: () => void;
     isLoading: boolean;
     formTitle?: string;
@@ -20,6 +20,7 @@ export default function TeacherForm({
                                         submitLabel = "Speichern",
                                         rfidCards = [],
                                     }: TeacherFormProps) {
+    console.log("TeacherForm - rfidCards prop:", rfidCards, "type:", typeof rfidCards, "isArray:", Array.isArray(rfidCards));
     // Form state
     const [firstName, setFirstName] = useState(initialData.first_name ?? "");
     const [lastName, setLastName] = useState(initialData.last_name ?? "");
@@ -115,7 +116,7 @@ export default function TeacherForm({
 
         try {
             // Prepare data for submission
-            const formData: Partial<Teacher> = {
+            const formData: Partial<Teacher> & { password?: string } = {
                 first_name: firstName.trim(),
                 last_name: lastName.trim(),
                 email: email.trim() || undefined,
@@ -124,11 +125,19 @@ export default function TeacherForm({
                 qualifications: qualifications.trim() || null,  
                 tag_id: tagId || null,
                 staff_notes: staffNotes.trim() || null,
+                // Preserve existing IDs when editing
+                ...(initialData.id && { id: initialData.id }),
+                ...(initialData.person_id && { person_id: initialData.person_id }),
+                // Include is_teacher flag
+                is_teacher: true,
             };
+            
+            console.log("TeacherForm - submitting formData:", formData);
+            console.log("TeacherForm - initialData:", initialData);
 
             // Include password for new teachers (it's always required now)
             if (!initialData.id) {
-                (formData as any).password = password;
+                formData.password = password;
             }
 
             // Submit the form
@@ -243,11 +252,11 @@ export default function TeacherForm({
                                 disabled={isLoading}
                             >
                                 <option value="">Keine RFID-Karte</option>
-                                {rfidCards.map((card) => (
+                                {Array.isArray(rfidCards) ? rfidCards.map((card) => (
                                     <option key={card.id} value={card.id}>
                                         {card.label}
                                     </option>
-                                ))}
+                                )) : null}
                             </select>
                         </div>
 

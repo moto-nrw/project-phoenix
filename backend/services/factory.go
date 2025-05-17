@@ -21,17 +21,17 @@ import (
 
 // Factory provides access to all services
 type Factory struct {
-	Auth         auth.AuthService
-	Active       active.Service
-	Activities   activities.ActivityService
-	Education    education.Service
-	Facilities   facilities.Service
-	Feedback     feedback.Service
-	IoT          iot.Service
-	Config       config.Service
-	Schedule     schedule.Service
-	Users        users.PersonService
-	UserContext  usercontext.UserContextService
+	Auth        auth.AuthService
+	Active      active.Service
+	Activities  activities.ActivityService
+	Education   education.Service
+	Facilities  facilities.Service
+	Feedback    feedback.Service
+	IoT         iot.Service
+	Config      config.Service
+	Schedule    schedule.Service
+	Users       users.PersonService
+	UserContext usercontext.UserContextService
 }
 
 // NewFactory creates a new services factory
@@ -168,16 +168,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	)
 
 	return &Factory{
-		Auth:         authService,
-		Active:       activeService,
-		Activities:   activitiesService,
-		Education:    educationService,
-		Facilities:   facilitiesService,
-		Feedback:     feedbackService,
-		IoT:          iotService,
-		Config:       configService,
-		Schedule:     scheduleService,
-		Users:        usersService,
-		UserContext:  userContextService,
+		Auth:        authService,
+		Active:      activeService,
+		Activities:  activitiesService,
+		Education:   educationService,
+		Facilities:  facilitiesService,
+		Feedback:    feedbackService,
+		IoT:         iotService,
+		Config:      configService,
+		Schedule:    scheduleService,
+		Users:       usersService,
+		UserContext: userContextService,
 	}, nil
 }

@@ -1,6 +1,7 @@
 package staff
 
 import (
+	"log"
 	"errors"
 	"net/http"
 	"strconv"
@@ -200,7 +201,9 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	// Get all staff members
 	staffMembers, err := rs.StaffRepo.List(r.Context(), filters)
 	if err != nil {
-		render.Render(w, r, ErrorInternalServer(err))
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -254,21 +257,27 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get staff member
 	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
 	if err != nil {
-		render.Render(w, r, ErrorNotFound(errors.New("staff member not found")))
+		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get associated person
 	person, err := rs.PersonService.Get(r.Context(), staff.PersonID)
 	if err != nil {
-		render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for staff member")))
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for staff member"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -281,8 +290,6 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 
 	teacher, err = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
 	if err == nil && teacher != nil {
-		isTeacher = true
-
 		// Create teacher response
 		response := newTeacherResponse(staff, teacher)
 		common.Respond(w, r, http.StatusOK, response, "Teacher retrieved successfully")
@@ -299,14 +306,18 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &StaffRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
 	// Verify person exists
 	person, err := rs.PersonService.Get(r.Context(), req.PersonID)
 	if err != nil {
-		render.Render(w, r, ErrorNotFound(errors.New("person not found")))
+		if err := render.Render(w, r, ErrorNotFound(errors.New("person not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -318,7 +329,9 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 
 	// Create staff record
 	if err := rs.StaffRepo.Create(r.Context(), staff); err != nil {
-		render.Render(w, r, ErrorInternalServer(err))
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -361,21 +374,27 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Parse request
 	req := &StaffRequest{}
 	if err := render.Bind(r, req); err != nil {
-		render.Render(w, r, ErrorInvalidRequest(err))
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
 	// Get existing staff member
 	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
 	if err != nil {
-		render.Render(w, r, ErrorNotFound(errors.New("staff member not found")))
+		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -386,7 +405,9 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	if staff.PersonID != req.PersonID {
 		person, err := rs.PersonService.Get(r.Context(), req.PersonID)
 		if err != nil {
-			render.Render(w, r, ErrorNotFound(errors.New("person not found")))
+			if err := render.Render(w, r, ErrorNotFound(errors.New("person not found"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
 			return
 		}
 		staff.PersonID = req.PersonID
@@ -395,7 +416,9 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 		// Get associated person for response
 		person, err := rs.PersonService.Get(r.Context(), staff.PersonID)
 		if err != nil {
-			render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for staff member")))
+			if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for staff member"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
 			return
 		}
 		staff.Person = person
@@ -403,7 +426,9 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 
 	// Update staff record
 	if err := rs.StaffRepo.Update(r.Context(), staff); err != nil {
-		render.Render(w, r, ErrorInternalServer(err))
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -411,7 +436,7 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	isTeacher := false
 	var teacher *users.Teacher
 
-	teacher, err = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
+	teacher, _ = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
 
 	// Handle teacher record modifications
 	if req.IsTeacher {
@@ -427,8 +452,6 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 				common.Respond(w, r, http.StatusOK, response, "Staff member updated successfully, but failed to update teacher record")
 				return
 			}
-
-			isTeacher = true
 		} else {
 			// Create new teacher record
 			teacher = &users.Teacher{
@@ -444,8 +467,6 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 				common.Respond(w, r, http.StatusOK, response, "Staff member updated successfully, but failed to create teacher record")
 				return
 			}
-
-			isTeacher = true
 		}
 
 		// Return teacher response
@@ -456,7 +477,6 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 		// User no longer wants this to be a teacher - we should keep the teacher record
 		// but note that it's no longer considered active
 		// In a real implementation, you might want to delete the teacher record or mark it as inactive
-		isTeacher = true
 
 		// Return teacher response
 		response := newTeacherResponse(staff, teacher)
@@ -474,7 +494,9 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -483,14 +505,18 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	if err == nil && teacher != nil {
 		// Delete teacher record first
 		if err := rs.TeacherRepo.Delete(r.Context(), teacher.ID); err != nil {
-			render.Render(w, r, ErrorInternalServer(errors.New("failed to delete teacher record")))
+			if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to delete teacher record"))); err != nil {
+				log.Printf("Render error: %v", err)
+			}
 			return
 		}
 	}
 
 	// Delete staff member
 	if err := rs.StaffRepo.Delete(r.Context(), id); err != nil {
-		render.Render(w, r, ErrorInternalServer(err))
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
 		return
 	}
 
@@ -502,14 +528,18 @@ func (rs *Resource) getStaffGroups(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID")))
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Check if staff exists
 	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
 	if err != nil {
-		render.Render(w, r, ErrorNotFound(errors.New("staff member not found")))
+		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -524,14 +554,18 @@ func (rs *Resource) getStaffGroups(w http.ResponseWriter, r *http.Request) {
 	// Check if we have a reference to the Education service
 	if rs.EducationService == nil {
 		// If not, return an error
-		render.Render(w, r, ErrorInternalServer(errors.New("education service not available")))
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("education service not available"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
 	// Get groups for this teacher
 	groups, err := rs.EducationService.GetTeacherGroups(r.Context(), teacher.ID)
 	if err != nil {
-		render.Render(w, r, ErrorInternalServer(err))
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -552,7 +586,9 @@ func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 	// Get all staff members
 	staffMembers, err := rs.StaffRepo.List(r.Context(), nil)
 	if err != nil {
-		render.Render(w, r, ErrorInternalServer(err))
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 

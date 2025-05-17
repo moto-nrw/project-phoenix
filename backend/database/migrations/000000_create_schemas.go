@@ -31,7 +31,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("failed to begin transaction: %w", err)
 			}
-			defer tx.Rollback()
+			defer func() { _ = tx.Rollback() }()
 
 			// Create all the schemas
 			_, err = tx.ExecContext(ctx, `
@@ -63,7 +63,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("failed to begin transaction: %w", err)
 			}
-			defer tx.Rollback()
+			defer func() { _ = tx.Rollback() }()
 
 			// Drop the schemas in reverse order of dependencies
 			// Only if they're empty - CASCADE would forcibly drop contents

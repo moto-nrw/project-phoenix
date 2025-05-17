@@ -60,7 +60,7 @@ func TestPolicyEngine_Authorize(t *testing.T) {
 		{
 			name: "allows access when policy approves",
 			setupPolicies: func(engine policy.PolicyEngine) {
-				engine.RegisterPolicy(&MockPolicy{
+				_ = engine.RegisterPolicy(&MockPolicy{
 					name:         "allow_policy",
 					resourceType: "student",
 					evaluateFunc: func(ctx context.Context, authCtx *policy.Context) (bool, error) {
@@ -82,7 +82,7 @@ func TestPolicyEngine_Authorize(t *testing.T) {
 		{
 			name: "denies access when policy denies",
 			setupPolicies: func(engine policy.PolicyEngine) {
-				engine.RegisterPolicy(&MockPolicy{
+				_ = engine.RegisterPolicy(&MockPolicy{
 					name:         "deny_policy",
 					resourceType: "student",
 					evaluateFunc: func(ctx context.Context, authCtx *policy.Context) (bool, error) {
@@ -104,14 +104,14 @@ func TestPolicyEngine_Authorize(t *testing.T) {
 		{
 			name: "denies access when all policies must pass",
 			setupPolicies: func(engine policy.PolicyEngine) {
-				engine.RegisterPolicy(&MockPolicy{
+				_ = engine.RegisterPolicy(&MockPolicy{
 					name:         "allow_policy",
 					resourceType: "student",
 					evaluateFunc: func(ctx context.Context, authCtx *policy.Context) (bool, error) {
 						return true, nil
 					},
 				})
-				engine.RegisterPolicy(&MockPolicy{
+				_ = engine.RegisterPolicy(&MockPolicy{
 					name:         "deny_policy",
 					resourceType: "student",
 					evaluateFunc: func(ctx context.Context, authCtx *policy.Context) (bool, error) {
@@ -147,7 +147,7 @@ func TestPolicyEngine_Authorize(t *testing.T) {
 		{
 			name: "returns error when policy evaluation fails",
 			setupPolicies: func(engine policy.PolicyEngine) {
-				engine.RegisterPolicy(&MockPolicy{
+				_ = engine.RegisterPolicy(&MockPolicy{
 					name:         "error_policy",
 					resourceType: "student",
 					evaluateFunc: func(ctx context.Context, authCtx *policy.Context) (bool, error) {

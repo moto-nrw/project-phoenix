@@ -1,9 +1,10 @@
 package userpass
 
 import (
-	jwt2 "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"strings"
 	"time"
+
+	jwt2 "github.com/moto-nrw/project-phoenix/auth/jwt"
 
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/go-ozzo/ozzo-validation/is"

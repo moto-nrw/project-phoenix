@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"log"
 	"context"
 	"database/sql"
 	"fmt"
@@ -41,7 +42,11 @@ func usersPrivacyConsentsUp(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
+			log.Printf("Error rolling back transaction: %v", err)
+		}
+	}()
 
 	// Create the privacy_consents table
 	_, err = tx.ExecContext(ctx, `
@@ -155,7 +160,11 @@ func usersPrivacyConsentsDown(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
+			log.Printf("Error rolling back transaction: %v", err)
+		}
+	}()
 
 	// Drop the view first, then the triggers, function, and table
 	_, err = tx.ExecContext(ctx, `

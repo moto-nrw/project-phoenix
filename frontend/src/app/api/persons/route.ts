@@ -1,34 +1,30 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { RouteWrapper } from "@/lib/route-wrapper";
+import { type NextRequest } from "next/server";
+import { createPostHandler } from "@/lib/route-wrapper";
 import { env } from "@/env";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/server/auth/config";
 
-export const POST = RouteWrapper(async (req: NextRequest) => {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.token) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const data = await req.json();
-
+export const POST = createPostHandler(async (req: NextRequest, body: unknown, token: string) => {
     const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/persons`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${session.user.token}`,
+            Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(body),
     });
 
     if (!response.ok) {
         const error = await response.text();
-        return NextResponse.json(
-            { success: false, message: error },
-            { status: response.status }
-        );
+        return { 
+            success: false, 
+            message: error,
+            data: null 
+        };
     }
 
-    const result = await response.json();
-    return NextResponse.json(result);
+    const result: unknown = await response.json();
+    return { 
+        success: true, 
+        message: "Person created successfully",
+        data: result
+    };
 });

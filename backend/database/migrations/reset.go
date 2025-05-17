@@ -13,7 +13,7 @@ func ResetDatabase() error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	fmt.Println("Resetting database: Dropping and recreating all schemas...")
 
@@ -66,7 +66,7 @@ func ResetDatabase() error {
 	if err != nil {
 		fmt.Printf("Warning: Failed to query custom types: %v\n", err)
 	} else {
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 
 		// Process each custom type
 		for rows.Next() {

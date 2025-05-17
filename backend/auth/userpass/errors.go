@@ -101,21 +101,21 @@ var ErrInternalServerError = &ErrorResponse{
 
 // Custom error variables
 var (
-	ErrInvalidPassword     = errors.New("invalid password")
-	ErrEmailAlreadyExists  = errors.New("email already exists")
+	ErrInvalidPassword       = errors.New("invalid password")
+	ErrEmailAlreadyExists    = errors.New("email already exists")
 	ErrUsernameAlreadyExists = errors.New("username already exists")
-	ErrPasswordRequired    = errors.New("password is required")
-	ErrPasswordTooShort    = errors.New("password is too short (minimum 8 characters)")
-	ErrPasswordNoUpper     = errors.New("password must contain at least one uppercase letter")
-	ErrPasswordNoLower     = errors.New("password must contain at least one lowercase letter")
-	ErrPasswordNoNumber    = errors.New("password must contain at least one number")
-	ErrPasswordNoSpecial   = errors.New("password must contain at least one special character")
+	ErrPasswordRequired      = errors.New("password is required")
+	ErrPasswordTooShort      = errors.New("password is too short (minimum 8 characters)")
+	ErrPasswordNoUpper       = errors.New("password must contain at least one uppercase letter")
+	ErrPasswordNoLower       = errors.New("password must contain at least one lowercase letter")
+	ErrPasswordNoNumber      = errors.New("password must contain at least one number")
+	ErrPasswordNoSpecial     = errors.New("password must contain at least one special character")
 )
 
 // Error string constants
 const (
-	InvalidLogin         = "invalid login"
-	UnknownLogin         = "unknown login"
-	LoginDisabled        = "login disabled"
-	PasswordMismatch     = "passwords do not match"
+	InvalidLogin     = "invalid login"
+	UnknownLogin     = "unknown login"
+	LoginDisabled    = "login disabled"
+	PasswordMismatch = "passwords do not match"
 )

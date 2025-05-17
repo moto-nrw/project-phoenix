@@ -7,7 +7,7 @@ import { Sidebar } from "~/components/dashboard/sidebar";
 import { Alert } from "~/components/ui/alert";
 import { BackgroundWrapper } from "~/components/background-wrapper";
 
-// Room interface
+// Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
 interface Room {
     id: string;
     name: string;
@@ -15,6 +15,7 @@ interface Room {
     floor: number;
     capacity: number;
     category: string;
+    color: string;
     isOccupied: boolean;
     groupName?: string;
     activityName?: string;
@@ -23,7 +24,7 @@ interface Room {
     studentCount?: number;
 }
 
-// Kategorie-zu-Farbe Mapping
+// Kategorie-zu-Farbe Mapping - beibehalten, da es visuelle Stile definiert
 const categoryColors: Record<string, string> = {
     "Gruppenraum": "#4F46E5", // Blau für Gruppenraum (circle1)
     "Lernen": "#10B981",      // Grün für Lernen (circle2)
@@ -33,167 +34,82 @@ const categoryColors: Record<string, string> = {
     "Natur": "#22C55E",       // Grün für Natur (circle6)
     "Kreatives/Musik": "#8B5CF6", // Lila für Kreatives/Musik (circle7)
     "NW/Technik": "#06B6D4",  // Türkis für NW/Technik (circle8)
+    "Klassenzimmer": "#4F46E5", // Fallback für Standard-Klassenzimmer
 };
-
-// Dummy data for rooms
-const dummyRooms: Room[] = [
-    {
-        id: "1",
-        name: "Klassenraum 101",
-        building: "Hauptgebäude",
-        floor: 1,
-        capacity: 30,
-        category: "Gruppenraum",
-        isOccupied: true,
-        groupName: "Klasse 5a",
-        activityName: "Mathematik",
-        supervisorName: "Fr. Schmidt",
-        studentCount: 25
-    },
-    {
-        id: "2",
-        name: "Musiksaal",
-        building: "Hauptgebäude",
-        floor: 2,
-        capacity: 40,
-        category: "Kreatives/Musik",
-        isOccupied: false
-    },
-    {
-        id: "3",
-        name: "Computerraum 1",
-        building: "Nebengebäude",
-        floor: 1,
-        capacity: 25,
-        category: "NW/Technik",
-        isOccupied: true,
-        groupName: "AG Informatik",
-        activityName: "Programmierung",
-        supervisorName: "Hr. Meyer",
-        studentCount: 15
-    },
-    {
-        id: "4",
-        name: "Kunstraum",
-        building: "Hauptgebäude",
-        floor: 3,
-        capacity: 30,
-        category: "Kreatives/Musik",
-        isOccupied: false
-    },
-    {
-        id: "5",
-        name: "Turnhalle",
-        building: "Sportgebäude",
-        floor: 0,
-        capacity: 100,
-        category: "Bewegen/Ruhe",
-        isOccupied: true,
-        groupName: "Klasse 7c",
-        activityName: "Sportunterricht",
-        supervisorName: "Hr. Müller",
-        studentCount: 28
-    },
-    {
-        id: "6",
-        name: "Klassenraum 102",
-        building: "Hauptgebäude",
-        floor: 1,
-        capacity: 30,
-        category: "Gruppenraum",
-        isOccupied: false
-    },
-    {
-        id: "7",
-        name: "Klassenraum 201",
-        building: "Hauptgebäude",
-        floor: 2,
-        capacity: 30,
-        category: "Lernen",
-        isOccupied: true,
-        groupName: "Klasse 6b",
-        activityName: "Deutsch",
-        supervisorName: "Hr. Weber",
-        studentCount: 27
-    },
-    {
-        id: "8",
-        name: "Bibliothek",
-        building: "Hauptgebäude",
-        floor: 1,
-        capacity: 50,
-        category: "Lernen",
-        isOccupied: false
-    },
-    {
-        id: "9",
-        name: "Naturwissenschaftsraum",
-        building: "Nebengebäude",
-        floor: 2,
-        capacity: 35,
-        category: "NW/Technik",
-        isOccupied: true,
-        groupName: "Klasse 8a",
-        activityName: "Chemie",
-        supervisorName: "Fr. Klein",
-        studentCount: 30
-    },
-    {
-        id: "10",
-        name: "Besprechungsraum",
-        building: "Verwaltung",
-        floor: 1,
-        capacity: 15,
-        category: "Gruppenraum",
-        isOccupied: false
-    },
-    {
-        id: "11",
-        name: "Mensa",
-        building: "Hauptgebäude",
-        floor: 0,
-        capacity: 200,
-        category: "Hauswirtschaft",
-        isOccupied: true,
-        groupName: "Alle Klassen",
-        activityName: "Mittagessen",
-        studentCount: 150
-    },
-    {
-        id: "12",
-        name: "Aula",
-        building: "Hauptgebäude",
-        floor: 0,
-        capacity: 300,
-        category: "Spielen",
-        isOccupied: false
-    }
-];
 
 export default function RoomsPage() {
     const router = useRouter();
-    const [loading, setLoading] = useState(false);
-    const [error] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [searchFilter, setSearchFilter] = useState("");
     const [buildingFilter, setBuildingFilter] = useState<string | null>(null);
     const [floorFilter, setFloorFilter] = useState<string | null>(null);
     const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
     const [occupiedFilter, setOccupiedFilter] = useState<string | null>(null);
-    const [filteredRooms, setFilteredRooms] = useState<Room[]>(dummyRooms);
+    const [rooms, setRooms] = useState<Room[]>([]);
+    const [filteredRooms, setFilteredRooms] = useState<Room[]>([]);
+
+    // API Daten laden
+    useEffect(() => {
+        const fetchRooms = async () => {
+            try {
+                setLoading(true);
+
+                // Ruft alle Räume vom API-Endpunkt ab
+                const response = await fetch('/api/rooms');
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json() as Room[] | { data: Room[] };
+
+                // Überprüfen der Antwortstruktur und Extraktion der Raumdaten
+                let roomsData: Room[];
+                if (data && Array.isArray(data)) {
+                    roomsData = data;
+                } else if (data?.data && Array.isArray(data.data)) {
+                    roomsData = data.data;
+                } else {
+                    console.error("Unerwartetes Antwortformat:", data);
+                    throw new Error("Unerwartetes Antwortformat");
+                }
+
+                // Stellt sicher, dass jeder Raum eine Farbe hat
+                roomsData = roomsData.map(room => ({
+                    ...room,
+                    color: room.color ?? categoryColors[room.category] ?? "#6B7280"
+                }));
+
+                setRooms(roomsData);
+                setFilteredRooms(roomsData);
+                setError(null);
+            } catch (err) {
+                console.error("Fehler beim Laden der Räume:", err);
+                setError("Fehler beim Laden der Raumdaten. Bitte versuchen Sie es später erneut.");
+                setRooms([]);
+                setFilteredRooms([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        void fetchRooms();
+    }, []);
 
     // Apply filters function
     const applyFilters = () => {
         setLoading(true);
 
-        let filtered = [...dummyRooms];
+        let filtered = [...rooms];
 
         // Apply search filter
         if (searchFilter) {
             const searchLower = searchFilter.toLowerCase();
             filtered = filtered.filter(room =>
-                room.name.toLowerCase().includes(searchLower) ??
-                room.groupName?.toLowerCase().includes(searchLower) ??
-                room.activityName?.toLowerCase().includes(searchLower)
+                (room.name?.toLowerCase().includes(searchLower)) ??
+                (room.groupName?.toLowerCase().includes(searchLower)) ??
+                (room.activityName?.toLowerCase().includes(searchLower))
             );
         }
 
@@ -230,7 +146,7 @@ export default function RoomsPage() {
 
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchFilter, buildingFilter, floorFilter, categoryFilter, occupiedFilter]);
+    }, [searchFilter, buildingFilter, floorFilter, categoryFilter, occupiedFilter, rooms]);
 
     // Handle room selection - Navigiere zur Raumdetailseite
     const handleSelectRoom = (room: Room) => {
@@ -239,17 +155,17 @@ export default function RoomsPage() {
 
     // Get all unique buildings for filter dropdown
     const uniqueBuildings = Array.from(
-        new Set(dummyRooms.map((room) => room.building).filter(Boolean))
+        new Set(rooms.map((room) => room.building).filter(Boolean))
     );
 
     // Get all unique floors for filter dropdown
     const uniqueFloors = Array.from(
-        new Set(dummyRooms.map((room) => room.floor.toString()))
+        new Set(rooms.map((room) => room.floor.toString()))
     ).sort((a, b) => parseInt(a) - parseInt(b));
 
     // Get all unique categories for filter dropdown
     const uniqueCategories = Array.from(
-        new Set(dummyRooms.map((room) => room.category))
+        new Set(rooms.map((room) => room.category))
     );
 
     // Reset all filters
@@ -261,7 +177,7 @@ export default function RoomsPage() {
         setOccupiedFilter(null);
     };
 
-    if (loading) {
+    if (loading && rooms.length === 0) {
         return (
             <div className="flex min-h-screen items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
@@ -453,7 +369,7 @@ export default function RoomsPage() {
                                             {/* Top colored bar based on room category */}
                                             <div
                                                 className="h-2"
-                                                style={{ backgroundColor: categoryColors[room.category] ?? "#6B7280" }}
+                                                style={{ backgroundColor: categoryColors[room.category] ?? room.color ?? "#6B7280" }}
                                             />
                                             <div className="p-4">
                                                 <div className="mb-2 flex items-center justify-between">
@@ -475,7 +391,7 @@ export default function RoomsPage() {
                                                         <span className="block flex items-center">
                                                             <span
                                                                 className="inline-block h-3 w-3 rounded-full mr-1.5"
-                                                                style={{ backgroundColor: categoryColors[room.category] ?? "#6B7280" }}
+                                                                style={{ backgroundColor: categoryColors[room.category] ?? room.color ?? "#6B7280" }}
                                                             ></span>
                                                             Kategorie: {room.category}
                                                         </span>

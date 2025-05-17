@@ -1,9 +1,6 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { RouteWrapper } from "@/lib/route-wrapper";
-import { authService } from "@/lib/auth-service";
+import { type NextRequest } from "next/server";
+import { createPostHandler } from "@/lib/route-wrapper";
 import { env } from "@/env";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/server/auth/config";
 
 // Extend the Teacher type to include password for creation
 interface TeacherCreationData {
@@ -18,17 +15,45 @@ interface TeacherCreationData {
     staff_notes?: string | null;
 }
 
+// API response types
+interface AccountResponse {
+    data: {
+        id: string;
+        email: string;
+        username: string;
+        name: string;
+    };
+}
+
+interface PersonResponse {
+    data: {
+        id: number;
+        first_name: string;
+        last_name: string;
+        account_id: number;
+        tag_id?: string;
+        created_at: string;
+        updated_at: string;
+    };
+}
+
+interface StaffResponse {
+    data: {
+        id: number;
+        person_id: number;
+        staff_notes?: string;
+        is_teacher: boolean;
+        teacher_id?: number;
+        specialization?: string;
+        role?: string;
+        qualifications?: string;
+        created_at: string;
+        updated_at: string;
+    };
+}
+
 // Create a new teacher with account
-export const POST = RouteWrapper(async (req: NextRequest) => {
-    const session = await getServerSession(authOptions);
-    
-    // Verify user has permission to create teachers
-    if (!session?.user?.token) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const data = await req.json() as TeacherCreationData;
-
+export const POST = createPostHandler(async (req: NextRequest, body: TeacherCreationData, token: string) => {
     try {
         // Step 1: Create an account via backend API
         const accountResponse = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/register`, {
@@ -37,11 +62,11 @@ export const POST = RouteWrapper(async (req: NextRequest) => {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                email: data.email,
-                username: data.email.split('@')[0], // Use email prefix as username
-                name: `${data.first_name} ${data.last_name}`,
-                password: data.password,
-                confirm_password: data.password
+                email: body.email,
+                username: body.email.split('@')[0], // Use email prefix as username
+                name: `${body.first_name} ${body.last_name}`,
+                password: body.password,
+                confirm_password: body.password
             }),
         });
 
@@ -50,7 +75,7 @@ export const POST = RouteWrapper(async (req: NextRequest) => {
             throw new Error(`Account creation failed: ${error}`);
         }
 
-        const accountResult = await accountResponse.json();
+        const accountResult = await accountResponse.json() as AccountResponse;
         const account = accountResult.data;
 
         // Step 2: Create a person linked to this account via backend API
@@ -58,13 +83,13 @@ export const POST = RouteWrapper(async (req: NextRequest) => {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${session.user.token}`,
+                Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-                first_name: data.first_name,
-                last_name: data.last_name,
-                account_id: parseInt(account.id),
-                tag_id: data.tag_id || undefined,
+                first_name: body.first_name,
+                last_name: body.last_name,
+                account_id: parseInt(account.id, 10),
+                tag_id: body.tag_id ?? undefined,
             }),
         });
 
@@ -73,7 +98,7 @@ export const POST = RouteWrapper(async (req: NextRequest) => {
             throw new Error(`Person creation failed: ${error}`);
         }
 
-        const personResult = await personResponse.json();
+        const personResult = await personResponse.json() as PersonResponse;
         const person = personResult.data;
 
         // Step 3: Create a staff record linked to this person
@@ -81,15 +106,15 @@ export const POST = RouteWrapper(async (req: NextRequest) => {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${session.user.token}`,
+                Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
                 person_id: person.id,
-                staff_notes: data.staff_notes || "",
+                staff_notes: body.staff_notes ?? "",
                 is_teacher: true,
-                specialization: data.specialization,
-                role: data.role || "",
-                qualifications: data.qualifications || "",
+                specialization: body.specialization,
+                role: body.role ?? "",
+                qualifications: body.qualifications ?? "",
             }),
         });
 
@@ -98,7 +123,7 @@ export const POST = RouteWrapper(async (req: NextRequest) => {
             throw new Error(`Staff creation failed: ${error}`);
         }
 
-        const staffResult = await staffResponse.json();
+        const staffResult = await staffResponse.json() as StaffResponse;
         const staff = staffResult.data;
 
         // Map the response to match the expected Teacher interface
@@ -120,16 +145,13 @@ export const POST = RouteWrapper(async (req: NextRequest) => {
             teacher_id: staff.teacher_id,
         };
 
-        return NextResponse.json({
+        return {
             success: true,
             message: "Teacher created successfully",
             data: teacher,
-        });
+        };
     } catch (error) {
         console.error('Error creating teacher:', error);
-        return NextResponse.json(
-            { success: false, message: error instanceof Error ? error.message : 'Failed to create teacher' },
-            { status: 500 }
-        );
+        throw error instanceof Error ? error : new Error('Failed to create teacher');
     }
 });

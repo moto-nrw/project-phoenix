@@ -30,7 +30,7 @@ func (r *StaffRepository) FindByPersonID(ctx context.Context, personID int64) (*
 	staff := new(users.Staff)
 	err := r.db.NewSelect().
 		Model(staff).
-		ModelTableExpr("users.staff").
+		ModelTableExpr("users.staff AS staff").
 		Where("person_id = ?", personID).
 		Scan(ctx)
 

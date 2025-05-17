@@ -39,7 +39,7 @@ interface ApiPersonResponse {
  * Returns a single person by ID
  */
 export const GET = createGetHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
-  const id = params.id;
+  const id = params.id as string;
   
   if (!id) {
     throw new Error('Person ID is required');
@@ -68,7 +68,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
  */
 export const PUT = createPutHandler<BackendPersonResponse, PersonUpdateRequest>(
   async (_request: NextRequest, body: PersonUpdateRequest, token: string, params: Record<string, unknown>) => {
-    const id = params.id;
+    const id = params.id as string;
     
     if (!id) {
       throw new Error('Person ID is required');
@@ -116,7 +116,7 @@ export const PUT = createPutHandler<BackendPersonResponse, PersonUpdateRequest>(
  * Deletes a person
  */
 export const DELETE = createDeleteHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
-  const id = params.id;
+  const id = params.id as string;
   
   if (!id) {
     throw new Error('Person ID is required');

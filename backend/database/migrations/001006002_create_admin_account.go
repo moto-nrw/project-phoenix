@@ -42,12 +42,16 @@ func createAdminAccount(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && err == nil {
+			err = rbErr
+		}
+	}()
 
 	// Create admin account
-	adminEmail := "admin@localhost.de"
+	adminEmail := "admin@example.com"
 	adminUsername := "admin"
-	adminPassword := "Admin123!" // Default password
+	adminPassword := "Test1234!" // Default password
 
 	// Hash the password
 	hashedPassword, err := userpass.HashPassword(adminPassword, userpass.DefaultParams())
@@ -124,7 +128,11 @@ func dropAdminAccount(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && err == nil {
+			err = rbErr
+		}
+	}()
 
 	// Delete the admin account
 	_, err = tx.ExecContext(ctx, `

@@ -1,7 +1,7 @@
 // This file contains the Teacher API service and related types
 
-import type { Activity, BackendActivity } from "./activity-helpers";
-import { mapActivityResponse } from "./activity-helpers";
+import { getSession } from "next-auth/react";
+import type { Activity } from "./activity-helpers";
 
 // Define Teacher interface aligned with staff API response structure
 export interface Teacher {
@@ -49,18 +49,27 @@ class TeacherService {
                 }
             }
 
-            const response = await fetch(url);
+            const session = await getSession();
+            const response = await fetch(url, {
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
+            });
             if (!response.ok) {
                 throw new Error(`Failed to fetch teachers: ${response.statusText}`);
             }
 
-            const data = await response.json();
+            const data = await response.json() as Teacher[] | { data: Teacher[] };
             
             // Handle different response formats
             if (Array.isArray(data)) {
-                return data as Teacher[];
-            } else if (data && Array.isArray(data.data)) {
-                return data.data as Teacher[];
+                return data;
+            } else if (data && typeof data === 'object' && 'data' in data && Array.isArray(data.data)) {
+                return data.data;
             } else {
                 console.error("Unexpected response format:", data);
                 return [];
@@ -74,12 +83,30 @@ class TeacherService {
     // Get a single teacher by ID
     async getTeacher(id: string): Promise<Teacher> {
         try {
-            const response = await fetch(`/api/staff/${id}`);
+            const session = await getSession();
+            const response = await fetch(`/api/staff/${id}`, {
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
+            });
             if (!response.ok) {
                 throw new Error(`Failed to fetch teacher: ${response.statusText}`);
             }
 
-            const data = await response.json() as Teacher;
+            const data = await response.json() as Teacher | { data: Teacher };
+            console.log("Raw teacher API response:", data);
+            
+            // Handle wrapped response from route handler
+            if (data && typeof data === 'object' && 'data' in data) {
+                // Response is wrapped (from route handler)
+                return data.data;
+            }
+            
+            // Direct teacher object
             return data;
         } catch (error) {
             console.error(`Error fetching teacher with ID ${id}:`, error);
@@ -97,14 +124,21 @@ class TeacherService {
             }
             
             // First create an account for the teacher
-            const email = teacherData.email || `${teacherData.first_name.toLowerCase()}.${teacherData.last_name.toLowerCase()}@school.local`;
+            const email = teacherData.email ?? `${teacherData.first_name.toLowerCase()}.${teacherData.last_name.toLowerCase()}@school.local`;
             const username = `${teacherData.first_name.toLowerCase()}_${teacherData.last_name.toLowerCase()}`;
             
+            const session = await getSession();
             const accountResponse = await fetch("/api/auth/register", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : {
+                        "Content-Type": "application/json",
+                    },
                 body: JSON.stringify({
                     email: email,
                     username: username,
@@ -116,69 +150,127 @@ class TeacherService {
 
             if (!accountResponse.ok) {
                 const errorData = await accountResponse.json() as { error?: string, message?: string };
-                const errorMessage = errorData.error || errorData.message || accountResponse.statusText;
+                const errorMessage = errorData.error ?? errorData.message ?? accountResponse.statusText;
                 throw new Error(`Failed to create account: ${errorMessage}`);
             }
 
-            const accountData = await accountResponse.json();
+            const accountData = await accountResponse.json() as { id?: string | number; data?: { id?: string | number } };
+
+            // Extract account ID - handle different response formats
+            const accountId = accountData.id ?? accountData.data?.id;
+            
+            if (!accountId) {
+                console.error("Failed to get account ID from response:", accountData);
+                throw new Error("Failed to get account ID from response");
+            }
 
             // Then create a person linked to that account
             const personResponse = await fetch("/api/users", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : {
+                        "Content-Type": "application/json",
+                    },
                 body: JSON.stringify({
                     first_name: teacherData.first_name,
                     last_name: teacherData.last_name,
-                    tag_id: teacherData.tag_id || null,
-                    account_id: accountData.data.id, // Link to the created account
+                    tag_id: teacherData.tag_id ?? null,
+                    account_id: accountId, // Link to the created account
                 }),
             });
 
             if (!personResponse.ok) {
                 const errorData = await personResponse.json() as { error?: string, message?: string };
-                const errorMessage = errorData.error || errorData.message || personResponse.statusText;
+                const errorMessage = errorData.error ?? errorData.message ?? personResponse.statusText;
                 throw new Error(`Failed to create person: ${errorMessage}`);
             }
 
-            const personData = await personResponse.json();
+            const personResponseData = await personResponse.json() as { 
+                data?: { data?: { id?: number }; id?: number }; 
+                id?: number
+            };
             
-            // Extract the person ID - handle different response formats
-            const personId = personData.id || personData.data?.id;
+            // The backend response is wrapped twice:
+            // 1. Backend: { status: "success", data: { id: ... }, message: "..." }
+            // 2. Route wrapper: { success: true, data: <backend response>, message: "Success" }
+            let personId: number | undefined;
+            
+            if (personResponseData && typeof personResponseData === 'object') {
+                // Our route wrapper structure: { success: true, data: ... }
+                if ('data' in personResponseData) {
+                    const backendResponse = personResponseData.data as { data?: { id?: number }; id?: number };
+                    
+                    // Backend structure: { status: "success", data: { id: ... } }
+                    if (backendResponse && typeof backendResponse === 'object' && 'data' in backendResponse) {
+                        personId = (backendResponse.data as { id?: number }).id;
+                    } else if (backendResponse && typeof backendResponse === 'object' && 'id' in backendResponse) {
+                        // Direct person object
+                        personId = (backendResponse as { id?: number }).id;
+                    }
+                } else if ('id' in personResponseData) {
+                    // Direct PersonResponse format (unlikely)
+                    personId = (personResponseData as { id?: number }).id;
+                }
+            }
             
             if (!personId) {
-                console.error("Unexpected person response format:", personData);
+                console.error("Unexpected person response format:", personResponseData);
                 throw new Error("Failed to get person ID from response");
             }
 
             // Then create staff with is_teacher flag
-            const staffData = {
+            const staffRequestData = {
                 person_id: personId,
-                staff_notes: teacherData.staff_notes || null,
+                staff_notes: teacherData.staff_notes ?? null,
                 is_teacher: true,
                 specialization: teacherData.specialization,
-                role: teacherData.role || null,
-                qualifications: teacherData.qualifications || null,
+                role: teacherData.role ?? null,
+                qualifications: teacherData.qualifications ?? null,
             };
 
             const response = await fetch("/api/staff", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(staffData),
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : {
+                        "Content-Type": "application/json",
+                    },
+                body: JSON.stringify(staffRequestData),
             });
 
             if (!response.ok) {
                 throw new Error(`Failed to create teacher: ${response.statusText}`);
             }
 
-            const data = await response.json() as Teacher;
+            const responseData = await response.json() as {
+                data?: { data?: Teacher } | Teacher;
+            } | Teacher;
+            
+            // Handle double-wrapped response format
+            let staffData: Teacher;
+            if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+                const backendResponse = responseData.data;
+                if (backendResponse && typeof backendResponse === 'object' && 'data' in backendResponse) {
+                    staffData = (backendResponse as { data: Teacher }).data;
+                } else {
+                    staffData = backendResponse as Teacher;
+                }
+            } else {
+                staffData = responseData as Teacher;
+            }
             
             // Add the temporary credentials to the response
             return {
-                ...data,
+                ...staffData,
                 temporaryCredentials: {
                     email: email,
                     password: password,
@@ -199,11 +291,18 @@ class TeacherService {
                 is_teacher: true,
             };
 
+            const session = await getSession();
             const response = await fetch(`/api/staff/${id}`, {
                 method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : {
+                        "Content-Type": "application/json",
+                    },
                 body: JSON.stringify(staffData),
             });
 
@@ -222,8 +321,16 @@ class TeacherService {
     // Delete a teacher
     async deleteTeacher(id: string): Promise<void> {
         try {
+            const session = await getSession();
             const response = await fetch(`/api/staff/${id}`, {
                 method: "DELETE",
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
             });
 
             if (!response.ok) {

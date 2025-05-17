@@ -117,7 +117,7 @@ func (pc *PrivacyConsent) GetTimeToExpiry() *time.Duration {
 		return &duration
 	}
 
-	duration := pc.ExpiresAt.Sub(time.Now())
+	duration := time.Until(*pc.ExpiresAt)
 	return &duration
 }
 
