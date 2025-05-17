@@ -42,7 +42,11 @@ func fixPermissionNames(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && err == nil {
+			err = rbErr
+		}
+	}()
 
 	// Update existing permission names to match backend constants
 	// The backend uses plural resource names and colon separators
@@ -178,7 +182,11 @@ func revertPermissionNames(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if rbErr := tx.Rollback(); rbErr != nil && err == nil {
+			err = rbErr
+		}
+	}()
 
 	// Revert permission names back to dot notation
 	_, err = tx.ExecContext(ctx, `
