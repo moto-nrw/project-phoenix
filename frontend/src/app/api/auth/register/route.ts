@@ -8,11 +8,11 @@ export async function POST(request: NextRequest) {
     const requestBody = (await request.json()) as Record<string, unknown>;
 
     console.log(
-      `Forwarding registration request to ${env.NEXT_PUBLIC_API_URL}/auth/register`,
+      `Forwarding registration request to ${env.NEXT_PUBLIC_API_URL}/api/auth/register`,
       requestBody,
     );
 
-    const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/register`, {
+    const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/api/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(requestBody),

@@ -34,6 +34,14 @@ export default function TeachersPage() {
             try {
                 // Fetch from the real API using our teacher service
                 const data = await teacherService.getTeachers(filters);
+                
+                // Ensure we got an array back
+                if (!Array.isArray(data)) {
+                    console.error("API did not return an array:", data);
+                    setTeachers([]);
+                    setError("Unerwartetes Datenformat vom Server.");
+                    return;
+                }
 
                 if (data.length === 0 && !search) {
                     console.log("No teachers returned from API, checking connection");

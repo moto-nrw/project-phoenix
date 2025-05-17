@@ -30,6 +30,7 @@ func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*user
 	person := new(users.Person)
 	err := r.db.NewSelect().
 		Model(person).
+		ModelTableExpr("users.persons").
 		Where("tag_id = ?", tagID).
 		Scan(ctx)
 
@@ -48,6 +49,7 @@ func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64)
 	person := new(users.Person)
 	err := r.db.NewSelect().
 		Model(person).
+		ModelTableExpr("users.persons").
 		Where("account_id = ?", accountID).
 		Scan(ctx)
 
@@ -65,6 +67,7 @@ func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64)
 func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, accountID int64) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.Person)(nil)).
+		ModelTableExpr("users.persons").
 		Set("account_id = ?", accountID).
 		Where("id = ?", personID).
 		Exec(ctx)
@@ -83,6 +86,7 @@ func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, ac
 func (r *PersonRepository) UnlinkFromAccount(ctx context.Context, personID int64) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.Person)(nil)).
+		ModelTableExpr("users.persons").
 		Set("account_id = NULL").
 		Where("id = ?", personID).
 		Exec(ctx)
@@ -101,6 +105,7 @@ func (r *PersonRepository) UnlinkFromAccount(ctx context.Context, personID int64
 func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.Person)(nil)).
+		ModelTableExpr("users.persons").
 		Set("tag_id = ?", tagID).
 		Where("id = ?", personID).
 		Exec(ctx)
@@ -119,6 +124,7 @@ func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 func (r *PersonRepository) UnlinkFromRFIDCard(ctx context.Context, personID int64) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.Person)(nil)).
+		ModelTableExpr("users.persons").
 		Set("tag_id = NULL").
 		Where("id = ?", personID).
 		Exec(ctx)
@@ -166,7 +172,9 @@ func (r *PersonRepository) Update(ctx context.Context, person *users.Person) err
 // ListWithOptions retrieves persons matching the provided query options
 func (r *PersonRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Person, error) {
 	var persons []*users.Person
-	query := r.db.NewSelect().Model(&persons)
+	query := r.db.NewSelect().
+		Model(&persons).
+		ModelTableExpr("users.persons")
 
 	// Apply query options
 	if options != nil {
@@ -189,6 +197,7 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 	person := new(users.Person)
 	err := r.db.NewSelect().
 		Model(person).
+		ModelTableExpr("users.persons").
 		Relation("Account").
 		Where("id = ?", id).
 		Scan(ctx)
@@ -208,6 +217,7 @@ func (r *PersonRepository) FindWithRFIDCard(ctx context.Context, id int64) (*use
 	person := new(users.Person)
 	err := r.db.NewSelect().
 		Model(person).
+		ModelTableExpr("users.persons").
 		Relation("RFIDCard").
 		Where("id = ?", id).
 		Scan(ctx)

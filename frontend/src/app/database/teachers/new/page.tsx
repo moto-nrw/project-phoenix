@@ -5,7 +5,7 @@ import { redirect, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
 import TeacherForm from "@/components/teachers/teacher-form";
-import { teacherService, type Teacher } from "@/lib/teacher-api";
+import { teacherService, type Teacher, type TeacherWithCredentials } from "@/lib/teacher-api";
 
 export default function NewTeacherPage() {
     const router = useRouter();
@@ -13,6 +13,7 @@ export default function NewTeacherPage() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [rfidCards, setRfidCards] = useState<Array<{ id: string; label: string }>>([]);
+    const [createdCredentials, setCreatedCredentials] = useState<{ email: string; password: string } | null>(null);
 
     const { status } = useSession({
         required: true,
@@ -68,11 +69,17 @@ export default function NewTeacherPage() {
                 staff_notes: formData.staff_notes ?? null
             };
 
-            // Create the teacher
+            // Create the teacher using the teacher service
             const newTeacher = await teacherService.createTeacher(teacherData);
 
-            // Redirect to the new teacher
-            router.push(`/database/teachers/${newTeacher.id}`);
+            // If we got temporary credentials, show them to the user
+            if (newTeacher.temporaryCredentials) {
+                setCreatedCredentials(newTeacher.temporaryCredentials);
+                // Don't redirect yet, show the credentials first
+            } else {
+                // Redirect to the new teacher if no credentials to show
+                router.push(`/database/teachers/${newTeacher.id}`);
+            }
         } catch (err) {
             setError(
                 "Fehler beim Erstellen des Lehrers. Bitte versuchen Sie es später erneut."
@@ -111,6 +118,34 @@ export default function NewTeacherPage() {
                 {error && (
                     <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
                         {error}
+                    </div>
+                )}
+
+                {createdCredentials && (
+                    <div className="mb-6 rounded-lg border border-green-200 bg-green-50 p-6">
+                        <h3 className="mb-4 text-lg font-semibold text-green-800">
+                            Lehrer erfolgreich erstellt!
+                        </h3>
+                        <p className="mb-4 text-green-700">
+                            Bitte notieren Sie sich die folgenden temporären Zugangsdaten:
+                        </p>
+                        <div className="mb-4 rounded bg-white p-4 font-mono text-sm">
+                            <p className="mb-2">
+                                <span className="font-semibold">E-Mail:</span> {createdCredentials.email}
+                            </p>
+                            <p>
+                                <span className="font-semibold">Passwort:</span> {createdCredentials.password}
+                            </p>
+                        </div>
+                        <p className="mb-4 text-sm text-green-600">
+                            Der Lehrer sollte das Passwort bei der ersten Anmeldung ändern.
+                        </p>
+                        <button
+                            onClick={() => router.push(`/database/teachers`)}
+                            className="rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+                        >
+                            Zur Lehrerübersicht
+                        </button>
                     </div>
                 )}
 

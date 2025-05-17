@@ -30,6 +30,7 @@ func (r *StaffRepository) FindByPersonID(ctx context.Context, personID int64) (*
 	staff := new(users.Staff)
 	err := r.db.NewSelect().
 		Model(staff).
+		ModelTableExpr("users.staff").
 		Where("person_id = ?", personID).
 		Scan(ctx)
 
@@ -47,6 +48,7 @@ func (r *StaffRepository) FindByPersonID(ctx context.Context, personID int64) (*
 func (r *StaffRepository) UpdateNotes(ctx context.Context, id int64, notes string) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.Staff)(nil)).
+		ModelTableExpr("users.staff").
 		Set("staff_notes = ?", notes).
 		Where("id = ?", id).
 		Exec(ctx)
@@ -111,7 +113,9 @@ func (r *StaffRepository) List(ctx context.Context, filters map[string]interface
 // ListWithOptions provides a type-safe way to list staff with query options
 func (r *StaffRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Staff, error) {
 	var staffMembers []*users.Staff
-	query := r.db.NewSelect().Model(&staffMembers)
+	query := r.db.NewSelect().
+		Model(&staffMembers).
+		ModelTableExpr("users.staff")
 
 	// Apply query options
 	if options != nil {
@@ -134,6 +138,7 @@ func (r *StaffRepository) FindWithPerson(ctx context.Context, id int64) (*users.
 	staff := new(users.Staff)
 	err := r.db.NewSelect().
 		Model(staff).
+		ModelTableExpr("users.staff").
 		Relation("Person").
 		Where("id = ?", id).
 		Scan(ctx)
@@ -162,6 +167,7 @@ func (r *StaffRepository) AddNotes(ctx context.Context, id int64, notes string) 
 	// Update the staff record
 	_, err = r.db.NewUpdate().
 		Model(staff).
+		ModelTableExpr("users.staff").
 		Column("staff_notes").
 		WherePK().
 		Exec(ctx)

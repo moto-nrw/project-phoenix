@@ -23,6 +23,9 @@ export default function TeacherForm({
     // Form state
     const [firstName, setFirstName] = useState(initialData.first_name ?? "");
     const [lastName, setLastName] = useState(initialData.last_name ?? "");
+    const [email, setEmail] = useState(initialData.email ?? "");
+    const [password, setPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
     const [specialization, setSpecialization] = useState(
         initialData.specialization ?? ""
     );
@@ -42,6 +45,7 @@ export default function TeacherForm({
         if (initialData) {
             setFirstName(initialData.first_name ?? "");
             setLastName(initialData.last_name ?? "");
+            setEmail(initialData.email ?? "");
             setSpecialization(initialData.specialization ?? "");
             setRole(initialData.role ?? "");
             setQualifications(initialData.qualifications ?? "");
@@ -60,6 +64,27 @@ export default function TeacherForm({
 
         if (!lastName.trim()) {
             newErrors.lastName = "Nachname ist erforderlich";
+        }
+
+        // Email validation only for new teachers
+        if (!initialData.id) {
+            if (!email.trim()) {
+                newErrors.email = "E-Mail ist erforderlich";
+            } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                newErrors.email = "Ungültige E-Mail-Adresse";
+            }
+
+            if (!password) {
+                newErrors.password = "Passwort ist erforderlich";
+            } else if (password.length < 8) {
+                newErrors.password = "Passwort muss mindestens 8 Zeichen lang sein";
+            }
+
+            if (!confirmPassword) {
+                newErrors.confirmPassword = "Passwortbestätigung ist erforderlich";
+            } else if (password !== confirmPassword) {
+                newErrors.confirmPassword = "Passwörter stimmen nicht überein";
+            }
         }
 
         if (!specialization.trim()) {
@@ -85,12 +110,18 @@ export default function TeacherForm({
             const formData: Partial<Teacher> = {
                 first_name: firstName.trim(),
                 last_name: lastName.trim(),
+                email: email.trim() || undefined,
                 specialization: specialization.trim(),
                 role: role.trim() || null,
                 qualifications: qualifications.trim() || null,  
                 tag_id: tagId || null,
                 staff_notes: staffNotes.trim() || null,
             };
+
+            // Include password only for new teachers
+            if (!initialData.id && password) {
+                (formData as any).password = password;
+            }
 
             // Submit the form
             await onSubmitAction(formData);
@@ -163,6 +194,31 @@ export default function TeacherForm({
                             )}
                         </div>
 
+                        {/* Email - only for new teachers */}
+                        {!initialData.id && (
+                            <div>
+                                <label
+                                    htmlFor="email"
+                                    className="mb-1 block text-sm font-medium text-gray-700"
+                                >
+                                    E-Mail <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="email"
+                                    id="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className={`w-full rounded-lg border ${
+                                        errors.email ? "border-red-300" : "border-gray-300"
+                                    } px-4 py-2 transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none`}
+                                    disabled={isLoading}
+                                />
+                                {errors.email && (
+                                    <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+                                )}
+                            </div>
+                        )}
+
                         {/* RFID Tag */}
                         <div>
                             <label
@@ -186,6 +242,55 @@ export default function TeacherForm({
                                 ))}
                             </select>
                         </div>
+
+                        {/* Password - only for new teachers */}
+                        {!initialData.id && (
+                            <>
+                                <div>
+                                    <label
+                                        htmlFor="password"
+                                        className="mb-1 block text-sm font-medium text-gray-700"
+                                    >
+                                        Passwort <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="password"
+                                        id="password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        className={`w-full rounded-lg border ${
+                                            errors.password ? "border-red-300" : "border-gray-300"
+                                        } px-4 py-2 transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none`}
+                                        disabled={isLoading}
+                                    />
+                                    {errors.password && (
+                                        <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label
+                                        htmlFor="confirmPassword"
+                                        className="mb-1 block text-sm font-medium text-gray-700"
+                                    >
+                                        Passwort bestätigen <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="password"
+                                        id="confirmPassword"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        className={`w-full rounded-lg border ${
+                                            errors.confirmPassword ? "border-red-300" : "border-gray-300"
+                                        } px-4 py-2 transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none`}
+                                        disabled={isLoading}
+                                    />
+                                    {errors.confirmPassword && (
+                                        <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
+                                    )}
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
 
