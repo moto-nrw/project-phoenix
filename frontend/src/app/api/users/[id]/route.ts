@@ -50,7 +50,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     const response = await apiGet<ApiPersonResponse>(`/api/users/${id}`, token);
     
     // Handle null or undefined response
-    if (!response || !response.data) {
+    if (!response?.data) {
       console.warn("API returned null response for person");
       throw new Error('Person not found');
     }

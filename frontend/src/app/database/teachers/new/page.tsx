@@ -59,14 +59,16 @@ export default function NewTeacherPage() {
             }
 
             // Create a complete teacher object with required fields
-            const teacherData: Omit<Teacher, "id" | "name" | "created_at" | "updated_at"> = {
+            const teacherData: Omit<Teacher, "id" | "name" | "created_at" | "updated_at"> & { password?: string } = {
                 first_name: formData.first_name,
                 last_name: formData.last_name,
+                email: formData.email,
                 specialization: formData.specialization,
                 role: formData.role ?? null,
                 qualifications: formData.qualifications ?? null,
                 tag_id: formData.tag_id ?? null,
-                staff_notes: formData.staff_notes ?? null
+                staff_notes: formData.staff_notes ?? null,
+                password: (formData as any).password  // Include password from form data
             };
 
             // Create the teacher using the teacher service

@@ -29,7 +29,8 @@ func (r *RoleRepository) FindByName(ctx context.Context, name string) (*auth.Rol
 	role := new(auth.Role)
 	err := r.db.NewSelect().
 		Model(role).
-		Where("LOWER(name) = LOWER(?)", name).
+		ModelTableExpr("auth.roles AS role").
+		Where("LOWER(role.name) = LOWER(?)", name).
 		Scan(ctx)
 
 	if err != nil {
@@ -47,6 +48,7 @@ func (r *RoleRepository) FindByAccountID(ctx context.Context, accountID int64) (
 	var roles []*auth.Role
 	err := r.db.NewSelect().
 		Model(&roles).
+		ModelTableExpr("auth.roles AS role").
 		Join("JOIN auth.account_roles ar ON ar.role_id = role.id").
 		Where("ar.account_id = ?", accountID).
 		Scan(ctx)
@@ -66,6 +68,7 @@ func (r *RoleRepository) AssignRoleToAccount(ctx context.Context, accountID int6
 	// Check if the role assignment already exists
 	exists, err := r.db.NewSelect().
 		Model((*auth.AccountRole)(nil)).
+		ModelTableExpr("auth.account_roles").
 		Where("account_id = ? AND role_id = ?", accountID, roleID).
 		Exists(ctx)
 
@@ -87,6 +90,7 @@ func (r *RoleRepository) AssignRoleToAccount(ctx context.Context, accountID int6
 			AccountID: accountID,
 			RoleID:    roleID,
 		}).
+		ModelTableExpr("auth.account_roles").
 		Exec(ctx)
 
 	if err != nil {
@@ -103,6 +107,7 @@ func (r *RoleRepository) AssignRoleToAccount(ctx context.Context, accountID int6
 func (r *RoleRepository) RemoveRoleFromAccount(ctx context.Context, accountID int64, roleID int64) error {
 	_, err := r.db.NewDelete().
 		Model((*auth.AccountRole)(nil)).
+		ModelTableExpr("auth.account_roles").
 		Where("account_id = ? AND role_id = ?", accountID, roleID).
 		Exec(ctx)
 
@@ -121,7 +126,8 @@ func (r *RoleRepository) GetRoleWithPermissions(ctx context.Context, roleID int6
 	role := new(auth.Role)
 	err := r.db.NewSelect().
 		Model(role).
-		Where("id = ?", roleID).
+		ModelTableExpr("auth.roles AS role").
+		Where("role.id = ?", roleID).
 		Scan(ctx)
 
 	if err != nil {
@@ -135,6 +141,7 @@ func (r *RoleRepository) GetRoleWithPermissions(ctx context.Context, roleID int6
 	var permissions []*auth.Permission
 	err = r.db.NewSelect().
 		Model(&permissions).
+		ModelTableExpr("auth.permissions AS permission").
 		Join("JOIN auth.role_permissions rp ON rp.permission_id = permission.id").
 		Where("rp.role_id = ?", roleID).
 		Scan(ctx)
@@ -179,16 +186,16 @@ func (r *RoleRepository) Update(ctx context.Context, role *auth.Role) error {
 	// Get the query builder - detect if we're in a transaction
 	query := r.db.NewUpdate().
 		Model(role).
-		Where("id = ?", role.ID).
-		ModelTableExpr("auth.roles")
+		Where("role.id = ?", role.ID).
+		ModelTableExpr("auth.roles AS role")
 
 	// Extract transaction from context if it exists
 	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
 		// Use the transaction if available
 		query = tx.NewUpdate().
 			Model(role).
-			Where("id = ?", role.ID).
-			ModelTableExpr("auth.roles")
+			Where("role.id = ?", role.ID).
+			ModelTableExpr("auth.roles AS role")
 	}
 
 	// Execute the query
@@ -206,7 +213,9 @@ func (r *RoleRepository) Update(ctx context.Context, role *auth.Role) error {
 // List retrieves roles matching the provided filters
 func (r *RoleRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.Role, error) {
 	var roles []*auth.Role
-	query := r.db.NewSelect().Model(&roles)
+	query := r.db.NewSelect().
+		Model(&roles).
+		ModelTableExpr("auth.roles AS role")
 
 	// Apply filters
 	for field, value := range filters {
@@ -215,17 +224,17 @@ func (r *RoleRepository) List(ctx context.Context, filters map[string]interface{
 			case "name":
 				// Case-insensitive name search
 				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(name) = LOWER(?)", strValue)
+					query = query.Where("LOWER(role.name) = LOWER(?)", strValue)
 				} else {
-					query = query.Where("name = ?", value)
+					query = query.Where("role.name = ?", value)
 				}
 			case "name_like":
 				// Case-insensitive name pattern search
 				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(name) LIKE LOWER(?)", "%"+strValue+"%")
+					query = query.Where("LOWER(role.name) LIKE LOWER(?)", "%"+strValue+"%")
 				}
 			case "is_system":
-				query = query.Where("is_system = ?", value)
+				query = query.Where("role.is_system = ?", value)
 			default:
 				// Default to exact match for other fields
 				query = query.Where("? = ?", bun.Ident(field), value)

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { RouteWrapper } from "@/lib/route-wrapper";
 import { env } from "@/env";
 import { getServerSession } from "next-auth";

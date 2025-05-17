@@ -78,6 +78,14 @@ export default function TeacherForm({
                 newErrors.password = "Passwort ist erforderlich";
             } else if (password.length < 8) {
                 newErrors.password = "Passwort muss mindestens 8 Zeichen lang sein";
+            } else if (!/[A-Z]/.test(password)) {
+                newErrors.password = "Passwort muss mindestens einen Großbuchstaben enthalten";
+            } else if (!/[a-z]/.test(password)) {
+                newErrors.password = "Passwort muss mindestens einen Kleinbuchstaben enthalten";
+            } else if (!/[0-9]/.test(password)) {
+                newErrors.password = "Passwort muss mindestens eine Zahl enthalten";
+            } else if (!/[^a-zA-Z0-9]/.test(password)) {
+                newErrors.password = "Passwort muss mindestens ein Sonderzeichen enthalten";
             }
 
             if (!confirmPassword) {
@@ -118,8 +126,8 @@ export default function TeacherForm({
                 staff_notes: staffNotes.trim() || null,
             };
 
-            // Include password only for new teachers
-            if (!initialData.id && password) {
+            // Include password for new teachers (it's always required now)
+            if (!initialData.id) {
                 (formData as any).password = password;
             }
 

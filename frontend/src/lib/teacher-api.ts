@@ -88,13 +88,16 @@ class TeacherService {
     }
 
     // Create a new teacher
-    async createTeacher(teacherData: Omit<Teacher, "id" | "name" | "created_at" | "updated_at">): Promise<TeacherWithCredentials> {
+    async createTeacher(teacherData: Omit<Teacher, "id" | "name" | "created_at" | "updated_at"> & { password?: string }): Promise<TeacherWithCredentials> {
         try {
-            // Generate a temporary password
-            const temporaryPassword = this.generateTemporaryPassword();
+            // Use provided password
+            const password = teacherData.password;
+            if (!password) {
+                throw new Error("Password is required for creating a teacher");
+            }
             
             // First create an account for the teacher
-            const email = `${teacherData.first_name.toLowerCase()}.${teacherData.last_name.toLowerCase()}@school.local`;
+            const email = teacherData.email || `${teacherData.first_name.toLowerCase()}.${teacherData.last_name.toLowerCase()}@school.local`;
             const username = `${teacherData.first_name.toLowerCase()}_${teacherData.last_name.toLowerCase()}`;
             
             const accountResponse = await fetch("/api/auth/register", {
@@ -106,13 +109,15 @@ class TeacherService {
                     email: email,
                     username: username,
                     name: `${teacherData.first_name} ${teacherData.last_name}`,
-                    password: temporaryPassword,
-                    confirm_password: temporaryPassword,
+                    password: password,
+                    confirm_password: password,
                 }),
             });
 
             if (!accountResponse.ok) {
-                throw new Error(`Failed to create account: ${accountResponse.statusText}`);
+                const errorData = await accountResponse.json() as { error?: string, message?: string };
+                const errorMessage = errorData.error || errorData.message || accountResponse.statusText;
+                throw new Error(`Failed to create account: ${errorMessage}`);
             }
 
             const accountData = await accountResponse.json();
@@ -132,14 +137,24 @@ class TeacherService {
             });
 
             if (!personResponse.ok) {
-                throw new Error(`Failed to create person: ${personResponse.statusText}`);
+                const errorData = await personResponse.json() as { error?: string, message?: string };
+                const errorMessage = errorData.error || errorData.message || personResponse.statusText;
+                throw new Error(`Failed to create person: ${errorMessage}`);
             }
 
-            const person = await personResponse.json();
+            const personData = await personResponse.json();
+            
+            // Extract the person ID - handle different response formats
+            const personId = personData.id || personData.data?.id;
+            
+            if (!personId) {
+                console.error("Unexpected person response format:", personData);
+                throw new Error("Failed to get person ID from response");
+            }
 
             // Then create staff with is_teacher flag
             const staffData = {
-                person_id: person.id,
+                person_id: personId,
                 staff_notes: teacherData.staff_notes || null,
                 is_teacher: true,
                 specialization: teacherData.specialization,
@@ -166,24 +181,13 @@ class TeacherService {
                 ...data,
                 temporaryCredentials: {
                     email: email,
-                    password: temporaryPassword,
+                    password: password,
                 }
             } as TeacherWithCredentials;
         } catch (error) {
             console.error("Error creating teacher:", error);
             throw error;
         }
-    }
-    
-    // Helper method to generate a temporary password
-    private generateTemporaryPassword(): string {
-        const length = 12;
-        const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-        let password = "";
-        for (let i = 0; i < length; i++) {
-            password += charset.charAt(Math.floor(Math.random() * charset.length));
-        }
-        return password;
     }
 
     // Update an existing teacher

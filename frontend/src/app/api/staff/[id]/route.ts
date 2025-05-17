@@ -64,7 +64,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     const response = await apiGet<ApiStaffResponse>(`/api/staff/${id}`, token);
     
     // Handle null or undefined response
-    if (!response || !response.data) {
+    if (!response?.data) {
       console.warn("API returned null response for staff member");
       throw new Error('Staff member not found');
     }
