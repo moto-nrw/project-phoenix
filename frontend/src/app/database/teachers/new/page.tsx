@@ -30,7 +30,22 @@ export default function NewTeacherPage() {
             // Fetch available RFID cards from the Next.js API route
             const response = await fetch("/api/users/rfid-cards/available");
             if (response.ok) {
-                const cards = await response.json();
+                const responseData = await response.json();
+                
+                // Handle wrapped response from route handler
+                let cards: Array<{ TagID: string }>;
+                
+                if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
+                    // Response is wrapped (from route handler)
+                    cards = responseData.data;
+                } else if (Array.isArray(responseData)) {
+                    // Direct array response
+                    cards = responseData;
+                } else {
+                    console.error("Unexpected RFID cards response format:", responseData);
+                    setRfidCards([]);
+                    return;
+                }
                 
                 // Transform the backend response to match frontend expectations
                 const transformedCards = cards.map((card: { TagID: string }) => ({
