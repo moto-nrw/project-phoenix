@@ -30,8 +30,10 @@ export default function NewTeacherPage() {
             // Fetch available RFID cards
             const response = await fetch("/api/rfid-cards");
             if (response.ok) {
-                const cardsData = await response.json() as Array<{ id: string; label: string }>;
-                setRfidCards(cardsData);
+                const responseData = await response.json();
+                // Handle the wrapped ApiResponse format
+                const cardsData = responseData.data || responseData;
+                setRfidCards(Array.isArray(cardsData) ? cardsData : []);
             } else {
                 console.error("Failed to fetch RFID cards");
             }

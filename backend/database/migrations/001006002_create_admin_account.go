@@ -45,9 +45,9 @@ func createAdminAccount(ctx context.Context, db *bun.DB) error {
 	defer tx.Rollback()
 
 	// Create admin account
-	adminEmail := "admin@localhost.de"
+	adminEmail := "admin@example.com"
 	adminUsername := "admin"
-	adminPassword := "Admin123!" // Default password
+	adminPassword := "Test1234!" // Default password
 
 	// Hash the password
 	hashedPassword, err := userpass.HashPassword(adminPassword, userpass.DefaultParams())

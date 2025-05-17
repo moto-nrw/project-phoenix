@@ -122,6 +122,14 @@ class TeacherService {
 
             const accountData = await accountResponse.json();
 
+            // Extract account ID - handle different response formats
+            const accountId = accountData.id || accountData.data?.id;
+            
+            if (!accountId) {
+                console.error("Failed to get account ID from response:", accountData);
+                throw new Error("Failed to get account ID from response");
+            }
+
             // Then create a person linked to that account
             const personResponse = await fetch("/api/users", {
                 method: "POST",
@@ -132,7 +140,7 @@ class TeacherService {
                     first_name: teacherData.first_name,
                     last_name: teacherData.last_name,
                     tag_id: teacherData.tag_id || null,
-                    account_id: accountData.data.id, // Link to the created account
+                    account_id: accountId, // Link to the created account
                 }),
             });
 
@@ -142,18 +150,38 @@ class TeacherService {
                 throw new Error(`Failed to create person: ${errorMessage}`);
             }
 
-            const personData = await personResponse.json();
+            const personResponseData = await personResponse.json();
             
-            // Extract the person ID - handle different response formats
-            const personId = personData.id || personData.data?.id;
+            // The backend response is wrapped twice:
+            // 1. Backend: { status: "success", data: { id: ... }, message: "..." }
+            // 2. Route wrapper: { success: true, data: <backend response>, message: "Success" }
+            let personId: number | undefined;
+            
+            if (personResponseData && typeof personResponseData === 'object') {
+                // Our route wrapper structure: { success: true, data: ... }
+                if ('data' in personResponseData) {
+                    const backendResponse = personResponseData.data;
+                    
+                    // Backend structure: { status: "success", data: { id: ... } }
+                    if (backendResponse && typeof backendResponse === 'object' && 'data' in backendResponse) {
+                        personId = backendResponse.data.id;
+                    } else if (backendResponse && typeof backendResponse === 'object' && 'id' in backendResponse) {
+                        // Direct person object
+                        personId = backendResponse.id;
+                    }
+                } else if ('id' in personResponseData) {
+                    // Direct PersonResponse format (unlikely)
+                    personId = personResponseData.id;
+                }
+            }
             
             if (!personId) {
-                console.error("Unexpected person response format:", personData);
+                console.error("Unexpected person response format:", personResponseData);
                 throw new Error("Failed to get person ID from response");
             }
 
             // Then create staff with is_teacher flag
-            const staffData = {
+            const staffRequestData = {
                 person_id: personId,
                 staff_notes: teacherData.staff_notes || null,
                 is_teacher: true,
@@ -167,18 +195,31 @@ class TeacherService {
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify(staffData),
+                body: JSON.stringify(staffRequestData),
             });
 
             if (!response.ok) {
                 throw new Error(`Failed to create teacher: ${response.statusText}`);
             }
 
-            const data = await response.json() as Teacher;
+            const responseData = await response.json();
+            
+            // Handle double-wrapped response format
+            let staffData;
+            if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+                const backendResponse = responseData.data;
+                if (backendResponse && typeof backendResponse === 'object' && 'data' in backendResponse) {
+                    staffData = backendResponse.data;
+                } else {
+                    staffData = backendResponse;
+                }
+            } else {
+                staffData = responseData;
+            }
             
             // Add the temporary credentials to the response
             return {
-                ...data,
+                ...staffData,
                 temporaryCredentials: {
                     email: email,
                     password: password,
