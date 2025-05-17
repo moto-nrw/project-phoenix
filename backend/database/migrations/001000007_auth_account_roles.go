@@ -103,48 +103,9 @@ func createAuthAccountRolesTable(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating updated_at trigger for account_roles: %w", err)
 	}
 
-	// Create function and trigger to update accounts.roles array when account_roles change
-	_, err = tx.ExecContext(ctx, `
-		-- Create a function to update the roles array in accounts
-		CREATE OR REPLACE FUNCTION update_account_roles_array()
-		RETURNS TRIGGER AS $$
-		BEGIN
-			-- When a role is added or removed, update the roles array in the accounts table
-			UPDATE auth.accounts a
-			SET roles = (
-				SELECT ARRAY_AGG(r.name)
-				FROM auth.roles r
-				JOIN auth.account_roles ar ON r.id = ar.role_id
-				WHERE ar.account_id = COALESCE(NEW.account_id, OLD.account_id)
-			)
-			WHERE a.id = COALESCE(NEW.account_id, OLD.account_id);
-			
-			RETURN NULL;
-		END;
-		$$ LANGUAGE plpgsql;
-		
-		-- Create triggers to update the roles array when account_roles change
-		DROP TRIGGER IF EXISTS update_account_roles_array_insert ON auth.account_roles;
-		CREATE TRIGGER update_account_roles_array_insert
-		AFTER INSERT ON auth.account_roles
-		FOR EACH ROW
-		EXECUTE FUNCTION update_account_roles_array();
-		
-		DROP TRIGGER IF EXISTS update_account_roles_array_update ON auth.account_roles;
-		CREATE TRIGGER update_account_roles_array_update
-		AFTER UPDATE ON auth.account_roles
-		FOR EACH ROW
-		EXECUTE FUNCTION update_account_roles_array();
-		
-		DROP TRIGGER IF EXISTS update_account_roles_array_delete ON auth.account_roles;
-		CREATE TRIGGER update_account_roles_array_delete
-		AFTER DELETE ON auth.account_roles
-		FOR EACH ROW
-		EXECUTE FUNCTION update_account_roles_array();
-	`)
-	if err != nil {
-		return fmt.Errorf("error creating function and triggers for account_roles: %w", err)
-	}
+	// Note: The original migration tried to update a non-existent 'roles' column in auth.accounts
+	// We'll skip creating those triggers since the column doesn't exist
+	// The account_roles table itself is sufficient for managing role assignments
 
 	// Commit the transaction
 	return tx.Commit()
@@ -168,20 +129,9 @@ func dropAuthAccountRolesTable(ctx context.Context, db *bun.DB) error {
 	// Drop triggers first
 	_, err = tx.ExecContext(ctx, `
 		DROP TRIGGER IF EXISTS update_account_roles_updated_at ON auth.account_roles;
-		DROP TRIGGER IF EXISTS update_account_roles_array_insert ON auth.account_roles;
-		DROP TRIGGER IF EXISTS update_account_roles_array_update ON auth.account_roles;
-		DROP TRIGGER IF EXISTS update_account_roles_array_delete ON auth.account_roles;
 	`)
 	if err != nil {
 		return fmt.Errorf("error dropping triggers for account_roles table: %w", err)
-	}
-
-	// Drop function
-	_, err = tx.ExecContext(ctx, `
-		DROP FUNCTION IF EXISTS update_account_roles_array();
-	`)
-	if err != nil {
-		return fmt.Errorf("error dropping function for account_roles: %w", err)
 	}
 
 	// Drop the table

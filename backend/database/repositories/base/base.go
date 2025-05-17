@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -68,9 +69,10 @@ func (r *Repository[T]) FindByID(ctx context.Context, id interface{}) (T, error)
 
 	entityVal := reflect.New(entityType).Interface().(T)
 
-	// Use ModelTableExpr to specify the schema-qualified table name with the standard "room" alias
-	// This keeps consistency with the rest of the codebase
-	tableExpr := fmt.Sprintf("%s AS room", r.TableName)
+	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
+	// Get the entity name in lowercase to use as alias
+	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
+	tableExpr := fmt.Sprintf("%s AS %s", r.TableName, entityName)
 
 	err := r.DB.NewSelect().
 		Model(entityVal).
@@ -101,9 +103,10 @@ func (r *Repository[T]) Update(ctx context.Context, entity T) error {
 		}
 	}
 
-	// Use ModelTableExpr to specify the schema-qualified table name with the standard "room" alias
-	// This keeps consistency with the rest of the codebase
-	tableExpr := fmt.Sprintf("%s AS room", r.TableName)
+	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
+	// Get the entity name in lowercase to use as alias
+	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
+	tableExpr := fmt.Sprintf("%s AS %s", r.TableName, entityName)
 
 	_, err := r.DB.NewUpdate().
 		Model(entity).
@@ -132,9 +135,10 @@ func (r *Repository[T]) Delete(ctx context.Context, id interface{}) error {
 
 	entityVal := reflect.New(entityType).Interface()
 
-	// Use ModelTableExpr to specify the schema-qualified table name with the standard "room" alias
-	// This keeps consistency with the rest of the codebase
-	tableExpr := fmt.Sprintf("%s AS room", r.TableName)
+	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
+	// Get the entity name in lowercase to use as alias
+	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
+	tableExpr := fmt.Sprintf("%s AS %s", r.TableName, entityName)
 
 	_, err := r.DB.NewDelete().
 		Model(entityVal).
@@ -155,9 +159,10 @@ func (r *Repository[T]) Delete(ctx context.Context, id interface{}) error {
 func (r *Repository[T]) List(ctx context.Context, filters map[string]interface{}) ([]T, error) {
 	var entities []T
 
-	// Use ModelTableExpr to specify the schema-qualified table name with the standard "room" alias
-	// This keeps consistency with the rest of the codebase
-	tableExpr := fmt.Sprintf("%s AS room", r.TableName)
+	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
+	// Get the entity name in lowercase to use as alias
+	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
+	tableExpr := fmt.Sprintf("%s AS %s", r.TableName, entityName)
 
 	query := r.DB.NewSelect().
 		Model(&entities).
@@ -193,9 +198,10 @@ func (r *Repository[T]) Count(ctx context.Context, filters map[string]interface{
 
 	entityVal := reflect.New(entityType).Interface()
 
-	// Use ModelTableExpr to specify the schema-qualified table name with the standard "room" alias
-	// This keeps consistency with the rest of the codebase
-	tableExpr := fmt.Sprintf("%s AS room", r.TableName)
+	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
+	// Get the entity name in lowercase to use as alias
+	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
+	tableExpr := fmt.Sprintf("%s AS %s", r.TableName, entityName)
 
 	query := r.DB.NewSelect().
 		Model(entityVal).

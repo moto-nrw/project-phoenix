@@ -348,7 +348,8 @@ func (r *PermissionRepository) FindByRoleByName(ctx context.Context, roleName st
 	role := new(auth.Role)
 	err := r.db.NewSelect().
 		Model(role).
-		Where("LOWER(name) = LOWER(?)", roleName).
+		ModelTableExpr("auth.roles AS role").
+		Where("LOWER(role.name) = LOWER(?)", roleName).
 		Scan(ctx)
 
 	if err != nil {

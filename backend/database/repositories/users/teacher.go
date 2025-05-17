@@ -30,6 +30,7 @@ func (r *TeacherRepository) FindByStaffID(ctx context.Context, staffID int64) (*
 	teacher := new(users.Teacher)
 	err := r.db.NewSelect().
 		Model(teacher).
+		ModelTableExpr("users.teachers AS teacher").
 		Where("staff_id = ?", staffID).
 		Scan(ctx)
 
@@ -48,6 +49,7 @@ func (r *TeacherRepository) FindBySpecialization(ctx context.Context, specializa
 	var teachers []*users.Teacher
 	err := r.db.NewSelect().
 		Model(&teachers).
+		ModelTableExpr("users.teachers AS teacher").
 		Where("LOWER(specialization) = LOWER(?)", specialization).
 		Scan(ctx)
 
@@ -66,6 +68,7 @@ func (r *TeacherRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 	var teachers []*users.Teacher
 	err := r.db.NewSelect().
 		Model(&teachers).
+		ModelTableExpr("users.teachers AS teacher").
 		Join("JOIN education.group_teachers gt ON gt.teacher_id = teacher.id").
 		Where("gt.group_id = ?", groupID).
 		Scan(ctx)
@@ -84,6 +87,7 @@ func (r *TeacherRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 func (r *TeacherRepository) UpdateQualifications(ctx context.Context, id int64, qualifications string) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.Teacher)(nil)).
+		ModelTableExpr("users.teachers AS teacher").
 		Set("qualifications = ?", qualifications).
 		Where("id = ?", id).
 		Exec(ctx)
@@ -166,7 +170,9 @@ func (r *TeacherRepository) List(ctx context.Context, filters map[string]interfa
 // ListWithOptions provides a type-safe way to list teachers with query options
 func (r *TeacherRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Teacher, error) {
 	var teachers []*users.Teacher
-	query := r.db.NewSelect().Model(&teachers)
+	query := r.db.NewSelect().
+		Model(&teachers).
+		ModelTableExpr("users.teachers AS teacher")
 
 	// Apply query options
 	if options != nil {
@@ -189,6 +195,7 @@ func (r *TeacherRepository) FindWithStaff(ctx context.Context, id int64) (*users
 	teacher := new(users.Teacher)
 	err := r.db.NewSelect().
 		Model(teacher).
+		ModelTableExpr("users.teachers AS teacher").
 		Relation("Staff").
 		Where("id = ?", id).
 		Scan(ctx)
@@ -208,6 +215,7 @@ func (r *TeacherRepository) FindWithStaffAndPerson(ctx context.Context, id int64
 	teacher := new(users.Teacher)
 	err := r.db.NewSelect().
 		Model(teacher).
+		ModelTableExpr("users.teachers AS teacher").
 		Relation("Staff").
 		Relation("Staff.Person").
 		Where("id = ?", id).
