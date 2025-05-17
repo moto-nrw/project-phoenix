@@ -141,6 +141,8 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
         qualifications: response.qualifications ?? null,
         tag_id: response.person?.tag_id ?? null,
         staff_notes: response.staff_notes ?? null,
+        created_at: response.created_at,
+        updated_at: response.updated_at,
       };
     } catch (error) {
       // Check for permission errors (403 Forbidden)
