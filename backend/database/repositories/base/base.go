@@ -89,16 +89,6 @@ func (r *Repository[T]) FindByID(ctx context.Context, id interface{}) (T, error)
 	return entityVal, nil
 }
 
-// lastIndexOfChar returns the last index of the character c in string s, or -1 if not found
-func lastIndexOfChar(s string, c byte) int {
-	for i := len(s) - 1; i >= 0; i-- {
-		if s[i] == c {
-			return i
-		}
-	}
-	return -1
-}
-
 // Update updates an existing entity in the database
 func (r *Repository[T]) Update(ctx context.Context, entity T) error {
 	// Check if entity is nil using reflection

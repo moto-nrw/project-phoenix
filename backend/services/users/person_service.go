@@ -49,13 +49,13 @@ func NewPersonService(
 // WithTx returns a new service that uses the provided transaction
 func (s *personService) WithTx(tx bun.Tx) interface{} {
 	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var personRepo userModels.PersonRepository = s.personRepo
-	var rfidRepo userModels.RFIDCardRepository = s.rfidRepo
-	var accountRepo auth.AccountRepository = s.accountRepo
-	var personGuardianRepo userModels.PersonGuardianRepository = s.personGuardianRepo
-	var studentRepo userModels.StudentRepository = s.studentRepo
-	var staffRepo userModels.StaffRepository = s.staffRepo
-	var teacherRepo userModels.TeacherRepository = s.teacherRepo
+	var personRepo = s.personRepo
+	var rfidRepo = s.rfidRepo
+	var accountRepo = s.accountRepo
+	var personGuardianRepo = s.personGuardianRepo
+	var studentRepo = s.studentRepo
+	var staffRepo = s.staffRepo
+	var teacherRepo = s.teacherRepo
 
 	// Try to cast repositories to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok {
@@ -223,6 +223,8 @@ func (s *personService) List(ctx context.Context, options *base.QueryOptions) ([
 	if options != nil && options.Filter != nil {
 		// Here we would convert filter conditions to map entries
 		// For simplicity, this implementation is abbreviated
+		// TODO: Implement filter conversion
+		_ = options.Filter // Mark as intentionally unused for now
 	}
 
 	persons, err := s.personRepo.List(ctx, filters)

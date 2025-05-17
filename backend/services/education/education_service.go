@@ -48,12 +48,12 @@ func NewService(
 // WithTx returns a new service that uses the provided transaction
 func (s *service) WithTx(tx bun.Tx) interface{} {
 	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var groupRepo education.GroupRepository = s.groupRepo
-	var groupTeacherRepo education.GroupTeacherRepository = s.groupTeacherRepo
-	var substitutionRepo education.GroupSubstitutionRepository = s.substitutionRepo
-	var roomRepo facilities.RoomRepository = s.roomRepo
-	var teacherRepo users.TeacherRepository = s.teacherRepo
-	var staffRepo users.StaffRepository = s.staffRepo
+	var groupRepo = s.groupRepo
+	var groupTeacherRepo = s.groupTeacherRepo
+	var substitutionRepo = s.substitutionRepo
+	var roomRepo = s.roomRepo
+	var teacherRepo = s.teacherRepo
+	var staffRepo = s.staffRepo
 
 	// Try to cast repositories to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.groupRepo.(base.TransactionalRepository); ok {

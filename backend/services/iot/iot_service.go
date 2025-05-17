@@ -29,7 +29,7 @@ func NewService(deviceRepo iot.DeviceRepository, db *bun.DB) Service {
 // WithTx returns a new service that uses the provided transaction
 func (s *service) WithTx(tx bun.Tx) interface{} {
 	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var deviceRepo iot.DeviceRepository = s.deviceRepo
+	var deviceRepo = s.deviceRepo
 
 	// Try to cast repository to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.deviceRepo.(base.TransactionalRepository); ok {
