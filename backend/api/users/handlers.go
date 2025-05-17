@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -596,7 +595,9 @@ func (rs *Resource) listAvailableRFIDCards(w http.ResponseWriter, r *http.Reques
 	// Get available RFID cards from service
 	cards, err := rs.PersonService.ListAvailableRFIDCards(r.Context())
 	if err != nil {
-		render.Render(w, r, ErrorRenderer(err))
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
 		return
 	}
 
@@ -614,8 +615,3 @@ func (rs *Resource) listAvailableRFIDCards(w http.ResponseWriter, r *http.Reques
 	common.Respond(w, r, http.StatusOK, responses, "Available RFID cards retrieved successfully")
 }
 
-// Helper function to check if a string contains another string, ignoring case
-func containsIgnoreCase(s, substr string) bool {
-	s, substr = strings.ToLower(s), strings.ToLower(substr)
-	return strings.Contains(s, substr)
-}

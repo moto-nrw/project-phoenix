@@ -40,10 +40,25 @@ export default function EditTeacherPage() {
                 // Fetch available RFID cards from the Next.js API route
                 const response = await fetch("/api/users/rfid-cards/available");
                 if (response.ok) {
-                    const cards = await response.json();
+                    const responseData = await response.json() as { data?: Array<{ TagID: string }> } | Array<{ TagID: string }>;
+                    
+                    // Handle wrapped response from route handler
+                    let cards: Array<{ TagID: string }>;
+                    
+                    if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
+                        // Response is wrapped (from route handler)
+                        cards = responseData.data;
+                    } else if (Array.isArray(responseData)) {
+                        // Direct array response
+                        cards = responseData;
+                    } else {
+                        console.error("Unexpected RFID cards response format:", responseData);
+                        setRfidCards([]);
+                        return;
+                    }
                     
                     // Transform the backend response to match frontend expectations
-                    const transformedCards = cards.map((card: { TagID: string }) => ({
+                    const transformedCards = cards.map((card) => ({
                         id: card.TagID,
                         label: `RFID: ${card.TagID}` // Create a display label
                     }));
@@ -54,22 +69,6 @@ export default function EditTeacherPage() {
                     // Set empty array if fetch fails to avoid UI issues
                     setRfidCards([]);
                 }
-                const responseData = await response.json() as { data?: Array<{ id: string; label: string }> } | Array<{ id: string; label: string }>;
-                
-                // Handle wrapped response from route handler
-                let cardsData: Array<{ id: string; label: string }>;
-                console.log("RFID cards response:", responseData);
-                
-                if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
-                    // Response is wrapped (from route handler)
-                    cardsData = responseData.data;
-                } else {
-                    // Direct array response
-                    cardsData = responseData as Array<{ id: string; label: string }>;
-                }
-                
-                console.log("Extracted RFID cards data:", cardsData);
-                setRfidCards(cardsData || []);
 
                 setError(null);
             } catch {
