@@ -132,7 +132,6 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
       
       // Map the response to match the Teacher interface from teacher-api.ts
       return {
-        ...response,
         id: String(response.id),
         name: response.person ? `${response.person.first_name} ${response.person.last_name}` : "",
         first_name: response.person?.first_name ?? "",
