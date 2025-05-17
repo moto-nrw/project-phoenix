@@ -122,7 +122,7 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
     }
     
     // If updating a teacher, specialization is required
-    if (body.is_teacher && body.specialization !== undefined && body.specialization.trim() === '') {
+    if (body.is_teacher && (!body.specialization || body.specialization.trim() === '')) {
       throw new Error('Specialization is required for teachers');
     }
     
