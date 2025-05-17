@@ -437,3 +437,40 @@ func (s *personService) StaffRepository() userModels.StaffRepository {
 func (s *personService) TeacherRepository() userModels.TeacherRepository {
 	return s.teacherRepo
 }
+
+// ListAvailableRFIDCards returns RFID cards that are not assigned to any person
+func (s *personService) ListAvailableRFIDCards(ctx context.Context) ([]*userModels.RFIDCard, error) {
+	// First, get all active RFID cards
+	filters := map[string]interface{}{
+		"active": true,
+	}
+	
+	allCards, err := s.rfidRepo.List(ctx, filters)
+	if err != nil {
+		return nil, &UsersError{Op: "list all RFID cards", Err: err}
+	}
+
+	// Get all persons to check which cards are assigned
+	persons, err := s.personRepo.List(ctx, nil)
+	if err != nil {
+		return nil, &UsersError{Op: "list all persons", Err: err}
+	}
+
+	// Create a map of assigned tag IDs for fast lookup
+	assignedTags := make(map[string]bool)
+	for _, person := range persons {
+		if person.TagID != nil {
+			assignedTags[*person.TagID] = true
+		}
+	}
+
+	// Filter out assigned cards
+	var availableCards []*userModels.RFIDCard
+	for _, card := range allCards {
+		if !assignedTags[card.ID] {
+			availableCards = append(availableCards, card)
+		}
+	}
+
+	return availableCards, nil
+}

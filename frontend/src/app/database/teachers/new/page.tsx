@@ -27,19 +27,42 @@ export default function NewTeacherPage() {
         try {
             setLoading(true);
 
-            // Fetch available RFID cards
-            const response = await fetch("/api/rfid-cards");
+            // Fetch available RFID cards from the Next.js API route
+            const response = await fetch("/api/users/rfid-cards/available");
             if (response.ok) {
-                const responseData = await response.json() as { data?: Array<{ id: string; label: string }> } | Array<{ id: string; label: string }>;
-                // Handle the wrapped ApiResponse format
-                const cardsData = 'data' in responseData && responseData.data ? responseData.data : responseData;
-                setRfidCards(Array.isArray(cardsData) ? cardsData : []);
+                const responseData = await response.json() as { data?: Array<{ TagID: string }> } | Array<{ TagID: string }>;
+                
+                // Handle wrapped response from route handler
+                let cards: Array<{ TagID: string }>;
+                
+                if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
+                    // Response is wrapped (from route handler)
+                    cards = responseData.data;
+                } else if (Array.isArray(responseData)) {
+                    // Direct array response
+                    cards = responseData;
+                } else {
+                    console.error("Unexpected RFID cards response format:", responseData);
+                    setRfidCards([]);
+                    return;
+                }
+                
+                // Transform the backend response to match frontend expectations
+                const transformedCards = cards.map((card) => ({
+                    id: card.TagID,
+                    label: `RFID: ${card.TagID}` // Create a display label
+                }));
+                
+                setRfidCards(transformedCards);
             } else {
-                console.error("Failed to fetch RFID cards");
+                console.error("Failed to fetch RFID cards:", response.status);
+                // Set empty array if fetch fails to avoid UI issues
+                setRfidCards([]);
             }
         } catch (err) {
             console.error("Error fetching RFID cards:", err);
-            // Don't set an error that would block the UI
+            // Set empty array to avoid UI blocking
+            setRfidCards([]);
         } finally {
             setLoading(false);
         }
