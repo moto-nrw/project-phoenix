@@ -42,18 +42,18 @@ export default function EditTeacherPage() {
                 if (!response.ok) {
                     throw new Error("Failed to fetch RFID cards");
                 }
-                const responseData = await response.json();
+                const responseData = await response.json() as { data?: Array<{ id: string; label: string }> } | Array<{ id: string; label: string }>;
                 
                 // Handle wrapped response from route handler
                 let cardsData: Array<{ id: string; label: string }>;
                 console.log("RFID cards response:", responseData);
                 
-                if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+                if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
                     // Response is wrapped (from route handler)
                     cardsData = responseData.data;
                 } else {
                     // Direct array response
-                    cardsData = responseData;
+                    cardsData = responseData as Array<{ id: string; label: string }>;
                 }
                 
                 console.log("Extracted RFID cards data:", cardsData);
@@ -161,8 +161,6 @@ export default function EditTeacherPage() {
                 <div className="mb-8">
                     <SectionTitle title="Lehrerdetails bearbeiten" />
                 </div>
-
-                {console.log("EditTeacherPage - passing rfidCards to form:", rfidCards)}
                 <TeacherForm
                     initialData={teacher}
                     onSubmitAction={handleSubmit}

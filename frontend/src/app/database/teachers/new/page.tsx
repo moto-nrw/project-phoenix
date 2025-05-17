@@ -5,7 +5,7 @@ import { redirect, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
 import TeacherForm from "@/components/teachers/teacher-form";
-import { teacherService, type Teacher, type TeacherWithCredentials } from "@/lib/teacher-api";
+import { teacherService, type Teacher } from "@/lib/teacher-api";
 
 export default function NewTeacherPage() {
     const router = useRouter();
@@ -30,9 +30,9 @@ export default function NewTeacherPage() {
             // Fetch available RFID cards
             const response = await fetch("/api/rfid-cards");
             if (response.ok) {
-                const responseData = await response.json();
+                const responseData = await response.json() as { data?: Array<{ id: string; label: string }> } | Array<{ id: string; label: string }>;
                 // Handle the wrapped ApiResponse format
-                const cardsData = responseData.data || responseData;
+                const cardsData = 'data' in responseData && responseData.data ? responseData.data : responseData;
                 setRfidCards(Array.isArray(cardsData) ? cardsData : []);
             } else {
                 console.error("Failed to fetch RFID cards");
@@ -46,7 +46,7 @@ export default function NewTeacherPage() {
     };
 
     // Handle form submission
-    const handleSubmit = async (formData: Partial<Teacher>) => {
+    const handleSubmit = async (formData: Partial<Teacher> & { password?: string }) => {
         try {
             setSaving(true);
 
@@ -70,7 +70,7 @@ export default function NewTeacherPage() {
                 qualifications: formData.qualifications ?? null,
                 tag_id: formData.tag_id ?? null,
                 staff_notes: formData.staff_notes ?? null,
-                password: (formData as any).password  // Include password from form data
+                password: formData.password  // Include password from form data
             };
 
             // Create the teacher using the teacher service

@@ -53,7 +53,7 @@ interface ApiStaffResponse {
  * Returns a single staff member by ID
  */
 export const GET = createGetHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
-  const id = params.id;
+  const id = params.id as string;
   
   if (!id) {
     throw new Error('Staff ID is required');
@@ -115,7 +115,7 @@ interface TeacherResponse {
  */
 export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
   async (_request: NextRequest, body: StaffUpdateRequest, token: string, params: Record<string, unknown>) => {
-    const id = params.id;
+    const id = params.id as string;
     
     if (!id) {
       throw new Error('Staff ID is required');
@@ -175,7 +175,7 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
  * Deletes a staff member
  */
 export const DELETE = createDeleteHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
-  const id = params.id;
+  const id = params.id as string;
   
   if (!id) {
     throw new Error('Staff ID is required');
