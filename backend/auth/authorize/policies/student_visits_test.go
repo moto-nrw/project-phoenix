@@ -46,12 +46,95 @@ type SimpleMockUserService struct {
 	mock.Mock
 }
 
+func (m *SimpleMockUserService) Get(ctx context.Context, id interface{}) (*userModels.Person, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*userModels.Person), args.Error(1)
+}
+
+func (m *SimpleMockUserService) Create(ctx context.Context, person *userModels.Person) error {
+	args := m.Called(ctx, person)
+	return args.Error(0)
+}
+
+func (m *SimpleMockUserService) Update(ctx context.Context, person *userModels.Person) error {
+	args := m.Called(ctx, person)
+	return args.Error(0)
+}
+
+func (m *SimpleMockUserService) Delete(ctx context.Context, id interface{}) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *SimpleMockUserService) List(ctx context.Context, options *base.QueryOptions) ([]*userModels.Person, error) {
+	args := m.Called(ctx, options)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*userModels.Person), args.Error(1)
+}
+
+func (m *SimpleMockUserService) FindByTagID(ctx context.Context, tagID string) (*userModels.Person, error) {
+	args := m.Called(ctx, tagID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*userModels.Person), args.Error(1)
+}
+
 func (m *SimpleMockUserService) FindByAccountID(ctx context.Context, accountID int64) (*userModels.Person, error) {
 	args := m.Called(ctx, accountID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*userModels.Person), args.Error(1)
+}
+
+func (m *SimpleMockUserService) FindByName(ctx context.Context, firstName, lastName string) ([]*userModels.Person, error) {
+	args := m.Called(ctx, firstName, lastName)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*userModels.Person), args.Error(1)
+}
+
+func (m *SimpleMockUserService) LinkToAccount(ctx context.Context, personID int64, accountID int64) error {
+	args := m.Called(ctx, personID, accountID)
+	return args.Error(0)
+}
+
+func (m *SimpleMockUserService) UnlinkFromAccount(ctx context.Context, personID int64) error {
+	args := m.Called(ctx, personID)
+	return args.Error(0)
+}
+
+func (m *SimpleMockUserService) LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error {
+	args := m.Called(ctx, personID, tagID)
+	return args.Error(0)
+}
+
+func (m *SimpleMockUserService) UnlinkFromRFIDCard(ctx context.Context, personID int64) error {
+	args := m.Called(ctx, personID)
+	return args.Error(0)
+}
+
+func (m *SimpleMockUserService) GetFullProfile(ctx context.Context, personID int64) (*userModels.Person, error) {
+	args := m.Called(ctx, personID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*userModels.Person), args.Error(1)
+}
+
+func (m *SimpleMockUserService) FindByGuardianID(ctx context.Context, guardianAccountID int64) ([]*userModels.Person, error) {
+	args := m.Called(ctx, guardianAccountID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*userModels.Person), args.Error(1)
 }
 
 func (m *SimpleMockUserService) StudentRepository() userModels.StudentRepository {
@@ -67,6 +150,14 @@ func (m *SimpleMockUserService) StaffRepository() userModels.StaffRepository {
 func (m *SimpleMockUserService) TeacherRepository() userModels.TeacherRepository {
 	args := m.Called()
 	return args.Get(0).(userModels.TeacherRepository)
+}
+
+func (m *SimpleMockUserService) ListAvailableRFIDCards(ctx context.Context) ([]*userModels.RFIDCard, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*userModels.RFIDCard), args.Error(1)
 }
 
 func (m *SimpleMockUserService) WithTx(tx bun.Tx) interface{} {
@@ -669,58 +760,6 @@ func (m *SimpleMockEducationService) CheckSubstitutionConflicts(ctx context.Cont
 	return nil, nil
 }
 
-// For SimpleMockUserService
-func (m *SimpleMockUserService) Get(ctx context.Context, id interface{}) (*userModels.Person, error) {
-	return nil, nil
-}
-
-func (m *SimpleMockUserService) Create(ctx context.Context, person *userModels.Person) error {
-	return nil
-}
-
-func (m *SimpleMockUserService) Update(ctx context.Context, person *userModels.Person) error {
-	return nil
-}
-
-func (m *SimpleMockUserService) Delete(ctx context.Context, id interface{}) error {
-	return nil
-}
-
-func (m *SimpleMockUserService) List(ctx context.Context, options *base.QueryOptions) ([]*userModels.Person, error) {
-	return nil, nil
-}
-
-func (m *SimpleMockUserService) FindByTagID(ctx context.Context, tagID string) (*userModels.Person, error) {
-	return nil, nil
-}
-
-func (m *SimpleMockUserService) FindByName(ctx context.Context, firstName, lastName string) ([]*userModels.Person, error) {
-	return nil, nil
-}
-
-func (m *SimpleMockUserService) LinkToAccount(ctx context.Context, personID int64, accountID int64) error {
-	return nil
-}
-
-func (m *SimpleMockUserService) UnlinkFromAccount(ctx context.Context, personID int64) error {
-	return nil
-}
-
-func (m *SimpleMockUserService) LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error {
-	return nil
-}
-
-func (m *SimpleMockUserService) UnlinkFromRFIDCard(ctx context.Context, personID int64) error {
-	return nil
-}
-
-func (m *SimpleMockUserService) GetFullProfile(ctx context.Context, personID int64) (*userModels.Person, error) {
-	return nil, nil
-}
-
-func (m *SimpleMockUserService) FindByGuardianID(ctx context.Context, guardianAccountID int64) ([]*userModels.Person, error) {
-	return nil, nil
-}
 
 // For SimpleMockActiveService
 func (m *SimpleMockActiveService) CreateActiveGroup(ctx context.Context, group *active.Group) error {

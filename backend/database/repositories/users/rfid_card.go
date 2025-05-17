@@ -154,7 +154,9 @@ func (r *RFIDCardRepository) List(ctx context.Context, filters map[string]interf
 // ListWithOptions provides a type-safe way to list RFID cards with query options
 func (r *RFIDCardRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.RFIDCard, error) {
 	var cards []*users.RFIDCard
-	query := r.db.NewSelect().Model(&cards)
+	query := r.db.NewSelect().
+		Model(&cards).
+		ModelTableExpr("users.rfid_cards AS rfid_card")
 
 	// Apply query options
 	if options != nil {

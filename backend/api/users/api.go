@@ -40,6 +40,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/by-tag/{tagId}", rs.getPersonByTag)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/search", rs.searchPersons)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/by-account/{accountId}", rs.getPersonByAccount)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/rfid-cards/available", rs.listAvailableRFIDCards)
 
 		// Write operations require specific permissions
 		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createPerson)

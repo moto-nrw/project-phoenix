@@ -60,4 +60,7 @@ type PersonService interface {
 
 	// TeacherRepository returns the teacher repository
 	TeacherRepository() userModels.TeacherRepository
+
+	// ListAvailableRFIDCards returns RFID cards that are not assigned to any person
+	ListAvailableRFIDCards(ctx context.Context) ([]*userModels.RFIDCard, error)
 }

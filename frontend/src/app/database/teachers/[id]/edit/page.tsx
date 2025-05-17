@@ -37,13 +37,23 @@ export default function EditTeacherPage() {
                 const teacherData = await teacherService.getTeacher(id as string);
                 setTeacher(teacherData);
 
-                // Fetch available RFID cards
-                const response = await fetch("/api/rfid-cards");
-                if (!response.ok) {
-                    throw new Error("Failed to fetch RFID cards");
+                // Fetch available RFID cards from the Next.js API route
+                const response = await fetch("/api/users/rfid-cards/available");
+                if (response.ok) {
+                    const cards = await response.json();
+                    
+                    // Transform the backend response to match frontend expectations
+                    const transformedCards = cards.map((card: { TagID: string }) => ({
+                        id: card.TagID,
+                        label: `RFID: ${card.TagID}` // Create a display label
+                    }));
+                    
+                    setRfidCards(transformedCards);
+                } else {
+                    console.error("Failed to fetch RFID cards:", response.status);
+                    // Set empty array if fetch fails to avoid UI issues
+                    setRfidCards([]);
                 }
-                const cardsData = await response.json() as Array<{ id: string; label: string }>;
-                setRfidCards(cardsData);
 
                 setError(null);
             } catch {

@@ -174,7 +174,7 @@ func (r *PersonRepository) ListWithOptions(ctx context.Context, options *modelBa
 	var persons []*users.Person
 	query := r.db.NewSelect().
 		Model(&persons).
-		ModelTableExpr("users.persons")
+		ModelTableExpr("users.persons AS person")
 
 	// Apply query options
 	if options != nil {

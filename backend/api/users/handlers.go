@@ -524,6 +524,29 @@ func (rs *Resource) getFullProfile(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, newPersonProfileResponse(person), "Person profile retrieved successfully")
 }
 
+// listAvailableRFIDCards handles listing RFID cards that are not assigned to any person
+func (rs *Resource) listAvailableRFIDCards(w http.ResponseWriter, r *http.Request) {
+	// Get available RFID cards from service
+	cards, err := rs.PersonService.ListAvailableRFIDCards(r.Context())
+	if err != nil {
+		render.Render(w, r, ErrorRenderer(err))
+		return
+	}
+
+	// Convert to response objects
+	responses := make([]RFIDCardResponse, len(cards))
+	for i, card := range cards {
+		responses[i] = RFIDCardResponse{
+			TagID:     card.ID,
+			IsActive:  card.Active,
+			CreatedAt: card.CreatedAt,
+			UpdatedAt: card.UpdatedAt,
+		}
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Available RFID cards retrieved successfully")
+}
+
 // Helper function to check if a string contains another string, ignoring case
 func containsIgnoreCase(s, substr string) bool {
 	s, substr = strings.ToLower(s), strings.ToLower(substr)
