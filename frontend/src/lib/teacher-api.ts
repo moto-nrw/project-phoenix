@@ -1,5 +1,6 @@
 // This file contains the Teacher API service and related types
 
+import { getSession } from "next-auth/react";
 import type { Activity, BackendActivity } from "./activity-helpers";
 import { mapActivityResponse } from "./activity-helpers";
 
@@ -49,7 +50,16 @@ class TeacherService {
                 }
             }
 
-            const response = await fetch(url);
+            const session = await getSession();
+            const response = await fetch(url, {
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
+            });
             if (!response.ok) {
                 throw new Error(`Failed to fetch teachers: ${response.statusText}`);
             }
@@ -74,13 +84,31 @@ class TeacherService {
     // Get a single teacher by ID
     async getTeacher(id: string): Promise<Teacher> {
         try {
-            const response = await fetch(`/api/staff/${id}`);
+            const session = await getSession();
+            const response = await fetch(`/api/staff/${id}`, {
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
+            });
             if (!response.ok) {
                 throw new Error(`Failed to fetch teacher: ${response.statusText}`);
             }
 
-            const data = await response.json() as Teacher;
-            return data;
+            const data = await response.json();
+            console.log("Raw teacher API response:", data);
+            
+            // Handle wrapped response from route handler
+            if (data && typeof data === 'object' && 'data' in data) {
+                // Response is wrapped (from route handler)
+                return data.data as Teacher;
+            }
+            
+            // Direct teacher object
+            return data as Teacher;
         } catch (error) {
             console.error(`Error fetching teacher with ID ${id}:`, error);
             throw error;
@@ -100,11 +128,18 @@ class TeacherService {
             const email = teacherData.email || `${teacherData.first_name.toLowerCase()}.${teacherData.last_name.toLowerCase()}@school.local`;
             const username = `${teacherData.first_name.toLowerCase()}_${teacherData.last_name.toLowerCase()}`;
             
+            const session = await getSession();
             const accountResponse = await fetch("/api/auth/register", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : {
+                        "Content-Type": "application/json",
+                    },
                 body: JSON.stringify({
                     email: email,
                     username: username,
@@ -133,9 +168,15 @@ class TeacherService {
             // Then create a person linked to that account
             const personResponse = await fetch("/api/users", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : {
+                        "Content-Type": "application/json",
+                    },
                 body: JSON.stringify({
                     first_name: teacherData.first_name,
                     last_name: teacherData.last_name,
@@ -192,9 +233,15 @@ class TeacherService {
 
             const response = await fetch("/api/staff", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : {
+                        "Content-Type": "application/json",
+                    },
                 body: JSON.stringify(staffRequestData),
             });
 
@@ -240,11 +287,18 @@ class TeacherService {
                 is_teacher: true,
             };
 
+            const session = await getSession();
             const response = await fetch(`/api/staff/${id}`, {
                 method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : {
+                        "Content-Type": "application/json",
+                    },
                 body: JSON.stringify(staffData),
             });
 
@@ -263,8 +317,16 @@ class TeacherService {
     // Delete a teacher
     async deleteTeacher(id: string): Promise<void> {
         try {
+            const session = await getSession();
             const response = await fetch(`/api/staff/${id}`, {
                 method: "DELETE",
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
             });
 
             if (!response.ok) {

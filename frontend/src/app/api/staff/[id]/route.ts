@@ -84,6 +84,8 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       staff_notes: staff.staff_notes ?? null,
       created_at: staff.created_at,
       updated_at: staff.updated_at,
+      // Include person_id for updates
+      person_id: staff.person_id,
     };
   } catch (error) {
     console.error("Error fetching staff member:", error);
@@ -104,6 +106,7 @@ interface TeacherResponse {
   staff_notes: string | null;
   created_at: string;
   updated_at: string;
+  person_id?: number;
 }
 
 /**
