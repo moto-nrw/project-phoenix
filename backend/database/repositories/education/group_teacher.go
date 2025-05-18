@@ -30,6 +30,7 @@ func (r *GroupTeacherRepository) FindByGroup(ctx context.Context, groupID int64)
 	var groupTeachers []*education.GroupTeacher
 	err := r.db.NewSelect().
 		Model(&groupTeachers).
+		ModelTableExpr(`education.group_teacher AS "group_teacher"`).
 		Where("group_id = ?", groupID).
 		Scan(ctx)
 
@@ -48,6 +49,7 @@ func (r *GroupTeacherRepository) FindByTeacher(ctx context.Context, teacherID in
 	var groupTeachers []*education.GroupTeacher
 	err := r.db.NewSelect().
 		Model(&groupTeachers).
+		ModelTableExpr(`education.group_teacher AS "group_teacher"`).
 		Where("teacher_id = ?", teacherID).
 		Scan(ctx)
 
@@ -112,7 +114,9 @@ func (r *GroupTeacherRepository) List(ctx context.Context, filters map[string]in
 // ListWithOptions provides a type-safe way to list group-teacher relationships with query options
 func (r *GroupTeacherRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*education.GroupTeacher, error) {
 	var groupTeachers []*education.GroupTeacher
-	query := r.db.NewSelect().Model(&groupTeachers)
+	query := r.db.NewSelect().
+		Model(&groupTeachers).
+		ModelTableExpr(`education.group_teacher AS "group_teacher"`)
 
 	// Apply query options
 	if options != nil {

@@ -102,6 +102,7 @@ export const authConfig = {
               sub?: string;
               username?: string;
               roles?: string[];
+              email?: string;
             };
             console.log("Token payload:", payload);
 
@@ -118,13 +119,14 @@ export const authConfig = {
               );
             }
 
+            // Use username from JWT token as display name, with email as fallback
+            const displayName: string = payload.username ?? (credentials.email as string);
+            console.log("Using display name:", displayName);
+
             // Using type assertions for credentials to satisfy TypeScript
             return {
               id: String(payload.id),
-              name:
-                payload.sub ??
-                payload.username ??
-                (credentials.email as string),
+              name: displayName,
               email: credentials.email as string,
               token: responseData.access_token,
               refreshToken: responseData.refresh_token,
@@ -176,6 +178,6 @@ export const authConfig = {
     },
   },
   pages: {
-    signIn: "/login",
+    signIn: "/",
   },
 } satisfies NextAuthConfig;

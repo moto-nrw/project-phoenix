@@ -8,6 +8,8 @@ interface GroupListItemProps {
 }
 
 export default function GroupListItem({ group, onClick }: GroupListItemProps) {
+  console.log("Rendering GroupListItem for:", group);
+  
   return (
     <div
       className="group-item group flex cursor-pointer items-center justify-between rounded-lg border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:translate-y-[-1px] hover:border-blue-200 hover:shadow-md"

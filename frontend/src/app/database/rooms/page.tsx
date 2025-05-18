@@ -19,7 +19,7 @@ export default function RoomsPage() {
   const { status } = useSession({
     required: true,
     onUnauthenticated() {
-      redirect("/login");
+      redirect("/");
     },
   });
 

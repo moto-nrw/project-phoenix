@@ -30,7 +30,7 @@ func (r *TeacherRepository) FindByStaffID(ctx context.Context, staffID int64) (*
 	teacher := new(users.Teacher)
 	err := r.db.NewSelect().
 		Model(teacher).
-		ModelTableExpr("users.teachers AS teacher").
+		ModelTableExpr(`users.teachers AS "teacher"`).
 		Where("staff_id = ?", staffID).
 		Scan(ctx)
 
@@ -49,7 +49,7 @@ func (r *TeacherRepository) FindBySpecialization(ctx context.Context, specializa
 	var teachers []*users.Teacher
 	err := r.db.NewSelect().
 		Model(&teachers).
-		ModelTableExpr("users.teachers AS teacher").
+		ModelTableExpr(`users.teachers AS "teacher"`).
 		Where("LOWER(specialization) = LOWER(?)", specialization).
 		Scan(ctx)
 
@@ -68,8 +68,8 @@ func (r *TeacherRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 	var teachers []*users.Teacher
 	err := r.db.NewSelect().
 		Model(&teachers).
-		ModelTableExpr("users.teachers AS teacher").
-		Join("JOIN education.group_teachers gt ON gt.teacher_id = teacher.id").
+		ModelTableExpr(`users.teachers AS "teacher"`).
+		Join("JOIN education.group_teacher gt ON gt.teacher_id = teacher.id").
 		Where("gt.group_id = ?", groupID).
 		Scan(ctx)
 
@@ -87,7 +87,7 @@ func (r *TeacherRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 func (r *TeacherRepository) UpdateQualifications(ctx context.Context, id int64, qualifications string) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.Teacher)(nil)).
-		ModelTableExpr("users.teachers AS teacher").
+		ModelTableExpr(`users.teachers AS "teacher"`).
 		Set("qualifications = ?", qualifications).
 		Where("id = ?", id).
 		Exec(ctx)
@@ -172,7 +172,7 @@ func (r *TeacherRepository) ListWithOptions(ctx context.Context, options *modelB
 	var teachers []*users.Teacher
 	query := r.db.NewSelect().
 		Model(&teachers).
-		ModelTableExpr("users.teachers AS teacher")
+		ModelTableExpr(`users.teachers AS "teacher"`)
 
 	// Apply query options
 	if options != nil {
@@ -195,7 +195,7 @@ func (r *TeacherRepository) FindWithStaff(ctx context.Context, id int64) (*users
 	teacher := new(users.Teacher)
 	err := r.db.NewSelect().
 		Model(teacher).
-		ModelTableExpr("users.teachers AS teacher").
+		ModelTableExpr(`users.teachers AS "teacher"`).
 		Relation("Staff").
 		Where("id = ?", id).
 		Scan(ctx)
@@ -212,19 +212,52 @@ func (r *TeacherRepository) FindWithStaff(ctx context.Context, id int64) (*users
 
 // FindWithStaffAndPerson retrieves a teacher with their associated staff and person data
 func (r *TeacherRepository) FindWithStaffAndPerson(ctx context.Context, id int64) (*users.Teacher, error) {
-	teacher := new(users.Teacher)
+	// Use explicit JOINs similar to the group repository's FindWithRoom approach
+	type teacherResult struct {
+		Teacher *users.Teacher `bun:"teacher"`
+		Staff   *users.Staff   `bun:"staff"`
+		Person  *users.Person  `bun:"person"`
+	}
+
+	result := &teacherResult{
+		Teacher: new(users.Teacher),
+		Staff:   new(users.Staff),
+		Person:  new(users.Person),
+	}
+
 	err := r.db.NewSelect().
-		Model(teacher).
-		ModelTableExpr("users.teachers AS teacher").
-		Relation("Staff").
-		Relation("Staff.Person").
-		Where("id = ?", id).
+		Model(result).
+		ModelTableExpr(`users.teachers AS "teacher"`).
+		// Teacher columns with proper aliasing
+		ColumnExpr(`"teacher".id AS "teacher__id", "teacher".created_at AS "teacher__created_at", "teacher".updated_at AS "teacher__updated_at"`).
+		ColumnExpr(`"teacher".staff_id AS "teacher__staff_id", "teacher".specialization AS "teacher__specialization"`).
+		ColumnExpr(`"teacher".role AS "teacher__role", "teacher".qualifications AS "teacher__qualifications"`).
+		// Staff columns
+		ColumnExpr(`"staff".id AS "staff__id", "staff".created_at AS "staff__created_at", "staff".updated_at AS "staff__updated_at"`).
+		ColumnExpr(`"staff".person_id AS "staff__person_id", "staff".staff_notes AS "staff__staff_notes"`).
+		// Person columns
+		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
+		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
+		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
+		// JOINs
+		Join(`INNER JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id`).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+		Where(`"teacher".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with staff and person",
 			Err: err,
+		}
+	}
+
+	// Map result to teacher
+	teacher := result.Teacher
+	if result.Staff != nil && result.Staff.ID != 0 {
+		teacher.Staff = result.Staff
+		if result.Person != nil && result.Person.ID != 0 {
+			teacher.Staff.Person = result.Person
 		}
 	}
 

@@ -56,8 +56,8 @@ export function Header({ userName = "Root" }: HeaderProps) {
                     >
                         moto
                     </span>
-                    <h1 className="text-2xl font-bold ml-6">
-                        <span className="hidden md:inline">Willkommen, {userName}!</span>
+                    <h1 className="text-lg md:text-2xl font-bold ml-3 md:ml-6">
+                        <span>Willkommen, {userName}!</span>
                     </h1>
                 </div>
 

@@ -17,23 +17,24 @@ type Group struct {
 	RoomID     *int64 `bun:"room_id" json:"room_id,omitempty"`
 
 	// Relations not stored in the database
-	Room *facilities.Room `bun:"-" json:"room,omitempty"`
+	Room *facilities.Room `bun:"rel:belongs-to,join:room_id=id" json:"room,omitempty"`
 	// Teachers are linked through the GroupTeacher model
 	// Students will be a relationship from the Student model
 }
 
+// BeforeAppendModel lets us modify query before it's executed
 func (g *Group) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("education.groups")
+		q.ModelTableExpr(`education.groups AS "group"`)
 	}
 	if q, ok := query.(*bun.InsertQuery); ok {
 		q.ModelTableExpr("education.groups")
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("education.groups")
+		q.ModelTableExpr(`education.groups AS "group"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("education.groups")
+		q.ModelTableExpr(`education.groups AS "group"`)
 	}
 	return nil
 }

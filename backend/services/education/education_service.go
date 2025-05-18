@@ -219,7 +219,8 @@ func (s *service) DeleteGroup(ctx context.Context, id int64) error {
 
 // ListGroups retrieves groups with optional filtering
 func (s *service) ListGroups(ctx context.Context, options *base.QueryOptions) ([]*education.Group, error) {
-	groups, err := s.groupRepo.List(ctx, nil)
+	// Now we can directly use the modern ListWithOptions method
+	groups, err := s.groupRepo.ListWithOptions(ctx, options)
 	if err != nil {
 		return nil, &EducationError{Op: "ListGroups", Err: err}
 	}
@@ -369,6 +370,63 @@ func (s *service) RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID
 	return nil
 }
 
+// UpdateGroupTeachers updates the teacher assignments for a group
+func (s *service) UpdateGroupTeachers(ctx context.Context, groupID int64, teacherIDs []int64) error {
+	// Verify group exists
+	_, err := s.groupRepo.FindByID(ctx, groupID)
+	if err != nil {
+		return &EducationError{Op: "UpdateGroupTeachers", Err: ErrGroupNotFound}
+	}
+
+	// Get current teacher assignments
+	currentRelations, err := s.groupTeacherRepo.FindByGroup(ctx, groupID)
+	if err != nil {
+		return &EducationError{Op: "UpdateGroupTeachers", Err: err}
+	}
+
+	// Create maps for easier comparison
+	currentTeacherIDs := make(map[int64]int64) // teacherID -> relationID
+	for _, rel := range currentRelations {
+		currentTeacherIDs[rel.TeacherID] = rel.ID
+	}
+
+	newTeacherIDs := make(map[int64]bool)
+	for _, teacherID := range teacherIDs {
+		newTeacherIDs[teacherID] = true
+	}
+
+	// Find teachers to remove (in current but not in new)
+	for teacherID, relationID := range currentTeacherIDs {
+		if !newTeacherIDs[teacherID] {
+			if err := s.groupTeacherRepo.Delete(ctx, relationID); err != nil {
+				return &EducationError{Op: "UpdateGroupTeachers", Err: err}
+			}
+		}
+	}
+
+	// Find teachers to add (in new but not in current)
+	for _, teacherID := range teacherIDs {
+		if _, exists := currentTeacherIDs[teacherID]; !exists {
+			// Verify teacher exists
+			if _, err := s.teacherRepo.FindByID(ctx, teacherID); err != nil {
+				return &EducationError{Op: "UpdateGroupTeachers", Err: ErrTeacherNotFound}
+			}
+
+			// Create the relationship
+			relation := &education.GroupTeacher{
+				GroupID:   groupID,
+				TeacherID: teacherID,
+			}
+
+			if err := s.groupTeacherRepo.Create(ctx, relation); err != nil {
+				return &EducationError{Op: "UpdateGroupTeachers", Err: err}
+			}
+		}
+	}
+
+	return nil
+}
+
 // GetGroupTeachers gets all teachers for a group
 func (s *service) GetGroupTeachers(ctx context.Context, groupID int64) ([]*users.Teacher, error) {
 	// Verify group exists
@@ -406,27 +464,34 @@ func (s *service) GetGroupTeachers(ctx context.Context, groupID int64) ([]*users
 	filter.In("id", interfaceIDs...)
 	options.Filter = filter
 
-	// Get teachers
-	// Note: This assumes the TeacherRepository has a List method with QueryOptions
-	// Similar to what we have in the GroupRepository
-	teachers, err := s.teacherRepo.List(ctx, nil)
+	// Get teachers using the modern ListWithOptions method
+	teachers, err := s.teacherRepo.ListWithOptions(ctx, options)
 	if err != nil {
 		return nil, &EducationError{Op: "GetGroupTeachers", Err: err}
 	}
 
-	// Filter teachers by IDs (fallback if the List method doesn't support complex filtering)
+	
+	// Always filter to ensure we only return teachers that were requested
 	var filteredTeachers []*users.Teacher
 	idMap := make(map[int64]bool)
 	for _, id := range teacherIDs {
 		idMap[id] = true
 	}
 
+	// Fetch staff and person data for each teacher
 	for _, teacher := range teachers {
 		if idMap[teacher.ID] {
-			filteredTeachers = append(filteredTeachers, teacher)
+			// Try to get teacher with staff and person data
+			fullTeacher, err := s.teacherRepo.FindWithStaffAndPerson(ctx, teacher.ID)
+			if err == nil {
+				filteredTeachers = append(filteredTeachers, fullTeacher)
+			} else {
+				// If fetch fails, use teacher without staff/person data
+				filteredTeachers = append(filteredTeachers, teacher)
+			}
 		}
 	}
-
+	
 	return filteredTeachers, nil
 }
 
@@ -566,7 +631,8 @@ func (s *service) GetSubstitution(ctx context.Context, id int64) (*education.Gro
 
 // ListSubstitutions retrieves substitutions with optional filtering
 func (s *service) ListSubstitutions(ctx context.Context, options *base.QueryOptions) ([]*education.GroupSubstitution, error) {
-	substitutions, err := s.substitutionRepo.List(ctx, nil)
+	// Now using the modern ListWithOptions method like ListGroups
+	substitutions, err := s.substitutionRepo.ListWithOptions(ctx, options)
 	if err != nil {
 		return nil, &EducationError{Op: "ListSubstitutions", Err: err}
 	}
