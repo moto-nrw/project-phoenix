@@ -373,3 +373,7 @@ backend/project-phoenix
 **/.claude/settings.local.json
 
 **/CLAUDE.local.md
+
+# CI/CD and production files
+ci-cd-best-practices-guide.md
+docker-compose.prod.yml
