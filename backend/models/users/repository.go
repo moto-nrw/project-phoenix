@@ -3,6 +3,8 @@ package users
 import (
 	"context"
 	"time"
+	
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // RFIDCardRepository defines operations for managing RFID cards
@@ -147,6 +149,9 @@ type TeacherRepository interface {
 
 	// List retrieves teachers matching the filters
 	List(ctx context.Context, filters map[string]interface{}) ([]*Teacher, error)
+
+	// ListWithOptions retrieves teachers matching the query options
+	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Teacher, error)
 
 	// FindByGroupID retrieves teachers assigned to a group
 	FindByGroupID(ctx context.Context, groupID int64) ([]*Teacher, error)
