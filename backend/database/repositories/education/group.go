@@ -30,7 +30,7 @@ func (r *GroupRepository) FindByName(ctx context.Context, name string) (*educati
 	group := new(education.Group)
 	err := r.db.NewSelect().
 		Model(group).
-		ModelTableExpr("education.groups").
+		ModelTableExpr("education.groups AS grp").
 		Where("LOWER(name) = LOWER(?)", name).
 		Scan(ctx)
 
@@ -49,7 +49,7 @@ func (r *GroupRepository) FindByRoom(ctx context.Context, roomID int64) ([]*educ
 	var groups []*education.Group
 	err := r.db.NewSelect().
 		Model(&groups).
-		ModelTableExpr("education.groups").
+		ModelTableExpr("education.groups AS grp").
 		Where("room_id = ?", roomID).
 		Scan(ctx)
 
