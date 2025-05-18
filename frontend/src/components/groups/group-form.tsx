@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { Group } from "@/lib/api";
+import type { Group, Room } from "@/lib/api";
+import { roomService } from "@/lib/api";
+import { teacherService } from "@/lib/teacher-api";
+import type { Teacher } from "@/lib/teacher-api";
 
 interface GroupFormProps {
   initialData?: Partial<Group>;
@@ -27,6 +30,9 @@ export default function GroupForm({
   });
 
   const [error, setError] = useState<string | null>(null);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
     if (initialData) {
@@ -37,6 +43,32 @@ export default function GroupForm({
       });
     }
   }, [initialData]);
+
+  // Fetch rooms and teachers on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoadingData(true);
+        
+        // Fetch rooms and teachers in parallel
+        const [roomsData, teachersData] = await Promise.all([
+          roomService.getRooms(),
+          teacherService.getTeachers()
+        ]);
+        
+        setRooms(roomsData);
+        setTeachers(teachersData);
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        setError("Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.");
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    void fetchData();
+  }, []);
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -62,8 +94,15 @@ export default function GroupForm({
     try {
       setError(null);
 
+      // Prepare data - ensure we only include non-empty values
+      const submitData: Partial<Group> = {
+        name: formData.name,
+        room_id: formData.room_id || undefined,
+        representative_id: formData.representative_id || undefined,
+      };
+
       // Call the provided submit function with form data
-      await onSubmitAction(formData);
+      await onSubmitAction(submitData);
     } catch (err) {
       console.error("Error submitting form:", err);
       setError(
@@ -114,16 +153,25 @@ export default function GroupForm({
                   htmlFor="room_id"
                   className="mb-1 block text-sm font-medium text-gray-700"
                 >
-                  Raum ID
+                  Raum
                 </label>
-                <input
-                  type="text"
+                <select
                   id="room_id"
                   name="room_id"
                   value={formData.room_id}
                   onChange={handleChange}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
+                  disabled={loadingData}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-gray-100"
+                >
+                  <option value="">Raum auswählen</option>
+                  {rooms.map((room) => (
+                    <option key={room.id} value={room.id}>
+                      {room.name}
+                      {room.building && ` - ${room.building}`}
+                      {room.floor !== undefined && ` (Etage ${room.floor})`}
+                    </option>
+                  ))}
+                </select>
                 <p className="mt-1 text-xs text-gray-500">
                   Verbindet diese Gruppe mit einem Raum
                 </p>
@@ -135,16 +183,24 @@ export default function GroupForm({
                   htmlFor="representative_id"
                   className="mb-1 block text-sm font-medium text-gray-700"
                 >
-                  Vertreter ID
+                  Vertreter
                 </label>
-                <input
-                  type="text"
+                <select
                   id="representative_id"
                   name="representative_id"
                   value={formData.representative_id}
                   onChange={handleChange}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
+                  disabled={loadingData}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-gray-100"
+                >
+                  <option value="">Lehrer auswählen</option>
+                  {teachers.map((teacher) => (
+                    <option key={teacher.id} value={teacher.id}>
+                      {teacher.name}
+                      {teacher.specialization && ` (${teacher.specialization})`}
+                    </option>
+                  ))}
+                </select>
                 <p className="mt-1 text-xs text-gray-500">
                   Legt den Hauptverantwortlichen für diese Gruppe fest
                 </p>

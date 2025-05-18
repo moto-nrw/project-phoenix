@@ -37,6 +37,9 @@ export function DataListPage<T extends BaseEntity>({
 }: DataListPageProps<T>) {
   const [internalSearchTerm, setInternalSearchTerm] = useState("");
 
+  console.log("DataListPage received data:", data);
+  console.log("DataListPage search term:", externalSearchTerm);
+
   // Use either the controlled or the internal search term
   const searchTerm = externalSearchTerm ?? internalSearchTerm;
 
@@ -58,6 +61,8 @@ export function DataListPage<T extends BaseEntity>({
       : data.filter((entity) =>
           entity.name.toLowerCase().includes(internalSearchTerm.toLowerCase()),
         );
+  
+  console.log("DataListPage filtered data:", filteredData);
 
   // Default entity renderer
   const defaultRenderEntity = (entity: T) => (

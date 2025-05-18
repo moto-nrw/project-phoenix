@@ -46,6 +46,7 @@ export default function GroupsPage() {
       try {
         // Fetch from the real API using our group service
         const data = await groupService.getGroups(filters);
+        console.log("Groups page received:", data);
 
         if (data.length === 0 && !search) {
           console.log("No groups returned from API, checking connection");
@@ -136,6 +137,9 @@ export default function GroupsPage() {
   const handleSearchChange = (searchTerm: string) => {
     setSearchFilter(searchTerm);
   };
+
+  console.log("Groups state before rendering:", groups);
+  console.log("Search filter:", searchFilter);
 
   return (
     <DataListPage

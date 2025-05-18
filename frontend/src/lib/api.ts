@@ -603,9 +603,23 @@ export const groupService = {
         const responseData: unknown = await response.json();
         console.log('Client-side groups response:', responseData);
         
-        // Ensure we have an array
-        const groups = Array.isArray(responseData) ? responseData : [];
-        return mapGroupsResponse(groups as BackendGroup[]);
+        // Check if the response is wrapped in our ApiResponse format
+        let groups: BackendGroup[] = [];
+        if (typeof responseData === 'object' && responseData !== null && 'data' in responseData) {
+          // It's wrapped in ApiResponse
+          const apiResponse = responseData as { data?: unknown };
+          groups = Array.isArray(apiResponse.data) ? apiResponse.data as BackendGroup[] : [];
+        } else if (Array.isArray(responseData)) {
+          // It's a direct array
+          groups = responseData as BackendGroup[];
+        }
+        
+        console.log('Groups before mapping:', groups);
+        
+        const mappedGroups = mapGroupsResponse(groups);
+        console.log('Groups after mapping:', mappedGroups);
+        
+        return mappedGroups;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
