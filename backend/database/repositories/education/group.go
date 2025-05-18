@@ -68,8 +68,8 @@ func (r *GroupRepository) FindByTeacher(ctx context.Context, teacherID int64) ([
 	var groups []*education.Group
 	err := r.db.NewSelect().
 		Model(&groups).
-		ModelTableExpr("education.groups").
-		Join("JOIN education.group_teacher gt ON gt.group_id = ?TableAlias.id").
+		ModelTableExpr("education.groups AS grp").
+		Join("JOIN education.group_teacher gt ON gt.group_id = grp.id").
 		Where("gt.teacher_id = ?", teacherID).
 		Scan(ctx)
 
@@ -88,9 +88,9 @@ func (r *GroupRepository) FindWithRoom(ctx context.Context, groupID int64) (*edu
 	group := new(education.Group)
 	err := r.db.NewSelect().
 		Model(group).
-		ModelTableExpr("education.groups").
+		ModelTableExpr("education.groups AS grp").
 		Relation("Room").
-		Where("?TableAlias.id = ?", groupID).
+		Where("grp.id = ?", groupID).
 		Scan(ctx)
 
 	if err != nil {
@@ -169,7 +169,7 @@ func (r *GroupRepository) ListWithOptions(ctx context.Context, options *modelBas
 	var groups []*education.Group
 	query := r.db.NewSelect().
 		Model(&groups).
-		ModelTableExpr("education.groups AS ?TableAlias")
+		ModelTableExpr("education.groups AS grp")
 
 	// Apply query options
 	if options != nil {
