@@ -377,3 +377,4 @@ backend/project-phoenix
 # CI/CD and production files
 ci-cd-best-practices-guide.md
 docker-compose.prod.yml
+.env.production.example
