@@ -38,7 +38,7 @@ export default function OGSGroupPage() {
     const { data: session, status } = useSession({
         required: true,
         onUnauthenticated() {
-            redirect("/login");
+            redirect("/");
         },
     });
 

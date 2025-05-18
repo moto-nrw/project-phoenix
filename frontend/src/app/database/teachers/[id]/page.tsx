@@ -22,7 +22,7 @@ export default function TeacherDetailsPage() {
     const { status } = useSession({
         required: true,
         onUnauthenticated() {
-            redirect("/login");
+            redirect("/");
         },
     });
 
