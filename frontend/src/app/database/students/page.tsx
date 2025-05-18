@@ -51,6 +51,7 @@ export default function StudentsPage() {
       try {
         // Fetch from the real API using our student service
         const data = await studentService.getStudents(filters);
+        console.log("Received data from studentService:", data);
         setStudents(data);
         setError(null);
       } catch (apiErr) {
@@ -257,9 +258,8 @@ export default function StudentsPage() {
         {/* Student List */}
         <div className="w-full space-y-3">
           {students.length > 0 ? (
-            students.map((student) => {
-              console.log("About to render student:", JSON.stringify(student, null, 2));
-              return (
+            students.map((student) => (
+
               <div
                 key={student.id}
                 className="group flex cursor-pointer items-center justify-between rounded-lg border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:translate-y-[-1px] hover:border-blue-200 hover:shadow-md"
@@ -267,8 +267,7 @@ export default function StudentsPage() {
               >
                 {renderStudent(student)}
               </div>
-              );
-            })
+            ))
           ) : (
             <div className="py-8 text-center">
               <p className="text-gray-500">
