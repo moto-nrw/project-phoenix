@@ -281,7 +281,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		LastName:  req.LastName,
 	}
 
-	// Set optional TagID if provided and not empty
+	// Set optional TagID if provided
 	if req.TagID != "" {
 		tagID := req.TagID
 		person.TagID = &tagID

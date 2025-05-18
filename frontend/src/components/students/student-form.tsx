@@ -77,16 +77,29 @@ export default function StudentForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate form - now including guardian fields and group as required
-    if (
-      !formData.first_name ||
-      !formData.second_name ||
-      !formData.school_class ||
-      !formData.name_lg ||
-      !formData.contact_lg ||
-      !formData.group_id
-    ) {
-      setError("Bitte füllen Sie alle Pflichtfelder aus (einschließlich Gruppe).");
+    // Validate required fields according to backend API
+    if (!formData.first_name?.trim()) {
+      setError("Vorname ist erforderlich.");
+      return;
+    }
+    
+    if (!formData.second_name?.trim()) {
+      setError("Nachname ist erforderlich.");
+      return;
+    }
+    
+    if (!formData.school_class?.trim()) {
+      setError("Klasse ist erforderlich.");
+      return;
+    }
+    
+    if (!formData.name_lg?.trim()) {
+      setError("Name des Erziehungsberechtigten ist erforderlich.");
+      return;
+    }
+    
+    if (!formData.contact_lg?.trim()) {
+      setError("Kontakt des Erziehungsberechtigten ist erforderlich.");
       return;
     }
 

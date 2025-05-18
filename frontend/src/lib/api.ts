@@ -320,18 +320,22 @@ export const studentService = {
     // Transform from frontend model to backend model
     const backendStudent = prepareStudentForBackend(student);
 
-    // Basic validation for student creation
-    if (!backendStudent.school_class) {
-      throw new Error("Missing required field: school_class");
-    }
+    // Basic validation for student creation - match backend requirements
     if (!backendStudent.first_name) {
-      throw new Error("Missing required field: first_name");
+      throw new Error("First name is required");
     }
-    if (!backendStudent.second_name) {
-      throw new Error("Missing required field: second_name");
+    if (!backendStudent.last_name) {
+      throw new Error("Last name is required");
     }
-    // Ensure group_id is set (defaults to 1 if not provided)
-    backendStudent.group_id ??= 1;
+    if (!backendStudent.school_class) {
+      throw new Error("School class is required");
+    }
+    if (!backendStudent.guardian_name) {
+      throw new Error("Guardian name is required");
+    }
+    if (!backendStudent.guardian_contact) {
+      throw new Error("Guardian contact is required");
+    }
 
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
@@ -398,17 +402,9 @@ export const studentService = {
     // Transform from frontend model to backend model updates
     const backendUpdates = prepareStudentForBackend(student);
 
-    // Additional validation before sending to API for updates
-    if (!backendUpdates.custom_users_id) {
-      throw new Error("Missing required field: custom_users_id");
-    }
-    // Other validations that apply to both updates and creates
-    if (!backendUpdates.group_id) {
-      throw new Error("Missing required field: group_id");
-    }
-    if (!backendUpdates.school_class) {
-      throw new Error("Missing required field: school_class");
-    }
+    // Validation for required fields in updates
+    // Note: For updates, we only validate fields that are provided
+    // Backend will handle partial updates correctly
 
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi

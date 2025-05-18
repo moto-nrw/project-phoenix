@@ -114,40 +114,38 @@ export const GET = createGetHandler(async (request: NextRequest, token: string):
 
 /**
  * Handler for POST /api/students
- * Creates a new student without requiring user account or RFID
+ * Creates a new student with associated person record
  */
-export const POST = createPostHandler<Student, CreateStudentRequest>(
-  async (_request: NextRequest, body: CreateStudentRequest, token: string) => {
-    // Validate required fields
+export const POST = createPostHandler<Student, any>(
+  async (_request: NextRequest, body: any, token: string) => {
+    // Body is already in backend format from prepareStudentForBackend
+    // Validate required fields using backend field names
     if (!body.first_name || body.first_name.trim() === '') {
-      throw new Error('Missing required field: first_name cannot be blank');
+      throw new Error('First name is required');
+    }
+    
+    if (!body.last_name || body.last_name.trim() === '') {
+      throw new Error('Last name is required');
     }
     
     if (!body.school_class || body.school_class.trim() === '') {
-      throw new Error('Missing required field: school_class cannot be blank');
+      throw new Error('School class is required');
     }
     
-    // Transform the request to match backend expectations
-    const backendRequest = {
-      student: {
-        first_name: body.first_name,
-        last_name: body.second_name ?? body.first_name, // Backend requires last_name
-        tag_id: body.tag_id, // Don't send empty string - let backend handle the logic
-        school_class: body.school_class,
-        guardian_name: body.name_lg ?? "Unknown",
-        guardian_contact: body.contact_lg ?? "Unknown",
-        guardian_email: body.guardian_email ?? (body.contact_lg?.includes('@') ? body.contact_lg : undefined),
-        guardian_phone: body.guardian_phone ?? (body.contact_lg?.includes('@') ? undefined : body.contact_lg),
-        group_id: body.group_id ? parseInt(body.group_id.toString(), 10) : undefined,
-        account_id: body.account_id, // Pass the account ID if provided
-      },
-      email: body.email ?? (body.contact_lg?.includes('@') ? body.contact_lg : `student${Date.now()}@example.com`),
-      password: body.password ?? "default123456", // Use provided password or generate default
-    };
+    if (!body.guardian_name || body.guardian_name.trim() === '') {
+      throw new Error('Guardian name is required');
+    }
+    
+    if (!body.guardian_contact || body.guardian_contact.trim() === '') {
+      throw new Error('Guardian contact is required');
+    }
+    
+    // No transformation needed - body is already in backend format
+    const backendRequest = body;
     
     try {
-      // Create the student via the new API endpoint that doesn't require user creation
-      const response = await apiPost<StudentResponseFromBackend>("/api/students", token, backendRequest.student);
+      // Create the student via the simplified API endpoint
+      const response = await apiPost<StudentResponseFromBackend>("/api/students", token, backendRequest);
       
       // Map the backend response to frontend format
       return {
@@ -156,9 +154,9 @@ export const POST = createPostHandler<Student, CreateStudentRequest>(
         first_name: response.first_name,
         second_name: response.last_name,
         school_class: response.school_class,
-        grade: undefined,
+        grade: undefined, // Not used by backend
         studentId: response.tag_id,
-        group_name: undefined,
+        group_name: undefined, // Would need separate lookup
         group_id: response.group_id ? String(response.group_id) : undefined,
         in_house: response.location === "In House",
         wc: response.location === "WC",
@@ -166,7 +164,7 @@ export const POST = createPostHandler<Student, CreateStudentRequest>(
         bus: response.location === "Bus",
         name_lg: response.guardian_name,
         contact_lg: response.guardian_contact,
-        custom_users_id: undefined,
+        custom_users_id: undefined, // Not used by backend
       };
     } catch (error) {
       // Check for permission errors (403 Forbidden)
@@ -181,11 +179,17 @@ export const POST = createPostHandler<Student, CreateStudentRequest>(
         console.error("Validation error when creating student:", errorMessage);
         
         // Extract specific error message if possible
-        if (errorMessage.includes("first_name: cannot be blank")) {
-          throw new Error("First name cannot be blank");
+        if (errorMessage.includes("first name is required")) {
+          throw new Error("First name is required");
         }
-        if (errorMessage.includes("school_class: cannot be blank")) {
-          throw new Error("School class cannot be blank");
+        if (errorMessage.includes("school class is required")) {
+          throw new Error("School class is required");
+        }
+        if (errorMessage.includes("guardian name is required")) {
+          throw new Error("Guardian name is required");
+        }
+        if (errorMessage.includes("guardian contact is required")) {
+          throw new Error("Guardian contact is required");
         }
       }
       

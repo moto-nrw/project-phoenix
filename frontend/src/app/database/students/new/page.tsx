@@ -59,30 +59,29 @@ function StudentPageContent() {
         guardian_email?: string;
         guardian_phone?: string;
       } = {
-        // Basic info
+        // Basic info (all required)
         first_name: studentData.first_name ?? '',
-        second_name: studentData.second_name ?? studentData.first_name ?? '', // Backend requires last_name
-        name: `${studentData.first_name} ${studentData.second_name ?? studentData.first_name}`,
+        second_name: studentData.second_name ?? '',
+        name: `${studentData.first_name} ${studentData.second_name}`,
         
-        // School info
+        // School info (required)
         school_class: studentData.school_class ?? '',
         group_id: groupId ?? studentData.group_id,
         
-        // Guardian info
+        // Guardian info (all required)
         name_lg: studentData.name_lg ?? '',
         contact_lg: studentData.contact_lg ?? '',
         guardian_email: guardianEmail,
         guardian_phone: guardianPhone,
         
-        // Location fields
+        // Location fields (defaults)
         in_house: false,
         wc: false,
         school_yard: false,
         bus: studentData.bus ?? false,
         
-        // Auto-generated fields
-        studentId: timestamp.toString(), // Use timestamp as a simple ID
-        // No tag_id or account_id - backend will handle placeholder creation
+        // Optional fields
+        studentId: undefined, // Tag ID is optional, backend handles it
       };
 
       // Create the student with a generated tag ID
