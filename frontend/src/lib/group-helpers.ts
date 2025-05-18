@@ -14,14 +14,35 @@ export interface BackendGroup {
     id: number;
     name: string;
     room_id?: number;
-    room_name?: string;
+    room?: {  // Room is a nested object
+        id: number;
+        name: string;
+    };
     representative_id?: number;
-    representative_name?: string;
-    student_count?: number;
+    representative?: {  // Representative is also a nested object
+        id: number;
+        staff_id: number;
+        first_name: string;
+        last_name: string;
+        full_name: string;
+        specialization: string;
+        role?: string;
+    };
+    teachers?: Array<{  // Array of teachers
+        id: number;
+        staff_id: number;
+        first_name: string;
+        last_name: string;
+        full_name: string;
+        specialization: string;
+        role?: string;
+    }>;
+    student_count?: number;  // These fields might come from the backend
     supervisor_count?: number;
     created_at: string;
     updated_at: string;
     students?: BackendGroupStudent[];
+    teacher_ids?: number[];
 }
 
 export interface BackendCombinedGroup {
@@ -63,6 +84,7 @@ export interface Group {
     updated_at?: string;
     students?: StudentForGroup[];
     supervisors?: Array<{ id: string; name: string }>;
+    teacher_ids?: string[];
 }
 
 export interface CombinedGroup {
@@ -88,10 +110,12 @@ export function mapGroupResponse(backendGroup: BackendGroup): Group {
     const group: Group = {
         id: String(backendGroup.id),
         name: backendGroup.name,
+        // Use room_id from the direct field first, then fallback to nested room object
         room_id: backendGroup.room_id ? String(backendGroup.room_id) : undefined,
-        room_name: backendGroup.room_name,
+        // Extract room name from nested room object if available
+        room_name: backendGroup.room?.name ?? undefined,
         representative_id: backendGroup.representative_id ? String(backendGroup.representative_id) : undefined,
-        representative_name: backendGroup.representative_name,
+        representative_name: backendGroup.representative?.full_name ?? undefined,
         student_count: backendGroup.student_count,
         supervisor_count: backendGroup.supervisor_count,
         created_at: backendGroup.created_at,
@@ -105,6 +129,14 @@ export function mapGroupResponse(backendGroup: BackendGroup): Group {
             name: student.name ?? 'Unnamed Student',
             school_class: student.school_class ?? '',
             in_house: student.in_house ?? false
+        }));
+    }
+    
+    // If the backend group has teachers, map them to supervisors
+    if (Array.isArray(backendGroup.teachers)) {
+        group.supervisors = backendGroup.teachers.map(teacher => ({
+            id: String(teacher.id),
+            name: teacher.full_name
         }));
     }
     
@@ -135,6 +167,11 @@ export function mapCombinedGroupResponse(backendGroup: BackendCombinedGroup): Co
 }
 
 export function mapGroupsResponse(backendGroups: BackendGroup[]): Group[] {
+    // Safety check to ensure we have an array
+    if (!Array.isArray(backendGroups)) {
+        console.error('Expected array for backendGroups, got:', backendGroups);
+        return [];
+    }
     return backendGroups.map(mapGroupResponse);
 }
 
@@ -156,7 +193,10 @@ export function prepareGroupForBackend(group: Partial<Group>): Partial<BackendGr
         id: group.id ? parseInt(group.id, 10) : undefined,
         name: group.name,
         room_id: group.room_id ? parseInt(group.room_id, 10) : undefined,
+        // Note: room_name is not sent to backend, only room_id
         representative_id: group.representative_id ? parseInt(group.representative_id, 10) : undefined,
+        // Note: representative_name is also not sent to backend, only representative_id
+        teacher_ids: group.teacher_ids?.map(id => parseInt(id, 10)),
     };
 }
 

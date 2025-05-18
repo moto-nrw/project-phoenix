@@ -218,6 +218,10 @@ func (s *personService) Delete(ctx context.Context, id interface{}) error {
 
 // List retrieves persons matching the provided query options
 func (s *personService) List(ctx context.Context, options *base.QueryOptions) ([]*userModels.Person, error) {
+	// TODO: Follow education.groups pattern - add ListWithOptions to PersonRepository interface
+	// and call it directly instead of converting to map[string]interface{}
+	// See education service for the correct implementation pattern
+	
 	// Convert QueryOptions to map[string]interface{} for repository
 	filters := make(map[string]interface{})
 	if options != nil && options.Filter != nil {

@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 )
 
@@ -60,12 +61,26 @@ func (rs *Resource) Router() chi.Router {
 
 // GroupResponse represents a group API response
 type GroupResponse struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	RoomID    *int64    `json:"room_id,omitempty"`
-	Room      *Room     `json:"room,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                 int64             `json:"id"`
+	Name               string            `json:"name"`
+	RoomID             *int64            `json:"room_id,omitempty"`
+	Room               *Room             `json:"room,omitempty"`
+	RepresentativeID   *int64            `json:"representative_id,omitempty"`
+	Representative     *TeacherResponse  `json:"representative,omitempty"`
+	Teachers           []TeacherResponse `json:"teachers,omitempty"`
+	CreatedAt          time.Time         `json:"created_at"`
+	UpdatedAt          time.Time         `json:"updated_at"`
+}
+
+// TeacherResponse represents a teacher in API responses
+type TeacherResponse struct {
+	ID             int64  `json:"id"`
+	StaffID        int64  `json:"staff_id"`
+	FirstName      string `json:"first_name"`
+	LastName       string `json:"last_name"`
+	Specialization string `json:"specialization"`
+	Role           string `json:"role,omitempty"`
+	FullName       string `json:"full_name"`
 }
 
 // Room represents a simplified room for inclusion in group responses
@@ -76,8 +91,9 @@ type Room struct {
 
 // GroupRequest represents a group creation/update request
 type GroupRequest struct {
-	Name   string `json:"name"`
-	RoomID *int64 `json:"room_id,omitempty"`
+	Name       string  `json:"name"`
+	RoomID     *int64  `json:"room_id,omitempty"`
+	TeacherIDs []int64 `json:"teacher_ids,omitempty"`
 }
 
 // Bind validates the group request
@@ -89,7 +105,7 @@ func (req *GroupRequest) Bind(r *http.Request) error {
 }
 
 // newGroupResponse converts a group model to a response object
-func newGroupResponse(group *education.Group) GroupResponse {
+func newGroupResponse(group *education.Group, teachers []*users.Teacher) GroupResponse {
 	response := GroupResponse{
 		ID:        group.ID,
 		Name:      group.Name,
@@ -104,6 +120,38 @@ func newGroupResponse(group *education.Group) GroupResponse {
 			ID:   group.Room.ID,
 			Name: group.Room.Name,
 		}
+	}
+
+	// Add teacher details if available
+	if len(teachers) > 0 {
+		teacherResponses := make([]TeacherResponse, 0, len(teachers))
+		
+		// First teacher is the representative by convention
+		firstTeacher := teachers[0]
+		response.RepresentativeID = &firstTeacher.ID
+		
+		// Convert all teachers to response format
+		for _, teacher := range teachers {
+			teacherResp := TeacherResponse{
+				ID:             teacher.ID,
+				StaffID:        teacher.StaffID,
+				Specialization: teacher.Specialization,
+				Role:           teacher.Role,
+				FullName:       teacher.GetFullName(),
+			}
+			
+			// Extract first and last name from staff if available
+			if teacher.Staff != nil && teacher.Staff.Person != nil {
+				teacherResp.FirstName = teacher.Staff.Person.FirstName
+				teacherResp.LastName = teacher.Staff.Person.LastName
+			}
+			
+			teacherResponses = append(teacherResponses, teacherResp)
+		}
+		
+		// Set first teacher as representative
+		response.Representative = &teacherResponses[0]
+		response.Teachers = teacherResponses
 	}
 
 	return response
@@ -171,7 +219,8 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 				group = groupWithRoom
 			}
 		}
-		responses = append(responses, newGroupResponse(group))
+		// For list operations, don't include teachers for performance
+		responses = append(responses, newGroupResponse(group, nil))
 	}
 
 	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), "Groups retrieved successfully")
@@ -197,7 +246,15 @@ func (rs *Resource) getGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, newGroupResponse(group), "Group retrieved successfully")
+	// Get teachers for this group
+	teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), id)
+	if err != nil {
+		// Log error but continue without teachers
+		log.Printf("Failed to get teachers for group %d: %v", id, err)
+		teachers = []*users.Teacher{}
+	}
+
+	common.Respond(w, r, http.StatusOK, newGroupResponse(group, teachers), "Group retrieved successfully")
 }
 
 // createGroup handles creating a new group
@@ -230,7 +287,10 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 		createdGroup = group // Fallback to the original group without room details
 	}
 
-	common.Respond(w, r, http.StatusCreated, newGroupResponse(createdGroup), "Group created successfully")
+	// Get teachers for the group (should be empty for new groups)
+	teachers, _ := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
+
+	common.Respond(w, r, http.StatusCreated, newGroupResponse(createdGroup, teachers), "Group created successfully")
 }
 
 // updateGroup handles updating a group
@@ -274,13 +334,24 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Update teacher assignments if provided
+	if req.TeacherIDs != nil {
+		if err := rs.EducationService.UpdateGroupTeachers(r.Context(), group.ID, req.TeacherIDs); err != nil {
+			log.Printf("Error updating group teachers: %v", err)
+			// Continue anyway - the group update was successful
+		}
+	}
+
 	// Get updated group with room details
 	updatedGroup, err := rs.EducationService.FindGroupWithRoom(r.Context(), group.ID)
 	if err != nil {
 		updatedGroup = group // Fallback to the original updated group without room details
 	}
 
-	common.Respond(w, r, http.StatusOK, newGroupResponse(updatedGroup), "Group updated successfully")
+	// Get teachers for the updated group
+	teachers, _ := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
+
+	common.Respond(w, r, http.StatusOK, newGroupResponse(updatedGroup, teachers), "Group updated successfully")
 }
 
 // deleteGroup handles deleting a group

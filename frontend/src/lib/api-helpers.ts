@@ -171,7 +171,7 @@ export async function apiDelete<T>(
  */
 export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
   console.error("API route error:", error);
-  
+
   // If it's an Error with a specific status code pattern, extract it
   if (error instanceof Error) {
     const regex = /API error \((\d+)\):/;
@@ -184,7 +184,7 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
       );
     }
   }
-  
+
   // Default to 500 for unknown errors
   return NextResponse.json(
     { error: "Internal Server Error" },
@@ -203,19 +203,19 @@ export function extractParams(
   params: Record<string, unknown>
 ): Record<string, string> {
   const urlParams: Record<string, string> = {};
-  
+
   // Extract from URL params object
   Object.keys(params).forEach(key => {
     if (params[key] && typeof params[key] === 'string') {
       urlParams[key] = params[key];
     }
   });
-  
+
   // Extract from query params
   const searchParams = request.nextUrl.searchParams;
   searchParams.forEach((value, key) => {
     urlParams[key] = value;
   });
-  
+
   return urlParams;
 }
