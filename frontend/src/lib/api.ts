@@ -45,6 +45,19 @@ function handleApiError(error: unknown, context: string): Error {
   return new Error(`${context}: ${error instanceof Error ? error.message : String(error)}`);
 }
 
+// Paginated response interface for API responses with pagination metadata
+interface PaginatedResponse<T> {
+  status: string;
+  data: T[];
+  pagination: {
+    current_page: number;
+    page_size: number;
+    total_pages: number;
+    total_records: number;
+  };
+  message?: string;
+}
+
 // Create an Axios instance
 const api = axios.create({
   baseURL: env.NEXT_PUBLIC_API_URL, // Client-safe environment variable pointing to the backend server
@@ -588,11 +601,16 @@ export const groupService = {
 
         // Type assertion to avoid unsafe assignment
         const responseData: unknown = await response.json();
-        return mapGroupsResponse(responseData as BackendGroup[]);
+        console.log('Client-side groups response:', responseData);
+        
+        // Ensure we have an array
+        const groups = Array.isArray(responseData) ? responseData : [];
+        return mapGroupsResponse(groups as BackendGroup[]);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
-        return mapGroupsResponse(response.data as unknown as BackendGroup[]);
+        const paginatedResponse = response.data as PaginatedResponse<BackendGroup>;
+        return mapGroupsResponse(paginatedResponse.data);
       }
     } catch (error) {
       console.error("Error fetching groups:", error);

@@ -30,6 +30,7 @@ func (r *GroupRepository) FindByName(ctx context.Context, name string) (*educati
 	group := new(education.Group)
 	err := r.db.NewSelect().
 		Model(group).
+		ModelTableExpr("education.groups").
 		Where("LOWER(name) = LOWER(?)", name).
 		Scan(ctx)
 
@@ -48,6 +49,7 @@ func (r *GroupRepository) FindByRoom(ctx context.Context, roomID int64) ([]*educ
 	var groups []*education.Group
 	err := r.db.NewSelect().
 		Model(&groups).
+		ModelTableExpr("education.groups").
 		Where("room_id = ?", roomID).
 		Scan(ctx)
 
@@ -66,7 +68,8 @@ func (r *GroupRepository) FindByTeacher(ctx context.Context, teacherID int64) ([
 	var groups []*education.Group
 	err := r.db.NewSelect().
 		Model(&groups).
-		Join("JOIN education.group_teacher gt ON gt.group_id = group.id").
+		ModelTableExpr("education.groups").
+		Join("JOIN education.group_teacher gt ON gt.group_id = ?TableAlias.id").
 		Where("gt.teacher_id = ?", teacherID).
 		Scan(ctx)
 
@@ -85,8 +88,9 @@ func (r *GroupRepository) FindWithRoom(ctx context.Context, groupID int64) (*edu
 	group := new(education.Group)
 	err := r.db.NewSelect().
 		Model(group).
+		ModelTableExpr("education.groups").
 		Relation("Room").
-		Where("id = ?", groupID).
+		Where("?TableAlias.id = ?", groupID).
 		Scan(ctx)
 
 	if err != nil {
@@ -163,7 +167,9 @@ func (r *GroupRepository) List(ctx context.Context, filters map[string]interface
 // ListWithOptions provides a type-safe way to list groups with query options
 func (r *GroupRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*education.Group, error) {
 	var groups []*education.Group
-	query := r.db.NewSelect().Model(&groups)
+	query := r.db.NewSelect().
+		Model(&groups).
+		ModelTableExpr("education.groups AS ?TableAlias")
 
 	// Apply query options
 	if options != nil {

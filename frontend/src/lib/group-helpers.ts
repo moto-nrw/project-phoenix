@@ -135,6 +135,11 @@ export function mapCombinedGroupResponse(backendGroup: BackendCombinedGroup): Co
 }
 
 export function mapGroupsResponse(backendGroups: BackendGroup[]): Group[] {
+    // Safety check to ensure we have an array
+    if (!Array.isArray(backendGroups)) {
+        console.error('Expected array for backendGroups, got:', backendGroups);
+        return [];
+    }
     return backendGroups.map(mapGroupResponse);
 }
 
