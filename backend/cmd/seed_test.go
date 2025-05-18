@@ -1,12 +1,13 @@
-package main
+package cmd
 
 import (
 	"fmt"
 	"math/rand"
+	"testing"
 	"time"
 )
 
-func main() {
+func TestSeedDataGeneration(t *testing.T) {
 	// Test array bounds issues
 	roomIDs := make([]int64, 10)
 	for i := 0; i < 10; i++ {

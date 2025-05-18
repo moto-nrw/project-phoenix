@@ -34,8 +34,8 @@ Usage:
 			fmt.Println("WARNING: --reset flag is set. This will delete existing data!")
 			fmt.Print("Are you sure you want to continue? (y/N): ")
 			var response string
-			fmt.Scanln(&response)
-			if response != "y" && response != "Y" {
+			_, err := fmt.Scanln(&response)
+			if err != nil || (response != "y" && response != "Y") {
 				fmt.Println("Seed operation cancelled.")
 				return
 			}
@@ -70,8 +70,6 @@ func seedDatabase(ctx context.Context, reset bool) {
 
 	// Use transaction for all operations
 	err = db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		// Initialize random seed
-		rand.Seed(time.Now().UnixNano())
 
 		// 1. Create Rooms first (no dependencies)
 		fmt.Println("Creating rooms...")
