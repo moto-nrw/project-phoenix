@@ -118,13 +118,39 @@ export const authConfig = {
               );
             }
 
+            // Try to fetch the user's profile to get their first name
+            let firstName: string = credentials.email as string;
+            try {
+              const profileResponse = await fetch(
+                `${env.NEXT_PUBLIC_API_URL}/me/profile`,
+                {
+                  method: "GET",
+                  headers: {
+                    Authorization: `Bearer ${responseData.access_token}`,
+                    "Content-Type": "application/json",
+                  },
+                }
+              );
+
+              if (profileResponse.ok) {
+                const profileData = await profileResponse.json() as {
+                  data: { first_name: string; last_name: string };
+                };
+                if (profileData.data?.first_name) {
+                  firstName = profileData.data.first_name;
+                  console.log("Successfully fetched first name:", firstName);
+                }
+              } else {
+                console.warn("Could not fetch user profile, using email as fallback");
+              }
+            } catch (profileError) {
+              console.error("Error fetching user profile:", profileError);
+            }
+
             // Using type assertions for credentials to satisfy TypeScript
             return {
               id: String(payload.id),
-              name:
-                payload.sub ??
-                payload.username ??
-                (credentials.email as string),
+              name: firstName,
               email: credentials.email as string,
               token: responseData.access_token,
               refreshToken: responseData.refresh_token,
