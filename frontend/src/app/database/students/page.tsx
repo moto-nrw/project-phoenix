@@ -32,7 +32,7 @@ export default function StudentsPage() {
   const { status } = useSession({
     required: true,
     onUnauthenticated() {
-      redirect("/login");
+      redirect("/");
     },
   });
 

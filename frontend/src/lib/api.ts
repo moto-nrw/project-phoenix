@@ -105,7 +105,7 @@ api.interceptors.response.use(
         console.log("Token refresh failed, unable to retry request");
         // Force redirect to login if we're in the browser
         if (typeof window !== "undefined") {
-          window.location.href = "/login";
+          window.location.href = "/";
         }
       }
     }

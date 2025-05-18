@@ -34,7 +34,7 @@ export default function ActivityStudentsPage() {
   const { status } = useSession({
     required: true,
     onUnauthenticated() {
-      redirect("/login");
+      redirect("/");
     },
   });
 

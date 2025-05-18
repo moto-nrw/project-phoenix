@@ -17,7 +17,7 @@ export default function TeachersPage() {
     const { status } = useSession({
         required: true,
         onUnauthenticated() {
-            redirect("/login");
+            redirect("/");
         },
     });
 

@@ -123,7 +123,7 @@ export default function SubstitutionPage() {
     const { data: session, status } = useSession({
         required: true,
         onUnauthenticated() {
-            router.push("/login");
+            router.push("/");
         },
     });
 
