@@ -158,6 +158,9 @@ type TeacherRepository interface {
 
 	// UpdateQualifications updates a teacher's qualifications
 	UpdateQualifications(ctx context.Context, id int64, qualifications string) error
+
+	// FindWithStaffAndPerson retrieves a teacher with their associated staff and person data
+	FindWithStaffAndPerson(ctx context.Context, id int64) (*Teacher, error)
 }
 
 // GuestRepository defines operations for managing guests

@@ -27,8 +27,18 @@ export default function GroupDetailPage() {
         // TODO: Implement student fetching when student API is complete
         // For now, only fetch group data
         const groupData = await groupService.getGroup(groupId);
+        console.log("Group data received in page:", groupData);
+
+        if (!groupData) {
+          console.error("No group data returned from API");
+          setError("Gruppe konnte nicht gefunden werden.");
+          setGroup(null);
+          setStudents([]);
+          return;
+        }
 
         setGroup(groupData);
+        console.log("Group state set to:", groupData);
         setStudents([]); // Empty array for now
         setError(null);
       } catch (err) {
@@ -238,7 +248,7 @@ export default function GroupDetailPage() {
             <div className="relative bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white">
               <div className="flex items-center">
                 <div className="mr-5 flex h-20 w-20 items-center justify-center rounded-full bg-white/30 text-3xl font-bold">
-                  {group.name[0] ?? "G"}
+                  {group.name?.[0] ?? "G"}
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold">{group.name}</h1>

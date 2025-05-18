@@ -22,7 +22,17 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
   const endpoint = `/api/groups/${id}`;
   
   // Fetch group from the API
-  return await apiGet<BackendGroup>(endpoint, token);
+  const response = await apiGet<BackendGroup>(endpoint, token);
+  console.log('Backend API response:', response);
+  
+  // If response is undefined or null, throw an error
+  if (!response) {
+    throw new Error('Group not found');
+  }
+  
+  // The response is already a BackendGroup, not wrapped
+  // Return it directly so that createGetHandler can wrap it once
+  return response;
 });
 
 /**

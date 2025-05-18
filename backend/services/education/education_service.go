@@ -421,9 +421,17 @@ func (s *service) GetGroupTeachers(ctx context.Context, groupID int64) ([]*users
 		idMap[id] = true
 	}
 
+	// Fetch staff and person data for each teacher
 	for _, teacher := range teachers {
 		if idMap[teacher.ID] {
-			filteredTeachers = append(filteredTeachers, teacher)
+			// Try to get teacher with staff and person data
+			fullTeacher, err := s.teacherRepo.FindWithStaffAndPerson(ctx, teacher.ID)
+			if err == nil {
+				filteredTeachers = append(filteredTeachers, fullTeacher)
+			} else {
+				// If fetch fails, use teacher without staff/person data
+				filteredTeachers = append(filteredTeachers, teacher)
+			}
 		}
 	}
 	

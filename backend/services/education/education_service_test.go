@@ -254,6 +254,14 @@ func (m *MockTeacherRepository) UpdateQualifications(ctx context.Context, id int
 	return args.Error(0)
 }
 
+func (m *MockTeacherRepository) FindWithStaffAndPerson(ctx context.Context, id int64) (*userModels.Teacher, error) {
+	args := m.Called(ctx, id)
+	if obj := args.Get(0); obj != nil {
+		return obj.(*userModels.Teacher), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 // Mock GroupTeacherRepository for completeness
 type MockGroupTeacherRepository struct {
 	mock.Mock
