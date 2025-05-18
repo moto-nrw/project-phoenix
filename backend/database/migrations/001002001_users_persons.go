@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-
+	"log"
 
 	"github.com/uptrace/bun"
 )

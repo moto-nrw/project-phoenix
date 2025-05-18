@@ -52,7 +52,6 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createStudent)
-		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/with-user", rs.createStudentWithUser)
 	})
 
 	return r
@@ -76,35 +75,35 @@ type StudentResponse struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 }
 
-// StudentRequest represents a student creation request
+// StudentRequest represents a student creation request with person details
 type StudentRequest struct {
-	FirstName       string `json:"first_name"`
-	LastName        string `json:"last_name"`
-	TagID           string `json:"tag_id,omitempty"`
+	// Person details (required)
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	TagID     string `json:"tag_id,omitempty"` // RFID tag ID (optional)
+
+	// Student-specific details (required)
 	SchoolClass     string `json:"school_class"`
 	GuardianName    string `json:"guardian_name"`
 	GuardianContact string `json:"guardian_contact"`
-	GuardianEmail   string `json:"guardian_email,omitempty"`
-	GuardianPhone   string `json:"guardian_phone,omitempty"`
-	GroupID         *int64 `json:"group_id,omitempty"`
-}
 
-// StudentWithUserRequest represents a student creation request with user account
-type StudentWithUserRequest struct {
-	Student  StudentRequest `json:"student"`
-	Email    string         `json:"email"`
-	Password string         `json:"password"`
+	// Optional fields
+	GuardianEmail string `json:"guardian_email,omitempty"`
+	GuardianPhone string `json:"guardian_phone,omitempty"`
+	GroupID       *int64 `json:"group_id,omitempty"`
 }
 
 // Bind validates the student request
 func (req *StudentRequest) Bind(r *http.Request) error {
-	// Basic validation
+	// Basic validation for person fields
 	if req.FirstName == "" {
 		return errors.New("first name is required")
 	}
 	if req.LastName == "" {
 		return errors.New("last name is required")
 	}
+
+	// Basic validation for student fields
 	if req.SchoolClass == "" {
 		return errors.New("school class is required")
 	}
@@ -114,26 +113,8 @@ func (req *StudentRequest) Bind(r *http.Request) error {
 	if req.GuardianContact == "" {
 		return errors.New("guardian contact is required")
 	}
-	return nil
-}
 
-// Bind validates the student with user request
-func (req *StudentWithUserRequest) Bind(r *http.Request) error {
-	// Validate student data
-	if err := req.Student.Bind(r); err != nil {
-		return err
-	}
-
-	// Validate user data
-	if req.Email == "" {
-		return errors.New("email is required")
-	}
-	if req.Password == "" {
-		return errors.New("password is required")
-	}
-	if len(req.Password) < 8 {
-		return errors.New("password must be at least 8 characters")
-	}
+	// Optional fields are not validated here - they will be validated in the model layer
 	return nil
 }
 
@@ -283,79 +264,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, newStudentResponse(student, person), "Student retrieved successfully")
 }
 
-// createStudentWithUser handles creating a new student with a user account
-func (rs *Resource) createStudentWithUser(w http.ResponseWriter, r *http.Request) {
-	// Parse request
-	req := &StudentWithUserRequest{}
-	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
-		return
-	}
-
-	// TODO: Create user account via auth service
-	// This would require access to the auth service to create accounts
-	// For now, we'll just create the person and student
-
-	// Create person
-	person := &users.Person{
-		FirstName: req.Student.FirstName,
-		LastName:  req.Student.LastName,
-	}
-
-	// Set TagID if provided
-	if req.Student.TagID != "" {
-		tagID := req.Student.TagID
-		person.TagID = &tagID
-	}
-
-	// Create person
-	if err := rs.PersonService.Create(r.Context(), person); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
-		return
-	}
-
-	// Create student
-	student := &users.Student{
-		PersonID:        person.ID,
-		SchoolClass:     req.Student.SchoolClass,
-		GuardianName:    req.Student.GuardianName,
-		GuardianContact: req.Student.GuardianContact,
-	}
-
-	// Set optional fields
-	if req.Student.GuardianEmail != "" {
-		email := req.Student.GuardianEmail
-		student.GuardianEmail = &email
-	}
-
-	if req.Student.GuardianPhone != "" {
-		phone := req.Student.GuardianPhone
-		student.GuardianPhone = &phone
-	}
-
-	if req.Student.GroupID != nil {
-		student.GroupID = req.Student.GroupID
-	}
-
-	// Create student
-	if err := rs.StudentRepo.Create(r.Context(), student); err != nil {
-		// Attempt to clean up person if student creation fails
-		_ = rs.PersonService.Delete(r.Context(), person.ID)
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Return the created student
-	common.Respond(w, r, http.StatusCreated, newStudentResponse(student, person), "Student created successfully")
-}
-
-// createStudent handles creating a new student without requiring user account or RFID
+// createStudent handles creating a new student with their person record
 func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &StudentRequest{}
@@ -366,20 +275,19 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create person with minimal requirements
+	// Create person from request
 	person := &users.Person{
 		FirstName: req.FirstName,
 		LastName:  req.LastName,
 	}
 
-	// Set TagID only if provided and not empty
+	// Set optional TagID if provided and not empty
 	if req.TagID != "" {
 		tagID := req.TagID
 		person.TagID = &tagID
 	}
 
-	// Create person using the service
-	// No longer requires TagID or AccountID
+	// Create person - validation occurs at the model layer
 	if err := rs.PersonService.Create(r.Context(), person); err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Render error: %v", err)
@@ -387,7 +295,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create student
+	// Create student with the person ID
 	student := &users.Student{
 		PersonID:        person.ID,
 		SchoolClass:     req.SchoolClass,
@@ -412,15 +320,17 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Create student
 	if err := rs.StudentRepo.Create(r.Context(), student); err != nil {
-		// Attempt to clean up person if student creation fails
-		_ = rs.PersonService.Delete(r.Context(), person.ID)
+		// Clean up person if student creation fails
+		if deleteErr := rs.PersonService.Delete(r.Context(), person.ID); deleteErr != nil {
+			log.Printf("Error cleaning up person after failed student creation: %v", deleteErr)
+		}
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
 	}
 
-	// Return the created student
+	// Return the created student with person data
 	common.Respond(w, r, http.StatusCreated, newStudentResponse(student, person), "Student created successfully")
 }
 
