@@ -64,7 +64,10 @@ export default function GroupDetailPage() {
       setError(null);
 
       // Update group
-      const updatedGroup = await groupService.updateGroup(groupId, formData);
+      await groupService.updateGroup(groupId, formData);
+      
+      // Re-fetch the data to ensure we have all the nested fields properly populated
+      const updatedGroup = await groupService.getGroup(groupId);
       setGroup(updatedGroup);
       setIsEditing(false);
     } catch (err) {
