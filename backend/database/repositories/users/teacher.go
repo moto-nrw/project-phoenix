@@ -69,7 +69,7 @@ func (r *TeacherRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 	err := r.db.NewSelect().
 		Model(&teachers).
 		ModelTableExpr("users.teachers AS teacher").
-		Join("JOIN education.group_teachers gt ON gt.teacher_id = teacher.id").
+		Join("JOIN education.group_teacher gt ON gt.teacher_id = teacher.id").
 		Where("gt.group_id = ?", groupID).
 		Scan(ctx)
 
