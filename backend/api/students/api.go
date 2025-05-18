@@ -1,8 +1,8 @@
 package students
 
 import (
-	"log"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -51,6 +51,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}", rs.getStudent)
 
 		// Routes requiring users:create permission
+		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createStudent)
 		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/with-user", rs.createStudentWithUser)
 	})
 
@@ -214,8 +215,8 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	queryOptions.WithPagination(page, pageSize)
 	queryOptions.Filter = filter
 
-	// Get all students
-	students, err := rs.StudentRepo.List(r.Context(), queryOptions.Filter.ToMap())
+	// Get all students using the new ListWithOptions method
+	students, err := rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -338,6 +339,75 @@ func (rs *Resource) createStudentWithUser(w http.ResponseWriter, r *http.Request
 
 	if req.Student.GroupID != nil {
 		student.GroupID = req.Student.GroupID
+	}
+
+	// Create student
+	if err := rs.StudentRepo.Create(r.Context(), student); err != nil {
+		// Attempt to clean up person if student creation fails
+		_ = rs.PersonService.Delete(r.Context(), person.ID)
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Return the created student
+	common.Respond(w, r, http.StatusCreated, newStudentResponse(student, person), "Student created successfully")
+}
+
+// createStudent handles creating a new student without requiring user account or RFID
+func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
+	// Parse request
+	req := &StudentRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Create person with minimal requirements
+	person := &users.Person{
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+	}
+
+	// Set TagID only if provided and not empty
+	if req.TagID != "" {
+		tagID := req.TagID
+		person.TagID = &tagID
+	}
+
+	// Create person using the service
+	// No longer requires TagID or AccountID
+	if err := rs.PersonService.Create(r.Context(), person); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Create student
+	student := &users.Student{
+		PersonID:        person.ID,
+		SchoolClass:     req.SchoolClass,
+		GuardianName:    req.GuardianName,
+		GuardianContact: req.GuardianContact,
+	}
+
+	// Set optional fields
+	if req.GuardianEmail != "" {
+		email := req.GuardianEmail
+		student.GuardianEmail = &email
+	}
+
+	if req.GuardianPhone != "" {
+		phone := req.GuardianPhone
+		student.GuardianPhone = &phone
+	}
+
+	if req.GroupID != nil {
+		student.GroupID = req.GroupID
 	}
 
 	// Create student

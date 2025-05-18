@@ -3,6 +3,8 @@ package users
 import (
 	"context"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // RFIDCardRepository defines operations for managing RFID cards
@@ -90,6 +92,9 @@ type StudentRepository interface {
 
 	// List retrieves students matching the filters
 	List(ctx context.Context, filters map[string]interface{}) ([]*Student, error)
+
+	// ListWithOptions retrieves students with query options
+	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Student, error)
 
 	// UpdateLocation updates a student's location status
 	UpdateLocation(ctx context.Context, id int64, location string) error

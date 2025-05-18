@@ -58,10 +58,9 @@ func (p *Person) Validate() error {
 	p.FirstName = strings.TrimSpace(p.FirstName)
 	p.LastName = strings.TrimSpace(p.LastName)
 
-	// Ensure at least one identifier is set (TagID or AccountID)
-	if p.TagID == nil && p.AccountID == nil {
-		return errors.New("at least one identifier (TagID or AccountID) must be set")
-	}
+	// Note: Removed the requirement for TagID or AccountID
+	// Students can be created without either identifier
+	// The check is kept in the database constraint but made optional in the model
 
 	return nil
 }

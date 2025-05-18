@@ -231,10 +231,15 @@ func (r *StudentRepository) List(ctx context.Context, filters map[string]interfa
 // ListWithOptions provides a type-safe way to list students with query options
 func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Student, error) {
 	var students []*users.Student
-	query := r.db.NewSelect().Model(&students)
+	query := r.db.NewSelect().
+		Model(&students).
+		ModelTableExpr("users.students AS student")
 
-	// Apply query options
+	// Apply query options with table alias
 	if options != nil {
+		if options.Filter != nil {
+			options.Filter.WithTableAlias("student")
+		}
 		query = options.ApplyToQuery(query)
 	}
 
@@ -255,7 +260,7 @@ func (r *StudentRepository) FindWithPerson(ctx context.Context, id int64) (*user
 	err := r.db.NewSelect().
 		Model(student).
 		Relation("Person").
-		Where("id = ?", id).
+		Where("users.students.id = ?", id).
 		Scan(ctx)
 
 	if err != nil {

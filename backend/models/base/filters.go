@@ -52,6 +52,7 @@ type Filter struct {
 	conditions []FilterCondition
 	or         []Filter
 	and        []Filter
+	tableAlias string
 }
 
 // NewFilter creates a new filter
@@ -60,7 +61,14 @@ func NewFilter() *Filter {
 		conditions: make([]FilterCondition, 0),
 		or:         make([]Filter, 0),
 		and:        make([]Filter, 0),
+		tableAlias: "",
 	}
+}
+
+// WithTableAlias sets the table alias for the filter
+func (f *Filter) WithTableAlias(alias string) *Filter {
+	f.tableAlias = alias
+	return f
 }
 
 // Where adds a new condition to the filter
@@ -182,41 +190,49 @@ func (f *Filter) ToMap() map[string]interface{} {
 func (f *Filter) ApplyToQuery(query *bun.SelectQuery) *bun.SelectQuery {
 	// Apply basic conditions
 	for _, condition := range f.conditions {
+		// Prepare the field identifier with table alias if set
+		var fieldIdent interface{}
+		if f.tableAlias != "" {
+			fieldIdent = bun.Ident(f.tableAlias + "." + condition.Field)
+		} else {
+			fieldIdent = bun.Ident(condition.Field)
+		}
+
 		switch condition.Operator {
 		case OpEqual:
-			query = query.Where("? = ?", bun.Ident(condition.Field), condition.Value)
+			query = query.Where("? = ?", fieldIdent, condition.Value)
 		case OpNotEqual:
-			query = query.Where("? != ?", bun.Ident(condition.Field), condition.Value)
+			query = query.Where("? != ?", fieldIdent, condition.Value)
 		case OpGreaterThan:
-			query = query.Where("? > ?", bun.Ident(condition.Field), condition.Value)
+			query = query.Where("? > ?", fieldIdent, condition.Value)
 		case OpGreaterThanOrEqual:
-			query = query.Where("? >= ?", bun.Ident(condition.Field), condition.Value)
+			query = query.Where("? >= ?", fieldIdent, condition.Value)
 		case OpLessThan:
-			query = query.Where("? < ?", bun.Ident(condition.Field), condition.Value)
+			query = query.Where("? < ?", fieldIdent, condition.Value)
 		case OpLessThanOrEqual:
-			query = query.Where("? <= ?", bun.Ident(condition.Field), condition.Value)
+			query = query.Where("? <= ?", fieldIdent, condition.Value)
 		case OpLike:
-			query = query.Where("? LIKE ?", bun.Ident(condition.Field), condition.Value)
+			query = query.Where("? LIKE ?", fieldIdent, condition.Value)
 		case OpILike:
-			query = query.Where("? ILIKE ?", bun.Ident(condition.Field), condition.Value)
+			query = query.Where("? ILIKE ?", fieldIdent, condition.Value)
 		case OpIsNull:
-			query = query.Where("? IS NULL", bun.Ident(condition.Field))
+			query = query.Where("? IS NULL", fieldIdent)
 		case OpIsNotNull:
-			query = query.Where("? IS NOT NULL", bun.Ident(condition.Field))
+			query = query.Where("? IS NOT NULL", fieldIdent)
 		case OpIn:
 			if values, ok := condition.Value.([]interface{}); ok {
-				query = query.Where("? IN (?)", bun.Ident(condition.Field), bun.In(values))
+				query = query.Where("? IN (?)", fieldIdent, bun.In(values))
 			}
 		case OpNotIn:
 			if values, ok := condition.Value.([]interface{}); ok {
-				query = query.Where("? NOT IN (?)", bun.Ident(condition.Field), bun.In(values))
+				query = query.Where("? NOT IN (?)", fieldIdent, bun.In(values))
 			}
 		case OpContains:
-			query = query.Where("? @> ?", bun.Ident(condition.Field), condition.Value)
+			query = query.Where("? @> ?", fieldIdent, condition.Value)
 		case OpContainedBy:
-			query = query.Where("? <@ ?", bun.Ident(condition.Field), condition.Value)
+			query = query.Where("? <@ ?", fieldIdent, condition.Value)
 		case OpHasKey:
-			query = query.Where("? ? ?", bun.Ident(condition.Field), condition.Value)
+			query = query.Where("? ? ?", fieldIdent, condition.Value)
 		}
 	}
 

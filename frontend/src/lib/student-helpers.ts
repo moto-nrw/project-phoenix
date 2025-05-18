@@ -20,6 +20,12 @@ export interface BackendStudent {
     name_lg?: string; // Legal Guardian name
     contact_lg?: string; // Legal Guardian contact
     custom_users_id?: number;
+    tag_id?: string;
+    email?: string;
+    password?: string;
+    guardian_email?: string;
+    guardian_phone?: string;
+    account_id?: number;
 }
 
 // Frontend types (mapped from backend)
@@ -80,7 +86,14 @@ export function mapSingleStudentResponse(response: { data: BackendStudent }): St
 }
 
 // Prepare frontend student for backend
-export function prepareStudentForBackend(student: Partial<Student>): Partial<BackendStudent> {
+export function prepareStudentForBackend(student: Partial<Student> & { 
+    tag_id?: string; 
+    email?: string; 
+    password?: string;
+    guardian_email?: string;
+    guardian_phone?: string;
+    account_id?: number;
+}): Partial<BackendStudent> {
     return {
         id: student.id ? parseInt(student.id, 10) : undefined,
         first_name: student.first_name,
@@ -96,6 +109,12 @@ export function prepareStudentForBackend(student: Partial<Student>): Partial<Bac
         name_lg: student.name_lg,
         contact_lg: student.contact_lg,
         custom_users_id: student.custom_users_id ? parseInt(student.custom_users_id, 10) : undefined,
+        tag_id: student.tag_id,
+        email: student.email,
+        password: student.password,
+        guardian_email: student.guardian_email,
+        guardian_phone: student.guardian_phone,
+        account_id: student.account_id,
     };
 }
 
@@ -108,9 +127,18 @@ export interface CreateStudentRequest {
     student_id?: string;
     group_id?: number;
     in_house?: boolean;
+    wc?: boolean;
+    school_yard?: boolean;
+    bus?: boolean;
     name_lg?: string;
     contact_lg?: string;
     custom_users_id?: number;
+    tag_id?: string;
+    email?: string;
+    password?: string;
+    account_id?: number;
+    guardian_email?: string;
+    guardian_phone?: string;
 }
 
 export interface UpdateStudentRequest {
