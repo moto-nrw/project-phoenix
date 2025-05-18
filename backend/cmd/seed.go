@@ -55,7 +55,14 @@ func seedDatabase(ctx context.Context, reset bool) {
 	if err != nil {
 		log.Fatal("Failed to initialize database:", err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Failed to close database connection: %v", err)
+		}
+	}()
+
+	// Initialize random number generator
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	// Reset data if requested
 	if reset {
@@ -97,7 +104,7 @@ func seedDatabase(ctx context.Context, reset bool) {
 
 		// 4. Create Persons (base for all users)
 		fmt.Println("Creating persons...")
-		personIDs, err := seedPersons(ctx, tx, rfidIDs)
+		personIDs, err := seedPersons(ctx, tx, rfidIDs, rng)
 		if err != nil {
 			return fmt.Errorf("failed to seed persons: %w", err)
 		}
@@ -121,8 +128,8 @@ func seedDatabase(ctx context.Context, reset bool) {
 
 		// 6. Create Students from remaining persons
 		fmt.Println("Creating students...")
-		studentPersonIDs := personIDs[30:]                                        // Remaining persons are students
-		studentIDs, err := seedStudents(ctx, tx, studentPersonIDs, groupIDs[:10]) // First 10 groups are grade classes
+		studentPersonIDs := personIDs[30:]                                             // Remaining persons are students
+		studentIDs, err := seedStudents(ctx, tx, studentPersonIDs, groupIDs[:10], rng) // First 10 groups are grade classes
 		if err != nil {
 			return fmt.Errorf("failed to seed students: %w", err)
 		}
@@ -307,7 +314,7 @@ func seedRFIDCards(ctx context.Context, tx bun.Tx) ([]string, error) {
 	return rfidIDs, nil
 }
 
-func seedPersons(ctx context.Context, tx bun.Tx, rfidIDs []string) ([]int64, error) {
+func seedPersons(ctx context.Context, tx bun.Tx, rfidIDs []string, rng *rand.Rand) ([]int64, error) {
 	// First names
 	firstNames := []string{
 		"Emma", "Liam", "Olivia", "Noah", "Ava", "Ethan", "Sophia", "Mason",
@@ -334,8 +341,8 @@ func seedPersons(ctx context.Context, tx bun.Tx, rfidIDs []string) ([]int64, err
 	// Create 150 persons (30 staff/teachers + 120 students)
 	personIDs := make([]int64, 0, 150)
 	for i := 0; i < 150; i++ {
-		firstName := firstNames[rand.Intn(len(firstNames))]
-		lastName := lastNames[rand.Intn(len(lastNames))]
+		firstName := firstNames[rng.Intn(len(firstNames))]
+		lastName := lastNames[rng.Intn(len(lastNames))]
 
 		var id int64
 		query := `INSERT INTO users.persons (first_name, last_name, tag_id, created_at, updated_at) 
@@ -434,7 +441,7 @@ func seedTeachers(ctx context.Context, tx bun.Tx, staffIDs []int64) ([]int64, er
 	return teacherIDs, nil
 }
 
-func seedStudents(ctx context.Context, tx bun.Tx, personIDs []int64, classGroupIDs []int64) ([]int64, error) {
+func seedStudents(ctx context.Context, tx bun.Tx, personIDs []int64, classGroupIDs []int64, rng *rand.Rand) ([]int64, error) {
 	// Guardian first names
 	guardianFirstNames := []string{
 		"John", "Mary", "Robert", "Patricia", "James", "Jennifer", "Michael",
@@ -457,11 +464,11 @@ func seedStudents(ctx context.Context, tx bun.Tx, personIDs []int64, classGroupI
 			return nil, fmt.Errorf("failed to get person last name: %w", err)
 		}
 
-		guardianFirstName := guardianFirstNames[rand.Intn(len(guardianFirstNames))]
+		guardianFirstName := guardianFirstNames[rng.Intn(len(guardianFirstNames))]
 		guardianName := fmt.Sprintf("%s %s", guardianFirstName, personLastName)
 
 		// Generate contact info
-		guardianPhone := fmt.Sprintf("+1 555-%03d-%04d", rand.Intn(1000), rand.Intn(10000))
+		guardianPhone := fmt.Sprintf("+1 555-%03d-%04d", rng.Intn(1000), rng.Intn(10000))
 		guardianEmail := fmt.Sprintf("%s.%s@email.com",
 			strings.ToLower(guardianFirstName),
 			strings.ToLower(personLastName))
@@ -469,7 +476,7 @@ func seedStudents(ctx context.Context, tx bun.Tx, personIDs []int64, classGroupI
 		// Randomly set initial location (most are "in house")
 		bus := false
 		inHouse := true
-		if rand.Float32() < 0.3 {
+		if rng.Float32() < 0.3 {
 			bus = true
 			inHouse = false
 		}

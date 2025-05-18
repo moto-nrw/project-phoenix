@@ -25,10 +25,10 @@ func TestSeedDataGeneration(t *testing.T) {
 	}
 
 	// Test random seed
-	rand.Seed(time.Now().UnixNano())
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	fmt.Println("\nTesting random generation:")
 	for i := 0; i < 5; i++ {
-		fmt.Printf("Random: %f\n", rand.Float32())
+		fmt.Printf("Random: %f\n", rng.Float32())
 	}
 
 	// Test grade assignment
