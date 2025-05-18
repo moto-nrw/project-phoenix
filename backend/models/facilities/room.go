@@ -29,16 +29,16 @@ func (r *Room) TableName() string {
 // BeforeAppendModel lets us modify query before it's executed
 func (r *Room) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("facilities.rooms")
+		q.ModelTableExpr(`facilities.rooms AS "room"`)
 	}
 	if q, ok := query.(*bun.InsertQuery); ok {
 		q.ModelTableExpr("facilities.rooms")
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("facilities.rooms")
+		q.ModelTableExpr(`facilities.rooms AS "room"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("facilities.rooms")
+		q.ModelTableExpr(`facilities.rooms AS "room"`)
 	}
 	return nil
 }

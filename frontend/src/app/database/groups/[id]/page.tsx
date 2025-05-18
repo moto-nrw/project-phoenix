@@ -24,14 +24,12 @@ export default function GroupDetailPage() {
       try {
         setLoading(true);
 
-        // Fetch group and its students in parallel
-        const [groupData, studentsData] = await Promise.all([
-          groupService.getGroup(groupId),
-          groupService.getGroupStudents(groupId),
-        ]);
+        // TODO: Implement student fetching when student API is complete
+        // For now, only fetch group data
+        const groupData = await groupService.getGroup(groupId);
 
         setGroup(groupData);
-        setStudents(studentsData);
+        setStudents([]); // Empty array for now
         setError(null);
       } catch (err) {
         console.error("Error fetching group details:", err);
@@ -385,24 +383,16 @@ export default function GroupDetailPage() {
 
                 {students.length === 0 ? (
                   <div className="rounded-lg bg-yellow-50 p-4 text-center text-yellow-800">
-                    <p className="mb-2">
-                      Keine Schüler in dieser Gruppe gefunden.
+                    <p className="mb-2 font-semibold">
+                      TODO: Student-API Integration ausstehend
                     </p>
                     <p className="text-sm">
-                      Wenn Sie gerade einen Schüler hinzugefügt haben, könnte
-                      das System einige Sekunden benötigen, um das zu
-                      verarbeiten.
+                      Die Anzeige der Schüler in dieser Gruppe wird implementiert, 
+                      sobald die Student-API fertiggestellt ist.
                     </p>
-                    <button
-                      onClick={() => {
-                        void groupService
-                          .getGroupStudents(groupId)
-                          .then((data) => setStudents(data));
-                      }}
-                      className="mt-3 rounded-md bg-yellow-100 px-4 py-2 text-yellow-800 transition-colors duration-200 hover:bg-yellow-200"
-                    >
-                      Aktualisieren
-                    </button>
+                    <div className="mt-3 text-xs text-gray-600">
+                      (Entwicklungshinweis: Endpoint /api/groups/{"{id}"}/students fehlt noch)
+                    </div>
                   </div>
                 ) : (
                   <StudentList students={students} showDetails={true} />

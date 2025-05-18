@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/uptrace/bun"
 )
 
@@ -86,10 +87,22 @@ func (r *GroupRepository) FindByTeacher(ctx context.Context, teacherID int64) ([
 // FindWithRoom retrieves a group with its associated room
 func (r *GroupRepository) FindWithRoom(ctx context.Context, groupID int64) (*education.Group, error) {
 	group := new(education.Group)
+	
+	// Perform manual join to avoid schema issues with Relation()
+	type Result struct {
+		*education.Group `bun:",extend"`
+		Room *facilities.Room `bun:"rel:belongs-to,join:room_id=id"`
+	}
+	
+	result := new(Result)
 	err := r.db.NewSelect().
-		Model(group).
+		Model(result).
 		ModelTableExpr(`education.groups AS "group"`).
-		Relation("Room").
+		ColumnExpr(`"group".*`).
+		ColumnExpr(`"room".id AS "room__id", "room".created_at AS "room__created_at", "room".updated_at AS "room__updated_at"`).
+		ColumnExpr(`"room".name AS "room__name", "room".building AS "room__building", "room".floor AS "room__floor"`).
+		ColumnExpr(`"room".capacity AS "room__capacity", "room".category AS "room__category", "room".color AS "room__color"`).
+		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`).
 		Where(`"group".id = ?`, groupID).
 		Scan(ctx)
 
@@ -98,6 +111,12 @@ func (r *GroupRepository) FindWithRoom(ctx context.Context, groupID int64) (*edu
 			Op:  "find with room",
 			Err: err,
 		}
+	}
+
+	// Map result to group
+	group = result.Group
+	if result.Room != nil && result.Room.ID != 0 {
+		group.Room = result.Room
 	}
 
 	return group, nil

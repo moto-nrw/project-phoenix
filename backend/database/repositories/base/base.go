@@ -77,7 +77,7 @@ func (r *Repository[T]) FindByID(ctx context.Context, id interface{}) (T, error)
 	err := r.DB.NewSelect().
 		Model(entityVal).
 		ModelTableExpr(tableExpr).
-		Where("id = ?", id).
+		Where(fmt.Sprintf(`"%s".id = ?`, entityName), id).
 		Scan(ctx)
 	if err != nil {
 		return entity, &modelBase.DatabaseError{
@@ -143,7 +143,7 @@ func (r *Repository[T]) Delete(ctx context.Context, id interface{}) error {
 	_, err := r.DB.NewDelete().
 		Model(entityVal).
 		ModelTableExpr(tableExpr).
-		Where("id = ?", id).
+		Where(fmt.Sprintf(`"%s".id = ?`, entityName), id).
 		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
