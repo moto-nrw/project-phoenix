@@ -232,8 +232,23 @@ export const studentService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json() as BackendStudent[];
-        return mapStudentsResponse(responseData);
+        const responseData = await response.json();
+        console.log("Response data in studentService:", JSON.stringify(responseData, null, 2));
+        // The response structure is { status, data, pagination, message }
+        const students = (responseData as any).data || responseData;
+        console.log("Extracted students:", JSON.stringify(students, null, 2));
+        const mappedStudents = mapStudentsResponse(students as BackendStudent[]);
+        console.log("Mapped students:", JSON.stringify(mappedStudents, null, 2));
+        // Double check the mapped result
+        mappedStudents.forEach((student, index) => {
+          console.log(`Student ${index}:`, {
+            name: student.name,
+            first_name: student.first_name,
+            second_name: student.second_name,
+            fullName: `${student.first_name} ${student.second_name}`
+          });
+        });
+        return mappedStudents;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
@@ -877,8 +892,23 @@ export const groupService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json() as BackendStudent[];
-        return mapStudentsResponse(responseData);
+        const responseData = await response.json();
+        console.log("Response data in studentService:", JSON.stringify(responseData, null, 2));
+        // The response structure is { status, data, pagination, message }
+        const students = (responseData as any).data || responseData;
+        console.log("Extracted students:", JSON.stringify(students, null, 2));
+        const mappedStudents = mapStudentsResponse(students as BackendStudent[]);
+        console.log("Mapped students:", JSON.stringify(mappedStudents, null, 2));
+        // Double check the mapped result
+        mappedStudents.forEach((student, index) => {
+          console.log(`Student ${index}:`, {
+            name: student.name,
+            first_name: student.first_name,
+            second_name: student.second_name,
+            fullName: `${student.first_name} ${student.second_name}`
+          });
+        });
+        return mappedStudents;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);

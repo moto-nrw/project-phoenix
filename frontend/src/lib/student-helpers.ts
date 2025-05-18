@@ -42,9 +42,18 @@ export interface Student {
 // Mapping functions
 export function mapStudentResponse(backendStudent: BackendStudent): Student {
     // Construct the full name from first and last name
-    const name = `${backendStudent.first_name} ${backendStudent.last_name}`;
+    const firstName = backendStudent.first_name || '';
+    const lastName = backendStudent.last_name || '';
+    const name = `${firstName} ${lastName}`.trim();
     
-    return {
+    console.log('Mapping student:', {
+        input: backendStudent,
+        firstName,
+        lastName,
+        constructedName: name
+    });
+    
+    const mapped = {
         id: String(backendStudent.id),
         name: name,
         first_name: backendStudent.first_name,
@@ -62,6 +71,9 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student {
         contact_lg: backendStudent.guardian_contact,
         custom_users_id: undefined, // Not provided by backend
     };
+    
+    console.log('Mapped student result:', mapped);
+    return mapped;
 }
 
 // Map array of students
@@ -129,11 +141,20 @@ export interface UpdateStudentRequest {
 
 // Helper functions
 export function formatStudentName(student: Student): string {
+    console.log('formatStudentName input:', {
+        name: student.name,
+        first_name: student.first_name,
+        second_name: student.second_name
+    });
+    
     if (student.name) return student.name;
     
-    return [student.first_name, student.second_name]
+    const fallback = [student.first_name, student.second_name]
         .filter(Boolean)
         .join(' ') || 'Unnamed Student';
+    
+    console.log('formatStudentName output:', fallback);
+    return fallback;
 }
 
 export function formatStudentStatus(student: Student): string {

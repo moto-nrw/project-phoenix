@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
 import type { Student } from "@/lib/api";
 import { studentService } from "@/lib/api";
+import { formatStudentName } from "@/lib/student-helpers";
 import { GroupSelector } from "@/components/groups";
 import Link from "next/link";
 
@@ -50,11 +51,13 @@ export default function StudentsPage() {
       try {
         // Fetch from the real API using our student service
         const data = await studentService.getStudents(filters);
+        console.log("Data received from studentService:", JSON.stringify(data, null, 2));
 
         if (data.length === 0 && !search && !groupId) {
           console.log("No students returned from API, checking connection");
         }
 
+        console.log("Setting students state with:", JSON.stringify(data, null, 2));
         setStudents(data);
         setError(null);
       } catch (apiErr) {
@@ -89,6 +92,11 @@ export default function StudentsPage() {
 
     return () => clearTimeout(timer);
   }, [searchFilter, groupFilter]);
+  
+  // Debug log students state
+  useEffect(() => {
+    console.log("Current students state:", JSON.stringify(students, null, 2));
+  }, [students]);
 
   if (status === "loading" || loading) {
     return (
@@ -103,11 +111,13 @@ export default function StudentsPage() {
   };
 
   // Custom renderer for student items
-  const renderStudent = (student: Student) => (
+  const renderStudent = (student: Student) => {
+    console.log("Rendering student:", JSON.stringify(student, null, 2));
+    return (
     <>
       <div className="flex flex-col transition-transform duration-200 group-hover:translate-x-1">
         <span className="font-semibold text-gray-900 transition-colors duration-200 group-hover:text-blue-600">
-          {student.name}
+          {formatStudentName(student)}
           {student.in_house && (
             <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">
               Anwesend
@@ -146,6 +156,7 @@ export default function StudentsPage() {
       </svg>
     </>
   );
+  };
 
   // Show error if loading failed
   if (error) {
@@ -258,7 +269,9 @@ export default function StudentsPage() {
         {/* Student List */}
         <div className="w-full space-y-3">
           {students.length > 0 ? (
-            students.map((student) => (
+            students.map((student) => {
+              console.log("About to render student:", JSON.stringify(student, null, 2));
+              return (
               <div
                 key={student.id}
                 className="group flex cursor-pointer items-center justify-between rounded-lg border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:translate-y-[-1px] hover:border-blue-200 hover:shadow-md"
@@ -266,7 +279,8 @@ export default function StudentsPage() {
               >
                 {renderStudent(student)}
               </div>
-            ))
+              );
+            })
           ) : (
             <div className="py-8 text-center">
               <p className="text-gray-500">

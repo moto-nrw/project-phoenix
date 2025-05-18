@@ -2,7 +2,7 @@
 import type { NextRequest } from "next/server";
 import { apiGet, apiPost } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
-import type { Student, CreateStudentRequest } from "~/lib/student-helpers";
+import type { Student, CreateStudentRequest, BackendStudent } from "~/lib/student-helpers";
 import { mapStudentResponse } from "~/lib/student-helpers";
 
 /**
@@ -75,25 +75,13 @@ export const GET = createGetHandler(async (request: NextRequest, token: string):
         return [];
       }
       
-      // Map the backend response format to the frontend format
-      const mappedStudents = response.data.map((student: StudentResponseFromBackend): Student => ({
-        id: String(student.id),
-        name: `${student.first_name} ${student.last_name}`,
-        first_name: student.first_name,
-        second_name: student.last_name,
-        school_class: student.school_class,
-        grade: undefined, // Not provided by backend
-        studentId: student.tag_id,
-        group_name: undefined, // Not provided directly, needs to be looked up if needed
-        group_id: student.group_id ? String(student.group_id) : undefined,
-        in_house: student.location === "In House",
-        wc: student.location === "WC",
-        school_yard: student.location === "School Yard",
-        bus: student.location === "Bus",
-        name_lg: student.guardian_name,
-        contact_lg: student.guardian_contact,
-        custom_users_id: undefined, // Not provided by backend
-      }));
+      // Map the backend response format to the frontend format using the consistent mapping function
+      const mappedStudents = response.data.map((student: StudentResponseFromBackend) => {
+        console.log('Mapping individual student in route:', student);
+        const mapped = mapStudentResponse(student as any);
+        console.log('Mapped result in route:', mapped);
+        return mapped;
+      });
       
       return mappedStudents;
     }
@@ -147,25 +135,8 @@ export const POST = createPostHandler<Student, any>(
       // Create the student via the simplified API endpoint
       const response = await apiPost<StudentResponseFromBackend>("/api/students", token, backendRequest);
       
-      // Map the backend response to frontend format
-      return {
-        id: String(response.id),
-        name: `${response.first_name} ${response.last_name}`,
-        first_name: response.first_name,
-        second_name: response.last_name,
-        school_class: response.school_class,
-        grade: undefined, // Not used by backend
-        studentId: response.tag_id,
-        group_name: undefined, // Would need separate lookup
-        group_id: response.group_id ? String(response.group_id) : undefined,
-        in_house: response.location === "In House",
-        wc: response.location === "WC",
-        school_yard: response.location === "School Yard",
-        bus: response.location === "Bus",
-        name_lg: response.guardian_name,
-        contact_lg: response.guardian_contact,
-        custom_users_id: undefined, // Not used by backend
-      };
+      // Map the backend response to frontend format using the consistent mapping function
+      return mapStudentResponse(response as any);
     } catch (error) {
       // Check for permission errors (403 Forbidden)
       if (error instanceof Error && error.message.includes("403")) {

@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers";
 import { createGetHandler, createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
 import type { BackendStudent, Student, UpdateStudentRequest } from "~/lib/student-helpers";
-import { mapStudentResponse, mapSingleStudentResponse } from "~/lib/student-helpers";
+import { mapStudentResponse } from "~/lib/student-helpers";
 
 /**
  * Type definition for API response format
@@ -56,25 +56,9 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     
     const student = response.data;
     
-    // Map the response to frontend format
-    return {
-      id: String(student.id),
-      name: `${student.first_name} ${student.last_name}`,
-      first_name: student.first_name,
-      second_name: student.last_name,
-      school_class: student.school_class,
-      grade: undefined,
-      studentId: student.tag_id,
-      group_name: undefined,
-      group_id: student.group_id ? String(student.group_id) : undefined,
-      in_house: student.location === "in-house",
-      wc: student.location === "wc",
-      school_yard: student.location === "school-yard",
-      bus: student.location === "bus",
-      name_lg: student.guardian_name,
-      contact_lg: student.guardian_contact,
-      custom_users_id: undefined,
-    };
+    // Map the response to frontend format using the same mapping function for consistency
+    const mappedStudent = mapStudentResponse(student as BackendStudent);
+    return mappedStudent;
   } catch (error) {
     console.error("Error fetching student:", error);
     throw error;

@@ -63,8 +63,8 @@ import type { NextRequest } from "next/server";
 
         const data = await handler(request, session.user.token, safeParams);
 
-        // For the rooms and students endpoints, we need to pass the raw data directly
-        if (request.nextUrl.pathname === '/api/rooms' || request.nextUrl.pathname === '/api/students') {
+        // For the rooms endpoint, we need to pass the raw data directly
+        if (request.nextUrl.pathname === '/api/rooms') {
           return NextResponse.json(data);
         }
 
