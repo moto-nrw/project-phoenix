@@ -52,6 +52,9 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createStudent)
+
+		// Routes requiring users:update permission
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}", rs.updateStudent)
 	})
 
 	return r
@@ -93,6 +96,22 @@ type StudentRequest struct {
 	GroupID       *int64 `json:"group_id,omitempty"`
 }
 
+// UpdateStudentRequest represents a student update request
+type UpdateStudentRequest struct {
+	// Person details (optional for update)
+	FirstName *string `json:"first_name,omitempty"`
+	LastName  *string `json:"last_name,omitempty"`
+	TagID     *string `json:"tag_id,omitempty"`
+
+	// Student-specific details (optional for update)
+	SchoolClass     *string `json:"school_class,omitempty"`
+	GuardianName    *string `json:"guardian_name,omitempty"`
+	GuardianContact *string `json:"guardian_contact,omitempty"`
+	GuardianEmail   *string `json:"guardian_email,omitempty"`
+	GuardianPhone   *string `json:"guardian_phone,omitempty"`
+	GroupID         *int64  `json:"group_id,omitempty"`
+}
+
 // Bind validates the student request
 func (req *StudentRequest) Bind(r *http.Request) error {
 	// Basic validation for person fields
@@ -115,6 +134,27 @@ func (req *StudentRequest) Bind(r *http.Request) error {
 	}
 
 	// Optional fields are not validated here - they will be validated in the model layer
+	return nil
+}
+
+// Bind validates the update student request
+func (req *UpdateStudentRequest) Bind(r *http.Request) error {
+	// All fields are optional for updates, but validate if provided
+	if req.FirstName != nil && *req.FirstName == "" {
+		return errors.New("first name cannot be empty")
+	}
+	if req.LastName != nil && *req.LastName == "" {
+		return errors.New("last name cannot be empty")
+	}
+	if req.SchoolClass != nil && *req.SchoolClass == "" {
+		return errors.New("school class cannot be empty")
+	}
+	if req.GuardianName != nil && *req.GuardianName == "" {
+		return errors.New("guardian name cannot be empty")
+	}
+	if req.GuardianContact != nil && *req.GuardianContact == "" {
+		return errors.New("guardian contact cannot be empty")
+	}
 	return nil
 }
 
@@ -332,6 +372,116 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Return the created student with person data
 	common.Respond(w, r, http.StatusCreated, newStudentResponse(student, person), "Student created successfully")
+}
+
+// updateStudent handles updating an existing student
+func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
+	// Parse ID from URL
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Parse request
+	req := &UpdateStudentRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Get existing student
+	student, err := rs.StudentRepo.FindByID(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get existing person
+	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for student"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Update person fields if provided
+	updatePerson := false
+	if req.FirstName != nil {
+		person.FirstName = *req.FirstName
+		updatePerson = true
+	}
+	if req.LastName != nil {
+		person.LastName = *req.LastName
+		updatePerson = true
+	}
+	if req.TagID != nil {
+		// Only update TagID if a value is provided
+		if *req.TagID != "" {
+			person.TagID = req.TagID
+		} else {
+			// Empty string means clear the TagID
+			person.TagID = nil
+		}
+		updatePerson = true
+	}
+
+	// Update person if any fields changed
+	if updatePerson {
+		if err := rs.PersonService.Update(r.Context(), person); err != nil {
+			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+				log.Printf("Render error: %v", err)
+			}
+			return
+		}
+	}
+
+	// Update student fields if provided
+	if req.SchoolClass != nil {
+		student.SchoolClass = *req.SchoolClass
+	}
+	if req.GuardianName != nil {
+		student.GuardianName = *req.GuardianName
+	}
+	if req.GuardianContact != nil {
+		student.GuardianContact = *req.GuardianContact
+	}
+	if req.GuardianEmail != nil {
+		student.GuardianEmail = req.GuardianEmail
+	}
+	if req.GuardianPhone != nil {
+		student.GuardianPhone = req.GuardianPhone
+	}
+	if req.GroupID != nil {
+		student.GroupID = req.GroupID
+	}
+
+	// Update student
+	if err := rs.StudentRepo.Update(r.Context(), student); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get updated student with person data
+	updatedStudent, err := rs.StudentRepo.FindByID(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Return the updated student with person data
+	common.Respond(w, r, http.StatusOK, newStudentResponse(updatedStudent, person), "Student updated successfully")
 }
 
 // Helper function to check if a string contains another string, ignoring case

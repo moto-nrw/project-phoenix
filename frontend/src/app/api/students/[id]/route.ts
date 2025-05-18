@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers";
 import { createGetHandler, createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
 import type { BackendStudent, Student, UpdateStudentRequest } from "~/lib/student-helpers";
-import { mapStudentResponse } from "~/lib/student-helpers";
+import { mapStudentResponse, mapUpdateRequestToBackend } from "~/lib/student-helpers";
 
 /**
  * Type definition for API response format
@@ -69,7 +69,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
 
 /**
  * Handler for PUT /api/students/[id]
- * Updates an existing student (currently not supported by backend)
+ * Updates an existing student
  */
 export const PUT = createPutHandler<Student, UpdateStudentRequest>(
   async (_request: NextRequest, body: UpdateStudentRequest, token: string, params: Record<string, unknown>) => {
@@ -79,8 +79,29 @@ export const PUT = createPutHandler<Student, UpdateStudentRequest>(
       throw new Error('Student ID is required');
     }
     
-    // Backend doesn't support updating students yet
-    throw new Error('Updating students is not currently supported by the backend API');
+    try {
+      // Map frontend format to backend format
+      const backendData = mapUpdateRequestToBackend(body);
+      
+      // Call backend API to update student
+      const response = await apiPut<ApiStudentResponse>(
+        `/api/students/${id}`,
+        token,
+        backendData
+      );
+      
+      // Handle null or undefined response
+      if (!response?.data) {
+        throw new Error('Invalid response from backend');
+      }
+      
+      // Map the response to frontend format
+      const mappedStudent = mapStudentResponse(response.data as BackendStudent);
+      return mappedStudent;
+    } catch (error) {
+      console.error("Error updating student:", error);
+      throw error;
+    }
   }
 );
 

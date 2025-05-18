@@ -152,10 +152,8 @@ func (s *personService) Update(ctx context.Context, person *userModels.Person) e
 		return &UsersError{Op: "update person", Err: err}
 	}
 
-	// Additional business rule: Either TagID or AccountID must be set
-	if person.TagID == nil && person.AccountID == nil {
-		return &UsersError{Op: "update person", Err: ErrPersonIdentifierRequired}
-	}
+	// Note: The requirement for either TagID or AccountID has been removed
+	// Persons can now exist without either identifier
 
 	// Check if the person exists
 	existingPerson, err := s.personRepo.FindByID(ctx, person.ID)

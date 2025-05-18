@@ -123,12 +123,60 @@ export interface UpdateStudentRequest {
     first_name?: string;
     second_name?: string; // Will be mapped to last_name for backend
     school_class?: string;
-    group_id?: number;
+    group_id?: string;
     name_lg?: string; // Guardian name
     contact_lg?: string; // Guardian contact
     tag_id?: string;
     guardian_email?: string;
     guardian_phone?: string;
+}
+
+// Backend request type (for actual API calls)
+export interface BackendUpdateRequest {
+    first_name?: string;
+    last_name?: string;
+    tag_id?: string;
+    school_class?: string;
+    guardian_name?: string;
+    guardian_contact?: string;
+    guardian_email?: string;
+    guardian_phone?: string;
+    group_id?: number;
+}
+
+// Map frontend update request to backend format
+export function mapUpdateRequestToBackend(request: UpdateStudentRequest): BackendUpdateRequest {
+    const backendRequest: BackendUpdateRequest = {};
+    
+    if (request.first_name !== undefined) {
+        backendRequest.first_name = request.first_name;
+    }
+    if (request.second_name !== undefined) {
+        backendRequest.last_name = request.second_name;
+    }
+    if (request.tag_id !== undefined) {
+        backendRequest.tag_id = request.tag_id;
+    }
+    if (request.school_class !== undefined) {
+        backendRequest.school_class = request.school_class;
+    }
+    if (request.name_lg !== undefined) {
+        backendRequest.guardian_name = request.name_lg;
+    }
+    if (request.contact_lg !== undefined) {
+        backendRequest.guardian_contact = request.contact_lg;
+    }
+    if (request.guardian_email !== undefined) {
+        backendRequest.guardian_email = request.guardian_email;
+    }
+    if (request.guardian_phone !== undefined) {
+        backendRequest.guardian_phone = request.guardian_phone;
+    }
+    if (request.group_id !== undefined) {
+        backendRequest.group_id = parseInt(request.group_id, 10);
+    }
+    
+    return backendRequest;
 }
 
 // Helper functions
