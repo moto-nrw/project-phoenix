@@ -69,6 +69,7 @@ go run main.go migrate reset    # WARNING: Reset database and run all migrations
 go test ./...                   # Run all tests
 go test -v ./api/auth           # Run specific package with verbose output
 go test -race ./...             # Run tests with race condition detection
+go test ./api/auth -run TestLogin  # Run specific test
 
 # Documentation
 go run main.go gendoc           # Generate both routes.md and OpenAPI spec
@@ -81,6 +82,7 @@ golangci-lint run --timeout 10m # Run linter (install: brew install golangci-lin
 golangci-lint run --fix         # Auto-fix some linting issues
 go mod tidy                     # Clean up dependencies
 go get -u ./...                 # Update all dependencies
+/Users/yonnock/go/bin/goimports -w .  # Organize imports
 ```
 
 ### Frontend (Next.js)
@@ -223,6 +225,32 @@ Each domain has:
 - Implementation in `database/repositories/{domain}/`
 - Service layer in `services/{domain}/`
 
+#### Important BUN ORM Pattern for Schema-Qualified Tables
+When working with PostgreSQL schemas, BUN requires explicit table expressions in repository methods:
+
+```go
+// In repository methods, always set ModelTableExpr
+func (r *GroupRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*education.Group, error) {
+    var groups []*education.Group
+    query := r.db.NewSelect().
+        Model(&groups).
+        ModelTableExpr(`education.groups AS "group"`)  // Critical for schema-qualified tables!
+    
+    // Apply options and execute query
+}
+```
+
+Models should implement BeforeAppendModel when using schemas:
+```go
+func (g *Group) BeforeAppendModel(query any) error {
+    if q, ok := query.(*bun.SelectQuery); ok {
+        q.ModelTableExpr(`education.groups AS "group"`)
+    }
+    // Handle other query types...
+    return nil
+}
+```
+
 ### Migration System
 - Numbered migrations in `database/migrations/`
 - Dependency tracking between migrations
@@ -236,6 +264,7 @@ Each domain has:
 - **JWT Errors**: Verify `AUTH_JWT_SECRET` is set and consistent
 - **CORS Issues**: Ensure `ENABLE_CORS=true` for local development
 - **SQL Debugging**: Set `DB_DEBUG=true` to see queries
+- **Schema-qualified tables**: Always use `ModelTableExpr` in repository methods
 
 ### Frontend Issues
 - **API Connection**: Verify `NEXT_PUBLIC_API_URL` points to backend
@@ -247,6 +276,7 @@ Each domain has:
 - **Database Not Ready**: Wait for health check or increase start_period
 - **Permission Errors**: Check volume permissions and user context
 - **Port Conflicts**: Ensure ports 3000, 8080, 5432 are available
+- **Code Changes Not Reflected**: Restart containers to pick up changes
 
 ## RFID Integration
 
@@ -291,3 +321,24 @@ Test helpers are in `test/helpers.go`. Integration tests use a real test databas
 - Frontend uses React 19 Suspense for loading states
 - JWT tokens cached to reduce auth overhead
 - RFID check-ins optimized for bulk operations
+
+## Common Linting Issues (Backend)
+
+1. **Unchecked errors** (errcheck):
+   ```go
+   // Fix by checking error returns
+   if _, err := w.Write(data); err != nil {
+       log.Printf("write failed: %v", err)
+   }
+   ```
+
+2. **Context key type** (staticcheck):
+   ```go
+   // Define proper context keys
+   type contextKey string
+   const userContextKey = contextKey("user")
+   ```
+
+3. **Ineffective assignments**: Remove unused variable assignments
+
+4. **Empty branches**: Add implementation or remove unnecessary conditions
