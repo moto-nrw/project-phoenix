@@ -219,12 +219,8 @@ func (s *service) DeleteGroup(ctx context.Context, id int64) error {
 
 // ListGroups retrieves groups with optional filtering
 func (s *service) ListGroups(ctx context.Context, options *base.QueryOptions) ([]*education.Group, error) {
-	// Convert QueryOptions to map for compatibility with the repository interface
-	filters := make(map[string]interface{})
-	
-	// If options are provided, we'll need to handle them differently
-	// For now, just pass empty filters since the repository will handle the options
-	groups, err := s.groupRepo.List(ctx, filters)
+	// Now we can directly use the modern ListWithOptions method
+	groups, err := s.groupRepo.ListWithOptions(ctx, options)
 	if err != nil {
 		return nil, &EducationError{Op: "ListGroups", Err: err}
 	}
@@ -412,9 +408,9 @@ func (s *service) GetGroupTeachers(ctx context.Context, groupID int64) ([]*users
 	options.Filter = filter
 
 	// Get teachers
-	// Note: This assumes the TeacherRepository has a List method with QueryOptions
-	// Similar to what we have in the GroupRepository
-	teachers, err := s.teacherRepo.List(ctx, nil)
+	// TODO: Add ListWithOptions to TeacherRepository interface like we did for GroupRepository
+	// Currently passing 'options' but it's treated as map[string]interface{} in the repository
+	teachers, err := s.teacherRepo.List(ctx, options)
 	if err != nil {
 		return nil, &EducationError{Op: "GetGroupTeachers", Err: err}
 	}
@@ -571,6 +567,8 @@ func (s *service) GetSubstitution(ctx context.Context, id int64) (*education.Gro
 
 // ListSubstitutions retrieves substitutions with optional filtering
 func (s *service) ListSubstitutions(ctx context.Context, options *base.QueryOptions) ([]*education.GroupSubstitution, error) {
+	// TODO: Add ListWithOptions to GroupSubstitutionRepository interface
+	// and update this to use the same pattern as ListGroups
 	substitutions, err := s.substitutionRepo.List(ctx, nil)
 	if err != nil {
 		return nil, &EducationError{Op: "ListSubstitutions", Err: err}
