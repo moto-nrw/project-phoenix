@@ -27,6 +27,7 @@ export default function GroupForm({
     name: "",
     room_id: "",
     representative_id: "",
+    teacher_ids: [] as string[],
   });
 
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +41,7 @@ export default function GroupForm({
         name: initialData.name ?? "",
         room_id: initialData.room_id ?? "",
         representative_id: initialData.representative_id ?? "",
+        teacher_ids: initialData.supervisors?.map(s => s.id) ?? [],
       });
     }
   }, [initialData]);
@@ -82,6 +84,15 @@ export default function GroupForm({
     }));
   };
 
+  const handleTeacherToggle = (teacherId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      teacher_ids: prev.teacher_ids.includes(teacherId)
+        ? prev.teacher_ids.filter(id => id !== teacherId)
+        : [...prev.teacher_ids, teacherId],
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -99,6 +110,7 @@ export default function GroupForm({
         name: formData.name,
         room_id: formData.room_id || undefined,
         representative_id: formData.representative_id || undefined,
+        teacher_ids: formData.teacher_ids.length > 0 ? formData.teacher_ids : undefined,
       };
 
       // Call the provided submit function with form data
@@ -203,6 +215,41 @@ export default function GroupForm({
                 </select>
                 <p className="mt-1 text-xs text-gray-500">
                   Legt den Hauptverantwortlichen für diese Gruppe fest
+                </p>
+              </div>
+
+              {/* Teacher Multi-Select field */}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Lehrer/Aufsichtspersonen
+                </label>
+                <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-300 rounded-lg p-3">
+                  {loadingData ? (
+                    <p className="text-sm text-gray-500">Lehrer werden geladen...</p>
+                  ) : teachers.length === 0 ? (
+                    <p className="text-sm text-gray-500">Keine Lehrer verfügbar</p>
+                  ) : (
+                    teachers.map((teacher) => (
+                      <label
+                        key={teacher.id}
+                        className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={formData.teacher_ids.includes(teacher.id)}
+                          onChange={() => handleTeacherToggle(teacher.id)}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm">
+                          {teacher.name}
+                          {teacher.specialization && ` (${teacher.specialization})`}
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Wählen Sie die Lehrer aus, die dieser Gruppe zugeordnet werden sollen
                 </p>
               </div>
             </div>

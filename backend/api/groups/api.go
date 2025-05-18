@@ -91,8 +91,9 @@ type Room struct {
 
 // GroupRequest represents a group creation/update request
 type GroupRequest struct {
-	Name   string `json:"name"`
-	RoomID *int64 `json:"room_id,omitempty"`
+	Name       string  `json:"name"`
+	RoomID     *int64  `json:"room_id,omitempty"`
+	TeacherIDs []int64 `json:"teacher_ids,omitempty"`
 }
 
 // Bind validates the group request
@@ -331,6 +332,14 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Render error: %v", err)
 		}
 		return
+	}
+
+	// Update teacher assignments if provided
+	if req.TeacherIDs != nil {
+		if err := rs.EducationService.UpdateGroupTeachers(r.Context(), group.ID, req.TeacherIDs); err != nil {
+			log.Printf("Error updating group teachers: %v", err)
+			// Continue anyway - the group update was successful
+		}
 	}
 
 	// Get updated group with room details

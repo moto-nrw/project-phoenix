@@ -370,6 +370,63 @@ func (s *service) RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID
 	return nil
 }
 
+// UpdateGroupTeachers updates the teacher assignments for a group
+func (s *service) UpdateGroupTeachers(ctx context.Context, groupID int64, teacherIDs []int64) error {
+	// Verify group exists
+	_, err := s.groupRepo.FindByID(ctx, groupID)
+	if err != nil {
+		return &EducationError{Op: "UpdateGroupTeachers", Err: ErrGroupNotFound}
+	}
+
+	// Get current teacher assignments
+	currentRelations, err := s.groupTeacherRepo.FindByGroup(ctx, groupID)
+	if err != nil {
+		return &EducationError{Op: "UpdateGroupTeachers", Err: err}
+	}
+
+	// Create maps for easier comparison
+	currentTeacherIDs := make(map[int64]int64) // teacherID -> relationID
+	for _, rel := range currentRelations {
+		currentTeacherIDs[rel.TeacherID] = rel.ID
+	}
+
+	newTeacherIDs := make(map[int64]bool)
+	for _, teacherID := range teacherIDs {
+		newTeacherIDs[teacherID] = true
+	}
+
+	// Find teachers to remove (in current but not in new)
+	for teacherID, relationID := range currentTeacherIDs {
+		if !newTeacherIDs[teacherID] {
+			if err := s.groupTeacherRepo.Delete(ctx, relationID); err != nil {
+				return &EducationError{Op: "UpdateGroupTeachers", Err: err}
+			}
+		}
+	}
+
+	// Find teachers to add (in new but not in current)
+	for _, teacherID := range teacherIDs {
+		if _, exists := currentTeacherIDs[teacherID]; !exists {
+			// Verify teacher exists
+			if _, err := s.teacherRepo.FindByID(ctx, teacherID); err != nil {
+				return &EducationError{Op: "UpdateGroupTeachers", Err: ErrTeacherNotFound}
+			}
+
+			// Create the relationship
+			relation := &education.GroupTeacher{
+				GroupID:   groupID,
+				TeacherID: teacherID,
+			}
+
+			if err := s.groupTeacherRepo.Create(ctx, relation); err != nil {
+				return &EducationError{Op: "UpdateGroupTeachers", Err: err}
+			}
+		}
+	}
+
+	return nil
+}
+
 // GetGroupTeachers gets all teachers for a group
 func (s *service) GetGroupTeachers(ctx context.Context, groupID int64) ([]*users.Teacher, error) {
 	// Verify group exists

@@ -42,6 +42,7 @@ export interface BackendGroup {
     created_at: string;
     updated_at: string;
     students?: BackendGroupStudent[];
+    teacher_ids?: number[];
 }
 
 export interface BackendCombinedGroup {
@@ -83,6 +84,7 @@ export interface Group {
     updated_at?: string;
     students?: StudentForGroup[];
     supervisors?: Array<{ id: string; name: string }>;
+    teacher_ids?: string[];
 }
 
 export interface CombinedGroup {
@@ -194,6 +196,7 @@ export function prepareGroupForBackend(group: Partial<Group>): Partial<BackendGr
         // Note: room_name is not sent to backend, only room_id
         representative_id: group.representative_id ? parseInt(group.representative_id, 10) : undefined,
         // Note: representative_name is also not sent to backend, only representative_id
+        teacher_ids: group.teacher_ids?.map(id => parseInt(id, 10)),
     };
 }
 
