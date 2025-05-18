@@ -53,7 +53,6 @@ export const GET = createGetHandler(async (request: NextRequest, token: string):
   
   const endpoint = `/api/students${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
   
-  console.log("Requesting students from backend:", endpoint);
   
   try {
     // Fetch students from backend API
@@ -65,8 +64,6 @@ export const GET = createGetHandler(async (request: NextRequest, token: string):
       return [];
     }
     
-    // Debug output to check the response data
-    console.log("API students response:", JSON.stringify(response, null, 2));
     
     // Check for the paginated response structure from backend
     if ('data' in response && Array.isArray(response.data)) {
@@ -77,10 +74,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string):
       
       // Map the backend response format to the frontend format using the consistent mapping function
       const mappedStudents = response.data.map((student: StudentResponseFromBackend) => {
-        console.log('Mapping individual student in route:', student);
-        const mapped = mapStudentResponse(student as any);
-        console.log('Mapped result in route:', mapped);
-        return mapped;
+        return mapStudentResponse(student as any);
       });
       
       return mappedStudents;

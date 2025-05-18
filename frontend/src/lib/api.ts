@@ -5,6 +5,7 @@ import { env } from "~/env";
 import {
   mapSingleStudentResponse,
   mapStudentsResponse,
+  mapStudentResponse,
   prepareStudentForBackend,
 } from "./student-helpers";
 import type { BackendStudent } from "./student-helpers";
@@ -222,8 +223,15 @@ export const studentService = {
 
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
-                const responseData = await retryResponse.json() as BackendStudent[];
-                return mapStudentsResponse(responseData);
+                const responseData = await retryResponse.json();
+                
+                // If response is wrapped (from our Next.js API route), extract the data
+                if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
+                  return mapStudentsResponse(responseData.data as BackendStudent[]);
+                }
+                
+                // Otherwise, treat the response as the direct array of students
+                return mapStudentsResponse(responseData as BackendStudent[]);
               }
             }
           }
@@ -233,22 +241,14 @@ export const studentService = {
 
         // Type assertion to avoid unsafe assignment
         const responseData = await response.json();
-        console.log("Response data in studentService:", JSON.stringify(responseData, null, 2));
-        // The response structure is { status, data, pagination, message }
-        const students = (responseData as any).data || responseData;
-        console.log("Extracted students:", JSON.stringify(students, null, 2));
-        const mappedStudents = mapStudentsResponse(students as BackendStudent[]);
-        console.log("Mapped students:", JSON.stringify(mappedStudents, null, 2));
-        // Double check the mapped result
-        mappedStudents.forEach((student, index) => {
-          console.log(`Student ${index}:`, {
-            name: student.name,
-            first_name: student.first_name,
-            second_name: student.second_name,
-            fullName: `${student.first_name} ${student.second_name}`
-          });
-        });
-        return mappedStudents;
+        
+        // If response is wrapped (from our Next.js API route), extract the data
+        if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
+          return mapStudentsResponse(responseData.data as BackendStudent[]);
+        }
+        
+        // Otherwise, treat the response as the direct array of students
+        return mapStudentsResponse(responseData as BackendStudent[]);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
@@ -305,7 +305,8 @@ export const studentService = {
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
                 const data: unknown = await retryResponse.json();
-                return mapSingleStudentResponse({ data: data as BackendStudent });
+                // The data is already the student object (not wrapped in a data property)
+                return mapStudentResponse(data as BackendStudent);
               }
             }
           }
@@ -314,16 +315,34 @@ export const studentService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const data: unknown = await response.json();
-        // Map response to our frontend model
-        const mappedResponse = mapSingleStudentResponse({ data: data as BackendStudent });
+        const responseData = await response.json();
+        
+        // If response is wrapped (from our Next.js API route), extract the data
+        if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
+          const studentData = responseData.data;
+          
+          // If the extracted data is already mapped (has frontend structure)
+          if ('name' in studentData && 'first_name' in studentData) {
+            return studentData as Student;
+          }
+          
+          // Otherwise map it
+          return mapStudentResponse(studentData as BackendStudent);
+        }
+        
+        // If response is already mapped (has the frontend structure)
+        if (responseData && typeof responseData === 'object' && 'name' in responseData && 'first_name' in responseData) {
+          return responseData as Student;
+        }
+        
+        // Otherwise, assume it's backend format and map it
+        const mappedResponse = mapStudentResponse(responseData as BackendStudent);
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapSingleStudentResponse({ 
-          data: response.data as unknown as BackendStudent 
-        });
+        // The response.data is already the student object
+        return mapStudentResponse(response.data as unknown as BackendStudent);
       }
     } catch (error) {
       throw handleApiError(error, `Error fetching student ${id}`);
@@ -893,22 +912,14 @@ export const groupService = {
 
         // Type assertion to avoid unsafe assignment
         const responseData = await response.json();
-        console.log("Response data in studentService:", JSON.stringify(responseData, null, 2));
-        // The response structure is { status, data, pagination, message }
-        const students = (responseData as any).data || responseData;
-        console.log("Extracted students:", JSON.stringify(students, null, 2));
-        const mappedStudents = mapStudentsResponse(students as BackendStudent[]);
-        console.log("Mapped students:", JSON.stringify(mappedStudents, null, 2));
-        // Double check the mapped result
-        mappedStudents.forEach((student, index) => {
-          console.log(`Student ${index}:`, {
-            name: student.name,
-            first_name: student.first_name,
-            second_name: student.second_name,
-            fullName: `${student.first_name} ${student.second_name}`
-          });
-        });
-        return mappedStudents;
+        
+        // If response is wrapped (from our Next.js API route), extract the data
+        if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
+          return mapStudentsResponse(responseData.data as BackendStudent[]);
+        }
+        
+        // Otherwise, treat the response as the direct array of students
+        return mapStudentsResponse(responseData as BackendStudent[]);
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);

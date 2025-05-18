@@ -27,7 +27,7 @@ export default function StudentDetailPage() {
       } catch (err) {
         console.error("Error fetching student:", err);
         setError(
-          "Fehler beim Laden der Schülerdaten. Bitte versuchen Sie es später erneut.",
+          err instanceof Error ? err.message : "Fehler beim Laden der Schülerdaten. Bitte versuchen Sie es später erneut.",
         );
         setStudent(null);
       } finally {

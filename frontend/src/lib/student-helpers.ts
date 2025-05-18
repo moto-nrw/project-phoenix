@@ -46,13 +46,6 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student {
     const lastName = backendStudent.last_name || '';
     const name = `${firstName} ${lastName}`.trim();
     
-    console.log('Mapping student:', {
-        input: backendStudent,
-        firstName,
-        lastName,
-        constructedName: name
-    });
-    
     const mapped = {
         id: String(backendStudent.id),
         name: name,
@@ -72,7 +65,6 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student {
         custom_users_id: undefined, // Not provided by backend
     };
     
-    console.log('Mapped student result:', mapped);
     return mapped;
 }
 
@@ -141,19 +133,12 @@ export interface UpdateStudentRequest {
 
 // Helper functions
 export function formatStudentName(student: Student): string {
-    console.log('formatStudentName input:', {
-        name: student.name,
-        first_name: student.first_name,
-        second_name: student.second_name
-    });
-    
     if (student.name) return student.name;
     
     const fallback = [student.first_name, student.second_name]
         .filter(Boolean)
         .join(' ') || 'Unnamed Student';
     
-    console.log('formatStudentName output:', fallback);
     return fallback;
 }
 

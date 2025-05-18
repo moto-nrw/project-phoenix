@@ -7,8 +7,10 @@ import { mapStudentResponse } from "~/lib/student-helpers";
 
 /**
  * Type definition for API response format
+ * Backend wraps response in { status: "success", data: {...}, message: "..." }
  */
 interface ApiStudentResponse {
+  status: string;
   data: StudentResponseFromBackend;
   message: string;
 }

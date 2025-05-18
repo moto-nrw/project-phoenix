@@ -51,13 +51,6 @@ export default function StudentsPage() {
       try {
         // Fetch from the real API using our student service
         const data = await studentService.getStudents(filters);
-        console.log("Data received from studentService:", JSON.stringify(data, null, 2));
-
-        if (data.length === 0 && !search && !groupId) {
-          console.log("No students returned from API, checking connection");
-        }
-
-        console.log("Setting students state with:", JSON.stringify(data, null, 2));
         setStudents(data);
         setError(null);
       } catch (apiErr) {
@@ -93,10 +86,6 @@ export default function StudentsPage() {
     return () => clearTimeout(timer);
   }, [searchFilter, groupFilter]);
   
-  // Debug log students state
-  useEffect(() => {
-    console.log("Current students state:", JSON.stringify(students, null, 2));
-  }, [students]);
 
   if (status === "loading" || loading) {
     return (
@@ -112,7 +101,6 @@ export default function StudentsPage() {
 
   // Custom renderer for student items
   const renderStudent = (student: Student) => {
-    console.log("Rendering student:", JSON.stringify(student, null, 2));
     return (
     <>
       <div className="flex flex-col transition-transform duration-200 group-hover:translate-x-1">
