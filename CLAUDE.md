@@ -342,3 +342,163 @@ Test helpers are in `test/helpers.go`. Integration tests use a real test databas
 3. **Ineffective assignments**: Remove unused variable assignments
 
 4. **Empty branches**: Add implementation or remove unnecessary conditions
+
+## Critical Backend Patterns
+
+### Loading Nested Relationships
+
+When loading nested relationships (e.g., Teacher → Staff → Person), BUN ORM requires explicit column mapping:
+
+```go
+// CORRECT - Use explicit JOINs with column aliasing
+type teacherResult struct {
+    Teacher *users.Teacher `bun:"teacher"`
+    Staff   *users.Staff   `bun:"staff"`
+    Person  *users.Person  `bun:"person"`
+}
+
+err := r.db.NewSelect().
+    Model(result).
+    ModelTableExpr(`users.teachers AS "teacher"`).
+    // IMPORTANT: Explicit column mapping for each table
+    ColumnExpr(`"teacher".id AS "teacher__id"`).
+    ColumnExpr(`"staff".id AS "staff__id"`).
+    ColumnExpr(`"person".first_name AS "person__first_name"`).
+    Join(`INNER JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id`).
+    Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+    Where(`"teacher".id = ?`, id).
+    Scan(ctx)
+```
+
+### Schema-Qualified Table Expressions
+
+CRITICAL: Always use quotes around table aliases in PostgreSQL schema-qualified queries:
+
+```go
+// CORRECT - Quotes around alias
+ModelTableExpr(`users.teachers AS "teacher"`)
+
+// WRONG - Will cause "TeacherResult does not have column 'id'" errors
+ModelTableExpr(`users.teachers AS teacher`)
+```
+
+## Critical Frontend Patterns
+
+### Next.js 15+ Route Handlers
+
+Route handlers must properly type the context parameter for Next.js 15 compatibility:
+
+```typescript
+// CORRECT - Properly typed params
+export const GET = createGetHandler(async (request, token, params) => {
+    // params: Promise<Record<string, string | string[] | undefined>>
+    const response = await apiGet(`/api/resources`, token);
+    return response.data;
+});
+```
+
+### Type Mapping Between Backend and Frontend
+
+Always use helper functions to transform data types:
+
+```typescript
+// In lib/{domain}-helpers.ts
+export function mapGroupResponse(data: BackendGroup): Group {
+    return {
+        id: data.id.toString(),  // Backend uses int64, frontend uses string
+        name: data.name,
+        room_id: data.room_id?.toString() || '',
+        // Handle nested objects carefully
+        representative: data.representative 
+            ? mapTeacherResponse(data.representative) 
+            : undefined
+    };
+}
+```
+
+### Suspense Boundaries for useSearchParams
+
+Components using `useSearchParams()` must be wrapped in Suspense:
+
+```typescript
+// pages using searchParams
+export default function Page() {
+    return (
+        <Suspense fallback={<Loading />}>
+            <PageContent />
+        </Suspense>
+    );
+}
+```
+
+## Development Workflow
+
+### Backend Development Flow
+1. Define models in `models/{domain}/`
+2. Create repository interface in model file
+3. Implement repository in `database/repositories/{domain}/`
+4. Create service interface in `services/{domain}/interface.go`
+5. Implement service business logic
+6. Create API handlers in `api/{domain}/`
+7. Write tests for repository and service layers
+
+### Frontend Development Flow
+1. Define TypeScript interfaces in `lib/{domain}-helpers.ts`
+2. Create API client in `lib/{domain}-api.ts`
+3. Implement service layer in `lib/{domain}-service.ts`
+4. Create UI components in `components/{domain}/`
+5. Build pages in `app/{domain}/`
+6. Always run `npm run check` before committing
+
+## Domain-Specific Details
+
+### Active Sessions (Real-time tracking)
+- Groups can have active sessions with room assignments
+- Visit tracking for students entering/leaving rooms
+- Supervisor assignments for active groups
+- Combined groups can contain multiple regular groups
+
+### Education Domain
+- Groups have teachers and representatives
+- Teachers are linked through `education.group_teacher` join table
+- Groups can be assigned to rooms
+- Substitution system for temporary staff changes
+
+### User Management
+- Person → Staff → Teacher hierarchy
+- Students linked to guardians through join tables
+- RFID cards associated with persons
+- Privacy consent tracking for students
+
+## Database Migration Pattern
+
+Migrations follow a dependency system:
+
+```go
+// In database/migrations/{number}_{name}.go
+var Dependencies = []string{
+    "001000001_auth_accounts",  // Must run before this migration
+}
+
+var Rollback = `DROP TABLE IF EXISTS table_name CASCADE;`
+```
+
+## API Error Response Pattern
+
+All API errors should follow this structure:
+
+```go
+type ErrorResponse struct {
+    Status  string `json:"status"`
+    Message string `json:"message"`
+    Code    string `json:"code,omitempty"`
+}
+```
+
+## Session Management
+
+Backend sessions use JWT with separate access and refresh tokens:
+- Access tokens: 15 minutes
+- Refresh tokens: 1 hour
+- Tokens stored in HTTP-only cookies
+- Frontend uses NextAuth to manage session state

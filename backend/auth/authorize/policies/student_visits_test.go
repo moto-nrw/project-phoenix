@@ -36,6 +36,11 @@ func (m *SimpleMockEducationService) AssignRoomToGroup(ctx context.Context, grou
 	return nil
 }
 
+func (m *SimpleMockEducationService) UpdateGroupTeachers(ctx context.Context, groupID int64, teacherIDs []int64) error {
+	// This method is required by the interface but not used in our tests
+	return nil
+}
+
 func (m *SimpleMockEducationService) WithTx(tx bun.Tx) interface{} {
 	// Required by base.TransactionalService
 	return m
@@ -235,6 +240,14 @@ func (m *SimpleMockTeacherRepository) FindByGroupID(ctx context.Context, groupID
 
 func (m *SimpleMockTeacherRepository) UpdateQualifications(ctx context.Context, id int64, qualifications string) error {
 	return nil
+}
+
+func (m *SimpleMockTeacherRepository) FindWithStaffAndPerson(ctx context.Context, id int64) (*userModels.Teacher, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*userModels.Teacher), args.Error(1)
 }
 
 func TestStudentVisitPolicy_Evaluate(t *testing.T) {

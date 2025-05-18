@@ -492,6 +492,11 @@ func TestGetGroupTeachers_WithINFilter(t *testing.T) {
 			// This is a simplified check - in reality the filter structure might be more complex
 			return true
 		})).Return(expectedTeachers, nil)
+		
+		// Mock FindWithStaffAndPerson calls for each teacher
+		for _, teacher := range expectedTeachers {
+			mockTeacherRepo.On("FindWithStaffAndPerson", mock.Anything, teacher.ID).Return(teacher, nil)
+		}
 
 		// Call the method
 		teachers, err := service.GetGroupTeachers(context.Background(), groupID)
@@ -547,6 +552,10 @@ func TestGetGroupTeachers_WithINFilter(t *testing.T) {
 			{Model: base.Model{ID: 40}, StaffID: 400}, // Extra teacher
 		}
 		mockTeacherRepo2.On("ListWithOptions", mock.Anything, mock.Anything).Return(allTeachers, nil)
+		
+		// Mock FindWithStaffAndPerson calls for the teachers that should be returned
+		mockTeacherRepo2.On("FindWithStaffAndPerson", mock.Anything, int64(10)).Return(allTeachers[0], nil)
+		mockTeacherRepo2.On("FindWithStaffAndPerson", mock.Anything, int64(20)).Return(allTeachers[1], nil)
 
 		// Call the method
 		teachers, err := service2.GetGroupTeachers(context.Background(), groupID)
