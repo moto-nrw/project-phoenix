@@ -107,7 +107,7 @@ export const PUT = createPutHandler<Student, UpdateStudentRequest>(
 
 /**
  * Handler for DELETE /api/students/[id]
- * Deletes a student (currently not supported by backend)
+ * Deletes a student
  */
 export const DELETE = createDeleteHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
   const id = params.id as string;
@@ -116,6 +116,16 @@ export const DELETE = createDeleteHandler(async (_request: NextRequest, token: s
     throw new Error('Student ID is required');
   }
   
-  // Backend doesn't support deleting students yet
-  throw new Error('Deleting students is not currently supported by the backend API');
+  try {
+    // Call backend API to delete student
+    const response = await apiDelete<{ message: string }>(
+      `/api/students/${id}`,
+      token
+    );
+    
+    return { success: true, message: response?.message || 'Student deleted successfully' };
+  } catch (error) {
+    console.error("Error deleting student:", error);
+    throw error;
+  }
 });

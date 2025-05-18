@@ -55,6 +55,9 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:update permission
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}", rs.updateStudent)
+
+		// Routes requiring users:delete permission
+		r.With(authorize.RequiresPermission(permissions.UsersDelete)).Delete("/{id}", rs.deleteStudent)
 	})
 
 	return r
@@ -482,6 +485,43 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Return the updated student with person data
 	common.Respond(w, r, http.StatusOK, newStudentResponse(updatedStudent, person), "Student updated successfully")
+}
+
+// deleteStudent handles deleting a student and their associated person record
+func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
+	// Parse ID from URL
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get the student to find the person ID
+	student, err := rs.StudentRepo.FindByID(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Delete the student first
+	if err := rs.StudentRepo.Delete(r.Context(), id); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Then delete the associated person record
+	if err := rs.PersonService.Delete(r.Context(), student.PersonID); err != nil {
+		// Log the error but don't fail the request since student is already deleted
+		log.Printf("Error deleting associated person record: %v", err)
+	}
+
+	common.Respond(w, r, http.StatusOK, nil, "Student deleted successfully")
 }
 
 // Helper function to check if a string contains another string, ignoring case
