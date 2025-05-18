@@ -199,6 +199,11 @@ func (m *SimpleMockTeacherRepository) FindByStaffID(ctx context.Context, staffID
 	return args.Get(0).(*userModels.Teacher), args.Error(1)
 }
 
+// Add missing method: ListWithOptions
+func (m *SimpleMockTeacherRepository) ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*userModels.Teacher, error) {
+	return nil, nil
+}
+
 // Add the remaining methods required by the TeacherRepository interface
 func (m *SimpleMockTeacherRepository) Create(ctx context.Context, teacher *userModels.Teacher) error {
 	return nil
