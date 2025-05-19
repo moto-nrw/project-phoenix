@@ -4,6 +4,13 @@ import { useState, useEffect } from "react";
 // import { useRouter } from 'next/navigation';
 import type { Group } from "@/lib/api";
 
+// Type for the API response
+interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+}
+
 interface GroupSelectorProps {
   value: string;
   onChange: (groupId: string) => void;
@@ -38,16 +45,17 @@ export default function GroupSelector({
           throw new Error(`Error: ${response.status}`);
         }
 
-        const result = await response.json();
+        const result = await response.json() as ApiResponse<Group[]> | Group[];
         
         // Handle both wrapped and unwrapped responses
         let groupData: Group[];
         if (result && typeof result === 'object' && 'data' in result) {
           // Handle wrapped response from our API
-          groupData = result.data as Group[];
+          const apiResponse = result as ApiResponse<Group[]>;
+          groupData = apiResponse.data;
         } else if (Array.isArray(result)) {
           // Handle raw array response
-          groupData = result as Group[];
+          groupData = result;
         } else {
           throw new Error('Unexpected response format');
         }
