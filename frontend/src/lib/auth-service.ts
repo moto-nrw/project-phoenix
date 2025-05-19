@@ -429,11 +429,69 @@ export const authService = {
                     throw new Error(`Get role failed: ${response.status}`);
                 }
 
-                const responseData = await response.json() as ApiResponse<BackendRole>;
-                return mapRoleResponse(responseData.data);
+                const responseData = await response.json() as any;
+                console.log("Get role response:", responseData);
+                
+                // Handle nested response structure
+                let roleData: BackendRole;
+                
+                if (responseData?.data?.data) {
+                    // Double nested: { data: { data: {...} } }
+                    roleData = responseData.data.data;
+                } else if (responseData?.data) {
+                    // Single nested: { data: {...} }
+                    roleData = responseData.data;
+                } else {
+                    console.error("Unexpected role response structure:", responseData);
+                    throw new Error("Invalid response format from role API");
+                }
+                
+                // Handle different casing in API response
+                if (roleData.id !== undefined && roleData.ID === undefined) {
+                    // Convert lowercase fields to uppercase for proper mapping
+                    roleData = {
+                        ID: roleData.id,
+                        Name: roleData.name,
+                        Description: roleData.description,
+                        CreatedAt: roleData.created_at || roleData.createdAt,
+                        UpdatedAt: roleData.updated_at || roleData.updatedAt,
+                        Permissions: roleData.permissions,
+                    };
+                }
+                
+                return mapRoleResponse(roleData);
             } else {
-                const response = await api.get<ApiResponse<BackendRole>>(url);
-                return mapRoleResponse(response.data.data);
+                const response = await api.get<any>(url);
+                console.log("Get role non-proxy response:", response.data);
+                
+                // Handle nested response structure
+                let roleData: BackendRole;
+                
+                if (response.data?.data?.data) {
+                    // Double nested: { data: { data: {...} } }
+                    roleData = response.data.data.data;
+                } else if (response.data?.data) {
+                    // Single nested: { data: {...} }
+                    roleData = response.data.data;
+                } else {
+                    console.error("Unexpected role response structure:", response.data);
+                    throw new Error("Invalid response format from role API");
+                }
+                
+                // Handle different casing in API response
+                if (roleData.id !== undefined && roleData.ID === undefined) {
+                    // Convert lowercase fields to uppercase for proper mapping
+                    roleData = {
+                        ID: roleData.id,
+                        Name: roleData.name,
+                        Description: roleData.description,
+                        CreatedAt: roleData.created_at || roleData.createdAt,
+                        UpdatedAt: roleData.updated_at || roleData.updatedAt,
+                        Permissions: roleData.permissions,
+                    };
+                }
+                
+                return mapRoleResponse(roleData);
             }
         } catch (error) {
             console.error("Get role error:", error);
