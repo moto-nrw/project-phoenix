@@ -49,10 +49,9 @@ export default function GroupSelector({
         
         // Handle both wrapped and unwrapped responses
         let groupData: Group[];
-        if (result && typeof result === 'object' && 'data' in result) {
+        if (result && typeof result === 'object' && 'data' in result && !Array.isArray(result)) {
           // Handle wrapped response from our API
-          const apiResponse = result as ApiResponse<Group[]>;
-          groupData = apiResponse.data;
+          groupData = result.data;
         } else if (Array.isArray(result)) {
           // Handle raw array response
           groupData = result;
