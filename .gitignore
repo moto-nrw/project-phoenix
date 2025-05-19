@@ -373,3 +373,7 @@ backend/project-phoenix
 **/.claude/settings.local.json
 
 **/CLAUDE.local.md
+
+# CI/CD and production files
+ci-cd-best-practices-guide.md
+# Note: production docker compose and env examples should be committed
