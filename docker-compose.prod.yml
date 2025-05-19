@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   server:
     image: ghcr.io/yungweng/phoenix-server:latest
@@ -13,7 +11,7 @@ services:
       PORT: 8080
       DB_DSN: postgres://postgres:${POSTGRES_PASSWORD}@localhost:5432/postgres?sslmode=disable
       DB_DEBUG: "false"
-      ENABLE_CORS: "false"  # Not needed when behind reverse proxy
+      ENABLE_CORS: "false" # Not needed when behind reverse proxy
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
       AUTH_JWT_EXPIRY: 15m
       AUTH_JWT_REFRESH_EXPIRY: 1h
@@ -21,7 +19,7 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     command: ["./main", "serve"]
     restart: unless-stopped
-    network_mode: host  # Use host network to be accessible as localhost
+    network_mode: host # Use host network to be accessible as localhost
 
   frontend:
     image: ghcr.io/yungweng/phoenix-frontend:latest
@@ -41,7 +39,7 @@ services:
     depends_on:
       - server
     restart: unless-stopped
-    network_mode: host  # Use host network to be accessible as localhost
+    network_mode: host # Use host network to be accessible as localhost
 
   postgres:
     image: postgres:17-alpine
@@ -57,7 +55,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    network_mode: host  # Use host network
+    network_mode: host # Use host network
 
 volumes:
   postgres:
