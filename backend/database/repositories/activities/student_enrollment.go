@@ -31,6 +31,7 @@ func (r *StudentEnrollmentRepository) FindByStudentID(ctx context.Context, stude
 	var enrollments []*activities.StudentEnrollment
 	err := r.db.NewSelect().
 		Model(&enrollments).
+		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).
 		Relation("ActivityGroup").
 		Relation("ActivityGroup.Category").
 		Where("student_id = ?", studentID).
@@ -52,6 +53,7 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 	var enrollments []*activities.StudentEnrollment
 	err := r.db.NewSelect().
 		Model(&enrollments).
+		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).
 		Relation("Student").
 		Relation("Student.Person").
 		Where("activity_group_id = ?", groupID).
@@ -72,6 +74,7 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 func (r *StudentEnrollmentRepository) CountByGroupID(ctx context.Context, groupID int64) (int, error) {
 	count, err := r.db.NewSelect().
 		Model((*activities.StudentEnrollment)(nil)).
+		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).
 		Where("activity_group_id = ?", groupID).
 		Count(ctx)
 
@@ -90,6 +93,7 @@ func (r *StudentEnrollmentRepository) FindByEnrollmentDateRange(ctx context.Cont
 	var enrollments []*activities.StudentEnrollment
 	err := r.db.NewSelect().
 		Model(&enrollments).
+		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).
 		Relation("Student").
 		Relation("Student.Person").
 		Relation("ActivityGroup").
@@ -116,6 +120,7 @@ func (r *StudentEnrollmentRepository) UpdateAttendanceStatus(ctx context.Context
 
 	_, err := r.db.NewUpdate().
 		Model((*activities.StudentEnrollment)(nil)).
+		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).
 		Set("attendance_status = ?", status).
 		Where("id = ?", id).
 		Exec(ctx)

@@ -30,6 +30,7 @@ func (r *GroupRepository) FindByCategory(ctx context.Context, categoryID int64) 
 	var groups []*activities.Group
 	err := r.db.NewSelect().
 		Model(&groups).
+		ModelTableExpr(`activities.groups AS "group"`).
 		Where("category_id = ?", categoryID).
 		Order("name ASC").
 		Scan(ctx)
@@ -49,6 +50,7 @@ func (r *GroupRepository) FindOpenGroups(ctx context.Context) ([]*activities.Gro
 	var groups []*activities.Group
 	err := r.db.NewSelect().
 		Model(&groups).
+		ModelTableExpr(`activities.groups AS "group"`).
 		Where("is_open = ?", true).
 		Order("name ASC").
 		Scan(ctx)
@@ -68,6 +70,7 @@ func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*acti
 	var groups []*activities.Group
 	err := r.db.NewSelect().
 		Model(&groups).
+		ModelTableExpr(`activities.groups AS "group"`).
 		Order("name ASC").
 		Scan(ctx)
 
@@ -125,6 +128,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 	group := new(activities.Group)
 	err := r.db.NewSelect().
 		Model(group).
+		ModelTableExpr(`activities.groups AS "group"`).
 		Where("id = ?", groupID).
 		Scan(ctx)
 
@@ -139,6 +143,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 	var supervisors []*activities.SupervisorPlanned
 	err = r.db.NewSelect().
 		Model(&supervisors).
+		ModelTableExpr(`activities.supervisors AS "supervisor"`).
 		Relation("Staff").
 		Relation("Staff.Person").
 		Where("group_id = ?", groupID).
@@ -161,6 +166,7 @@ func (r *GroupRepository) FindWithSchedules(ctx context.Context, groupID int64) 
 	group := new(activities.Group)
 	err := r.db.NewSelect().
 		Model(group).
+		ModelTableExpr(`activities.groups AS "group"`).
 		Where("id = ?", groupID).
 		Scan(ctx)
 
@@ -175,6 +181,7 @@ func (r *GroupRepository) FindWithSchedules(ctx context.Context, groupID int64) 
 	var schedules []*activities.Schedule
 	err = r.db.NewSelect().
 		Model(&schedules).
+		ModelTableExpr(`activities.schedules AS "schedule"`).
 		Relation("Timeframe").
 		Where("activity_group_id = ?", groupID).
 		Order("weekday, timeframe_id").
@@ -195,7 +202,8 @@ func (r *GroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int
 	var groups []*activities.Group
 	err := r.db.NewSelect().
 		Model(&groups).
-		Join("JOIN activities.supervisors AS s ON s.group_id = activities.groups.id").
+		ModelTableExpr(`activities.groups AS "group"`).
+		Join("JOIN activities.supervisors AS s ON s.group_id = \"group\".id").
 		Where("s.staff_id = ?", staffID).
 		Scan(ctx)
 
@@ -265,7 +273,9 @@ func (r *GroupRepository) Update(ctx context.Context, group *activities.Group) e
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.Group, error) {
 	var groups []*activities.Group
-	query := r.db.NewSelect().Model(&groups)
+	query := r.db.NewSelect().
+		Model(&groups).
+		ModelTableExpr(`activities.groups AS "group"`)
 
 	// Apply query options
 	if options != nil {

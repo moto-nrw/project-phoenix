@@ -5,23 +5,30 @@
 export interface BackendActivity {
     id: number;
     name: string;
-    max_participant: number;
-    is_open_ags: boolean;
-    supervisor_id: number;
-    supervisor_name?: string;
-    ag_category_id: number;
-    category_name?: string;
+    max_participants: number;  // Fixed: was max_participant
+    category_id: number;  // Fixed: was ag_category_id
+    supervisor_ids?: number[];  // Fixed: was supervisor_id, now optional array
     created_at: string;
     updated_at: string;
-    participant_count?: number;
-    times?: BackendActivityTime[];
-    students?: BackendActivityStudent[];
+    category?: BackendActivityCategory;  // Optional for responses
 }
 
 export interface BackendActivityCategory {
     id: number;
     name: string;
     description?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+// Added: Backend supervisor type
+export interface BackendSupervisor {
+    id: number;
+    person?: {
+        first_name: string;
+        last_name: string;
+    };
+    is_teacher: boolean;
     created_at: string;
     updated_at: string;
 }
@@ -97,22 +104,29 @@ export interface ActivityStudent {
     updated_at: Date;
 }
 
+// Added: Frontend supervisor type
+export interface Supervisor {
+    id: string;
+    name: string;
+}
+
 // Mapping functions for backend to frontend types
 export function mapActivityResponse(backendActivity: BackendActivity): Activity {
     return {
         id: String(backendActivity.id),
         name: backendActivity.name,
-        max_participant: backendActivity.max_participant,
-        is_open_ags: backendActivity.is_open_ags,
-        supervisor_id: String(backendActivity.supervisor_id),
-        supervisor_name: backendActivity.supervisor_name,
-        ag_category_id: String(backendActivity.ag_category_id),
-        category_name: backendActivity.category_name,
+        max_participant: backendActivity.max_participants,  // Fixed field name
+        is_open_ags: false,  // Not used for now, default false
+        // Take first supervisor from array if exists
+        supervisor_id: backendActivity.supervisor_ids?.[0] ? String(backendActivity.supervisor_ids[0]) : '',
+        ag_category_id: String(backendActivity.category_id),  // Fixed field name
+        category_name: backendActivity.category?.name,
         created_at: new Date(backendActivity.created_at),
         updated_at: new Date(backendActivity.updated_at),
-        participant_count: backendActivity.participant_count,
-        times: backendActivity.times?.map(mapActivityTimeResponse),
-        students: backendActivity.students?.map(mapActivityStudentResponse),
+        // Optional fields - set defaults
+        participant_count: 0,
+        times: [],  // Ignore schedules for now
+        students: [],  // Ignore enrollments for now
     };
 }
 
@@ -150,35 +164,26 @@ export function mapActivityStudentResponse(backendStudent: BackendActivityStuden
     };
 }
 
+// Added: Map supervisor response
+export function mapSupervisorResponse(backendSupervisor: BackendSupervisor): Supervisor {
+    return {
+        id: String(backendSupervisor.id),
+        name: backendSupervisor.person 
+            ? `${backendSupervisor.person.first_name} ${backendSupervisor.person.last_name}`
+            : `Supervisor ${backendSupervisor.id}`
+    };
+}
+
 // Prepare frontend types for backend requests
 export function prepareActivityForBackend(activity: Partial<Activity>): Partial<BackendActivity> {
-    // Create the basic activity object without times
     const result: Partial<BackendActivity> = {
         id: activity.id ? parseInt(activity.id, 10) : undefined,
         name: activity.name,
-        max_participant: activity.max_participant,
-        is_open_ags: activity.is_open_ags,
-        supervisor_id: activity.supervisor_id ? parseInt(activity.supervisor_id, 10) : undefined,
-        ag_category_id: activity.ag_category_id ? parseInt(activity.ag_category_id, 10) : undefined,
+        max_participants: activity.max_participant,  // Map field name
+        category_id: activity.ag_category_id ? parseInt(activity.ag_category_id, 10) : undefined,  // Map field name
+        // Convert single supervisor to array if present
+        supervisor_ids: activity.supervisor_id ? [parseInt(activity.supervisor_id, 10)] : undefined,
     };
-    
-    // Add times property only if activity.times exists
-    if (activity.times?.length) {
-        // Cast the array to BackendActivityTime[] to satisfy the type requirement
-        // This is safe because we're ensuring all required fields are present in prepareActivityTimeForBackend
-        result.times = activity.times.map(time => {
-            const backendTime = prepareActivityTimeForBackend(time);
-            // Ensure all required fields are present for BackendActivityTime
-            return {
-                id: backendTime.id ?? 0,
-                activity_id: backendTime.activity_id ?? 0,
-                weekday: backendTime.weekday ?? '',
-                timespan: backendTime.timespan ?? { start_time: '', end_time: '' },
-                created_at: '',
-                updated_at: ''
-            } as BackendActivityTime;
-        });
-    }
     
     return result;
 }
@@ -195,33 +200,23 @@ export function prepareActivityTimeForBackend(time: Partial<ActivityTime>): Part
 // Request/Response types
 export interface CreateActivityRequest {
     name: string;
-    max_participant: number;
-    is_open_ags: boolean;
-    supervisor_id: number;
-    ag_category_id: number;
-    times?: {
-        weekday: string;
-        timespan: {
-            start_time: string;
-            end_time: string;
-        };
-    }[];
+    max_participants: number;  // Fixed field name
+    category_id: number;  // Fixed field name
+    supervisor_ids?: number[];  // Optional array
 }
 
 export interface UpdateActivityRequest {
     name: string;
-    max_participant: number;
-    is_open_ags: boolean;
-    supervisor_id: number;
-    ag_category_id: number;
-    times?: {
-        id?: number;
-        weekday: string;
-        timespan: {
-            start_time: string;
-            end_time: string;
-        };
-    }[];
+    max_participants: number;  // Fixed field name
+    category_id: number;  // Fixed field name
+    supervisor_ids?: number[];  // Optional array
+}
+
+// Added: Activity filter type
+export interface ActivityFilter {
+    search?: string;
+    category_id?: string;
+    is_open_ags?: boolean;
 }
 
 // Helper functions 

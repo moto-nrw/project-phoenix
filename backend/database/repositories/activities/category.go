@@ -30,6 +30,7 @@ func (r *CategoryRepository) FindByName(ctx context.Context, name string) (*acti
 	category := new(activities.Category)
 	err := r.db.NewSelect().
 		Model(category).
+		ModelTableExpr(`activities.categories AS "category"`).
 		Where("LOWER(name) = LOWER(?)", name).
 		Scan(ctx)
 
@@ -48,6 +49,7 @@ func (r *CategoryRepository) ListAll(ctx context.Context) ([]*activities.Categor
 	var categories []*activities.Category
 	err := r.db.NewSelect().
 		Model(&categories).
+		ModelTableExpr(`activities.categories AS "category"`).
 		Order("name ASC").
 		Scan(ctx)
 
@@ -117,7 +119,9 @@ func (r *CategoryRepository) Update(ctx context.Context, category *activities.Ca
 // List overrides the base List method to accept the new QueryOptions type
 func (r *CategoryRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.Category, error) {
 	var categories []*activities.Category
-	query := r.db.NewSelect().Model(&categories)
+	query := r.db.NewSelect().
+		Model(&categories).
+		ModelTableExpr(`activities.categories AS "category"`)
 
 	// Apply query options
 	if options != nil {

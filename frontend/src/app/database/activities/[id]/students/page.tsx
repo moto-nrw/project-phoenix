@@ -5,9 +5,9 @@ import { redirect, useRouter, useParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
 // import StudentList from '@/components/students/student-list';
-import type { Activity } from "@/lib/activity-api";
+import type { Activity, ActivityStudent } from "@/lib/activity-helpers";
 import type { Student } from "@/lib/api";
-import { activityService } from "@/lib/activity-api";
+import { activityService } from "@/lib/activity-service";
 import Link from "next/link";
 
 export default function ActivityStudentsPage() {
@@ -60,7 +60,7 @@ export default function ActivityStudentsPage() {
             id as string,
           );
           // Convert ActivityStudent[] to Student[] with proper type conversion
-          const convertedStudents = (enrolledStudents ?? []).map(s => ({
+          const convertedStudents = (enrolledStudents ?? []).map((s: ActivityStudent) => ({
             id: s.id,
             name: s.name ?? 'Unnamed Student', // Ensure name is never undefined
             school_class: s.school_class ?? '', // Ensure school_class is never undefined

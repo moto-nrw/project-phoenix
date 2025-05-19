@@ -4,9 +4,9 @@ import { useSession } from "next-auth/react";
 import { redirect, useParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
-import type { Activity } from "@/lib/activity-api";
+import type { Activity } from "@/lib/activity-helpers";
 import type { Student } from "@/lib/api";
-import { activityService } from "@/lib/activity-api";
+import { activityService } from "@/lib/activity-service";
 import { studentService } from "@/lib/api";
 import Link from "next/link";
 
@@ -91,7 +91,7 @@ export default function AddStudentsToActivityPage() {
     setEnrollingStudent(studentId);
 
     try {
-      await activityService.enrollStudent(id as string, studentId);
+      await activityService.enrollStudent(id as string, { studentId });
 
       // Find the enrolled student for the success message
       const enrolledStudent = availableStudents.find((s) => s.id === studentId);

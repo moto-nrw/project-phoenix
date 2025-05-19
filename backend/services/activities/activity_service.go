@@ -2,8 +2,10 @@ package activities
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -100,6 +102,14 @@ func (s *Service) CreateCategory(ctx context.Context, category *activities.Categ
 func (s *Service) GetCategory(ctx context.Context, id int64) (*activities.Category, error) {
 	category, err := s.categoryRepo.FindByID(ctx, id)
 	if err != nil {
+		// Check for "no rows" error and convert to our own error
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: "get category", Err: ErrCategoryNotFound}
+		}
+		// Check if the wrapped database error contains sql.ErrNoRows
+		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: "get category", Err: ErrCategoryNotFound}
+		}
 		return nil, &ActivityError{Op: "get category", Err: err}
 	}
 
@@ -212,6 +222,14 @@ func (s *Service) CreateGroup(ctx context.Context, group *activities.Group, supe
 func (s *Service) GetGroup(ctx context.Context, id int64) (*activities.Group, error) {
 	group, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
+		// Check for "no rows" error and convert to our own error
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: "get group", Err: ErrGroupNotFound}
+		}
+		// Check if the wrapped database error contains sql.ErrNoRows
+		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: "get group", Err: ErrGroupNotFound}
+		}
 		return nil, &ActivityError{Op: "get group", Err: err}
 	}
 
@@ -310,19 +328,36 @@ func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activitie
 	// Get the group
 	group, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
+		// Check for "no rows" error and convert to our own error
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil, nil, &ActivityError{Op: "get group", Err: ErrGroupNotFound}
+		}
+		// Check if the wrapped database error contains sql.ErrNoRows
+		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+			return nil, nil, nil, &ActivityError{Op: "get group", Err: ErrGroupNotFound}
+		}
 		return nil, nil, nil, &ActivityError{Op: "get group", Err: err}
 	}
 
-	// Get supervisors
-	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, id)
-	if err != nil {
-		return nil, nil, nil, &ActivityError{Op: "get supervisors", Err: err}
+	// Get supervisors - handle errors gracefully
+	var supervisors []*activities.SupervisorPlanned
+	var supervisorErr error
+	supervisors, supervisorErr = s.supervisorRepo.FindByGroupID(ctx, id)
+	if supervisorErr != nil {
+		// Log the error but continue - we'll return an error at the end
+		// so the caller can decide whether to use the partial data
+		log.Printf("Warning: Failed to load supervisors for group ID %d: %v", id, supervisorErr)
 	}
 
 	// Get schedules
 	schedules, err := s.scheduleRepo.FindByGroupID(ctx, id)
 	if err != nil {
 		return nil, nil, nil, &ActivityError{Op: "get schedules", Err: err}
+	}
+
+	// If we had a supervisor error, return it after loading everything else
+	if supervisorErr != nil {
+		return group, nil, schedules, &ActivityError{Op: "get supervisors", Err: supervisorErr}
 	}
 
 	return group, supervisors, schedules, nil
@@ -364,6 +399,14 @@ func (s *Service) AddSchedule(ctx context.Context, groupID int64, schedule *acti
 func (s *Service) GetSchedule(ctx context.Context, id int64) (*activities.Schedule, error) {
 	schedule, err := s.scheduleRepo.FindByID(ctx, id)
 	if err != nil {
+		// Check for "no rows" error and convert to our own error
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: "get schedule", Err: ErrScheduleNotFound}
+		}
+		// Check if the wrapped database error contains sql.ErrNoRows
+		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: "get schedule", Err: ErrScheduleNotFound}
+		}
 		return nil, &ActivityError{Op: "get schedule", Err: err}
 	}
 
@@ -451,6 +494,14 @@ func (s *Service) AddSupervisor(ctx context.Context, groupID int64, staffID int6
 func (s *Service) GetSupervisor(ctx context.Context, id int64) (*activities.SupervisorPlanned, error) {
 	supervisor, err := s.supervisorRepo.FindByID(ctx, id)
 	if err != nil {
+		// Check for "no rows" error and convert to our own error
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: "get supervisor", Err: ErrSupervisorNotFound}
+		}
+		// Check if the wrapped database error contains sql.ErrNoRows
+		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: "get supervisor", Err: ErrSupervisorNotFound}
+		}
 		return nil, &ActivityError{Op: "get supervisor", Err: err}
 	}
 

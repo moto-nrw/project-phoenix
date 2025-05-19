@@ -5,8 +5,8 @@ import { redirect, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
 import ActivityList from "@/components/activities/activity-list";
-import type { Activity, ActivityCategory } from "@/lib/activity-api";
-import { activityService } from "@/lib/activity-api";
+import type { Activity, ActivityCategory } from "@/lib/activity-helpers";
+import { activityService } from "@/lib/activity-service";
 import Link from "next/link";
 
 export default function ActivitiesPage() {

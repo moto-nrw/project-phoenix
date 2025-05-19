@@ -30,6 +30,7 @@ func (r *ScheduleRepository) FindByGroupID(ctx context.Context, groupID int64) (
 	var schedules []*activities.Schedule
 	err := r.db.NewSelect().
 		Model(&schedules).
+		ModelTableExpr(`activities.schedules AS "schedule"`).
 		Relation("Timeframe").
 		Where("activity_group_id = ?", groupID).
 		Order("weekday, timeframe_id").
@@ -50,6 +51,7 @@ func (r *ScheduleRepository) FindByWeekday(ctx context.Context, weekday string) 
 	var schedules []*activities.Schedule
 	err := r.db.NewSelect().
 		Model(&schedules).
+		ModelTableExpr(`activities.schedules AS "schedule"`).
 		Relation("Timeframe").
 		Relation("ActivityGroup").
 		Where("weekday = ?", weekday).
@@ -71,6 +73,7 @@ func (r *ScheduleRepository) FindByTimeframeID(ctx context.Context, timeframeID 
 	var schedules []*activities.Schedule
 	err := r.db.NewSelect().
 		Model(&schedules).
+		ModelTableExpr(`activities.schedules AS "schedule"`).
 		Relation("ActivityGroup").
 		Where("timeframe_id = ?", timeframeID).
 		Order("weekday").

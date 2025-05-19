@@ -5,8 +5,8 @@ import { redirect, useRouter, useParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
 import ActivityForm from "@/components/activities/activity-form";
-import type { Activity, ActivityCategory } from "@/lib/activity-api";
-import { activityService } from "@/lib/activity-api";
+import type { Activity, ActivityCategory } from "@/lib/activity-helpers";
+import { activityService } from "@/lib/activity-service";
 import Link from "next/link";
 
 export default function EditActivityPage() {
@@ -46,17 +46,8 @@ export default function EditActivityPage() {
         const categoriesData = await activityService.getCategories();
         setCategories(categoriesData);
 
-        // Fetch all supervisors from API
-        const response = await fetch("/api/users/supervisors");
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch supervisors: ${response.statusText}`,
-          );
-        }
-        const supervisorsData = (await response.json()) as Array<{
-          id: string;
-          name: string;
-        }>;
+        // Fetch all supervisors from activity service
+        const supervisorsData = await activityService.getSupervisors();
         setSupervisors(supervisorsData);
 
         setError(null);
@@ -97,8 +88,14 @@ export default function EditActivityPage() {
         dataToSubmit.ag_category_id = activity.ag_category_id;
       }
 
-      // Update the activity
-      await activityService.updateActivity(id as string, dataToSubmit);
+      // Update the activity - convert from Activity type to UpdateActivityRequest type
+      const updateRequest = {
+        name: dataToSubmit.name ?? '',
+        max_participants: dataToSubmit.max_participant ?? 0,
+        category_id: parseInt(dataToSubmit.ag_category_id ?? '0', 10),
+        supervisor_ids: dataToSubmit.supervisor_id ? [parseInt(dataToSubmit.supervisor_id, 10)] : []
+      };
+      await activityService.updateActivity(id as string, updateRequest);
 
       // Redirect back to activity details
       router.push(`/database/activities/${id as string}`);

@@ -30,6 +30,7 @@ func (r *SupervisorPlannedRepository) FindByStaffID(ctx context.Context, staffID
 	var supervisors []*activities.SupervisorPlanned
 	err := r.db.NewSelect().
 		Model(&supervisors).
+		ModelTableExpr(`activities.supervisors AS "supervisor"`).
 		Relation("Group").
 		Where("staff_id = ?", staffID).
 		Order("is_primary DESC").
@@ -50,6 +51,7 @@ func (r *SupervisorPlannedRepository) FindByGroupID(ctx context.Context, groupID
 	var supervisors []*activities.SupervisorPlanned
 	err := r.db.NewSelect().
 		Model(&supervisors).
+		ModelTableExpr(`activities.supervisors AS "supervisor"`).
 		Relation("Staff").
 		Relation("Staff.Person").
 		Where("group_id = ?", groupID).
@@ -71,6 +73,7 @@ func (r *SupervisorPlannedRepository) FindPrimaryByGroupID(ctx context.Context, 
 	supervisor := new(activities.SupervisorPlanned)
 	err := r.db.NewSelect().
 		Model(supervisor).
+		ModelTableExpr(`activities.supervisors AS "supervisor"`).
 		Relation("Staff").
 		Relation("Staff.Person").
 		Where("group_id = ? AND is_primary = true", groupID).
@@ -91,6 +94,7 @@ func (r *SupervisorPlannedRepository) SetPrimary(ctx context.Context, id int64) 
 	// We rely on the database trigger to ensure only one primary supervisor per group
 	_, err := r.db.NewUpdate().
 		Model((*activities.SupervisorPlanned)(nil)).
+		ModelTableExpr(`activities.supervisors AS "supervisor"`).
 		Set("is_primary = true").
 		Where("id = ?", id).
 		Exec(ctx)

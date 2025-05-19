@@ -5,7 +5,7 @@ import type {
   Activity,
   ActivityCategory,
   ActivityTime,
-} from "@/lib/activity-api";
+} from "@/lib/activity-helpers";
 
 // Helper component for selecting a supervisor
 const SupervisorSelector = ({

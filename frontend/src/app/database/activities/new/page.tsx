@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
 import ActivityForm from "@/components/activities/activity-form";
 import type { Activity, ActivityCategory } from "@/lib/activity-api";
-import { activityService } from "@/lib/activity-api";
+import { activityService } from "@/lib/activity-service";
 // import Link from 'next/link';
 
 export default function NewActivityPage() {
@@ -60,17 +60,8 @@ export default function NewActivityPage() {
     try {
       setSupervisorsLoading(true);
 
-      // Fetch supervisors from our API
-      const response = await fetch("/api/users/supervisors");
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch supervisors: ${response.statusText}`);
-      }
-
-      const supervisorsData = (await response.json()) as Array<{
-        id: string;
-        name: string;
-      }>;
+      // Fetch supervisors from activity service
+      const supervisorsData = await activityService.getSupervisors();
       setSupervisors(supervisorsData);
     } catch (err) {
       console.error("Error fetching supervisors:", err);
@@ -112,8 +103,14 @@ export default function NewActivityPage() {
         activityData.times = formData.times;
       }
 
-      // Create the activity
-      const newActivity = await activityService.createActivity(activityData);
+      // Create the activity - convert from Activity type to CreateActivityRequest type
+      const createRequest = {
+        name: activityData.name,
+        max_participants: activityData.max_participant,
+        category_id: parseInt(activityData.ag_category_id, 10),
+        supervisor_ids: activityData.supervisor_id ? [parseInt(activityData.supervisor_id, 10)] : []
+      };
+      const newActivity = await activityService.createActivity(createRequest);
 
       // Redirect to the new activity
       router.push(`/database/activities/${newActivity.id}`);
