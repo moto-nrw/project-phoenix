@@ -72,7 +72,7 @@ export async function handleAuthFailure(): Promise<boolean> {
     console.log("Token refresh failed, signing out");
     await signOut({ redirect: false });
 
-    // If we're in the browser, redirect to login
+    // If we're in the browser, redirect to home page (login)
     if (typeof window !== "undefined") {
       window.location.href = "/";
     }

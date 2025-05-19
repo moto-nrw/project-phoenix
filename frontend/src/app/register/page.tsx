@@ -155,7 +155,7 @@ export default function RegisterPage() {
             } else {
                 setSuccess("Konto erfolgreich erstellt! Weiterleitung zur Anmeldung...");
                 setTimeout(() => {
-                    router.push("/login");
+                    router.push("/");
                 }, 2000);
             }
         } catch (error) {
@@ -284,7 +284,7 @@ export default function RegisterPage() {
 
                 <CardFooter>
                     <p>
-                        Bereits ein Konto? <Link href="/login">Jetzt anmelden</Link>
+                        Bereits ein Konto? <Link href="/">Jetzt anmelden</Link>
                     </p>
                 </CardFooter>
             </Card>

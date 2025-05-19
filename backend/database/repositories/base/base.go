@@ -72,12 +72,12 @@ func (r *Repository[T]) FindByID(ctx context.Context, id interface{}) (T, error)
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Get the entity name in lowercase to use as alias
 	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
-	tableExpr := fmt.Sprintf("%s AS %s", r.TableName, entityName)
+	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
 	err := r.DB.NewSelect().
 		Model(entityVal).
 		ModelTableExpr(tableExpr).
-		Where("id = ?", id).
+		Where(fmt.Sprintf(`"%s".id = ?`, entityName), id).
 		Scan(ctx)
 	if err != nil {
 		return entity, &modelBase.DatabaseError{
@@ -106,7 +106,7 @@ func (r *Repository[T]) Update(ctx context.Context, entity T) error {
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Get the entity name in lowercase to use as alias
 	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
-	tableExpr := fmt.Sprintf("%s AS %s", r.TableName, entityName)
+	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
 	_, err := r.DB.NewUpdate().
 		Model(entity).
@@ -138,12 +138,12 @@ func (r *Repository[T]) Delete(ctx context.Context, id interface{}) error {
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Get the entity name in lowercase to use as alias
 	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
-	tableExpr := fmt.Sprintf("%s AS %s", r.TableName, entityName)
+	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
 	_, err := r.DB.NewDelete().
 		Model(entityVal).
 		ModelTableExpr(tableExpr).
-		Where("id = ?", id).
+		Where(fmt.Sprintf(`"%s".id = ?`, entityName), id).
 		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -162,7 +162,7 @@ func (r *Repository[T]) List(ctx context.Context, filters map[string]interface{}
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Get the entity name in lowercase to use as alias
 	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
-	tableExpr := fmt.Sprintf("%s AS %s", r.TableName, entityName)
+	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
 	query := r.DB.NewSelect().
 		Model(&entities).
@@ -201,7 +201,7 @@ func (r *Repository[T]) Count(ctx context.Context, filters map[string]interface{
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Get the entity name in lowercase to use as alias
 	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
-	tableExpr := fmt.Sprintf("%s AS %s", r.TableName, entityName)
+	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
 	query := r.DB.NewSelect().
 		Model(entityVal).

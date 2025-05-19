@@ -26,7 +26,7 @@ export default function ActivityDetailsPage() {
   const { status } = useSession({
     required: true,
     onUnauthenticated() {
-      redirect("/login");
+      redirect("/");
     },
   });
 

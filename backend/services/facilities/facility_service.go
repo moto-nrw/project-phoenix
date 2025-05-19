@@ -121,6 +121,10 @@ func (s *service) DeleteRoom(ctx context.Context, id int64) error {
 
 // ListRooms retrieves all rooms matching the provided filters
 func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]*facilities.Room, error) {
+	// TODO: Follow education.groups pattern - add ListWithOptions to RoomRepository interface
+	// and call it directly instead of converting to map[string]interface{}
+	// See education service for the correct implementation pattern
+	
 	// Convert QueryOptions to map[string]interface{} for now
 	// This is a temporary solution until RoomRepository is updated to use QueryOptions
 	filters := make(map[string]interface{})

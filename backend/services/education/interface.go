@@ -28,6 +28,7 @@ type Service interface {
 	// Group-Teacher operations
 	AddTeacherToGroup(ctx context.Context, groupID, teacherID int64) error
 	RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID int64) error
+	UpdateGroupTeachers(ctx context.Context, groupID int64, teacherIDs []int64) error
 	GetGroupTeachers(ctx context.Context, groupID int64) ([]*users.Teacher, error)
 	GetTeacherGroups(ctx context.Context, teacherID int64) ([]*education.Group, error)
 

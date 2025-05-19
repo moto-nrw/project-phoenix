@@ -24,14 +24,22 @@ export default function GroupDetailPage() {
       try {
         setLoading(true);
 
-        // Fetch group and its students in parallel
-        const [groupData, studentsData] = await Promise.all([
-          groupService.getGroup(groupId),
-          groupService.getGroupStudents(groupId),
-        ]);
+        // TODO: Implement student fetching when student API is complete
+        // For now, only fetch group data
+        const groupData = await groupService.getGroup(groupId);
+        console.log("Group data received in page:", groupData);
+
+        if (!groupData) {
+          console.error("No group data returned from API");
+          setError("Gruppe konnte nicht gefunden werden.");
+          setGroup(null);
+          setStudents([]);
+          return;
+        }
 
         setGroup(groupData);
-        setStudents(studentsData);
+        console.log("Group state set to:", groupData);
+        setStudents([]); // Empty array for now
         setError(null);
       } catch (err) {
         console.error("Error fetching group details:", err);
@@ -56,7 +64,10 @@ export default function GroupDetailPage() {
       setError(null);
 
       // Update group
-      const updatedGroup = await groupService.updateGroup(groupId, formData);
+      await groupService.updateGroup(groupId, formData);
+      
+      // Re-fetch the data to ensure we have all the nested fields properly populated
+      const updatedGroup = await groupService.getGroup(groupId);
       setGroup(updatedGroup);
       setIsEditing(false);
     } catch (err) {
@@ -240,7 +251,7 @@ export default function GroupDetailPage() {
             <div className="relative bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white">
               <div className="flex items-center">
                 <div className="mr-5 flex h-20 w-20 items-center justify-center rounded-full bg-white/30 text-3xl font-bold">
-                  {group.name[0] ?? "G"}
+                  {group.name?.[0] ?? "G"}
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold">{group.name}</h1>
@@ -385,24 +396,16 @@ export default function GroupDetailPage() {
 
                 {students.length === 0 ? (
                   <div className="rounded-lg bg-yellow-50 p-4 text-center text-yellow-800">
-                    <p className="mb-2">
-                      Keine Schüler in dieser Gruppe gefunden.
+                    <p className="mb-2 font-semibold">
+                      TODO: Student-API Integration ausstehend
                     </p>
                     <p className="text-sm">
-                      Wenn Sie gerade einen Schüler hinzugefügt haben, könnte
-                      das System einige Sekunden benötigen, um das zu
-                      verarbeiten.
+                      Die Anzeige der Schüler in dieser Gruppe wird implementiert, 
+                      sobald die Student-API fertiggestellt ist.
                     </p>
-                    <button
-                      onClick={() => {
-                        void groupService
-                          .getGroupStudents(groupId)
-                          .then((data) => setStudents(data));
-                      }}
-                      className="mt-3 rounded-md bg-yellow-100 px-4 py-2 text-yellow-800 transition-colors duration-200 hover:bg-yellow-200"
-                    >
-                      Aktualisieren
-                    </button>
+                    <div className="mt-3 text-xs text-gray-600">
+                      (Entwicklungshinweis: Endpoint /api/groups/{"{id}"}/students fehlt noch)
+                    </div>
                   </div>
                 ) : (
                   <StudentList students={students} showDetails={true} />

@@ -2,6 +2,7 @@ import axios from "axios";
 import type { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
 import { getSession } from "next-auth/react";
 import { env } from "~/env";
+import type { ApiResponse } from "./api-helpers";
 import {
   mapSingleStudentResponse,
   mapStudentsResponse,
@@ -44,6 +45,19 @@ import { handleAuthFailure } from "./auth-api";
 function handleApiError(error: unknown, context: string): Error {
   console.error(`${context}:`, error);
   return new Error(`${context}: ${error instanceof Error ? error.message : String(error)}`);
+}
+
+// Paginated response interface for API responses with pagination metadata
+interface PaginatedResponse<T> {
+  status: string;
+  data: T[];
+  pagination: {
+    current_page: number;
+    page_size: number;
+    total_pages: number;
+    total_records: number;
+  };
+  message?: string;
 }
 
 // Create an Axios instance
@@ -106,7 +120,7 @@ api.interceptors.response.use(
         console.log("Token refresh failed, unable to retry request");
         // Force redirect to login if we're in the browser
         if (typeof window !== "undefined") {
-          window.location.href = "/login";
+          window.location.href = "/";
         }
       }
     }
@@ -635,11 +649,30 @@ export const groupService = {
 
         // Type assertion to avoid unsafe assignment
         const responseData: unknown = await response.json();
-        return mapGroupsResponse(responseData as BackendGroup[]);
+        console.log('Client-side groups response:', responseData);
+        
+        // Check if the response is wrapped in our ApiResponse format
+        let groups: BackendGroup[] = [];
+        if (typeof responseData === 'object' && responseData !== null && 'data' in responseData) {
+          // It's wrapped in ApiResponse
+          const apiResponse = responseData as { data?: unknown };
+          groups = Array.isArray(apiResponse.data) ? apiResponse.data as BackendGroup[] : [];
+        } else if (Array.isArray(responseData)) {
+          // It's a direct array
+          groups = responseData as BackendGroup[];
+        }
+        
+        console.log('Groups before mapping:', groups);
+        
+        const mappedGroups = mapGroupsResponse(groups);
+        console.log('Groups after mapping:', mappedGroups);
+        
+        return mappedGroups;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
-        return mapGroupsResponse(response.data as unknown as BackendGroup[]);
+        const paginatedResponse = response.data as PaginatedResponse<BackendGroup>;
+        return mapGroupsResponse(paginatedResponse.data);
       }
     } catch (error) {
       console.error("Error fetching groups:", error);
@@ -691,8 +724,25 @@ export const groupService = {
               });
 
               if (retryResponse.ok) {
-                const data = (await retryResponse.json()) as BackendGroup;
-                return mapSingleGroupResponse({ data });
+                const responseData: unknown = await retryResponse.json();
+                console.log('Group API retry response:', responseData);
+                
+                let groupData: BackendGroup;
+                if (typeof responseData === 'object' && responseData !== null) {
+                  if ('data' in responseData) {
+                    groupData = (responseData as { data: BackendGroup }).data;
+                  } else {
+                    groupData = responseData as BackendGroup;
+                  }
+                } else {
+                  throw new Error('Invalid response format from API');
+                }
+                
+                if (!groupData) {
+                  throw new Error('No group data in response');
+                }
+                
+                return mapSingleGroupResponse({ data: groupData });
               }
             }
           }
@@ -700,12 +750,49 @@ export const groupService = {
           throw new Error(`API error: ${response.status}`);
         }
 
-        const data = (await response.json()) as BackendGroup;
-        return mapSingleGroupResponse({ data });
+        const responseData: unknown = await response.json();
+        console.log('Group API response:', responseData);
+        
+        // Check if the response is wrapped in an ApiResponse format
+        let groupData: BackendGroup;
+        if (typeof responseData === 'object' && responseData !== null) {
+          if ('success' in responseData && 'data' in responseData) {
+            // Response is wrapped in ApiResponse format { success: true, message: "...", data: {...} }
+            const apiResponse = responseData as ApiResponse<unknown>;
+            
+            // Check for double-wrapped response
+            if (apiResponse.data && typeof apiResponse.data === 'object' && 'data' in apiResponse.data) {
+              // Double-wrapped: extract the inner data
+              const dataWrapper = apiResponse.data as { data: BackendGroup };
+              groupData = dataWrapper.data;
+            } else {
+              // Single-wrapped
+              groupData = apiResponse.data as BackendGroup;
+            }
+          } else if ('data' in responseData) {
+            // Response is wrapped in { data: ... }
+            const dataResponse = responseData as { data: BackendGroup };
+            groupData = dataResponse.data;
+          } else {
+            // Response is direct group data
+            groupData = responseData as BackendGroup;
+          }
+        } else {
+          throw new Error('Invalid response format from API');
+        }
+        
+        if (!groupData) {
+          throw new Error('No group data in response');
+        }
+        
+        console.log('Actual group data:', groupData);
+        const mappedGroup = mapGroupResponse(groupData);
+        console.log('Final mapped group:', mappedGroup);
+        return mappedGroup;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapSingleGroupResponse({ data: response.data as BackendGroup });
+        return mapGroupResponse(response.data as BackendGroup);
       }
     } catch (error) {
       console.error(`Error fetching group ${id}:`, error);

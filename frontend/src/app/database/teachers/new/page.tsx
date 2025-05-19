@@ -18,7 +18,7 @@ export default function NewTeacherPage() {
     const { status } = useSession({
         required: true,
         onUnauthenticated() {
-            redirect("/login");
+            redirect("/");
         },
     });
 

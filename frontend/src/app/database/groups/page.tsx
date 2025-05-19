@@ -15,12 +15,23 @@ export default function GroupsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState("");
 
-  const { status } = useSession({
+  const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
-      redirect("/login");
+      redirect("/");
     },
   });
+
+  // Log user roles for debugging
+  useEffect(() => {
+    if (session?.user) {
+      console.log("Current user session:", {
+        id: session.user.id,
+        email: session.user.email,
+        roles: session.user.roles,
+      });
+    }
+  }, [session]);
 
   // Function to fetch groups with optional filters
   const fetchGroups = async (search?: string) => {
@@ -35,6 +46,7 @@ export default function GroupsPage() {
       try {
         // Fetch from the real API using our group service
         const data = await groupService.getGroups(filters);
+        console.log("Groups page received:", data);
 
         if (data.length === 0 && !search) {
           console.log("No groups returned from API, checking connection");
@@ -44,9 +56,18 @@ export default function GroupsPage() {
         setError(null);
       } catch (apiErr) {
         console.error("API error when fetching groups:", apiErr);
-        setError(
-          "Fehler beim Laden der Gruppendaten. Bitte versuchen Sie es später erneut.",
-        );
+        
+        // Check if it's a 403 Forbidden error
+        const errorMessage = apiErr instanceof Error ? apiErr.message : String(apiErr);
+        if (errorMessage.includes("403")) {
+          setError(
+            "Sie haben keine Berechtigung, diese Seite anzusehen. Bitte wenden Sie sich an einen Administrator, um die erforderlichen Berechtigungen zu erhalten.",
+          );
+        } else {
+          setError(
+            "Fehler beim Laden der Gruppendaten. Bitte versuchen Sie es später erneut.",
+          );
+        }
         setGroups([]);
       }
     } catch (err) {
@@ -116,6 +137,9 @@ export default function GroupsPage() {
   const handleSearchChange = (searchTerm: string) => {
     setSearchFilter(searchTerm);
   };
+
+  console.log("Groups state before rendering:", groups);
+  console.log("Search filter:", searchFilter);
 
   return (
     <DataListPage
