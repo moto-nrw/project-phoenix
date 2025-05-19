@@ -31,15 +31,28 @@ export default function GroupSelector({
     const fetchGroups = async () => {
       try {
         setLoading(true);
-        // Fetch groups using the public API endpoint
-        const response = await fetch("/api/groups/public");
+        // Fetch groups using the list endpoint
+        const response = await fetch("/api/groups");
 
         if (!response.ok) {
           throw new Error(`Error: ${response.status}`);
         }
 
-        const data = (await response.json()) as Group[];
-        setGroups(data);
+        const result = await response.json();
+        
+        // Handle both wrapped and unwrapped responses
+        let groupData: Group[];
+        if (result && typeof result === 'object' && 'data' in result) {
+          // Handle wrapped response from our API
+          groupData = result.data as Group[];
+        } else if (Array.isArray(result)) {
+          // Handle raw array response
+          groupData = result as Group[];
+        } else {
+          throw new Error('Unexpected response format');
+        }
+        
+        setGroups(groupData);
         setError(null);
       } catch (err) {
         console.error("Error fetching groups:", err);
