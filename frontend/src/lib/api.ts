@@ -71,14 +71,17 @@ const api = axios.create({
 });
 
 // Add a request interceptor to include the auth token
+// Note: This interceptor only runs in client-side code
 api.interceptors.request.use(
   async (config) => {
-    // Get the session to retrieve the token
-    const session = await getSession();
+    // Only try to get session if we're in the browser
+    if (typeof window !== 'undefined') {
+      const session = await getSession();
 
-    // If there's a token, add it to the headers
-    if (session?.user?.token) {
-      config.headers.Authorization = `Bearer ${session.user.token}`;
+      // If there's a token, add it to the headers
+      if (session?.user?.token) {
+        config.headers.Authorization = `Bearer ${session.user.token}`;
+      }
     }
 
     return config;

@@ -527,6 +527,14 @@ export const authService = {
                 }
 
                 const responseData = await response.json() as ApiResponse<BackendPermission[]>;
+                console.log("Permissions API response:", responseData);
+                
+                // Check if data exists and is an array
+                if (!responseData.data || !Array.isArray(responseData.data)) {
+                    console.error("Unexpected response structure:", responseData);
+                    throw new Error("Invalid response format from permissions API");
+                }
+                
                 return responseData.data.map(mapPermissionResponse);
             } else {
                 const response = await api.get<ApiResponse<BackendPermission[]>>(url);
@@ -669,7 +677,18 @@ export const authService = {
                 }
 
                 const responseData = await response.json() as ApiResponse<BackendPermission[]>;
-                return responseData.data.map(mapPermissionResponse);
+                
+                // Check if data exists and is an array
+                if (!responseData.data || !Array.isArray(responseData.data)) {
+                    console.error("Unexpected response structure:", responseData);
+                    throw new Error("Invalid response format from permissions API");
+                }
+                
+                // Map the permissions, filtering out any invalid ones
+                // Note: The backend returns lowercase field names
+                return responseData.data
+                    .filter(perm => perm && perm.name && perm.resource && perm.action)
+                    .map(mapPermissionResponse);
             } else {
                 const response = await api.get<ApiResponse<BackendPermission[]>>(url, { params });
                 return response.data.data.map(mapPermissionResponse);
@@ -1102,6 +1121,14 @@ export const authService = {
                 }
 
                 const responseData = await response.json() as ApiResponse<BackendPermission[]>;
+                console.log("Permissions API response:", responseData);
+                
+                // Check if data exists and is an array
+                if (!responseData.data || !Array.isArray(responseData.data)) {
+                    console.error("Unexpected response structure:", responseData);
+                    throw new Error("Invalid response format from permissions API");
+                }
+                
                 return responseData.data.map(mapPermissionResponse);
             } else {
                 const response = await api.get<ApiResponse<BackendPermission[]>>(url);

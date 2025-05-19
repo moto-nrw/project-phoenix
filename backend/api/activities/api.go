@@ -1,8 +1,8 @@
 package activities
 
 import (
-	"log"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"time"

@@ -29,7 +29,8 @@ func (r *PermissionRepository) FindByName(ctx context.Context, name string) (*au
 	permission := new(auth.Permission)
 	err := r.db.NewSelect().
 		Model(permission).
-		Where("LOWER(name) = LOWER(?)", name).
+		ModelTableExpr(`auth.permissions AS "permission"`).
+		Where(`LOWER("permission".name) = LOWER(?)`, name).
 		Scan(ctx)
 
 	if err != nil {
@@ -47,7 +48,8 @@ func (r *PermissionRepository) FindByResourceAction(ctx context.Context, resourc
 	permission := new(auth.Permission)
 	err := r.db.NewSelect().
 		Model(permission).
-		Where("LOWER(resource) = LOWER(?) AND LOWER(action) = LOWER(?)", resource, action).
+		ModelTableExpr(`auth.permissions AS "permission"`).
+		Where(`LOWER("permission".resource) = LOWER(?) AND LOWER("permission".action) = LOWER(?)`, resource, action).
 		Scan(ctx)
 
 	if err != nil {
@@ -67,6 +69,7 @@ func (r *PermissionRepository) FindByAccountID(ctx context.Context, accountID in
 	// This query combines permissions from direct assignments and role-based permissions
 	err := r.db.NewSelect().
 		Model(&permissions).
+		ModelTableExpr(`auth.permissions AS "permission"`).
 		Distinct().
 		With("account_permissions_direct", r.db.NewSelect().
 			Table("auth.account_permissions").
@@ -79,7 +82,7 @@ func (r *PermissionRepository) FindByAccountID(ctx context.Context, accountID in
 			Column("permission_id").
 			TableExpr("account_permissions_direct").
 			UnionAll(r.db.NewSelect().TableExpr("account_permissions_from_roles").Column("permission_id"))).
-		Join("JOIN all_account_permissions aap ON aap.permission_id = permission.id").
+		Join(`JOIN all_account_permissions aap ON aap.permission_id = "permission".id`).
 		Scan(ctx)
 
 	if err != nil {
@@ -97,7 +100,8 @@ func (r *PermissionRepository) FindByRoleID(ctx context.Context, roleID int64) (
 	var permissions []*auth.Permission
 	err := r.db.NewSelect().
 		Model(&permissions).
-		Join("JOIN auth.role_permissions rp ON rp.permission_id = permission.id").
+		ModelTableExpr(`auth.permissions AS "permission"`).
+		Join(`JOIN auth.role_permissions rp ON rp.permission_id = "permission".id`).
 		Where("rp.role_id = ?", roleID).
 		Scan(ctx)
 
@@ -291,7 +295,9 @@ func (r *PermissionRepository) Update(ctx context.Context, permission *auth.Perm
 // List retrieves permissions matching the provided filters
 func (r *PermissionRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.Permission, error) {
 	var permissions []*auth.Permission
-	query := r.db.NewSelect().Model(&permissions)
+	query := r.db.NewSelect().
+		Model(&permissions).
+		ModelTableExpr(`auth.permissions AS "permission"`)
 
 	// Apply filters
 	for field, value := range filters {
@@ -300,31 +306,31 @@ func (r *PermissionRepository) List(ctx context.Context, filters map[string]inte
 			case "name":
 				// Case-insensitive name search
 				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(name) = LOWER(?)", strValue)
+					query = query.Where(`LOWER("permission".name) = LOWER(?)`, strValue)
 				} else {
-					query = query.Where("name = ?", value)
+					query = query.Where(`"permission".name = ?`, value)
 				}
 			case "resource":
 				// Case-insensitive resource search
 				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(resource) = LOWER(?)", strValue)
+					query = query.Where(`LOWER("permission".resource) = LOWER(?)`, strValue)
 				} else {
-					query = query.Where("resource = ?", value)
+					query = query.Where(`"permission".resource = ?`, value)
 				}
 			case "action":
 				// Case-insensitive action search
 				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(action) = LOWER(?)", strValue)
+					query = query.Where(`LOWER("permission".action) = LOWER(?)`, strValue)
 				} else {
-					query = query.Where("action = ?", value)
+					query = query.Where(`"permission".action = ?`, value)
 				}
 			case "name_like":
 				// Case-insensitive name pattern search
 				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(name) LIKE LOWER(?)", "%"+strValue+"%")
+					query = query.Where(`LOWER("permission".name) LIKE LOWER(?)`, "%"+strValue+"%")
 				}
 			case "is_system":
-				query = query.Where("is_system = ?", value)
+				query = query.Where(`"permission".is_system = ?`, value)
 			default:
 				// Default to exact match for other fields
 				query = query.Where("? = ?", bun.Ident(field), value)

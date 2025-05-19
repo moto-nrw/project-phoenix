@@ -197,9 +197,18 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 	person := new(users.Person)
 	err := r.db.NewSelect().
 		Model(person).
-		ModelTableExpr("users.persons").
-		Relation("Account").
-		Where("id = ?", id).
+		ModelTableExpr(`users.persons AS "person"`).
+		Relation("Account", func(sq *bun.SelectQuery) *bun.SelectQuery {
+			return sq.ModelTableExpr(`auth.accounts AS "account"`).
+				Column("account.id").
+				Column("account.email").
+				Column("account.username").
+				Column("account.active").
+				Column("account.last_login").
+				Column("account.created_at").
+				Column("account.updated_at")
+		}).
+		Where(`"person".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {

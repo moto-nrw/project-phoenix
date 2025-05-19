@@ -2,8 +2,8 @@ package users
 
 import (
 	"context"
-	"time"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"time"
 )
 
 // RFIDCardRepository defines operations for managing RFID cards
@@ -64,6 +64,9 @@ type PersonRepository interface {
 
 	// UnlinkFromRFIDCard removes RFID card association from a person
 	UnlinkFromRFIDCard(ctx context.Context, personID int64) error
+
+	// FindWithAccount retrieves a person with their associated account
+	FindWithAccount(ctx context.Context, id int64) (*Person, error)
 }
 
 // StudentRepository defines operations for managing students

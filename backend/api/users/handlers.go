@@ -614,4 +614,3 @@ func (rs *Resource) listAvailableRFIDCards(w http.ResponseWriter, r *http.Reques
 
 	common.Respond(w, r, http.StatusOK, responses, "Available RFID cards retrieved successfully")
 }
-

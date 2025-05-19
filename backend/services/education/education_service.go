@@ -470,7 +470,6 @@ func (s *service) GetGroupTeachers(ctx context.Context, groupID int64) ([]*users
 		return nil, &EducationError{Op: "GetGroupTeachers", Err: err}
 	}
 
-	
 	// Always filter to ensure we only return teachers that were requested
 	var filteredTeachers []*users.Teacher
 	idMap := make(map[int64]bool)
@@ -491,7 +490,7 @@ func (s *service) GetGroupTeachers(ctx context.Context, groupID int64) ([]*users
 			}
 		}
 	}
-	
+
 	return filteredTeachers, nil
 }
 

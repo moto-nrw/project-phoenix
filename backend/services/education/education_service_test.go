@@ -323,7 +323,7 @@ func TestListGroups_WithQueryOptions(t *testing.T) {
 	mockRoomRepo := new(MockRoomRepository)
 	mockTeacherRepo := new(MockTeacherRepository)
 	mockStaffRepo := new(MockStaffRepository)
-	
+
 	// Create service with mocks
 	service := NewService(
 		mockGroupRepo,
@@ -349,13 +349,13 @@ func TestListGroups_WithQueryOptions(t *testing.T) {
 		room2ID := int64(101)
 		expectedGroups := []*educationModels.Group{
 			{
-				Model: base.Model{ID: 1},
-				Name: "Math 101",
+				Model:  base.Model{ID: 1},
+				Name:   "Math 101",
 				RoomID: &room1ID,
 			},
 			{
-				Model: base.Model{ID: 2},
-				Name: "Math 101",
+				Model:  base.Model{ID: 2},
+				Name:   "Math 101",
 				RoomID: &room2ID,
 			},
 		}
@@ -395,7 +395,7 @@ func TestListSubstitutions_WithQueryOptions(t *testing.T) {
 	mockGroupRepo := new(MockGroupRepository)
 	mockGroupTeacherRepo := new(MockGroupTeacherRepository)
 	mockSubstitutionRepo := new(MockSubstitutionRepository)
-	
+
 	// Create service with mocks
 	service := NewService(
 		mockGroupRepo,
@@ -447,7 +447,7 @@ func TestGetGroupTeachers_WithINFilter(t *testing.T) {
 	mockGroupRepo := new(MockGroupRepository)
 	mockGroupTeacherRepo := new(MockGroupTeacherRepository)
 	mockTeacherRepo := new(MockTeacherRepository)
-	
+
 	// Create service with mocks
 	service := NewService(
 		mockGroupRepo,
@@ -461,11 +461,11 @@ func TestGetGroupTeachers_WithINFilter(t *testing.T) {
 
 	t.Run("successful get with IN filter", func(t *testing.T) {
 		groupID := int64(1)
-		
+
 		// Mock the group exists
 		mockGroupRepo.On("FindByID", mock.Anything, groupID).Return(&educationModels.Group{
 			Model: base.Model{ID: groupID},
-			Name: "Math 101",
+			Name:  "Math 101",
 		}, nil)
 
 		// Mock group-teacher relationships
@@ -492,7 +492,7 @@ func TestGetGroupTeachers_WithINFilter(t *testing.T) {
 			// This is a simplified check - in reality the filter structure might be more complex
 			return true
 		})).Return(expectedTeachers, nil)
-		
+
 		// Mock FindWithStaffAndPerson calls for each teacher
 		for _, teacher := range expectedTeachers {
 			mockTeacherRepo.On("FindWithStaffAndPerson", mock.Anything, teacher.ID).Return(teacher, nil)
@@ -517,7 +517,7 @@ func TestGetGroupTeachers_WithINFilter(t *testing.T) {
 		mockGroupRepo2 := new(MockGroupRepository)
 		mockGroupTeacherRepo2 := new(MockGroupTeacherRepository)
 		mockTeacherRepo2 := new(MockTeacherRepository)
-		
+
 		// Create service with fresh mocks
 		service2 := NewService(
 			mockGroupRepo2,
@@ -528,13 +528,13 @@ func TestGetGroupTeachers_WithINFilter(t *testing.T) {
 			nil, // staff repo
 			nil, // db
 		)
-		
+
 		groupID := int64(1)
-		
+
 		// Mock the group exists
 		mockGroupRepo2.On("FindByID", mock.Anything, groupID).Return(&educationModels.Group{
 			Model: base.Model{ID: groupID},
-			Name: "Math 101",
+			Name:  "Math 101",
 		}, nil)
 
 		// Mock group-teacher relationships - only 2 teachers
@@ -552,7 +552,7 @@ func TestGetGroupTeachers_WithINFilter(t *testing.T) {
 			{Model: base.Model{ID: 40}, StaffID: 400}, // Extra teacher
 		}
 		mockTeacherRepo2.On("ListWithOptions", mock.Anything, mock.Anything).Return(allTeachers, nil)
-		
+
 		// Mock FindWithStaffAndPerson calls for the teachers that should be returned
 		mockTeacherRepo2.On("FindWithStaffAndPerson", mock.Anything, int64(10)).Return(allTeachers[0], nil)
 		mockTeacherRepo2.On("FindWithStaffAndPerson", mock.Anything, int64(20)).Return(allTeachers[1], nil)

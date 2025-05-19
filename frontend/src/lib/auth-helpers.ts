@@ -23,13 +23,13 @@ export interface BackendRole {
 }
 
 export interface BackendPermission {
-    ID: number;
-    Name: string;
-    Description: string;
-    Resource: string;
-    Action: string;
-    CreatedAt: string;
-    UpdatedAt: string;
+    id: number;
+    name: string;
+    description: string;
+    resource: string;
+    action: string;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface BackendToken {
@@ -128,13 +128,13 @@ export function mapRoleResponse(backendRole: BackendRole): Role {
 
 export function mapPermissionResponse(backendPermission: BackendPermission): Permission {
     return {
-        id: String(backendPermission.ID),
-        name: backendPermission.Name,
-        description: backendPermission.Description,
-        resource: backendPermission.Resource,
-        action: backendPermission.Action,
-        createdAt: backendPermission.CreatedAt,
-        updatedAt: backendPermission.UpdatedAt,
+        id: String(backendPermission.id),
+        name: backendPermission.name,
+        description: backendPermission.description,
+        resource: backendPermission.resource,
+        action: backendPermission.action,
+        createdAt: backendPermission.created_at,
+        updatedAt: backendPermission.updated_at,
     };
 }
 
