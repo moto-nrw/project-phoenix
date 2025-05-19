@@ -123,7 +123,7 @@ export const DELETE = createDeleteHandler(async (_request: NextRequest, token: s
       token
     );
     
-    return { success: true, message: response?.message || 'Student deleted successfully' };
+    return { success: true, message: response?.message ?? 'Student deleted successfully' };
   } catch (error) {
     console.error("Error deleting student:", error);
     throw error;

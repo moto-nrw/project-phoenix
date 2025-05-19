@@ -38,8 +38,7 @@ function StudentPageContent() {
       setLoading(true);
       setError(null);
 
-      // Generate automatic fields
-      const timestamp = Date.now();
+      // We don't need this timestamp, removing it
       
       // Prepare guardian contact fields
       let guardianEmail: string | undefined;

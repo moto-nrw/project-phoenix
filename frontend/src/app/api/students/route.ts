@@ -2,7 +2,7 @@
 import type { NextRequest } from "next/server";
 import { apiGet, apiPost } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
-import type { Student, CreateStudentRequest, BackendStudent } from "~/lib/student-helpers";
+import type { Student } from "~/lib/student-helpers";
 import { mapStudentResponse } from "~/lib/student-helpers";
 
 /**
@@ -74,7 +74,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string):
       
       // Map the backend response format to the frontend format using the consistent mapping function
       const mappedStudents = response.data.map((student: StudentResponseFromBackend) => {
-        return mapStudentResponse(student as any);
+        return mapStudentResponse(student);
       });
       
       return mappedStudents;
@@ -98,39 +98,64 @@ export const GET = createGetHandler(async (request: NextRequest, token: string):
  * Handler for POST /api/students
  * Creates a new student with associated person record
  */
-export const POST = createPostHandler<Student, any>(
-  async (_request: NextRequest, body: any, token: string) => {
+// Define type for backend request structure
+interface BackendStudentRequest {
+  first_name: string;
+  last_name: string;
+  school_class: string;
+  guardian_name: string;
+  guardian_contact: string;
+  location?: string;
+  notes?: string;
+}
+
+export const POST = createPostHandler<Student, BackendStudentRequest>(
+  async (_request: NextRequest, body: BackendStudentRequest, token: string) => {
     // Body is already in backend format from prepareStudentForBackend
     // Validate required fields using backend field names
-    if (!body.first_name || body.first_name.trim() === '') {
+    const firstName = body.first_name.trim();
+    const lastName = body.last_name.trim();
+    const schoolClass = body.school_class.trim();
+    const guardianName = body.guardian_name.trim();
+    const guardianContact = body.guardian_contact.trim();
+    
+    if (!firstName) {
       throw new Error('First name is required');
     }
     
-    if (!body.last_name || body.last_name.trim() === '') {
+    if (!lastName) {
       throw new Error('Last name is required');
     }
     
-    if (!body.school_class || body.school_class.trim() === '') {
+    if (!schoolClass) {
       throw new Error('School class is required');
     }
     
-    if (!body.guardian_name || body.guardian_name.trim() === '') {
+    if (!guardianName) {
       throw new Error('Guardian name is required');
     }
     
-    if (!body.guardian_contact || body.guardian_contact.trim() === '') {
+    if (!guardianContact) {
       throw new Error('Guardian contact is required');
     }
     
-    // No transformation needed - body is already in backend format
-    const backendRequest = body;
+    // Create a properly typed request object
+    const backendRequest: BackendStudentRequest = {
+      first_name: firstName,
+      last_name: lastName,
+      school_class: schoolClass,
+      guardian_name: guardianName,
+      guardian_contact: guardianContact,
+      location: body.location,
+      notes: body.notes
+    };
     
     try {
       // Create the student via the simplified API endpoint
-      const response = await apiPost<StudentResponseFromBackend>("/api/students", token, backendRequest);
+      const response = await apiPost<StudentResponseFromBackend>("/api/students", token, backendRequest as StudentResponseFromBackend);
       
       // Map the backend response to frontend format using the consistent mapping function
-      return mapStudentResponse(response as any);
+      return mapStudentResponse(response);
     } catch (error) {
       // Check for permission errors (403 Forbidden)
       if (error instanceof Error && error.message.includes("403")) {

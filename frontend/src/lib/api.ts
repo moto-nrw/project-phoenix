@@ -223,12 +223,15 @@ export const studentService = {
 
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
-                const responseData = await retryResponse.json();
+                const responseData = await retryResponse.json() as {
+                  data?: Student[];
+                  [key: string]: unknown;
+                };
                 
                 // The Next.js API route uses route wrapper which may wrap the response
-                if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+                if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
                   // If wrapped, extract the data
-                  return responseData.data as Student[];
+                  return responseData.data;
                 }
                 
                 // Otherwise, treat as direct array
@@ -241,12 +244,15 @@ export const studentService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json();
+        const responseData = await response.json() as {
+          data?: Student[];
+          [key: string]: unknown;
+        };
         
         // The Next.js API route uses route wrapper which may wrap the response
-        if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+        if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
           // If wrapped, extract the data
-          return responseData.data as Student[];
+          return responseData.data;
         }
         
         // Otherwise, treat as direct array
@@ -254,7 +260,7 @@ export const studentService = {
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
-        return mapStudentsResponse(response.data as BackendStudent[]);
+        return mapStudentsResponse((response as { data: unknown }).data as BackendStudent[]);
       }
     } catch (error) {
       throw handleApiError(error, "Error fetching students");
@@ -317,14 +323,17 @@ export const studentService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json();
+        const responseData = await response.json() as {
+          data?: unknown;
+          [key: string]: unknown;
+        };
         
         // If response is wrapped (from our Next.js API route), extract the data
         if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
           const studentData = responseData.data;
           
           // If the extracted data is already mapped (has frontend structure)
-          if ('name' in studentData && 'first_name' in studentData) {
+          if (typeof studentData === 'object' && studentData && 'name' in studentData && 'first_name' in studentData) {
             return studentData as Student;
           }
           
@@ -333,12 +342,18 @@ export const studentService = {
         }
         
         // If response is already mapped (has the frontend structure)
-        if (responseData && typeof responseData === 'object' && 'name' in responseData && 'first_name' in responseData) {
-          return responseData as Student;
+        const responseObj = responseData as unknown as {
+          name?: string;
+          first_name?: string;
+          [key: string]: unknown;
+        };
+        
+        if (responseObj && typeof responseObj === 'object' && 'name' in responseObj && 'first_name' in responseObj) {
+          return responseObj as unknown as Student;
         }
         
         // Otherwise, assume it's backend format and map it
-        const mappedResponse = mapStudentResponse(responseData as BackendStudent);
+        const mappedResponse = mapStudentResponse(responseObj as unknown as BackendStudent);
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
@@ -913,12 +928,15 @@ export const groupService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json();
+        const responseData = await response.json() as {
+          data?: Student[];
+          [key: string]: unknown;
+        };
         
         // The Next.js API route uses route wrapper which may wrap the response
-        if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+        if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
           // If wrapped, extract the data
-          return responseData.data as Student[];
+          return responseData.data;
         }
         
         // Otherwise, treat as direct array
@@ -926,7 +944,7 @@ export const groupService = {
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapStudentsResponse(response.data as BackendStudent[]);
+        return mapStudentsResponse((response as { data: unknown }).data as BackendStudent[]);
       }
     } catch (error) {
       throw handleApiError(error, `Error fetching students for group ${id}`);
