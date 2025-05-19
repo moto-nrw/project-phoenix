@@ -249,7 +249,7 @@ export const studentService = {
                 }
                 
                 // Otherwise, treat as direct array
-                return responseData as Student[];
+                return responseData as unknown as Student[];
               }
             }
           }
@@ -270,7 +270,7 @@ export const studentService = {
         }
         
         // Otherwise, treat as direct array
-        return responseData as Student[];
+        return responseData as unknown as Student[];
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
@@ -1027,7 +1027,7 @@ export const groupService = {
         }
         
         // Otherwise, treat as direct array
-        return responseData as Student[];
+        return responseData as unknown as Student[];
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
