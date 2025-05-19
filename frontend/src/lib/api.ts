@@ -6,6 +6,7 @@ import type { ApiResponse } from "./api-helpers";
 import {
   mapSingleStudentResponse,
   mapStudentsResponse,
+  mapStudentResponse,
   prepareStudentForBackend,
 } from "./student-helpers";
 import type { BackendStudent } from "./student-helpers";
@@ -236,8 +237,19 @@ export const studentService = {
 
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
-                const responseData = await retryResponse.json() as BackendStudent[];
-                return mapStudentsResponse(responseData);
+                const responseData = await retryResponse.json() as {
+                  data?: Student[];
+                  [key: string]: unknown;
+                };
+                
+                // The Next.js API route uses route wrapper which may wrap the response
+                if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
+                  // If wrapped, extract the data
+                  return responseData.data;
+                }
+                
+                // Otherwise, treat as direct array
+                return responseData as unknown as Student[];
               }
             }
           }
@@ -246,12 +258,23 @@ export const studentService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json() as BackendStudent[];
-        return mapStudentsResponse(responseData);
+        const responseData = await response.json() as {
+          data?: Student[];
+          [key: string]: unknown;
+        };
+        
+        // The Next.js API route uses route wrapper which may wrap the response
+        if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
+          // If wrapped, extract the data
+          return responseData.data;
+        }
+        
+        // Otherwise, treat as direct array
+        return responseData as unknown as Student[];
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
-        return mapStudentsResponse(response.data as BackendStudent[]);
+        return mapStudentsResponse((response as { data: unknown }).data as BackendStudent[]);
       }
     } catch (error) {
       throw handleApiError(error, "Error fetching students");
@@ -304,7 +327,8 @@ export const studentService = {
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
                 const data: unknown = await retryResponse.json();
-                return mapSingleStudentResponse({ data: data as BackendStudent });
+                // The data is already the student object (not wrapped in a data property)
+                return mapStudentResponse(data as BackendStudent);
               }
             }
           }
@@ -313,16 +337,43 @@ export const studentService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const data: unknown = await response.json();
-        // Map response to our frontend model
-        const mappedResponse = mapSingleStudentResponse({ data: data as BackendStudent });
+        const responseData = await response.json() as {
+          data?: unknown;
+          [key: string]: unknown;
+        };
+        
+        // If response is wrapped (from our Next.js API route), extract the data
+        if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
+          const studentData = responseData.data;
+          
+          // If the extracted data is already mapped (has frontend structure)
+          if (typeof studentData === 'object' && studentData && 'name' in studentData && 'first_name' in studentData) {
+            return studentData as Student;
+          }
+          
+          // Otherwise map it
+          return mapStudentResponse(studentData as BackendStudent);
+        }
+        
+        // If response is already mapped (has the frontend structure)
+        const responseObj = responseData as unknown as {
+          name?: string;
+          first_name?: string;
+          [key: string]: unknown;
+        };
+        
+        if (responseObj && typeof responseObj === 'object' && 'name' in responseObj && 'first_name' in responseObj) {
+          return responseObj as unknown as Student;
+        }
+        
+        // Otherwise, assume it's backend format and map it
+        const mappedResponse = mapStudentResponse(responseObj as unknown as BackendStudent);
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapSingleStudentResponse({ 
-          data: response.data as unknown as BackendStudent 
-        });
+        // The response.data is already the student object
+        return mapStudentResponse(response.data as unknown as BackendStudent);
       }
     } catch (error) {
       throw handleApiError(error, `Error fetching student ${id}`);
@@ -334,18 +385,22 @@ export const studentService = {
     // Transform from frontend model to backend model
     const backendStudent = prepareStudentForBackend(student);
 
-    // Basic validation for student creation
-    if (!backendStudent.school_class) {
-      throw new Error("Missing required field: school_class");
-    }
+    // Basic validation for student creation - match backend requirements
     if (!backendStudent.first_name) {
-      throw new Error("Missing required field: first_name");
+      throw new Error("First name is required");
     }
-    if (!backendStudent.second_name) {
-      throw new Error("Missing required field: second_name");
+    if (!backendStudent.last_name) {
+      throw new Error("Last name is required");
     }
-    // Ensure group_id is set (defaults to 1 if not provided)
-    backendStudent.group_id ??= 1;
+    if (!backendStudent.school_class) {
+      throw new Error("School class is required");
+    }
+    if (!backendStudent.guardian_name) {
+      throw new Error("Guardian name is required");
+    }
+    if (!backendStudent.guardian_contact) {
+      throw new Error("Guardian contact is required");
+    }
 
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
@@ -412,17 +467,9 @@ export const studentService = {
     // Transform from frontend model to backend model updates
     const backendUpdates = prepareStudentForBackend(student);
 
-    // Additional validation before sending to API for updates
-    if (!backendUpdates.custom_users_id) {
-      throw new Error("Missing required field: custom_users_id");
-    }
-    // Other validations that apply to both updates and creates
-    if (!backendUpdates.group_id) {
-      throw new Error("Missing required field: group_id");
-    }
-    if (!backendUpdates.school_class) {
-      throw new Error("Missing required field: school_class");
-    }
+    // Validation for required fields in updates
+    // Note: For updates, we only validate fields that are provided
+    // Backend will handle partial updates correctly
 
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
@@ -968,12 +1015,23 @@ export const groupService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json() as BackendStudent[];
-        return mapStudentsResponse(responseData);
+        const responseData = await response.json() as {
+          data?: Student[];
+          [key: string]: unknown;
+        };
+        
+        // The Next.js API route uses route wrapper which may wrap the response
+        if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
+          // If wrapped, extract the data
+          return responseData.data;
+        }
+        
+        // Otherwise, treat as direct array
+        return responseData as unknown as Student[];
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        return mapStudentsResponse(response.data as BackendStudent[]);
+        return mapStudentsResponse((response as { data: unknown }).data as BackendStudent[]);
       }
     } catch (error) {
       throw handleApiError(error, `Error fetching students for group ${id}`);

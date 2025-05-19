@@ -113,10 +113,8 @@ func (s *personService) Create(ctx context.Context, person *userModels.Person) e
 		return &UsersError{Op: "create person", Err: err}
 	}
 
-	// Additional business rule: Either TagID or AccountID must be set
-	if person.TagID == nil && person.AccountID == nil {
-		return &UsersError{Op: "create person", Err: ErrPersonIdentifierRequired}
-	}
+	// Note: Removed the requirement for TagID or AccountID
+	// Students can be created without either identifier
 
 	// Check if the account exists if AccountID is set
 	if person.AccountID != nil {
@@ -154,10 +152,8 @@ func (s *personService) Update(ctx context.Context, person *userModels.Person) e
 		return &UsersError{Op: "update person", Err: err}
 	}
 
-	// Additional business rule: Either TagID or AccountID must be set
-	if person.TagID == nil && person.AccountID == nil {
-		return &UsersError{Op: "update person", Err: ErrPersonIdentifierRequired}
-	}
+	// Note: The requirement for either TagID or AccountID has been removed
+	// Persons can now exist without either identifier
 
 	// Check if the person exists
 	existingPerson, err := s.personRepo.FindByID(ctx, person.ID)
@@ -448,7 +444,7 @@ func (s *personService) ListAvailableRFIDCards(ctx context.Context) ([]*userMode
 	filters := map[string]interface{}{
 		"active": true,
 	}
-	
+
 	allCards, err := s.rfidRepo.List(ctx, filters)
 	if err != nil {
 		return nil, &UsersError{Op: "list all RFID cards", Err: err}

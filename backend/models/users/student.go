@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Student represents a student in the system
@@ -30,21 +29,7 @@ type Student struct {
 	// Group relation is loaded dynamically to avoid import cycle
 }
 
-func (s *Student) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("users.students")
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("users.students")
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("users.students")
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("users.students")
-	}
-	return nil
-}
+// BeforeAppendModel is removed to avoid conflicts with repository ModelTableExpr
 
 // TableName returns the database table name
 func (s *Student) TableName() string {

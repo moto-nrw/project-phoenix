@@ -214,6 +214,10 @@ func (m *SimpleMockStudentRepository) Create(ctx context.Context, student *userM
 	return nil
 }
 
+func (m *SimpleMockStudentRepository) ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*userModels.Student, error) {
+	return nil, nil
+}
+
 func (m *SimpleMockStudentRepository) Update(ctx context.Context, student *userModels.Student) error {
 	return nil
 }

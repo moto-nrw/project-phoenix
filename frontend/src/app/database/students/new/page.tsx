@@ -38,19 +38,52 @@ function StudentPageContent() {
       setLoading(true);
       setError(null);
 
-      // Prepare student data
-      const newStudent: Omit<Student, "id"> = {
-        ...studentData,
+      // We don't need this timestamp, removing it
+      
+      // Prepare guardian contact fields
+      let guardianEmail: string | undefined;
+      let guardianPhone: string | undefined;
+      
+      // Parse guardian contact - check if it's an email or phone
+      if (studentData.contact_lg) {
+        if (studentData.contact_lg.includes('@')) {
+          guardianEmail = studentData.contact_lg;
+        } else {
+          guardianPhone = studentData.contact_lg;
+        }
+      }
+
+      // Prepare student data for the backend
+      const newStudent: Omit<Student, "id"> & { 
+        guardian_email?: string;
+        guardian_phone?: string;
+      } = {
+        // Basic info (all required)
+        first_name: studentData.first_name ?? '',
+        second_name: studentData.second_name ?? '',
         name: `${studentData.first_name} ${studentData.second_name}`,
-        in_house: studentData.in_house ?? false,
-        wc: studentData.wc ?? false,
-        school_yard: studentData.school_yard ?? false,
+        
+        // School info (required)
+        school_class: studentData.school_class ?? '',
+        group_id: groupId ?? studentData.group_id,
+        
+        // Guardian info (all required)
+        name_lg: studentData.name_lg ?? '',
+        contact_lg: studentData.contact_lg ?? '',
+        guardian_email: guardianEmail,
+        guardian_phone: guardianPhone,
+        
+        // Location fields (defaults)
+        in_house: false,
+        wc: false,
+        school_yard: false,
         bus: studentData.bus ?? false,
-        school_class: studentData.school_class ?? "",
-        group_id: groupId ?? studentData.group_id, // Use groupId from URL if available
+        
+        // Optional fields
+        studentId: undefined, // Tag ID is optional, backend handles it
       };
 
-      // Create student - group association now works directly via the API
+      // Create the student with a generated tag ID
       await studentService.createStudent(newStudent);
 
       // Navigate back to the appropriate page
@@ -102,7 +135,7 @@ function StudentPageContent() {
             wc: false,
             school_yard: false,
             bus: false,
-            group_id: groupId ?? "1",
+            group_id: groupId ?? undefined,
           }}
           onSubmitAction={handleCreateStudent}
           onCancelAction={() => router.back()}
