@@ -276,6 +276,30 @@ const NAV_ITEMS: NavItem[] = [
         )
     },
     {
+        href: "/database",
+        label: "Datenbank",
+        icon: "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4",
+        helpContent: (
+            <div>
+                <p>In der <strong>Datenbank</strong> können Sie:</p>
+                <ul className="mt-3 space-y-2">
+                    <li>• <strong>Gruppen verwalten:</strong> Erstellen und bearbeiten von OGS-Gruppen</li>
+                    <li>• <strong>Aktivitäten organisieren:</strong> Aktivitäten erstellen und Schüler zuweisen</li>
+                    <li>• <strong>Räume konfigurieren:</strong> Raumkapazitäten und Zuordnungen verwalten</li>
+                    <li>• <strong>Schüler administrieren:</strong> Schülerdaten pflegen und aktualisieren</li>
+                    <li>• <strong>Lehrer verwalten:</strong> Lehrer- und Betreuerdaten organisieren</li>
+                </ul>
+                <p className="mt-4"><strong>Erweiterte Funktionen:</strong></p>
+                <ul className="mt-2 space-y-1 text-sm">
+                    <li>• <strong>Datenimport:</strong> Massendaten importieren und synchronisieren</li>
+                    <li>• <strong>Datenexport:</strong> Strukturierte Daten für Berichte exportieren</li>
+                    <li>• <strong>Datenpflege:</strong> Systemweit Daten aktualisieren und bereinigen</li>
+                    <li>• <strong>Beziehungen verwalten:</strong> Verknüpfungen zwischen Datensätzen pflegen</li>
+                </ul>
+            </div>
+        )
+    },
+    {
         href: "/settings",
         label: "Einstellungen",
         icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z",
@@ -378,6 +402,8 @@ export function Sidebar({ className = "" }: SidebarProps) {
             return "OGS-Gruppenansicht Hilfe";
         } else if (isActiveLink("/rooms")) {
             return "Raumverwaltung Hilfe";
+        } else if (isActiveLink("/database")) {
+            return "Datenbank Hilfe";
         } else {
             return "Allgemeine Hilfe";
         }
