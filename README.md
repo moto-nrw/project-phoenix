@@ -1,208 +1,409 @@
 # Project Phoenix
 
-A modern room and student management system with RFID authentication for educational institutions. This application allows tracking student attendance and location using RFID technology while providing comprehensive management tools for rooms, activities, and groups.
+![moto Logo](frontend/public/images/moto_transparent.png)
+
+[![Go](https://img.shields.io/badge/go-1.21+-blue)](https://go.dev)
+[![React](https://img.shields.io/badge/react-19-blue)](https://reactjs.org)
+[![Next.js](https://img.shields.io/badge/next.js-15-blue)](https://nextjs.org)
+[![TypeScript](https://img.shields.io/badge/typescript-5-blue)](https://www.typescriptlang.org)
+[![PostgreSQL](https://img.shields.io/badge/postgresql-17-blue)](https://www.postgresql.org)
+[![Docker](https://img.shields.io/badge/docker-compose-blue)](https://www.docker.com)
+
+<p align="center">
+  <strong>A modern RFID-based student attendance and room management system for educational institutions</strong>
+</p>
+
+<p align="center">
+  <a href="#key-features">Features</a> •
+  <a href="#tech-stack">Tech Stack</a> •
+  <a href="#getting-started">Getting Started</a> •
+  <a href="#deployment">Deployment</a> •
+  <a href="#documentation">Documentation</a> •
+  <a href="#contributing">Contributing</a> •
+  <a href="#license">License</a>
+</p>
+
+## Overview
+
+Project Phoenix is a comprehensive room and student management system designed for educational institutions. It leverages RFID technology to track student attendance and location in real-time, providing administrators with powerful tools for monitoring room occupancy, managing activities, and generating detailed analytics.
 
 ## Key Features
 
-- RFID student location tracking system
-- Room occupancy monitoring and visit history
-- Student grouping and activity management 
-- JWT authentication with passwordless login options
-- Responsive Next.js frontend with Tailwind CSS
-- RESTful API with OpenAPI documentation
-- Role-based access control
-- Comprehensive reporting and analytics
+### Core Functionality
+- 🏷️ **RFID Student Tracking** - Real-time location tracking using RFID technology
+- 🏫 **Room Management** - Monitor room occupancy and usage patterns
+- 👥 **Group Management** - Organize students into groups and manage activities
+- 📊 **Analytics Dashboard** - Comprehensive reporting and utilization statistics
+- 🗓️ **Schedule Management** - Handle class schedules and time-based activities
+- 🎯 **Activity Tracking** - Track student participation in various activities
 
-## Architecture
+### Technical Features
+- 🔐 **JWT Authentication** - Secure authentication with role-based access control
+- 🚀 **RESTful API** - Well-documented API with OpenAPI specification
+- 📱 **Responsive UI** - Modern, mobile-friendly interface
+- 🐳 **Docker Support** - Easy deployment with containerization
+- 🔄 **Real-time Updates** - Live tracking of student movements and room occupancy
+- 🌐 **Multi-language Support** - Internationalization ready
 
-- **Backend**: Go REST API with microservices architecture
-- **Database**: PostgreSQL for persistent data storage
-- **Frontend**: Next.js React application with modern UI components
-- **Authentication**: JWT-based auth system for secure access
-- **RFID Integration**: Custom API endpoints for device communication
+## Tech Stack
 
-## Prerequisites
+### Backend
+- **Language**: Go 1.21+
+- **Framework**: Chi Router
+- **ORM**: Bun ORM
+- **Database**: PostgreSQL 17+
+- **Authentication**: JWT with refresh tokens
+- **Documentation**: OpenAPI 3.0
 
-- **Docker** and **Docker Compose** (recommended for easy setup)
-- **Go** 1.21+ (for backend development)
-- **Node.js** 20+ and **npm** 11+ (for frontend development)
-- **PostgreSQL** 17+ (if running database locally)
+### Frontend
+- **Framework**: Next.js 15+
+- **Language**: TypeScript
+- **UI Library**: React 19+
+- **Styling**: Tailwind CSS 4+
+- **State Management**: React Context
+- **Authentication**: NextAuth.js
+
+### Infrastructure
+- **Containerization**: Docker & Docker Compose
+- **Deployment**: Production-ready with Caddy
+- **Monitoring**: Structured logging
+- **CI/CD**: GitHub Actions ready
 
 ## Getting Started
 
+### Prerequisites
+- Docker and Docker Compose (recommended)
+- Go 1.21+ (for backend development)
+- Node.js 20+ and npm 11+ (for frontend development)
+- PostgreSQL 17+ (if running without Docker)
+
 ### Quick Start with Docker
 
-The fastest way to get the entire system running:
-
+1. Clone the repository:
 ```bash
-# Start everything
+git clone https://github.com/moto-nrw/project-phoenix.git
+cd project-phoenix
+```
+
+2. Start all services:
+```bash
 docker compose up
+```
 
-# Or start just the database
-docker compose up -d postgres
-
-# Run migrations
+3. Run database migrations:
+```bash
 docker compose run server ./main migrate
 ```
 
-Once running:
+The application will be available at:
 - Backend API: http://localhost:8080
 - Frontend: http://localhost:3000
 
-### Backend Development Setup
+### Development Setup
 
+#### Backend Development
 ```bash
 cd backend
-cp dev.env.example .env  # Create environment file from template
+cp dev.env.example dev.env      # Create environment configuration
 
-# Configure your .env file with appropriate values
-# Start PostgreSQL (if using Docker)
+# Edit dev.env with your database credentials
+
+# If using Docker for the database:
 docker compose up -d postgres
 
-# Run migrations and start server
+# Run migrations and start the server:
 go run main.go migrate
 go run main.go serve
 ```
 
-### Frontend Development Setup
-
+#### Frontend Development
 ```bash
 cd frontend
-npm install              # Install dependencies
-npm run dev             # Start development server
+npm install                     # Install dependencies
+npm run dev                     # Start development server
 ```
-
-The frontend will be available at http://localhost:3000
 
 ### Environment Configuration
 
-#### Backend (.env file)
-- `LOG_LEVEL`: Set to `debug` for development
-- `DB_DSN`: Database connection string
-- `DB_DEBUG`: Set to `true` to see SQL queries
-- `AUTH_JWT_SECRET`: Secret key for JWT generation (set a strong value in production)
-- `ENABLE_CORS`: Set to `true` for local development
+#### Backend Environment Variables (dev.env)
+```env
+# Database
+DB_DSN=postgres://username:password@localhost:5432/database?sslmode=disable
+DB_DEBUG=true                   # Enable SQL query logging
 
-#### Frontend (.env file)
-- `NEXT_PUBLIC_API_URL`: Backend API URL
-- `NEXTAUTH_URL`: Frontend URL for authentication
-- `NEXTAUTH_SECRET`: Secret for NextAuth (set a strong value in production)
+# Authentication
+AUTH_JWT_SECRET=your_jwt_secret_here
+AUTH_JWT_EXPIRY=15m            # Access token expiry
+AUTH_JWT_REFRESH_EXPIRY=1h     # Refresh token expiry
 
-### Testing
+# Admin Account (for initial setup)
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=SecurePassword123!
 
-```bash
-# Backend tests
-go test ./...                           # Run all tests
-go test ./api/users -run TestFunction   # Run specific test
+# Server Configuration
+LOG_LEVEL=debug                # Options: debug, info, warn, error
+ENABLE_CORS=true              # Required for local development
+PORT=8080
+```
 
-# Frontend checks
-npm run lint && npm run typecheck      # Syntax and type checking
+#### Frontend Environment Variables (.env.local)
+```env
+# API Configuration
+NEXT_PUBLIC_API_URL=http://localhost:8080
+
+# NextAuth Configuration
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your_nextauth_secret_here
 ```
 
 ## Command Reference
 
-### Backend (Go) Commands
+### Backend Commands
 ```bash
-# Server and database
+# Server Operations
 go run main.go serve            # Start the backend server
 go run main.go migrate          # Run database migrations
+go run main.go migrate status   # Check migration status
+go run main.go migrate reset    # Reset database (WARNING: deletes all data)
 
 # Testing
-go test ./...                   # Run all backend tests
-go test ./api/users -run TestFunction  # Run specific test
+go test ./...                   # Run all tests
+go test ./api/auth -v          # Run specific package tests with verbose output
+go test -race ./...            # Run tests with race condition detection
 
 # Documentation
-go run main.go gendoc           # Generate API documentation (routes.md and OpenAPI)
+go run main.go gendoc           # Generate routes.md and OpenAPI spec
 go run main.go gendoc --routes  # Generate only routes documentation
 go run main.go gendoc --openapi # Generate only OpenAPI specification
 
-# Dependencies
-go mod tidy                     # Clean up and organize Go dependencies
-go get -u ./...                 # Update all dependencies
+# Code Quality
+go fmt ./...                    # Format code
+golangci-lint run              # Run linter
+go mod tidy                    # Clean up dependencies
 ```
 
-### Frontend (Next.js/npm) Commands
+### Frontend Commands
 ```bash
 # Development
-npm run dev                     # Start development server with turbo
+npm run dev                     # Start development server
 npm run build                   # Build for production
 npm run start                   # Start production server
-npm run preview                 # Build and preview production version
+npm run preview                 # Preview production build
 
-# Linting and Type Checking
-npm run lint                    # Run ESLint to check for code issues
-npm run lint:fix                # Automatically fix linting issues
-npm run typecheck               # Run TypeScript type checking
-npm run check                   # Run both lint and type checking
+# Code Quality (Run before committing!)
+npm run lint                    # ESLint check
+npm run lint:fix               # Auto-fix linting issues
+npm run typecheck              # TypeScript type checking
+npm run check                  # Run both lint and typecheck
 
 # Formatting
-npm run format:check            # Check code formatting with Prettier
-npm run format:write            # Fix code formatting issues
+npm run format:check           # Check Prettier formatting
+npm run format:write          # Fix formatting issues
 ```
 
 ### Docker Commands
 ```bash
-docker compose up               # Start all services
-docker compose up -d            # Start all services in detached mode
-docker compose up -d postgres   # Start only the database
-docker compose run server ./main migrate  # Run migrations in docker
-docker compose run frontend npm run lint  # Run frontend lint checks in docker
-docker compose logs postgres    # Check database logs
-docker compose down             # Stop all services
+# Service Management
+docker compose up              # Start all services
+docker compose up -d          # Start in detached mode
+docker compose down           # Stop all services
+docker compose logs -f        # View logs
+
+# Database Operations
+docker compose run server ./main migrate
+docker compose exec postgres psql -U phoenix
+
+# Frontend Operations
+docker compose run frontend npm run lint
+docker compose run frontend npm run build
 ```
 
-## Project Structure
+## Architecture
 
+### Project Structure
 ```
 project-phoenix/
-├── backend/                # Go backend API
-│   ├── api/                # API handlers and route definitions
-│   ├── auth/               # Authentication and authorization
-│   ├── cmd/                # CLI commands
-│   ├── database/           # Database migrations and definitions
-│   ├── docs/               # API documentation
-│   ├── models/             # Data models
-│   ├── services/           # Business logic
-│   └── main.go             # Application entry point
-├── docs/                   # Project documentation
-├── frontend/               # Next.js frontend
-│   ├── public/             # Static assets
-│   └── src/
-│       ├── app/            # Next.js app router
-│       ├── components/     # Reusable UI components
-│       └── lib/            # Utility functions and API clients
-└── docker-compose.yml      # Docker configuration
+├── backend/                   # Go backend API
+│   ├── api/                   # HTTP handlers and routes
+│   ├── auth/                  # Authentication logic
+│   ├── cmd/                   # CLI commands
+│   ├── database/              # DB migrations and repositories
+│   ├── models/                # Domain models
+│   ├── services/              # Business logic
+│   └── docs/                  # API documentation
+├── frontend/                  # Next.js frontend
+│   ├── src/
+│   │   ├── app/              # Next.js App Router
+│   │   ├── components/       # Reusable UI components
+│   │   └── lib/              # Utilities and API clients
+│   └── public/               # Static assets
+├── deployment/               # Deployment configurations
+├── docs/                     # Project documentation
+└── docker-compose.yml        # Docker configuration
 ```
+
+### Database Schema
+The database uses PostgreSQL schemas to organize tables by domain:
+- **auth**: Authentication and authorization
+- **users**: User profiles, students, teachers, staff
+- **education**: Groups and educational structures
+- **facilities**: Rooms and physical locations
+- **activities**: Student activities and enrollments
+- **active**: Real-time session tracking
+- **schedule**: Time and schedule management
+- **iot**: RFID device management
+- **feedback**: User feedback
+- **config**: System configuration
 
 ## API Documentation
 
-- **API Routes**: Generated at `backend/routes.md` (run `go run main.go gendoc --routes`)
-- **OpenAPI Specification**: Generated at `backend/docs/openapi.yaml` (run `go run main.go gendoc --openapi`)
-- **RFID Integration Guide**: See `backend/docs/rfid-integration-guide.md`
+### Documentation Generation
+```bash
+cd backend
+go run main.go gendoc          # Generate all documentation
+```
+
+This creates:
+- `backend/routes.md` - Complete route documentation
+- `backend/docs/openapi.yaml` - OpenAPI 3.0 specification
 
 ### Key API Endpoints
+- **Authentication**: `/api/auth/login`, `/api/auth/token`
+- **Students**: `/api/students`, `/api/students/{id}`
+- **Rooms**: `/api/rooms`, `/api/rooms/{id}/history`
+- **Activities**: `/api/activities`, `/api/activities/{id}/students`
+- **Groups**: `/api/groups`, `/api/groups/{id}/students`
+- **Active Sessions**: `/api/active/groups`, `/api/active/visits`
 
-- Authentication: `/api/auth/token`
-- Students: `/api/students`
-- Rooms: `/api/rooms`
-- Activities: `/api/activities`
-- Groups: `/api/groups`
+### RFID Integration
+Detailed RFID integration documentation is available at:
+- `backend/docs/rfid-integration-guide.md`
+- `backend/docs/rfid-examples.md`
+
+## Deployment
+
+### Production Deployment with Docker
+
+1. Clone the repository on your production server
+2. Create production environment files:
+```bash
+cp backend/dev.env.example backend/prod.env
+cp frontend/.env.local.example frontend/.env.production
+```
+
+3. Configure environment variables for production
+4. Deploy using Docker Compose:
+```bash
+cd deployment/production
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### Configuration
+Production deployment includes:
+- Caddy for automatic HTTPS
+- PostgreSQL with persistent volumes
+- Health checks and restart policies
+- Resource limits
+
+## Development Workflow
+
+### Backend Development Flow
+1. Define models in `models/{domain}/`
+2. Create repository interface and implementation
+3. Implement service layer business logic
+4. Create API handlers in `api/{domain}/`
+5. Write comprehensive tests
+6. Generate documentation
+
+### Frontend Development Flow
+1. Define TypeScript interfaces
+2. Create API client functions
+3. Implement service layer
+4. Build UI components
+5. Create pages and routes
+6. Run lint and type checks
+
+### Code Quality Standards
+- Backend: Use `golangci-lint` and `go fmt`
+- Frontend: ESLint with zero warnings policy
+- Always run tests before committing
+- Follow existing code patterns and conventions
+
+## Testing
+
+### Backend Testing
+```bash
+go test ./...                  # Run all tests
+go test ./api/auth -v         # Run specific package tests
+go test -race ./...           # Check for race conditions
+```
+
+### Frontend Testing
+```bash
+npm run lint                   # Run ESLint
+npm run typecheck             # Run TypeScript checks
+npm run check                 # Run all checks
+```
 
 ## Troubleshooting
 
 ### Common Issues
 
-- **Database Connection Errors**: Verify PostgreSQL is running and the DB_DSN is correct in .env
-- **JWT Authentication Issues**: Check the `AUTH_JWT_SECRET` value in your .env file
-- **CORS Errors**: Ensure `ENABLE_CORS` is set to `true` for development
-- **Frontend API Connection**: Check that `NEXT_PUBLIC_API_URL` points to the correct backend URL
+**Database Connection**
+- Verify PostgreSQL is running
+- Check `DB_DSN` in environment configuration
+- Ensure database exists and migrations are run
 
-### Getting Help
+**Authentication Issues**
+- Verify `AUTH_JWT_SECRET` is set
+- Check token expiry configuration
+- Ensure CORS is enabled for development
 
-- Check the logs with `docker compose logs service_name`
-- Backend debugging: Set `LOG_LEVEL=debug` in the .env file
-- Frontend debugging: Check the browser console and Next.js error overlay
+**Frontend API Connection**
+- Verify `NEXT_PUBLIC_API_URL` is correct
+- Check CORS configuration
+- Ensure backend is running
+
+**Docker Issues**
+- Check port availability (3000, 8080, 5432)
+- Verify volume permissions
+- Review container logs with `docker compose logs`
+
+## Contributing
+
+We welcome contributions! Please follow these guidelines:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Development Standards
+- Write tests for new features
+- Update documentation
+- Follow existing code style
+- Add appropriate logging
+- Consider security implications
+
+## Security
+
+- Report security vulnerabilities to kontakt@moto.nrw
+- Use environment variables for sensitive data
+- Never commit secrets to the repository
+- Follow OWASP security guidelines
+- Regular dependency updates
 
 ## License
 
-This project is licensed under the terms of the license file included in the repository. See LICENSE file for details.
+This project is licensed under the GNU Affero General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+## Contact
+
+- **Project Website**: [moto.nrw](https://moto.nrw)
+- **Email**: kontakt@moto.nrw
+- **GitHub**: [github.com/moto-nrw/project-phoenix](https://github.com/moto-nrw/project-phoenix)
+
+---
+
+<p align="center">Made with ❤️ by moto</p>
