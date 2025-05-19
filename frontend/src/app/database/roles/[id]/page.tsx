@@ -8,7 +8,11 @@ import { Button, Input, Card } from "@/components/ui";
 import type { Role, Permission } from "@/lib/auth-helpers";
 import Link from "next/link";
 
-export default function RoleDetailsPage({ params }: { params: { id: string } }) {
+import { use } from 'react';
+
+export default function RoleDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  // Use React.use to unwrap the params promise
+  const resolvedParams = use(params);
   const router = useRouter();
   const [role, setRole] = useState<Role | null>(null);
   const [permissions, setPermissions] = useState<Permission[]>([]);
@@ -27,9 +31,9 @@ export default function RoleDetailsPage({ params }: { params: { id: string } }) 
       setError(null);
       
       const [roleData, allPermissions, assignedPermissions] = await Promise.all([
-        authService.getRole(params.id),
+        authService.getRole(resolvedParams.id),
         authService.getPermissions(),
-        authService.getRolePermissions(params.id),
+        authService.getRolePermissions(resolvedParams.id),
       ]);
       
       setRole(roleData);
@@ -49,7 +53,7 @@ export default function RoleDetailsPage({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     void loadRoleData();
-  }, [params.id]);
+  }, [resolvedParams.id]);
 
   const handleSave = async () => {
     if (!role) return;

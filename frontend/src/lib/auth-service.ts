@@ -526,16 +526,24 @@ export const authService = {
                     throw new Error(`Get role permissions failed: ${response.status}`);
                 }
 
-                const responseData = await response.json() as ApiResponse<BackendPermission[]>;
+                const responseData = await response.json() as any; // Use 'any' for flexibility
                 console.log("Permissions API response:", responseData);
                 
-                // Check if data exists and is an array
-                if (!responseData.data || !Array.isArray(responseData.data)) {
+                // Handle nested response structure
+                let permissionsData: BackendPermission[] = [];
+                
+                if (responseData?.data?.data && Array.isArray(responseData.data.data)) {
+                    // Double nested structure: { data: { data: [] } }
+                    permissionsData = responseData.data.data;
+                } else if (responseData?.data && Array.isArray(responseData.data)) {
+                    // Single nested structure: { data: [] }
+                    permissionsData = responseData.data;
+                } else {
                     console.error("Unexpected response structure:", responseData);
                     throw new Error("Invalid response format from permissions API");
                 }
                 
-                return responseData.data.map(mapPermissionResponse);
+                return permissionsData.map(mapPermissionResponse);
             } else {
                 const response = await api.get<ApiResponse<BackendPermission[]>>(url);
                 return response.data.data.map(mapPermissionResponse);
@@ -1120,16 +1128,24 @@ export const authService = {
                     throw new Error(`Get account permissions failed: ${response.status}`);
                 }
 
-                const responseData = await response.json() as ApiResponse<BackendPermission[]>;
+                const responseData = await response.json() as any; // Use 'any' for flexibility
                 console.log("Permissions API response:", responseData);
                 
-                // Check if data exists and is an array
-                if (!responseData.data || !Array.isArray(responseData.data)) {
+                // Handle nested response structure
+                let permissionsData: BackendPermission[] = [];
+                
+                if (responseData?.data?.data && Array.isArray(responseData.data.data)) {
+                    // Double nested structure: { data: { data: [] } }
+                    permissionsData = responseData.data.data;
+                } else if (responseData?.data && Array.isArray(responseData.data)) {
+                    // Single nested structure: { data: [] }
+                    permissionsData = responseData.data;
+                } else {
                     console.error("Unexpected response structure:", responseData);
                     throw new Error("Invalid response format from permissions API");
                 }
                 
-                return responseData.data.map(mapPermissionResponse);
+                return permissionsData.map(mapPermissionResponse);
             } else {
                 const response = await api.get<ApiResponse<BackendPermission[]>>(url);
                 return response.data.data.map(mapPermissionResponse);
