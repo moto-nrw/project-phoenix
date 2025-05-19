@@ -13,10 +13,11 @@ type CommonClaims struct {
 
 // AppClaims represent the claims parsed from JWT access token.
 type AppClaims struct {
-	ID       int      `json:"id,omitempty"`
-	Sub      string   `json:"sub,omitempty"`
-	Username string   `json:"username,omitempty"`
-	Roles    []string `json:"roles,omitempty"`
+	ID          int      `json:"id,omitempty"`
+	Sub         string   `json:"sub,omitempty"`
+	Username    string   `json:"username,omitempty"`
+	Roles       []string `json:"roles,omitempty"`
+	Permissions []string `json:"permissions,omitempty"` // Added permissions field
 	CommonClaims
 }
 
@@ -33,7 +34,7 @@ func (c *AppClaims) ParseClaims(claims map[string]any) error {
 		return errors.New("could not parse claim sub")
 	}
 	c.Sub = sub.(string)
-	
+
 	username, ok := claims["username"]
 	if ok && username != nil {
 		c.Username = username.(string)
@@ -51,6 +52,18 @@ func (c *AppClaims) ParseClaims(claims map[string]any) error {
 		}
 	}
 	c.Roles = roles
+
+	// Parse permissions if they exist
+	perms, ok := claims["permissions"]
+	if ok && perms != nil {
+		var permissions []string
+		for _, v := range perms.([]any) {
+			permissions = append(permissions, v.(string))
+		}
+		c.Permissions = permissions
+	} else {
+		c.Permissions = []string{} // Initialize as empty array if not present
+	}
 
 	return nil
 }

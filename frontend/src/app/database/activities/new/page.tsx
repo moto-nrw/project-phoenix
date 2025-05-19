@@ -25,7 +25,7 @@ export default function NewActivityPage() {
   const { status } = useSession({
     required: true,
     onUnauthenticated() {
-      redirect("/login");
+      redirect("/");
     },
   });
 
@@ -103,8 +103,8 @@ export default function NewActivityPage() {
         is_open_ags: formData.is_open_ags ?? false,
         supervisor_id: formData.supervisor_id,
         ag_category_id: formData.ag_category_id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        created_at: new Date(),
+        updated_at: new Date(),
       };
 
       // Add optional times if present

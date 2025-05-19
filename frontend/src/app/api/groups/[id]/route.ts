@@ -1,220 +1,60 @@
 import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
-import { auth } from "~/server/auth";
-import { env } from "~/env";
+import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers";
+import { createGetHandler, createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
+import type { BackendGroup } from "~/lib/group-helpers";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } },
-) {
-  // Get authentication session
-  const session = await auth();
-
-  if (!session?.user?.token) {
-    return NextResponse.json(
-      { error: "Unauthorized: No valid session" },
-      { status: 401 },
-    );
-  }
-
-  // Make sure params is fully resolved
-  const resolvedParams =
-    params instanceof Promise
-      ? ((await params) as { id: string })
-      : (params as { id: string });
-  const groupId: string = resolvedParams.id;
-
-  try {
-    // Check if user has proper roles
-    if (!session.user.roles || session.user.roles.length === 0) {
-      console.warn("User has no roles for API request");
-    }
-
-    console.log("Making API request with roles:", session.user.roles);
-
-    // Forward the request to the backend with token
-    const backendResponse = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/groups/${groupId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${session.user.token}`,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    if (!backendResponse.ok) {
-      const errorText = await backendResponse.text();
-      console.error(`Backend API error: ${backendResponse.status}`, errorText);
-
-      // Try to parse the error text as JSON for a more detailed error message
-      try {
-        const errorJson = JSON.parse(errorText) as { error?: string };
-        // If the backend returned a specific error message, return that
-        if (errorJson.error) {
-          return NextResponse.json(
-            { error: errorJson.error },
-            { status: backendResponse.status },
-          );
-        }
-      } catch {
-        // If parsing fails, continue with the default error handling
-      }
-
-      return NextResponse.json(
-        { error: `Backend error: ${backendResponse.status}` },
-        { status: backendResponse.status },
-      );
-    }
-
-    const data: unknown = await backendResponse.json();
-    return NextResponse.json(data);
-  } catch (error: unknown) {
-    console.error(`Error fetching group ${groupId}:`, error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
-  }
+/**
+ * Type definition for group update request
+ */
+interface GroupUpdateRequest {
+  name?: string;
+  description?: string;
+  room_id?: string;
+  representative_id?: string;
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } },
-) {
-  // Get authentication session
-  const session = await auth();
-
-  if (!session?.user?.token) {
-    return NextResponse.json(
-      { error: "Unauthorized: No valid session" },
-      { status: 401 },
-    );
+/**
+ * Handler for GET /api/groups/[id]
+ * Returns a specific group by ID
+ */
+export const GET = createGetHandler(async (request: NextRequest, token: string, params: Record<string, unknown>) => {
+  const id = params.id as string;
+  const endpoint = `/api/groups/${id}`;
+  
+  // Fetch group from the API
+  const response = await apiGet<BackendGroup>(endpoint, token);
+  console.log('Backend API response:', response);
+  
+  // If response is undefined or null, throw an error
+  if (!response) {
+    throw new Error('Group not found');
   }
+  
+  // The response is already a BackendGroup, not wrapped
+  // Return it directly so that createGetHandler can wrap it once
+  return response;
+});
 
-  // Make sure params is fully resolved
-  const resolvedParams =
-    params instanceof Promise
-      ? ((await params) as { id: string })
-      : (params as { id: string });
-  const groupId: string = resolvedParams.id;
+/**
+ * Handler for PUT /api/groups/[id]
+ * Updates a specific group by ID
+ */
+export const PUT = createPutHandler(async (request: NextRequest, body: GroupUpdateRequest, token: string, params: Record<string, unknown>) => {
+  const id = params.id as string;
+  const endpoint = `/api/groups/${id}`;
+  
+  // Update group via the API
+  return await apiPut<BackendGroup>(endpoint, token, body);
+});
 
-  try {
-    // Parse request body
-    const requestBody: unknown = await request.json();
-
-    // Forward the request to the backend with token
-    const backendResponse = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/groups/${groupId}`,
-      {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${session.user.token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      },
-    );
-
-    if (!backendResponse.ok) {
-      const errorText = await backendResponse.text();
-      console.error(`Backend API error: ${backendResponse.status}`, errorText);
-
-      // Try to parse the error text as JSON for a more detailed error message
-      try {
-        const errorJson = JSON.parse(errorText) as { error?: string };
-        // If the backend returned a specific error message, return that
-        if (errorJson.error) {
-          return NextResponse.json(
-            { error: errorJson.error },
-            { status: backendResponse.status },
-          );
-        }
-      } catch {
-        // If parsing fails, continue with the default error handling
-      }
-
-      return NextResponse.json(
-        { error: `Backend error: ${backendResponse.status}` },
-        { status: backendResponse.status },
-      );
-    }
-
-    const data: unknown = await backendResponse.json();
-    return NextResponse.json(data);
-  } catch (error: unknown) {
-    console.error(`Error updating group ${groupId}:`, error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
-  }
-}
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } },
-) {
-  // Get authentication session
-  const session = await auth();
-
-  if (!session?.user?.token) {
-    return NextResponse.json(
-      { error: "Unauthorized: No valid session" },
-      { status: 401 },
-    );
-  }
-
-  // Make sure params is fully resolved
-  const resolvedParams =
-    params instanceof Promise
-      ? ((await params) as { id: string })
-      : (params as { id: string });
-  const groupId: string = resolvedParams.id;
-
-  try {
-    // Forward the request to the backend with token
-    const backendResponse = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/groups/${groupId}`,
-      {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${session.user.token}`,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    if (!backendResponse.ok) {
-      const errorText = await backendResponse.text();
-      console.error(`Backend API error: ${backendResponse.status}`, errorText);
-
-      // Try to parse the error text as JSON for a more detailed error message
-      try {
-        const errorJson = JSON.parse(errorText) as { error?: string };
-        // If the backend returned a specific error message, return that
-        if (errorJson.error) {
-          return NextResponse.json(
-            { error: errorJson.error },
-            { status: backendResponse.status },
-          );
-        }
-      } catch {
-        // If parsing fails, continue with the default error handling
-      }
-
-      return NextResponse.json(
-        { error: `Backend error: ${backendResponse.status}` },
-        { status: backendResponse.status },
-      );
-    }
-
-    return new NextResponse(null, { status: 204 });
-  } catch (error: unknown) {
-    console.error(`Error deleting group ${groupId}:`, error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
-  }
-}
+/**
+ * Handler for DELETE /api/groups/[id]
+ * Deletes a specific group by ID
+ */
+export const DELETE = createDeleteHandler(async (request: NextRequest, token: string, params: Record<string, unknown>) => {
+  const id = params.id as string;
+  const endpoint = `/api/groups/${id}`;
+  
+  // Delete group via the API
+  return await apiDelete(endpoint, token);
+});

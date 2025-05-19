@@ -34,7 +34,7 @@ export default function ActivityStudentsPage() {
   const { status } = useSession({
     required: true,
     onUnauthenticated() {
-      redirect("/login");
+      redirect("/");
     },
   });
 
@@ -59,7 +59,21 @@ export default function ActivityStudentsPage() {
           const enrolledStudents = await activityService.getEnrolledStudents(
             id as string,
           );
-          setStudents(enrolledStudents || []); // Ensure students is always an array
+          // Convert ActivityStudent[] to Student[] with proper type conversion
+          const convertedStudents = (enrolledStudents ?? []).map(s => ({
+            id: s.id,
+            name: s.name ?? 'Unnamed Student', // Ensure name is never undefined
+            school_class: s.school_class ?? '', // Ensure school_class is never undefined
+            in_house: s.in_house,
+            // Include other Student properties with defaults
+            first_name: s.name?.split(' ')[0] ?? '',
+            second_name: s.name?.split(' ')[1] ?? '',
+            // Other optional properties can be undefined
+            wc: false,
+            school_yard: false,
+            bus: false
+          }));
+          setStudents(convertedStudents);
 
           setError(null);
         } catch (apiErr) {

@@ -1,4 +1,6 @@
+// lib/auth-api.ts
 import { signIn, signOut } from "next-auth/react";
+import { authService } from "./auth-service";
 
 /**
  * Function to refresh the authentication token
@@ -55,8 +57,8 @@ export async function handleAuthFailure(): Promise<boolean> {
 
       if (result?.error) {
         console.error(
-          "Session update failed after token refresh:",
-          result.error,
+            "Session update failed after token refresh:",
+            result.error,
         );
         await signOut({ redirect: false });
         return false;
@@ -70,9 +72,9 @@ export async function handleAuthFailure(): Promise<boolean> {
     console.log("Token refresh failed, signing out");
     await signOut({ redirect: false });
 
-    // If we're in the browser, redirect to login
+    // If we're in the browser, redirect to home page (login)
     if (typeof window !== "undefined") {
-      window.location.href = "/login";
+      window.location.href = "/";
     }
 
     return false;
@@ -82,3 +84,8 @@ export async function handleAuthFailure(): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Export the auth service for use throughout the application
+ */
+export { authService };

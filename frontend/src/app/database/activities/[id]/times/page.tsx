@@ -27,7 +27,7 @@ export default function ActivityTimesPage() {
   const { status } = useSession({
     required: true,
     onUnauthenticated() {
-      redirect("/login");
+      redirect("/");
     },
   });
 

@@ -51,7 +51,7 @@ var migrateValidateCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal(err)
 		}
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 
 		// Validate migrations
 		ctx := context.Background()

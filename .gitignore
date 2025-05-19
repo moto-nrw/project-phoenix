@@ -366,9 +366,14 @@ cython_debug/
 # Generated binary files
 **/project-phoenix
 backend/project-phoenix
-/CLAUDE.md
 # Do NOT exclude package.json files - they should be tracked
 !/frontend/package.json
 !/frontend/package-lock.json
 .DS_Store
 **/.claude/settings.local.json
+
+**/CLAUDE.local.md
+
+# CI/CD and production files
+ci-cd-best-practices-guide.md
+# Note: production docker compose and env examples should be committed

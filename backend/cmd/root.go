@@ -37,7 +37,7 @@ func init() {
 	// will be global for your application.
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ./dev.env")
 	RootCmd.PersistentFlags().Bool("db_debug", false, "log sql to console")
-	viper.BindPFlag("db_debug", RootCmd.PersistentFlags().Lookup("db_debug"))
+	_ = viper.BindPFlag("db_debug", RootCmd.PersistentFlags().Lookup("db_debug"))
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.

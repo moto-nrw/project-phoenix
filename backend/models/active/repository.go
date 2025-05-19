@@ -1,0 +1,93 @@
+package active
+
+import (
+	"context"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
+)
+
+// GroupRepository defines operations for managing active groups
+type GroupRepository interface {
+	base.Repository[*Group]
+
+	// FindActiveByRoomID finds all active groups in a specific room
+	FindActiveByRoomID(ctx context.Context, roomID int64) ([]*Group, error)
+
+	// FindActiveByGroupID finds all active instances of a specific activity group
+	FindActiveByGroupID(ctx context.Context, groupID int64) ([]*Group, error)
+
+	// FindByTimeRange finds all groups active during a specific time range
+	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*Group, error)
+
+	// EndSession marks a group session as ended at the current time
+	EndSession(ctx context.Context, id int64) error
+
+	// FindBySourceIDs finds active groups based on source IDs and source type
+	FindBySourceIDs(ctx context.Context, sourceIDs []int64, sourceType string) ([]*Group, error)
+}
+
+// VisitRepository defines operations for managing active visits
+type VisitRepository interface {
+	base.Repository[*Visit]
+
+	// FindActiveByStudentID finds all active visits for a specific student
+	FindActiveByStudentID(ctx context.Context, studentID int64) ([]*Visit, error)
+
+	// FindByActiveGroupID finds all visits for a specific active group
+	FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*Visit, error)
+
+	// FindByTimeRange finds all visits active during a specific time range
+	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*Visit, error)
+
+	// EndVisit marks a visit as ended at the current time
+	EndVisit(ctx context.Context, id int64) error
+}
+
+// GroupSupervisorRepository defines operations for managing active group supervisors
+type GroupSupervisorRepository interface {
+	base.Repository[*GroupSupervisor]
+
+	// FindActiveByStaffID finds all active supervisions for a specific staff member
+	FindActiveByStaffID(ctx context.Context, staffID int64) ([]*GroupSupervisor, error)
+
+	// FindByActiveGroupID finds all supervisors for a specific active group
+	FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*GroupSupervisor, error)
+
+	// EndSupervision marks a supervision as ended at the current date
+	EndSupervision(ctx context.Context, id int64) error
+}
+
+// CombinedGroupRepository defines operations for managing active combined groups
+type CombinedGroupRepository interface {
+	base.Repository[*CombinedGroup]
+
+	// FindActive finds all currently active combined groups
+	FindActive(ctx context.Context) ([]*CombinedGroup, error)
+
+	// FindByTimeRange finds all combined groups active during a specific time range
+	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*CombinedGroup, error)
+
+	// EndCombination marks a combined group as ended at the current time
+	EndCombination(ctx context.Context, id int64) error
+
+	// FindWithGroups finds a combined group with all its associated active groups
+	FindWithGroups(ctx context.Context, id int64) (*CombinedGroup, error)
+}
+
+// GroupMappingRepository defines operations for managing active group mappings
+type GroupMappingRepository interface {
+	base.Repository[*GroupMapping]
+
+	// FindByActiveCombinedGroupID finds all mappings for a specific combined group
+	FindByActiveCombinedGroupID(ctx context.Context, combinedGroupID int64) ([]*GroupMapping, error)
+
+	// FindByActiveGroupID finds all mappings for a specific active group
+	FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*GroupMapping, error)
+
+	// AddGroupToCombination adds an active group to a combined group
+	AddGroupToCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error
+
+	// RemoveGroupFromCombination removes an active group from a combined group
+	RemoveGroupFromCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error
+}

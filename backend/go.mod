@@ -14,7 +14,6 @@ require (
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/jaytaylor/html2text v0.0.0-20230321000545-74c2419ad056
 	github.com/lestrrat-go/jwx/v2 v2.1.3
-	github.com/mssola/user_agent v0.6.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0

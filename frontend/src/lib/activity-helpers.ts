@@ -1,341 +1,285 @@
-import type { Activity, ActivityCategory, ActivityTime } from "./activity-api";
+// lib/activity-helpers.ts
+// Type definitions and helper functions for activities
 
-// Define interfaces for backend response data
-export interface CustomUser {
-  first_name?: string;
-  second_name?: string;
-}
-
-export interface Supervisor {
-  custom_user?: CustomUser;
-  custom_users?: CustomUser;
-}
-
-export interface Category {
-  name?: string;
-}
-
-export interface Timespan {
-  start_time?: string;
-  end_time?: string;
-}
-
-export interface TimeSlotData {
-  id: number | string;
-  weekday?: string;
-  timespan_id?: number | string;
-  ag_id?: number | string;
-  created_at?: string;
-  timespan?: Timespan;
-}
-
-export interface GroupData {
-  name?: string;
-}
-
-export interface StudentData {
-  id: number | string;
-  custom_user?: CustomUser;
-  school_class?: string;
-  in_house?: boolean;
-  group_id?: number | string;
-  group?: GroupData;
-  custom_users_id?: number | string;
-}
-
-export interface ActivityData {
-  id: number | string;
-  name?: string;
-  max_participant?: number;
-  is_open_ags?: boolean;
-  supervisor_id?: number | string;
-  ag_category_id?: number | string;
-  created_at?: string;
-  updated_at?: string;
-  modified_at?: string;
-  datespan_id?: number | string;
-  supervisor?: Supervisor;
-  ag_category?: Category;
-  times?: TimeSlotData[];
-  students?: StudentData[];
-}
-
-export interface CategoryData {
-  id: number | string;
-  name?: string;
-  created_at?: string;
-}
-
-/**
- * Maps a single activity response from the backend to the frontend model
- */
-export function mapSingleActivityResponse(data: ActivityData): Activity {
-  if (!data) {
-    throw new Error("Invalid activity data received from API");
-  }
-
-  // Create a formatted activity object
-  const activity: Activity = {
-    id: data.id.toString(),
-    name: data.name ?? "",
-    max_participant: data.max_participant ?? 0,
-    is_open_ags: data.is_open_ags ?? false, // Use is_open_ags directly from the backend
-    supervisor_id: data.supervisor_id ? data.supervisor_id.toString() : "",
-    ag_category_id: data.ag_category_id ? data.ag_category_id.toString() : "",
-    created_at: data.created_at ?? "",
-    updated_at: data.updated_at ?? data.modified_at ?? "",
-  };
-
-  // Add optional fields if present
-  if (data.datespan_id) {
-    activity.datespan_id = data.datespan_id.toString();
-  }
-
-  // Add supervisor name if available
-  if (
-    data.supervisor &&
-    (data.supervisor.custom_user ?? data.supervisor.custom_users)
-  ) {
-    const supervisor = data.supervisor;
-    // Handle both naming conventions (custom_user from frontend model, custom_users from backend)
-    const customUser = supervisor.custom_user ?? supervisor.custom_users;
-
-    if (customUser) {
-      const firstName = customUser.first_name ?? "";
-      const secondName = customUser.second_name ?? "";
-      activity.supervisor_name = `${firstName} ${secondName}`.trim();
-
-      // If both names are empty, don't set a supervisor name so the UI shows "Nicht zugewiesen"
-      if (!firstName && !secondName) {
-        activity.supervisor_name = "";
-      }
-    }
-  }
-
-  // Add category name if available
-  if (data.ag_category) {
-    activity.category_name = data.ag_category.name ?? "";
-  }
-
-  // Map time slots if available
-  if (data.times && Array.isArray(data.times)) {
-    activity.times = data.times.map((time) => mapTimeSlot(time));
-  }
-
-  // Map students if available
-  if (data.students && Array.isArray(data.students)) {
-    activity.students = data.students.map((student) => ({
-      id: student.id.toString(),
-      name: student.custom_user
-        ? `${student.custom_user.first_name ?? ""} ${student.custom_user.second_name ?? ""}`.trim()
-        : "",
-      first_name: student.custom_user ? student.custom_user.first_name : "",
-      second_name: student.custom_user ? student.custom_user.second_name : "",
-      school_class: student.school_class ?? "",
-      in_house: student.in_house ?? false,
-      group_id: student.group_id ? student.group_id.toString() : "",
-      group_name: student.group ? student.group.name : "",
-      custom_users_id: student.custom_users_id
-        ? student.custom_users_id.toString()
-        : "",
-    }));
-  }
-
-  // Calculate participant count and available spots
-  if (activity.students) {
-    activity.participant_count = activity.students.length;
-    activity.available_spots = Math.max(
-      0,
-      activity.max_participant - activity.participant_count,
-    );
-  } else {
-    activity.participant_count = 0;
-    activity.available_spots = activity.max_participant;
-  }
-
-  return activity;
-}
-
-/**
- * Maps an array of activity responses from the backend to frontend models
- */
-export function mapActivityResponse(data: ActivityData[]): Activity[] {
-  if (!data || !Array.isArray(data)) {
-    return [];
-  }
-
-  return data.map(mapSingleActivityResponse);
-}
-
-/**
- * Maps a time slot from the backend to the frontend model
- */
-function mapTimeSlot(data: TimeSlotData): ActivityTime {
-  if (!data) {
-    throw new Error("Invalid time slot data");
-  }
-
-  const timeSlot: ActivityTime = {
-    id: data.id.toString(),
-    weekday: data.weekday ?? "",
-    timespan_id: data.timespan_id ? data.timespan_id.toString() : "",
-    ag_id: data.ag_id ? data.ag_id.toString() : "",
-    created_at: data.created_at ?? "",
-  };
-
-  // Add timespan details if available
-  if (data.timespan) {
-    timeSlot.timespan = {
-      start_time: data.timespan.start_time ?? "",
-    };
-
-    if (data.timespan.end_time) {
-      timeSlot.timespan.end_time = data.timespan.end_time;
-    }
-  }
-
-  return timeSlot;
-}
-
-/**
- * Maps an array of activity category responses
- */
-export function mapCategoryResponse(data: CategoryData[]): ActivityCategory[] {
-  if (!data || !Array.isArray(data)) {
-    return [];
-  }
-
-  return data.map((category) => ({
-    id: category.id.toString(),
-    name: category.name ?? "",
-    created_at: category.created_at ?? "",
-  }));
-}
-
-/**
- * Format activity times into a readable string
- */
-export function formatActivityTimes(activity: Activity): string {
-  if (!activity.times || activity.times.length === 0) {
-    return "No scheduled times";
-  }
-
-  return activity.times
-    .map((time) => {
-      let timeStr = time.weekday;
-
-      if (time.timespan) {
-        timeStr += ` ${time.timespan.start_time}`;
-        if (time.timespan.end_time) {
-          timeStr += `-${time.timespan.end_time}`;
-        }
-      }
-
-      return timeStr;
-    })
-    .join(", ");
-}
-
-/**
- * Backend activity format (matches Go struct)
- */
+// Backend types (from Go structs)
 export interface BackendActivity {
-  id?: number;
-  name?: string;
-  max_participant?: number;
-  is_open_ags?: boolean;
-  supervisor_id?: number;
-  ag_category_id?: number;
-  datespan_id?: number;
-  timeslots?: { weekday: string; timespan_id: number }[];
-  student_ids?: number[];
+    id: number;
+    name: string;
+    max_participant: number;
+    is_open_ags: boolean;
+    supervisor_id: number;
+    supervisor_name?: string;
+    ag_category_id: number;
+    category_name?: string;
+    created_at: string;
+    updated_at: string;
+    participant_count?: number;
+    times?: BackendActivityTime[];
+    students?: BackendActivityStudent[];
 }
 
-/**
- * Prepare activity data for backend submission
- */
-export function prepareActivityForBackend(
-  activity: Partial<Activity>,
-): BackendActivity {
-  // The Go struct now consistently uses is_open_ags for the field
-  // Debug what we're getting from the frontend
-  console.log(
-    "Raw activity data for backend conversion:",
-    JSON.stringify(activity, null, 2),
-  );
-
-  const backendActivity: BackendActivity = {
-    name: activity.name,
-    max_participant: activity.max_participant,
-    is_open_ags: activity.is_open_ags,
-    // Add these fields to ensure they're always included, even if undefined
-    ag_category_id: undefined, // Use the correct JSON field name matching Go struct tag
-    supervisor_id: undefined,
-  };
-
-  // Add IDs if present, ensuring they're converted to numbers
-  if (activity.id) {
-    backendActivity.id = parseInt(activity.id, 10);
-  }
-
-  // Always include supervisor_id - either from input or as 0
-  backendActivity.supervisor_id = activity.supervisor_id
-    ? parseInt(activity.supervisor_id, 10)
-    : 0;
-
-  // Map frontend's ag_category_id to the backend's JSON field ag_category_id (not ag_categories_id)
-  backendActivity.ag_category_id = activity.ag_category_id
-    ? parseInt(activity.ag_category_id, 10)
-    : 0;
-
-  if (activity.datespan_id) {
-    backendActivity.datespan_id = parseInt(activity.datespan_id, 10);
-  }
-
-  // Handle time slots and student IDs for creation
-  if (activity.times && activity.times.length > 0) {
-    backendActivity.timeslots = activity.times.map((time) => ({
-      weekday: time.weekday,
-      timespan_id: parseInt(time.timespan_id, 10),
-    }));
-  }
-
-  if (activity.students && activity.students.length > 0) {
-    backendActivity.student_ids = activity.students.map((student) =>
-      parseInt(student.id, 10),
-    );
-  }
-
-  return backendActivity;
+export interface BackendActivityCategory {
+    id: number;
+    name: string;
+    description?: string;
+    created_at: string;
+    updated_at: string;
 }
 
-/**
- * Helper function to check if an activity is full
- */
-export function isActivityFull(activity: Activity): boolean {
-  if (!activity.students) {
-    return false;
-  }
-  return activity.students.length >= activity.max_participant;
+export interface BackendActivityTime {
+    id: number;
+    activity_id: number;
+    weekday: string; // e.g., "monday", "tuesday"
+    timespan: {
+        start_time: string; // HH:MM format
+        end_time: string;   // HH:MM format
+    };
+    created_at: string;
+    updated_at: string;
 }
 
-/**
- * Helper function to check if a student is enrolled in an activity
- */
-export function isStudentEnrolled(
-  activity: Activity,
-  studentId: string,
-): boolean {
-  if (!activity.students) {
-    return false;
-  }
-  return activity.students.some((student) => student.id === studentId);
+export interface BackendActivityStudent {
+    id: number;
+    activity_id: number;
+    student_id: number;
+    name?: string;
+    school_class?: string;
+    in_house?: boolean;
+    created_at: string;
+    updated_at: string;
 }
 
-/**
- * Format participant status with count and maximum
- */
-export function formatParticipantStatus(activity: Activity): string {
-  const count = activity.participant_count ?? 0;
-  return `${count}/${activity.max_participant}`;
+// Frontend types
+export interface Activity {
+    id: string;
+    name: string;
+    max_participant: number;
+    is_open_ags: boolean;
+    supervisor_id: string;
+    supervisor_name?: string;
+    ag_category_id: string;
+    category_name?: string;
+    created_at: Date;
+    updated_at: Date;
+    participant_count?: number;
+    times?: ActivityTime[];
+    students?: ActivityStudent[];
+}
+
+export interface ActivityCategory {
+    id: string;
+    name: string;
+    description?: string;
+    created_at: Date;
+    updated_at: Date;
+}
+
+export interface ActivityTime {
+    id: string;
+    activity_id: string;
+    weekday: string;
+    timespan: {
+        start_time: string;
+        end_time: string;
+    };
+    created_at: Date;
+    updated_at: Date;
+}
+
+export interface ActivityStudent {
+    id: string;
+    activity_id: string;
+    student_id: string;
+    name?: string;
+    school_class?: string;
+    in_house: boolean;
+    created_at: Date;
+    updated_at: Date;
+}
+
+// Mapping functions for backend to frontend types
+export function mapActivityResponse(backendActivity: BackendActivity): Activity {
+    return {
+        id: String(backendActivity.id),
+        name: backendActivity.name,
+        max_participant: backendActivity.max_participant,
+        is_open_ags: backendActivity.is_open_ags,
+        supervisor_id: String(backendActivity.supervisor_id),
+        supervisor_name: backendActivity.supervisor_name,
+        ag_category_id: String(backendActivity.ag_category_id),
+        category_name: backendActivity.category_name,
+        created_at: new Date(backendActivity.created_at),
+        updated_at: new Date(backendActivity.updated_at),
+        participant_count: backendActivity.participant_count,
+        times: backendActivity.times?.map(mapActivityTimeResponse),
+        students: backendActivity.students?.map(mapActivityStudentResponse),
+    };
+}
+
+export function mapActivityCategoryResponse(backendCategory: BackendActivityCategory): ActivityCategory {
+    return {
+        id: String(backendCategory.id),
+        name: backendCategory.name,
+        description: backendCategory.description,
+        created_at: new Date(backendCategory.created_at),
+        updated_at: new Date(backendCategory.updated_at),
+    };
+}
+
+export function mapActivityTimeResponse(backendTime: BackendActivityTime): ActivityTime {
+    return {
+        id: String(backendTime.id),
+        activity_id: String(backendTime.activity_id),
+        weekday: backendTime.weekday,
+        timespan: backendTime.timespan,
+        created_at: new Date(backendTime.created_at),
+        updated_at: new Date(backendTime.updated_at),
+    };
+}
+
+export function mapActivityStudentResponse(backendStudent: BackendActivityStudent): ActivityStudent {
+    return {
+        id: String(backendStudent.id),
+        activity_id: String(backendStudent.activity_id),
+        student_id: String(backendStudent.student_id),
+        name: backendStudent.name,
+        school_class: backendStudent.school_class,
+        in_house: backendStudent.in_house ?? false, // Default to false if not present
+        created_at: new Date(backendStudent.created_at),
+        updated_at: new Date(backendStudent.updated_at),
+    };
+}
+
+// Prepare frontend types for backend requests
+export function prepareActivityForBackend(activity: Partial<Activity>): Partial<BackendActivity> {
+    // Create the basic activity object without times
+    const result: Partial<BackendActivity> = {
+        id: activity.id ? parseInt(activity.id, 10) : undefined,
+        name: activity.name,
+        max_participant: activity.max_participant,
+        is_open_ags: activity.is_open_ags,
+        supervisor_id: activity.supervisor_id ? parseInt(activity.supervisor_id, 10) : undefined,
+        ag_category_id: activity.ag_category_id ? parseInt(activity.ag_category_id, 10) : undefined,
+    };
+    
+    // Add times property only if activity.times exists
+    if (activity.times?.length) {
+        // Cast the array to BackendActivityTime[] to satisfy the type requirement
+        // This is safe because we're ensuring all required fields are present in prepareActivityTimeForBackend
+        result.times = activity.times.map(time => {
+            const backendTime = prepareActivityTimeForBackend(time);
+            // Ensure all required fields are present for BackendActivityTime
+            return {
+                id: backendTime.id ?? 0,
+                activity_id: backendTime.activity_id ?? 0,
+                weekday: backendTime.weekday ?? '',
+                timespan: backendTime.timespan ?? { start_time: '', end_time: '' },
+                created_at: '',
+                updated_at: ''
+            } as BackendActivityTime;
+        });
+    }
+    
+    return result;
+}
+
+export function prepareActivityTimeForBackend(time: Partial<ActivityTime>): Partial<BackendActivityTime> {
+    return {
+        id: time.id ? parseInt(time.id, 10) : undefined,
+        activity_id: time.activity_id ? parseInt(time.activity_id, 10) : undefined,
+        weekday: time.weekday,
+        timespan: time.timespan,
+    };
+}
+
+// Request/Response types
+export interface CreateActivityRequest {
+    name: string;
+    max_participant: number;
+    is_open_ags: boolean;
+    supervisor_id: number;
+    ag_category_id: number;
+    times?: {
+        weekday: string;
+        timespan: {
+            start_time: string;
+            end_time: string;
+        };
+    }[];
+}
+
+export interface UpdateActivityRequest {
+    name: string;
+    max_participant: number;
+    is_open_ags: boolean;
+    supervisor_id: number;
+    ag_category_id: number;
+    times?: {
+        id?: number;
+        weekday: string;
+        timespan: {
+            start_time: string;
+            end_time: string;
+        };
+    }[];
+}
+
+// Helper functions 
+export function formatActivityTimes(activity: Activity | ActivityTime[]): string {
+    // Handle case when activity is an Activity object
+    if ('times' in activity && Array.isArray(activity.times)) {
+        const times = activity.times;
+        if (!times || times.length === 0) return "Keine Zeiten festgelegt";
+        
+        return times.map(time => {
+            const weekday = formatWeekday(time.weekday);
+            const timeRange = `${time.timespan.start_time} - ${time.timespan.end_time}`;
+            return `${weekday}: ${timeRange}`;
+        }).join(", ");
+    }
+    
+    // Handle case when activity is an ActivityTime array
+    if (Array.isArray(activity)) {
+        if (activity.length === 0) return "Keine Zeiten festgelegt";
+        
+        return activity.map(time => {
+            const weekday = formatWeekday(time.weekday);
+            const timeRange = `${time.timespan.start_time} - ${time.timespan.end_time}`;
+            return `${weekday}: ${timeRange}`;
+        }).join(", ");
+    }
+    
+    return "Keine Zeiten festgelegt";
+}
+
+export function formatWeekday(weekday: string): string {
+    const weekdays: Record<string, string> = {
+        "monday": "Mo",
+        "tuesday": "Di",
+        "wednesday": "Mi",
+        "thursday": "Do",
+        "friday": "Fr",
+        "saturday": "Sa",
+        "sunday": "So"
+    };
+    
+    return weekdays[weekday.toLowerCase()] ?? weekday;
+}
+
+export function formatParticipantStatus(activityOrCurrent: Activity | number, max?: number): string {
+    // Handle case when first parameter is an Activity object
+    if (typeof activityOrCurrent === 'object' && activityOrCurrent !== null) {
+        const activity = activityOrCurrent;
+        if (activity.participant_count === undefined || activity.max_participant === undefined) {
+            return "Unbekannt";
+        }
+        return `${activity.participant_count} / ${activity.max_participant} Teilnehmer`;
+    }
+    
+    // Handle case when parameters are numbers (current, max)
+    const current = activityOrCurrent;
+    if (current === undefined || max === undefined) {
+        return "Unbekannt";
+    }
+    return `${current} / ${max} Teilnehmer`;
 }

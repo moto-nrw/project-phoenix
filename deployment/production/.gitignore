@@ -1,0 +1,10 @@
+# Ignore actual environment file with sensitive data
+.env
+
+# Ignore any local certificates if stored here
+*.pem
+*.key
+*.crt
+
+# Ignore local logs
+*.log

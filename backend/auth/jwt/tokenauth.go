@@ -70,6 +70,11 @@ func NewTokenAuth() (*TokenAuth, error) {
 		log.Printf("Warning: JWT secret is too short (%d chars). Recommend at least 32 chars.", len(secret))
 	}
 
+	return NewTokenAuthWithSecret(secret)
+}
+
+// NewTokenAuthWithSecret creates a TokenAuth with a specific secret
+func NewTokenAuthWithSecret(secret string) (*TokenAuth, error) {
 	a := &TokenAuth{
 		JwtAuth:          jwtauth.New("HS256", []byte(secret), nil),
 		JwtExpiry:        viper.GetDuration("auth_jwt_expiry"),
@@ -77,6 +82,22 @@ func NewTokenAuth() (*TokenAuth, error) {
 	}
 
 	return a, nil
+}
+
+// Default token auth instance for testing
+var defaultTokenAuth *TokenAuth
+
+// SetDefaultTokenAuth sets the default token auth for testing
+func SetDefaultTokenAuth(auth *TokenAuth) {
+	defaultTokenAuth = auth
+}
+
+// GetDefaultTokenAuth gets the default token auth
+func GetDefaultTokenAuth() (*TokenAuth, error) {
+	if defaultTokenAuth != nil {
+		return defaultTokenAuth, nil
+	}
+	return NewTokenAuth()
 }
 
 // Verifier http middleware will verify a jwt string from a http request.
@@ -117,7 +138,7 @@ func ParseStructToMap(c any) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	err = json.Unmarshal(inrec, &claims)
 	if err != nil {
 		return nil, err
@@ -128,7 +149,10 @@ func ParseStructToMap(c any) (map[string]any, error) {
 	if appClaims, ok := c.(AppClaims); ok {
 		// Make sure roles is explicitly set
 		claims["roles"] = appClaims.Roles
-		
+
+		// Make sure permissions is explicitly set
+		claims["permissions"] = appClaims.Permissions
+
 		// Set common claims manually to ensure they're included
 		claims["exp"] = appClaims.ExpiresAt
 		claims["iat"] = appClaims.IssuedAt

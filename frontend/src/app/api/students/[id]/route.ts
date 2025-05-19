@@ -1,175 +1,131 @@
+// app/api/students/[id]/route.ts
 import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
-import { auth } from "~/server/auth";
-import { env } from "~/env";
+import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers";
+import { createGetHandler, createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
+import type { BackendStudent, Student, UpdateStudentRequest } from "~/lib/student-helpers";
+import { mapStudentResponse, mapUpdateRequestToBackend } from "~/lib/student-helpers";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } },
-) {
-  // Get authentication session
-  const session = await auth();
-
-  if (!session?.user?.token) {
-    return NextResponse.json(
-      { error: "Unauthorized: No valid session" },
-      { status: 401 },
-    );
-  }
-
-  // Make sure params is fully resolved
-  const resolvedParams =
-    params instanceof Promise
-      ? ((await params) as { id: string })
-      : (params as { id: string });
-  const studentId: string = resolvedParams.id;
-
-  try {
-    // Check if user has proper roles
-    if (!session.user.roles || session.user.roles.length === 0) {
-      console.warn("User has no roles for API request");
-    }
-
-    console.log("Making API request with roles:", session.user.roles);
-
-    // Forward the request to the backend with token
-    const backendResponse = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/students/${studentId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${session.user.token}`,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    if (!backendResponse.ok) {
-      const errorText = await backendResponse.text();
-      console.error(`Backend API error: ${backendResponse.status}`, errorText);
-      return NextResponse.json(
-        { error: `Backend error: ${backendResponse.status}` },
-        { status: backendResponse.status },
-      );
-    }
-
-    const data: unknown = await backendResponse.json();
-    return NextResponse.json(data);
-  } catch (error: unknown) {
-    console.error(`Error fetching student ${studentId}:`, error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
-  }
+/**
+ * Type definition for API response format
+ * Backend wraps response in { status: "success", data: {...}, message: "..." }
+ */
+interface ApiStudentResponse {
+  status: string;
+  data: StudentResponseFromBackend;
+  message: string;
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } },
-) {
-  // Get authentication session
-  const session = await auth();
-
-  if (!session?.user?.token) {
-    return NextResponse.json(
-      { error: "Unauthorized: No valid session" },
-      { status: 401 },
-    );
-  }
-
-  // Make sure params is fully resolved
-  const resolvedParams =
-    params instanceof Promise
-      ? ((await params) as { id: string })
-      : (params as { id: string });
-  const studentId: string = resolvedParams.id;
-
-  try {
-    // Parse request body
-    const requestBody: unknown = await request.json();
-
-    // Forward the request to the backend with token
-    const backendResponse = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/students/${studentId}`,
-      {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${session.user.token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      },
-    );
-
-    if (!backendResponse.ok) {
-      const errorText = await backendResponse.text();
-      console.error(`Backend API error: ${backendResponse.status}`, errorText);
-      return NextResponse.json(
-        { error: `Backend error: ${backendResponse.status}` },
-        { status: backendResponse.status },
-      );
-    }
-
-    const data: unknown = await backendResponse.json();
-    return NextResponse.json(data);
-  } catch (error: unknown) {
-    console.error(`Error updating student ${studentId}:`, error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
-  }
+/**
+ * Type definition for student response from backend
+ */
+interface StudentResponseFromBackend {
+  id: number;
+  person_id: number;
+  first_name: string;
+  last_name: string;
+  tag_id?: string;
+  school_class: string;
+  location: string;
+  guardian_name: string;
+  guardian_contact: string;
+  guardian_email?: string;
+  guardian_phone?: string;
+  group_id?: number;
+  created_at: string;
+  updated_at: string;
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } },
-) {
-  // Get authentication session
-  const session = await auth();
-
-  if (!session?.user?.token) {
-    return NextResponse.json(
-      { error: "Unauthorized: No valid session" },
-      { status: 401 },
-    );
+/**
+ * Handler for GET /api/students/[id]
+ * Returns a single student by ID
+ */
+export const GET = createGetHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
+  const id = params.id as string;
+  
+  if (!id) {
+    throw new Error('Student ID is required');
   }
-
-  // Make sure params is fully resolved
-  const resolvedParams =
-    params instanceof Promise
-      ? ((await params) as { id: string })
-      : (params as { id: string });
-  const studentId: string = resolvedParams.id;
-
+  
   try {
-    // Forward the request to the backend with token
-    const backendResponse = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/students/${studentId}`,
-      {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${session.user.token}`,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    if (!backendResponse.ok) {
-      const errorText = await backendResponse.text();
-      console.error(`Backend API error: ${backendResponse.status}`, errorText);
-      return NextResponse.json(
-        { error: `Backend error: ${backendResponse.status}` },
-        { status: backendResponse.status },
-      );
+    // Fetch student from backend API
+    const response = await apiGet<ApiStudentResponse>(`/api/students/${id}`, token);
+    
+    // Handle null or undefined response
+    if (!response?.data) {
+      console.warn("API returned null response for student");
+      throw new Error('Student not found');
     }
-
-    return new NextResponse(null, { status: 204 });
-  } catch (error: unknown) {
-    console.error(`Error deleting student ${studentId}:`, error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
+    
+    const student = response.data;
+    
+    // Map the response to frontend format using the same mapping function for consistency
+    const mappedStudent = mapStudentResponse(student as BackendStudent);
+    return mappedStudent;
+  } catch (error) {
+    console.error("Error fetching student:", error);
+    throw error;
   }
-}
+});
+
+/**
+ * Handler for PUT /api/students/[id]
+ * Updates an existing student
+ */
+export const PUT = createPutHandler<Student, UpdateStudentRequest>(
+  async (_request: NextRequest, body: UpdateStudentRequest, token: string, params: Record<string, unknown>) => {
+    const id = params.id as string;
+    
+    if (!id) {
+      throw new Error('Student ID is required');
+    }
+    
+    try {
+      // Map frontend format to backend format
+      const backendData = mapUpdateRequestToBackend(body);
+      
+      // Call backend API to update student
+      const response = await apiPut<ApiStudentResponse>(
+        `/api/students/${id}`,
+        token,
+        backendData
+      );
+      
+      // Handle null or undefined response
+      if (!response?.data) {
+        throw new Error('Invalid response from backend');
+      }
+      
+      // Map the response to frontend format
+      const mappedStudent = mapStudentResponse(response.data as BackendStudent);
+      return mappedStudent;
+    } catch (error) {
+      console.error("Error updating student:", error);
+      throw error;
+    }
+  }
+);
+
+/**
+ * Handler for DELETE /api/students/[id]
+ * Deletes a student
+ */
+export const DELETE = createDeleteHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
+  const id = params.id as string;
+  
+  if (!id) {
+    throw new Error('Student ID is required');
+  }
+  
+  try {
+    // Call backend API to delete student
+    const response = await apiDelete<{ message: string }>(
+      `/api/students/${id}`,
+      token
+    );
+    
+    return { success: true, message: response?.message ?? 'Student deleted successfully' };
+  } catch (error) {
+    console.error("Error deleting student:", error);
+    throw error;
+  }
+});

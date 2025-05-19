@@ -27,7 +27,7 @@ export default function StudentDetailPage() {
       } catch (err) {
         console.error("Error fetching student:", err);
         setError(
-          "Fehler beim Laden der Schülerdaten. Bitte versuchen Sie es später erneut.",
+          err instanceof Error ? err.message : "Fehler beim Laden der Schülerdaten. Bitte versuchen Sie es später erneut.",
         );
         setStudent(null);
       } finally {
@@ -56,8 +56,18 @@ export default function StudentDetailPage() {
         studentId,
         updateData,
       );
-      setStudent(updatedStudent);
-      setIsEditing(false);
+      
+      // After updating, fetch the student again to make sure we have the latest data
+      try {
+        const refreshedStudent = await studentService.getStudent(studentId);
+        setStudent(refreshedStudent);
+        setIsEditing(false);
+      } catch (refreshErr) {
+        console.error("Error refreshing student data:", refreshErr);
+        // Fallback to the updated student data if refresh fails
+        setStudent(updatedStudent);
+        setIsEditing(false);
+      }
     } catch (err) {
       console.error("Error updating student:", err);
       setError(

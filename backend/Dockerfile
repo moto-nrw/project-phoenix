@@ -6,7 +6,7 @@ COPY go.mod go.sum /
 RUN go mod download
 
 # Add source code
-COPY .. .
+COPY . .
 RUN CGO_ENABLED=0 go build -o main .
 
 # Multi-Stage production build

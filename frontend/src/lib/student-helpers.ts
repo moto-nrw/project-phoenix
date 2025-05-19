@@ -1,105 +1,207 @@
-import type { Student } from "./api";
+// lib/student-helpers.ts
+// Type definitions and helper functions for students
 
+// Backend types (from Go structs)
 export interface BackendStudent {
-  id: number;
-  custom_user?: {
+    id: number;
+    person_id: number;
     first_name: string;
-    second_name: string;
-  };
-  school_class: string;
-  group?: { name: string };
-  in_house: boolean;
-  wc: boolean;
-  school_yard: boolean;
-  bus: boolean;
-  name_lg: string;
-  contact_lg: string;
-  custom_users_id?: number;
-  group_id: number;
+    last_name: string;
+    tag_id?: string;
+    school_class: string;
+    location: string;
+    guardian_name: string;
+    guardian_contact: string;
+    guardian_email?: string;
+    guardian_phone?: string;
+    group_id?: number;
+    created_at: string;
+    updated_at: string;
 }
 
-/**
- * Maps a list of backend student responses to frontend student models
- */
-export function mapStudentResponse(data: BackendStudent[]): Student[] {
-  return data.map((student) => mapSingleStudentResponse(student));
+// Frontend types (mapped from backend)
+export interface Student {
+    id: string;
+    name: string; // Derived from FirstName + SecondName
+    first_name?: string;
+    second_name?: string;
+    school_class: string;
+    grade?: string;
+    studentId?: string;
+    group_name?: string;
+    group_id?: string;
+    in_house: boolean;
+    wc?: boolean;
+    school_yard?: boolean;
+    bus?: boolean;
+    name_lg?: string;
+    contact_lg?: string;
+    custom_users_id?: string;
 }
 
-/**
- * Maps a single backend student response to frontend student model
- */
-export function mapSingleStudentResponse(student: BackendStudent): Student {
-  return {
-    id: student.id.toString(),
-    name: student.custom_user
-      ? `${student.custom_user.first_name} ${student.custom_user.second_name}`
-      : "Unknown",
-    // Store first_name and second_name separately
-    first_name: student.custom_user?.first_name ?? "",
-    second_name: student.custom_user?.second_name ?? "",
-    school_class: student.school_class,
-    // Use school_class as grade for display consistency
-    grade: student.school_class,
-    // Use student ID as studentId for clarity
-    studentId: student.id.toString(),
-    group_name: student.group?.name,
-    group_id: student.group_id?.toString(),
-    in_house: student.in_house,
-    wc: student.wc ?? false,
-    school_yard: student.school_yard ?? false,
-    bus: student.bus ?? false,
-    name_lg: student.name_lg ?? "",
-    contact_lg: student.contact_lg ?? "",
-    custom_users_id: student.custom_users_id?.toString(),
-  };
+// Mapping functions
+export function mapStudentResponse(backendStudent: BackendStudent): Student {
+    // Construct the full name from first and last name
+    const firstName = backendStudent.first_name || '';
+    const lastName = backendStudent.last_name || '';
+    const name = `${firstName} ${lastName}`.trim();
+    
+    const mapped = {
+        id: String(backendStudent.id),
+        name: name,
+        first_name: backendStudent.first_name,
+        second_name: backendStudent.last_name, // Map last_name to second_name for frontend compatibility
+        school_class: backendStudent.school_class,
+        grade: undefined, // Not provided by backend
+        studentId: backendStudent.tag_id,
+        group_name: undefined, // Not provided by backend, needs separate lookup
+        group_id: backendStudent.group_id ? String(backendStudent.group_id) : undefined,
+        in_house: backendStudent.location === "In House",
+        wc: backendStudent.location === "WC",
+        school_yard: backendStudent.location === "School Yard",
+        bus: backendStudent.location === "Bus",
+        name_lg: backendStudent.guardian_name,
+        contact_lg: backendStudent.guardian_contact,
+        custom_users_id: undefined, // Not provided by backend
+    };
+    
+    return mapped;
 }
 
-/**
- * Prepares a student object for sending to the backend API
- */
-export function prepareStudentForBackend(
-  student: Partial<Student>,
-): Record<string, unknown> {
-  const backendStudent: Record<string, unknown> = {};
+// Map array of students
+export function mapStudentsResponse(backendStudents: BackendStudent[]): Student[] {
+    return backendStudents.map(mapStudentResponse);
+}
 
-  // Map fields to backend model
-  // School class is required - prioritize school_class, fall back to grade
-  backendStudent.school_class = student.school_class ?? student.grade ?? "";
+// Map a single student
+export function mapSingleStudentResponse(response: { data: BackendStudent }): Student {
+    return mapStudentResponse(response.data);
+}
 
-  // Legal guardian info is required
-  backendStudent.name_lg = student.name_lg ?? "";
-  backendStudent.contact_lg = student.contact_lg ?? "";
+// Prepare frontend student for backend
+export function prepareStudentForBackend(student: Partial<Student> & { 
+    tag_id?: string;
+    guardian_email?: string;
+    guardian_phone?: string;
+}): Partial<BackendStudent> {
+    // Calculate location string from boolean flags
+    let location = "Unknown";
+    if (student.in_house) location = "In House";
+    else if (student.wc) location = "WC";
+    else if (student.school_yard) location = "School Yard";
+    else if (student.bus) location = "Bus";
 
-  // Status fields
-  if (student.bus !== undefined) backendStudent.bus = student.bus;
-  if (student.in_house !== undefined)
-    backendStudent.in_house = student.in_house;
-  if (student.wc !== undefined) backendStudent.wc = student.wc;
-  if (student.school_yard !== undefined)
-    backendStudent.school_yard = student.school_yard;
+    return {
+        id: student.id ? parseInt(student.id, 10) : undefined,
+        first_name: student.first_name,
+        last_name: student.second_name, // Map second_name to last_name for backend
+        school_class: student.school_class,
+        location: location,
+        guardian_name: student.name_lg,
+        guardian_contact: student.contact_lg,
+        group_id: student.group_id ? parseInt(student.group_id, 10) : undefined,
+        tag_id: student.tag_id,
+        guardian_email: student.guardian_email,
+        guardian_phone: student.guardian_phone,
+    };
+}
 
-  // For updates, custom_users_id is required
-  // For new students (create), the backend will create a new user
-  if (student.custom_users_id) {
-    backendStudent.custom_users_id = parseInt(student.custom_users_id, 10);
-  }
+// Request/Response types
+export interface CreateStudentRequest {
+    first_name?: string;
+    second_name?: string; // Will be mapped to last_name for backend
+    school_class?: string;
+    group_id?: number;
+    name_lg?: string; // Guardian name
+    contact_lg?: string; // Guardian contact
+    tag_id?: string; // Optional RFID
+    guardian_email?: string;
+    guardian_phone?: string;
+}
 
-  // Group ID is required
-  if (student.group_id) {
-    backendStudent.group_id = parseInt(student.group_id, 10);
-  } else {
-    // Default to group ID 1 if not provided (this should be updated based on your application logic)
-    backendStudent.group_id = 1;
-  }
+export interface UpdateStudentRequest {
+    first_name?: string;
+    second_name?: string; // Will be mapped to last_name for backend
+    school_class?: string;
+    group_id?: string;
+    name_lg?: string; // Guardian name
+    contact_lg?: string; // Guardian contact
+    tag_id?: string;
+    guardian_email?: string;
+    guardian_phone?: string;
+}
 
-  // Handle name fields - these will be used to update the CustomUser record
-  if (student.first_name) {
-    backendStudent.first_name = student.first_name;
-  }
+// Backend request type (for actual API calls)
+export interface BackendUpdateRequest {
+    first_name?: string;
+    last_name?: string;
+    tag_id?: string;
+    school_class?: string;
+    guardian_name?: string;
+    guardian_contact?: string;
+    guardian_email?: string;
+    guardian_phone?: string;
+    group_id?: number;
+}
 
-  if (student.second_name) {
-    backendStudent.second_name = student.second_name;
-  }
+// Map frontend update request to backend format
+export function mapUpdateRequestToBackend(request: UpdateStudentRequest): BackendUpdateRequest {
+    const backendRequest: BackendUpdateRequest = {};
+    
+    if (request.first_name !== undefined) {
+        backendRequest.first_name = request.first_name;
+    }
+    if (request.second_name !== undefined) {
+        backendRequest.last_name = request.second_name;
+    }
+    if (request.tag_id !== undefined) {
+        backendRequest.tag_id = request.tag_id;
+    }
+    if (request.school_class !== undefined) {
+        backendRequest.school_class = request.school_class;
+    }
+    if (request.name_lg !== undefined) {
+        backendRequest.guardian_name = request.name_lg;
+    }
+    if (request.contact_lg !== undefined) {
+        backendRequest.guardian_contact = request.contact_lg;
+    }
+    if (request.guardian_email !== undefined) {
+        backendRequest.guardian_email = request.guardian_email;
+    }
+    if (request.guardian_phone !== undefined) {
+        backendRequest.guardian_phone = request.guardian_phone;
+    }
+    if (request.group_id !== undefined) {
+        backendRequest.group_id = parseInt(request.group_id, 10);
+    }
+    
+    return backendRequest;
+}
 
-  return backendStudent;
+// Helper functions
+export function formatStudentName(student: Student): string {
+    if (student.name) return student.name;
+    
+    const fallback = [student.first_name, student.second_name]
+        .filter(Boolean)
+        .join(' ') || 'Unnamed Student';
+    
+    return fallback;
+}
+
+export function formatStudentStatus(student: Student): string {
+    if (student.in_house) return 'Anwesend';
+    if (student.wc) return 'Toilette';
+    if (student.school_yard) return 'Schulhof';
+    if (student.bus) return 'Bus';
+    return 'Abwesend';
+}
+
+export function getStatusColor(student: Student): string {
+    if (student.in_house) return 'green';
+    if (student.wc) return 'blue';
+    if (student.school_yard) return 'yellow';
+    if (student.bus) return 'purple';
+    return 'red';
 }

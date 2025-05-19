@@ -2,8 +2,9 @@ package jwt
 
 import (
 	"context"
-	"github.com/moto-nrw/project-phoenix/logging"
 	"net/http"
+
+	"github.com/moto-nrw/project-phoenix/logging"
 
 	"github.com/lestrrat-go/jwx/v2/jwt"
 
@@ -11,21 +12,31 @@ import (
 	"github.com/go-chi/render"
 )
 
-type ctxKey int
+type CtxKey int
 
 const (
-	ctxClaims ctxKey = iota
-	ctxRefreshToken
+	CtxClaims CtxKey = iota
+	CtxRefreshToken
+	CtxPermissions // Context key for permissions
 )
 
 // ClaimsFromCtx retrieves the parsed AppClaims from request context.
 func ClaimsFromCtx(ctx context.Context) AppClaims {
-	return ctx.Value(ctxClaims).(AppClaims)
+	return ctx.Value(CtxClaims).(AppClaims)
+}
+
+// PermissionsFromCtx retrieves the permissions array from request context.
+func PermissionsFromCtx(ctx context.Context) []string {
+	perms, ok := ctx.Value(CtxPermissions).([]string)
+	if !ok {
+		return []string{}
+	}
+	return perms
 }
 
 // RefreshTokenFromCtx retrieves the parsed refresh token from context.
 func RefreshTokenFromCtx(ctx context.Context) string {
-	return ctx.Value(ctxRefreshToken).(string)
+	return ctx.Value(CtxRefreshToken).(string)
 }
 
 // Authenticator is a default authentication middleware to enforce access from the
@@ -36,13 +47,24 @@ func Authenticator(next http.Handler) http.Handler {
 		token, claims, err := jwtauth.FromContext(r.Context())
 
 		if err != nil {
-			logging.GetLogEntry(r).Warn(err)
-			render.Render(w, r, ErrUnauthorized(ErrTokenUnauthorized))
+			logging.GetLogEntry(r).Warn("JWT error:", err)
+			_ = render.Render(w, r, ErrUnauthorized(ErrTokenUnauthorized))
+			return
+		}
+
+		if token == nil {
+			logging.GetLogEntry(r).Warn("No token found in context")
+			if renderErr := render.Render(w, r, ErrUnauthorized(ErrTokenUnauthorized)); renderErr != nil {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			}
 			return
 		}
 
 		if err := jwt.Validate(token); err != nil {
-			render.Render(w, r, ErrUnauthorized(ErrTokenExpired))
+			logging.GetLogEntry(r).Warn("Token validation failed:", err)
+			if renderErr := render.Render(w, r, ErrUnauthorized(ErrTokenExpired)); renderErr != nil {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			}
 			return
 		}
 
@@ -50,13 +72,20 @@ func Authenticator(next http.Handler) http.Handler {
 		var c AppClaims
 		err = c.ParseClaims(claims)
 		if err != nil {
-			logging.GetLogEntry(r).Error(err)
-			render.Render(w, r, ErrUnauthorized(ErrInvalidAccessToken))
+			logging.GetLogEntry(r).Error("Failed to parse claims:", err)
+			if renderErr := render.Render(w, r, ErrUnauthorized(ErrInvalidAccessToken)); renderErr != nil {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			}
 			return
 		}
 
 		// Set AppClaims on context
-		ctx := context.WithValue(r.Context(), ctxClaims, c)
+		ctx := context.WithValue(r.Context(), CtxClaims, c)
+
+		// Also set permissions on context for easier access
+		ctx = context.WithValue(ctx, CtxPermissions, c.Permissions)
+
+		// Call the next handler with updated context
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -67,12 +96,16 @@ func AuthenticateRefreshJWT(next http.Handler) http.Handler {
 		token, claims, err := jwtauth.FromContext(r.Context())
 		if err != nil {
 			logging.GetLogEntry(r).Warn(err)
-			render.Render(w, r, ErrUnauthorized(ErrTokenUnauthorized))
+			if renderErr := render.Render(w, r, ErrUnauthorized(ErrTokenUnauthorized)); renderErr != nil {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			}
 			return
 		}
 
 		if err := jwt.Validate(token); err != nil {
-			render.Render(w, r, ErrUnauthorized(ErrTokenExpired))
+			if renderErr := render.Render(w, r, ErrUnauthorized(ErrTokenExpired)); renderErr != nil {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			}
 			return
 		}
 
@@ -81,11 +114,13 @@ func AuthenticateRefreshJWT(next http.Handler) http.Handler {
 		err = c.ParseClaims(claims)
 		if err != nil {
 			logging.GetLogEntry(r).Error(err)
-			render.Render(w, r, ErrUnauthorized(ErrInvalidRefreshToken))
+			if renderErr := render.Render(w, r, ErrUnauthorized(ErrInvalidRefreshToken)); renderErr != nil {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			}
 			return
 		}
 		// Set refresh token string on context
-		ctx := context.WithValue(r.Context(), ctxRefreshToken, c.Token)
+		ctx := context.WithValue(r.Context(), CtxRefreshToken, c.Token)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

@@ -4,114 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database"
-	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/migrate"
 )
-
-// registerMigration registers a migration with the global Migrations registry
-// and adds it to the MigrationRegistry for metadata tracking
-func registerMigration(migration *Migration) {
-	// Store in metadata registry
-	MigrationRegistry[migration.Version] = migration
-
-	// Register the migration functions with the Bun migrator
-	Migrations.MustRegister(
-		// Up function
-		func(ctx context.Context, db *bun.DB) error {
-			startTime := time.Now()
-			fmt.Printf("Running migration V%s: %s\n", migration.Version, migration.Description)
-
-			// Run the migration
-			err := migration.Up(ctx, db)
-
-			// Record execution in migration_metadata if the table exists
-			duration := time.Since(startTime).Milliseconds()
-			recordMigration(ctx, db, migration, duration, err)
-
-			if err != nil {
-				fmt.Printf("Migration V%s failed: %v\n", migration.Version, err)
-				return err
-			}
-
-			fmt.Printf("Migration V%s completed successfully (%d ms)\n", migration.Version, duration)
-			return nil
-		},
-		// Down function
-		func(ctx context.Context, db *bun.DB) error {
-			startTime := time.Now()
-			fmt.Printf("Rolling back migration V%s: %s\n", migration.Version, migration.Description)
-
-			// Run the rollback
-			err := migration.Down(ctx, db)
-
-			if err != nil {
-				fmt.Printf("Rollback of V%s failed: %v\n", migration.Version, err)
-				return err
-			}
-
-			duration := time.Since(startTime).Milliseconds()
-			fmt.Printf("Rollback of V%s completed successfully (%d ms)\n", migration.Version, duration)
-			return nil
-		},
-	)
-}
-
-// recordMigration attempts to record migration metadata if the metadata table exists
-// This is a best-effort operation that doesn't fail if the table doesn't exist yet
-func recordMigration(ctx context.Context, db *bun.DB, migration *Migration, durationMs int64, err error) {
-	// Check if the migration_metadata table exists
-	var exists bool
-	checkErr := db.QueryRowContext(ctx, `
-		SELECT EXISTS (
-			SELECT FROM information_schema.tables 
-			WHERE table_name = 'migration_metadata'
-		)
-	`).Scan(&exists)
-
-	if checkErr != nil || !exists {
-		// Table doesn't exist yet, this is expected for the first migration
-		return
-	}
-
-	// Record migration metadata
-	_, insertErr := db.ExecContext(ctx, `
-		INSERT INTO migration_metadata (
-			version, description, applied_at, execution_time_ms, 
-			checksum, success, error_message, applied_by
-		) VALUES (?, ?, now(), ?, ?, ?, ?, current_user)
-		ON CONFLICT (version) DO UPDATE SET
-			applied_at = now(),
-			execution_time_ms = ?,
-			success = ?,
-			error_message = ?
-	`,
-		migration.Version,
-		migration.Description,
-		durationMs,
-		"", // checksum - to be implemented
-		err == nil,
-		errorToString(err),
-		durationMs,
-		err == nil,
-		errorToString(err),
-	)
-
-	if insertErr != nil {
-		// Log but don't fail the migration
-		fmt.Printf("Warning: Failed to record migration metadata: %v\n", insertErr)
-	}
-}
-
-// errorToString safely converts an error to string
-func errorToString(err error) string {
-	if err == nil {
-		return ""
-	}
-	return err.Error()
-}
 
 // Migrate runs all pending migrations
 func Migrate() {
@@ -119,7 +15,7 @@ func Migrate() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	migrator := migrate.NewMigrator(db, Migrations)
 
@@ -156,7 +52,7 @@ func MigrateStatus() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	migrator := migrate.NewMigrator(db, Migrations)
 
@@ -211,7 +107,7 @@ func Reset() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Initialize new migrator
 	migrator := migrate.NewMigrator(db, Migrations)

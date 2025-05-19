@@ -27,12 +27,11 @@ export default function StudentForm({
     school_class: "",
     name_lg: "",
     contact_lg: "",
-    group_id: "1",
+    group_id: "",
     bus: false,
     in_house: false,
     wc: false,
     school_yard: false,
-    custom_users_id: "",
   });
 
   const [error, setError] = useState<string | null>(null);
@@ -45,12 +44,11 @@ export default function StudentForm({
         school_class: initialData.school_class ?? "",
         name_lg: initialData.name_lg ?? "",
         contact_lg: initialData.contact_lg ?? "",
-        group_id: initialData.group_id ?? "1",
+        group_id: initialData.group_id ?? "",
         bus: initialData.bus ?? false,
         in_house: initialData.in_house ?? false,
         wc: initialData.wc ?? false,
         school_yard: initialData.school_yard ?? false,
-        custom_users_id: initialData.custom_users_id ?? "",
       });
     }
   }, [initialData]);
@@ -79,13 +77,29 @@ export default function StudentForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate form
-    if (
-      !formData.first_name ||
-      !formData.second_name ||
-      !formData.school_class
-    ) {
-      setError("Bitte füllen Sie alle Pflichtfelder aus.");
+    // Validate required fields according to backend API
+    if (!formData.first_name?.trim()) {
+      setError("Vorname ist erforderlich.");
+      return;
+    }
+    
+    if (!formData.second_name?.trim()) {
+      setError("Nachname ist erforderlich.");
+      return;
+    }
+    
+    if (!formData.school_class?.trim()) {
+      setError("Klasse ist erforderlich.");
+      return;
+    }
+    
+    if (!formData.name_lg?.trim()) {
+      setError("Name des Erziehungsberechtigten ist erforderlich.");
+      return;
+    }
+    
+    if (!formData.contact_lg?.trim()) {
+      setError("Kontakt des Erziehungsberechtigten ist erforderlich.");
       return;
     }
 
@@ -186,7 +200,10 @@ export default function StudentForm({
                       group_id: groupId,
                     }));
                   }}
-                  label="Gruppe"
+                  label="OGS Gruppe"
+                  required={true}
+                  includeEmpty={true}
+                  emptyLabel="Bitte wählen Sie eine Gruppe"
                 />
               </div>
             </div>
@@ -203,7 +220,7 @@ export default function StudentForm({
                   htmlFor="name_lg"
                   className="mb-1 block text-sm font-medium text-gray-700"
                 >
-                  Name des Erziehungsberechtigten
+                  Name des Erziehungsberechtigten*
                 </label>
                 <input
                   type="text"
@@ -211,6 +228,7 @@ export default function StudentForm({
                   name="name_lg"
                   value={formData.name_lg}
                   onChange={handleChange}
+                  required
                   className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                 />
               </div>
@@ -221,7 +239,7 @@ export default function StudentForm({
                   htmlFor="contact_lg"
                   className="mb-1 block text-sm font-medium text-gray-700"
                 >
-                  Kontakt des Erziehungsberechtigten
+                  Kontakt des Erziehungsberechtigten*
                 </label>
                 <input
                   type="text"
@@ -229,83 +247,37 @@ export default function StudentForm({
                   name="contact_lg"
                   value={formData.contact_lg}
                   onChange={handleChange}
+                  required
+                  placeholder="E-Mail oder Telefonnummer"
                   className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  Bitte E-Mail-Adresse oder Telefonnummer eingeben
+                </p>
               </div>
             </div>
           </div>
 
           <div className="mb-8 rounded-lg bg-green-50 p-4">
-            <h2 className="mb-4 text-lg font-medium text-green-800">Status</h2>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {/* Status Checkboxes */}
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="in_house"
-                  name="in_house"
-                  checked={formData.in_house}
-                  onChange={handleChange}
-                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                />
-                <label
-                  htmlFor="in_house"
-                  className="ml-2 block text-sm text-gray-700"
-                >
-                  Im Haus
-                </label>
-              </div>
-
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="wc"
-                  name="wc"
-                  checked={formData.wc}
-                  onChange={handleChange}
-                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                />
-                <label
-                  htmlFor="wc"
-                  className="ml-2 block text-sm text-gray-700"
-                >
-                  Toilette
-                </label>
-              </div>
-
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="school_yard"
-                  name="school_yard"
-                  checked={formData.school_yard}
-                  onChange={handleChange}
-                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                />
-                <label
-                  htmlFor="school_yard"
-                  className="ml-2 block text-sm text-gray-700"
-                >
-                  Schulhof
-                </label>
-              </div>
-
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="bus"
-                  name="bus"
-                  checked={formData.bus}
-                  onChange={handleChange}
-                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                />
-                <label
-                  htmlFor="bus"
-                  className="ml-2 block text-sm text-gray-700"
-                >
-                  Bus
-                </label>
-              </div>
+            <h2 className="mb-4 text-lg font-medium text-green-800">Busfahrer</h2>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="bus"
+                name="bus"
+                checked={formData.bus}
+                onChange={handleChange}
+                className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+              />
+              <label
+                htmlFor="bus"
+                className="ml-2 block text-sm text-gray-700"
+              >
+                Fährt mit dem Bus
+              </label>
+              <p className="ml-2 text-xs text-gray-500">
+                (Aktivieren, wenn der Schüler mit dem Bus fährt)
+              </p>
             </div>
           </div>
 

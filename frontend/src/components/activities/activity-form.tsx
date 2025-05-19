@@ -78,16 +78,20 @@ const TimeSlotEditor = ({
   timeSlots,
   onAdd,
   onRemove,
+  parentActivityId,
 }: {
   timeSlots: ActivityTime[];
   onAdd: (timeSlot: Omit<ActivityTime, "id" | "ag_id" | "created_at">) => void;
   onRemove: (index: number) => void;
+  parentActivityId?: string;
 }) => {
   const [weekday, setWeekday] = useState("Monday");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   // const [timespanId, setTimespanId] = useState('');
   const [isCreatingTimespan, setIsCreatingTimespan] = useState(false);
+  // Use parent activity ID if provided, or default to a temporary one
+  const activityId = parentActivityId ?? "temp";
 
   const weekdays = [
     "Monday",
@@ -156,10 +160,15 @@ const TimeSlotEditor = ({
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Add the time slot with the new timespan ID
-      // The API expects timespan_id as a string that it will convert to a number
+      // The API expects timespan as an object with start_time and end_time
       onAdd({
         weekday,
-        timespan_id: newTimespanId,
+        timespan: {
+          start_time: startTime,
+          end_time: endTime
+        },
+        activity_id: activityId || "new",
+        updated_at: new Date()
       });
 
       // Reset form
@@ -398,8 +407,8 @@ export default function ActivityForm({
     // Generate a temporary ID for UI purposes
     const tempTimeSlot: ActivityTime = {
       id: `temp-${Date.now()}`,
-      ag_id: formData.id ?? "new",
-      created_at: new Date().toISOString(),
+      created_at: new Date(),
+      // Use spread to get properties from newTimeSlot, but avoid duplicates
       ...newTimeSlot,
     };
 
@@ -517,6 +526,7 @@ export default function ActivityForm({
               timeSlots={timeSlots}
               onAdd={handleAddTimeSlot}
               onRemove={handleRemoveTimeSlot}
+              parentActivityId={formData.id}
             />
           </div>
 
