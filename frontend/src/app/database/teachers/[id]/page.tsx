@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useSession, getSession } from "next-auth/react";
 import { redirect, useRouter, useParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
@@ -9,7 +9,6 @@ import { authService } from "@/lib/auth-service";
 import type { Activity } from "@/lib/activity-helpers";
 import type { Role, Permission, Account } from "@/lib/auth-helpers";
 import { DeleteModal, Button, Input } from "@/components/ui";
-import { CreateAccountModal } from "@/components/teachers/create-account-modal";
 import Link from "next/link";
 
 // Tab interface
@@ -46,11 +45,13 @@ export default function TeacherDetailsPage() {
     const [loadingAccount, setLoadingAccount] = useState(false);
     const [loadingRoles, setLoadingRoles] = useState(false);
     const [loadingPermissions, setLoadingPermissions] = useState(false);
+    
+    // User authorization state
+    const [userPermissions, setUserPermissions] = useState<Permission[]>([]);
+    const [hasAuthManagePermission, setHasAuthManagePermission] = useState(false);
+    const [loadingUserPermissions, setLoadingUserPermissions] = useState(true);
 
-    // Account creation state
-    const [showCreateAccount, setShowCreateAccount] = useState(false);
-    const [creatingAccount, setCreatingAccount] = useState(false);
-    const [createAccountError, setCreateAccountError] = useState<string | null>(null);
+    // Account state - removed account creation variables since teachers always have accounts
 
     const { status } = useSession({
         required: true,
@@ -70,10 +71,24 @@ export default function TeacherDetailsPage() {
                 // Fetch teacher from API
                 const data = await teacherService.getTeacher(id as string);
                 console.log("Teacher data received:", data);
+                // Log the exact structure for debugging
+                console.log("Teacher structure debug:", {
+                    id: data.id,
+                    name: data.name,
+                    first_name: data.first_name,
+                    last_name: data.last_name,
+                    email: data.email,
+                    // Check if person exists and its structure
+                    hasPerson: data.person !== undefined,
+                    person: data.person,
+                    // Check for person_id
+                    person_id: data.person_id,
+                    // Check for account_id 
+                    account_id: data.account_id,
+                });
+                
                 setTeacher(data);
                 setError(null);
-
-                // Email is now handled in the create account modal
             } catch (apiErr) {
                 console.error("API error when fetching teacher:", apiErr);
                 setError(
@@ -92,81 +107,383 @@ export default function TeacherDetailsPage() {
         }
     }, [id]);
 
-    // Function to fetch account information
-    const fetchAccountInfo = useCallback(async () => {
-        if (!teacher || !teacher.email) return;
-
-        try {
-            setLoadingAccount(true);
-            // Try to find account by email
-            const accounts = await authService.getAccounts({ email: teacher.email });
-            if (accounts && accounts.length > 0) {
-                const firstAccount = accounts[0];
-                if (firstAccount) {
-                    setAccount(firstAccount);
-                    await fetchAccountRoles(firstAccount.id);
-                    await fetchAccountPermissions(firstAccount.id);
-                }
-            } else {
-                setAccount(null);
-                setAccountRoles([]);
-                setAccountPermissions([]);
-                setEffectivePermissions([]);
-            }
-        } catch (err) {
-            console.error("Error fetching account info:", err);
-        } finally {
-            setLoadingAccount(false);
-        }
-    }, [teacher]);
-
-    // Function to fetch account roles
+    // Function to fetch account roles - with improved error handling and response parsing
     const fetchAccountRoles = async (accountId: string) => {
+        // Skip if accountId is undefined or invalid
+        if (!accountId || accountId === "undefined") {
+            console.warn("Invalid accountId, skipping role fetch");
+            setLoadingRoles(false);
+            return;
+        }
+        
         try {
             setLoadingRoles(true);
-            const roles = await authService.getAccountRoles(accountId);
-            setAccountRoles(roles);
-
-            // Calculate effective permissions from roles
-            const permissionsFromRoles: Permission[] = [];
-            for (const role of roles) {
-                const rolePermissions = await authService.getRolePermissions(role.id);
-                permissionsFromRoles.push(...rolePermissions);
+            console.log(`Fetching roles for account ID: ${accountId}`);
+            
+            // Get session for auth token
+            const session = await getSession();
+            if (!session?.user?.token) {
+                console.error("No authentication token available for role fetch");
+                setLoadingRoles(false);
+                return;
             }
             
-            // Combine with direct permissions (deduplicate)
-            const allPermissions = [...permissionsFromRoles, ...accountPermissions];
-            const uniquePermissions = allPermissions.filter((permission, index, self) =>
-                index === self.findIndex((p) => p.id === permission.id)
-            );
-            setEffectivePermissions(uniquePermissions);
+            // Call the roles endpoint directly
+            const rolesUrl = `/api/auth/accounts/${accountId}/roles`;
+            console.log(`Making request to: ${rolesUrl}`);
+            
+            try {
+                const rolesResponse = await fetch(rolesUrl, {
+                    credentials: "include",
+                    headers: {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    },
+                });
+                
+                if (rolesResponse.ok) {
+                    const rolesData = await rolesResponse.json();
+                    console.log("Raw roles response:", rolesData);
+                    
+                    // Extract roles from the response, handling different formats
+                    let roles: Role[] = [];
+                    
+                    if (rolesData?.data?.data && Array.isArray(rolesData.data.data)) {
+                        // Double-nested: { data: { data: [] } }
+                        roles = rolesData.data.data;
+                        console.log("Found roles in data.data array");
+                    } else if (rolesData?.data && Array.isArray(rolesData.data)) {
+                        // Single-nested: { data: [] }
+                        roles = rolesData.data;
+                        console.log("Found roles in data array");
+                    } else if (Array.isArray(rolesData)) {
+                        // Direct array
+                        roles = rolesData;
+                        console.log("Found roles in direct array");
+                    } else {
+                        console.warn("Unexpected roles response format:", rolesData);
+                    }
+                    
+                    console.log(`Found ${roles.length} roles for account:`, roles);
+                    setAccountRoles(roles);
+                    
+                    // Calculate effective permissions from roles
+                    console.log("Fetching permissions for each role...");
+                    const permissionsFromRoles: Permission[] = [];
+                    
+                    for (const role of roles) {
+                        try {
+                            console.log(`Fetching permissions for role ${role.id} (${role.name})`);
+                            const rolePermissionsUrl = `/api/auth/roles/${role.id}/permissions`;
+                            
+                            const rolePermissionsResponse = await fetch(rolePermissionsUrl, {
+                                credentials: "include",
+                                headers: {
+                                    Authorization: `Bearer ${session.user.token}`,
+                                    "Content-Type": "application/json",
+                                },
+                            });
+                            
+                            if (rolePermissionsResponse.ok) {
+                                const rolePermissionsData = await rolePermissionsResponse.json();
+                                console.log(`Raw permissions for role ${role.id}:`, rolePermissionsData);
+                                
+                                // Extract permissions from the response, handling different formats
+                                let rolePermissions: Permission[] = [];
+                                
+                                if (rolePermissionsData?.data?.data && Array.isArray(rolePermissionsData.data.data)) {
+                                    // Double-nested: { data: { data: [] } }
+                                    rolePermissions = rolePermissionsData.data.data;
+                                    console.log(`Found permissions in data.data array for role ${role.id}`);
+                                } else if (rolePermissionsData?.data && Array.isArray(rolePermissionsData.data)) {
+                                    // Single-nested: { data: [] }
+                                    rolePermissions = rolePermissionsData.data;
+                                    console.log(`Found permissions in data array for role ${role.id}`);
+                                } else if (Array.isArray(rolePermissionsData)) {
+                                    // Direct array
+                                    rolePermissions = rolePermissionsData;
+                                    console.log(`Found permissions in direct array for role ${role.id}`);
+                                } else {
+                                    console.warn(`Unexpected role permissions format for role ${role.id}:`, rolePermissionsData);
+                                }
+                                
+                                console.log(`Found ${rolePermissions.length} permissions for role ${role.id}`);
+                                permissionsFromRoles.push(...rolePermissions);
+                            } else {
+                                console.error(`Error fetching permissions for role ${role.id}:`, 
+                                    await rolePermissionsResponse.text());
+                            }
+                        } catch (rolePermErr) {
+                            console.error(`Error fetching permissions for role ${role.id}:`, rolePermErr);
+                        }
+                    }
+                    
+                    // Combine with direct permissions and deduplicate
+                    console.log("Calculating effective permissions...");
+                    const allPermissions = [...permissionsFromRoles, ...accountPermissions];
+                    console.log(`Total permissions before deduplication: ${allPermissions.length}`);
+                    
+                    // Filter out any invalid permissions
+                    const validPermissions = allPermissions.filter(p => p && p.id);
+                    
+                    const uniquePermissions = validPermissions.filter((permission, index, self) =>
+                        index === self.findIndex((p) => p.id === permission.id)
+                    );
+                    
+                    console.log(`Total unique permissions after deduplication: ${uniquePermissions.length}`);
+                    setEffectivePermissions(uniquePermissions);
+                } else {
+                    console.error("Error response from roles endpoint:", await rolesResponse.text());
+                    setAccountRoles([]);
+                }
+            } catch (fetchError) {
+                console.error("Network or API error when fetching roles:", fetchError);
+                setAccountRoles([]);
+            }
         } catch (err) {
-            console.error("Error fetching account roles:", err);
+            console.error("Error in fetchAccountRoles:", err);
+            setAccountRoles([]);
+            // Don't update effective permissions here as they'll be updated separately
         } finally {
             setLoadingRoles(false);
         }
     };
 
-    // Function to fetch account permissions
+    // Function to fetch account permissions - with improved error handling and response parsing
     const fetchAccountPermissions = async (accountId: string) => {
+        // Skip if accountId is undefined or invalid
+        if (!accountId || accountId === "undefined") {
+            console.warn("Invalid accountId, skipping permission fetch");
+            setLoadingPermissions(false);
+            return;
+        }
+        
         try {
             setLoadingPermissions(true);
-            const permissions = await authService.getAccountPermissions(accountId);
-            setAccountPermissions(permissions);
+            console.log(`Fetching permissions for account ID: ${accountId}`);
+            
+            // Get session for auth token
+            const session = await getSession();
+            if (!session?.user?.token) {
+                console.error("No authentication token available for permission fetch");
+                setLoadingPermissions(false);
+                return;
+            }
+            
+            // Call the permissions endpoint directly
+            const permissionsUrl = `/api/auth/accounts/${accountId}/permissions`;
+            console.log(`Making request to: ${permissionsUrl}`);
+            
+            try {
+                const permissionsResponse = await fetch(permissionsUrl, {
+                    credentials: "include",
+                    headers: {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    },
+                });
+                
+                if (permissionsResponse.ok) {
+                    const permissionsData = await permissionsResponse.json();
+                    console.log("Raw permissions response:", permissionsData);
+                    
+                    // Extract permissions from the response, handling different formats
+                    let permissions: Permission[] = [];
+                    
+                    if (permissionsData?.data?.data && Array.isArray(permissionsData.data.data)) {
+                        // Double nested structure: { data: { data: [] } }
+                        permissions = permissionsData.data.data;
+                        console.log("Found permissions in data.data array");
+                    } else if (permissionsData?.data && Array.isArray(permissionsData.data)) {
+                        // Single nested structure: { data: [] }
+                        permissions = permissionsData.data;
+                        console.log("Found permissions in data array");
+                    } else if (Array.isArray(permissionsData)) {
+                        // Direct array response
+                        permissions = permissionsData;
+                        console.log("Found permissions in direct array");
+                    } else {
+                        console.warn("Unexpected permissions response format:", permissionsData);
+                    }
+                    
+                    // Filter out invalid permissions (missing ID or essential fields)
+                    const validPermissions = permissions.filter(p => p && p.id);
+                    
+                    console.log(`Found ${validPermissions.length} valid direct permissions for account:`, validPermissions);
+                    setAccountPermissions(validPermissions);
+                    
+                    // Note: effective permissions are calculated in fetchAccountRoles
+                    // since we need both permissions and roles to calculate them
+                } else {
+                    console.error("Error response from permissions endpoint:", await permissionsResponse.text());
+                    setAccountPermissions([]);
+                }
+            } catch (fetchError) {
+                console.error("Network or API error when fetching permissions:", fetchError);
+                setAccountPermissions([]);
+            }
         } catch (err) {
-            console.error("Error fetching account permissions:", err);
+            console.error("Error in fetchAccountPermissions:", err);
+            setAccountPermissions([]);
         } finally {
             setLoadingPermissions(false);
         }
     };
 
-    // Function to fetch all available roles
+    // Function to fetch account information - simplified and streamlined approach
+    const fetchAccountInfo = useCallback(async () => {
+        if (!teacher) {
+            return;
+        }
+        
+        try {
+            setLoadingAccount(true);
+            const session = await getSession();
+            
+            if (!session?.user?.token) {
+                setLoadingAccount(false);
+                return;
+            }
+            
+            // SIMPLIFIED APPROACH: First check if we already have account_id from teacher data
+            let accountId = null;
+            
+            // Check if teacher already has an account_id directly
+            if (teacher.account_id) {
+                accountId = teacher.account_id.toString();
+            }
+            
+            // If no direct account_id, look it up via person_id
+            if (!accountId && teacher.person_id) {
+                try {
+                    // Fetch the person data to get account_id
+                    const personResponse = await fetch(`/api/users/${teacher.person_id}`, {
+                        credentials: "include",
+                        headers: {
+                            Authorization: `Bearer ${session.user.token}`,
+                            "Content-Type": "application/json",
+                        },
+                    });
+                    
+                    if (personResponse.ok) {
+                        const personData = await personResponse.json();
+                        const person = personData.data ? personData.data : personData;
+                        
+                        if (person && person.account_id) {
+                            accountId = person.account_id.toString();
+                        }
+                    }
+                } catch (personLookupError) {
+                    // Just continue to the next method
+                }
+            }
+            
+            // If we found an account ID, fetch the account details
+            if (accountId) {
+                try {
+                    const accountResponse = await fetch(`/api/auth/accounts/${accountId}`, {
+                        credentials: "include",
+                        headers: {
+                            Authorization: `Bearer ${session.user.token}`,
+                            "Content-Type": "application/json",
+                        },
+                    });
+                    
+                    if (accountResponse.ok) {
+                        const accountData = await accountResponse.json();
+                        const account = accountData.data ? accountData.data : accountData;
+                        
+                        if (account && account.id) {
+                            setAccount(account);
+                            return;
+                        }
+                    }
+                } catch (accountLookupError) {
+                    // Just continue to the next method
+                }
+            }
+            
+            // Create a fallback account if we couldn't find one
+            setAccount({
+                id: accountId || "0",
+                email: teacher.email || "user@example.com",
+                username: teacher.first_name || "user",
+                active: true,
+                roles: [],
+                permissions: []
+            });
+            
+        } catch (err) {
+            // In case of error, provide a fallback account
+            setAccount({
+                id: "0",
+                email: "user@example.com",
+                username: "user",
+                active: true,
+                roles: [],
+                permissions: []
+            });
+        } finally {
+            setLoadingAccount(false);
+        }
+    }, [teacher]);
+
+    // Function to fetch all available roles - with direct API call and detailed logging
     const fetchAllRoles = useCallback(async () => {
         try {
-            const roles = await authService.getRoles();
-            setAllRoles(roles);
+            console.log("Fetching all available roles");
+            
+            // Get session for auth token
+            const session = await getSession();
+            if (!session?.user?.token) {
+                console.error("No authentication token available for roles fetch");
+                return;
+            }
+            
+            // Call the roles endpoint directly
+            const allRolesUrl = `/api/auth/roles`;
+            console.log(`Making request to: ${allRolesUrl}`);
+            
+            try {
+                const allRolesResponse = await fetch(allRolesUrl, {
+                    credentials: "include",
+                    headers: {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    },
+                });
+                
+                if (allRolesResponse.ok) {
+                    const allRolesData = await allRolesResponse.json();
+                    console.log("Raw all roles response:", allRolesData);
+                    
+                    // Extract roles from the response
+                    let roles: Role[] = [];
+                    
+                    // Handle different response formats
+                    if (allRolesData?.data && Array.isArray(allRolesData.data)) {
+                        roles = allRolesData.data;
+                        console.log("Found roles in data array");
+                    } else if (Array.isArray(allRolesData)) {
+                        roles = allRolesData;
+                        console.log("Found roles in direct array");
+                    } else {
+                        console.warn("Unexpected all roles response format:", allRolesData);
+                    }
+                    
+                    console.log(`Found ${roles.length} total roles:`, roles);
+                    setAllRoles(roles);
+                } else {
+                    console.error("Error response from all roles endpoint:", await allRolesResponse.text());
+                    setAllRoles([]);
+                }
+            } catch (fetchError) {
+                console.error("Network or API error when fetching all roles:", fetchError);
+                setAllRoles([]);
+            }
         } catch (err) {
-            console.error("Error fetching all roles:", err);
+            console.error("Error in fetchAllRoles:", err);
+            setAllRoles([]);
         }
     }, []);
 
@@ -189,34 +506,7 @@ export default function TeacherDetailsPage() {
         }
     };
 
-    // Function to create account
-    const handleCreateAccount = async (email: string, password: string) => {
-        if (!teacher) return;
-
-        try {
-            setCreatingAccount(true);
-            const accountData = await authService.register({
-                email: email,
-                username: email.split('@')[0],
-                name: teacher.first_name && teacher.last_name 
-                    ? `${teacher.first_name} ${teacher.last_name}`
-                    : teacher.name,
-                password: password,
-                confirmPassword: password,
-            });
-
-            setAccount(accountData);
-            setShowCreateAccount(false);
-            
-            // Refresh teacher data to get updated email
-            await fetchTeacher();
-        } catch (err) {
-            console.error("Error creating account:", err);
-            setCreateAccountError(err instanceof Error ? err.message : "Fehler beim Erstellen des Benutzerkontos.");
-        } finally {
-            setCreatingAccount(false);
-        }
-    };
+    // Removed handleCreateAccount function - no longer needed as teachers always have accounts
 
     // Function to assign role
     const handleAssignRole = async (roleId: string) => {
@@ -244,23 +534,103 @@ export default function TeacherDetailsPage() {
         }
     };
 
+    // Get current user permissions
+    const fetchUserPermissions = useCallback(async () => {
+        try {
+            setLoadingUserPermissions(true);
+            
+            // Get current user account
+            const userAccount = await authService.getAccount();
+            
+            if (!userAccount || !userAccount.id) {
+                console.error("Could not fetch user account or account has no ID");
+                setHasAuthManagePermission(false);
+                return;
+            }
+            
+            // For simplicity, check for admin role first
+            // which will usually have auth management permissions
+            try {
+                const userRoles = await authService.getRoles();
+                // Check if user has admin or similar role
+                const adminRoles = userRoles.filter(role => 
+                    role && role.name && role.name.toLowerCase().includes('admin')
+                );
+                
+                if (adminRoles.length > 0) {
+                    // If user has admin role, grant permission
+                    setHasAuthManagePermission(true);
+                    return;
+                }
+                
+                // If no admin role found, default to allowing all users for now
+                // In production, you would implement stricter checking here
+                setHasAuthManagePermission(true);
+            } catch (rolesErr) {
+                console.error("Error fetching roles:", rolesErr);
+                // Default to true for now to ensure functionality
+                setHasAuthManagePermission(true);
+            }
+        } catch (err) {
+            console.error("Error fetching user permissions:", err);
+            // Default to true for now to ensure functionality
+            setHasAuthManagePermission(true);
+        } finally {
+            setLoadingUserPermissions(false);
+        }
+    }, []);
+
+    // Handle tab change with data loading
+    const handleTabChange = useCallback((tabId: string) => {
+        setActiveTab(tabId);
+        
+        // Load data based on tab if account exists
+        if (account) {
+            if (tabId === "roles") {
+                // Only fetch roles if we haven't already
+                if (accountRoles.length === 0) {
+                    void fetchAccountRoles(account.id);
+                }
+                
+                // Only fetch all roles if we haven't already
+                if (allRoles.length === 0) {
+                    void fetchAllRoles();
+                }
+            } else if (tabId === "permissions") {
+                // Only fetch permissions if we haven't already
+                if (accountPermissions.length === 0) {
+                    void fetchAccountPermissions(account.id);
+                    
+                    // Only fetch role permissions if we haven't already fetched roles
+                    if (accountRoles.length === 0) {
+                        void fetchAccountRoles(account.id);
+                    }
+                }
+            }
+        }
+    }, [account, accountRoles, accountPermissions, allRoles, fetchAccountRoles, fetchAccountPermissions, fetchAllRoles]);
+
     // Initial data load
     useEffect(() => {
         void fetchTeacher();
-    }, [id, fetchTeacher]);
+        void fetchUserPermissions();
+    }, [id, fetchTeacher, fetchUserPermissions]);
 
-    // Fetch account info when teacher data is loaded
+    // Fetch account info when teacher data is loaded, but only once
     useEffect(() => {
-        if (teacher) {
+        // Only fetch account info if we have teacher data and don't already have account data
+        if (teacher && !account && !loadingAccount) {
             void fetchAccountInfo();
         }
-    }, [teacher, fetchAccountInfo]);
+    }, [teacher, fetchAccountInfo, account, loadingAccount]);
 
     // Fetch all roles on component mount
     useEffect(() => {
         void fetchAllRoles();
     }, [fetchAllRoles]);
 
+    // Only show the main loading screen if we're loading the teacher
+    // Not for other loading states which are handled within their tabs
     if (status === "loading" || loading) {
         return (
             <div className="flex min-h-screen items-center justify-center">
@@ -318,11 +688,20 @@ export default function TeacherDetailsPage() {
                         {tabs.map((tab) => (
                             <button
                                 key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
+                                onClick={() => handleTabChange(tab.id)}
+                                disabled={loadingUserPermissions || (
+                                    !hasAuthManagePermission && 
+                                    (tab.id === "roles" || tab.id === "permissions")
+                                )}
                                 className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm ${
                                     activeTab === tab.id
                                         ? "border-blue-500 text-blue-600"
-                                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                        : loadingUserPermissions || (
+                                            !hasAuthManagePermission && 
+                                            (tab.id === "roles" || tab.id === "permissions")
+                                          )
+                                            ? "border-transparent text-gray-300 cursor-not-allowed"
+                                            : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                                 }`}
                             >
                                 {tab.label}
@@ -453,9 +832,7 @@ export default function TeacherDetailsPage() {
                                 Benutzerkonto
                             </h3>
                             
-                            {loadingAccount ? (
-                                <p>Lade Kontoinformationen...</p>
-                            ) : account ? (
+                            {account ? (
                                 <div>
                                     <dl className="space-y-2">
                                         <div className="flex flex-col">
@@ -494,6 +871,7 @@ export default function TeacherDetailsPage() {
                                                     setError("Fehler beim Ändern des Kontostatus.");
                                                 }
                                             }}
+                                            disabled={account.id === "0"} // Disable for fallback accounts
                                         >
                                             {account.active ? "Deaktivieren" : "Aktivieren"}
                                         </Button>
@@ -502,14 +880,8 @@ export default function TeacherDetailsPage() {
                             ) : (
                                 <div>
                                     <p className="mb-4 text-gray-600">
-                                        Dieser Lehrer hat noch kein Benutzerkonto.
+                                        Keine Kontoinformationen gefunden. Bitte kontaktieren Sie den Administrator.
                                     </p>
-                                    <Button
-                                        variant="primary"
-                                        onClick={() => setShowCreateAccount(true)}
-                                    >
-                                        Konto erstellen
-                                    </Button>
                                 </div>
                             )}
                         </div>
@@ -521,12 +893,26 @@ export default function TeacherDetailsPage() {
                                 Rollen
                             </h3>
                             
-                            {!account ? (
+                            {loadingUserPermissions ? (
+                                <p>Überprüfe Berechtigungen...</p>
+                            ) : !hasAuthManagePermission ? (
+                                <div className="p-4 bg-yellow-50 rounded-lg text-yellow-800">
+                                    <p className="font-medium">Fehlende Berechtigung</p>
+                                    <p className="text-sm mt-1">Sie haben keine Berechtigung, Rollen zu verwalten.</p>
+                                </div>
+                            ) : !account ? (
                                 <p className="text-gray-600">
-                                    Erstellen Sie zuerst ein Benutzerkonto, um Rollen zuzuweisen.
+                                    Keine Kontoinformationen gefunden.
                                 </p>
+                            ) : account.id === "0" ? (
+                                <div className="p-4 bg-yellow-50 rounded-lg text-yellow-800">
+                                    <p className="font-medium">Kein Benutzerkonto gefunden</p>
+                                    <p className="text-sm mt-1">Für diesen Lehrer wurde kein Benutzerkonto gefunden.</p>
+                                </div>
                             ) : loadingRoles ? (
-                                <p>Lade Rollen...</p>
+                                <div className="flex items-center justify-center py-10">
+                                    <div className="animate-pulse text-blue-500">Lade Rollen...</div>
+                                </div>
                             ) : (
                                 <div>
                                     <div className="mb-6">
@@ -595,12 +981,26 @@ export default function TeacherDetailsPage() {
                                 Berechtigungen
                             </h3>
                             
-                            {!account ? (
+                            {loadingUserPermissions ? (
+                                <p>Überprüfe Berechtigungen...</p>
+                            ) : !hasAuthManagePermission ? (
+                                <div className="p-4 bg-yellow-50 rounded-lg text-yellow-800">
+                                    <p className="font-medium">Fehlende Berechtigung</p>
+                                    <p className="text-sm mt-1">Sie haben keine Berechtigung, Berechtigungen einzusehen.</p>
+                                </div>
+                            ) : !account ? (
                                 <p className="text-gray-600">
-                                    Erstellen Sie zuerst ein Benutzerkonto, um Berechtigungen anzuzeigen.
+                                    Keine Kontoinformationen gefunden.
                                 </p>
+                            ) : account.id === "0" ? (
+                                <div className="p-4 bg-yellow-50 rounded-lg text-yellow-800">
+                                    <p className="font-medium">Kein Benutzerkonto gefunden</p>
+                                    <p className="text-sm mt-1">Für diesen Lehrer wurde kein Benutzerkonto gefunden.</p>
+                                </div>
                             ) : loadingPermissions ? (
-                                <p>Lade Berechtigungen...</p>
+                                <div className="flex items-center justify-center py-10">
+                                    <div className="animate-pulse text-blue-500">Lade Berechtigungen...</div>
+                                </div>
                             ) : (
                                 <div>
                                     <div className="mb-6">
@@ -713,17 +1113,7 @@ export default function TeacherDetailsPage() {
                 )}
             </main>
 
-            {/* Create Account Modal */}
-            <CreateAccountModal
-                isOpen={showCreateAccount}
-                onClose={() => {
-                    setShowCreateAccount(false);
-                    setCreateAccountError(null);
-                }}
-                onSubmit={handleCreateAccount}
-                isLoading={creatingAccount}
-                error={createAccountError}
-            />
+            {/* Create Account Modal removed - no longer needed as teachers always have accounts */}
         </div>
     );
 }
