@@ -8,7 +8,7 @@ When setting up the development environment for the first time, you'll need to g
 
 ```bash
 # From the repository root
-cd deployment/postgres
+cd config/ssl/postgres
 
 # Run the certificate generation script to create self-signed certificates
 ./create-certs.sh

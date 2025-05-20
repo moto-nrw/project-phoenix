@@ -59,8 +59,8 @@ services:
       - 5432:5432
     volumes:
       - postgres:/var/lib/postgresql/data
-      - ./deployment/postgres/ssl:/var/lib/postgresql/ssl:ro
-      - ./deployment/postgres/ssl/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./config/ssl/postgres:/var/lib/postgresql/ssl:ro
+      - ./config/ssl/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     environment:
       POSTGRES_PASSWORD: postgres
     command: ["-c", "config_file=/etc/postgresql/postgresql.conf"]

@@ -1,18 +1,13 @@
 # PostgreSQL SSL Configuration
 
-This directory contains files for configuring SSL in PostgreSQL for secure database connections.
+## DEPRECATED - THIS FILE IS OUTDATED
 
-## Setup Instructions
+The SSL configuration has been restructured. Please refer to these new locations:
 
-1. Generate SSL certificates:
+- Development SSL configuration: `/config/ssl/postgres/`
+- Production SSL configuration: `/deployment/production/ssl/postgres/`
 
-```bash
-# Navigate to the deployment/postgres directory
-cd deployment/postgres
-
-# Run the certificate generation script
-./create-certs.sh
-```
+See the README.md files in those directories for current documentation.
 
 2. This will create the following files in the `deployment/postgres/ssl` directory:
    - `ca.crt` - Certificate Authority certificate

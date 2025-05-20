@@ -379,7 +379,9 @@ ci-cd-best-practices-guide.md
 # Note: production docker compose and env examples should be committed
 
 # SSL certificates
-deployment/postgres/ssl/*.crt
-deployment/postgres/ssl/*.key
-deployment/postgres/ssl/*.csr
-deployment/postgres/ssl/*.srl
+config/ssl/**/certs/
+config/ssl/**/*.crt
+config/ssl/**/*.key
+config/ssl/**/*.csr
+config/ssl/**/*.srl
+deployment/**/ssl/certs/

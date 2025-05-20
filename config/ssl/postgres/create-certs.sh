@@ -1,9 +1,9 @@
 #!/bin/bash
 # Script to generate self-signed SSL certificates for PostgreSQL
 
-# Create directory structure
-mkdir -p ssl
-cd ssl
+# Create directory structure if it doesn't exist
+mkdir -p certs
+cd certs
 
 # Generate CA key and certificate
 openssl req -new -x509 -days 3650 -nodes -out ca.crt -keyout ca.key -subj "/CN=postgres-ca"
