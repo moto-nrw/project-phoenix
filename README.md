@@ -2,6 +2,29 @@
 
 ![moto Logo](frontend/public/images/moto_transparent.png)
 
+## Security Notice
+
+This repository now follows enhanced security practices:
+
+- All sensitive configuration now uses example templates
+- Real configuration files (.env, etc.) are no longer tracked
+- SSL certificates must be generated locally
+- See [Security Guidelines](docs/security.md) for details
+
+### Quick Setup (New Development Environment)
+
+```bash
+# Clone the repository
+git clone https://github.com/moto-nrw/project-phoenix.git
+cd project-phoenix
+
+# Run the setup script to create configuration files and certificates
+./scripts/setup-dev.sh
+
+# Start the development environment
+docker-compose up -d
+```
+
 [![Go](https://img.shields.io/badge/go-1.21+-blue)](https://go.dev)
 [![React](https://img.shields.io/badge/react-19-blue)](https://reactjs.org)
 [![Next.js](https://img.shields.io/badge/next.js-15-blue)](https://nextjs.org)
