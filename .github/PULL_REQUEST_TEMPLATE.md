@@ -1,7 +1,7 @@
 # Pull Request
 
 ## Description
-<!-- Explain the changes you've made -->
+<!-- Explain the changes you've made and why they're needed -->
 
 ## Type of Change
 - [ ] Bug fix
@@ -10,6 +10,24 @@
 - [ ] Documentation update
 - [ ] Configuration change
 - [ ] Security improvement
+- [ ] Refactoring
+- [ ] Performance improvement
+- [ ] Test addition/modification
+- [ ] CI/CD improvement
+
+## Related Issues
+<!-- List any related issues using the following syntax:
+- Fixes #123
+- Addresses #456
+- Related to #789
+-->
+
+## Testing
+<!-- Describe how you tested your changes -->
+- [ ] Unit tests added/updated
+- [ ] Integration tests added/updated
+- [ ] Manual testing performed
+- [ ] Testing documentation updated
 
 ## Security Checklist
 <!-- This section is mandatory for all PRs -->
@@ -19,14 +37,17 @@
 - [ ] Code does not contain hardcoded secrets
 - [ ] No potential security vulnerabilities introduced
 
-## Related Issues
-<!-- List any related issues here -->
+## Screenshots or Examples
+<!-- Add screenshots or code examples if applicable -->
 
-## Screenshots (if appropriate)
-<!-- Add screenshots here -->
-
-## Testing
-<!-- Describe how you tested your changes -->
+## Checklist
+- [ ] My code follows the project's style guidelines
+- [ ] I have performed a self-review of my code
+- [ ] I have commented my code, especially in hard-to-understand areas
+- [ ] I have updated the documentation as needed
+- [ ] All tests are passing
+- [ ] My changes generate no new warnings or errors
+- [ ] I have checked for and resolved any merge conflicts
 
 ## Additional Notes
 <!-- Add any other context about the PR here -->
