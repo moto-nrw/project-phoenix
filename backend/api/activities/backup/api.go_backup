@@ -2,10 +2,10 @@ package activities
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 )
 
@@ -70,31 +71,19 @@ type CategoryResponse struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-// SupervisorResponse represents a supervisor in activity response
-type SupervisorResponse struct {
-	ID        int64  `json:"id"`
-	StaffID   int64  `json:"staff_id"`
-	IsPrimary bool   `json:"is_primary"`
-	FirstName string `json:"first_name,omitempty"`
-	LastName  string `json:"last_name,omitempty"`
-}
-
 // ActivityResponse represents an activity group API response
 type ActivityResponse struct {
-	ID              int64                `json:"id"`
-	Name            string               `json:"name"`
-	MaxParticipants int                  `json:"max_participants"`
-	IsOpen          bool                 `json:"is_open"`
-	CategoryID      int64                `json:"category_id"`
-	PlannedRoomID   *int64               `json:"planned_room_id,omitempty"`
-	Category        *CategoryResponse    `json:"category,omitempty"`
-	SupervisorID    *int64               `json:"supervisor_id,omitempty"`  // Primary supervisor
-	SupervisorIDs   []int64              `json:"supervisor_ids,omitempty"` // All supervisors
-	Supervisors     []SupervisorResponse `json:"supervisors,omitempty"`    // Detailed supervisor info
-	Schedules       []ScheduleResponse   `json:"schedules,omitempty"`
-	EnrollmentCount int                  `json:"enrollment_count,omitempty"`
-	CreatedAt       time.Time            `json:"created_at"`
-	UpdatedAt       time.Time            `json:"updated_at"`
+	ID              int64              `json:"id"`
+	Name            string             `json:"name"`
+	MaxParticipants int                `json:"max_participants"`
+	IsOpen          bool               `json:"is_open"`
+	CategoryID      int64              `json:"category_id"`
+	PlannedRoomID   *int64             `json:"planned_room_id,omitempty"`
+	Category        *CategoryResponse  `json:"category,omitempty"`
+	Schedules       []ScheduleResponse `json:"schedules,omitempty"`
+	EnrollmentCount int                `json:"enrollment_count,omitempty"`
+	CreatedAt       time.Time          `json:"created_at"`
+	UpdatedAt       time.Time          `json:"updated_at"`
 }
 
 // ScheduleResponse represents a schedule API response
@@ -173,7 +162,7 @@ func newCategoryResponse(category *activities.Category) CategoryResponse {
 			Name: "Unknown Category", // Provide a safe default
 		}
 	}
-
+	
 	return CategoryResponse{
 		ID:          category.ID,
 		Name:        category.Name,
@@ -220,16 +209,16 @@ func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityR
 	// Add schedules if available - with thorough nil checking
 	if group.Schedules != nil {
 		// Create a new slice with proper capacity
-		scheduleResponses := make([]ScheduleResponse, 0, len(group.Schedules))
 
+		
 		// Process each schedule, skipping nil ones
 		for _, schedule := range group.Schedules {
 			// Skip nil schedules to prevent panic
 			if schedule == nil {
 				log.Printf("Warning: Nil schedule encountered in group ID %d", group.ID)
 				continue
-			}
 
+			
 			// Create schedule response with safer access to fields
 			scheduleResponse := ScheduleResponse{
 				ID:              schedule.ID,
@@ -237,16 +226,16 @@ func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityR
 				ActivityGroupID: schedule.ActivityGroupID,
 				CreatedAt:       schedule.CreatedAt,
 				UpdatedAt:       schedule.UpdatedAt,
-			}
 
+			
 			// Safely add optional fields
 			if schedule.TimeframeID != nil {
 				scheduleResponse.TimeframeID = schedule.TimeframeID
-			}
 
+			
 			scheduleResponses = append(scheduleResponses, scheduleResponse)
-		}
 
+		
 		// Only assign if we actually have schedules
 		if len(scheduleResponses) > 0 {
 			response.Schedules = scheduleResponses
@@ -313,32 +302,24 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Try to get group with full details first
-	group, supervisors, schedules, detailsErr := rs.ActivityService.GetGroupWithDetails(r.Context(), id)
-	if detailsErr != nil {
-		log.Printf("Warning: Error getting detailed group info: %v", detailsErr)
-
-		// Fall back to basic group info if detailed fetch fails
-		group, err = rs.ActivityService.GetGroup(r.Context(), id)
-		if err != nil {
-			if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
-			return
+	// SIMPLIFIED APPROACH: Get just the basic group first
+	group, err := rs.ActivityService.GetGroup(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
 		}
+		return
 
-		// Get schedules separately in the fallback case
-		var scheduleErr error
-		schedules, scheduleErr = rs.ActivityService.GetGroupSchedules(r.Context(), id)
-		if scheduleErr != nil {
-			// Log but continue without schedules
-			log.Printf("Warning: Error getting schedules: %v", scheduleErr)
-			schedules = []*activities.Schedule{} // Empty slice instead of nil
-		}
+	
+	// Get schedules separately
+	schedules, scheduleErr := rs.ActivityService.GetGroupSchedules(r.Context(), id)
+	if scheduleErr != nil {
+		// Log but continue without schedules
+		log.Printf("Warning: Error getting schedules: %v", scheduleErr)
+		schedules = []*activities.Schedule{} // Empty slice instead of nil
 
-		// Try to get supervisors separately
-		supervisors, _ = rs.ActivityService.GetGroupSupervisors(r.Context(), id)
-	}
+	
+	// We're skipping supervisors entirely since that's causing errors
 
 	// Check if group is nil to prevent panic
 	if group == nil {
@@ -349,19 +330,9 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Try to load category if it's not already loaded
-	if group.Category == nil && group.CategoryID > 0 {
-		category, catErr := rs.ActivityService.GetCategory(r.Context(), group.CategoryID)
-		if catErr != nil {
-			log.Printf("Warning: Error getting category for ID %d: %v", group.CategoryID, catErr)
-		} else if category != nil {
-			group.Category = category
-		}
-	}
-
 	// Setup enrollment count (defaulting to 0)
-	enrollmentCount := 0
 
+	
 	// Try to get enrollment count, but continue even if it fails
 	enrolledStudents, err := rs.ActivityService.GetEnrolledStudents(r.Context(), id)
 	if err != nil {
@@ -371,6 +342,9 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 		enrollmentCount = len(enrolledStudents)
 	}
 
+	// Set schedules on the group
+
+	
 	// Create a direct response with only necessary fields
 	response := ActivityResponse{
 		ID:              group.ID,
@@ -383,52 +357,8 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:       group.CreatedAt,
 		UpdatedAt:       group.UpdatedAt,
 		Schedules:       []ScheduleResponse{}, // Initialize with empty array
-	}
 
-	// Add category to response if available
-	if group.Category != nil {
-		category := newCategoryResponse(group.Category)
-		response.Category = &category
-	}
-
-	// Create a response with supervisor details if available
-	if supervisors != nil && len(supervisors) > 0 {
-		// Extract supervisor IDs and detailed info
-		supervisorIDs := make([]int64, 0, len(supervisors))
-		supervisorDetails := make([]SupervisorResponse, 0, len(supervisors))
-
-		for _, supervisor := range supervisors {
-			if supervisor != nil {
-				supervisorIDs = append(supervisorIDs, supervisor.StaffID)
-				// If this is the primary supervisor, add it to the response
-				if supervisor.IsPrimary {
-					response.SupervisorID = &supervisor.StaffID
-				}
-
-				// Create detailed supervisor response
-				supervisorResp := SupervisorResponse{
-					ID:        supervisor.ID,
-					StaffID:   supervisor.StaffID,
-					IsPrimary: supervisor.IsPrimary,
-				}
-
-				// Add staff details if available
-				if supervisor.Staff != nil && supervisor.Staff.Person != nil {
-					supervisorResp.FirstName = supervisor.Staff.Person.FirstName
-					supervisorResp.LastName = supervisor.Staff.Person.LastName
-				}
-
-				supervisorDetails = append(supervisorDetails, supervisorResp)
-			}
-		}
-
-		// Add all supervisor IDs and details to the response
-		if len(supervisorIDs) > 0 {
-			response.SupervisorIDs = supervisorIDs
-			response.Supervisors = supervisorDetails
-		}
-	}
-
+	
 	// Add schedules to response if available
 	if schedules != nil && len(schedules) > 0 {
 		responseSchedules := make([]ScheduleResponse, 0, len(schedules))
@@ -495,10 +425,11 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 	if createdGroup == nil {
 		// This should never happen if CreateGroup didn't return an error, but just in case
 		log.Printf("Warning: CreateGroup returned nil group without error")
-		common.Respond(w, r, http.StatusCreated, ActivityResponse{
-			Name:       req.Name, // Use the original request data as fallback
-			CategoryID: req.CategoryID,
-			Schedules:  []ScheduleResponse{},
+			Name:            req.Name, // Use the original request data as fallback
+			Name: req.Name, // Use the original request data as fallback
+			CategoryID:      req.CategoryID,
+			Schedules:       []ScheduleResponse{},
+			Schedules: []ScheduleResponse{},
 		}, "Activity created successfully")
 		return
 	}
@@ -515,8 +446,8 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:       createdGroup.UpdatedAt,
 		EnrollmentCount: 0,
 		Schedules:       []ScheduleResponse{}, // Always use empty slice, not nil
-	}
 
+	
 	common.Respond(w, r, http.StatusCreated, response, "Activity created successfully")
 }
 
@@ -587,14 +518,16 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 
 	// If we successfully got detailed info, use that instead
 	if detailedGroup != nil {
+
+		
 		// Add schedules to group, never use nil
 		if updatedSchedules != nil {
 			updatedGroup.Schedules = updatedSchedules
 		} else {
 			log.Printf("Warning: updatedSchedules is nil despite no error from GetGroupWithDetails")
 			updatedGroup.Schedules = []*activities.Schedule{} // Empty slice instead of nil
-		}
 
+		
 		// Add supervisors information if available
 		if supervisors != nil && len(supervisors) > 0 {
 			// You could add processing for supervisors here if needed
@@ -704,27 +637,19 @@ func (rs *Resource) getActivityStudents(w http.ResponseWriter, r *http.Request) 
 	// Build simplified student responses
 	responses := make([]StudentResponse, 0, len(students))
 	for _, student := range students {
-		// Skip nil students to prevent panic
-		if student == nil {
-			continue
-		}
-
-		// Create a basic response with the ID
-		studentResp := StudentResponse{
-			ID: student.ID,
-			// Default name values if no person data
-			FirstName: "Student",
-			LastName:  fmt.Sprintf("%d", student.ID),
-		}
-
-		// Check if student has person data
+		// Check if person data is loaded
 		if student.Person != nil {
-			person := student.Person
-			studentResp.FirstName = person.FirstName
-			studentResp.LastName = person.LastName
+			responses = append(responses, StudentResponse{
+				ID:        student.ID,
+				FirstName: student.Person.FirstName,
+				LastName:  student.Person.LastName,
+			})
+		} else {
+			// Fallback if person data isn't loaded
+			responses = append(responses, StudentResponse{
+				ID: student.ID,
+			})
 		}
-
-		responses = append(responses, studentResp)
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Students retrieved successfully")

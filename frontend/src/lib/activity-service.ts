@@ -5,7 +5,10 @@ import {
   deleteActivity,
   getActivity,
   getCategories,
-  getSupervisors
+  getSupervisors,
+  getEnrolledStudents,
+  enrollStudent,
+  unenrollStudent
 } from './activity-api';
 import type { Activity, CreateActivityRequest, UpdateActivityRequest, ActivityFilter, ActivityCategory, ActivityStudent } from './activity-helpers';
 
@@ -38,19 +41,17 @@ class ActivityService {
     return getSupervisors();
   }
 
-  // Student enrollment methods (stubs for now)
-  async getEnrolledStudents(_activityId: string): Promise<ActivityStudent[]> {
-    // TODO: Implement when backend endpoints are available
-    return [];
+  // Student enrollment methods
+  async getEnrolledStudents(activityId: string): Promise<ActivityStudent[]> {
+    return getEnrolledStudents(activityId);
   }
 
-  async enrollStudent(_activityId: string, _studentData: { studentId: string; }): Promise<{ success: boolean }> {
-    // TODO: Implement when backend endpoints are available
-    return { success: true };
+  async enrollStudent(activityId: string, studentData: { studentId: string; }): Promise<{ success: boolean }> {
+    return enrollStudent(activityId, studentData);
   }
 
-  async unenrollStudent(_activityId: string, _studentId: string): Promise<void> {
-    // TODO: Implement when backend endpoints are available
+  async unenrollStudent(activityId: string, studentId: string): Promise<void> {
+    return unenrollStudent(activityId, studentId);
   }
 
   // Time management methods (stubs for now)

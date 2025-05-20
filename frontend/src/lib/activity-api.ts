@@ -6,6 +6,7 @@ import {
     mapActivityResponse,
     mapActivityCategoryResponse,
     mapSupervisorResponse,
+    mapActivityStudentResponse,
     prepareActivityForBackend,
     type Activity,
     type ActivityCategory,
@@ -15,7 +16,9 @@ import {
     type BackendActivity,
     type BackendActivityCategory,
     type BackendSupervisor,
-    type Supervisor
+    type Supervisor,
+    type ActivityStudent,
+    type BackendActivityStudent
 } from "./activity-helpers";
 
 // Generic API response interface
@@ -31,7 +34,9 @@ export type {
     Supervisor,
     BackendActivity,
     BackendActivityCategory,
-    BackendSupervisor
+    BackendSupervisor,
+    ActivityStudent,
+    BackendActivityStudent
 };
 
 // Get all activities
@@ -132,6 +137,134 @@ export async function getActivity(id: string): Promise<Activity> {
         }
     } catch (error) {
         console.error("Error fetching activity:", error);
+        throw error;
+    }
+}
+
+// Get enrolled students for an activity
+export async function getEnrolledStudents(activityId: string): Promise<ActivityStudent[]> {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+        ? `/api/activities/${activityId}/students`
+        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/students`;
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "GET",
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const responseData = await response.json() as ApiResponse<BackendActivityStudent[]> | BackendActivityStudent[];
+            
+            // Extract the array from the response wrapper if needed
+            if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+                return Array.isArray(responseData.data)
+                    ? responseData.data.map(mapActivityStudentResponse)
+                    : [];
+            }
+            return Array.isArray(responseData)
+                ? responseData.map(mapActivityStudentResponse)
+                : [];
+        } else {
+            const response = await api.get<ApiResponse<BackendActivityStudent[]>>(url);
+            return Array.isArray(response.data.data)
+                ? response.data.data.map(mapActivityStudentResponse)
+                : [];
+        }
+    } catch (error) {
+        console.error("Error fetching enrolled students:", error);
+        return [];
+    }
+}
+
+// Enroll a student in an activity
+export async function enrollStudent(activityId: string, studentData: { studentId: string }): Promise<{ success: boolean }> {
+    const useProxyApi = typeof window !== "undefined";
+    // Update URL to match backend endpoint structure which expects the studentId in the URL path
+    const url = useProxyApi
+        ? `/api/activities/${activityId}/enroll/${studentData.studentId}`
+        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/enroll/${studentData.studentId}`;
+    
+    // No request body needed since backend extracts IDs from URL path
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "POST",
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(session?.user?.token && {
+                        Authorization: `Bearer ${session.user.token}`,
+                    }),
+                },
+                // No body needed
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            return { success: true };
+        } else {
+            // Send empty object as body
+            await api.post(url, {});
+            return { success: true };
+        }
+    } catch (error) {
+        console.error("Error enrolling student:", error);
+        throw error;
+    }
+}
+
+// Unenroll a student from an activity
+export async function unenrollStudent(activityId: string, studentId: string): Promise<void> {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+        ? `/api/activities/${activityId}/students/${studentId}`
+        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/students/${studentId}`;
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "DELETE",
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+        } else {
+            await api.delete(url);
+        }
+    } catch (error) {
+        console.error("Error unenrolling student:", error);
         throw error;
     }
 }

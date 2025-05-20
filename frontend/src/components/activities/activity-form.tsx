@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import type {
   Activity,
   ActivityCategory,
-  ActivityTime,
-} from "@/lib/activity-helpers";
+  ActivitySchedule,
+  CreateActivityRequest,
+} from "~/lib/activity-helpers";
 
 // Helper component for selecting a supervisor
 const SupervisorSelector = ({
@@ -73,6 +74,39 @@ const CategorySelector = ({
   );
 };
 
+// Helper component for room selection
+const RoomSelector = ({
+  value,
+  onChange,
+  label,
+  rooms = [],
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  label: string;
+  rooms?: Array<{ id: string; name: string }>;
+}) => {
+  return (
+    <div>
+      <label className="mb-1 block text-sm font-medium text-gray-700">
+        {label}
+      </label>
+      <select
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+      >
+        <option value="">Keinen Raum zuweisen</option>
+        {rooms.map((room) => (
+          <option key={room.id} value={room.id}>
+            {room.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+};
+
 // Helper component for time slots
 const TimeSlotEditor = ({
   timeSlots,
@@ -80,30 +114,29 @@ const TimeSlotEditor = ({
   onRemove,
   parentActivityId,
 }: {
-  timeSlots: ActivityTime[];
-  onAdd: (timeSlot: Omit<ActivityTime, "id" | "ag_id" | "created_at">) => void;
+  timeSlots: ActivitySchedule[];
+  onAdd: (timeSlot: Omit<ActivitySchedule, "id" | "created_at" | "updated_at">) => void;
   onRemove: (index: number) => void;
   parentActivityId?: string;
 }) => {
-  const [weekday, setWeekday] = useState("Monday");
+  const [weekday, setWeekday] = useState("monday");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
-  // const [timespanId, setTimespanId] = useState('');
   const [isCreatingTimespan, setIsCreatingTimespan] = useState(false);
   // Use parent activity ID if provided, or default to a temporary one
   const activityId = parentActivityId ?? "temp";
 
   const weekdays = [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
+    { value: "monday", label: "Montag" },
+    { value: "tuesday", label: "Dienstag" },
+    { value: "wednesday", label: "Mittwoch" },
+    { value: "thursday", label: "Donnerstag" },
+    { value: "friday", label: "Freitag" },
+    { value: "saturday", label: "Samstag" },
+    { value: "sunday", label: "Sonntag" },
   ];
 
-  const handleAddTimeSlot = async () => {
+  const handleAddTimeSlot = () => {
     if (!weekday || !startTime || !endTime) {
       alert("Bitte geben Sie Wochentag, Startzeit und Endzeit an.");
       return;
@@ -112,70 +145,16 @@ const TimeSlotEditor = ({
     try {
       setIsCreatingTimespan(true);
 
-      // Create a timespan first
-      // Format the start and end times as ISO strings with current date
-      const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-      const formattedStartTime = `${today}T${startTime}:00Z`;
-      const formattedEndTime = `${today}T${endTime}:00Z`;
-
-      // Log the formatted times for debugging
-      console.log(
-        "Creating timespan with start_time:",
-        formattedStartTime,
-        "end_time:",
-        formattedEndTime,
-      );
-
-      const response = await fetch("/api/activities/timespans", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          start_time: formattedStartTime,
-          end_time: formattedEndTime,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        console.error("Error creating timespan:", errorData);
-        alert(
-          "Fehler beim Erstellen des Zeitraums. Bitte versuchen Sie es später erneut.",
-        );
-        return;
-      }
-
-      const data = (await response.json()) as { id: string };
-      const newTimespanId = data.id;
-
-      console.log(
-        "Created timespan with ID:",
-        newTimespanId,
-        "Full response:",
-        JSON.stringify(data),
-      );
-
-      // Debug pause to ensure timespan is fully created in the database
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Add the time slot with the new timespan ID
-      // The API expects timespan as an object with start_time and end_time
+      // Add the time slot
       onAdd({
         weekday,
-        timespan: {
-          start_time: startTime,
-          end_time: endTime
-        },
+        timeframe_id: undefined,
         activity_id: activityId || "new",
-        updated_at: new Date()
       });
 
       // Reset form
       setStartTime("");
       setEndTime("");
-      // This field is now commented out and no longer needed
-      // setTimespanId('');
     } catch (error) {
       console.error("Error adding time slot:", error);
       alert(
@@ -184,6 +163,19 @@ const TimeSlotEditor = ({
     } finally {
       setIsCreatingTimespan(false);
     }
+  };
+
+  const formatWeekday = (day: string): string => {
+    const weekdayMap: Record<string, string> = {
+      monday: "Montag",
+      tuesday: "Dienstag",
+      wednesday: "Mittwoch",
+      thursday: "Donnerstag",
+      friday: "Freitag",
+      saturday: "Samstag",
+      sunday: "Sonntag",
+    };
+    return weekdayMap[day.toLowerCase()] || day;
   };
 
   return (
@@ -201,8 +193,8 @@ const TimeSlotEditor = ({
             className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
           >
             {weekdays.map((day) => (
-              <option key={day} value={day}>
-                {day}
+              <option key={day.value} value={day.value}>
+                {day.label}
               </option>
             ))}
           </select>
@@ -256,10 +248,7 @@ const TimeSlotEditor = ({
                 className="flex items-center justify-between rounded border border-gray-200 bg-gray-50 p-2"
               >
                 <span>
-                  {slot.weekday} {slot.timespan?.start_time ?? ""}
-                  {slot.timespan?.end_time
-                    ? ` - ${slot.timespan.end_time}`
-                    : ""}
+                  {formatWeekday(slot.weekday)}
                 </span>
                 <button
                   type="button"
@@ -297,6 +286,7 @@ interface ActivityFormProps {
   submitLabel: string;
   categories?: ActivityCategory[];
   supervisors?: Array<{ id: string; name: string }>;
+  rooms?: Array<{ id: string; name: string }>;
 }
 
 export default function ActivityForm({
@@ -308,6 +298,7 @@ export default function ActivityForm({
   submitLabel,
   categories = [],
   supervisors = [],
+  rooms = [],
 }: ActivityFormProps) {
   const [formData, setFormData] = useState<Partial<Activity>>({
     name: "",
@@ -315,19 +306,22 @@ export default function ActivityForm({
     is_open_ags: false,
     supervisor_id: "",
     ag_category_id: "",
+    planned_room_id: "",
   });
 
-  const [timeSlots, setTimeSlots] = useState<ActivityTime[]>([]);
+  const [timeSlots, setTimeSlots] = useState<ActivitySchedule[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialData) {
       setFormData({
+        id: initialData.id,
         name: initialData.name ?? "",
         max_participant: initialData.max_participant ?? 0,
         is_open_ags: initialData.is_open_ags ?? false,
         supervisor_id: initialData.supervisor_id ?? "",
         ag_category_id: initialData.ag_category_id ?? "",
+        planned_room_id: initialData.planned_room_id ?? "",
       });
 
       if (initialData.times) {
@@ -362,6 +356,20 @@ export default function ActivityForm({
     }
   };
 
+  const prepareDataForSubmission = (): Partial<Activity> & { schedules?: any[] } => {
+    // Convert form data to what the backend API expects
+    const submissionData = {
+      ...formData,
+      // Add schedules for backend
+      schedules: timeSlots.map(slot => ({
+        weekday: slot.weekday.toUpperCase(),
+        timeframe_id: slot.timeframe_id ? parseInt(slot.timeframe_id, 10) : null
+      }))
+    };
+
+    return submissionData;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -369,7 +377,6 @@ export default function ActivityForm({
     if (
       !formData.name ||
       !formData.max_participant ||
-      !formData.supervisor_id ||
       !formData.ag_category_id
     ) {
       setError("Bitte füllen Sie alle Pflichtfelder aus.");
@@ -379,11 +386,8 @@ export default function ActivityForm({
     try {
       setError(null);
 
-      // Include time slots in submission data and ensure category ID is included
-      const submissionData = {
-        ...formData,
-        times: timeSlots,
-      };
+      // Prepare data for submission
+      const submissionData = prepareDataForSubmission();
 
       // Debug log to see what we're submitting
       console.log(
@@ -402,12 +406,13 @@ export default function ActivityForm({
   };
 
   const handleAddTimeSlot = (
-    newTimeSlot: Omit<ActivityTime, "id" | "ag_id" | "created_at">,
+    newTimeSlot: Omit<ActivitySchedule, "id" | "created_at" | "updated_at">,
   ) => {
     // Generate a temporary ID for UI purposes
-    const tempTimeSlot: ActivityTime = {
+    const tempTimeSlot: ActivitySchedule = {
       id: `temp-${Date.now()}`,
       created_at: new Date(),
+      updated_at: new Date(),
       // Use spread to get properties from newTimeSlot, but avoid duplicates
       ...newTimeSlot,
     };
@@ -497,12 +502,25 @@ export default function ActivityForm({
                     supervisor_id: value,
                   }));
                 }}
-                label="Leitung*"
+                label="Leitung"
                 supervisors={supervisors}
               />
 
+              {/* Room selector */}
+              <RoomSelector
+                value={formData.planned_room_id ?? ""}
+                onChange={(value) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    planned_room_id: value,
+                  }));
+                }}
+                label="Geplanter Raum"
+                rooms={rooms}
+              />
+
               {/* Is Open checkbox */}
-              <div className="mt-2 flex items-center md:col-span-2">
+              <div className="mt-2 flex items-center">
                 <input
                   type="checkbox"
                   id="is_open_ags"

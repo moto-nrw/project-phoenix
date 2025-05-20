@@ -339,6 +339,16 @@ func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activitie
 		return nil, nil, nil, &ActivityError{Op: "get group", Err: err}
 	}
 
+	// Load the category if not already loaded
+	if group.Category == nil && group.CategoryID > 0 {
+		category, err := s.categoryRepo.FindByID(ctx, group.CategoryID)
+		if err != nil {
+			log.Printf("Warning: Failed to load category for group ID %d: %v", id, err)
+		} else {
+			group.Category = category
+		}
+	}
+
 	// Get supervisors - handle errors gracefully
 	var supervisors []*activities.SupervisorPlanned
 	var supervisorErr error
@@ -643,9 +653,22 @@ func (s *Service) UnenrollStudent(ctx context.Context, groupID, studentID int64)
 
 // GetEnrolledStudents retrieves all students enrolled in a group
 func (s *Service) GetEnrolledStudents(ctx context.Context, groupID int64) ([]*users.Student, error) {
-	// This might require custom implementation based on your specific enrollment repository
-	// For now, returning a placeholder error indicating this needs implementation
-	return nil, &ActivityError{Op: "get enrolled students", Err: errors.New("method needs implementation")}
+	// Get the enrollments for this group
+	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
+	if err != nil {
+		return nil, &ActivityError{Op: "get enrolled students", Err: err}
+	}
+
+	// Extract the Student objects from the enrollments
+	students := make([]*users.Student, 0, len(enrollments))
+	for _, enrollment := range enrollments {
+		// Check if the Student relation is loaded
+		if enrollment.Student != nil {
+			students = append(students, enrollment.Student)
+		}
+	}
+
+	return students, nil
 }
 
 // GetStudentEnrollments retrieves all groups a student is enrolled in
