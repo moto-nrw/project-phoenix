@@ -260,8 +260,29 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
-# Environments
+# Environments - Enhanced security settings
+# Environment files
+# Core environment files
 .env
+.env.local
+.env.development
+.env.production
+.env.test
+.env.staging
+
+# Project-specific environment files 
+**/dev.env
+**/prod.env
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+**/backend/.env*
+**/frontend/.env*
+!**/.env.example
+!**/.env.*.example
+
+# Virtual environments
 .venv
 env/
 venv/
@@ -376,12 +397,25 @@ backend/project-phoenix
 
 # CI/CD and production files
 ci-cd-best-practices-guide.md
-# Note: production docker compose and env examples should be committed
+# Docker compose files should use templates
+docker-compose.yml
+docker-compose.prod.yml
+!docker-compose.example.yml
+!docker-compose.prod.example.yml
 
-# SSL certificates
+# SSL certificates and keys - Security critical
+# Certificate files
+*.crt
+*.pem
+*.key
+*.csr
+*.srl
+*.der
+*.p12
+*.pfx
+# Certificate directories
+**/ssl/**/certs/
+**/ssl/**/private/
+**/ssl/**/keys/
 config/ssl/**/certs/
-config/ssl/**/*.crt
-config/ssl/**/*.key
-config/ssl/**/*.csr
-config/ssl/**/*.srl
 deployment/**/ssl/certs/
