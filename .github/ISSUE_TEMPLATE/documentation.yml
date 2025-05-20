@@ -1,0 +1,77 @@
+name: Documentation Request
+description: Suggest new documentation or improvements to existing docs
+title: "[DOCS]: "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve our documentation! Please provide details below.
+
+  - type: dropdown
+    id: doc-type
+    attributes:
+      label: Documentation Type
+      description: What type of documentation is needed?
+      options:
+        - New documentation
+        - Update/improvement to existing documentation
+        - Correction of errors
+        - Translation
+        - Other (specify in description)
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Documentation Need
+      description: What needs to be documented? Be specific about what information is missing or incorrect.
+      placeholder: Describe what needs documentation and why it's important...
+    validations:
+      required: true
+
+  - type: textarea
+    id: target-audience
+    attributes:
+      label: Target Audience
+      description: Who is this documentation for?
+      placeholder: |
+        Examples:
+        - New developers
+        - Experienced team members
+        - End users
+        - Administrators
+        - API consumers
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggested-content
+    attributes:
+      label: Suggested Content
+      description: Do you have any specific content suggestions or an outline?
+      placeholder: Share your ideas for what should be included in the documentation...
+
+  - type: textarea
+    id: current-docs
+    attributes:
+      label: Current Documentation
+      description: If updating existing docs, provide links or references to them
+      placeholder: Links to current documentation pages that need updates...
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Any other context or screenshots that might be helpful
+      placeholder: Add any other relevant details...
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Confirmation
+      description: Before submitting, please confirm that...
+      options:
+        - label: I've checked existing documentation and this information isn't already covered
+          required: true

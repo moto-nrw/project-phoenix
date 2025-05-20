@@ -15,14 +15,11 @@ import (
 
 // setupTestAuth sets up authentication for testing
 func setupTestAuth(t *testing.T) {
-	// Create a JWT auth service with test secret
+	// Create a JWT auth service with test secret from env vars (avoiding hardcoded secrets)
 	tokenAuth, err := CreateTestJWTAuth()
 	require.NoError(t, err)
 
 	// Set it as the default in the authorization system
-	jwtpkg.SetDefaultTokenAuth(tokenAuth)
-
-	// Register this token auth in the JWT package for tests
 	jwtpkg.SetDefaultTokenAuth(tokenAuth)
 }
 

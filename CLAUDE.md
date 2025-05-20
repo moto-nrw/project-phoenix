@@ -108,6 +108,9 @@ npm run format:write            # Fix formatting issues
 
 ### Docker Operations
 ```bash
+# SSL Setup (Required before starting services)
+cd config/ssl/postgres && ./create-certs.sh && cd ../../..
+
 # Quick Start
 docker compose up               # Start all services
 docker compose up -d postgres   # Start only database
@@ -130,6 +133,12 @@ docker compose down -v          # Stop and remove volumes
 
 ### Quick Start
 ```bash
+# Generate SSL certificates (required for database security)
+cd config/ssl/postgres
+chmod +x create-certs.sh
+./create-certs.sh
+cd ../../..
+
 # Start database
 docker compose up -d postgres
 
@@ -146,8 +155,9 @@ cd frontend && npm run check
 ### Backend Environment Variables (dev.env)
 ```bash
 # Database
-DB_DSN=postgres://username:password@localhost:5432/database?sslmode=disable
+DB_DSN=postgres://username:password@localhost:5432/database?sslmode=require
 DB_DEBUG=true                   # Log SQL queries
+# Note: sslmode=require enables SSL for GDPR compliance and security
 
 # Authentication  
 AUTH_JWT_SECRET=your_jwt_secret_here  # Change in production!
@@ -257,10 +267,55 @@ func (g *Group) BeforeAppendModel(query any) error {
 - Run with `go run main.go migrate`
 - Reset with `go run main.go migrate reset` (WARNING: drops all data)
 
+## SSL Security Setup
+
+### SSL Certificate Generation
+```bash
+# Generate SSL certificates for PostgreSQL (required for GDPR compliance)
+cd config/ssl/postgres
+chmod +x create-certs.sh
+./create-certs.sh
+
+# Check certificate expiration (should be run periodically)
+chmod +x check-cert-expiration.sh
+./check-cert-expiration.sh
+```
+
+### Enhanced PostgreSQL SSL Configuration
+The PostgreSQL database uses a robust SSL configuration for security:
+
+- **TLS Version**: Minimum TLS 1.2 (`ssl_min_protocol_version = 'TLSv1.2'`)
+- **Cipher Configuration**: Strong cipher suites configured (`ssl_ciphers = 'HIGH:!aNULL:!MD5:!3DES:!LOW:!EXP:!RC4'`)
+- **Server Preference**: Server controls cipher selection (`ssl_prefer_server_ciphers = on`)
+- **Authentication**: Secure password authentication with `scram-sha-256`
+
+### Server-Side SSL Enforcement
+SSL is enforced at the server level through `pg_hba.conf`:
+- Remote connections require SSL (`hostssl` entries)
+- Non-SSL connections are explicitly rejected (`hostnossl` entries)
+- Certificate validation is required for all connections
+
+### Directory Structure
+- SSL configuration is in `config/ssl/postgres/`
+- Certificate files are in `config/ssl/postgres/certs/` (not committed to git)
+- Production SSL configuration is in `deployment/production/ssl/postgres/`
+- Configuration includes `postgresql.conf` and `pg_hba.conf`
+
+### Connection String Options
+- Development: `DB_DSN=postgres://username:password@localhost:5432/database?sslmode=verify-ca&sslrootcert=/path/to/ca.crt`
+- Production: `DB_DSN=postgres://username:password@localhost:5432/database?sslmode=verify-full&sslrootcert=/path/to/ca.crt`
+
+SSL modes:
+- `verify-ca`: Verifies that the server certificate is signed by a trusted CA
+- `verify-full`: Verifies CA signature AND that the server hostname matches the certificate
+
 ## Common Issues and Solutions
 
 ### Backend Issues
 - **Database Connection**: Check `DB_DSN` in dev.env and ensure PostgreSQL is running
+- **SSL Certificate Issues**: Run `config/ssl/postgres/create-certs.sh` to generate certificates
+- **SSL Verification Issues**: Ensure certificate paths are correct and certificates are valid
+- **Certificate Expiration**: Check certificate expiration with `./check-cert-expiration.sh` 
 - **JWT Errors**: Verify `AUTH_JWT_SECRET` is set and consistent
 - **CORS Issues**: Ensure `ENABLE_CORS=true` for local development
 - **SQL Debugging**: Set `DB_DEBUG=true` to see queries

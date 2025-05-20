@@ -9,7 +9,7 @@ services:
       LOG_LEVEL: info
       LOG_TEXTLOGGING: "false"
       PORT: 8080
-      DB_DSN: postgres://postgres:${POSTGRES_PASSWORD}@localhost:5432/postgres?sslmode=disable
+      DB_DSN: ${DB_DSN:-postgres://postgres:${POSTGRES_PASSWORD}@localhost:5432/postgres?sslmode=verify-full&sslrootcert=/var/lib/postgresql/ssl/certs/ca.crt}
       DB_DEBUG: "false"
       ENABLE_CORS: "false" # Not needed when behind reverse proxy
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
@@ -26,11 +26,11 @@ services:
     # No port exposure - Caddy handles reverse proxy
     environment:
       # CRITICAL: Use actual domain for client-side API calls
-      NEXT_PUBLIC_API_URL: "https://api.moto-app.de"
+      NEXT_PUBLIC_API_URL: "https://${API_DOMAIN:-api.example.com}"
       # Internal API URL for server-side rendering
       API_URL: "http://localhost:8080"
       # NextAuth configuration with production domain
-      NEXTAUTH_URL: "https://moto-app.de"
+      NEXTAUTH_URL: "https://${DOMAIN:-example.com}"
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       AUTH_TRUST_HOST: "true"
       SKIP_ENV_VALIDATION: "true"
@@ -47,8 +47,12 @@ services:
     # No external port exposure for security
     volumes:
       - postgres:/var/lib/postgresql/data
+      - ./ssl/postgres:/var/lib/postgresql/ssl:ro
+      - ./ssl/postgres/postgresql.conf:/var/lib/postgresql/postgresql.conf:ro
+      - ./ssl/postgres/pg_hba.conf:/var/lib/postgresql/pg_hba.conf:ro
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    command: ["-c", "config_file=/var/lib/postgresql/postgresql.conf", "-c", "hba_file=/var/lib/postgresql/pg_hba.conf"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
