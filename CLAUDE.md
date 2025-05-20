@@ -275,22 +275,47 @@ func (g *Group) BeforeAppendModel(query any) error {
 cd config/ssl/postgres
 chmod +x create-certs.sh
 ./create-certs.sh
+
+# Check certificate expiration (should be run periodically)
+chmod +x check-cert-expiration.sh
+./check-cert-expiration.sh
 ```
+
+### Enhanced PostgreSQL SSL Configuration
+The PostgreSQL database uses a robust SSL configuration for security:
+
+- **TLS Version**: Minimum TLS 1.2 (`ssl_min_protocol_version = 'TLSv1.2'`)
+- **Cipher Configuration**: Strong cipher suites configured (`ssl_ciphers = 'HIGH:!aNULL:!MD5:!3DES:!LOW:!EXP:!RC4'`)
+- **Server Preference**: Server controls cipher selection (`ssl_prefer_server_ciphers = on`)
+- **Authentication**: Secure password authentication with `scram-sha-256`
+
+### Server-Side SSL Enforcement
+SSL is enforced at the server level through `pg_hba.conf`:
+- Remote connections require SSL (`hostssl` entries)
+- Non-SSL connections are explicitly rejected (`hostnossl` entries)
+- Certificate validation is required for all connections
 
 ### Directory Structure
 - SSL configuration is in `config/ssl/postgres/`
 - Certificate files are in `config/ssl/postgres/certs/` (not committed to git)
 - Production SSL configuration is in `deployment/production/ssl/postgres/`
+- Configuration includes `postgresql.conf` and `pg_hba.conf`
 
-### Connection String
-- Development: `DB_DSN=postgres://username:password@localhost:5432/database?sslmode=require`
-- Production: `DB_DSN=postgres://username:password@localhost:5432/database?sslmode=verify-full`
+### Connection String Options
+- Development: `DB_DSN=postgres://username:password@localhost:5432/database?sslmode=verify-ca&sslrootcert=/path/to/ca.crt`
+- Production: `DB_DSN=postgres://username:password@localhost:5432/database?sslmode=verify-full&sslrootcert=/path/to/ca.crt`
+
+SSL modes:
+- `verify-ca`: Verifies that the server certificate is signed by a trusted CA
+- `verify-full`: Verifies CA signature AND that the server hostname matches the certificate
 
 ## Common Issues and Solutions
 
 ### Backend Issues
 - **Database Connection**: Check `DB_DSN` in dev.env and ensure PostgreSQL is running
 - **SSL Certificate Issues**: Run `config/ssl/postgres/create-certs.sh` to generate certificates
+- **SSL Verification Issues**: Ensure certificate paths are correct and certificates are valid
+- **Certificate Expiration**: Check certificate expiration with `./check-cert-expiration.sh` 
 - **JWT Errors**: Verify `AUTH_JWT_SECRET` is set and consistent
 - **CORS Issues**: Ensure `ENABLE_CORS=true` for local development
 - **SQL Debugging**: Set `DB_DEBUG=true` to see queries
