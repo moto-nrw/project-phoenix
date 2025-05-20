@@ -13,8 +13,6 @@ export default function RolesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
 
   const loadRoles = async () => {
     try {
@@ -88,37 +86,8 @@ export default function RolesPage() {
     void loadRoles();
   }, []);
 
-  const handleDeleteClick = (role: Role) => {
-    setRoleToDelete(role);
-    setDeleteModalOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!roleToDelete) return;
-
-    try {
-      setDeleteModalOpen(false);
-      
-      // Call the API to delete the role
-      const response = await fetch(`/api/auth/roles/${roleToDelete.id}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-      
-      // Update the local state to remove the role
-      setRoles(roles.filter((r) => r.id !== roleToDelete.id));
-      setRoleToDelete(null);
-      
-      // Reload all roles to ensure consistency with the server
-      await loadRoles();
-    } catch (err) {
-      setError("Fehler beim Löschen der Rolle");
-      console.error("Error deleting role:", err);
-    }
-  };
+  // We don't need the modal implementation anymore
+  // We'll use the new implementation below
 
   const handleSelectRole = (role: Role) => {
     router.push(`/database/roles/${role.id}`);
@@ -143,16 +112,6 @@ export default function RolesPage() {
           }}
         >
           Details
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            router.push(`/database/roles/${role.id}?edit=true`);
-          }}
-        >
-          Bearbeiten
         </Button>
         <Button
           variant="destructive"
@@ -199,6 +158,39 @@ export default function RolesPage() {
   const renderRole = (role: Role) => (
     <RoleListItem key={`role-${role.id}`} role={role} />
   );
+
+  // Simplified delete confirmation for immediate use
+  const handleDeleteClick = (role: Role) => {
+    if (confirm(`Rolle "${role.name}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) {
+      void (async () => {
+        try {
+          console.log("Attempting to delete role with ID:", role.id);
+          
+          // Call the API to delete the role
+          const response = await fetch(`/api/auth/roles/${role.id}`, {
+            method: 'DELETE',
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.text();
+            console.error("Delete role failed:", response.status, errorData);
+            throw new Error(`Failed to delete role: ${response.status} ${errorData}`);
+          }
+          
+          console.log("Role deleted successfully");
+          
+          // Update the local state to remove the role
+          setRoles(roles.filter((r) => r.id !== role.id));
+          
+          // Reload all roles to ensure consistency with the server
+          await loadRoles();
+        } catch (err) {
+          setError("Fehler beim Löschen der Rolle");
+          console.error("Error deleting role:", err);
+        }
+      })();
+    }
+  };
 
   return (
     <DataListPage

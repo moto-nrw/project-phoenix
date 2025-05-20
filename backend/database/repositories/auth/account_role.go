@@ -29,7 +29,8 @@ func (r *AccountRoleRepository) FindByAccountID(ctx context.Context, accountID i
 	var accountRoles []*auth.AccountRole
 	err := r.db.NewSelect().
 		Model(&accountRoles).
-		Where("account_id = ?", accountID).
+		ModelTableExpr(`auth.account_roles AS "account_role"`).
+		Where(`"account_role".account_id = ?`, accountID).
 		Scan(ctx)
 
 	if err != nil {
@@ -47,7 +48,8 @@ func (r *AccountRoleRepository) FindByRoleID(ctx context.Context, roleID int64) 
 	var accountRoles []*auth.AccountRole
 	err := r.db.NewSelect().
 		Model(&accountRoles).
-		Where("role_id = ?", roleID).
+		ModelTableExpr(`auth.account_roles AS "account_role"`).
+		Where(`"account_role".role_id = ?`, roleID).
 		Scan(ctx)
 
 	if err != nil {
@@ -65,7 +67,8 @@ func (r *AccountRoleRepository) FindByAccountAndRole(ctx context.Context, accoun
 	accountRole := new(auth.AccountRole)
 	err := r.db.NewSelect().
 		Model(accountRole).
-		Where("account_id = ? AND role_id = ?", accountID, roleID).
+		ModelTableExpr(`auth.account_roles AS "account_role"`).
+		Where(`"account_role".account_id = ? AND "account_role".role_id = ?`, accountID, roleID).
 		Scan(ctx)
 
 	if err != nil {
@@ -156,7 +159,8 @@ func (r *AccountRoleRepository) Update(ctx context.Context, accountRole *auth.Ac
 func (r *AccountRoleRepository) DeleteByAccountAndRole(ctx context.Context, accountID, roleID int64) error {
 	_, err := r.db.NewDelete().
 		Model((*auth.AccountRole)(nil)).
-		Where("account_id = ? AND role_id = ?", accountID, roleID).
+		ModelTableExpr(`auth.account_roles AS "account_role"`).
+		Where(`"account_role".account_id = ? AND "account_role".role_id = ?`, accountID, roleID).
 		Exec(ctx)
 
 	if err != nil {
@@ -173,7 +177,8 @@ func (r *AccountRoleRepository) DeleteByAccountAndRole(ctx context.Context, acco
 func (r *AccountRoleRepository) DeleteByAccountID(ctx context.Context, accountID int64) error {
 	_, err := r.db.NewDelete().
 		Model((*auth.AccountRole)(nil)).
-		Where("account_id = ?", accountID).
+		ModelTableExpr(`auth.account_roles AS "account_role"`).
+		Where(`"account_role".account_id = ?`, accountID).
 		Exec(ctx)
 
 	if err != nil {
@@ -189,12 +194,14 @@ func (r *AccountRoleRepository) DeleteByAccountID(ctx context.Context, accountID
 // List retrieves account-role mappings matching the provided filters
 func (r *AccountRoleRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.AccountRole, error) {
 	var accountRoles []*auth.AccountRole
-	query := r.db.NewSelect().Model(&accountRoles)
+	query := r.db.NewSelect().
+		Model(&accountRoles).
+		ModelTableExpr(`auth.account_roles AS "account_role"`)
 
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			query = query.Where("? = ?", bun.Ident(field), value)
+			query = query.Where(`"account_role".? = ?`, bun.Ident(field), value)
 		}
 	}
 
@@ -214,13 +221,14 @@ func (r *AccountRoleRepository) FindAccountRolesWithDetails(ctx context.Context,
 	var accountRoles []*auth.AccountRole
 	query := r.db.NewSelect().
 		Model(&accountRoles).
+		ModelTableExpr(`auth.account_roles AS "account_role"`).
 		Relation("Account").
 		Relation("Role")
 
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			query = query.Where("account_role.? = ?", bun.Ident(field), value)
+			query = query.Where(`"account_role".? = ?`, bun.Ident(field), value)
 		}
 	}
 

@@ -134,18 +134,50 @@ export default function RoleDetailsPage({ params }: { params: Promise<{ id: stri
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold">Rollendetails</h2>
-                <Button
-                  variant={isEditing ? "default" : "outline"}
-                  onClick={() => {
-                    if (isEditing) {
-                      void handleSave();
-                    } else {
-                      setIsEditing(true);
-                    }
-                  }}
-                >
-                  {isEditing ? "Speichern" : "Bearbeiten"}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="destructive"
+                    onClick={async () => {
+                      if (confirm("Rolle wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.")) {
+                        try {
+                          setError(null);
+                          console.log("Attempting to delete role with ID:", role.id);
+                          
+                          // Direct API call instead of using authService
+                          const response = await fetch(`/api/auth/roles/${role.id}`, {
+                            method: 'DELETE',
+                          });
+                          
+                          if (!response.ok) {
+                            const errorData = await response.text();
+                            console.error("Delete role failed:", response.status, errorData);
+                            throw new Error(`Failed to delete role: ${response.status} ${errorData}`);
+                          }
+                          
+                          console.log("Role deleted successfully");
+                          router.push("/database/roles");
+                        } catch (err) {
+                          setError("Fehler beim Löschen der Rolle");
+                          console.error("Error deleting role:", err);
+                        }
+                      }
+                    }}
+                  >
+                    Löschen
+                  </Button>
+                  <Button
+                    variant={isEditing ? "default" : "outline"}
+                    onClick={() => {
+                      if (isEditing) {
+                        void handleSave();
+                      } else {
+                        setIsEditing(true);
+                      }
+                    }}
+                  >
+                    {isEditing ? "Speichern" : "Bearbeiten"}
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-4">
