@@ -11,7 +11,7 @@ services:
       LOG_LEVEL: debug
       LOG_TEXTLOGGING: "true"
       PORT: 8080
-      DB_DSN: postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
+      DB_DSN: ${DB_DSN:-postgres://postgres:postgres@postgres:5432/postgres?sslmode=require}
       DB_DEBUG: "true"
       #AUTH_JWT_EXPIRY: 1h
       #AUTH_JWT_REFRESH_EXPIRY: 72h
@@ -59,8 +59,11 @@ services:
       - 5432:5432
     volumes:
       - postgres:/var/lib/postgresql/data
+      - ./deployment/postgres/ssl:/var/lib/postgresql/ssl:ro
+      - ./deployment/postgres/ssl/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     environment:
       POSTGRES_PASSWORD: postgres
+    command: ["-c", "config_file=/etc/postgresql/postgresql.conf"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 1s

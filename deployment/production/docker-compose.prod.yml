@@ -9,7 +9,7 @@ services:
       LOG_LEVEL: info
       LOG_TEXTLOGGING: "false"
       PORT: 8080
-      DB_DSN: postgres://postgres:${POSTGRES_PASSWORD}@localhost:5432/postgres?sslmode=disable
+      DB_DSN: ${DB_DSN:-postgres://postgres:${POSTGRES_PASSWORD}@localhost:5432/postgres?sslmode=require}
       DB_DEBUG: "false"
       ENABLE_CORS: "false" # Not needed when behind reverse proxy
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
@@ -47,8 +47,11 @@ services:
     # No external port exposure for security
     volumes:
       - postgres:/var/lib/postgresql/data
+      - ./postgres/ssl:/var/lib/postgresql/ssl:ro
+      - ./postgres/ssl/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    command: ["-c", "config_file=/etc/postgresql/postgresql.conf"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s

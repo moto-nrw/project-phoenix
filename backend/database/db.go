@@ -17,7 +17,7 @@ func DBConn() (*bun.DB, error) {
 	// Set default DB connection string
 	dsn := viper.GetString("db_dsn")
 	if dsn == "" {
-		dsn = "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
+		dsn = "postgres://postgres:postgres@localhost:5432/postgres?sslmode=require"
 		// For tests, check for TEST_DB_DSN override
 		if testDSN := viper.GetString("test_db_dsn"); testDSN != "" {
 			dsn = testDSN
