@@ -1,0 +1,64 @@
+services:
+  server:
+    image: ghcr.io/yungweng/phoenix-server:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # No port exposure - Caddy handles reverse proxy
+    environment:
+      LOG_LEVEL: info
+      LOG_TEXTLOGGING: "false"
+      PORT: 8080
+      DB_DSN: ${DB_DSN:-postgres://postgres:${POSTGRES_PASSWORD}@localhost:5432/postgres?sslmode=require}
+      DB_DEBUG: "false"
+      ENABLE_CORS: "false" # Not needed when behind reverse proxy
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+      AUTH_JWT_EXPIRY: 15m
+      AUTH_JWT_REFRESH_EXPIRY: 1h
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+    command: ["./main", "serve"]
+    restart: unless-stopped
+    network_mode: host # Use host network to be accessible as localhost
+
+  frontend:
+    image: ghcr.io/yungweng/phoenix-frontend:latest
+    # No port exposure - Caddy handles reverse proxy
+    environment:
+      # CRITICAL: Use actual domain for client-side API calls
+      NEXT_PUBLIC_API_URL: "https://${API_DOMAIN:-api.example.com}"
+      # Internal API URL for server-side rendering
+      API_URL: "http://localhost:8080"
+      # NextAuth configuration with production domain
+      NEXTAUTH_URL: "https://${DOMAIN:-example.com}"
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      AUTH_TRUST_HOST: "true"
+      SKIP_ENV_VALIDATION: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      NODE_ENV: production
+    depends_on:
+      - server
+    restart: unless-stopped
+    network_mode: host # Use host network to be accessible as localhost
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    # No external port exposure for security
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ./ssl/postgres:/var/lib/postgresql/ssl:ro
+      - ./ssl/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    command: ["-c", "config_file=/etc/postgresql/postgresql.conf"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    network_mode: host # Use host network
+
+volumes:
+  postgres:
