@@ -114,8 +114,9 @@ export default function RolesPage() {
           Details
         </Button>
         <Button
-          variant="destructive"
+          variant="outline"
           size="sm"
+          className="text-red-600 hover:bg-red-50 hover:text-red-700 border-red-200"
           onClick={(e) => {
             e.stopPropagation();
             handleDeleteClick(role);

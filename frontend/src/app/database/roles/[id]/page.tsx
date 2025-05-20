@@ -136,7 +136,8 @@ export default function RoleDetailsPage({ params }: { params: Promise<{ id: stri
                 <h2 className="text-xl font-semibold">Rollendetails</h2>
                 <div className="flex gap-2">
                   <Button
-                    variant="destructive"
+                    variant="outline"
+                    className="text-red-600 hover:bg-red-50 hover:text-red-700 border-red-200"
                     onClick={async () => {
                       if (confirm("Rolle wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.")) {
                         try {
