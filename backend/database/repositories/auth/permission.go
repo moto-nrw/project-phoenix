@@ -120,6 +120,7 @@ func (r *PermissionRepository) AssignPermissionToAccount(ctx context.Context, ac
 	// Check if the permission assignment already exists
 	exists, err := r.db.NewSelect().
 		Model((*auth.AccountPermission)(nil)).
+		ModelTableExpr("auth.account_permissions").
 		Where("account_id = ? AND permission_id = ?", accountID, permissionID).
 		Exists(ctx)
 
@@ -134,6 +135,7 @@ func (r *PermissionRepository) AssignPermissionToAccount(ctx context.Context, ac
 		// Update the existing assignment to ensure it's granted
 		_, err = r.db.NewUpdate().
 			Model((*auth.AccountPermission)(nil)).
+			ModelTableExpr("auth.account_permissions").
 			Set("granted = true").
 			Where("account_id = ? AND permission_id = ?", accountID, permissionID).
 			Exec(ctx)
@@ -155,6 +157,7 @@ func (r *PermissionRepository) AssignPermissionToAccount(ctx context.Context, ac
 			PermissionID: permissionID,
 			Granted:      true,
 		}).
+		ModelTableExpr("auth.account_permissions").
 		Exec(ctx)
 
 	if err != nil {
@@ -171,6 +174,7 @@ func (r *PermissionRepository) AssignPermissionToAccount(ctx context.Context, ac
 func (r *PermissionRepository) RemovePermissionFromAccount(ctx context.Context, accountID int64, permissionID int64) error {
 	_, err := r.db.NewDelete().
 		Model((*auth.AccountPermission)(nil)).
+		ModelTableExpr("auth.account_permissions").
 		Where("account_id = ? AND permission_id = ?", accountID, permissionID).
 		Exec(ctx)
 
@@ -189,7 +193,8 @@ func (r *PermissionRepository) AssignPermissionToRole(ctx context.Context, roleI
 	// Check if the permission assignment already exists
 	exists, err := r.db.NewSelect().
 		Model((*auth.RolePermission)(nil)).
-		Where("role_id = ? AND permission_id = ?", roleID, permissionID).
+		ModelTableExpr(`auth.role_permissions AS "role_permission"`).
+		Where(`"role_permission".role_id = ? AND "role_permission".permission_id = ?`, roleID, permissionID).
 		Exists(ctx)
 
 	if err != nil {
@@ -210,6 +215,7 @@ func (r *PermissionRepository) AssignPermissionToRole(ctx context.Context, roleI
 			RoleID:       roleID,
 			PermissionID: permissionID,
 		}).
+		ModelTableExpr("auth.role_permissions").
 		Exec(ctx)
 
 	if err != nil {
@@ -226,6 +232,7 @@ func (r *PermissionRepository) AssignPermissionToRole(ctx context.Context, roleI
 func (r *PermissionRepository) RemovePermissionFromRole(ctx context.Context, roleID int64, permissionID int64) error {
 	_, err := r.db.NewDelete().
 		Model((*auth.RolePermission)(nil)).
+		ModelTableExpr("auth.role_permissions").
 		Where("role_id = ? AND permission_id = ?", roleID, permissionID).
 		Exec(ctx)
 
