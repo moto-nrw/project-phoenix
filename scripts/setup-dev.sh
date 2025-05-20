@@ -70,7 +70,7 @@ fi
 # 1.3 Frontend .env.local file
 if [ ! -f "frontend/.env.local" ]; then
   echo "Creating frontend/.env.local file..."
-  cp frontend/.env.local.example frontend/.env.local
+  cp frontend/.env.example frontend/.env.local
   
   # Use the same NextAuth secret for consistency
   grep -q "NEXTAUTH_SECRET" .env && NEXTAUTH_SECRET=$(grep "NEXTAUTH_SECRET" .env | cut -d'=' -f2)
