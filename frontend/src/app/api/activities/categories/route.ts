@@ -54,18 +54,18 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
     
     // Handle response structure
     if (response && response.status === "success" && Array.isArray(response.data)) {
-      if (response.data.length === 0) {
-        console.log('No categories in database, returning mock data');
-        return MOCK_CATEGORIES.map(mapActivityCategoryResponse);
-      }
       return response.data.map(mapActivityCategoryResponse);
     }
     
-    // If no data or unexpected structure, return mock data
-    console.log('Unexpected response structure, returning mock data:', response);
-    return MOCK_CATEGORIES.map(mapActivityCategoryResponse);
+    // If we get here, we have a response but it's not in the expected format
+    console.error('Unexpected response structure:', response);
+    throw new Error('Unexpected response structure from categories API');
   } catch (error) {
-    console.log('Error fetching categories, returning mock data:', error);
+    console.error('Error fetching categories:', error);
+    
+    // For now, we'll return mock data to ensure frontend doesn't break
+    // In the future, this should be removed when API is stable
+    console.warn('Falling back to mock categories data');
     return MOCK_CATEGORIES.map(mapActivityCategoryResponse);
   }
 });

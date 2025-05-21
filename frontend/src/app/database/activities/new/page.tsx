@@ -107,6 +107,7 @@ export default function NewActivityPage() {
       const createRequest = {
         name: activityData.name,
         max_participants: activityData.max_participant,
+        is_open: activityData.is_open_ags,
         category_id: parseInt(activityData.ag_category_id, 10),
         supervisor_ids: activityData.supervisor_id ? [parseInt(activityData.supervisor_id, 10)] : []
       };

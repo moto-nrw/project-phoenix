@@ -2,12 +2,42 @@
 import { getSession } from "next-auth/react";
 import { env } from "~/env";
 import api from "./api";
+
+// Standardized error handling function for activities API
+function handleActivityApiError(error: unknown, context: string): never {
+  console.error(`Error in ${context}:`, error);
+  
+  // If we have a structured error message with status code
+  if (error instanceof Error) {
+    const regex = /API error \((\d+)\):/;
+    const match = regex.exec(error.message);
+    if (match?.[1]) {
+      const status = parseInt(match[1], 10);
+      const errorMessage = `Failed to ${context}: ${error.message}`;
+      throw new Error(JSON.stringify({
+        status,
+        message: errorMessage,
+        code: `ACTIVITY_API_ERROR_${status}`
+      }));
+    }
+  }
+  
+  // Default error response
+  throw new Error(JSON.stringify({
+    status: 500,
+    message: `Failed to ${context}: ${error instanceof Error ? error.message : "Unknown error"}`,
+    code: "ACTIVITY_API_ERROR_UNKNOWN"
+  }));
+}
 import {
     mapActivityResponse,
     mapActivityCategoryResponse,
     mapSupervisorResponse,
     mapActivityStudentResponse,
+    mapActivityScheduleResponse,
+    mapTimeframeResponse,
     prepareActivityForBackend,
+    prepareActivityScheduleForBackend,
     type Activity,
     type ActivityCategory,
     type CreateActivityRequest,
@@ -16,9 +46,14 @@ import {
     type BackendActivity,
     type BackendActivityCategory,
     type BackendSupervisor,
+    type BackendActivitySupervisor,
     type Supervisor,
     type ActivityStudent,
-    type BackendActivityStudent
+    type BackendActivityStudent,
+    type ActivitySchedule,
+    type BackendActivitySchedule,
+    type Timeframe,
+    type BackendTimeframe
 } from "./activity-helpers";
 
 // Generic API response interface
@@ -35,8 +70,13 @@ export type {
     BackendActivity,
     BackendActivityCategory,
     BackendSupervisor,
+    BackendActivitySupervisor,
     ActivityStudent,
-    BackendActivityStudent
+    BackendActivityStudent,
+    ActivitySchedule,
+    BackendActivitySchedule,
+    Timeframe,
+    BackendTimeframe
 };
 
 // Get all activities
@@ -419,7 +459,16 @@ export async function updateActivity(id: string, data: UpdateActivityRequest): P
         ? `/api/activities/${id}`
         : `${env.NEXT_PUBLIC_API_URL}/activities/${id}`;
 
-    const backendData = prepareActivityForBackend(data);
+    // Convert UpdateActivityRequest to a format compatible with prepareActivityForBackend
+    const activityData: Partial<Activity> = {
+        name: data.name,
+        max_participant: data.max_participants,
+        is_open_ags: data.is_open,
+        ag_category_id: String(data.category_id),
+        supervisor_id: data.supervisor_ids && data.supervisor_ids.length > 0 ? String(data.supervisor_ids[0]) : undefined
+    };
+    
+    const backendData = prepareActivityForBackend(activityData);
 
     try {
         if (useProxyApi) {
@@ -588,5 +637,754 @@ export async function getSupervisors(): Promise<Array<{ id: string; name: string
     } catch (error) {
         console.error("Error fetching supervisors:", error);
         return [];
+    }
+}
+
+// Get schedules for an activity
+export async function getActivitySchedules(activityId: string): Promise<ActivitySchedule[]> {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+        ? `/api/activities/${activityId}/schedules`
+        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/schedules`;
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "GET",
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const responseData = await response.json() as ApiResponse<BackendActivitySchedule[]> | BackendActivitySchedule[];
+            
+            // Extract the array from the response wrapper if needed
+            if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+                return Array.isArray(responseData.data)
+                    ? responseData.data.map(mapActivityScheduleResponse)
+                    : [];
+            }
+            return Array.isArray(responseData)
+                ? responseData.map(mapActivityScheduleResponse)
+                : [];
+        } else {
+            const response = await api.get<ApiResponse<BackendActivitySchedule[]>>(url);
+            return Array.isArray(response.data.data)
+                ? response.data.data.map(mapActivityScheduleResponse)
+                : [];
+        }
+    } catch (error) {
+        console.error("Error fetching activity schedules:", error);
+        return [];
+    }
+}
+
+// Get a single schedule for an activity
+export async function getActivitySchedule(activityId: string, scheduleId: string): Promise<ActivitySchedule | null> {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+        ? `/api/activities/${activityId}/schedules/${scheduleId}`
+        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/schedules/${scheduleId}`;
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "GET",
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const responseData = await response.json() as ApiResponse<BackendActivitySchedule> | BackendActivitySchedule;
+            
+            // Extract the data from the response wrapper if needed
+            if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+                return mapActivityScheduleResponse(responseData.data);
+            }
+            return mapActivityScheduleResponse(responseData as BackendActivitySchedule);
+        } else {
+            const response = await api.get<ApiResponse<BackendActivitySchedule>>(url);
+            return mapActivityScheduleResponse(response.data.data);
+        }
+    } catch (error) {
+        console.error("Error fetching activity schedule:", error);
+        return null;
+    }
+}
+
+// Get all available timeframes
+export async function getTimeframes(): Promise<Timeframe[]> {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+        ? "/api/activities/timespans"
+        : `${env.NEXT_PUBLIC_API_URL}/activities/timespans`;
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "GET",
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const responseData = await response.json();
+            
+            // Handle different response structures
+            if (responseData && typeof responseData === 'object') {
+                // If it's a wrapped response with data property
+                if ('data' in responseData && responseData.data) {
+                    if (Array.isArray(responseData.data)) {
+                        // Check if it's already frontend types or needs mapping
+                        if (responseData.data.length > 0 && responseData.data[0] && typeof responseData.data[0].id === 'string') {
+                            return responseData.data as unknown as Timeframe[];
+                        }
+                        return (responseData.data as BackendTimeframe[]).map(mapTimeframeResponse);
+                    }
+                    return [];
+                }
+                // If it's an array directly
+                else if (Array.isArray(responseData)) {
+                    if (responseData.length > 0 && responseData[0]) {
+                        // Check if it's already frontend types or needs mapping
+                        if (typeof responseData[0].id === 'string') {
+                            return responseData as unknown as Timeframe[];
+                        }
+                        return (responseData as BackendTimeframe[]).map(mapTimeframeResponse);
+                    }
+                    return [];
+                }
+            }
+            return [];
+        } else {
+            const response = await api.get<ApiResponse<BackendTimeframe[]>>(url);
+            if (response && response.data && Array.isArray(response.data.data)) {
+                return response.data.data.map(mapTimeframeResponse);
+            }
+            return [];
+        }
+    } catch (error) {
+        handleActivityApiError(error, "fetch timeframes");
+    }
+}
+
+// Get available time slots
+export async function getAvailableTimeSlots(activityId: string, date?: string): Promise<any[]> {
+    const useProxyApi = typeof window !== "undefined";
+    let url = useProxyApi
+        ? `/api/activities/${activityId}/schedules/available`
+        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/schedules/available`;
+    
+    // Add date parameter if provided
+    if (date) {
+        url += `?date=${encodeURIComponent(date)}`;
+    }
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "GET",
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const responseData = await response.json() as ApiResponse<any[]> | any[];
+            
+            // Extract the array from the response wrapper if needed
+            if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+                return responseData.data || [];
+            }
+            return responseData || [];
+        } else {
+            const response = await api.get<ApiResponse<any[]>>(url);
+            return response.data.data || [];
+        }
+    } catch (error) {
+        console.error("Error fetching available time slots:", error);
+        return [];
+    }
+}
+
+// Create a new schedule for an activity
+export async function createActivitySchedule(activityId: string, scheduleData: Partial<ActivitySchedule>): Promise<ActivitySchedule | null> {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+        ? `/api/activities/${activityId}/schedules`
+        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/schedules`;
+
+    // Prepare backend data
+    const backendData = prepareActivityScheduleForBackend(scheduleData);
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "POST",
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(session?.user?.token && {
+                        Authorization: `Bearer ${session.user.token}`,
+                    }),
+                },
+                body: JSON.stringify(backendData),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const responseData = await response.json() as ApiResponse<BackendActivitySchedule> | BackendActivitySchedule;
+            
+            // Extract the data from the response wrapper if needed
+            if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+                return mapActivityScheduleResponse(responseData.data);
+            }
+            return mapActivityScheduleResponse(responseData as BackendActivitySchedule);
+        } else {
+            const response = await api.post<ApiResponse<BackendActivitySchedule>>(url, backendData);
+            return mapActivityScheduleResponse(response.data.data);
+        }
+    } catch (error) {
+        console.error("Error creating activity schedule:", error);
+        return null;
+    }
+}
+
+// Update a schedule for an activity
+export async function updateActivitySchedule(activityId: string, scheduleId: string, scheduleData: Partial<ActivitySchedule>): Promise<ActivitySchedule | null> {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+        ? `/api/activities/${activityId}/schedules/${scheduleId}`
+        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/schedules/${scheduleId}`;
+
+    // Prepare backend data
+    const backendData = prepareActivityScheduleForBackend(scheduleData);
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "PUT",
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(session?.user?.token && {
+                        Authorization: `Bearer ${session.user.token}`,
+                    }),
+                },
+                body: JSON.stringify(backendData),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const responseData = await response.json() as ApiResponse<BackendActivitySchedule> | BackendActivitySchedule;
+            
+            // Extract the data from the response wrapper if needed
+            if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+                return mapActivityScheduleResponse(responseData.data);
+            }
+            return mapActivityScheduleResponse(responseData as BackendActivitySchedule);
+        } else {
+            const response = await api.put<ApiResponse<BackendActivitySchedule>>(url, backendData);
+            return mapActivityScheduleResponse(response.data.data);
+        }
+    } catch (error) {
+        console.error("Error updating activity schedule:", error);
+        return null;
+    }
+}
+
+// Delete a schedule for an activity
+export async function deleteActivitySchedule(activityId: string, scheduleId: string): Promise<boolean> {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+        ? `/api/activities/${activityId}/schedules/${scheduleId}`
+        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/schedules/${scheduleId}`;
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "DELETE",
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+            
+            return true;
+        } else {
+            await api.delete(url);
+            return true;
+        }
+    } catch (error) {
+        console.error("Error deleting activity schedule:", error);
+        return false;
+    }
+}
+
+// Get all supervisors assigned to an activity
+export async function getActivitySupervisors(activityId: string): Promise<Array<{ id: string; staff_id: string; is_primary: boolean; name: string }>> {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+        ? `/api/activities/${activityId}/supervisors`
+        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/supervisors`;
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "GET",
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const responseData = await response.json() as ApiResponse<BackendActivitySupervisor[]> | BackendActivitySupervisor[];
+            
+            // Extract the array from the response wrapper if needed
+            if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+                return Array.isArray(responseData.data)
+                    ? responseData.data.map(s => ({
+                        id: String(s.id),
+                        staff_id: String(s.staff_id),
+                        is_primary: s.is_primary,
+                        name: s.first_name && s.last_name ? `${s.first_name} ${s.last_name}` : `Supervisor ${s.id}`
+                    }))
+                    : [];
+            }
+            return Array.isArray(responseData)
+                ? responseData.map(s => ({
+                    id: String(s.id),
+                    staff_id: String(s.staff_id),
+                    is_primary: s.is_primary,
+                    name: s.first_name && s.last_name ? `${s.first_name} ${s.last_name}` : `Supervisor ${s.id}`
+                }))
+                : [];
+        } else {
+            const response = await api.get<ApiResponse<BackendActivitySupervisor[]>>(url);
+            return Array.isArray(response.data.data)
+                ? response.data.data.map(s => ({
+                    id: String(s.id),
+                    staff_id: String(s.staff_id),
+                    is_primary: s.is_primary,
+                    name: s.first_name && s.last_name ? `${s.first_name} ${s.last_name}` : `Supervisor ${s.id}`
+                }))
+                : [];
+        }
+    } catch (error) {
+        console.error("Error fetching activity supervisors:", error);
+        return [];
+    }
+}
+
+// Get available supervisors for an activity (not yet assigned)
+export async function getAvailableSupervisors(activityId: string): Promise<Array<{ id: string; name: string }>> {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+        ? `/api/activities/${activityId}/supervisors/available`
+        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/supervisors/available`;
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "GET",
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const responseData = await response.json() as ApiResponse<BackendSupervisor[]> | BackendSupervisor[];
+            
+            // Extract the array from the response wrapper if needed
+            if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+                return Array.isArray(responseData.data)
+                    ? responseData.data.map(mapSupervisorResponse)
+                    : [];
+            }
+            return Array.isArray(responseData)
+                ? responseData.map(mapSupervisorResponse)
+                : [];
+        } else {
+            const response = await api.get<ApiResponse<BackendSupervisor[]>>(url);
+            return Array.isArray(response.data.data)
+                ? response.data.data.map(mapSupervisorResponse)
+                : [];
+        }
+    } catch (error) {
+        console.error("Error fetching available supervisors:", error);
+        return [];
+    }
+}
+
+// Assign a supervisor to an activity
+export async function assignSupervisor(activityId: string, supervisorData: { staff_id: string; is_primary?: boolean }): Promise<boolean> {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+        ? `/api/activities/${activityId}/supervisors`
+        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/supervisors`;
+
+    // Convert staff_id to number for backend and set is_primary if defined
+    const backendData = {
+        staff_id: parseInt(supervisorData.staff_id, 10),
+        is_primary: supervisorData.is_primary
+    };
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "POST",
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(session?.user?.token && {
+                        Authorization: `Bearer ${session.user.token}`,
+                    }),
+                },
+                body: JSON.stringify(backendData),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+            
+            return true;
+        } else {
+            await api.post(url, backendData);
+            return true;
+        }
+    } catch (error) {
+        console.error("Error assigning supervisor:", error);
+        return false;
+    }
+}
+
+// Update supervisor role (e.g., set/unset primary status)
+export async function updateSupervisorRole(activityId: string, supervisorId: string, roleData: { is_primary: boolean }): Promise<boolean> {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+        ? `/api/activities/${activityId}/supervisors/${supervisorId}`
+        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/supervisors/${supervisorId}`;
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "PUT",
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(session?.user?.token && {
+                        Authorization: `Bearer ${session.user.token}`,
+                    }),
+                },
+                body: JSON.stringify(roleData),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+            
+            return true;
+        } else {
+            await api.put(url, roleData);
+            return true;
+        }
+    } catch (error) {
+        console.error("Error updating supervisor role:", error);
+        return false;
+    }
+}
+
+// Remove a supervisor from an activity
+export async function removeSupervisor(activityId: string, supervisorId: string): Promise<boolean> {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+        ? `/api/activities/${activityId}/supervisors/${supervisorId}`
+        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/supervisors/${supervisorId}`;
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "DELETE",
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+            
+            return true;
+        } else {
+            await api.delete(url);
+            return true;
+        }
+    } catch (error) {
+        console.error("Error removing supervisor:", error);
+        return false;
+    }
+}
+
+// Get all students eligible for enrollment (not yet enrolled)
+export async function getAvailableStudents(activityId: string, filters?: { search?: string; group_id?: string }): Promise<Array<{ id: string; name: string; school_class: string }>> {
+    const useProxyApi = typeof window !== "undefined";
+    let url = useProxyApi
+        ? `/api/activities/${activityId}/students/available`
+        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/students/available`;
+    
+    // Add query parameters if provided
+    if (filters) {
+        const params = new URLSearchParams();
+        if (filters.search) params.append("search", filters.search);
+        if (filters.group_id) params.append("group_id", filters.group_id);
+        
+        const queryString = params.toString();
+        if (queryString) {
+            url += `?${queryString}`;
+        }
+    }
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "GET",
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const responseData = await response.json() as ApiResponse<Array<{ id: number; name: string; school_class: string }>> | Array<{ id: number; name: string; school_class: string }>;
+            
+            // Extract the array from the response wrapper if needed
+            if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+                return Array.isArray(responseData.data)
+                    ? responseData.data.map(s => ({
+                        id: String(s.id),
+                        name: s.name,
+                        school_class: s.school_class
+                    }))
+                    : [];
+            }
+            return Array.isArray(responseData)
+                ? responseData.map(s => ({
+                    id: String(s.id),
+                    name: s.name,
+                    school_class: s.school_class
+                }))
+                : [];
+        } else {
+            const response = await api.get<ApiResponse<Array<{ id: number; name: string; school_class: string }>>>(url);
+            return Array.isArray(response.data.data)
+                ? response.data.data.map(s => ({
+                    id: String(s.id),
+                    name: s.name,
+                    school_class: s.school_class
+                }))
+                : [];
+        }
+    } catch (error) {
+        console.error("Error fetching available students:", error);
+        return [];
+    }
+}
+
+// Get activities a student is enrolled in
+export async function getStudentEnrollments(studentId: string): Promise<Activity[]> {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+        ? `/api/students/${studentId}/activities`
+        : `${env.NEXT_PUBLIC_API_URL}/students/${studentId}/activities`;
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "GET",
+                credentials: "include",
+                headers: session?.user?.token
+                    ? {
+                        Authorization: `Bearer ${session.user.token}`,
+                        "Content-Type": "application/json",
+                    }
+                    : undefined,
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const responseData = await response.json() as ApiResponse<BackendActivity[]> | BackendActivity[];
+            
+            // Extract the array from the response wrapper if needed
+            if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+                return Array.isArray(responseData.data)
+                    ? responseData.data.map(mapActivityResponse)
+                    : [];
+            }
+            return Array.isArray(responseData)
+                ? responseData.map(mapActivityResponse)
+                : [];
+        } else {
+            const response = await api.get<ApiResponse<BackendActivity[]>>(url);
+            return Array.isArray(response.data.data)
+                ? response.data.data.map(mapActivityResponse)
+                : [];
+        }
+    } catch (error) {
+        console.error("Error fetching student enrollments:", error);
+        return [];
+    }
+}
+
+// Batch update student enrollments (add or remove multiple students at once)
+export async function updateGroupEnrollments(activityId: string, data: { student_ids: string[] }): Promise<boolean> {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+        ? `/api/activities/${activityId}/students/batch`
+        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/students/batch`;
+
+    // Convert string IDs to numbers for backend
+    const backendData = {
+        student_ids: data.student_ids.map(id => parseInt(id, 10))
+    };
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "POST",
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(session?.user?.token && {
+                        Authorization: `Bearer ${session.user.token}`,
+                    }),
+                },
+                body: JSON.stringify(backendData),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`API error: ${response.status}`, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+            
+            return true;
+        } else {
+            await api.post(url, backendData);
+            return true;
+        }
+    } catch (error) {
+        console.error("Error updating group enrollments:", error);
+        return false;
     }
 }

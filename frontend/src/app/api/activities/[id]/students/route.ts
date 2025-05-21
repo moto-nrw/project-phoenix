@@ -2,7 +2,14 @@
 import type { NextRequest } from "next/server";
 import { apiGet, apiPost, apiDelete } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler, createDeleteHandler } from "~/lib/route-wrapper";
+import { 
+  getEnrolledStudents,
+  updateGroupEnrollments,
+  getAvailableStudents,
+  enrollStudent
+} from "~/lib/activity-api";
 import type { BackendActivityStudent } from "~/lib/activity-helpers";
+import { mapActivityStudentsResponse } from "~/lib/activity-helpers";
 
 /**
  * Handler for GET /api/activities/[id]/students
@@ -10,23 +17,28 @@ import type { BackendActivityStudent } from "~/lib/activity-helpers";
  */
 export const GET = createGetHandler(async (request: NextRequest, token: string, params: Record<string, unknown>) => {
   const id = params.id as string;
-  const endpoint = `/api/activities/${id}/students`;
   
+  // Check for "available" query parameter - return available students instead of enrolled ones
+  const available = request.nextUrl.searchParams.get("available") === "true";
+  
+  if (available) {
+    // Get query parameters for filtering
+    const search = request.nextUrl.searchParams.get("search") || undefined;
+    const groupId = request.nextUrl.searchParams.get("group_id") || undefined;
+    
+    // Get students available for enrollment
+    const availableStudents = await getAvailableStudents(id, { 
+      search, 
+      group_id: groupId 
+    });
+    
+    return availableStudents;
+  }
+  
+  // Otherwise return enrolled students
   try {
-    const response = await apiGet<{ data: BackendActivityStudent[]; status: string } | BackendActivityStudent[]>(endpoint, token);
-    
-    console.log('Students fetch response:', response);
-    
-    // Handle response structure
-    if (response && 'status' in response && response.status === "success" && 'data' in response && Array.isArray(response.data)) {
-      return response.data;
-    } else if (Array.isArray(response)) {
-      return response;
-    }
-    
-    // If no data or unexpected structure, return empty array
-    console.log('Unexpected response structure:', response);
-    return [];
+    const students = await getEnrolledStudents(id);
+    return students;
   } catch (error) {
     console.error('Error fetching enrolled students:', error);
     return []; // Return empty array on error
@@ -35,44 +47,55 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
 
 /**
  * Handler for POST /api/activities/[id]/students
- * Enrolls a student in the activity
+ * Supports two modes:
+ * 1. Regular: Enrolls a single student - expects { student_id: string }
+ * 2. Batch: Updates multiple students at once - expects { student_ids: string[] }
  */
-export const POST = createPostHandler<{ success: boolean }, { student_id: string | number }>(
-  async (_request: NextRequest, body: { student_id: string | number }, token: string, params: Record<string, unknown>) => {
+export const POST = createPostHandler(
+  async (request: NextRequest, body: any, token: string, params: Record<string, unknown>) => {
     const id = params.id as string;
-    const endpoint = `/api/activities/${id}/students`;
     
-    // Ensure student_id is a number for the backend
-    const backendData = {
-      student_id: typeof body.student_id === 'string' ? parseInt(body.student_id, 10) : body.student_id
-    };
-    
-    try {
-      await apiPost(endpoint, token, backendData);
-      return { success: true };
-    } catch (error) {
-      console.error('Error enrolling student:', error);
-      throw error;
+    // Check if this is a batch update operation
+    if (body.student_ids && Array.isArray(body.student_ids)) {
+      try {
+        // Use batch update function
+        const success = await updateGroupEnrollments(id, { 
+          student_ids: body.student_ids 
+        });
+        
+        if (success) {
+          // Return updated enrolled students
+          const students = await getEnrolledStudents(id);
+          return students;
+        } else {
+          throw new Error("Failed to update enrollments");
+        }
+      } catch (error) {
+        console.error('Error updating enrollments:', error);
+        throw error;
+      }
+    } 
+    // Regular single student enrollment
+    else if (body.student_id) {
+      try {
+        const studentId = String(body.student_id);
+        // Enroll a single student
+        const result = await enrollStudent(id, { studentId });
+        
+        if (result.success) {
+          // Return updated enrolled students
+          const students = await getEnrolledStudents(id);
+          return students; 
+        } else {
+          throw new Error("Failed to enroll student");
+        }
+      } catch (error) {
+        console.error('Error enrolling student:', error);
+        throw error;
+      }
     }
-  }
-);
-
-/**
- * Handler for DELETE /api/activities/[id]/students/[studentId]
- * Unenrolls a student from the activity
- */
-export const DELETE = createDeleteHandler(
-  async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
-    const id = params.id as string;
-    const studentId = params.studentId as string;
-    const endpoint = `/api/activities/${id}/students/${studentId}`;
-    
-    try {
-      await apiDelete(endpoint, token);
-      return { success: true };
-    } catch (error) {
-      console.error('Error unenrolling student:', error);
-      throw error;
+    else {
+      throw new Error("Invalid request: must provide student_id or student_ids");
     }
   }
 );

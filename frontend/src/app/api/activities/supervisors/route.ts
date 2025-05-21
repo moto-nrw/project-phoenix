@@ -65,23 +65,36 @@ const MOCK_SUPERVISORS: BackendSupervisor[] = [
  */
 export const GET = createGetHandler(async (request: NextRequest, token: string) => {
   try {
-    // Fetch from staff endpoint with teachers_only
+    // Try getting supervisors from the activities API endpoint first
+    try {
+      const response = await apiGet<{ status: string; data: BackendSupervisor[] }>('/api/activities/supervisors/available', token);
+      
+      // Handle response structure
+      if (response && response.status === "success" && Array.isArray(response.data)) {
+        return response.data.map(mapSupervisorResponse);
+      }
+    } catch (activityApiError) {
+      console.error('Error fetching from activities supervisors endpoint:', activityApiError);
+      // Fall through to try the staff endpoint
+    }
+    
+    // Try fetching from staff endpoint with teachers_only as a fallback
     const response = await apiGet<{ status: string; data: BackendSupervisor[] }>('/api/staff?teachers_only=true', token);
     
     // Handle response structure
     if (response && response.status === "success" && Array.isArray(response.data)) {
-      if (response.data.length === 0) {
-        console.log('No supervisors in database, returning mock data');
-        return MOCK_SUPERVISORS.map(mapSupervisorResponse);
-      }
       return response.data.map(mapSupervisorResponse);
     }
     
-    // If no data or unexpected structure, return mock data
-    console.log('Unexpected response structure, returning mock data:', response);
-    return MOCK_SUPERVISORS.map(mapSupervisorResponse);
+    // If we get here, we have a response but it's not in the expected format
+    console.error('Unexpected response structure:', response);
+    throw new Error('Unexpected response structure from supervisors API');
   } catch (error) {
-    console.log('Error fetching supervisors, returning mock data:', error);
+    console.error('Error fetching supervisors:', error);
+    
+    // For now, we'll return mock data to ensure frontend doesn't break
+    // In the future, this should be removed when API is stable
+    console.warn('Falling back to mock supervisors data');
     return MOCK_SUPERVISORS.map(mapSupervisorResponse);
   }
 });

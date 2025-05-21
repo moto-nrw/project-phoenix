@@ -116,6 +116,22 @@ export interface ActivitySchedule {
     updated_at: Date;
 }
 
+export interface Timeframe {
+    id: string;
+    name: string;
+    start_time: string;
+    end_time: string;
+    description?: string;
+}
+
+export interface BackendTimeframe {
+    id: number;
+    name: string;
+    start_time: string;
+    end_time: string;
+    description?: string;
+}
+
 export interface ActivityStudent {
     id: string;
     activity_id: string;
@@ -147,6 +163,48 @@ function mapActivitySupervisor(supervisor: BackendActivitySupervisor): ActivityS
         last_name: supervisor.last_name,
         full_name: fullName
     };
+}
+
+// Map an array of activity supervisors
+export function mapActivitySupervisorsResponse(supervisors: BackendActivitySupervisor[]): ActivitySupervisor[] {
+    return supervisors.map(mapActivitySupervisor);
+}
+
+// Prepare a supervisor assignment for backend
+export function prepareSupervisorAssignmentForBackend(assignment: {
+    staff_id: string;
+    is_primary?: boolean;
+}): {
+    staff_id: number;
+    is_primary?: boolean;
+} {
+    return {
+        staff_id: parseInt(assignment.staff_id, 10),
+        is_primary: assignment.is_primary
+    };
+}
+
+// Format a list of supervisors as a comma-separated string
+export function formatSupervisorList(supervisors: ActivitySupervisor[] | undefined): string {
+    if (!supervisors || supervisors.length === 0) {
+        return 'Keine Betreuer zugewiesen';
+    }
+    
+    return supervisors.map(supervisor => 
+        supervisor.full_name || 
+        (supervisor.first_name && supervisor.last_name ? 
+            `${supervisor.first_name} ${supervisor.last_name}` : 
+            `Betreuer ${supervisor.id}`)
+    ).join(', ');
+}
+
+// Get primary supervisor from a list of supervisors
+export function getPrimarySupervisor(supervisors: ActivitySupervisor[] | undefined): ActivitySupervisor | undefined {
+    if (!supervisors || supervisors.length === 0) {
+        return undefined;
+    }
+    
+    return supervisors.find(s => s.is_primary);
 }
 
 // Mapping functions for backend to frontend types
@@ -248,6 +306,58 @@ export function mapActivityStudentResponse(backendStudent: BackendActivityStuden
     };
 }
 
+// Map an array of activity students
+export function mapActivityStudentsResponse(students: BackendActivityStudent[]): ActivityStudent[] {
+    return students.map(mapActivityStudentResponse);
+}
+
+// Format an array of students as a comma-separated string
+export function formatStudentList(students: ActivityStudent[] | undefined): string {
+    if (!students || students.length === 0) {
+        return 'Keine Teilnehmer eingeschrieben';
+    }
+    
+    return students.map(student => 
+        student.name || `Student ${student.student_id}`
+    ).join(', ');
+}
+
+// Group students by school class
+export function groupStudentsByClass(students: ActivityStudent[]): Record<string, ActivityStudent[]> {
+    const grouped: Record<string, ActivityStudent[]> = {};
+    
+    students.forEach(student => {
+        const schoolClass = student.school_class || 'Keine Klasse';
+        if (!grouped[schoolClass]) {
+            grouped[schoolClass] = [];
+        }
+        grouped[schoolClass].push(student);
+    });
+    
+    return grouped;
+}
+
+// Prepare batch enrollment data for backend
+export function prepareBatchEnrollmentForBackend(studentIds: string[]): { student_ids: number[] } {
+    return {
+        student_ids: studentIds.map(id => parseInt(id, 10))
+    };
+}
+
+// Filter students by search term
+export function filterStudentsBySearchTerm(students: ActivityStudent[], searchTerm: string): ActivityStudent[] {
+    if (!searchTerm) {
+        return students;
+    }
+    
+    const term = searchTerm.toLowerCase();
+    return students.filter(student => 
+        (student.name && student.name.toLowerCase().includes(term)) ||
+        (student.school_class && student.school_class.toLowerCase().includes(term)) ||
+        (student.student_id && student.student_id.toLowerCase().includes(term))
+    );
+}
+
 // Added: Map supervisor response
 export function mapSupervisorResponse(backendSupervisor: BackendSupervisor): Supervisor {
     return {
@@ -255,6 +365,17 @@ export function mapSupervisorResponse(backendSupervisor: BackendSupervisor): Sup
         name: backendSupervisor.person 
             ? `${backendSupervisor.person.first_name} ${backendSupervisor.person.last_name}`
             : `Supervisor ${backendSupervisor.id}`
+    };
+}
+
+// Map a timeframe from backend to frontend format
+export function mapTimeframeResponse(backendTimeframe: BackendTimeframe): Timeframe {
+    return {
+        id: String(backendTimeframe.id),
+        name: backendTimeframe.name,
+        start_time: backendTimeframe.start_time,
+        end_time: backendTimeframe.end_time,
+        description: backendTimeframe.description
     };
 }
 
@@ -317,6 +438,12 @@ export interface ActivityFilter {
     is_open_ags?: boolean;
 }
 
+// Schedule filter type
+export interface ActivityScheduleFilter {
+    weekday?: string;
+    has_timeframe?: boolean;
+}
+
 // Helper functions 
 export function formatActivityTimes(activity: Activity | ActivitySchedule[]): string {
     // Handle case when activity is an Activity object
@@ -357,6 +484,72 @@ export function formatWeekday(weekday: string): string {
     return weekdays[weekday.toLowerCase()] ?? weekday;
 }
 
+export function getWeekdayFullName(weekday: string): string {
+    const weekdays: Record<string, string> = {
+        "monday": "Montag",
+        "tuesday": "Dienstag",
+        "wednesday": "Mittwoch",
+        "thursday": "Donnerstag",
+        "friday": "Freitag",
+        "saturday": "Samstag",
+        "sunday": "Sonntag",
+        "mo": "Montag",
+        "di": "Dienstag",
+        "mi": "Mittwoch",
+        "do": "Donnerstag",
+        "fr": "Freitag",
+        "sa": "Samstag",
+        "so": "Sonntag"
+    };
+    
+    return weekdays[weekday.toLowerCase()] ?? weekday;
+}
+
+export function getWeekdayOrder(weekday: string): number {
+    const order: Record<string, number> = {
+        "monday": 1,
+        "montag": 1,
+        "mo": 1,
+        "tuesday": 2,
+        "dienstag": 2,
+        "di": 2,
+        "wednesday": 3,
+        "mittwoch": 3,
+        "mi": 3,
+        "thursday": 4,
+        "donnerstag": 4,
+        "do": 4,
+        "friday": 5,
+        "freitag": 5,
+        "fr": 5,
+        "saturday": 6,
+        "samstag": 6, 
+        "sa": 6,
+        "sunday": 7,
+        "sonntag": 7,
+        "so": 7
+    };
+    
+    return order[weekday.toLowerCase()] ?? 99;
+}
+
+export function sortSchedulesByWeekday(schedules: ActivitySchedule[]): ActivitySchedule[] {
+    return [...schedules].sort((a, b) => getWeekdayOrder(a.weekday) - getWeekdayOrder(b.weekday));
+}
+
+export function formatScheduleTime(schedule: ActivitySchedule, timeframes?: Array<{ id: string; start_time: string; end_time: string }>): string {
+    if (!schedule.timeframe_id || !timeframes) {
+        return formatWeekday(schedule.weekday);
+    }
+    
+    const timeframe = timeframes.find(tf => tf.id === schedule.timeframe_id);
+    if (!timeframe) {
+        return formatWeekday(schedule.weekday);
+    }
+    
+    return `${formatWeekday(schedule.weekday)} ${timeframe.start_time}-${timeframe.end_time}`;
+}
+
 export function formatParticipantStatus(activityOrCurrent: Activity | number, max?: number): string {
     // Handle case when first parameter is an Activity object
     if (typeof activityOrCurrent === 'object' && activityOrCurrent !== null) {
@@ -373,4 +566,41 @@ export function formatParticipantStatus(activityOrCurrent: Activity | number, ma
         return "Unbekannt";
     }
     return `${current} / ${max} Teilnehmer`;
+}
+
+// Check if a time slot is available for an activity
+export function isTimeSlotAvailable(
+    weekday: string, 
+    timeframeId: string, 
+    existingSchedules: ActivitySchedule[], 
+    excludeScheduleId?: string
+): boolean {
+    // Filter out the schedule we're currently editing (if provided)
+    const relevantSchedules = excludeScheduleId 
+        ? existingSchedules.filter(s => s.id !== excludeScheduleId) 
+        : existingSchedules;
+    
+    // Check if there's any schedule that overlaps with the requested time
+    return !relevantSchedules.some(schedule => 
+        schedule.weekday.toLowerCase() === weekday.toLowerCase() && 
+        schedule.timeframe_id === timeframeId
+    );
+}
+
+// Check if a supervisor is available for an activity
+export function isSupervisorAvailable(
+    supervisorId: string,
+    weekday: string,
+    timeframeId: string,
+    existingSupervisorSchedules: Array<{
+        activity_id: string;
+        weekday: string;
+        timeframe_id?: string;
+    }>
+): boolean {
+    // Check if supervisor has any conflicting schedules
+    return !existingSupervisorSchedules.some(schedule => 
+        schedule.weekday.toLowerCase() === weekday.toLowerCase() && 
+        schedule.timeframe_id === timeframeId
+    );
 }

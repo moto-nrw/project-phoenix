@@ -92,6 +92,7 @@ export default function EditActivityPage() {
       const updateRequest = {
         name: dataToSubmit.name ?? '',
         max_participants: dataToSubmit.max_participant ?? 0,
+        is_open: dataToSubmit.is_open_ags ?? false,
         category_id: parseInt(dataToSubmit.ag_category_id ?? '0', 10),
         supervisor_ids: dataToSubmit.supervisor_id ? [parseInt(dataToSubmit.supervisor_id, 10)] : []
       };

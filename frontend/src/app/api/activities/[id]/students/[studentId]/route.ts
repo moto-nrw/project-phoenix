@@ -1,24 +1,60 @@
 // app/api/activities/[id]/students/[studentId]/route.ts
 import type { NextRequest } from "next/server";
-import { apiDelete } from "~/lib/api-helpers";
-import { createDeleteHandler } from "~/lib/route-wrapper";
+import { createGetHandler, createDeleteHandler } from "~/lib/route-wrapper";
+import { 
+  getEnrolledStudents, 
+  unenrollStudent 
+} from "~/lib/activity-api";
+
+/**
+ * Handler for GET /api/activities/[id]/students/[studentId]
+ * Returns details about a specific student's enrollment
+ */
+export const GET = createGetHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
+  const id = params.id as string;
+  const studentId = params.studentId as string;
+  
+  if (!id || !studentId) {
+    throw new Error("Activity ID and Student ID are required");
+  }
+  
+  try {
+    // Get all enrolled students for the activity
+    const students = await getEnrolledStudents(id);
+    
+    // Find the specific student
+    const student = students.find(s => s.student_id === studentId);
+    
+    if (!student) {
+      throw new Error(`Student with ID ${studentId} is not enrolled in activity ${id}`);
+    }
+    
+    return student;
+  } catch (error) {
+    console.error(`Error fetching student enrollment details:`, error);
+    throw error;
+  }
+});
 
 /**
  * Handler for DELETE /api/activities/[id]/students/[studentId]
- * Unenrolls a specific student from the activity
+ * Unenrolls a student from an activity
  */
-export const DELETE = createDeleteHandler(
-  async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
-    const id = params.id as string;
-    const studentId = params.studentId as string;
-    const endpoint = `/api/activities/${id}/students/${studentId}`;
-    
-    try {
-      await apiDelete(endpoint, token);
-      return { success: true };
-    } catch (error) {
-      console.error('Error unenrolling student:', error);
-      throw error;
-    }
+export const DELETE = createDeleteHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
+  const id = params.id as string;
+  const studentId = params.studentId as string;
+  
+  if (!id || !studentId) {
+    throw new Error("Activity ID and Student ID are required");
   }
-);
+  
+  try {
+    // Unenroll the student
+    await unenrollStudent(id, studentId);
+    
+    return { success: true };
+  } catch (error) {
+    console.error(`Error unenrolling student:`, error);
+    throw error;
+  }
+});

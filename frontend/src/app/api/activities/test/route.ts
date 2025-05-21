@@ -13,14 +13,16 @@ export async function GET(request: NextRequest) {
     
     // If we have activities, test getting the first one
     let activityDetail = null;
-    let enrolledStudents = [];
+    let enrolledStudents: any[] = [];
     
     if (activities.length > 0) {
       const firstActivity = activities[0];
-      activityDetail = await activityService.getActivity(firstActivity.id);
-      
-      // Test fetching enrolled students
-      enrolledStudents = await activityService.getEnrolledStudents(firstActivity.id);
+      if (firstActivity && firstActivity.id) {
+        activityDetail = await activityService.getActivity(firstActivity.id);
+        
+        // Test fetching enrolled students
+        enrolledStudents = await activityService.getEnrolledStudents(firstActivity.id);
+      }
     }
     
     // Return success with test results

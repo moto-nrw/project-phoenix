@@ -199,9 +199,12 @@ export default function ActivityTimesPage() {
                 >
                   <div>
                     <span className="font-medium">{time.weekday}</span>
-                    <span className="ml-4">
-                      {time.timespan.start_time} - {time.timespan.end_time}
-                    </span>
+                    {time.timeframe_id && (
+                      <span className="ml-4">
+                        {/* Timeframe information would be displayed here if available */}
+                        Timeframe ID: {time.timeframe_id}
+                      </span>
+                    )}
                   </div>
                   <button
                     onClick={() => handleDeleteTimeSlot(time.id)}
