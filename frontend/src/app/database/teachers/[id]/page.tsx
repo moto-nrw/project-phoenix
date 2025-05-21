@@ -309,7 +309,7 @@ export default function TeacherDetailsPage() {
                     // Filter out invalid permissions (missing ID or essential fields)
                     const validPermissions = permissions.filter(p => p && p.id);
                     
-                    console.log(`Found ${validPermissions.length} valid direct permissions for account:`, validPermissions);
+                    console.log(`Found ${validPermissions.length} valid direct permissions for account from real data:`, validPermissions);
                     setAccountPermissions(validPermissions);
                     
                     // Note: effective permissions are calculated in fetchAccountRoles
@@ -517,7 +517,20 @@ export default function TeacherDetailsPage() {
             await fetchAccountRoles(account.id);
         } catch (err) {
             console.error("Error assigning role:", err);
-            setError("Fehler beim Zuweisen der Rolle.");
+            
+            // Look for the specific database schema error
+            if (err.message && err.message.includes('account_role') && err.message.includes('missing FROM-clause')) {
+                setError("Datenbankfehler: Das Datenbank-Schema in der Backend-Datenbank stimmt nicht. Bitte kontaktieren Sie den Administrator.");
+            } else {
+                setError("Fehler beim Zuweisen der Rolle.");
+            }
+            
+            // Still update the roles list to refresh state
+            try {
+                await fetchAccountRoles(account.id);
+            } catch (refreshErr) {
+                // Ignore errors during refresh
+            }
         }
     };
 
@@ -530,7 +543,20 @@ export default function TeacherDetailsPage() {
             await fetchAccountRoles(account.id);
         } catch (err) {
             console.error("Error removing role:", err);
-            setError("Fehler beim Entfernen der Rolle.");
+            
+            // Look for the specific database schema error
+            if (err.message && err.message.includes('account_role') && err.message.includes('missing FROM-clause')) {
+                setError("Datenbankfehler: Das Datenbank-Schema in der Backend-Datenbank stimmt nicht. Bitte kontaktieren Sie den Administrator.");
+            } else {
+                setError("Fehler beim Entfernen der Rolle.");
+            }
+            
+            // Still update the roles list to refresh state
+            try {
+                await fetchAccountRoles(account.id);
+            } catch (refreshErr) {
+                // Ignore errors during refresh
+            }
         }
     };
 

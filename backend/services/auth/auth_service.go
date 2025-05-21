@@ -33,6 +33,7 @@ type Service struct {
 	jwtExpiry              time.Duration
 	jwtRefreshExpiry       time.Duration
 	txHandler              *base.TxHandler
+	db                     *bun.DB // Add database connection
 }
 
 // Updated NewService constructor
@@ -69,6 +70,7 @@ func NewService(
 		jwtExpiry:              tokenAuth.JwtExpiry,
 		jwtRefreshExpiry:       tokenAuth.JwtRefreshExpiry,
 		txHandler:              base.NewTxHandler(db),
+		db:                     db, // Add database connection
 	}, nil
 }
 
@@ -130,6 +132,7 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 		jwtExpiry:              s.jwtExpiry,
 		jwtRefreshExpiry:       s.jwtRefreshExpiry,
 		txHandler:              s.txHandler.WithTx(tx),
+		db:                     s.db, // Add database connection
 	}
 }
 
@@ -797,7 +800,27 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 		return &AuthError{Op: "assign role", Err: errors.New("role not found")}
 	}
 
-	if err := s.roleRepo.AssignRoleToAccount(ctx, int64(accountID), int64(roleID)); err != nil {
+	// Direct database query as a workaround for BUN ORM issues with schema-qualified tables
+	var count int
+	err := s.db.QueryRow(
+		"SELECT COUNT(*) FROM auth.account_roles WHERE account_id = ? AND role_id = ?", 
+		accountID, roleID).Scan(&count)
+
+	if err != nil {
+		return &AuthError{Op: "check role assignment", Err: err}
+	}
+
+	if count > 0 {
+		// Role already assigned, no action needed
+		return nil
+	}
+
+	// Insert the role assignment
+	_, err = s.db.Exec(
+		"INSERT INTO auth.account_roles (account_id, role_id) VALUES (?, ?)", 
+		accountID, roleID)
+
+	if err != nil {
 		return &AuthError{Op: "assign role to account", Err: err}
 	}
 
@@ -806,7 +829,12 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 
 // RemoveRoleFromAccount removes a role from an account
 func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int) error {
-	if err := s.roleRepo.RemoveRoleFromAccount(ctx, int64(accountID), int64(roleID)); err != nil {
+	// Direct database query as a workaround for BUN ORM issues with schema-qualified tables
+	_, err := s.db.Exec(
+		"DELETE FROM auth.account_roles WHERE account_id = ? AND role_id = ?", 
+		accountID, roleID)
+
+	if err != nil {
 		return &AuthError{Op: "remove role from account", Err: err}
 	}
 	return nil
