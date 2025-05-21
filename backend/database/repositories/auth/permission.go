@@ -62,7 +62,7 @@ func (r *PermissionRepository) FindByResourceAction(ctx context.Context, resourc
 	return permission, nil
 }
 
-// FindByAccountID retrieves all permissions assigned to an account
+// FindByAccountID retrieves all permissions assigned to an account (direct + role-based)
 func (r *PermissionRepository) FindByAccountID(ctx context.Context, accountID int64) ([]*auth.Permission, error) {
 	var permissions []*auth.Permission
 
@@ -88,6 +88,28 @@ func (r *PermissionRepository) FindByAccountID(ctx context.Context, accountID in
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by account ID",
+			Err: err,
+		}
+	}
+
+	return permissions, nil
+}
+
+// FindDirectByAccountID retrieves only direct permissions assigned to an account (not role-based)
+func (r *PermissionRepository) FindDirectByAccountID(ctx context.Context, accountID int64) ([]*auth.Permission, error) {
+	var permissions []*auth.Permission
+
+	// This query gets ONLY direct permissions, not role-based ones
+	err := r.db.NewSelect().
+		Model(&permissions).
+		ModelTableExpr(`auth.permissions AS "permission"`).
+		Join(`JOIN auth.account_permissions ap ON ap.permission_id = "permission".id`).
+		Where("ap.account_id = ? AND ap.granted = true", accountID).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find direct permissions by account ID",
 			Err: err,
 		}
 	}

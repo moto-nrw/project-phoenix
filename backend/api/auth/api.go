@@ -112,6 +112,7 @@ func (rs *Resource) Router() chi.Router {
 					// Permission assignments
 					r.Route("/permissions", func(r chi.Router) {
 						r.With(authorize.RequiresPermission("users:manage")).Get("/", rs.getAccountPermissions)
+						r.With(authorize.RequiresPermission("users:manage")).Get("/direct", rs.getAccountDirectPermissions)
 						r.With(authorize.RequiresPermission("users:manage")).Post("/{permissionId}/grant", rs.grantPermissionToAccount)
 						r.With(authorize.RequiresPermission("users:manage")).Post("/{permissionId}/deny", rs.denyPermissionToAccount)
 						r.With(authorize.RequiresPermission("users:manage")).Delete("/{permissionId}", rs.removePermissionFromAccount)
@@ -1239,6 +1240,42 @@ func (rs *Resource) getAccountPermissions(w http.ResponseWriter, r *http.Request
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Account permissions retrieved successfully")
+}
+
+// getAccountDirectPermissions handles getting only direct permissions for an account (not role-based)
+func (rs *Resource) getAccountDirectPermissions(w http.ResponseWriter, r *http.Request) {
+	accountIDStr := chi.URLParam(r, "accountId")
+	accountID, err := strconv.Atoi(accountIDStr)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid account ID"))); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	permissions, err := rs.AuthService.GetAccountDirectPermissions(r.Context(), accountID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	responses := make([]*PermissionResponse, 0, len(permissions))
+	for _, permission := range permissions {
+		resp := &PermissionResponse{
+			ID:          permission.ID,
+			Name:        permission.Name,
+			Description: permission.Description,
+			Resource:    permission.Resource,
+			Action:      permission.Action,
+			CreatedAt:   permission.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:   permission.UpdatedAt.Format(time.RFC3339),
+		}
+		responses = append(responses, resp)
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Account direct permissions retrieved successfully")
 }
 
 // assignPermissionToRole handles assigning a permission to a role

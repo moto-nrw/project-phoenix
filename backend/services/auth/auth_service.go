@@ -987,6 +987,15 @@ func (s *Service) GetAccountPermissions(ctx context.Context, accountID int) ([]*
 	return permissions, nil
 }
 
+// GetAccountDirectPermissions retrieves only direct permissions for an account (not role-based)
+func (s *Service) GetAccountDirectPermissions(ctx context.Context, accountID int) ([]*auth.Permission, error) {
+	permissions, err := s.permissionRepo.FindDirectByAccountID(ctx, int64(accountID))
+	if err != nil {
+		return nil, &AuthError{Op: "get account direct permissions", Err: err}
+	}
+	return permissions, nil
+}
+
 // AssignPermissionToRole assigns a permission to a role
 func (s *Service) AssignPermissionToRole(ctx context.Context, roleID, permissionID int) error {
 	// Verify role exists

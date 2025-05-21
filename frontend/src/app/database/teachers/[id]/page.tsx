@@ -40,6 +40,7 @@ export default function TeacherDetailsPage() {
     const [account, setAccount] = useState<Account | null>(null);
     const [accountRoles, setAccountRoles] = useState<Role[]>([]);
     const [accountPermissions, setAccountPermissions] = useState<Permission[]>([]);
+    const [rolePermissions, setRolePermissions] = useState<Permission[]>([]);
     const [effectivePermissions, setEffectivePermissions] = useState<Permission[]>([]);
     const [allRoles, setAllRoles] = useState<Role[]>([]);
     const [loadingAccount, setLoadingAccount] = useState(false);
@@ -218,23 +219,13 @@ export default function TeacherDetailsPage() {
                         }
                     }
                     
-                    // Combine with direct permissions and deduplicate
-                    console.log("Calculating effective permissions...");
-                    const allPermissions = [...permissionsFromRoles, ...accountPermissions];
-                    console.log(`Total permissions before deduplication: ${allPermissions.length}`);
-                    
-                    // Filter out any invalid permissions
-                    const validPermissions = allPermissions.filter(p => p && p.id);
-                    
-                    const uniquePermissions = validPermissions.filter((permission, index, self) =>
-                        index === self.findIndex((p) => p.id === permission.id)
-                    );
-                    
-                    console.log(`Total unique permissions after deduplication: ${uniquePermissions.length}`);
-                    setEffectivePermissions(uniquePermissions);
+                    // Store role permissions separately for effective permissions calculation
+                    console.log(`Found ${permissionsFromRoles.length} permissions from roles`);
+                    setRolePermissions(permissionsFromRoles);
                 } else {
                     console.error("Error response from roles endpoint:", await rolesResponse.text());
                     setAccountRoles([]);
+                    setRolePermissions([]); // Clear role permissions if roles fetch fails
                 }
             } catch (fetchError) {
                 console.error("Network or API error when fetching roles:", fetchError);
@@ -243,7 +234,7 @@ export default function TeacherDetailsPage() {
         } catch (err) {
             console.error("Error in fetchAccountRoles:", err);
             setAccountRoles([]);
-            // Don't update effective permissions here as they'll be updated separately
+            setRolePermissions([]); // Clear role permissions on error
         } finally {
             setLoadingRoles(false);
         }
@@ -270,8 +261,8 @@ export default function TeacherDetailsPage() {
                 return;
             }
             
-            // Call the permissions endpoint directly
-            const permissionsUrl = `/api/auth/accounts/${accountId}/permissions`;
+            // Call the direct permissions endpoint to get only direct permissions (not role-based)
+            const permissionsUrl = `/api/auth/accounts/${accountId}/permissions/direct`;
             console.log(`Making request to: ${permissionsUrl}`);
             
             try {
@@ -410,7 +401,9 @@ export default function TeacherDetailsPage() {
                 username: teacher.first_name || "user",
                 active: true,
                 roles: [],
-                permissions: []
+                permissions: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
             });
             
         } catch (err) {
@@ -421,7 +414,9 @@ export default function TeacherDetailsPage() {
                 username: "user",
                 active: true,
                 roles: [],
-                permissions: []
+                permissions: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
             });
         } finally {
             setLoadingAccount(false);
@@ -519,7 +514,7 @@ export default function TeacherDetailsPage() {
             console.error("Error assigning role:", err);
             
             // Look for the specific database schema error
-            if (err.message && err.message.includes('account_role') && err.message.includes('missing FROM-clause')) {
+            if (err instanceof Error && err.message && err.message.includes('account_role') && err.message.includes('missing FROM-clause')) {
                 setError("Datenbankfehler: Das Datenbank-Schema in der Backend-Datenbank stimmt nicht. Bitte kontaktieren Sie den Administrator.");
             } else {
                 setError("Fehler beim Zuweisen der Rolle.");
@@ -545,7 +540,7 @@ export default function TeacherDetailsPage() {
             console.error("Error removing role:", err);
             
             // Look for the specific database schema error
-            if (err.message && err.message.includes('account_role') && err.message.includes('missing FROM-clause')) {
+            if (err instanceof Error && err.message && err.message.includes('account_role') && err.message.includes('missing FROM-clause')) {
                 setError("Datenbankfehler: Das Datenbank-Schema in der Backend-Datenbank stimmt nicht. Bitte kontaktieren Sie den Administrator.");
             } else {
                 setError("Fehler beim Entfernen der Rolle.");
@@ -623,18 +618,17 @@ export default function TeacherDetailsPage() {
                     void fetchAllRoles();
                 }
             } else if (tabId === "permissions") {
-                // Only fetch permissions if we haven't already
+                // Fetch both direct permissions and role permissions
+                // The effective permissions will be calculated automatically via useEffect
                 if (accountPermissions.length === 0) {
                     void fetchAccountPermissions(account.id);
-                    
-                    // Only fetch role permissions if we haven't already fetched roles
-                    if (accountRoles.length === 0) {
-                        void fetchAccountRoles(account.id);
-                    }
+                }
+                if (accountRoles.length === 0 || rolePermissions.length === 0) {
+                    void fetchAccountRoles(account.id);
                 }
             }
         }
-    }, [account, accountRoles, accountPermissions, allRoles, fetchAccountRoles, fetchAccountPermissions, fetchAllRoles]);
+    }, [account, accountRoles, accountPermissions, rolePermissions, allRoles, fetchAccountRoles, fetchAccountPermissions, fetchAllRoles]);
 
     // Initial data load
     useEffect(() => {
@@ -654,6 +648,26 @@ export default function TeacherDetailsPage() {
     useEffect(() => {
         void fetchAllRoles();
     }, [fetchAllRoles]);
+
+    // Calculate effective permissions when either direct permissions or role permissions change
+    useEffect(() => {
+        console.log("Recalculating effective permissions...");
+        console.log(`Direct permissions: ${accountPermissions.length}`);
+        console.log(`Role permissions: ${rolePermissions.length}`);
+        
+        // Combine direct permissions and role permissions
+        const allPermissions = [...accountPermissions, ...rolePermissions];
+        console.log(`Total permissions before deduplication: ${allPermissions.length}`);
+        
+        // Filter out any invalid permissions and deduplicate by ID
+        const validPermissions = allPermissions.filter(p => p && p.id);
+        const uniquePermissions = validPermissions.filter((permission, index, self) =>
+            index === self.findIndex((p) => p.id === permission.id)
+        );
+        
+        console.log(`Total unique effective permissions: ${uniquePermissions.length}`);
+        setEffectivePermissions(uniquePermissions);
+    }, [accountPermissions, rolePermissions]);
 
     // Only show the main loading screen if we're loading the teacher
     // Not for other loading states which are handled within their tabs
@@ -1056,14 +1070,36 @@ export default function TeacherDetailsPage() {
                                             <p className="text-gray-500">Keine effektiven Berechtigungen</p>
                                         ) : (
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                                {effectivePermissions.map((permission) => (
-                                                    <div key={permission.id} className="rounded-lg border p-3">
-                                                        <p className="font-medium text-sm">{permission.name}</p>
-                                                        <p className="text-xs text-gray-500">
-                                                            {permission.resource}:{permission.action}
-                                                        </p>
-                                                    </div>
-                                                ))}
+                                                {effectivePermissions.map((permission) => {
+                                                    // Check if this permission comes from direct assignment or role
+                                                    const isDirect = accountPermissions.some(p => p.id === permission.id);
+                                                    const isFromRole = rolePermissions.some(p => p.id === permission.id);
+                                                    
+                                                    return (
+                                                        <div key={permission.id} className="rounded-lg border p-3">
+                                                            <div className="flex items-start justify-between">
+                                                                <div className="flex-1">
+                                                                    <p className="font-medium text-sm">{permission.name}</p>
+                                                                    <p className="text-xs text-gray-500">
+                                                                        {permission.resource}:{permission.action}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="ml-2 flex flex-col gap-1">
+                                                                    {isDirect && (
+                                                                        <span className="inline-block rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800">
+                                                                            Direkt
+                                                                        </span>
+                                                                    )}
+                                                                    {isFromRole && (
+                                                                        <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">
+                                                                            Rolle
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>

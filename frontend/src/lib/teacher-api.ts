@@ -20,7 +20,9 @@ export interface Teacher {
     activities?: Activity[];
     // Optional fields from staff API for consistency
     person_id?: number;
+    account_id?: number;
     is_teacher?: boolean;
+    person?: any; // For nested person object
 }
 
 export interface TeacherWithCredentials extends Teacher {
