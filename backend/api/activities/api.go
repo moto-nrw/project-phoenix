@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 )
 
@@ -263,19 +264,23 @@ func (rs *Resource) listActivities(w http.ResponseWriter, r *http.Request) {
 	// Get filter parameters
 	categoryIDStr := r.URL.Query().Get("category_id")
 
-	// Create filters map
-	filters := make(map[string]interface{})
+	// Create query options with filter
+	queryOptions := base.NewQueryOptions()
+	filter := base.NewFilter()
 
 	// Apply filters
 	if categoryIDStr != "" {
 		categoryID, err := strconv.ParseInt(categoryIDStr, 10, 64)
 		if err == nil {
-			filters["category_id"] = categoryID
+			filter.Equal("category_id", categoryID)
 		}
 	}
 
+	// Set the filter to query options
+	queryOptions.Filter = filter
+
 	// Get activities
-	groups, err := rs.ActivityService.ListGroups(r.Context(), filters)
+	groups, err := rs.ActivityService.ListGroups(r.Context(), queryOptions)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
