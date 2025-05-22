@@ -223,7 +223,7 @@ export default function ActivityStudentsPage() {
     <div className="min-h-screen">
       {/* Confirmation Modal */}
       {showConfirmModal && (
-        <div className="bg-opacity-30 fixed inset-0 z-50 flex items-center justify-center bg-black p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/10 backdrop-blur-sm p-4">
           <div
             className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
