@@ -53,7 +53,12 @@ export interface BackendSupervisor {
         first_name: string;
         last_name: string;
     };
-    is_teacher: boolean;
+    // Direct properties for supervisors from activities API
+    first_name?: string;
+    last_name?: string;
+    staff_id?: number;
+    is_primary?: boolean;
+    is_teacher?: boolean;
     created_at: string;
     updated_at: string;
 }
@@ -359,13 +364,50 @@ export function filterStudentsBySearchTerm(students: ActivityStudent[], searchTe
 }
 
 // Added: Map supervisor response
-export function mapSupervisorResponse(backendSupervisor: BackendSupervisor): Supervisor {
-    return {
-        id: String(backendSupervisor.id),
-        name: backendSupervisor.person 
-            ? `${backendSupervisor.person.first_name} ${backendSupervisor.person.last_name}`
-            : `Supervisor ${backendSupervisor.id}`
-    };
+export function mapSupervisorResponse(backendSupervisor: BackendSupervisor | any): Supervisor {
+    // Handle null or undefined input
+    if (!backendSupervisor) {
+        console.warn("Received null/undefined backendSupervisor in mapSupervisorResponse");
+        return {
+            id: "0",
+            name: "Unknown Supervisor"
+        };
+    }
+    
+    // Log for debugging
+    console.log("Mapping supervisor:", backendSupervisor);
+    
+    // Extract the ID safely
+    const id = backendSupervisor.id !== undefined ? String(backendSupervisor.id) : "0";
+    
+    // Handle different response formats we might get
+    if (backendSupervisor.person && 
+        backendSupervisor.person.first_name && 
+        backendSupervisor.person.last_name) {
+        // Standard staff format with person property
+        return {
+            id: id,
+            name: `${backendSupervisor.person.first_name} ${backendSupervisor.person.last_name}`
+        };
+    } else if (backendSupervisor.first_name && backendSupervisor.last_name) {
+        // Response format from activities/supervisors/available endpoint
+        return {
+            id: id,
+            name: `${backendSupervisor.first_name} ${backendSupervisor.last_name}`
+        };
+    } else if (backendSupervisor.name) {
+        // Object already has a name property
+        return {
+            id: id,
+            name: backendSupervisor.name
+        }; 
+    } else {
+        // Fallback if we can't determine the name
+        return {
+            id: id,
+            name: `Supervisor ${id}`
+        };
+    }
 }
 
 // Map a timeframe from backend to frontend format

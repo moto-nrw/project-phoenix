@@ -7,6 +7,7 @@ import type {
   ActivitySchedule,
   CreateActivityRequest,
 } from "~/lib/activity-helpers";
+import { roomService } from "~/lib/api";
 
 // Helper component for selecting a supervisor
 const SupervisorSelector = ({
@@ -20,23 +21,56 @@ const SupervisorSelector = ({
   label: string;
   supervisors?: Array<{ id: string; name: string }>;
 }) => {
+  // Enhanced logging for debugging
+  console.log("SupervisorSelector props:", { 
+    value, 
+    supervisorsCount: supervisors?.length || 0,
+    supervisors: supervisors?.map(s => ({ id: s.id, name: s.name })) || [] 
+  });
+  
+  // Super detailed logging to identify any issues with the supervisors array
+  if (supervisors && supervisors.length > 0) {
+    supervisors.forEach((supervisor, index) => {
+      if (!supervisor || !supervisor.id || !supervisor.name) {
+        console.warn(`Invalid supervisor at index ${index}:`, supervisor);
+      }
+    });
+  }
+  
   return (
     <div>
       <label className="mb-1 block text-sm font-medium text-gray-700">
         {label}
       </label>
       <select
-        value={value}
+        value={value || ""}
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
       >
         <option value="">Supervisor auswählen</option>
-        {supervisors.map((supervisor) => (
-          <option key={supervisor.id} value={supervisor.id}>
-            {supervisor.name}
-          </option>
-        ))}
+        {supervisors && supervisors.length > 0 ? (
+          supervisors.map((supervisor) => (
+            <option key={supervisor.id} value={supervisor.id}>
+              {supervisor.name}
+            </option>
+          ))
+        ) : (
+          <option disabled value="">Keine Leiter verfügbar</option>
+        )}
       </select>
+      
+      {/* Always show debug info */}
+      <div className="mt-1 text-xs text-gray-500">
+        {value ? (
+          <>
+            Ausgewählt: {supervisors.find(s => s.id === value)?.name || `ID: ${value}`}
+          </>
+        ) : (
+          <>
+            Verfügbare Leiter: {supervisors.length}
+          </>
+        )}
+      </div>
     </div>
   );
 };
@@ -525,8 +559,8 @@ export default function ActivityForm({
   formTitle,
   submitLabel,
   categories = [],
-  supervisors = [],
-  rooms = [],
+  supervisors: initialSupervisors = [],
+  rooms: initialRooms = [],
 }: ActivityFormProps) {
   const [formData, setFormData] = useState<Partial<Activity>>({
     name: "",
@@ -539,13 +573,23 @@ export default function ActivityForm({
 
   const [timeSlots, setTimeSlots] = useState<ActivitySchedule[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [rooms, setRooms] = useState<Array<{ id: string; name: string }>>(initialRooms);
+  // Use supervisors prop directly instead of local state
   const [timeframes, setTimeframes] = useState<Array<{ id: string; start_time: string; end_time: string; name?: string }>>([]);
   const [availableTimeSlots, setAvailableTimeSlots] = useState<Array<any>>([]);
   const [isLoadingTimeframes, setIsLoadingTimeframes] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true);
 
   // Load initial data
   useEffect(() => {
     if (initialData) {
+      console.log("Setting initial form data from:", initialData);
+      
+      // Log supervisor ID for debugging
+      if (initialData.supervisor_id) {
+        console.log("Initial supervisor ID:", initialData.supervisor_id);
+      }
+      
       setFormData({
         id: initialData.id,
         name: initialData.name ?? "",
@@ -561,6 +605,38 @@ export default function ActivityForm({
       }
     }
   }, [initialData]);
+  
+  // Fetch rooms and supervisors on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoadingData(true);
+        
+        // Only fetch rooms if not provided through props
+        const roomsData = rooms.length === 0 ? await roomService.getRooms() : rooms;
+        
+        // Use supervisors from props - no fallback API call
+        
+        console.log("Fetched roomsData:", roomsData);
+        console.log("Using supervisors from props:", initialSupervisors);
+        
+        if (rooms.length === 0) {
+          setRooms(roomsData);
+        }
+        
+        // Supervisors are managed by parent component, no need to fetch or set
+        
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        setError("Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.");
+      } finally {
+        setIsLoadingData(false);
+      }
+    };
+
+    void fetchData();
+  }, [rooms.length]);
   
   // Fetch timeframes and available time slots
   useEffect(() => {
@@ -850,8 +926,23 @@ export default function ActivityForm({
                   }));
                 }}
                 label="Leitung"
-                supervisors={supervisors}
+                supervisors={initialSupervisors}
               />
+              {isLoadingData && (
+                <div className="text-sm text-gray-500 italic">
+                  Leiter werden geladen...
+                </div>
+              )}
+              {!isLoadingData && initialSupervisors.length === 0 && (
+                <div className="text-sm text-orange-500 italic">
+                  Keine Leiter verfügbar
+                </div>
+              )}
+              {!isLoadingData && initialSupervisors.length > 0 && formData.supervisor_id && (
+                <div className="text-sm text-green-500 italic">
+                  Leiter ausgewählt: {initialSupervisors.find(s => s.id === formData.supervisor_id)?.name || formData.supervisor_id}
+                </div>
+              )}
 
               {/* Room selector */}
               <RoomSelector
@@ -865,6 +956,11 @@ export default function ActivityForm({
                 label="Geplanter Raum"
                 rooms={rooms}
               />
+              {isLoadingData && (
+                <div className="text-sm text-gray-500 italic">
+                  Räume werden geladen...
+                </div>
+              )}
 
               {/* Is Open checkbox */}
               <div className="mt-2 flex items-center">

@@ -7,6 +7,7 @@ import { PageHeader, SectionTitle } from "@/components/dashboard";
 import ActivityForm from "@/components/activities/activity-form";
 import type { Activity, ActivityCategory } from "@/lib/activity-api";
 import { activityService } from "@/lib/activity-service";
+import { teacherService } from "@/lib/teacher-api";
 // import Link from 'next/link';
 
 export default function NewActivityPage() {
@@ -59,13 +60,24 @@ export default function NewActivityPage() {
   const fetchSupervisors = async () => {
     try {
       setSupervisorsLoading(true);
+      console.log("Fetching supervisors for new activity page");
 
-      // Fetch supervisors from activity service
-      const supervisorsData = await activityService.getSupervisors();
+      // Fetch supervisors from teacher service (same as groups/new)
+      const teachersData = await teacherService.getTeachers();
+      console.log("Fetched teachers data:", teachersData);
+      
+      // Convert teachers to supervisors format
+      const supervisorsData = teachersData.map(teacher => ({
+        id: teacher.id,
+        name: teacher.name
+      }));
+      
+      console.log(`Successfully fetched ${supervisorsData.length} supervisors`);
       setSupervisors(supervisorsData);
     } catch (err) {
       console.error("Error fetching supervisors:", err);
       // Don't set an error state that would block the UI, just log it
+      setSupervisors([]); // Set empty array to prevent UI issues
     } finally {
       setSupervisorsLoading(false);
     }
@@ -109,6 +121,7 @@ export default function NewActivityPage() {
         max_participants: activityData.max_participant,
         is_open: activityData.is_open_ags,
         category_id: parseInt(activityData.ag_category_id, 10),
+        planned_room_id: formData.planned_room_id ? parseInt(formData.planned_room_id, 10) : null,
         supervisor_ids: activityData.supervisor_id ? [parseInt(activityData.supervisor_id, 10)] : []
       };
       const newActivity = await activityService.createActivity(createRequest);

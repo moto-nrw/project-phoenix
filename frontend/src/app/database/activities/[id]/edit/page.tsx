@@ -7,6 +7,7 @@ import { PageHeader, SectionTitle } from "@/components/dashboard";
 import ActivityForm from "@/components/activities/activity-form";
 import type { Activity, ActivityCategory } from "@/lib/activity-helpers";
 import { activityService } from "@/lib/activity-service";
+import { teacherService } from "@/lib/teacher-api";
 import Link from "next/link";
 
 export default function EditActivityPage() {
@@ -38,26 +39,45 @@ export default function EditActivityPage() {
       setLoading(true);
 
       try {
-        // Fetch activity from API
-        const activityData = await activityService.getActivity(id as string);
+        console.log("Fetching activity, categories, and supervisors");
+        
+        // Fetch all data in parallel for faster loading
+        const [activityData, categoriesData, teachersData] = await Promise.all([
+          activityService.getActivity(id as string),
+          activityService.getCategories(),
+          teacherService.getTeachers()
+        ]);
+        
+        console.log("Fetched activity data:", activityData);
+        console.log("Fetched categories data:", categoriesData);
+        console.log("Fetched teachers data:", teachersData);
+        
+        // Convert teachers to supervisors format
+        const supervisorsData = teachersData.map(teacher => ({
+          id: teacher.id,
+          name: teacher.name
+        }));
+        
+        console.log(`Successfully fetched ${supervisorsData.length} supervisors`);
+        setSupervisors(supervisorsData);
+        
         setActivity(activityData);
-
-        // Fetch categories
-        const categoriesData = await activityService.getCategories();
         setCategories(categoriesData);
 
-        // Fetch all supervisors from activity service
-        const supervisorsData = await activityService.getSupervisors();
-        setSupervisors(supervisorsData);
-
         setError(null);
-      } catch {
+      } catch (error) {
+        console.error("Error loading activity data:", error);
         setError(
           "Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.",
         );
         setActivity(null);
+        
+        // Don't let this error prevent the UI from loading
+        setSupervisors([]);
+        setCategories([]);
       }
-    } catch {
+    } catch (error) {
+      console.error("Outer error loading data:", error);
       setError(
         "Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.",
       );
@@ -94,6 +114,7 @@ export default function EditActivityPage() {
         max_participants: dataToSubmit.max_participant ?? 0,
         is_open: dataToSubmit.is_open_ags ?? false,
         category_id: parseInt(dataToSubmit.ag_category_id ?? '0', 10),
+        planned_room_id: dataToSubmit.planned_room_id ? parseInt(dataToSubmit.planned_room_id, 10) : null,
         supervisor_ids: dataToSubmit.supervisor_id ? [parseInt(dataToSubmit.supervisor_id, 10)] : []
       };
       await activityService.updateActivity(id as string, updateRequest);
@@ -179,7 +200,7 @@ export default function EditActivityPage() {
           formTitle="Aktivität bearbeiten"
           submitLabel="Änderungen speichern"
           categories={categories}
-          supervisors={supervisors}
+          supervisors={supervisors} // Already passing supervisors here
         />
       </main>
     </div>
