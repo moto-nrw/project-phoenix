@@ -1,8 +1,8 @@
 package iot
 
 import (
-	"log"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"time"

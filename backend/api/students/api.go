@@ -15,21 +15,28 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	educationService "github.com/moto-nrw/project-phoenix/services/education"
+	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // Resource defines the students API resource
 type Resource struct {
-	PersonService userService.PersonService
-	StudentRepo   users.StudentRepository
+	PersonService       userService.PersonService
+	StudentRepo         users.StudentRepository
+	EducationService    educationService.Service
+	UserContextService  userContextService.UserContextService
 }
 
 // NewResource creates a new students resource
-func NewResource(personService userService.PersonService, studentRepo users.StudentRepository) *Resource {
+func NewResource(personService userService.PersonService, studentRepo users.StudentRepository, educationService educationService.Service, userContextService userContextService.UserContextService) *Resource {
 	return &Resource{
-		PersonService: personService,
-		StudentRepo:   studentRepo,
+		PersonService:       personService,
+		StudentRepo:         studentRepo,
+		EducationService:    educationService,
+		UserContextService:  userContextService,
 	}
 }
 
@@ -77,6 +84,7 @@ type StudentResponse struct {
 	GuardianEmail   string    `json:"guardian_email,omitempty"`
 	GuardianPhone   string    `json:"guardian_phone,omitempty"`
 	GroupID         int64     `json:"group_id,omitempty"`
+	GroupName       string    `json:"group_name,omitempty"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }
@@ -162,7 +170,7 @@ func (req *UpdateStudentRequest) Bind(r *http.Request) error {
 }
 
 // newStudentResponse creates a student response from a student and person model
-func newStudentResponse(student *users.Student, person *users.Person) StudentResponse {
+func newStudentResponse(student *users.Student, person *users.Person, group *education.Group) StudentResponse {
 	response := StudentResponse{
 		ID:              student.ID,
 		PersonID:        student.PersonID,
@@ -194,6 +202,10 @@ func newStudentResponse(student *users.Student, person *users.Person) StudentRes
 		response.GroupID = *student.GroupID
 	}
 
+	if group != nil {
+		response.GroupName = group.Name
+	}
+
 	return response
 }
 
@@ -208,6 +220,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	firstName := r.URL.Query().Get("first_name")
 	lastName := r.URL.Query().Get("last_name")
 	location := r.URL.Query().Get("location")
+	groupIDStr := r.URL.Query().Get("group_id")
 
 	// Create filter
 	filter := base.NewFilter()
@@ -218,6 +231,11 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	}
 	if guardianName != "" {
 		filter.ILike("guardian_name", "%"+guardianName+"%")
+	}
+	if groupIDStr != "" {
+		if groupID, err := strconv.ParseInt(groupIDStr, 10, 64); err == nil {
+			filter.Equal("group_id", groupID)
+		}
 	}
 
 	// Add pagination
@@ -239,13 +257,61 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	queryOptions.WithPagination(page, pageSize)
 	queryOptions.Filter = filter
 
-	// Get all students using the new ListWithOptions method
-	students, err := rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+	var students []*users.Student
+	var err error
+
+	// If group_id is specified, check authorization and get students from that group
+	if groupIDStr != "" {
+		if groupID, parseErr := strconv.ParseInt(groupIDStr, 10, 64); parseErr == nil {
+			// First check if the current user has access to this group
+			myGroups, err := rs.UserContextService.GetMyGroups(r.Context())
+			if err != nil {
+				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+					log.Printf("Error rendering error response: %v", err)
+				}
+				return
+			}
+
+			// Check if the requested group_id is among the user's groups
+			hasAccess := false
+			for _, group := range myGroups {
+				if group.ID == groupID {
+					hasAccess = true
+					break
+				}
+			}
+
+			if !hasAccess {
+				if err := render.Render(w, r, ErrorUnauthorized(errors.New("access denied: you don't supervise this group"))); err != nil {
+					log.Printf("Error rendering error response: %v", err)
+				}
+				return
+			}
+
+			// User has access, get students from this educational group
+			students, err = rs.StudentRepo.FindByGroupID(r.Context(), groupID)
+			if err != nil {
+				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+					log.Printf("Error rendering error response: %v", err)
+				}
+				return
+			}
+		} else {
+			// Invalid group_id format
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group_id format"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
 		}
-		return
+	} else {
+		// Get all students using the new ListWithOptions method (when no group_id specified)
+		students, err = rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
+		if err != nil {
+			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
 	}
 
 	// Build response with person data for each student
@@ -269,7 +335,16 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		responses = append(responses, newStudentResponse(student, person))
+		// Get group data if student has a group
+		var group *education.Group
+		if student.GroupID != nil {
+			groupData, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
+			if err == nil {
+				group = groupData
+			}
+		}
+
+		responses = append(responses, newStudentResponse(student, person, group))
 	}
 
 	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), "Students retrieved successfully")
@@ -304,7 +379,16 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, newStudentResponse(student, person), "Student retrieved successfully")
+	// Get group data if student has a group
+	var group *education.Group
+	if student.GroupID != nil {
+		groupData, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
+		if err == nil {
+			group = groupData
+		}
+	}
+
+	common.Respond(w, r, http.StatusOK, newStudentResponse(student, person, group), "Student retrieved successfully")
 }
 
 // createStudent handles creating a new student with their person record
@@ -373,8 +457,17 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get group data if student has a group
+	var group *education.Group
+	if student.GroupID != nil {
+		groupData, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
+		if err == nil {
+			group = groupData
+		}
+	}
+
 	// Return the created student with person data
-	common.Respond(w, r, http.StatusCreated, newStudentResponse(student, person), "Student created successfully")
+	common.Respond(w, r, http.StatusCreated, newStudentResponse(student, person, group), "Student created successfully")
 }
 
 // updateStudent handles updating an existing student
@@ -483,8 +576,17 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get group data if student has a group
+	var group *education.Group
+	if updatedStudent.GroupID != nil {
+		groupData, err := rs.EducationService.GetGroup(r.Context(), *updatedStudent.GroupID)
+		if err == nil {
+			group = groupData
+		}
+	}
+
 	// Return the updated student with person data
-	common.Respond(w, r, http.StatusOK, newStudentResponse(updatedStudent, person), "Student updated successfully")
+	common.Respond(w, r, http.StatusOK, newStudentResponse(updatedStudent, person, group), "Student updated successfully")
 }
 
 // deleteStudent handles deleting a student and their associated person record

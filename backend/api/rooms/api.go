@@ -1,8 +1,8 @@
 package rooms
 
 import (
-	"log"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"time"

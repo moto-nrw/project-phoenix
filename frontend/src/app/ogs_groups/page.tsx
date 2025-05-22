@@ -9,7 +9,6 @@ import { Input } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
 import { BackgroundWrapper } from "~/components/background-wrapper";
 import { userContextService } from "~/lib/usercontext-api";
-import type { EducationalGroup } from "~/lib/usercontext-helpers";
 import type { Student } from "~/lib/student-helpers";
 
 // Define OGSGroup type based on EducationalGroup with additional fields
@@ -74,6 +73,10 @@ export default function OGSGroupPage() {
                 // Use the first group as the OGS group (assuming user has access to one OGS group)
                 const educationalGroup = myGroups[0];
                 
+                if (!educationalGroup) {
+                    throw new Error('No educational group found');
+                }
+                
                 const ogsGroupData: OGSGroup = {
                     id: educationalGroup.id,
                     name: educationalGroup.name,
@@ -97,10 +100,10 @@ export default function OGSGroupPage() {
                     throw new Error(`Failed to fetch students: ${response.status}`);
                 }
 
-                const responseData = await response.json();
+                const responseData: { data?: Student[] } = await response.json() as { data?: Student[] };
                 
                 // Extract data from API response wrapper
-                const studentsData: Student[] = responseData.data || responseData;
+                const studentsData: Student[] = responseData.data ?? responseData as Student[];
                 
                 // Ensure studentsData is an array
                 if (Array.isArray(studentsData)) {
@@ -446,13 +449,13 @@ export default function OGSGroupPage() {
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-center space-x-3">
                                                             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 font-medium text-white">
-                                                                {student.first_name?.charAt(0).toUpperCase() || student.name?.charAt(0).toUpperCase() || "S"}
+                                                                {student.first_name?.charAt(0).toUpperCase() ?? student.name?.charAt(0).toUpperCase() ?? "S"}
                                                             </div>
 
                                                             <div className="flex flex-col">
                                                                 <div className="flex items-center">
                                                                     <span className="font-medium text-gray-900 transition-colors group-hover:text-blue-600">
-                                                                      {student.name || `${student.first_name || ''} ${student.second_name || ''}`.trim()}
+                                                                      {student.name ?? `${student.first_name ?? ''} ${student.second_name ?? ''}`.trim()}
                                                                     </span>
                                                                     {/* Year indicator */}
                                                                     <span className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`} title={`Jahrgang ${year}`}></span>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { userContextService } from "./usercontext-api";
 import type { EducationalGroup } from "./usercontext-helpers";
@@ -25,7 +25,7 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const fetchEducationalGroups = async () => {
+    const fetchEducationalGroups = useCallback(async () => {
         // Only fetch if we have an authenticated session
         if (!session?.user?.token) {
             setEducationalGroups([]);
@@ -46,7 +46,7 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [session?.user?.token]);
 
     useEffect(() => {
         // Only fetch when session status is "authenticated" and we have a token
@@ -62,7 +62,7 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
         else if (status === "loading") {
             setIsLoading(true);
         }
-    }, [status, session?.user?.token]);
+    }, [status, session?.user?.token, fetchEducationalGroups]);
 
     const value: UserContextState = {
         educationalGroups,

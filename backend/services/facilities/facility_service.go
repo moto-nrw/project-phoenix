@@ -124,7 +124,7 @@ func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]
 	// TODO: Follow education.groups pattern - add ListWithOptions to RoomRepository interface
 	// and call it directly instead of converting to map[string]interface{}
 	// See education service for the correct implementation pattern
-	
+
 	// Convert QueryOptions to map[string]interface{} for now
 	// This is a temporary solution until RoomRepository is updated to use QueryOptions
 	filters := make(map[string]interface{})
