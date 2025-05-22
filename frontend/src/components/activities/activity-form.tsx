@@ -600,23 +600,16 @@ export default function ActivityForm({
         const timeframesData = await response.json() as Array<{ id: string; start_time: string; end_time: string; name?: string }> | { data: Array<{ id: string; start_time: string; end_time: string; name?: string }> };
         
         // Check if we got valid timeframe data
+        let fetchedTimeframes: Array<{ id: string; start_time: string; end_time: string; name?: string }> = [];
+        
         if (Array.isArray(timeframesData) && timeframesData.length > 0) {
-          setTimeframes(timeframesData);
+          fetchedTimeframes = timeframesData;
         } else if (timeframesData && 'data' in timeframesData && Array.isArray(timeframesData.data)) {
           // Handle wrapped response format
-          setTimeframes(timeframesData.data);
-        } else {
-          
-          // Fallback to default timeframes if API fails to provide valid data
-          const fallbackTimeframes = [
-            { id: "1", start_time: "08:00", end_time: "09:30", name: "1. Stunde" },
-            { id: "2", start_time: "09:45", end_time: "11:15", name: "2. Stunde" },
-            { id: "3", start_time: "11:30", end_time: "13:00", name: "3. Stunde" },
-            { id: "4", start_time: "13:30", end_time: "15:00", name: "4. Stunde" },
-            { id: "5", start_time: "15:15", end_time: "16:45", name: "5. Stunde" },
-          ];
-          setTimeframes(fallbackTimeframes);
+          fetchedTimeframes = timeframesData.data;
         }
+        
+        setTimeframes(fetchedTimeframes);
         
         // Fetch available timeslots if we have an activity ID
         let availableSlots: Array<{ weekday: string; timeframe_id?: string }> = [];
@@ -641,7 +634,7 @@ export default function ActivityForm({
         
         // If we couldn't get slots from API or it's a new activity, generate all possible slots
         if (availableSlots.length === 0) {
-          availableSlots = timeframes.flatMap(tf => 
+          availableSlots = fetchedTimeframes.flatMap(tf => 
             ["monday", "tuesday", "wednesday", "thursday", "friday"].map(day => ({
               weekday: day,
               timeframe_id: tf.id
@@ -651,32 +644,16 @@ export default function ActivityForm({
         
         setAvailableTimeSlots(availableSlots);
       } catch {
-        // Use fallback timeframes on error
-        // Fallback to default timeframes if API fails
-        const fallbackTimeframes = [
-          { id: "1", start_time: "08:00", end_time: "09:30", name: "1. Stunde" },
-          { id: "2", start_time: "09:45", end_time: "11:15", name: "2. Stunde" },
-          { id: "3", start_time: "11:30", end_time: "13:00", name: "3. Stunde" },
-          { id: "4", start_time: "13:30", end_time: "15:00", name: "4. Stunde" },
-          { id: "5", start_time: "15:15", end_time: "16:45", name: "5. Stunde" },
-        ];
-        setTimeframes(fallbackTimeframes);
-        
-        // Generate all possible slots with fallback timeframes
-        const fallbackSlots = fallbackTimeframes.flatMap(tf => 
-          ["monday", "tuesday", "wednesday", "thursday", "friday"].map(day => ({
-            weekday: day,
-            timeframe_id: tf.id
-          }))
-        );
-        setAvailableTimeSlots(fallbackSlots);
+        // Handle error by clearing timeframes
+        setTimeframes([]);
+        setAvailableTimeSlots([]);
       } finally {
         setIsLoadingTimeframes(false);
       }
     };
     
     void fetchTimeframesData();
-  }, [formData.id, timeframes]);
+  }, [formData.id]);
 
   const handleChange = (
     e: React.ChangeEvent<
