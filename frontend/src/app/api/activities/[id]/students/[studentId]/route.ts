@@ -18,21 +18,17 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     throw new Error("Activity ID and Student ID are required");
   }
   
-  try {
-    // Get all enrolled students for the activity
-    const students = await getEnrolledStudents(id);
-    
-    // Find the specific student
-    const student = students.find(s => s.student_id === studentId);
-    
-    if (!student) {
-      throw new Error(`Student with ID ${studentId} is not enrolled in activity ${id}`);
-    }
-    
-    return student;
-  } catch (error) {
-    throw error;
+  // Get all enrolled students for the activity
+  const students = await getEnrolledStudents(id);
+  
+  // Find the specific student
+  const student = students.find(s => s.student_id === studentId);
+  
+  if (!student) {
+    throw new Error(`Student with ID ${studentId} is not enrolled in activity ${id}`);
   }
+  
+  return student;
 });
 
 /**
