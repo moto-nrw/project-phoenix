@@ -28,7 +28,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
           return mapped;
         }
       }
-    } catch (activityApiError) {
+    } catch {
       // Fall through to try the staff endpoint
     }
     
@@ -66,12 +66,12 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
           return mapped;
         }
       }
-    } catch (staffApiError) {
+    } catch {
     }
     
     // If all API calls failed, return empty array
     return [];
-  } catch (error) {
+  } catch {
     
     // Return empty array instead of mock data
     return [];

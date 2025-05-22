@@ -27,10 +27,8 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
     }
     
     // If we get here, we have a response but it's not in the expected format
-    console.error('Unexpected schedule response structure:', response);
     throw new Error(`Unexpected response structure from schedule API for activity ${id}, schedule ${scheduleId}`);
   } catch (error) {
-    console.error('Error fetching activity schedule:', error);
     
     // Properly propagate the error for handling in the service layer
     throw new Error(JSON.stringify({
@@ -75,10 +73,8 @@ export const PUT = createPutHandler(async (
     }
     
     // If we get here, we have a response but it's not in the expected format
-    console.error('Unexpected schedule update response structure:', response);
     throw new Error(`Unexpected response structure from schedule update API for activity ${id}, schedule ${scheduleId}`);
   } catch (error) {
-    console.error('Error updating activity schedule:', error);
     
     // Properly propagate the error for handling in the service layer
     throw new Error(JSON.stringify({
@@ -105,7 +101,6 @@ export const DELETE = createDeleteHandler(async (request: NextRequest, token: st
     // Return success response
     return { success: true, message: `Schedule ${scheduleId} deleted successfully` };
   } catch (error) {
-    console.error('Error deleting activity schedule:', error);
     
     // Properly propagate the error for handling in the service layer
     throw new Error(JSON.stringify({

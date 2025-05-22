@@ -20,7 +20,6 @@ export const POST = createPostHandler<{ success: boolean }, Record<string, never
       await apiPost(endpoint, token, {});
       return { success: true };
     } catch (error) {
-      console.error('Error enrolling student:', error);
       throw error;
     }
   }

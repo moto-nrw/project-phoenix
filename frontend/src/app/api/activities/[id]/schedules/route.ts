@@ -26,10 +26,8 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
     }
     
     // If we get here, we have a response but it's not in the expected format
-    console.error('Unexpected schedules response structure:', response);
     throw new Error(`Unexpected response structure from schedules API for activity ${id}`);
   } catch (error) {
-    console.error('Error fetching activity schedules:', error);
     
     // Properly propagate the error for handling in the service layer
     throw new Error(JSON.stringify({
@@ -49,12 +47,10 @@ export const POST = createPostHandler<BackendActivitySchedule, { weekday: string
     const id = params.id as string;
     const endpoint = `/api/activities/${id}/schedules`;
     
-    console.log(`Creating schedule for activity ${id}:`, body);
     
     try {
       const response = await apiPost<{ status: string; data: BackendActivitySchedule } | BackendActivitySchedule, { weekday: string; timeframe_id?: number }>(endpoint, token, body);
       
-      console.log('Schedule creation response:', response);
       
       // Handle wrapped response { status: "success", data: BackendActivitySchedule }
       if (response && typeof response === 'object' && 'status' in response && response.status === "success" && 'data' in response) {
@@ -68,7 +64,6 @@ export const POST = createPostHandler<BackendActivitySchedule, { weekday: string
       
       throw new Error('Unexpected response structure from schedule creation API');
     } catch (error) {
-      console.error('Error creating schedule:', error);
       throw error;
     }
   }

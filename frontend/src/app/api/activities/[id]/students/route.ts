@@ -42,8 +42,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
     const enrollments = response.data ?? [];
     // Map the backend enrollment structure to frontend format
     return mapStudentEnrollmentsResponse(enrollments);
-  } catch (error) {
-    console.error('Error fetching enrolled students:', error);
+  } catch {
     return []; // Return empty array on error
   }
 });
@@ -74,7 +73,6 @@ export const POST = createPostHandler(
           throw new Error("Failed to update enrollments");
         }
       } catch (error) {
-        console.error('Error updating enrollments:', error);
         throw error;
       }
     } 
@@ -93,7 +91,6 @@ export const POST = createPostHandler(
           throw new Error("Failed to enroll student");
         }
       } catch (error) {
-        console.error('Error enrolling student:', error);
         throw error;
       }
     }

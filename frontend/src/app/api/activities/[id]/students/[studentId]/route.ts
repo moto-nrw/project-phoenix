@@ -31,7 +31,6 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     
     return student;
   } catch (error) {
-    console.error(`Error fetching student enrollment details:`, error);
     throw error;
   }
 });
@@ -55,7 +54,6 @@ export const DELETE = createDeleteHandler(async (_request: NextRequest, token: s
     
     return { success: true };
   } catch (error) {
-    console.error(`Error unenrolling student:`, error);
     throw error;
   }
 });

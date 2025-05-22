@@ -29,7 +29,6 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
     
     throw new Error('Unexpected response structure');
   } catch (error) {
-    console.log('Error fetching activity:', error);
     
     // If the error contains a 404 status, return the appropriate error
     if (error instanceof Error && error.message.includes('API error (404)')) {
@@ -75,7 +74,6 @@ export const PUT = createPutHandler<Activity, UpdateActivityRequest>(
       
       throw new Error('Unexpected response structure');
     } catch (error) {
-      console.log('Error updating activity:', error);
       // Don't use mock data - throw the real error
       throw error;
     }
@@ -109,7 +107,6 @@ export const DELETE = createDeleteHandler(async (request: NextRequest, token: st
     
     throw new Error('Unexpected response structure');
   } catch (error) {
-    console.log('Error deleting activity:', error);
     // Don't use mock delete - throw the real error
     throw error;
   }

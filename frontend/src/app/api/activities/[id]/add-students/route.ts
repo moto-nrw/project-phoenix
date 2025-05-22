@@ -22,10 +22,8 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     }
     
     // If no data or unexpected structure, return empty array
-    console.log('Unexpected response structure:', response);
     return [];
-  } catch (error) {
-    console.error('Error fetching eligible students:', error);
+  } catch {
     return []; // Return empty array on error
   }
 });
@@ -63,7 +61,6 @@ export const POST = createPostHandler<{ success: boolean; count: number }, { stu
         count: backendData.student_ids.length
       };
     } catch (error) {
-      console.error('Error batch enrolling students:', error);
       throw error;
     }
   }

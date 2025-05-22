@@ -51,10 +51,8 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
     }
     
     // In case of other unexpected response format
-    console.error('Unexpected timespan response format:', response);
     return [];
-  } catch (error) {
-    console.error('Error fetching timespans:', error);
+  } catch {
     // Return empty array for now rather than mock data to ensure users know if data isn't available
     return [];
   }
