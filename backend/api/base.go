@@ -92,7 +92,7 @@ func New(enableCORS bool) (*API, error) {
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities)
 	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student)
 	api.Groups = groupsAPI.NewResource(api.Services.Education)
-	api.Activities = activitiesAPI.NewResource(api.Services.Activities)
+	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education)
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)

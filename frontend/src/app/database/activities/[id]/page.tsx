@@ -4,8 +4,8 @@ import { useSession } from "next-auth/react";
 import { redirect, useRouter, useParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
-import type { Activity } from "@/lib/activity-api";
-import { activityService } from "@/lib/activity-api";
+import type { Activity } from "@/lib/activity-helpers";
+import { activityService } from "@/lib/activity-service";
 import {
   formatActivityTimes,
   formatParticipantStatus,

@@ -5,8 +5,9 @@ import { redirect, useRouter, useParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
 import ActivityForm from "@/components/activities/activity-form";
-import type { Activity, ActivityCategory } from "@/lib/activity-api";
-import { activityService } from "@/lib/activity-api";
+import type { Activity, ActivityCategory } from "@/lib/activity-helpers";
+import { activityService } from "@/lib/activity-service";
+import { teacherService } from "@/lib/teacher-api";
 import Link from "next/link";
 
 export default function EditActivityPage() {
@@ -38,35 +39,40 @@ export default function EditActivityPage() {
       setLoading(true);
 
       try {
-        // Fetch activity from API
-        const activityData = await activityService.getActivity(id as string);
+        
+        // Fetch all data in parallel for faster loading
+        const [activityData, categoriesData, teachersData] = await Promise.all([
+          activityService.getActivity(id as string),
+          activityService.getCategories(),
+          teacherService.getTeachers()
+        ]);
+        
+        
+        // Convert teachers to supervisors format
+        const supervisorsData = teachersData.map(teacher => ({
+          id: teacher.id,
+          name: teacher.name
+        }));
+        
+        setSupervisors(supervisorsData);
+        
         setActivity(activityData);
-
-        // Fetch categories
-        const categoriesData = await activityService.getCategories();
         setCategories(categoriesData);
 
-        // Fetch all supervisors from API
-        const response = await fetch("/api/users/supervisors");
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch supervisors: ${response.statusText}`,
-          );
-        }
-        const supervisorsData = (await response.json()) as Array<{
-          id: string;
-          name: string;
-        }>;
-        setSupervisors(supervisorsData);
-
         setError(null);
-      } catch {
+      } catch (error) {
+        console.error("Error loading activity data:", error);
         setError(
           "Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.",
         );
         setActivity(null);
+        
+        // Don't let this error prevent the UI from loading
+        setSupervisors([]);
+        setCategories([]);
       }
-    } catch {
+    } catch (error) {
+      console.error("Outer error loading data:", error);
       setError(
         "Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.",
       );
@@ -77,7 +83,7 @@ export default function EditActivityPage() {
   }, [id]);
 
   // Handle form submission
-  const handleSubmit = async (formData: Partial<Activity>) => {
+  const handleSubmit = async (formData: Partial<Activity> & { schedules?: Array<{ weekday: string; timeframe_id?: number }> }) => {
     if (!id || !activity) return;
 
     try {
@@ -90,15 +96,22 @@ export default function EditActivityPage() {
 
       // Make sure we preserve the category ID if it's not in formData but exists in original activity
       if (!dataToSubmit.ag_category_id && activity.ag_category_id) {
-        console.log(
-          "Adding missing ag_category_id from original activity:",
-          activity.ag_category_id,
-        );
         dataToSubmit.ag_category_id = activity.ag_category_id;
       }
 
-      // Update the activity
-      await activityService.updateActivity(id as string, dataToSubmit);
+      // Update the activity - convert from Activity type to UpdateActivityRequest type
+      const updateRequest = {
+        name: dataToSubmit.name ?? '',
+        max_participants: dataToSubmit.max_participant ?? 0,
+        is_open: dataToSubmit.is_open_ags ?? false,
+        category_id: parseInt(dataToSubmit.ag_category_id ?? '0', 10),
+        planned_room_id: dataToSubmit.planned_room_id ? parseInt(dataToSubmit.planned_room_id, 10) : undefined,
+        supervisor_ids: dataToSubmit.supervisor_id ? [parseInt(dataToSubmit.supervisor_id, 10)] : [],
+        // Include schedules from form data if present
+        schedules: formData.schedules ?? []
+      };
+      
+      await activityService.updateActivity(id as string, updateRequest);
 
       // Redirect back to activity details
       router.push(`/database/activities/${id as string}`);
@@ -181,7 +194,7 @@ export default function EditActivityPage() {
           formTitle="Aktivität bearbeiten"
           submitLabel="Änderungen speichern"
           categories={categories}
-          supervisors={supervisors}
+          supervisors={supervisors} // Already passing supervisors here
         />
       </main>
     </div>
