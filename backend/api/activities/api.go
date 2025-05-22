@@ -18,17 +18,20 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // Resource defines the activities API resource
 type Resource struct {
 	ActivityService activitiesSvc.ActivityService
+	ScheduleService scheduleSvc.Service
 }
 
 // NewResource creates a new activities resource
-func NewResource(activityService activitiesSvc.ActivityService) *Resource {
+func NewResource(activityService activitiesSvc.ActivityService, scheduleService scheduleSvc.Service) *Resource {
 	return &Resource{
 		ActivityService: activityService,
+		ScheduleService: scheduleService,
 	}
 }
 
@@ -1056,28 +1059,37 @@ func (rs *Resource) enrollStudent(w http.ResponseWriter, r *http.Request) {
 
 // getTimespans handles retrieving all available time spans for activities
 func (rs *Resource) getTimespans(w http.ResponseWriter, r *http.Request) {
-	// In a real implementation, this would fetch timeframes from the schedule service
-	// For now, we'll return a placeholder response
+	ctx := r.Context()
 
-	// Mock timespan data
-	timespans := []TimespanResponse{
-		{
-			ID:          1,
-			Name:        "Morning",
-			StartTime:   "08:00",
-			EndTime:     "12:00",
-			Description: "Morning sessions",
-		},
-		{
-			ID:          2,
-			Name:        "Afternoon",
-			StartTime:   "13:00",
-			EndTime:     "17:00",
-			Description: "Afternoon sessions",
-		},
+	// Fetch active timeframes from the schedule service
+	timeframes, err := rs.ScheduleService.FindActiveTimeframes(ctx)
+	if err != nil {
+		log.Printf("Error fetching timeframes: %v", err)
+		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve timeframes", "TIMEFRAMES_FETCH_ERROR")
+		return
+	}
+
+	// Convert timeframes to TimespanResponse format
+	timespans := make([]TimespanResponse, len(timeframes))
+	for i, tf := range timeframes {
+		timespans[i] = TimespanResponse{
+			ID:          tf.ID,
+			Name:        tf.Description, // Use description as name for now
+			StartTime:   tf.StartTime.Format("15:04"),
+			EndTime:     formatEndTime(tf.EndTime),
+			Description: tf.Description,
+		}
 	}
 
 	common.Respond(w, r, http.StatusOK, timespans, "Time spans retrieved successfully")
+}
+
+// formatEndTime safely formats the end time, handling nil values
+func formatEndTime(endTime *time.Time) string {
+	if endTime == nil {
+		return ""
+	}
+	return endTime.Format("15:04")
 }
 
 // SCHEDULE MANAGEMENT HANDLERS
