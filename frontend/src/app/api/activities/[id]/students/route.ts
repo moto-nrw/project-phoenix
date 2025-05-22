@@ -8,8 +8,8 @@ import {
   getAvailableStudents,
   enrollStudent
 } from "~/lib/activity-api";
-import type { BackendActivityStudent } from "~/lib/activity-helpers";
-import { mapActivityStudentsResponse } from "~/lib/activity-helpers";
+import type { BackendActivityStudent, BackendStudentEnrollment } from "~/lib/activity-helpers";
+import { mapActivityStudentsResponse, mapStudentEnrollmentsResponse } from "~/lib/activity-helpers";
 
 /**
  * Handler for GET /api/activities/[id]/students
@@ -38,8 +38,13 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
   // Otherwise return enrolled students - call backend directly
   try {
     const endpoint = `/api/activities/${id}/students`;
-    const response = await apiGet(endpoint, token);
-    return response.data || [];
+    const response = await apiGet(endpoint, token) as { data: BackendStudentEnrollment[] };
+    const enrollments = response.data || [];
+    console.log('Backend enrollment data:', enrollments.slice(0, 2)); // Debug log
+    // Map the backend enrollment structure to frontend format
+    const mapped = mapStudentEnrollmentsResponse(enrollments);
+    console.log('Mapped student data:', mapped.slice(0, 2)); // Debug log
+    return mapped;
   } catch (error) {
     console.error('Error fetching enrolled students:', error);
     return []; // Return empty array on error

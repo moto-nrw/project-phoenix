@@ -74,6 +74,28 @@ export interface BackendActivityStudent {
     updated_at: string;
 }
 
+// Actual backend structure for enrolled students from /api/activities/{id}/students
+// Backend appears to return simplified structure with direct person fields
+export interface BackendStudentEnrollment {
+    id: number;
+    student_id?: number;
+    activity_group_id?: number;
+    enrollment_date?: string;
+    attendance_status?: string;
+    created_at?: string;
+    updated_at?: string;
+    // Direct person fields (backend processed)
+    first_name?: string;
+    last_name?: string;
+    school_class?: string;
+    in_house?: boolean;
+    // Fallback: Flattened fields in case backend changes
+    student__school_class?: string;
+    student__in_house?: boolean;
+    person__first_name?: string;
+    person__last_name?: string;
+}
+
 // Frontend supervisor type
 export interface ActivitySupervisor {
     id: string;
@@ -314,6 +336,30 @@ export function mapActivityStudentResponse(backendStudent: BackendActivityStuden
 // Map an array of activity students
 export function mapActivityStudentsResponse(students: BackendActivityStudent[]): ActivityStudent[] {
     return students.map(mapActivityStudentResponse);
+}
+
+// Map enrolled students from backend enrollment structure
+export function mapStudentEnrollmentResponse(enrollment: BackendStudentEnrollment): ActivityStudent {
+    // Handle both direct and flattened person fields
+    const firstName = enrollment.first_name || enrollment.person__first_name || '';
+    const lastName = enrollment.last_name || enrollment.person__last_name || '';
+    const fullName = `${firstName} ${lastName}`.trim() || 'Unnamed Student';
+    
+    return {
+        id: String(enrollment.id),
+        activity_id: enrollment.activity_group_id ? String(enrollment.activity_group_id) : '',
+        student_id: enrollment.student_id ? String(enrollment.student_id) : '',
+        name: fullName,
+        school_class: enrollment.school_class || enrollment.student__school_class || '',
+        in_house: enrollment.in_house || enrollment.student__in_house || false,
+        created_at: enrollment.created_at ? new Date(enrollment.created_at) : new Date(),
+        updated_at: enrollment.updated_at ? new Date(enrollment.updated_at) : new Date(),
+    };
+}
+
+// Map an array of enrolled students
+export function mapStudentEnrollmentsResponse(enrollments: BackendStudentEnrollment[]): ActivityStudent[] {
+    return enrollments.map(mapStudentEnrollmentResponse);
 }
 
 // Format an array of students as a comma-separated string

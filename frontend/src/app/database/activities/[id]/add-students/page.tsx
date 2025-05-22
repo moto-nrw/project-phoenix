@@ -119,10 +119,13 @@ export default function AddStudentsToActivityPage() {
             ...(activity.students || []),
             ...(enrolledStudent ? [{
               id: studentId,
+              activity_id: id as string,
+              student_id: studentId,
               name: enrolledStudent.name,
               school_class: enrolledStudent.school_class || '',
-              enrollment_date: new Date().toISOString(),
-              attendance_status: 'enrolled' as const
+              in_house: enrolledStudent.in_house || false,
+              created_at: new Date(),
+              updated_at: new Date()
             }] : [])
           ]
         });
