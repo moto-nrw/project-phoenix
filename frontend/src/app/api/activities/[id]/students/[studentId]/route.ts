@@ -1,9 +1,9 @@
 // app/api/activities/[id]/students/[studentId]/route.ts
 import type { NextRequest } from "next/server";
 import { createGetHandler, createDeleteHandler } from "~/lib/route-wrapper";
+import { apiDelete } from "~/lib/api-helpers";
 import { 
-  getEnrolledStudents, 
-  unenrollStudent 
+  getEnrolledStudents
 } from "~/lib/activity-api";
 
 /**
@@ -49,8 +49,9 @@ export const DELETE = createDeleteHandler(async (_request: NextRequest, token: s
   }
   
   try {
-    // Unenroll the student
-    await unenrollStudent(id, studentId);
+    // Call backend directly to unenroll the student
+    const endpoint = `/api/activities/${id}/students/${studentId}`;
+    await apiDelete(endpoint, token);
     
     return { success: true };
   } catch (error) {

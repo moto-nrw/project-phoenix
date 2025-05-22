@@ -40,11 +40,8 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
     const endpoint = `/api/activities/${id}/students`;
     const response = await apiGet(endpoint, token) as { data: BackendStudentEnrollment[] };
     const enrollments = response.data || [];
-    console.log('Backend enrollment data:', enrollments.slice(0, 2)); // Debug log
     // Map the backend enrollment structure to frontend format
-    const mapped = mapStudentEnrollmentsResponse(enrollments);
-    console.log('Mapped student data:', mapped.slice(0, 2)); // Debug log
-    return mapped;
+    return mapStudentEnrollmentsResponse(enrollments);
   } catch (error) {
     console.error('Error fetching enrolled students:', error);
     return []; // Return empty array on error
