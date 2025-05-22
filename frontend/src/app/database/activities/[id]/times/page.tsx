@@ -39,8 +39,8 @@ export default function ActivityTimesPage() {
       setLoadingTimeframes(true);
       const data = await activityService.getTimeframes();
       setTimeframes(data);
-    } catch (_err) {
-      console.error("Error loading timeframes:", _err);
+    } catch (err) {
+      console.error("Error loading timeframes:", err);
     } finally {
       setLoadingTimeframes(false);
     }
@@ -56,7 +56,8 @@ export default function ActivityTimesPage() {
       // Fetch from the API proxy
       const data = await activityService.getActivity(id as string);
       setActivity(data);
-    } catch (_err) {
+    } catch (err) {
+      console.error("Error loading activity:", err);
       setError(
         "Fehler beim Laden der Aktivität. Bitte versuchen Sie es später erneut.",
       );
@@ -90,7 +91,8 @@ export default function ActivityTimesPage() {
 
       // Refresh data to show changes
       void fetchActivity();
-    } catch (_err) {
+    } catch (err) {
+      console.error("Error deleting time slot:", err);
       setError(
         "Fehler beim Löschen des Zeitslots. Bitte versuchen Sie es später erneut.",
       );
@@ -112,7 +114,7 @@ export default function ActivityTimesPage() {
       // Create a new schedule using the timeframe system
       const newSchedule = {
         weekday: weekday.toLowerCase(),
-        timeframe_id: parseInt(selectedTimeframeId, 10),
+        timeframe_id: selectedTimeframeId,
       };
 
       await activityService.createActivitySchedule(id as string, newSchedule);
@@ -122,7 +124,8 @@ export default function ActivityTimesPage() {
 
       // Refresh data to show changes
       void fetchActivity();
-    } catch (_err) {
+    } catch (err) {
+      console.error("Error adding time slot:", err);
       setError(
         "Fehler beim Hinzufügen des Zeitslots. Bitte versuchen Sie es später erneut.",
       );
@@ -215,7 +218,7 @@ export default function ActivityTimesPage() {
                       <span className="ml-4">
                         {(() => {
                           const timeframe = timeframes.find(tf => tf.id === String(time.timeframe_id));
-                          return timeframe ? timeframe.display_name || timeframe.description : `Timeframe ID: ${time.timeframe_id}`;
+                          return timeframe ? timeframe.display_name ?? timeframe.description : `Timeframe ID: ${time.timeframe_id}`;
                         })()}
                       </span>
                     )}
@@ -274,7 +277,7 @@ export default function ActivityTimesPage() {
                   <option value="">Zeitrahmen auswählen</option>
                   {timeframes.map((timeframe) => (
                     <option key={timeframe.id} value={timeframe.id}>
-                      {timeframe.display_name || timeframe.description}
+                      {timeframe.display_name ?? timeframe.description}
                     </option>
                   ))}
                 </select>

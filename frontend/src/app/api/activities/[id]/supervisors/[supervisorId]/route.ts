@@ -1,5 +1,5 @@
 // src/app/api/activities/[id]/supervisors/[supervisorId]/route.ts
-import { NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { 
   createPutHandler,
   createDeleteHandler

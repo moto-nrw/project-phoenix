@@ -114,16 +114,16 @@ export default function AddStudentsToActivityPage() {
           ...activity,
           participant_count: typeof activity.participant_count === "number" 
             ? activity.participant_count + 1 
-            : (activity.students?.length || 0) + 1,
+            : (activity.students?.length ?? 0) + 1,
           students: [
-            ...(activity.students || []),
+            ...(activity.students ?? []),
             ...(enrolledStudent ? [{
               id: studentId,
               activity_id: id as string,
               student_id: studentId,
               name: enrolledStudent.name,
-              school_class: enrolledStudent.school_class || '',
-              in_house: enrolledStudent.in_house || false,
+              school_class: enrolledStudent.school_class ?? '',
+              in_house: enrolledStudent.in_house ?? false,
               created_at: new Date(),
               updated_at: new Date()
             }] : [])

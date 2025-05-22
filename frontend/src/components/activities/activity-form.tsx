@@ -5,7 +5,6 @@ import type {
   Activity,
   ActivityCategory,
   ActivitySchedule,
-  CreateActivityRequest,
 } from "~/lib/activity-helpers";
 import { roomService } from "~/lib/api";
 
@@ -31,7 +30,7 @@ const SupervisorSelector = ({
   // Super detailed logging to identify any issues with the supervisors array
   if (supervisors && supervisors.length > 0) {
     supervisors.forEach((supervisor, index) => {
-      if (!supervisor || !supervisor.id || !supervisor.name) {
+      if (!supervisor?.id || !supervisor?.name) {
         console.warn(`Invalid supervisor at index ${index}:`, supervisor);
       }
     });
@@ -145,7 +144,7 @@ const TimeSlotEditor = ({
   onEdit?: (index: number, timeSlot: Partial<ActivitySchedule>) => void;
   parentActivityId?: string;
   timeframes?: Array<{ id: string; start_time: string; end_time: string; name?: string }>;
-  availableTimeSlots?: Array<any>;
+  availableTimeSlots?: Array<{ weekday: string; timeframe_id?: string }>;
 }) => {
   const [weekday, setWeekday] = useState("monday");
   const [timeframeId, setTimeframeId] = useState("");
@@ -241,7 +240,7 @@ const TimeSlotEditor = ({
     
     // Set form values to the slot being edited
     setWeekday(slot.weekday);
-    setTimeframeId(slot.timeframe_id || "");
+    setTimeframeId(slot.timeframe_id ?? "");
     setEditingIndex(index);
   };
 
@@ -283,22 +282,9 @@ const TimeSlotEditor = ({
     const timeframe = timeframes.find(tf => tf.id === timeframeId);
     if (!timeframe) return "Unbekannter Zeitrahmen";
     
-    return timeframe.name || `${timeframe.start_time}-${timeframe.end_time}`;
+    return timeframe.name ?? `${timeframe.start_time}-${timeframe.end_time}`;
   };
 
-  // Format a time slot for display
-  const formatTimeSlot = (slot: ActivitySchedule): string => {
-    const weekdayText = formatWeekday(slot.weekday);
-    
-    if (!slot.timeframe_id || !timeframes.length) {
-      return weekdayText;
-    }
-    
-    const timeframe = timeframes.find(tf => tf.id === slot.timeframe_id);
-    if (!timeframe) return weekdayText;
-    
-    return `${weekdayText} (${timeframe.name || `${timeframe.start_time}-${timeframe.end_time}`})`;
-  };
 
   const formatWeekday = (day: string): string => {
     const weekdayMap: Record<string, string> = {
@@ -310,7 +296,7 @@ const TimeSlotEditor = ({
       saturday: "Samstag",
       sunday: "Sonntag",
     };
-    return weekdayMap[day.toLowerCase()] || day;
+    return weekdayMap[day.toLowerCase()] ?? day;
   };
 
   // Sort time slots by weekday
@@ -324,15 +310,13 @@ const TimeSlotEditor = ({
       saturday: 6,
       sunday: 7,
     };
-    return (weekdayOrder[a.weekday.toLowerCase()] || 99) - (weekdayOrder[b.weekday.toLowerCase()] || 99);
+    return (weekdayOrder[a.weekday.toLowerCase()] ?? 99) - (weekdayOrder[b.weekday.toLowerCase()] ?? 99);
   });
 
   // Group time slots by weekday for better organization
   const timeSlotsByWeekday = sortedTimeSlots.reduce((acc, slot) => {
     const day = slot.weekday.toLowerCase();
-    if (!acc[day]) {
-      acc[day] = [];
-    }
+    acc[day] ??= [];
     acc[day].push(slot);
     return acc;
   }, {} as Record<string, ActivitySchedule[]>);
@@ -382,7 +366,7 @@ const TimeSlotEditor = ({
               const isConflict = isTimeSlotConflict(
                 weekday, 
                 timeframe.id, 
-                editingIndex !== null ? editingIndex : undefined
+                editingIndex ?? undefined
               );
               
               // If we're editing, don't disable if it's the same as the current value
@@ -397,7 +381,7 @@ const TimeSlotEditor = ({
                   disabled={disabled}
                   className={disabled ? "text-gray-400" : ""}
                 >
-                  {timeframe.name || `${timeframe.start_time}-${timeframe.end_time}`}
+                  {timeframe.name ?? `${timeframe.start_time}-${timeframe.end_time}`}
                   {disabled ? ' (Bereits belegt)' : ''}
                 </option>
               );
@@ -469,7 +453,7 @@ const TimeSlotEditor = ({
                           <div className={`h-3 w-3 rounded-full mr-2 ${timeframe ? 'bg-blue-500' : 'bg-green-500'}`} />
                           {timeframe ? (
                             <span>
-                              {timeframe.name || `${timeframe.start_time}-${timeframe.end_time}`}
+                              {timeframe.name ?? `${timeframe.start_time}-${timeframe.end_time}`}
                             </span>
                           ) : (
                             <span className="text-gray-500">Ganztägig</span>
@@ -564,7 +548,7 @@ export default function ActivityForm({
   const [rooms, setRooms] = useState<Array<{ id: string; name: string }>>(initialRooms);
   // Use supervisors prop directly instead of local state
   const [timeframes, setTimeframes] = useState<Array<{ id: string; start_time: string; end_time: string; name?: string }>>([]);
-  const [availableTimeSlots, setAvailableTimeSlots] = useState<Array<any>>([]);
+  const [availableTimeSlots, setAvailableTimeSlots] = useState<Array<{ weekday: string; timeframe_id?: string }>>([]);
   const [isLoadingTimeframes, setIsLoadingTimeframes] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
 
@@ -624,7 +608,7 @@ export default function ActivityForm({
     };
 
     void fetchData();
-  }, [rooms.length]);
+  }, [rooms.length, initialSupervisors, rooms]);
   
   // Fetch timeframes and available time slots
   useEffect(() => {
@@ -639,7 +623,7 @@ export default function ActivityForm({
           throw new Error(`Failed to fetch timeframes: ${response.status} ${response.statusText}`);
         }
         
-        const timeframesData = await response.json();
+        const timeframesData = await response.json() as Array<{ id: string; start_time: string; end_time: string; name?: string }> | { data: Array<{ id: string; start_time: string; end_time: string; name?: string }> };
         
         // Check if we got valid timeframe data
         if (Array.isArray(timeframesData) && timeframesData.length > 0) {
@@ -662,7 +646,7 @@ export default function ActivityForm({
         }
         
         // Fetch available timeslots if we have an activity ID
-        let availableSlots: any[] = [];
+        let availableSlots: Array<{ weekday: string; timeframe_id?: string }> = [];
         
         if (formData.id) {
           try {
@@ -670,7 +654,7 @@ export default function ActivityForm({
             const slotsResponse = await fetch(`/api/activities/${formData.id}/schedules/available`);
             
             if (slotsResponse.ok) {
-              const slotsData = await slotsResponse.json();
+              const slotsData = await slotsResponse.json() as Array<{ weekday: string; timeframe_id?: string }> | { data: Array<{ weekday: string; timeframe_id?: string }> };
               if (Array.isArray(slotsData)) {
                 availableSlots = slotsData;
               } else if (slotsData && 'data' in slotsData && Array.isArray(slotsData.data)) {
@@ -718,8 +702,8 @@ export default function ActivityForm({
       }
     };
     
-    fetchTimeframesData();
-  }, [formData.id]);
+    void fetchTimeframesData();
+  }, [formData.id, timeframes]);
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -747,7 +731,11 @@ export default function ActivityForm({
     }
   };
 
-  const prepareDataForSubmission = (): Partial<Activity> & { schedules?: any[] } => {
+  const prepareDataForSubmission = (): Partial<Activity> & { schedules?: Array<{
+    id?: number;
+    weekday: string;
+    timeframe_id: number | null;
+  }> } => {
     // Convert form data to what the backend API expects
     const submissionData = {
       ...formData,

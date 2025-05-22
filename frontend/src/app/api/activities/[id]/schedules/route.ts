@@ -45,25 +45,25 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
  * Creates a new schedule for a specific activity
  */
 export const POST = createPostHandler<BackendActivitySchedule, { weekday: string; timeframe_id?: number }>(
-  async (request: NextRequest, body: { weekday: string; timeframe_id?: number }, token: string, params: Record<string, unknown>) => {
+  async (request: NextRequest, body: { weekday: string; timeframe_id?: number }, token: string, params: Record<string, unknown>): Promise<BackendActivitySchedule> => {
     const id = params.id as string;
     const endpoint = `/api/activities/${id}/schedules`;
     
     console.log(`Creating schedule for activity ${id}:`, body);
     
     try {
-      const response = await apiPost<any, { weekday: string; timeframe_id?: number }>(endpoint, token, body);
+      const response = await apiPost<{ status: string; data: BackendActivitySchedule } | BackendActivitySchedule, { weekday: string; timeframe_id?: number }>(endpoint, token, body);
       
       console.log('Schedule creation response:', response);
       
       // Handle wrapped response { status: "success", data: BackendActivitySchedule }
       if (response && typeof response === 'object' && 'status' in response && response.status === "success" && 'data' in response) {
-        return mapActivityScheduleResponse(response.data as BackendActivitySchedule);
+        return response.data;
       }
       
       // Handle direct response (BackendActivitySchedule)
       if (response && typeof response === 'object' && 'id' in response) {
-        return mapActivityScheduleResponse(response as BackendActivitySchedule);
+        return response;
       }
       
       throw new Error('Unexpected response structure from schedule creation API');

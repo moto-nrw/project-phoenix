@@ -1,15 +1,15 @@
 // app/api/activities/[id]/students/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost, apiDelete } from "~/lib/api-helpers";
-import { createGetHandler, createPostHandler, createDeleteHandler } from "~/lib/route-wrapper";
+import { apiGet } from "~/lib/api-helpers";
+import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 import { 
   getEnrolledStudents,
   updateGroupEnrollments,
   getAvailableStudents,
   enrollStudent
 } from "~/lib/activity-api";
-import type { BackendActivityStudent, BackendStudentEnrollment } from "~/lib/activity-helpers";
-import { mapActivityStudentsResponse, mapStudentEnrollmentsResponse } from "~/lib/activity-helpers";
+import type { BackendStudentEnrollment } from "~/lib/activity-helpers";
+import { mapStudentEnrollmentsResponse } from "~/lib/activity-helpers";
 
 /**
  * Handler for GET /api/activities/[id]/students
@@ -23,8 +23,8 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
   
   if (available) {
     // Get query parameters for filtering
-    const search = request.nextUrl.searchParams.get("search") || undefined;
-    const groupId = request.nextUrl.searchParams.get("group_id") || undefined;
+    const search = request.nextUrl.searchParams.get("search") ?? undefined;
+    const groupId = request.nextUrl.searchParams.get("group_id") ?? undefined;
     
     // Get students available for enrollment
     const availableStudents = await getAvailableStudents(id, { 
@@ -38,8 +38,8 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
   // Otherwise return enrolled students - call backend directly
   try {
     const endpoint = `/api/activities/${id}/students`;
-    const response = await apiGet(endpoint, token) as { data: BackendStudentEnrollment[] };
-    const enrollments = response.data || [];
+    const response = await apiGet<{ data: BackendStudentEnrollment[] }>(endpoint, token);
+    const enrollments = response.data ?? [];
     // Map the backend enrollment structure to frontend format
     return mapStudentEnrollmentsResponse(enrollments);
   } catch (error) {
@@ -55,7 +55,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
  * 2. Batch: Updates multiple students at once - expects { student_ids: string[] }
  */
 export const POST = createPostHandler(
-  async (request: NextRequest, body: any, token: string, params: Record<string, unknown>) => {
+  async (request: NextRequest, body: { student_ids?: string[]; student_id?: string }, token: string, params: Record<string, unknown>) => {
     const id = params.id as string;
     
     // Check if this is a batch update operation

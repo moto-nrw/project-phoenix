@@ -5,29 +5,6 @@ import { createGetHandler, createPutHandler, createDeleteHandler } from "~/lib/r
 import type { Activity, BackendActivity, UpdateActivityRequest } from "~/lib/activity-helpers";
 import { mapActivityResponse } from "~/lib/activity-helpers";
 
-// Import mock data from parent route
-const MOCK_ACTIVITIES: BackendActivity[] = [
-  {
-    id: 1,
-    name: "Fußball AG",
-    max_participants: 20,
-    is_open: true,
-    category_id: 1,
-    supervisor_ids: [1],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    name: "Chor",
-    max_participants: 30,
-    is_open: true,
-    category_id: 2,
-    supervisor_ids: [2],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
 
 /**
  * Handler for GET /api/activities/[id]
@@ -46,7 +23,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
         return mapActivityResponse(response.data);
       } else if ('id' in response) {
         // Handle direct response (BackendActivity)
-        return mapActivityResponse(response as BackendActivity);
+        return mapActivityResponse(response);
       }
     }
     
@@ -92,7 +69,7 @@ export const PUT = createPutHandler<Activity, UpdateActivityRequest>(
           return mapActivityResponse(response.data);
         } else if ('id' in response) {
           // Handle direct response (BackendActivity)
-          return mapActivityResponse(response as BackendActivity);
+          return mapActivityResponse(response);
         }
       }
       

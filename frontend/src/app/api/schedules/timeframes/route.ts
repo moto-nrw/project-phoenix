@@ -43,14 +43,14 @@ function formatTimeRange(startTime: string, endTime?: string): string {
     }
     
     return startFormatted;
-  } catch (error) {
+  } catch {
     return endTime ? `${startTime} - ${endTime}` : startTime;
   }
 }
 
 // Mapping function for timeframes
 function mapTimeframeResponse(timeframe: BackendTimeframe): Timeframe {
-  const displayName = timeframe.description || formatTimeRange(timeframe.start_time, timeframe.end_time);
+  const displayName = timeframe.description ?? formatTimeRange(timeframe.start_time, timeframe.end_time);
   
   return {
     id: String(timeframe.id),

@@ -88,7 +88,7 @@ export default function EditActivityPage() {
   }, [id]);
 
   // Handle form submission
-  const handleSubmit = async (formData: Partial<Activity> & { schedules?: any[] }) => {
+  const handleSubmit = async (formData: Partial<Activity> & { schedules?: Array<{ weekday: string; timeframe_id?: number }> }) => {
     if (!id || !activity) return;
 
     try {
@@ -114,10 +114,10 @@ export default function EditActivityPage() {
         max_participants: dataToSubmit.max_participant ?? 0,
         is_open: dataToSubmit.is_open_ags ?? false,
         category_id: parseInt(dataToSubmit.ag_category_id ?? '0', 10),
-        planned_room_id: dataToSubmit.planned_room_id ? parseInt(dataToSubmit.planned_room_id, 10) : null,
+        planned_room_id: dataToSubmit.planned_room_id ? parseInt(dataToSubmit.planned_room_id, 10) : undefined,
         supervisor_ids: dataToSubmit.supervisor_id ? [parseInt(dataToSubmit.supervisor_id, 10)] : [],
         // Include schedules from form data if present
-        schedules: formData.schedules || []
+        schedules: formData.schedules ?? []
       };
       
       console.log("Updating activity with schedules:", updateRequest.schedules);

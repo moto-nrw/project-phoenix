@@ -1,5 +1,5 @@
 // src/app/api/activities/[id]/supervisors/route.ts
-import { NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { 
   createGetHandler,
   createPostHandler,
@@ -8,10 +8,6 @@ import {
   getActivitySupervisors,
   assignSupervisor,
 } from "~/lib/activity-api";
-import {
-  prepareSupervisorAssignmentForBackend,
-  type ActivitySupervisor
-} from "~/lib/activity-helpers";
 
 /**
  * GET handler for retrieving all supervisors assigned to an activity

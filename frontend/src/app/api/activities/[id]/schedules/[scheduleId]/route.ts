@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers";
 import { createGetHandler, createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
 import type { BackendActivitySchedule } from "~/lib/activity-helpers";
-import { mapActivityScheduleResponse, prepareActivityScheduleForBackend } from "~/lib/activity-helpers";
+import { mapActivityScheduleResponse } from "~/lib/activity-helpers";
 
 /**
  * Handler for GET /api/activities/[id]/schedules/[scheduleId]

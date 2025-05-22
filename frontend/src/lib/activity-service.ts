@@ -99,7 +99,7 @@ class ActivityService {
     return getActivitySchedule(activityId, scheduleId);
   }
 
-  async getAvailableTimeSlots(activityId: string, date?: string): Promise<any[]> {
+  async getAvailableTimeSlots(activityId: string, date?: string): Promise<Array<{ weekday: string; timeframe_id?: string }>> {
     return getAvailableTimeSlots(activityId, date);
   }
 

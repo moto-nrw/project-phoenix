@@ -2,7 +2,6 @@
 import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers";
 import { createGetHandler } from "~/lib/route-wrapper";
-import type { BackendSupervisor } from "~/lib/activity-helpers";
 import { mapSupervisorResponse } from "~/lib/activity-helpers";
 
 
@@ -16,20 +15,20 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
     
     // Try fetching from the backend activities API endpoint first
     try {
-      const response = await apiGet<any>('/api/activities/supervisors/available', token);
+      const response = await apiGet<{ data?: unknown[] } | unknown[]>('/api/activities/supervisors/available', token);
       console.log("Activities supervisors API response:", response);
       
       // Handle response structure with more flexible error checking
       if (response) {
         // If response has a data property that is an array
-        if (response.data && Array.isArray(response.data)) {
-          const mapped = response.data.map(mapSupervisorResponse);
+        if (typeof response === 'object' && 'data' in response && Array.isArray(response.data)) {
+          const mapped = response.data.map((item: unknown) => mapSupervisorResponse(item));
           console.log("Mapped supervisors:", mapped);
           return mapped;
         } 
         // If response itself is an array
         else if (Array.isArray(response)) {
-          const mapped = response.map(mapSupervisorResponse);
+          const mapped = response.map((item: unknown) => mapSupervisorResponse(item));
           console.log("Mapped supervisors (direct array):", mapped);
           return mapped;
         }
@@ -42,14 +41,21 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
     // Try fetching from staff endpoint as a fallback
     try {
       console.log("Requesting staff from backend: /api/staff?teachers_only=true");
-      const response = await apiGet<any>('/api/staff?teachers_only=true', token);
+      interface StaffMember {
+        id: number | string;
+        person?: {
+          first_name: string;
+          last_name: string;
+        };
+      }
+      const response = await apiGet<{ data?: StaffMember[] } | StaffMember[]>('/api/staff?teachers_only=true', token);
       console.log("API staff response:", response);
       
       // Handle response structure with more flexible checking
       if (response) {
         // If response has a data property that is an array
-        if (response.data && Array.isArray(response.data)) {
-          const mapped = response.data.map(supervisor => ({
+        if (typeof response === 'object' && 'data' in response && Array.isArray(response.data)) {
+          const mapped = response.data.map((supervisor) => ({
             id: String(supervisor.id),
             name: supervisor.person ? 
               `${supervisor.person.first_name} ${supervisor.person.last_name}` : 
@@ -60,7 +66,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
         } 
         // If response itself is an array
         else if (Array.isArray(response)) {
-          const mapped = response.map(supervisor => ({
+          const mapped = response.map((supervisor) => ({
             id: String(supervisor.id),
             name: supervisor.person ? 
               `${supervisor.person.first_name} ${supervisor.person.last_name}` : 

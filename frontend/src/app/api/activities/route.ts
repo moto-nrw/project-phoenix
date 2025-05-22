@@ -5,31 +5,10 @@ import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 import type { Activity, BackendActivity, CreateActivityRequest } from "~/lib/activity-helpers";
 import { mapActivityResponse } from "~/lib/activity-helpers";
 
-// Mock data for testing
-const MOCK_ACTIVITIES: BackendActivity[] = [
-  {
-    id: 1,
-    name: "Fußball AG",
-    max_participants: 20,
-    is_open: true,
-    category_id: 1,
-    supervisor_ids: [1],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    name: "Chor",
-    max_participants: 30,
-    is_open: true,
-    category_id: 2,
-    supervisor_ids: [2],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
-
-let MOCK_ID_COUNTER = 3;
+interface ApiResponse<T> {
+  status: string;
+  data: T;
+}
 
 /**
  * Handler for GET /api/activities
@@ -45,12 +24,12 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
   const endpoint = `/api/activities${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
   
   try {
-    const response = await apiGet<{ status: string; data: BackendActivity[] }>(endpoint, token);
+    const response = await apiGet<ApiResponse<BackendActivity[]>>(endpoint, token);
     
     console.log('Activities fetch response:', response);
     
     // Handle response structure
-    if (response && response.status === "success" && Array.isArray(response.data)) {
+    if (response?.status === "success" && Array.isArray(response.data)) {
       return response.data.map(mapActivityResponse);
     }
     
@@ -73,7 +52,7 @@ export const POST = createPostHandler<Activity, CreateActivityRequest>(
     console.log('Frontend API Route - Schedules data:', body.schedules);
     
     // Validate required fields
-    if (!body.name || body.name.trim() === '') {
+    if (!body.name?.trim()) {
       throw new Error('Name is required');
     }
     if (!body.max_participants || body.max_participants <= 0) {
@@ -87,7 +66,7 @@ export const POST = createPostHandler<Activity, CreateActivityRequest>(
       console.log('Frontend API Route - Sending to backend:', JSON.stringify(body, null, 2));
       
       // We already have the backend data type from the request body
-      const response = await apiPost<any, CreateActivityRequest>(
+      const response = await apiPost<ApiResponse<BackendActivity> | BackendActivity, CreateActivityRequest>(
         `/api/activities`,
         token,
         body // Send the raw CreateActivityRequest (which already matches backend expectations)
@@ -98,11 +77,11 @@ export const POST = createPostHandler<Activity, CreateActivityRequest>(
       // Create a safe activity object with default values to avoid nil pointer dereferences
       const safeActivity: Activity = {
         id: '0',
-        name: body.name || '',
-        max_participant: body.max_participants || 0,
+        name: body.name ?? '',
+        max_participant: body.max_participants ?? 0,
         is_open_ags: false,
         supervisor_id: '',
-        ag_category_id: String(body.category_id || ''),
+        ag_category_id: String(body.category_id ?? ''),
         created_at: new Date(),
         updated_at: new Date(),
         participant_count: 0,
@@ -113,26 +92,22 @@ export const POST = createPostHandler<Activity, CreateActivityRequest>(
       // Try to extract data from response if possible
       if (response) {
         // Handle wrapped response { status: "success", data: BackendActivity }
-        if (typeof response === 'object' && 'status' in response && response.status === "success" && 'data' in response) {
+        if ('status' in response && response.status === "success" && 'data' in response) {
           const backendActivity = response.data;
-          if (backendActivity && typeof backendActivity === 'object' && 'id' in backendActivity) {
-            return mapActivityResponse(backendActivity as BackendActivity);
+          if (backendActivity && 'id' in backendActivity) {
+            return mapActivityResponse(backendActivity);
           }
-        } 
-        // Handle direct response (BackendActivity)
-        else if (typeof response === 'object' && 'id' in response) {
-          return mapActivityResponse(response as BackendActivity);
         }
-      }
-      
-      // If we couldn't properly extract data but the POST was successful,
-      // return a placeholder activity with any data we can extract 
-      if (response) {
-        // Try to get ID if it exists
-        if (typeof response === 'object' && 'id' in response) {
+        
+        // Handle direct response (BackendActivity)
+        if ('id' in response) {
+          return mapActivityResponse(response);
+        }
+        
+        // Try to get ID if it exists for the safe activity fallback
+        if ('id' in response) {
           safeActivity.id = String(response.id);
-        } else if (typeof response === 'object' && 'data' in response && 
-                  typeof response.data === 'object' && 'id' in response.data) {
+        } else if ('data' in response && response.data && typeof response.data === 'object' && 'id' in response.data) {
           safeActivity.id = String(response.data.id);
         }
         

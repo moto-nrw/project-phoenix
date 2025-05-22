@@ -149,6 +149,7 @@ export interface Timeframe {
     start_time: string;
     end_time: string;
     description?: string;
+    display_name?: string;
 }
 
 export interface BackendTimeframe {
@@ -157,6 +158,7 @@ export interface BackendTimeframe {
     start_time: string;
     end_time: string;
     description?: string;
+    display_name?: string;
 }
 
 export interface ActivityStudent {
@@ -218,7 +220,7 @@ export function formatSupervisorList(supervisors: ActivitySupervisor[] | undefin
     }
     
     return supervisors.map(supervisor => 
-        supervisor.full_name || 
+        supervisor.full_name ?? 
         (supervisor.first_name && supervisor.last_name ? 
             `${supervisor.first_name} ${supervisor.last_name}` : 
             `Betreuer ${supervisor.id}`)
@@ -257,7 +259,7 @@ export function mapActivityResponse(backendActivity: BackendActivity): Activity 
     }
 
     // Add category name if available
-    if (backendActivity.category && backendActivity.category.name) {
+    if (backendActivity.category?.name) {
         activity.category_name = backendActivity.category.name;
     }
 
@@ -341,8 +343,8 @@ export function mapActivityStudentsResponse(students: BackendActivityStudent[]):
 // Map enrolled students from backend enrollment structure
 export function mapStudentEnrollmentResponse(enrollment: BackendStudentEnrollment): ActivityStudent {
     // Handle both direct and flattened person fields
-    const firstName = enrollment.first_name || enrollment.person__first_name || '';
-    const lastName = enrollment.last_name || enrollment.person__last_name || '';
+    const firstName = enrollment.first_name ?? enrollment.person__first_name ?? '';
+    const lastName = enrollment.last_name ?? enrollment.person__last_name ?? '';
     const fullName = `${firstName} ${lastName}`.trim() || 'Unnamed Student';
     
     return {
@@ -350,8 +352,8 @@ export function mapStudentEnrollmentResponse(enrollment: BackendStudentEnrollmen
         activity_id: enrollment.activity_group_id ? String(enrollment.activity_group_id) : '',
         student_id: enrollment.student_id ? String(enrollment.student_id) : '',
         name: fullName,
-        school_class: enrollment.school_class || enrollment.student__school_class || '',
-        in_house: enrollment.in_house || enrollment.student__in_house || false,
+        school_class: enrollment.school_class ?? enrollment.student__school_class ?? '',
+        in_house: enrollment.in_house ?? enrollment.student__in_house ?? false,
         created_at: enrollment.created_at ? new Date(enrollment.created_at) : new Date(),
         updated_at: enrollment.updated_at ? new Date(enrollment.updated_at) : new Date(),
     };
@@ -369,7 +371,7 @@ export function formatStudentList(students: ActivityStudent[] | undefined): stri
     }
     
     return students.map(student => 
-        student.name || `Student ${student.student_id}`
+        student.name ?? `Student ${student.student_id}`
     ).join(', ');
 }
 
@@ -378,10 +380,8 @@ export function groupStudentsByClass(students: ActivityStudent[]): Record<string
     const grouped: Record<string, ActivityStudent[]> = {};
     
     students.forEach(student => {
-        const schoolClass = student.school_class || 'Keine Klasse';
-        if (!grouped[schoolClass]) {
-            grouped[schoolClass] = [];
-        }
+        const schoolClass = student.school_class ?? 'Keine Klasse';
+        grouped[schoolClass] ??= [];
         grouped[schoolClass].push(student);
     });
     
@@ -403,14 +403,14 @@ export function filterStudentsBySearchTerm(students: ActivityStudent[], searchTe
     
     const term = searchTerm.toLowerCase();
     return students.filter(student => 
-        (student.name && student.name.toLowerCase().includes(term)) ||
-        (student.school_class && student.school_class.toLowerCase().includes(term)) ||
-        (student.student_id && student.student_id.toLowerCase().includes(term))
+        (student.name?.toLowerCase().includes(term) ?? false) ||
+        (student.school_class?.toLowerCase().includes(term) ?? false) ||
+        (student.student_id?.toLowerCase().includes(term) ?? false)
     );
 }
 
 // Added: Map supervisor response
-export function mapSupervisorResponse(backendSupervisor: BackendSupervisor | any): Supervisor {
+export function mapSupervisorResponse(backendSupervisor: unknown): Supervisor {
     // Handle null or undefined input
     if (!backendSupervisor) {
         console.warn("Received null/undefined backendSupervisor in mapSupervisorResponse");
@@ -424,28 +424,35 @@ export function mapSupervisorResponse(backendSupervisor: BackendSupervisor | any
     console.log("Mapping supervisor:", backendSupervisor);
     
     // Extract the ID safely
-    const id = backendSupervisor.id !== undefined ? String(backendSupervisor.id) : "0";
+    const rawId = typeof backendSupervisor === 'object' && 'id' in backendSupervisor ? backendSupervisor.id : undefined;
+    const id = rawId !== undefined && rawId !== null && (typeof rawId === 'string' || typeof rawId === 'number') ? String(rawId) : "0";
     
     // Handle different response formats we might get
-    if (backendSupervisor.person && 
-        backendSupervisor.person.first_name && 
-        backendSupervisor.person.last_name) {
+    if (typeof backendSupervisor === 'object' && 'person' in backendSupervisor && 
+        typeof backendSupervisor.person === 'object' && backendSupervisor.person &&
+        'first_name' in backendSupervisor.person && 'last_name' in backendSupervisor.person) {
         // Standard staff format with person property
+        const firstName = backendSupervisor.person.first_name;
+        const lastName = backendSupervisor.person.last_name;
         return {
             id: id,
-            name: `${backendSupervisor.person.first_name} ${backendSupervisor.person.last_name}`
+            name: `${typeof firstName === 'string' ? firstName : ''} ${typeof lastName === 'string' ? lastName : ''}`.trim()
         };
-    } else if (backendSupervisor.first_name && backendSupervisor.last_name) {
+    } else if (typeof backendSupervisor === 'object' && 'first_name' in backendSupervisor && 
+               'last_name' in backendSupervisor && backendSupervisor.first_name && backendSupervisor.last_name) {
         // Response format from activities/supervisors/available endpoint
+        const firstName = backendSupervisor.first_name;
+        const lastName = backendSupervisor.last_name;
         return {
             id: id,
-            name: `${backendSupervisor.first_name} ${backendSupervisor.last_name}`
+            name: `${typeof firstName === 'string' ? firstName : ''} ${typeof lastName === 'string' ? lastName : ''}`.trim()
         };
-    } else if (backendSupervisor.name) {
+    } else if (typeof backendSupervisor === 'object' && 'name' in backendSupervisor && backendSupervisor.name) {
         // Object already has a name property
+        const name = backendSupervisor.name;
         return {
             id: id,
-            name: backendSupervisor.name
+            name: typeof name === 'string' ? name : (typeof name === 'number' ? String(name) : 'Unknown')
         }; 
     } else {
         // Fallback if we can't determine the name
@@ -463,7 +470,8 @@ export function mapTimeframeResponse(backendTimeframe: BackendTimeframe): Timefr
         name: backendTimeframe.name,
         start_time: backendTimeframe.start_time,
         end_time: backendTimeframe.end_time,
-        description: backendTimeframe.description
+        description: backendTimeframe.description,
+        display_name: backendTimeframe.display_name
     };
 }
 

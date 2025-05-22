@@ -63,6 +63,12 @@ interface ApiResponse<T> {
     status?: string;
 }
 
+// Available time slot type
+interface AvailableTimeSlot {
+    weekday: string;
+    timeframe_id?: string;
+}
+
 export type { 
     Activity,
     ActivityCategory,
@@ -356,16 +362,16 @@ export async function createActivity(data: CreateActivityRequest): Promise<Activ
             }
 
             try {
-                const responseData = await response.json();
+                const responseData = await response.json() as unknown;
                 console.log('Raw activity creation response:', responseData);
                 
                 // Try to extract data regardless of format
                 if (responseData) {
                     // Handle wrapped response { status/success: "success", data: Activity }
-                    if (typeof responseData === 'object') {
+                    if (typeof responseData === 'object' && responseData !== null) {
                         if ('data' in responseData && responseData.data) {
                             // Try to extract ID and update safeActivity if possible
-                            if (typeof responseData.data === 'object' && 'id' in responseData.data) {
+                            if (typeof responseData.data === 'object' && responseData.data !== null && 'id' in responseData.data) {
                                 safeActivity.id = String(responseData.data.id);
                                 
                                 // If it's a full BackendActivity, map it
@@ -375,7 +381,7 @@ export async function createActivity(data: CreateActivityRequest): Promise<Activ
                                     return mapActivityResponse(responseData.data as BackendActivity);
                                 }
                             }
-                            return responseData.data;
+                            return responseData.data as Activity;
                         }
                         // Handle direct response with ID
                         else if ('id' in responseData) {
@@ -400,7 +406,7 @@ export async function createActivity(data: CreateActivityRequest): Promise<Activ
             }
         } else {
             try {
-                const response = await api.post<any>(
+                const response = await api.post<ApiResponse<BackendActivity>>(
                     url,
                     data // Send the CreateActivityRequest directly
                 );
@@ -420,7 +426,7 @@ export async function createActivity(data: CreateActivityRequest): Promise<Activ
                                     if ('name' in response.data.data && 
                                         'max_participants' in response.data.data && 
                                         'category_id' in response.data.data) {
-                                        return mapActivityResponse(response.data.data as BackendActivity);
+                                        return mapActivityResponse(response.data.data);
                                     }
                                 }
                             } 
@@ -432,7 +438,7 @@ export async function createActivity(data: CreateActivityRequest): Promise<Activ
                                 if ('name' in response.data && 
                                     'max_participants' in response.data && 
                                     'category_id' in response.data) {
-                                    return mapActivityResponse(response.data as BackendActivity);
+                                    return mapActivityResponse(response.data as unknown as BackendActivity);
                                 }
                             }
                         }
@@ -723,7 +729,7 @@ export async function getActivitySchedule(activityId: string, scheduleId: string
             if (responseData && typeof responseData === 'object' && 'data' in responseData) {
                 return mapActivityScheduleResponse(responseData.data);
             }
-            return mapActivityScheduleResponse(responseData as BackendActivitySchedule);
+            return mapActivityScheduleResponse(responseData);
         } else {
             const response = await api.get<ApiResponse<BackendActivitySchedule>>(url);
             return mapActivityScheduleResponse(response.data.data);
@@ -761,16 +767,18 @@ export async function getTimeframes(): Promise<Timeframe[]> {
                 throw new Error(`API error: ${response.status}`);
             }
 
-            const responseData = await response.json();
+            const responseData = await response.json() as unknown;
             
             // Handle different response structures
-            if (responseData && typeof responseData === 'object') {
+            if (responseData && typeof responseData === 'object' && responseData !== null) {
                 // If it's a wrapped response with data property
                 if ('data' in responseData && responseData.data) {
                     if (Array.isArray(responseData.data)) {
                         // Check if it's already frontend types or needs mapping
-                        if (responseData.data.length > 0 && responseData.data[0] && typeof responseData.data[0].id === 'string') {
-                            return responseData.data as unknown as Timeframe[];
+                        if (responseData.data.length > 0 && responseData.data[0] && 
+                            typeof responseData.data[0] === 'object' && responseData.data[0] !== null && 
+                            'id' in responseData.data[0] && typeof (responseData.data[0] as { id: unknown }).id === 'string') {
+                            return responseData.data as Timeframe[];
                         }
                         return (responseData.data as BackendTimeframe[]).map(mapTimeframeResponse);
                     }
@@ -778,10 +786,12 @@ export async function getTimeframes(): Promise<Timeframe[]> {
                 }
                 // If it's an array directly
                 else if (Array.isArray(responseData)) {
-                    if (responseData.length > 0 && responseData[0]) {
+                    if (responseData.length > 0 && responseData[0] && 
+                        typeof responseData[0] === 'object' && responseData[0] !== null &&
+                        'id' in responseData[0]) {
                         // Check if it's already frontend types or needs mapping
-                        if (typeof responseData[0].id === 'string') {
-                            return responseData as unknown as Timeframe[];
+                        if ('id' in responseData[0] && typeof (responseData[0] as { id: unknown }).id === 'string') {
+                            return responseData as Timeframe[];
                         }
                         return (responseData as BackendTimeframe[]).map(mapTimeframeResponse);
                     }
@@ -791,7 +801,7 @@ export async function getTimeframes(): Promise<Timeframe[]> {
             return [];
         } else {
             const response = await api.get<ApiResponse<BackendTimeframe[]>>(url);
-            if (response && response.data && Array.isArray(response.data.data)) {
+            if (response?.data && Array.isArray(response.data.data)) {
                 return response.data.data.map(mapTimeframeResponse);
             }
             return [];
@@ -802,7 +812,7 @@ export async function getTimeframes(): Promise<Timeframe[]> {
 }
 
 // Get available time slots
-export async function getAvailableTimeSlots(activityId: string, date?: string): Promise<any[]> {
+export async function getAvailableTimeSlots(activityId: string, date?: string): Promise<AvailableTimeSlot[]> {
     const useProxyApi = typeof window !== "undefined";
     let url = useProxyApi
         ? `/api/activities/${activityId}/schedules/available`
@@ -833,7 +843,7 @@ export async function getAvailableTimeSlots(activityId: string, date?: string): 
                 throw new Error(`API error: ${response.status}`);
             }
 
-            const responseData = await response.json() as ApiResponse<any[]> | any[];
+            const responseData = await response.json() as ApiResponse<AvailableTimeSlot[]> | AvailableTimeSlot[];
             
             // Extract the array from the response wrapper if needed
             if (responseData && typeof responseData === 'object' && 'data' in responseData) {
@@ -841,7 +851,7 @@ export async function getAvailableTimeSlots(activityId: string, date?: string): 
             }
             return responseData || [];
         } else {
-            const response = await api.get<ApiResponse<any[]>>(url);
+            const response = await api.get<ApiResponse<AvailableTimeSlot[]>>(url);
             return response.data.data || [];
         }
     } catch (error) {
@@ -887,7 +897,7 @@ export async function createActivitySchedule(activityId: string, scheduleData: P
             if (responseData && typeof responseData === 'object' && 'data' in responseData) {
                 return mapActivityScheduleResponse(responseData.data);
             }
-            return mapActivityScheduleResponse(responseData as BackendActivitySchedule);
+            return mapActivityScheduleResponse(responseData);
         } else {
             const response = await api.post<ApiResponse<BackendActivitySchedule>>(url, backendData);
             return mapActivityScheduleResponse(response.data.data);
@@ -935,7 +945,7 @@ export async function updateActivitySchedule(activityId: string, scheduleId: str
             if (responseData && typeof responseData === 'object' && 'data' in responseData) {
                 return mapActivityScheduleResponse(responseData.data);
             }
-            return mapActivityScheduleResponse(responseData as BackendActivitySchedule);
+            return mapActivityScheduleResponse(responseData);
         } else {
             const response = await api.put<ApiResponse<BackendActivitySchedule>>(url, backendData);
             return mapActivityScheduleResponse(response.data.data);

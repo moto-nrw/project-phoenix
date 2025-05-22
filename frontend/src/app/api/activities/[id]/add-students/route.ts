@@ -2,7 +2,6 @@
 import type { NextRequest } from "next/server";
 import { apiGet, apiPost } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
-import type { BackendActivityStudent, BackendActivity } from "~/lib/activity-helpers";
 
 /**
  * Handler for GET /api/activities/[id]/add-students
@@ -13,10 +12,10 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
   const endpoint = `/api/activities/${id}/eligible-students`;
   
   try {
-    const response = await apiGet<{ data: any[]; status: string } | any[]>(endpoint, token);
+    const response = await apiGet<{ data: unknown[]; status: string } | unknown[]>(endpoint, token);
     
     // Handle response structure
-    if (response && 'status' in response && response.status === "success" && 'data' in response && Array.isArray(response.data)) {
+    if (response && typeof response === 'object' && 'status' in response && response.status === "success" && 'data' in response && Array.isArray(response.data)) {
       return response.data;
     } else if (Array.isArray(response)) {
       return response;
@@ -48,10 +47,10 @@ export const POST = createPostHandler<{ success: boolean; count: number }, { stu
     };
     
     try {
-      const response = await apiPost<any, { student_ids: number[] }>(endpoint, token, backendData);
+      const response = await apiPost<{ count?: number }, { student_ids: number[] }>(endpoint, token, backendData);
       
       // If we have a specific count in the response, use it
-      if (response && typeof response === 'object' && 'count' in response) {
+      if (response && typeof response === 'object' && 'count' in response && typeof response.count === 'number') {
         return { 
           success: true,
           count: response.count

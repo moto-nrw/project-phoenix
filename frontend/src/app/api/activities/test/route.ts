@@ -6,18 +6,18 @@ import { activityService } from "~/lib/activity-service";
 /**
  * Simple test endpoint to verify our activity API implementation
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Test fetching activities
     const activities = await activityService.getActivities();
     
     // If we have activities, test getting the first one
     let activityDetail = null;
-    let enrolledStudents: any[] = [];
+    let enrolledStudents: unknown[] = [];
     
     if (activities.length > 0) {
       const firstActivity = activities[0];
-      if (firstActivity && firstActivity.id) {
+      if (firstActivity?.id) {
         activityDetail = await activityService.getActivity(firstActivity.id);
         
         // Test fetching enrolled students

@@ -84,7 +84,7 @@ export default function NewActivityPage() {
   };
 
   // Handle form submission
-  const handleSubmit = async (formData: Partial<Activity> & { schedules?: any[] }) => {
+  const handleSubmit = async (formData: Partial<Activity> & { schedules?: Array<{ weekday: string; timeframe_id?: number }> }) => {
     try {
       setSaving(true);
 
@@ -121,10 +121,10 @@ export default function NewActivityPage() {
         max_participants: activityData.max_participant,
         is_open: activityData.is_open_ags,
         category_id: parseInt(activityData.ag_category_id, 10),
-        planned_room_id: formData.planned_room_id ? parseInt(formData.planned_room_id, 10) : null,
+        planned_room_id: formData.planned_room_id ? parseInt(formData.planned_room_id, 10) : undefined,
         supervisor_ids: activityData.supervisor_id ? [parseInt(activityData.supervisor_id, 10)] : [],
         // Include schedules from form data if present
-        schedules: formData.schedules || []
+        schedules: formData.schedules ?? []
       };
       
       console.log("Creating activity with schedules:", createRequest.schedules);
