@@ -109,7 +109,6 @@ export default function OGSGroupPage() {
                 if (Array.isArray(studentsData)) {
                     setStudents(studentsData);
                 } else {
-                    console.warn("Students data is not an array:", studentsData);
                     setStudents([]);
                 }
 
@@ -134,7 +133,6 @@ export default function OGSGroupPage() {
 
                 setError(null);
             } catch (err) {
-                console.error("Error fetching OGS group data:", err);
                 if (err instanceof Error && err.message.includes("403")) {
                     setError("Sie haben keine Berechtigung für den Zugriff auf OGS-Gruppendaten.");
                     setHasAccess(false);

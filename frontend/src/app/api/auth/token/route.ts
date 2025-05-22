@@ -19,12 +19,7 @@ export async function POST(_request: NextRequest) {
       );
     }
 
-    // Check for roles
-    if (!session.user.roles || session.user.roles.length === 0) {
-      console.warn("User has no roles for refresh token request");
-    }
-
-    console.log("Making refresh request with roles:", session.user.roles);
+    // Check for roles - continue even if no roles present
 
     // Send refresh token request to backend
     const backendResponse = await fetch(
@@ -40,11 +35,6 @@ export async function POST(_request: NextRequest) {
     );
 
     if (!backendResponse.ok) {
-      const errorText = await backendResponse.text();
-      console.error(
-        `Token refresh error: ${backendResponse.status}`,
-        errorText,
-      );
       return NextResponse.json(
         { error: "Failed to refresh token" },
         { status: backendResponse.status },
@@ -57,8 +47,7 @@ export async function POST(_request: NextRequest) {
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
     });
-  } catch (error) {
-    console.error("Error refreshing token:", error);
+  } catch {
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },
