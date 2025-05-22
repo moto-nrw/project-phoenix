@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
 
@@ -16,8 +17,8 @@ type SupervisorPlanned struct {
 	IsPrimary  bool  `bun:"is_primary,notnull,default:false" json:"is_primary"`
 
 	// Relations - these would be populated when using the ORM's relations
-	// Staff *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`
-	// Group *Group       `bun:"rel:belongs-to,join:group_id=id" json:"group,omitempty"`
+	Staff *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`
+	Group *Group       `bun:"rel:belongs-to,join:group_id=id" json:"group,omitempty"`
 }
 
 func (sp *SupervisorPlanned) BeforeAppendModel(query any) error {
