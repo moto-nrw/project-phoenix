@@ -59,18 +59,6 @@ const SupervisorSelector = ({
         )}
       </select>
       
-      {/* Always show debug info */}
-      <div className="mt-1 text-xs text-gray-500">
-        {value ? (
-          <>
-            Ausgewählt: {supervisors.find(s => s.id === value)?.name || `ID: ${value}`}
-          </>
-        ) : (
-          <>
-            Verfügbare Leiter: {supervisors.length}
-          </>
-        )}
-      </div>
     </div>
   );
 };
@@ -936,11 +924,6 @@ export default function ActivityForm({
               {!isLoadingData && initialSupervisors.length === 0 && (
                 <div className="text-sm text-orange-500 italic">
                   Keine Leiter verfügbar
-                </div>
-              )}
-              {!isLoadingData && initialSupervisors.length > 0 && formData.supervisor_id && (
-                <div className="text-sm text-green-500 italic">
-                  Leiter ausgewählt: {initialSupervisors.find(s => s.id === formData.supervisor_id)?.name || formData.supervisor_id}
                 </div>
               )}
 
