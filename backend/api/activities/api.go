@@ -280,8 +280,6 @@ func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityR
 		if len(scheduleResponses) > 0 {
 			response.Schedules = scheduleResponses
 		}
-	} else {
-		log.Printf("Info: Group ID %d has nil Schedules array", group.ID)
 	}
 
 	return response
@@ -685,9 +683,6 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 		// Add supervisors information if available
 		if len(supervisors) > 0 {
 			// You could add processing for supervisors here if needed
-			log.Printf("Info: %d supervisors found for group ID %d", len(supervisors), updatedGroup.ID)
-		} else {
-			log.Printf("Info: No supervisors found or failed to load for group ID %d", updatedGroup.ID)
 		}
 	} else {
 		log.Printf("Warning: detailedGroup is nil despite no error from GetGroupWithDetails")
@@ -1268,7 +1263,6 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 		if roomID != nil {
 			// TODO: Check room availability for this time slot
 			// This would require checking active bookings, room schedules, etc.
-			log.Printf("Room filtering not yet implemented for room ID: %d", *roomID)
 		}
 
 		timespans = append(timespans, TimespanResponse{
