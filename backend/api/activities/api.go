@@ -654,7 +654,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the updated group with details
-	detailedGroup, supervisors, updatedSchedules, err := rs.ActivityService.GetGroupWithDetails(r.Context(), updatedGroup.ID)
+	detailedGroup, _, updatedSchedules, err := rs.ActivityService.GetGroupWithDetails(r.Context(), updatedGroup.ID)
 	if err != nil {
 		log.Printf("Failed to get detailed group info after update: %v", err)
 		// Return response with basic info if we can't get detailed info
@@ -680,10 +680,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 			updatedGroup.Schedules = []*activities.Schedule{} // Empty slice instead of nil
 		}
 
-		// Add supervisors information if available
-		if len(supervisors) > 0 {
-			// You could add processing for supervisors here if needed
-		}
+		// Note: supervisors are loaded but not currently processed
 	} else {
 		log.Printf("Warning: detailedGroup is nil despite no error from GetGroupWithDetails")
 		// If detailedGroup is nil but updatedGroup is not, make sure it has valid schedules
@@ -1208,17 +1205,16 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Parse room ID if provided
-	var roomID *int64
+	// Parse room ID if provided (currently unused)
 	if roomIDStr != "" {
-		id, err := strconv.ParseInt(roomIDStr, 10, 64)
+		_, err := strconv.ParseInt(roomIDStr, 10, 64)
 		if err != nil {
 			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
 				log.Printf("Error rendering error response: %v", err)
 			}
 			return
 		}
-		roomID = &id
+		// Room ID validation complete but not used for filtering yet
 	}
 
 	// Parse duration or use default (2 hours)
@@ -1258,12 +1254,7 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 			}
 		}
 
-		// Apply room filter if specified (this would need additional logic
-		// to check room availability, for now we include all slots)
-		if roomID != nil {
-			// TODO: Check room availability for this time slot
-			// This would require checking active bookings, room schedules, etc.
-		}
+		// Note: room filter is specified but room availability checking not implemented
 
 		timespans = append(timespans, TimespanResponse{
 			ID:          slot.ID,
