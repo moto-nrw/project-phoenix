@@ -20,21 +20,6 @@ const SupervisorSelector = ({
   label: string;
   supervisors?: Array<{ id: string; name: string }>;
 }) => {
-  // Enhanced logging for debugging
-  console.log("SupervisorSelector props:", { 
-    value, 
-    supervisorsCount: supervisors?.length || 0,
-    supervisors: supervisors?.map(s => ({ id: s.id, name: s.name })) || [] 
-  });
-  
-  // Super detailed logging to identify any issues with the supervisors array
-  if (supervisors && supervisors.length > 0) {
-    supervisors.forEach((supervisor, index) => {
-      if (!supervisor?.id || !supervisor?.name) {
-        console.warn(`Invalid supervisor at index ${index}:`, supervisor);
-      }
-    });
-  }
   
   return (
     <div>
@@ -224,8 +209,7 @@ const TimeSlotEditor = ({
 
       // Reset form
       setTimeframeId("");
-    } catch (error) {
-      console.error("Error adding time slot:", error);
+    } catch {
       setError("Fehler beim Hinzufügen des Zeitslots. Bitte versuchen Sie es später erneut.");
     } finally {
       setIsCreatingTimespan(false);
@@ -264,8 +248,7 @@ const TimeSlotEditor = ({
       // Reset edit mode
       setEditingIndex(null);
       setTimeframeId("");
-    } catch (error) {
-      console.error("Error updating time slot:", error);
+    } catch {
       setError("Fehler beim Aktualisieren des Zeitslots. Bitte versuchen Sie es später erneut.");
     }
   };
@@ -555,12 +538,6 @@ export default function ActivityForm({
   // Load initial data
   useEffect(() => {
     if (initialData) {
-      console.log("Setting initial form data from:", initialData);
-      
-      // Log supervisor ID for debugging
-      if (initialData.supervisor_id) {
-        console.log("Initial supervisor ID:", initialData.supervisor_id);
-      }
       
       setFormData({
         id: initialData.id,
@@ -589,8 +566,6 @@ export default function ActivityForm({
         
         // Use supervisors from props - no fallback API call
         
-        console.log("Fetched roomsData:", roomsData);
-        console.log("Using supervisors from props:", initialSupervisors);
         
         if (rooms.length === 0) {
           setRooms(roomsData);
@@ -599,8 +574,7 @@ export default function ActivityForm({
         // Supervisors are managed by parent component, no need to fetch or set
         
         setError(null);
-      } catch (err) {
-        console.error("Error fetching data:", err);
+      } catch {
         setError("Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.");
       } finally {
         setIsLoadingData(false);
@@ -632,7 +606,6 @@ export default function ActivityForm({
           // Handle wrapped response format
           setTimeframes(timeframesData.data);
         } else {
-          console.error("Unexpected timeframes response format:", timeframesData);
           
           // Fallback to default timeframes if API fails to provide valid data
           const fallbackTimeframes = [
@@ -661,8 +634,8 @@ export default function ActivityForm({
                 availableSlots = slotsData.data;
               }
             }
-          } catch (slotsError) {
-            console.error("Error fetching available time slots:", slotsError);
+          } catch {
+            // Silently handle error and continue with fallback
           }
         }
         
@@ -677,8 +650,8 @@ export default function ActivityForm({
         }
         
         setAvailableTimeSlots(availableSlots);
-      } catch (error) {
-        console.error("Error fetching timeframes:", error);
+      } catch {
+        // Use fallback timeframes on error
         // Fallback to default timeframes if API fails
         const fallbackTimeframes = [
           { id: "1", start_time: "08:00", end_time: "09:30", name: "1. Stunde" },
@@ -747,7 +720,6 @@ export default function ActivityForm({
       }))
     };
 
-    console.log("Preparing data for submission:", submissionData);
     return submissionData;
   };
 
@@ -770,16 +742,10 @@ export default function ActivityForm({
       // Prepare data for submission
       const submissionData = prepareDataForSubmission();
 
-      // Debug log to see what we're submitting
-      console.log(
-        "Submitting form data:",
-        JSON.stringify(submissionData, null, 2),
-      );
 
       // Call the provided submit function with form data
       await onSubmitAction(submissionData);
-    } catch (err) {
-      console.error("Error submitting form:", err);
+    } catch {
       setError(
         "Fehler beim Speichern der Aktivitätsdaten. Bitte versuchen Sie es später erneut.",
       );

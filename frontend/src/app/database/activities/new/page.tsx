@@ -60,11 +60,9 @@ export default function NewActivityPage() {
   const fetchSupervisors = async () => {
     try {
       setSupervisorsLoading(true);
-      console.log("Fetching supervisors for new activity page");
 
       // Fetch supervisors from teacher service (same as groups/new)
       const teachersData = await teacherService.getTeachers();
-      console.log("Fetched teachers data:", teachersData);
       
       // Convert teachers to supervisors format
       const supervisorsData = teachersData.map(teacher => ({
@@ -72,7 +70,6 @@ export default function NewActivityPage() {
         name: teacher.name
       }));
       
-      console.log(`Successfully fetched ${supervisorsData.length} supervisors`);
       setSupervisors(supervisorsData);
     } catch (err) {
       console.error("Error fetching supervisors:", err);
@@ -127,7 +124,6 @@ export default function NewActivityPage() {
         schedules: formData.schedules ?? []
       };
       
-      console.log("Creating activity with schedules:", createRequest.schedules);
       const newActivity = await activityService.createActivity(createRequest);
 
       // Redirect to the new activity

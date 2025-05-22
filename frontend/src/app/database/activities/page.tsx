@@ -43,9 +43,6 @@ export default function ActivitiesPage() {
         // Fetch from the real API using our activity service
         const data = await activityService.getActivities(filters);
 
-        if (data.length === 0 && !search && !categoryId) {
-          console.log("No activities returned from API, checking connection");
-        }
 
         setActivities(data);
         setError(null);

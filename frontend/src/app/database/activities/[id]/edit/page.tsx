@@ -39,7 +39,6 @@ export default function EditActivityPage() {
       setLoading(true);
 
       try {
-        console.log("Fetching activity, categories, and supervisors");
         
         // Fetch all data in parallel for faster loading
         const [activityData, categoriesData, teachersData] = await Promise.all([
@@ -48,9 +47,6 @@ export default function EditActivityPage() {
           teacherService.getTeachers()
         ]);
         
-        console.log("Fetched activity data:", activityData);
-        console.log("Fetched categories data:", categoriesData);
-        console.log("Fetched teachers data:", teachersData);
         
         // Convert teachers to supervisors format
         const supervisorsData = teachersData.map(teacher => ({
@@ -58,7 +54,6 @@ export default function EditActivityPage() {
           name: teacher.name
         }));
         
-        console.log(`Successfully fetched ${supervisorsData.length} supervisors`);
         setSupervisors(supervisorsData);
         
         setActivity(activityData);
@@ -101,10 +96,6 @@ export default function EditActivityPage() {
 
       // Make sure we preserve the category ID if it's not in formData but exists in original activity
       if (!dataToSubmit.ag_category_id && activity.ag_category_id) {
-        console.log(
-          "Adding missing ag_category_id from original activity:",
-          activity.ag_category_id,
-        );
         dataToSubmit.ag_category_id = activity.ag_category_id;
       }
 
@@ -120,7 +111,6 @@ export default function EditActivityPage() {
         schedules: formData.schedules ?? []
       };
       
-      console.log("Updating activity with schedules:", updateRequest.schedules);
       await activityService.updateActivity(id as string, updateRequest);
 
       // Redirect back to activity details
