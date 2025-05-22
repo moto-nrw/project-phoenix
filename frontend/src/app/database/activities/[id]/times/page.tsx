@@ -4,7 +4,7 @@ import { useSession } from "next-auth/react";
 import { redirect, useParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
-import type { Activity } from "@/lib/activity-helpers";
+import type { Activity, Timeframe } from "@/lib/activity-helpers";
 import { activityService } from "@/lib/activity-service";
 import Link from "next/link";
 
@@ -19,10 +19,12 @@ export default function ActivityTimesPage() {
 
   // New time slot form
   const [weekday, setWeekday] = useState("Monday");
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
+  const [selectedTimeframeId, setSelectedTimeframeId] = useState<string>("");
   const [addingTime, setAddingTime] = useState(false);
-  // const [timeSpanId, setTimeSpanId] = useState('');
+  
+  // Timeframes
+  const [timeframes, setTimeframes] = useState<Timeframe[]>([]);
+  const [loadingTimeframes, setLoadingTimeframes] = useState(true);
 
   const { status } = useSession({
     required: true,
@@ -30,6 +32,19 @@ export default function ActivityTimesPage() {
       redirect("/");
     },
   });
+
+  // Function to fetch timeframes
+  const fetchTimeframes = useCallback(async () => {
+    try {
+      setLoadingTimeframes(true);
+      const data = await activityService.getTimeframes();
+      setTimeframes(data);
+    } catch (_err) {
+      console.error("Error loading timeframes:", _err);
+    } finally {
+      setLoadingTimeframes(false);
+    }
+  }, []);
 
   // Function to fetch the activity details
   const fetchActivity = useCallback(async () => {
@@ -53,7 +68,8 @@ export default function ActivityTimesPage() {
   // Initial data load
   useEffect(() => {
     void fetchActivity();
-  }, [fetchActivity]);
+    void fetchTimeframes();
+  }, [fetchActivity, fetchTimeframes]);
 
   // Loading state
   if (status === "loading" || loading) {
@@ -85,28 +101,24 @@ export default function ActivityTimesPage() {
 
   // Add a new time slot
   const handleAddTimeSlot = async () => {
-    if (!startTime) {
-      setError("Bitte geben Sie eine Startzeit ein");
+    if (!selectedTimeframeId) {
+      setError("Bitte wählen Sie eine Zeitrahmen aus");
       return;
     }
 
     try {
       setAddingTime(true);
 
-      // Create a new time slot with start/end times
-      const newTimeSlot = {
-        weekday,
-        startTime: startTime,
-        endTime: endTime ?? '',
+      // Create a new schedule using the timeframe system
+      const newSchedule = {
+        weekday: weekday.toLowerCase(),
+        timeframe_id: parseInt(selectedTimeframeId, 10),
       };
 
-      await activityService.addTimeSlot(id as string, newTimeSlot);
+      await activityService.createActivitySchedule(id as string, newSchedule);
 
       // Clear form fields
-      setStartTime("");
-      setEndTime("");
-      // This field is now commented out and no longer needed
-      // setTimeSpanId(''); // Clear this field even though it's no longer visible (for backward compatibility)
+      setSelectedTimeframeId("");
 
       // Refresh data to show changes
       void fetchActivity();
@@ -201,9 +213,14 @@ export default function ActivityTimesPage() {
                     <span className="font-medium">{time.weekday}</span>
                     {time.timeframe_id && (
                       <span className="ml-4">
-                        {/* Timeframe information would be displayed here if available */}
-                        Timeframe ID: {time.timeframe_id}
+                        {(() => {
+                          const timeframe = timeframes.find(tf => tf.id === String(time.timeframe_id));
+                          return timeframe ? timeframe.display_name || timeframe.description : `Timeframe ID: ${time.timeframe_id}`;
+                        })()}
                       </span>
+                    )}
+                    {!time.timeframe_id && (
+                      <span className="ml-4 text-gray-500">Keine Zeitrahmen zugewiesen</span>
                     )}
                   </div>
                   <button
@@ -240,35 +257,38 @@ export default function ActivityTimesPage() {
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Startzeit
-                </label>
-                <input
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Zeitrahmen
+              </label>
+              {loadingTimeframes ? (
+                <div className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-500">
+                  Laden...
+                </div>
+              ) : (
+                <select
+                  value={selectedTimeframeId}
+                  onChange={(e) => setSelectedTimeframeId(e.target.value)}
                   className="w-full rounded-lg border border-gray-300 px-4 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Endzeit
-                </label>
-                <input
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2"
-                />
-              </div>
+                >
+                  <option value="">Zeitrahmen auswählen</option>
+                  {timeframes.map((timeframe) => (
+                    <option key={timeframe.id} value={timeframe.id}>
+                      {timeframe.display_name || timeframe.description}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {timeframes.length === 0 && !loadingTimeframes && (
+                <p className="mt-1 text-sm text-red-600">
+                  Keine Zeitrahmen verfügbar. Bitte erstellen Sie zuerst Zeitrahmen in den Systemeinstellungen.
+                </p>
+              )}
             </div>
 
             <button
               onClick={handleAddTimeSlot}
-              disabled={addingTime || !startTime}
+              disabled={addingTime || !selectedTimeframeId || loadingTimeframes}
               className="mt-4 w-full rounded-lg bg-green-500 px-4 py-2 text-white transition-colors hover:bg-green-600 disabled:opacity-50"
             >
               {addingTime ? "Hinzufügen..." : "Zeit hinzufügen"}

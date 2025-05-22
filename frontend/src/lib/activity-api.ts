@@ -738,8 +738,8 @@ export async function getActivitySchedule(activityId: string, scheduleId: string
 export async function getTimeframes(): Promise<Timeframe[]> {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
-        ? "/api/activities/timespans"
-        : `${env.NEXT_PUBLIC_API_URL}/activities/timespans`;
+        ? "/api/schedules/timeframes"
+        : `${env.NEXT_PUBLIC_API_URL}/schedules/timeframes`;
 
     try {
         if (useProxyApi) {

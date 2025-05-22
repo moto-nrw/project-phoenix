@@ -30,6 +30,7 @@ func (r *TimeframeRepository) FindActive(ctx context.Context) ([]*schedule.Timef
 	var timeframes []*schedule.Timeframe
 	err := r.db.NewSelect().
 		Model(&timeframes).
+		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
 		Where("is_active = ?", true).
 		Scan(ctx)
 
@@ -49,6 +50,7 @@ func (r *TimeframeRepository) FindByTimeRange(ctx context.Context, startTime, en
 
 	query := r.db.NewSelect().
 		Model(&timeframes).
+		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
 		Where("start_time <= ?", endTime)
 
 	// Handle open-ended timeframes (no end_time) differently
@@ -70,6 +72,7 @@ func (r *TimeframeRepository) FindByDescription(ctx context.Context, description
 	var timeframes []*schedule.Timeframe
 	err := r.db.NewSelect().
 		Model(&timeframes).
+		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
 		Where("LOWER(description) LIKE LOWER(?)", "%"+description+"%").
 		Scan(ctx)
 
@@ -116,7 +119,9 @@ func (r *TimeframeRepository) Update(ctx context.Context, timeframe *schedule.Ti
 // List retrieves timeframes matching the provided query options
 func (r *TimeframeRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.Timeframe, error) {
 	var timeframes []*schedule.Timeframe
-	query := r.db.NewSelect().Model(&timeframes)
+	query := r.db.NewSelect().
+		Model(&timeframes).
+		ModelTableExpr(`schedule.timeframes AS "timeframe"`)
 
 	// Apply query options
 	if options != nil {
@@ -132,4 +137,23 @@ func (r *TimeframeRepository) List(ctx context.Context, options *modelBase.Query
 	}
 
 	return timeframes, nil
+}
+
+// FindByID overrides base method to ensure schema qualification
+func (r *TimeframeRepository) FindByID(ctx context.Context, id interface{}) (*schedule.Timeframe, error) {
+	var timeframe schedule.Timeframe
+
+	err := r.db.NewSelect().
+		Model(&timeframe).
+		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
+		Where(`"timeframe".id = ?`, id).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by id",
+			Err: err,
+		}
+	}
+
+	return &timeframe, nil
 }

@@ -633,7 +633,7 @@ export default function ActivityForm({
         setIsLoadingTimeframes(true);
         
         // Fetch timeframes from the API
-        const response = await fetch('/api/activities/timespans');
+        const response = await fetch('/api/schedules/timeframes');
         
         if (!response.ok) {
           throw new Error(`Failed to fetch timeframes: ${response.status} ${response.statusText}`);
