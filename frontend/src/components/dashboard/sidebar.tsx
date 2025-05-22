@@ -325,9 +325,11 @@ const NAV_ITEMS: NavItem[] = [
 
 interface SidebarProps {
     className?: string;
+    isMobileMenuOpen?: boolean;
+    onCloseMobileMenu?: () => void;
 }
 
-export function Sidebar({ className = "" }: SidebarProps) {
+export function Sidebar({ className = "", isMobileMenuOpen = false, onCloseMobileMenu }: SidebarProps) {
     // Aktuelle Route ermitteln
     const pathname = usePathname();
 
@@ -409,9 +411,17 @@ export function Sidebar({ className = "" }: SidebarProps) {
         }
     };
 
+    const handleLinkClick = () => {
+        // Close mobile menu when a link is clicked
+        if (onCloseMobileMenu) {
+            onCloseMobileMenu();
+        }
+    };
+
     return (
         <>
-            <aside className={`w-64 bg-white border-r border-gray-200 min-h-screen overflow-y-auto ${className}`}>
+            {/* Desktop sidebar - always visible on md+ screens */}
+            <aside className={`hidden md:block w-64 bg-white border-r border-gray-200 min-h-screen overflow-y-auto ${className}`}>
                 <div className="p-4">
                     <nav className="space-y-2">
                         {NAV_ITEMS.map((item) => (
@@ -430,8 +440,46 @@ export function Sidebar({ className = "" }: SidebarProps) {
                 </div>
             </aside>
 
-            {/* Hilfe-Button fixiert am unteren linken Bildschirmrand - dynamischer Hilfetext basierend auf der aktiven Route */}
-            <div className="fixed bottom-0 left-0 z-50 w-64 p-4 bg-white border-t border-r border-gray-200">
+            {/* Mobile sidebar - overlay that slides in from left */}
+            <aside className={`
+                md:hidden fixed inset-y-0 left-0 z-50 w-80 bg-white border-r border-gray-200 min-h-screen overflow-y-auto
+                transform transition-transform duration-300 ease-in-out
+                ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+                ${className}
+            `}>
+                <div className="p-4 pt-20"> {/* Extra top padding to account for header */}
+                    <nav className="space-y-2">
+                        {NAV_ITEMS.map((item) => (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                className={`${getLinkClasses(item.href)} text-lg py-4`} // Larger touch targets
+                                onClick={handleLinkClick}
+                            >
+                                <svg className="h-7 w-7 mr-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
+                                </svg>
+                                {item.label}
+                            </Link>
+                        ))}
+                    </nav>
+                </div>
+                
+                {/* Mobile help button at bottom */}
+                <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200">
+                    <div className="flex items-center justify-start">
+                        <HelpButton
+                            title={getHelpButtonTitle()}
+                            content={getActiveHelpContent()}
+                            buttonClassName="mr-2"
+                        />
+                        <span className="text-sm text-gray-600">Hilfe</span>
+                    </div>
+                </div>
+            </aside>
+
+            {/* Desktop help button - fixed at bottom left, only visible on desktop */}
+            <div className="hidden md:block fixed bottom-0 left-0 z-50 w-64 p-4 bg-white border-t border-r border-gray-200">
                 <div className="flex items-center justify-start">
                     <HelpButton
                         title={getHelpButtonTitle()}

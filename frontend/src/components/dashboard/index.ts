@@ -1,4 +1,6 @@
 export * from "./header";
+export * from "./sidebar";
+export { default as ResponsiveLayout } from "./responsive-layout";
 export * from "./feature-card";
 export * from "./section-title";
 export * from "./page-header";

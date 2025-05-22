@@ -3,8 +3,7 @@
 
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { Header } from "~/components/dashboard/header";
-import { Sidebar } from "~/components/dashboard/sidebar";
+import { ResponsiveLayout } from "~/components/dashboard";
 import Link from "next/link";
 
 // Info Card Component with proper TypeScript types and fixed height option
@@ -264,33 +263,22 @@ export default function DashboardPage() {
     }
 
     return (
-        <div className="min-h-screen">
-            {/* Header */}
-            <Header userName={session?.user?.name ?? "Root"} />
+        <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+            <div className="max-w-7xl mx-auto">
+                <h1 className="text-4xl font-bold text-gray-900 mb-8">Home</h1>
 
-            <div className="flex">
-                {/* Sidebar Navigation */}
-                <Sidebar />
-
-                {/* Main Content */}
-                <main className="flex-1 p-8">
-                    <div className="max-w-7xl mx-auto">
-                        <h1 className="text-4xl font-bold text-gray-900 mb-8">Home</h1>
-
-                        {/* Stats Grid */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                            <div className="grid grid-cols-1 gap-6">
-                                <QuickActions />
-                                <StudentStats />
-                            </div>
-                            <div className="grid grid-cols-1 gap-6">
-                                <OGSGroupsStats />
-                                <ActivityStats />
-                            </div>
-                        </div>
+                {/* Stats Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <div className="grid grid-cols-1 gap-6">
+                        <QuickActions />
+                        <StudentStats />
                     </div>
-                </main>
+                    <div className="grid grid-cols-1 gap-6">
+                        <OGSGroupsStats />
+                        <ActivityStats />
+                    </div>
+                </div>
             </div>
-        </div>
+        </ResponsiveLayout>
     );
 }

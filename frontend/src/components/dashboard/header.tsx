@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 
 interface HeaderProps {
     userName?: string;
+    onMenuToggle?: () => void;
+    isMobileMenuOpen?: boolean;
 }
 
 // Logout Icon als React Component
@@ -29,21 +31,64 @@ const LogoutIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
-export function Header({ userName = "Root" }: HeaderProps) {
+// Hamburger Menu Icon
+const HamburgerIcon = ({ className, isOpen }: { className?: string; isOpen?: boolean }) => (
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={className}
+    >
+        {isOpen ? (
+            <>
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+            </>
+        ) : (
+            <>
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+            </>
+        )}
+    </svg>
+);
+
+export function Header({ userName = "Root", onMenuToggle, isMobileMenuOpen = false }: HeaderProps) {
     return (
-        <header className="w-full bg-white/80 py-4 shadow-sm backdrop-blur-sm">
+        <header className="w-full bg-white/80 py-4 shadow-sm backdrop-blur-sm relative z-50">
             <div className="w-full px-4 flex items-center justify-between">
-                {/* Left container: Logo, MOTO text, and welcome message */}
+                {/* Left container: Mobile menu button, Logo, MOTO text, and welcome message */}
                 <div className="flex items-center gap-3">
+                    {/* Mobile menu button - only visible on mobile */}
+                    {onMenuToggle && (
+                        <button
+                            onClick={onMenuToggle}
+                            className="md:hidden p-2 hover:bg-gray-100/80 transition-colors duration-200 rounded-lg"
+                            aria-label="Toggle mobile menu"
+                        >
+                            <HamburgerIcon 
+                                className="w-6 h-6 text-gray-700" 
+                                isOpen={isMobileMenuOpen} 
+                            />
+                        </button>
+                    )}
+                    
                     <Image
                         src="/images/moto_transparent.png"
                         alt="Logo"
                         width={40}
                         height={40}
-                        className="h-10 w-auto"
+                        className="h-8 md:h-10 w-auto"
                     />
                     <span
-                        className="text-3xl font-extrabold inline-block"
+                        className="hidden md:inline text-2xl md:text-3xl font-extrabold"
                         style={{
                             fontFamily: 'var(--font-geist-sans)',
                             letterSpacing: '-0.5px',
@@ -56,8 +101,9 @@ export function Header({ userName = "Root" }: HeaderProps) {
                     >
                         moto
                     </span>
-                    <h1 className="text-lg md:text-2xl font-bold ml-3 md:ml-6">
-                        <span>Willkommen, {userName}!</span>
+                    <h1 className="text-base md:text-lg lg:text-2xl font-bold ml-2 md:ml-3 lg:ml-6">
+                        <span className="hidden md:inline">Willkommen, {userName}!</span>
+                        <span className="md:hidden">Hallo, {userName.split(' ')[0]}</span>
                     </h1>
                 </div>
 
