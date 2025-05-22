@@ -30,11 +30,11 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
   } catch (error) {
     
     // Properly propagate the error for handling in the service layer
-    throw new Error(JSON.stringify({
-      status: 500,
-      message: `Failed to fetch schedules for activity ${id}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      code: 'ACTIVITY_SCHEDULES_ERROR'
-    }));
+    throw new ActivitySchedulesError(
+      500,
+      `Failed to fetch schedules for activity ${id}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      'ACTIVITY_SCHEDULES_ERROR'
+    );
   }
 });
 
