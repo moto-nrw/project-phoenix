@@ -5,7 +5,6 @@ import api from "./api";
 
 // Standardized error handling function for activities API
 function handleActivityApiError(error: unknown, context: string): never {
-  console.error(`Error in ${context}:`, error);
   
   // If we have a structured error message with status code
   if (error instanceof Error) {
@@ -119,7 +118,6 @@ export async function fetchActivities(filters?: ActivityFilter): Promise<Activit
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
@@ -138,7 +136,6 @@ export async function fetchActivities(filters?: ActivityFilter): Promise<Activit
                 : [];
         }
     } catch (error) {
-        console.error("Error fetching activities:", error);
         return [];
     }
 }
@@ -166,7 +163,6 @@ export async function getActivity(id: string): Promise<Activity> {
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
@@ -182,7 +178,6 @@ export async function getActivity(id: string): Promise<Activity> {
             return mapActivityResponse(response.data.data);
         }
     } catch (error) {
-        console.error("Error fetching activity:", error);
         throw error;
     }
 }
@@ -210,7 +205,6 @@ export async function getEnrolledStudents(activityId: string): Promise<ActivityS
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
@@ -232,7 +226,6 @@ export async function getEnrolledStudents(activityId: string): Promise<ActivityS
                 : [];
         }
     } catch (error) {
-        console.error("Error fetching enrolled students:", error);
         return [];
     }
 }
@@ -264,7 +257,6 @@ export async function enrollStudent(activityId: string, studentData: { studentId
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
@@ -275,7 +267,6 @@ export async function enrollStudent(activityId: string, studentData: { studentId
             return { success: true };
         }
     } catch (error) {
-        console.error("Error enrolling student:", error);
         throw error;
     }
 }
@@ -303,14 +294,12 @@ export async function unenrollStudent(activityId: string, studentId: string): Pr
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
         } else {
             await api.delete(url);
         }
     } catch (error) {
-        console.error("Error unenrolling student:", error);
         throw error;
     }
 }
@@ -323,7 +312,6 @@ export async function createActivity(data: CreateActivityRequest): Promise<Activ
         : `${env.NEXT_PUBLIC_API_URL}/activities`;
 
     // No need to prepare for backend - data already in correct format
-    console.log('Creating activity with data:', data);
     
     // Create a safe default activity to return in case of issues
     const safeActivity: Activity = {
@@ -357,13 +345,11 @@ export async function createActivity(data: CreateActivityRequest): Promise<Activ
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
             try {
                 const responseData = await response.json() as unknown;
-                console.log('Raw activity creation response:', responseData);
                 
                 // Try to extract data regardless of format
                 if (responseData) {
@@ -400,7 +386,6 @@ export async function createActivity(data: CreateActivityRequest): Promise<Activ
                 // If we got a response but couldn't extract meaningful data, return safe activity
                 return safeActivity;
             } catch (parseError) {
-                console.error("Error parsing activity creation response:", parseError);
                 // Even if parsing fails, we know the POST was successful, so return safe activity
                 return safeActivity;
             }
@@ -410,8 +395,6 @@ export async function createActivity(data: CreateActivityRequest): Promise<Activ
                     url,
                     data // Send the CreateActivityRequest directly
                 );
-                
-                console.log('Server-side API response:', response);
                 
                 // Try to handle various response formats safely
                 if (response && typeof response === 'object') {
@@ -448,12 +431,10 @@ export async function createActivity(data: CreateActivityRequest): Promise<Activ
                 // Fallback to safe activity if we couldn't extract proper data
                 return safeActivity;
             } catch (apiError) {
-                console.error("Error with server-side API call:", apiError);
                 throw apiError;
             }
         }
     } catch (error) {
-        console.error("Error creating activity:", error);
         throw error;
     }
 }
@@ -493,7 +474,6 @@ export async function updateActivity(id: string, data: UpdateActivityRequest): P
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
@@ -512,7 +492,6 @@ export async function updateActivity(id: string, data: UpdateActivityRequest): P
             return mapActivityResponse(response.data.data);
         }
     } catch (error) {
-        console.error("Error updating activity:", error);
         throw error;
     }
 }
@@ -540,14 +519,12 @@ export async function deleteActivity(id: string): Promise<void> {
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
         } else {
             await api.delete(url);
         }
     } catch (error) {
-        console.error("Error deleting activity:", error);
         throw error;
     }
 }
@@ -575,12 +552,10 @@ export async function getCategories(): Promise<ActivityCategory[]> {
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
             const responseData = await response.json() as ApiResponse<ActivityCategory[]> | ActivityCategory[];
-            console.log('Raw categories response:', responseData);
             
             // Extract the array from the response wrapper if needed
             if (responseData && typeof responseData === 'object' && 'data' in responseData) {
@@ -594,7 +569,6 @@ export async function getCategories(): Promise<ActivityCategory[]> {
                 : [];
         }
     } catch (error) {
-        console.error("Error fetching categories:", error);
         return [];
     }
 }
@@ -622,12 +596,10 @@ export async function getSupervisors(): Promise<Array<{ id: string; name: string
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
             const responseData = await response.json() as ApiResponse<Array<{ id: string; name: string }>> | Array<{ id: string; name: string }>;
-            console.log('Raw supervisors response:', responseData);
             
             // Extract the array from the response wrapper if needed
             if (responseData && typeof responseData === 'object' && 'data' in responseData) {
@@ -641,7 +613,6 @@ export async function getSupervisors(): Promise<Array<{ id: string; name: string
                 : [];
         }
     } catch (error) {
-        console.error("Error fetching supervisors:", error);
         return [];
     }
 }
@@ -669,7 +640,6 @@ export async function getActivitySchedules(activityId: string): Promise<Activity
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
@@ -691,7 +661,6 @@ export async function getActivitySchedules(activityId: string): Promise<Activity
                 : [];
         }
     } catch (error) {
-        console.error("Error fetching activity schedules:", error);
         return [];
     }
 }
@@ -719,7 +688,6 @@ export async function getActivitySchedule(activityId: string, scheduleId: string
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
@@ -735,7 +703,6 @@ export async function getActivitySchedule(activityId: string, scheduleId: string
             return mapActivityScheduleResponse(response.data.data);
         }
     } catch (error) {
-        console.error("Error fetching activity schedule:", error);
         return null;
     }
 }
@@ -763,7 +730,6 @@ export async function getTimeframes(): Promise<Timeframe[]> {
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
@@ -839,7 +805,6 @@ export async function getAvailableTimeSlots(activityId: string, date?: string): 
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
@@ -855,7 +820,6 @@ export async function getAvailableTimeSlots(activityId: string, date?: string): 
             return response.data.data || [];
         }
     } catch (error) {
-        console.error("Error fetching available time slots:", error);
         return [];
     }
 }
@@ -887,7 +851,6 @@ export async function createActivitySchedule(activityId: string, scheduleData: P
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
@@ -903,7 +866,6 @@ export async function createActivitySchedule(activityId: string, scheduleData: P
             return mapActivityScheduleResponse(response.data.data);
         }
     } catch (error) {
-        console.error("Error creating activity schedule:", error);
         return null;
     }
 }
@@ -935,7 +897,6 @@ export async function updateActivitySchedule(activityId: string, scheduleId: str
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
@@ -951,7 +912,6 @@ export async function updateActivitySchedule(activityId: string, scheduleId: str
             return mapActivityScheduleResponse(response.data.data);
         }
     } catch (error) {
-        console.error("Error updating activity schedule:", error);
         return null;
     }
 }
@@ -979,7 +939,6 @@ export async function deleteActivitySchedule(activityId: string, scheduleId: str
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
             
@@ -989,7 +948,6 @@ export async function deleteActivitySchedule(activityId: string, scheduleId: str
             return true;
         }
     } catch (error) {
-        console.error("Error deleting activity schedule:", error);
         return false;
     }
 }
@@ -1017,7 +975,6 @@ export async function getActivitySupervisors(activityId: string): Promise<Array<
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
@@ -1054,7 +1011,6 @@ export async function getActivitySupervisors(activityId: string): Promise<Array<
                 : [];
         }
     } catch (error) {
-        console.error("Error fetching activity supervisors:", error);
         return [];
     }
 }
@@ -1082,7 +1038,6 @@ export async function getAvailableSupervisors(activityId: string): Promise<Array
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
@@ -1104,7 +1059,6 @@ export async function getAvailableSupervisors(activityId: string): Promise<Array
                 : [];
         }
     } catch (error) {
-        console.error("Error fetching available supervisors:", error);
         return [];
     }
 }
@@ -1139,7 +1093,6 @@ export async function assignSupervisor(activityId: string, supervisorData: { sta
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
             
@@ -1149,7 +1102,6 @@ export async function assignSupervisor(activityId: string, supervisorData: { sta
             return true;
         }
     } catch (error) {
-        console.error("Error assigning supervisor:", error);
         return false;
     }
 }
@@ -1178,7 +1130,6 @@ export async function updateSupervisorRole(activityId: string, supervisorId: str
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
             
@@ -1188,7 +1139,6 @@ export async function updateSupervisorRole(activityId: string, supervisorId: str
             return true;
         }
     } catch (error) {
-        console.error("Error updating supervisor role:", error);
         return false;
     }
 }
@@ -1216,7 +1166,6 @@ export async function removeSupervisor(activityId: string, supervisorId: string)
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
             
@@ -1226,7 +1175,6 @@ export async function removeSupervisor(activityId: string, supervisorId: string)
             return true;
         }
     } catch (error) {
-        console.error("Error removing supervisor:", error);
         return false;
     }
 }
@@ -1266,7 +1214,6 @@ export async function getAvailableStudents(activityId: string, filters?: { searc
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
@@ -1300,7 +1247,6 @@ export async function getAvailableStudents(activityId: string, filters?: { searc
                 : [];
         }
     } catch (error) {
-        console.error("Error fetching available students:", error);
         return [];
     }
 }
@@ -1328,7 +1274,6 @@ export async function getStudentEnrollments(studentId: string): Promise<Activity
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
 
@@ -1350,7 +1295,6 @@ export async function getStudentEnrollments(studentId: string): Promise<Activity
                 : [];
         }
     } catch (error) {
-        console.error("Error fetching student enrollments:", error);
         return [];
     }
 }
@@ -1384,7 +1328,6 @@ export async function updateGroupEnrollments(activityId: string, data: { student
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`API error: ${response.status}`, errorText);
                 throw new Error(`API error: ${response.status}`);
             }
             
@@ -1394,7 +1337,6 @@ export async function updateGroupEnrollments(activityId: string, data: { student
             return true;
         }
     } catch (error) {
-        console.error("Error updating group enrollments:", error);
         return false;
     }
 }

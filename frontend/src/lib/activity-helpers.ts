@@ -413,15 +413,11 @@ export function filterStudentsBySearchTerm(students: ActivityStudent[], searchTe
 export function mapSupervisorResponse(backendSupervisor: unknown): Supervisor {
     // Handle null or undefined input
     if (!backendSupervisor) {
-        console.warn("Received null/undefined backendSupervisor in mapSupervisorResponse");
         return {
             id: "0",
             name: "Unknown Supervisor"
         };
     }
-    
-    // Log for debugging
-    console.log("Mapping supervisor:", backendSupervisor);
     
     // Extract the ID safely
     const rawId = typeof backendSupervisor === 'object' && 'id' in backendSupervisor ? backendSupervisor.id : undefined;

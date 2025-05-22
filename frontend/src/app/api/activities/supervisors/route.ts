@@ -11,36 +11,29 @@ import { mapSupervisorResponse } from "~/lib/activity-helpers";
  */
 export const GET = createGetHandler(async (request: NextRequest, token: string) => {
   try {
-    console.log("Fetching supervisors - start");
-    
     // Try fetching from the backend activities API endpoint first
     try {
       const response = await apiGet<{ data?: unknown[] } | unknown[]>('/api/activities/supervisors/available', token);
-      console.log("Activities supervisors API response:", response);
       
       // Handle response structure with more flexible error checking
       if (response) {
         // If response has a data property that is an array
         if (typeof response === 'object' && 'data' in response && Array.isArray(response.data)) {
           const mapped = response.data.map((item: unknown) => mapSupervisorResponse(item));
-          console.log("Mapped supervisors:", mapped);
           return mapped;
         } 
         // If response itself is an array
         else if (Array.isArray(response)) {
           const mapped = response.map((item: unknown) => mapSupervisorResponse(item));
-          console.log("Mapped supervisors (direct array):", mapped);
           return mapped;
         }
       }
     } catch (activityApiError) {
-      console.error('Error fetching from activities supervisors endpoint:', activityApiError);
       // Fall through to try the staff endpoint
     }
     
     // Try fetching from staff endpoint as a fallback
     try {
-      console.log("Requesting staff from backend: /api/staff?teachers_only=true");
       interface StaffMember {
         id: number | string;
         person?: {
@@ -49,7 +42,6 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
         };
       }
       const response = await apiGet<{ data?: StaffMember[] } | StaffMember[]>('/api/staff?teachers_only=true', token);
-      console.log("API staff response:", response);
       
       // Handle response structure with more flexible checking
       if (response) {
@@ -61,7 +53,6 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
               `${supervisor.person.first_name} ${supervisor.person.last_name}` : 
               `Teacher ${supervisor.id}`
           }));
-          console.log("Mapped staff supervisors:", mapped);
           return mapped;
         } 
         // If response itself is an array
@@ -72,19 +63,15 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
               `${supervisor.person.first_name} ${supervisor.person.last_name}` : 
               `Teacher ${supervisor.id}`
           }));
-          console.log("Mapped staff supervisors (direct array):", mapped);
           return mapped;
         }
       }
     } catch (staffApiError) {
-      console.error('Error fetching from staff endpoint:', staffApiError);
     }
     
     // If all API calls failed, return empty array
-    console.log("All API calls failed, returning empty array");
     return [];
   } catch (error) {
-    console.error('Error in supervisors API route:', error);
     
     // Return empty array instead of mock data
     return [];
