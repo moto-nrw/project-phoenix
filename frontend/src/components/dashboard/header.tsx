@@ -7,8 +7,6 @@ import { Button } from "@/components/ui/button";
 
 interface HeaderProps {
     userName?: string;
-    onMenuToggle?: () => void;
-    isMobileMenuOpen?: boolean;
 }
 
 // Logout Icon als React Component
@@ -31,55 +29,13 @@ const LogoutIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
-// Hamburger Menu Icon
-const HamburgerIcon = ({ className, isOpen }: { className?: string; isOpen?: boolean }) => (
-    <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className={className}
-    >
-        {isOpen ? (
-            <>
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-            </>
-        ) : (
-            <>
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-            </>
-        )}
-    </svg>
-);
 
-export function Header({ userName = "Root", onMenuToggle, isMobileMenuOpen = false }: HeaderProps) {
+export function Header({ userName = "Root" }: HeaderProps) {
     return (
         <header className="w-full bg-white/80 py-4 shadow-sm backdrop-blur-sm relative z-50">
             <div className="w-full px-4 flex items-center justify-between">
-                {/* Left container: Mobile menu button, Logo, MOTO text, and welcome message */}
+                {/* Left container: Logo, MOTO text, and welcome message */}
                 <div className="flex items-center gap-3">
-                    {/* Mobile menu button - only visible on mobile */}
-                    {onMenuToggle && (
-                        <button
-                            onClick={onMenuToggle}
-                            className="md:hidden p-2 hover:bg-gray-100/80 transition-colors duration-200 rounded-lg"
-                            aria-label="Toggle mobile menu"
-                        >
-                            <HamburgerIcon 
-                                className="w-6 h-6 text-gray-700" 
-                                isOpen={isMobileMenuOpen} 
-                            />
-                        </button>
-                    )}
-                    
                     <Image
                         src="/images/moto_transparent.png"
                         alt="Logo"
