@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/uptrace/bun"
@@ -48,10 +49,20 @@ func createAdminAccount(ctx context.Context, db *bun.DB) error {
 		}
 	}()
 
-	// Create admin account
-	adminEmail := "admin@example.com"
+	// Create admin account - read from environment variables
+	adminEmail := os.Getenv("ADMIN_EMAIL")
+	if adminEmail == "" {
+		adminEmail = "admin@example.com" // Fallback default
+		fmt.Printf("WARNING: ADMIN_EMAIL environment variable not set, using default: %s\n", adminEmail)
+	}
+
 	adminUsername := "admin"
-	adminPassword := "Test1234%" // Default password
+	adminPassword := os.Getenv("ADMIN_PASSWORD")
+	if adminPassword == "" {
+		adminPassword = "Test1234%" // Fallback default
+		fmt.Printf("WARNING: ADMIN_PASSWORD environment variable not set, using default password!\n")
+		fmt.Printf("WARNING: Please set ADMIN_PASSWORD environment variable for security!\n")
+	}
 
 	// Hash the password
 	hashedPassword, err := userpass.HashPassword(adminPassword, userpass.DefaultParams())
