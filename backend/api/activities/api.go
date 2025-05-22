@@ -19,19 +19,22 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // Resource defines the activities API resource
 type Resource struct {
 	ActivityService activitiesSvc.ActivityService
 	ScheduleService scheduleSvc.Service
+	UserService     usersSvc.PersonService
 }
 
 // NewResource creates a new activities resource
-func NewResource(activityService activitiesSvc.ActivityService, scheduleService scheduleSvc.Service) *Resource {
+func NewResource(activityService activitiesSvc.ActivityService, scheduleService scheduleSvc.Service, userService usersSvc.PersonService) *Resource {
 	return &Resource{
 		ActivityService: activityService,
 		ScheduleService: scheduleService,
+		UserService:     userService,
 	}
 }
 
@@ -503,10 +506,6 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prepare schedules
-	log.Printf("DEBUG: Received %d schedules in request", len(req.Schedules))
-	for i, s := range req.Schedules {
-		log.Printf("DEBUG: Schedule %d: Weekday=%s, TimeframeID=%v", i, s.Weekday, s.TimeframeID)
-	}
 	
 	schedules := make([]*activities.Schedule, 0, len(req.Schedules))
 	for _, s := range req.Schedules {
@@ -601,9 +600,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Handle supervisor updates - always process since frontend always sends this field
-	log.Printf("DEBUG: req.SupervisorIDs = %v (nil check: %t)", req.SupervisorIDs, req.SupervisorIDs != nil)
 	if true { // Always process supervisor updates
-		log.Printf("Updating supervisors for activity %d with IDs: %v", updatedGroup.ID, req.SupervisorIDs)
 		
 		// First, remove all existing supervisors for this group
 		existingSupervisors, err := rs.ActivityService.GetGroupSupervisors(r.Context(), updatedGroup.ID)
@@ -623,14 +620,12 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 			isPrimary := i == 0 // First supervisor is primary
 			_, err = rs.ActivityService.AddSupervisor(r.Context(), updatedGroup.ID, staffID, isPrimary)
 			if err != nil {
-				log.Printf("Warning: Failed to add supervisor with staff ID %d: %v", staffID, err)
-				// Don't fail the whole update, just log the warning
+				// Don't fail the whole update, just continue
 			}
 		}
 	}
 
 	// Handle schedule updates - similar to supervisor handling
-	log.Printf("DEBUG: Received %d schedules in update request", len(req.Schedules))
 	if true { // Always process schedule updates
 		// First, get existing schedules
 		existingSchedules, err := rs.ActivityService.GetGroupSchedules(r.Context(), updatedGroup.ID)
@@ -647,8 +642,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 		}
 		
 		// Add the new schedules
-		for i, scheduleReq := range req.Schedules {
-			log.Printf("DEBUG: Adding schedule %d: Weekday=%s, TimeframeID=%v", i, scheduleReq.Weekday, scheduleReq.TimeframeID)
+		for _, scheduleReq := range req.Schedules {
 			schedule := &activities.Schedule{
 				Weekday:     scheduleReq.Weekday,
 				TimeframeID: scheduleReq.TimeframeID,
@@ -1065,7 +1059,7 @@ func (rs *Resource) getTimespans(w http.ResponseWriter, r *http.Request) {
 	timeframes, err := rs.ScheduleService.FindActiveTimeframes(ctx)
 	if err != nil {
 		log.Printf("Error fetching timeframes: %v", err)
-		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve timeframes", "TIMEFRAMES_FETCH_ERROR")
+		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve timeframes")
 		return
 	}
 
@@ -1204,9 +1198,12 @@ func (rs *Resource) getActivitySchedule(w http.ResponseWriter, r *http.Request) 
 
 // getAvailableTimeSlots retrieves available time slots for scheduling
 func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	// Query parameters for filtering
 	weekday := r.URL.Query().Get("weekday")
 	roomIDStr := r.URL.Query().Get("room_id")
+	durationStr := r.URL.Query().Get("duration") // Duration in minutes
 
 	// Validate weekday if provided
 	if weekday != "" && !activities.IsValidWeekday(weekday) {
@@ -1229,37 +1226,86 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 		roomID = &id
 	}
 
-	// In a real implementation, this would query the activity and schedule services
-	// to get available time slots based on existing schedules and room availability
-	// For now, we'll return a placeholder response with all timeframes
-
-	// Mock timespan data (same as in getTimespans)
-	timespans := []TimespanResponse{
-		{
-			ID:          1,
-			Name:        "Morning",
-			StartTime:   "08:00",
-			EndTime:     "12:00",
-			Description: "Morning sessions",
-		},
-		{
-			ID:          2,
-			Name:        "Afternoon",
-			StartTime:   "13:00",
-			EndTime:     "17:00",
-			Description: "Afternoon sessions",
-		},
+	// Parse duration or use default (2 hours)
+	duration := 2 * time.Hour // Default duration
+	if durationStr != "" {
+		minutes, err := strconv.Atoi(durationStr)
+		if err != nil || minutes <= 0 {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid duration"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+		duration = time.Duration(minutes) * time.Minute
 	}
 
-	// Apply filters based on parameters
-	// This is a simple placeholder implementation
-	filteredTimespans := timespans
-	if weekday != "" || roomID != nil {
-		log.Printf("Filtering time slots for weekday: %s, roomID: %v", weekday, roomID)
-		// In a real implementation, would filter based on these parameters
+	// Set date range for the next 7 days
+	startDate := time.Now().Truncate(24 * time.Hour)
+	endDate := startDate.AddDate(0, 0, 7)
+
+	// Find available time slots using the schedule service
+	availableSlots, err := rs.ScheduleService.FindAvailableSlots(ctx, startDate, endDate, duration)
+	if err != nil {
+		log.Printf("Error finding available time slots: %v", err)
+		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve available time slots")
+		return
 	}
 
-	common.Respond(w, r, http.StatusOK, filteredTimespans, "Available time slots retrieved successfully")
+	// Convert available slots to TimespanResponse format and apply filters
+	var timespans []TimespanResponse
+	for _, slot := range availableSlots {
+		// Apply weekday filter if specified
+		if weekday != "" {
+			slotWeekday := slot.StartTime.Weekday().String()
+			expectedWeekday := convertWeekdayToString(weekday)
+			if slotWeekday != expectedWeekday {
+				continue
+			}
+		}
+
+		// Apply room filter if specified (this would need additional logic
+		// to check room availability, for now we include all slots)
+		if roomID != nil {
+			// TODO: Check room availability for this time slot
+			// This would require checking active bookings, room schedules, etc.
+			log.Printf("Room filtering not yet implemented for room ID: %d", *roomID)
+		}
+
+		timespans = append(timespans, TimespanResponse{
+			ID:          slot.ID,
+			Name:        generateSlotName(slot.StartTime, slot.EndTime),
+			StartTime:   slot.StartTime.Format("15:04"),
+			EndTime:     formatEndTime(slot.EndTime),
+			Description: fmt.Sprintf("Available slot: %s", slot.StartTime.Format("Monday, Jan 2")),
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, timespans, "Available time slots retrieved successfully")
+}
+
+// convertWeekdayToString converts weekday abbreviation to full weekday name
+func convertWeekdayToString(weekday string) string {
+	weekdayMap := map[string]string{
+		"MON": "Monday",
+		"TUE": "Tuesday", 
+		"WED": "Wednesday",
+		"THU": "Thursday",
+		"FRI": "Friday",
+		"SAT": "Saturday",
+		"SUN": "Sunday",
+	}
+	if fullName, exists := weekdayMap[weekday]; exists {
+		return fullName
+	}
+	return weekday
+}
+
+// generateSlotName creates a descriptive name for the time slot
+func generateSlotName(startTime time.Time, endTime *time.Time) string {
+	if endTime == nil {
+		return fmt.Sprintf("From %s", startTime.Format("15:04"))
+	}
+	return fmt.Sprintf("%s - %s", startTime.Format("15:04"), endTime.Format("15:04"))
 }
 
 // createActivitySchedule adds a new schedule to an activity
@@ -1514,41 +1560,71 @@ func (rs *Resource) getActivitySupervisors(w http.ResponseWriter, r *http.Reques
 
 // getAvailableSupervisors retrieves available supervisors for assignment
 func (rs *Resource) getAvailableSupervisors(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	// Query parameters for filtering
 	specialization := r.URL.Query().Get("specialization")
 
-	// In a real implementation, this would retrieve available staff/teachers who can be supervisors
-	// For this implementation, we'll return a placeholder response
+	var supervisors []SupervisorResponse
 
-	// Mock supervisor data
-	supervisors := []SupervisorResponse{
-		{
-			ID:        1,
-			StaffID:   101,
-			FirstName: "John",
-			LastName:  "Doe",
-			IsPrimary: false,
-		},
-		{
-			ID:        2,
-			StaffID:   102,
-			FirstName: "Jane",
-			LastName:  "Smith",
-			IsPrimary: false,
-		},
-	}
-
-	// Apply filters based on parameters
-	var filteredSupervisors []SupervisorResponse
 	if specialization != "" {
-		// In a real implementation, would filter by specialization
-		log.Printf("Filtering supervisors for specialization: %s", specialization)
-		filteredSupervisors = supervisors
+		// Get teachers with specific specialization
+		teachers, err := rs.UserService.TeacherRepository().FindBySpecialization(ctx, specialization)
+		if err != nil {
+			log.Printf("Error fetching teachers by specialization: %v", err)
+			common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve teachers")
+			return
+		}
+
+		// Convert teachers to supervisor responses
+		for _, teacher := range teachers {
+			// Get the full teacher with staff and person data
+			fullTeacher, err := rs.UserService.TeacherRepository().FindWithStaffAndPerson(ctx, teacher.ID)
+			if err != nil {
+				log.Printf("Error fetching full teacher data for ID %d: %v", teacher.ID, err)
+				continue // Skip this teacher if we can't get full data
+			}
+
+			if fullTeacher.Staff != nil && fullTeacher.Staff.Person != nil {
+				supervisors = append(supervisors, SupervisorResponse{
+					ID:        teacher.ID,
+					StaffID:   teacher.StaffID,
+					FirstName: fullTeacher.Staff.Person.FirstName,
+					LastName:  fullTeacher.Staff.Person.LastName,
+					IsPrimary: false, // Default to false for available supervisors
+				})
+			}
+		}
 	} else {
-		filteredSupervisors = supervisors
+		// Get all staff members who could potentially be supervisors
+		filters := make(map[string]interface{})
+		staff, err := rs.UserService.StaffRepository().List(ctx, filters)
+		if err != nil {
+			log.Printf("Error fetching staff: %v", err)
+			common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve staff")
+			return
+		}
+
+		// Convert staff to supervisor responses
+		for _, staffMember := range staff {
+			// Get person data for each staff member
+			person, err := rs.UserService.Get(ctx, staffMember.PersonID)
+			if err != nil {
+				log.Printf("Error fetching person data for staff ID %d: %v", staffMember.ID, err)
+				continue // Skip this staff member if we can't get person data
+			}
+
+			supervisors = append(supervisors, SupervisorResponse{
+				ID:        staffMember.ID,
+				StaffID:   staffMember.ID,
+				FirstName: person.FirstName,
+				LastName:  person.LastName,
+				IsPrimary: false, // Default to false for available supervisors
+			})
+		}
 	}
 
-	common.Respond(w, r, http.StatusOK, filteredSupervisors, "Available supervisors retrieved successfully")
+	common.Respond(w, r, http.StatusOK, supervisors, "Available supervisors retrieved successfully")
 }
 
 // SupervisorRequest represents a supervisor assignment request
