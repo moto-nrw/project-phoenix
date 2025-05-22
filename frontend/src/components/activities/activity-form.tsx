@@ -916,11 +916,6 @@ export default function ActivityForm({
                 label="Leitung"
                 supervisors={initialSupervisors}
               />
-              {isLoadingData && (
-                <div className="text-sm text-gray-500 italic">
-                  Leiter werden geladen...
-                </div>
-              )}
               {!isLoadingData && initialSupervisors.length === 0 && (
                 <div className="text-sm text-orange-500 italic">
                   Keine Leiter verfügbar
@@ -939,11 +934,6 @@ export default function ActivityForm({
                 label="Geplanter Raum"
                 rooms={rooms}
               />
-              {isLoadingData && (
-                <div className="text-sm text-gray-500 italic">
-                  Räume werden geladen...
-                </div>
-              )}
 
               {/* Is Open checkbox */}
               <div className="mt-2 flex items-center">
