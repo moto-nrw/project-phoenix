@@ -69,6 +69,9 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
  */
 export const POST = createPostHandler<Activity, CreateActivityRequest>(
   async (_request: NextRequest, body: CreateActivityRequest, token: string) => {
+    console.log('Frontend API Route - Received request body:', JSON.stringify(body, null, 2));
+    console.log('Frontend API Route - Schedules data:', body.schedules);
+    
     // Validate required fields
     if (!body.name || body.name.trim() === '') {
       throw new Error('Name is required');
@@ -81,6 +84,8 @@ export const POST = createPostHandler<Activity, CreateActivityRequest>(
     }
 
     try {
+      console.log('Frontend API Route - Sending to backend:', JSON.stringify(body, null, 2));
+      
       // We already have the backend data type from the request body
       const response = await apiPost<any, CreateActivityRequest>(
         `/api/activities`,

@@ -1,7 +1,7 @@
 // app/api/activities/[id]/schedules/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet } from "~/lib/api-helpers";
-import { createGetHandler } from "~/lib/route-wrapper";
+import { apiGet, apiPost } from "~/lib/api-helpers";
+import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 import type { BackendActivitySchedule } from "~/lib/activity-helpers";
 import { mapActivityScheduleResponse } from "~/lib/activity-helpers";
 
@@ -39,3 +39,37 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
     }));
   }
 });
+
+/**
+ * Handler for POST /api/activities/[id]/schedules
+ * Creates a new schedule for a specific activity
+ */
+export const POST = createPostHandler<BackendActivitySchedule, { weekday: string; timeframe_id?: number }>(
+  async (request: NextRequest, body: { weekday: string; timeframe_id?: number }, token: string, params: Record<string, unknown>) => {
+    const id = params.id as string;
+    const endpoint = `/api/activities/${id}/schedules`;
+    
+    console.log(`Creating schedule for activity ${id}:`, body);
+    
+    try {
+      const response = await apiPost<any, { weekday: string; timeframe_id?: number }>(endpoint, token, body);
+      
+      console.log('Schedule creation response:', response);
+      
+      // Handle wrapped response { status: "success", data: BackendActivitySchedule }
+      if (response && typeof response === 'object' && 'status' in response && response.status === "success" && 'data' in response) {
+        return mapActivityScheduleResponse(response.data as BackendActivitySchedule);
+      }
+      
+      // Handle direct response (BackendActivitySchedule)
+      if (response && typeof response === 'object' && 'id' in response) {
+        return mapActivityScheduleResponse(response as BackendActivitySchedule);
+      }
+      
+      throw new Error('Unexpected response structure from schedule creation API');
+    } catch (error) {
+      console.error('Error creating schedule:', error);
+      throw error;
+    }
+  }
+);

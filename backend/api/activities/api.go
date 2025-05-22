@@ -500,6 +500,11 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prepare schedules
+	log.Printf("DEBUG: Received %d schedules in request", len(req.Schedules))
+	for i, s := range req.Schedules {
+		log.Printf("DEBUG: Schedule %d: Weekday=%s, TimeframeID=%v", i, s.Weekday, s.TimeframeID)
+	}
+	
 	schedules := make([]*activities.Schedule, 0, len(req.Schedules))
 	for _, s := range req.Schedules {
 		schedules = append(schedules, &activities.Schedule{
