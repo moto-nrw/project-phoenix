@@ -24,19 +24,19 @@ import (
 
 // Resource defines the students API resource
 type Resource struct {
-	PersonService       userService.PersonService
-	StudentRepo         users.StudentRepository
-	EducationService    educationService.Service
-	UserContextService  userContextService.UserContextService
+	PersonService      userService.PersonService
+	StudentRepo        users.StudentRepository
+	EducationService   educationService.Service
+	UserContextService userContextService.UserContextService
 }
 
 // NewResource creates a new students resource
 func NewResource(personService userService.PersonService, studentRepo users.StudentRepository, educationService educationService.Service, userContextService userContextService.UserContextService) *Resource {
 	return &Resource{
-		PersonService:       personService,
-		StudentRepo:         studentRepo,
-		EducationService:    educationService,
-		UserContextService:  userContextService,
+		PersonService:      personService,
+		StudentRepo:        studentRepo,
+		EducationService:   educationService,
+		UserContextService: userContextService,
 	}
 }
 
@@ -264,11 +264,11 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 
 	var students []*users.Student
 	var err error
-	
+
 	// Get user permissions to check admin status
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	isAdmin := hasAdminPermissions(userPermissions)
-	
+
 	// Track if user can access location data (admins or supervisors)
 	canAccessLocation := isAdmin
 
@@ -412,7 +412,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	// Check if user can access location data (admins can always access)
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	canAccessLocation := hasAdminPermissions(userPermissions)
-	
+
 	// TODO: For individual student access, could also check if user supervises the student's group
 	// This would require additional logic to verify supervision
 
