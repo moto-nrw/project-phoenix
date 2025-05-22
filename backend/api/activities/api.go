@@ -592,8 +592,34 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Note: In a complete implementation, we would handle updating schedules and supervisors
-	// For simplicity, we're not implementing the full update functionality here
+	// Handle supervisor updates - always process since frontend always sends this field
+	log.Printf("DEBUG: req.SupervisorIDs = %v (nil check: %t)", req.SupervisorIDs, req.SupervisorIDs != nil)
+	if true { // Always process supervisor updates
+		log.Printf("Updating supervisors for activity %d with IDs: %v", updatedGroup.ID, req.SupervisorIDs)
+		
+		// First, remove all existing supervisors for this group
+		existingSupervisors, err := rs.ActivityService.GetGroupSupervisors(r.Context(), updatedGroup.ID)
+		if err != nil {
+			log.Printf("Warning: Failed to get existing supervisors: %v", err)
+		} else {
+			for _, supervisor := range existingSupervisors {
+				err = rs.ActivityService.DeleteSupervisor(r.Context(), supervisor.ID)
+				if err != nil {
+					log.Printf("Warning: Failed to delete supervisor with ID %d: %v", supervisor.ID, err)
+				}
+			}
+		}
+		
+		// Then add the new supervisors
+		for i, staffID := range req.SupervisorIDs {
+			isPrimary := i == 0 // First supervisor is primary
+			_, err = rs.ActivityService.AddSupervisor(r.Context(), updatedGroup.ID, staffID, isPrimary)
+			if err != nil {
+				log.Printf("Warning: Failed to add supervisor with staff ID %d: %v", staffID, err)
+				// Don't fail the whole update, just log the warning
+			}
+		}
+	}
 
 	// Get the updated group with details
 	detailedGroup, supervisors, updatedSchedules, err := rs.ActivityService.GetGroupWithDetails(r.Context(), updatedGroup.ID)
