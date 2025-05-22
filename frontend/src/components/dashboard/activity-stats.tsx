@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { activityService } from "~/lib/activity-api";
-import type { Activity } from "~/lib/activity-api";
+import { activityService } from "~/lib/activity-service";
+import type { Activity } from "~/lib/activity-helpers";
 import { Card } from "~/components/ui/card";
 import Link from "next/link";
 
