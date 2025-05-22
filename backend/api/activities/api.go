@@ -425,7 +425,7 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create a response with supervisor details if available
-	if supervisors != nil && len(supervisors) > 0 {
+	if len(supervisors) > 0 {
 		// Extract supervisor IDs and detailed info
 		supervisorIDs := make([]int64, 0, len(supervisors))
 		supervisorDetails := make([]SupervisorResponse, 0, len(supervisors))
@@ -463,7 +463,7 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add schedules to response if available
-	if schedules != nil && len(schedules) > 0 {
+	if len(schedules) > 0 {
 		responseSchedules := make([]ScheduleResponse, 0, len(schedules))
 		for _, schedule := range schedules {
 			if schedule != nil {
@@ -620,7 +620,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 			isPrimary := i == 0 // First supervisor is primary
 			_, err = rs.ActivityService.AddSupervisor(r.Context(), updatedGroup.ID, staffID, isPrimary)
 			if err != nil {
-				// Don't fail the whole update, just continue
+				log.Printf("Warning: Failed to add supervisor %d to activity %d: %v", staffID, updatedGroup.ID, err)
 			}
 		}
 	}
@@ -683,7 +683,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Add supervisors information if available
-		if supervisors != nil && len(supervisors) > 0 {
+		if len(supervisors) > 0 {
 			// You could add processing for supervisors here if needed
 			log.Printf("Info: %d supervisors found for group ID %d", len(supervisors), updatedGroup.ID)
 		} else {
