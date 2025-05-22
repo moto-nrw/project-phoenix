@@ -35,10 +35,11 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
     return availableStudents;
   }
   
-  // Otherwise return enrolled students
+  // Otherwise return enrolled students - call backend directly
   try {
-    const students = await getEnrolledStudents(id);
-    return students;
+    const endpoint = `/api/activities/${id}/students`;
+    const response = await apiGet(endpoint, token);
+    return response.data || [];
   } catch (error) {
     console.error('Error fetching enrolled students:', error);
     return []; // Return empty array on error

@@ -41,16 +41,21 @@ export default function AddStudentsToActivityPage() {
         }
 
         try {
-          // Fetch activity details
-          const activityData = await activityService.getActivity(id as string);
-          setActivity(activityData);
-
-          // Get all students
-          const allStudents = await studentService.getStudents();
+          // Fetch activity details and enrolled students
+          const [activityData, enrolledStudents, allStudents] = await Promise.all([
+            activityService.getActivity(id as string),
+            activityService.getEnrolledStudents(id as string),
+            studentService.getStudents()
+          ]);
+          
+          setActivity({
+            ...activityData,
+            students: enrolledStudents
+          });
 
           // Filter out students already enrolled
           const enrolledStudentIds = new Set(
-            (activityData.students ?? []).map((student) => student.id),
+            enrolledStudents.map((student) => student.id),
           );
 
           // Available students are those not already enrolled
@@ -102,11 +107,24 @@ export default function AddStudentsToActivityPage() {
         current.filter((student) => student.id !== studentId),
       );
 
-      // Update the activity data to reflect new enrollment count
-      if (activity && typeof activity.participant_count === "number") {
+      // Update the activity data to reflect new enrollment
+      if (activity) {
+        const enrolledStudent = availableStudents.find((s) => s.id === studentId);
         setActivity({
           ...activity,
-          participant_count: activity.participant_count + 1,
+          participant_count: typeof activity.participant_count === "number" 
+            ? activity.participant_count + 1 
+            : (activity.students?.length || 0) + 1,
+          students: [
+            ...(activity.students || []),
+            ...(enrolledStudent ? [{
+              id: studentId,
+              name: enrolledStudent.name,
+              school_class: enrolledStudent.school_class || '',
+              enrollment_date: new Date().toISOString(),
+              attendance_status: 'enrolled' as const
+            }] : [])
+          ]
         });
       }
 
