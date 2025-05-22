@@ -120,10 +120,20 @@ func createAdminAccount(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
+	// Log admin account creation securely
 	fmt.Printf("\n=== Admin Account Created ===\n")
 	fmt.Printf("Username: %s\n", adminUsername)
 	fmt.Printf("Email: %s\n", adminEmail)
-	fmt.Printf("Password: %s\n", adminPassword)
+
+	// Only show password if using default fallback
+	if adminPassword == "Test1234%" {
+		fmt.Printf("Password: %s (DEFAULT - CHANGE IMMEDIATELY!)\n", adminPassword)
+		fmt.Printf("WARNING: Using default password! Set ADMIN_PASSWORD environment variable!\n")
+	} else {
+		fmt.Printf("Password: Set via ADMIN_PASSWORD environment variable\n")
+		fmt.Printf("Please ensure you have recorded the password securely.\n")
+	}
+
 	fmt.Printf("Please change this password after first login!\n")
 	fmt.Printf("===========================\n\n")
 
