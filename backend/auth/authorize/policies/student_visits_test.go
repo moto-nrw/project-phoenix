@@ -782,7 +782,6 @@ func (m *SimpleMockEducationService) CheckSubstitutionConflicts(ctx context.Cont
 	return nil, nil
 }
 
-
 // For SimpleMockActiveService
 func (m *SimpleMockActiveService) CreateActiveGroup(ctx context.Context, group *active.Group) error {
 	return nil

@@ -3,6 +3,7 @@ package users
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -30,11 +31,15 @@ func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*user
 	person := new(users.Person)
 	err := r.db.NewSelect().
 		Model(person).
-		ModelTableExpr("users.persons").
+		ModelTableExpr(`users.persons AS "person"`).
 		Where("tag_id = ?", tagID).
 		Scan(ctx)
 
 	if err != nil {
+		// Handle "no rows found" as a normal case, not an error
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by tag ID",
 			Err: err,
@@ -49,11 +54,15 @@ func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64)
 	person := new(users.Person)
 	err := r.db.NewSelect().
 		Model(person).
-		ModelTableExpr("users.persons").
+		ModelTableExpr(`users.persons AS "person"`).
 		Where("account_id = ?", accountID).
 		Scan(ctx)
 
 	if err != nil {
+		// Handle "no rows found" as a normal case, not an error
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by account ID",
 			Err: err,
@@ -67,7 +76,7 @@ func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64)
 func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, accountID int64) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.Person)(nil)).
-		ModelTableExpr("users.persons").
+		ModelTableExpr(`users.persons AS "person"`).
 		Set("account_id = ?", accountID).
 		Where("id = ?", personID).
 		Exec(ctx)
@@ -86,7 +95,7 @@ func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, ac
 func (r *PersonRepository) UnlinkFromAccount(ctx context.Context, personID int64) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.Person)(nil)).
-		ModelTableExpr("users.persons").
+		ModelTableExpr(`users.persons AS "person"`).
 		Set("account_id = NULL").
 		Where("id = ?", personID).
 		Exec(ctx)

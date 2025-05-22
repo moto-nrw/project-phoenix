@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { HelpButton } from "@/components/ui/help_button";
+import { UserContextProvider, useHasEducationalGroups } from "~/lib/usercontext-context";
 import type {ReactNode} from "react";
 
 // Type für Navigation Items
@@ -327,9 +328,23 @@ interface SidebarProps {
     className?: string;
 }
 
-export function Sidebar({ className = "" }: SidebarProps) {
+function SidebarContent({ className = "" }: SidebarProps) {
     // Aktuelle Route ermitteln
     const pathname = usePathname();
+
+    // Check if user has educational groups
+    const { hasEducationalGroups, isLoading } = useHasEducationalGroups();
+
+    // Filter navigation items based on user's educational groups
+    const filteredNavItems = NAV_ITEMS.filter(item => {
+        // Always show all items except "OGS Gruppe"
+        if (item.href !== "/ogs_groups") {
+            return true;
+        }
+        // Only show "OGS Gruppe" if user has educational groups
+        // Don't show it while loading to avoid flickering
+        return !isLoading && hasEducationalGroups;
+    });
 
     // Funktion zur Überprüfung, ob ein Link aktiv ist
     const isActiveLink = (href: string) => {
@@ -358,7 +373,7 @@ export function Sidebar({ className = "" }: SidebarProps) {
         }
 
         // Finde das NavItem, das der aktuellen Route entspricht
-        const activeItem = NAV_ITEMS.find(item => {
+        const activeItem = filteredNavItems.find(item => {
             if (item.href === "/dashboard") {
                 return pathname === "/dashboard";
             }
@@ -369,7 +384,7 @@ export function Sidebar({ className = "" }: SidebarProps) {
         if (activeItem?.helpContent) {
             return activeItem.helpContent;
         }
-        return NAV_ITEMS[0]?.helpContent ?? (
+        return filteredNavItems[0]?.helpContent ?? (
             <div>
                 <p><strong>Willkommen</strong></p>
                 <p>Wählen Sie eine Option aus dem Menü, um weitere Informationen zu erhalten.</p>
@@ -414,7 +429,7 @@ export function Sidebar({ className = "" }: SidebarProps) {
             <aside className={`w-64 bg-white border-r border-gray-200 min-h-screen overflow-y-auto ${className}`}>
                 <div className="p-4">
                     <nav className="space-y-2">
-                        {NAV_ITEMS.map((item) => (
+                        {filteredNavItems.map((item) => (
                             <Link
                                 key={item.href}
                                 href={item.href}
@@ -442,5 +457,13 @@ export function Sidebar({ className = "" }: SidebarProps) {
                 </div>
             </div>
         </>
+    );
+}
+
+export function Sidebar({ className = "" }: SidebarProps) {
+    return (
+        <UserContextProvider>
+            <SidebarContent className={className} />
+        </UserContextProvider>
     );
 }

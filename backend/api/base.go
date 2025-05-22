@@ -90,7 +90,7 @@ func New(enableCORS bool) (*API, error) {
 	// Initialize API resources
 	api.Auth = authAPI.NewResource(api.Services.Auth)
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities)
-	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student)
+	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student, api.Services.Education, api.Services.UserContext)
 	api.Groups = groupsAPI.NewResource(api.Services.Education)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education)

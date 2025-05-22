@@ -2,8 +2,8 @@ package users
 
 import (
 	"context"
-	"time"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"time"
 )
 
 // RFIDCardRepository defines operations for managing RFID cards
