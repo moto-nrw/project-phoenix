@@ -626,6 +626,38 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Handle schedule updates - similar to supervisor handling
+	log.Printf("DEBUG: Received %d schedules in update request", len(req.Schedules))
+	if true { // Always process schedule updates
+		// First, get existing schedules
+		existingSchedules, err := rs.ActivityService.GetGroupSchedules(r.Context(), updatedGroup.ID)
+		if err != nil {
+			log.Printf("Warning: Failed to get existing schedules: %v", err)
+		} else {
+			// Remove all existing schedules
+			for _, schedule := range existingSchedules {
+				err = rs.ActivityService.DeleteSchedule(r.Context(), schedule.ID)
+				if err != nil {
+					log.Printf("Warning: Failed to delete schedule with ID %d: %v", schedule.ID, err)
+				}
+			}
+		}
+		
+		// Add the new schedules
+		for i, scheduleReq := range req.Schedules {
+			log.Printf("DEBUG: Adding schedule %d: Weekday=%s, TimeframeID=%v", i, scheduleReq.Weekday, scheduleReq.TimeframeID)
+			schedule := &activities.Schedule{
+				Weekday:     scheduleReq.Weekday,
+				TimeframeID: scheduleReq.TimeframeID,
+			}
+			_, err = rs.ActivityService.AddSchedule(r.Context(), updatedGroup.ID, schedule)
+			if err != nil {
+				log.Printf("Warning: Failed to add schedule (weekday=%s, timeframe=%v): %v", scheduleReq.Weekday, scheduleReq.TimeframeID, err)
+				// Don't fail the whole update, just log the warning
+			}
+		}
+	}
+
 	// Get the updated group with details
 	detailedGroup, supervisors, updatedSchedules, err := rs.ActivityService.GetGroupWithDetails(r.Context(), updatedGroup.ID)
 	if err != nil {
