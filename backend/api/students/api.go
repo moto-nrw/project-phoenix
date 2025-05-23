@@ -292,18 +292,9 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	var students []*users.Student
 	var err error
 
-	// Get students based on permissions
-	if isAdmin && len(allowedGroupIDs) == 0 {
-		// Admin with no specific group filter - get all students
-		students, err = rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
-		if err != nil {
-			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
-			return
-		}
-	} else if len(allowedGroupIDs) > 0 {
-		// Get students from allowed groups
+	// Get students - show all for search functionality
+	if len(allowedGroupIDs) > 0 {
+		// Specific group filter requested
 		students, err = rs.StudentRepo.FindByGroupIDs(r.Context(), allowedGroupIDs)
 		if err != nil {
 			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
@@ -312,8 +303,14 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// No access to any students
-		students = []*users.Student{}
+		// No specific group filter - get all students
+		students, err = rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
+		if err != nil {
+			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
 	}
 
 	// Build response with person data for each student
