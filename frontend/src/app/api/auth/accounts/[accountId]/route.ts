@@ -1,9 +1,15 @@
 import { createGetHandler } from "@/lib/route-wrapper";
-import { apiGet } from "@/lib/api-client";
+
+interface UserData {
+  account_id?: string;
+  email?: string;
+  username?: string;
+  first_name?: string;
+}
 
 // Handler to get account by ID
 export const GET = createGetHandler(async (request, token, params) => {
-  const accountId = params.accountId;
+  const accountId = params.accountId as string;
   console.log(`API Route - Fetching account for ID: ${accountId}`);
 
   if (!accountId) {
@@ -30,15 +36,15 @@ export const GET = createGetHandler(async (request, token, params) => {
       });
       
       if (userResponse.ok) {
-        const userData = await userResponse.json();
+        const userData = await userResponse.json() as { data?: UserData } | UserData;
         
-        const user = userData.data || userData;
+        const user = ('data' in userData && userData.data) ? userData.data : userData as UserData;
         
         // Create an account with all fields needed by the UI
         const account = {
-          id: user.account_id || accountId,
-          email: user.email || "user@example.com",
-          username: user.username || user.first_name || "user_" + accountId,
+          id: user?.account_id ?? accountId,
+          email: user?.email ?? "user@example.com",
+          username: user?.username ?? user?.first_name ?? `user_${accountId}`,
           active: true,
           roles: [], // Empty array that will be populated by the roles endpoint
           permissions: [] // Empty array that will be populated by the permissions endpoint
@@ -50,7 +56,7 @@ export const GET = createGetHandler(async (request, token, params) => {
           message: "Account retrieved successfully from user API"
         };
       }
-    } catch (userError) {
+    } catch {
       // Silent error - just use fallback
     }
     
@@ -61,7 +67,7 @@ export const GET = createGetHandler(async (request, token, params) => {
       data: {
         id: accountId,
         email: "user@example.com",
-        username: "user_" + accountId,
+        username: `user_${accountId}`,
         active: true,
         roles: [],
         permissions: []
@@ -73,7 +79,7 @@ export const GET = createGetHandler(async (request, token, params) => {
     
     return {
       status: "error",
-      message: `Failed to process account request: ${error.message}`,
+      message: `Failed to process account request: ${error instanceof Error ? error.message : 'Unknown error'}`,
       code: "INTERNAL_ERROR"
     };
   }

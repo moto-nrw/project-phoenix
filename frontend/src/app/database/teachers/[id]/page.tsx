@@ -8,7 +8,7 @@ import { teacherService, type Teacher } from "@/lib/teacher-api";
 import { authService } from "@/lib/auth-service";
 import type { Activity } from "@/lib/activity-helpers";
 import type { Role, Permission, Account } from "@/lib/auth-helpers";
-import { DeleteModal, Button, Input } from "@/components/ui";
+import { DeleteModal, Button } from "@/components/ui";
 import Link from "next/link";
 
 // Tab interface
@@ -51,7 +51,6 @@ export default function TeacherDetailsPage() {
     const [showPermissionManagement, setShowPermissionManagement] = useState(false);
     
     // User authorization state
-    const [userPermissions, setUserPermissions] = useState<Permission[]>([]);
     const [hasAuthManagePermission, setHasAuthManagePermission] = useState(false);
     const [loadingUserPermissions, setLoadingUserPermissions] = useState(true);
 
@@ -112,7 +111,7 @@ export default function TeacherDetailsPage() {
     }, [id]);
 
     // Function to fetch account roles - with improved error handling and response parsing
-    const fetchAccountRoles = async (accountId: string) => {
+    const fetchAccountRoles = useCallback(async (accountId: string) => {
         // Skip if accountId is undefined or invalid
         if (!accountId || accountId === "undefined") {
             console.warn("Invalid accountId, skipping role fetch");
@@ -146,20 +145,22 @@ export default function TeacherDetailsPage() {
                 });
                 
                 if (rolesResponse.ok) {
-                    const rolesData = await rolesResponse.json();
+                    const rolesData = await rolesResponse.json() as { data?: { data?: Role[] } | Role[] } | Role[];
                     console.log("Raw roles response:", rolesData);
                     
                     // Extract roles from the response, handling different formats
                     let roles: Role[] = [];
                     
-                    if (rolesData?.data?.data && Array.isArray(rolesData.data.data)) {
-                        // Double-nested: { data: { data: [] } }
-                        roles = rolesData.data.data;
-                        console.log("Found roles in data.data array");
-                    } else if (rolesData?.data && Array.isArray(rolesData.data)) {
-                        // Single-nested: { data: [] }
-                        roles = rolesData.data;
-                        console.log("Found roles in data array");
+                    if (typeof rolesData === 'object' && 'data' in rolesData && rolesData.data) {
+                        if (typeof rolesData.data === 'object' && 'data' in rolesData.data && Array.isArray(rolesData.data.data)) {
+                            // Double-nested: { data: { data: [] } }
+                            roles = rolesData.data.data;
+                            console.log("Found roles in data.data array");
+                        } else if (Array.isArray(rolesData.data)) {
+                            // Single-nested: { data: [] }
+                            roles = rolesData.data;
+                            console.log("Found roles in data array");
+                        }
                     } else if (Array.isArray(rolesData)) {
                         // Direct array
                         roles = rolesData;
@@ -189,20 +190,22 @@ export default function TeacherDetailsPage() {
                             });
                             
                             if (rolePermissionsResponse.ok) {
-                                const rolePermissionsData = await rolePermissionsResponse.json();
+                                const rolePermissionsData = await rolePermissionsResponse.json() as { data?: { data?: Permission[] } | Permission[] } | Permission[];
                                 console.log(`Raw permissions for role ${role.id}:`, rolePermissionsData);
                                 
                                 // Extract permissions from the response, handling different formats
                                 let rolePermissions: Permission[] = [];
                                 
-                                if (rolePermissionsData?.data?.data && Array.isArray(rolePermissionsData.data.data)) {
-                                    // Double-nested: { data: { data: [] } }
-                                    rolePermissions = rolePermissionsData.data.data;
-                                    console.log(`Found permissions in data.data array for role ${role.id}`);
-                                } else if (rolePermissionsData?.data && Array.isArray(rolePermissionsData.data)) {
-                                    // Single-nested: { data: [] }
-                                    rolePermissions = rolePermissionsData.data;
-                                    console.log(`Found permissions in data array for role ${role.id}`);
+                                if (typeof rolePermissionsData === 'object' && 'data' in rolePermissionsData && rolePermissionsData.data) {
+                                    if (typeof rolePermissionsData.data === 'object' && 'data' in rolePermissionsData.data && Array.isArray(rolePermissionsData.data.data)) {
+                                        // Double-nested: { data: { data: [] } }
+                                        rolePermissions = rolePermissionsData.data.data;
+                                        console.log(`Found permissions in data.data array for role ${role.id}`);
+                                    } else if (Array.isArray(rolePermissionsData.data)) {
+                                        // Single-nested: { data: [] }
+                                        rolePermissions = rolePermissionsData.data;
+                                        console.log(`Found permissions in data array for role ${role.id}`);
+                                    }
                                 } else if (Array.isArray(rolePermissionsData)) {
                                     // Direct array
                                     rolePermissions = rolePermissionsData;
@@ -241,10 +244,10 @@ export default function TeacherDetailsPage() {
         } finally {
             setLoadingRoles(false);
         }
-    };
+    }, []);
 
     // Function to fetch account permissions - with improved error handling and response parsing
-    const fetchAccountPermissions = async (accountId: string) => {
+    const fetchAccountPermissions = useCallback(async (accountId: string) => {
         // Skip if accountId is undefined or invalid
         if (!accountId || accountId === "undefined") {
             console.warn("Invalid accountId, skipping permission fetch");
@@ -278,20 +281,22 @@ export default function TeacherDetailsPage() {
                 });
                 
                 if (permissionsResponse.ok) {
-                    const permissionsData = await permissionsResponse.json();
+                    const permissionsData = await permissionsResponse.json() as { data?: { data?: Permission[] } | Permission[] } | Permission[];
                     console.log("Raw permissions response:", permissionsData);
                     
                     // Extract permissions from the response, handling different formats
                     let permissions: Permission[] = [];
                     
-                    if (permissionsData?.data?.data && Array.isArray(permissionsData.data.data)) {
-                        // Double nested structure: { data: { data: [] } }
-                        permissions = permissionsData.data.data;
-                        console.log("Found permissions in data.data array");
-                    } else if (permissionsData?.data && Array.isArray(permissionsData.data)) {
-                        // Single nested structure: { data: [] }
-                        permissions = permissionsData.data;
-                        console.log("Found permissions in data array");
+                    if (typeof permissionsData === 'object' && 'data' in permissionsData && permissionsData.data) {
+                        if (typeof permissionsData.data === 'object' && 'data' in permissionsData.data && Array.isArray(permissionsData.data.data)) {
+                            // Double nested structure: { data: { data: [] } }
+                            permissions = permissionsData.data.data;
+                            console.log("Found permissions in data.data array");
+                        } else if (Array.isArray(permissionsData.data)) {
+                            // Single nested structure: { data: [] }
+                            permissions = permissionsData.data;
+                            console.log("Found permissions in data array");
+                        }
                     } else if (Array.isArray(permissionsData)) {
                         // Direct array response
                         permissions = permissionsData;
@@ -301,7 +306,7 @@ export default function TeacherDetailsPage() {
                     }
                     
                     // Filter out invalid permissions (missing ID or essential fields)
-                    const validPermissions = permissions.filter(p => p && p.id);
+                    const validPermissions = permissions.filter(p => p?.id);
                     
                     console.log(`Found ${validPermissions.length} valid direct permissions for account from real data:`, validPermissions);
                     setAccountPermissions(validPermissions);
@@ -322,7 +327,7 @@ export default function TeacherDetailsPage() {
         } finally {
             setLoadingPermissions(false);
         }
-    };
+    }, []);
 
     // Function to fetch account information - simplified and streamlined approach
     const fetchAccountInfo = useCallback(async () => {
@@ -360,14 +365,14 @@ export default function TeacherDetailsPage() {
                     });
                     
                     if (personResponse.ok) {
-                        const personData = await personResponse.json();
-                        const person = personData.data ? personData.data : personData;
+                        const personData = await personResponse.json() as { data?: { account_id?: number | string } } | { account_id?: number | string };
+                        const person = typeof personData === 'object' && 'data' in personData && personData.data ? personData.data : personData;
                         
-                        if (person && person.account_id) {
+                        if (typeof person === 'object' && 'account_id' in person && person.account_id) {
                             accountId = person.account_id.toString();
                         }
                     }
-                } catch (personLookupError) {
+                } catch {
                     // Just continue to the next method
                 }
             }
@@ -384,24 +389,24 @@ export default function TeacherDetailsPage() {
                     });
                     
                     if (accountResponse.ok) {
-                        const accountData = await accountResponse.json();
-                        const account = accountData.data ? accountData.data : accountData;
+                        const accountData = await accountResponse.json() as { data?: Account } | Account;
+                        const account = typeof accountData === 'object' && 'data' in accountData && accountData.data ? accountData.data : accountData as Account;
                         
-                        if (account && account.id) {
+                        if (typeof account === 'object' && 'id' in account && account.id) {
                             setAccount(account);
                             return;
                         }
                     }
-                } catch (accountLookupError) {
+                } catch {
                     // Just continue to the next method
                 }
             }
             
             // Create a fallback account if we couldn't find one
             setAccount({
-                id: accountId || "0",
-                email: teacher.email || "user@example.com",
-                username: teacher.first_name || "user",
+                id: accountId ?? "0",
+                email: teacher.email ?? "user@example.com",
+                username: teacher.first_name ?? "user",
                 active: true,
                 roles: [],
                 permissions: [],
@@ -409,7 +414,7 @@ export default function TeacherDetailsPage() {
                 updatedAt: new Date().toISOString()
             });
             
-        } catch (err) {
+        } catch {
             // In case of error, provide a fallback account
             setAccount({
                 id: "0",
@@ -452,14 +457,14 @@ export default function TeacherDetailsPage() {
                 });
                 
                 if (allRolesResponse.ok) {
-                    const allRolesData = await allRolesResponse.json();
+                    const allRolesData = await allRolesResponse.json() as { data?: Role[] } | Role[];
                     console.log("Raw all roles response:", allRolesData);
                     
                     // Extract roles from the response
                     let roles: Role[] = [];
                     
                     // Handle different response formats
-                    if (allRolesData?.data && Array.isArray(allRolesData.data)) {
+                    if (typeof allRolesData === 'object' && 'data' in allRolesData && Array.isArray(allRolesData.data)) {
                         roles = allRolesData.data;
                         console.log("Found roles in data array");
                     } else if (Array.isArray(allRolesData)) {
@@ -543,7 +548,7 @@ export default function TeacherDetailsPage() {
             // Still update the roles list to refresh state
             try {
                 await fetchAccountRoles(account.id);
-            } catch (refreshErr) {
+            } catch {
                 // Ignore errors during refresh
             }
         }
@@ -569,7 +574,7 @@ export default function TeacherDetailsPage() {
             // Still update the roles list to refresh state
             try {
                 await fetchAccountRoles(account.id);
-            } catch (refreshErr) {
+            } catch {
                 // Ignore errors during refresh
             }
         }
@@ -589,7 +594,7 @@ export default function TeacherDetailsPage() {
             // Still update the permissions list to refresh state
             try {
                 await fetchAccountPermissions(account.id);
-            } catch (refreshErr) {
+            } catch {
                 // Ignore errors during refresh
             }
         }
@@ -609,7 +614,7 @@ export default function TeacherDetailsPage() {
             // Still update the permissions list to refresh state
             try {
                 await fetchAccountPermissions(account.id);
-            } catch (refreshErr) {
+            } catch {
                 // Ignore errors during refresh
             }
         }
@@ -623,7 +628,7 @@ export default function TeacherDetailsPage() {
             // Get current user account
             const userAccount = await authService.getAccount();
             
-            if (!userAccount || !userAccount.id) {
+            if (!userAccount?.id) {
                 console.error("Could not fetch user account or account has no ID");
                 setHasAuthManagePermission(false);
                 return;
@@ -635,7 +640,7 @@ export default function TeacherDetailsPage() {
                 const userRoles = await authService.getRoles();
                 // Check if user has admin or similar role
                 const adminRoles = userRoles.filter(role => 
-                    role && role.name && role.name.toLowerCase().includes('admin')
+                    role?.name?.toLowerCase().includes('admin')
                 );
                 
                 if (adminRoles.length > 0) {
@@ -726,7 +731,7 @@ export default function TeacherDetailsPage() {
         console.log(`Total permissions before deduplication: ${allPermissions.length}`);
         
         // Filter out any invalid permissions and deduplicate by ID
-        const validPermissions = allPermissions.filter(p => p && p.id);
+        const validPermissions = allPermissions.filter(p => p?.id);
         const uniquePermissions = validPermissions.filter((permission, index, self) =>
             index === self.findIndex((p) => p.id === permission.id)
         );

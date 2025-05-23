@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { DataListPage } from "@/components/dashboard";
-import { authService } from "@/lib/auth-service";
-import type { Role } from "@/lib/auth-helpers";
+import type { Role, Permission } from "@/lib/auth-helpers";
 import { Button } from "@/components/ui";
 import { useRouter } from "next/navigation";
 
@@ -26,21 +25,30 @@ export default function RolesPage() {
         throw new Error(`API error: ${response.status}`);
       }
       
-      const data = await response.json();
+      const data = await response.json() as { roles?: unknown[]; data?: unknown[] };
       
       // Handle different response structures
-      const rawRoles = data.roles || data.data || [];
+      const rawRoles = (data.roles ?? data.data ?? []) as Array<{
+        id?: unknown;
+        name?: unknown;
+        description?: unknown;
+        created_at?: unknown;
+        createdAt?: unknown;
+        updated_at?: unknown;
+        updatedAt?: unknown;
+        permissions?: unknown[];
+      }>;
       console.log("API response:", data);
       console.log("Raw roles:", rawRoles);
       
       // Process and validate roles
-      const processedRoles = rawRoles.map((role: any, index: number) => ({
-        id: role.id ? String(role.id) : `role-${index}`, // Ensure ID is a string and always present
-        name: role.name || `Rolle ${index + 1}`,
-        description: role.description || "",
-        createdAt: role.created_at || role.createdAt || new Date().toISOString(),
-        updatedAt: role.updated_at || role.updatedAt || new Date().toISOString(),
-        permissions: role.permissions || []
+      const processedRoles = rawRoles.map((role, index: number) => ({
+        id: (role.id !== undefined && role.id !== null && (typeof role.id === 'string' || typeof role.id === 'number')) ? String(role.id) : `role-${index}`, // Ensure ID is a string and always present
+        name: (role.name as string) ?? `Rolle ${index + 1}`,
+        description: (role.description as string) ?? "",
+        createdAt: (role.created_at as string) ?? (role.createdAt as string) ?? new Date().toISOString(),
+        updatedAt: (role.updated_at as string) ?? (role.updatedAt as string) ?? new Date().toISOString(),
+        permissions: (role.permissions as Permission[]) ?? []
       }));
       
       console.log("Processed roles:", processedRoles);

@@ -63,6 +63,7 @@ export default function NewRolePage() {
                   Name *
                 </label>
                 <Input
+                  label="Name"
                   id="name"
                   type="text"
                   value={formData.name}

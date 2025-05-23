@@ -22,7 +22,7 @@ export interface Teacher {
     person_id?: number;
     account_id?: number;
     is_teacher?: boolean;
-    person?: any; // For nested person object
+    person?: unknown; // For nested person object
 }
 
 export interface TeacherWithCredentials extends Teacher {

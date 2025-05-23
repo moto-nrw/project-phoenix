@@ -1,14 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { authService } from "@/lib/auth-service";
 import { PageHeader } from "@/components/dashboard";
 import { Button, Input, Card } from "@/components/ui";
 import type { Role, Permission } from "@/lib/auth-helpers";
-import Link from "next/link";
-
-import { use } from 'react';
 
 export default function RoleDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   // Use React.use to unwrap the params promise
@@ -25,7 +22,7 @@ export default function RoleDetailsPage({ params }: { params: Promise<{ id: stri
     description: "",
   });
 
-  const loadRoleData = async () => {
+  const loadRoleData = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -49,11 +46,11 @@ export default function RoleDetailsPage({ params }: { params: Promise<{ id: stri
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [resolvedParams.id]);
 
   useEffect(() => {
     void loadRoleData();
-  }, [resolvedParams.id]);
+  }, [loadRoleData]);
 
   const handleSave = async () => {
     if (!role) return;
@@ -167,7 +164,7 @@ export default function RoleDetailsPage({ params }: { params: Promise<{ id: stri
                     Löschen
                   </Button>
                   <Button
-                    variant={isEditing ? "default" : "outline"}
+                    variant={isEditing ? "primary" : "outline"}
                     onClick={() => {
                       if (isEditing) {
                         void handleSave();
@@ -188,6 +185,7 @@ export default function RoleDetailsPage({ params }: { params: Promise<{ id: stri
                   </label>
                   {isEditing ? (
                     <Input
+                      label="Name"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     />

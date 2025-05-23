@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { authService } from "@/lib/auth-service";
 import { PageHeader } from "@/components/dashboard";
@@ -20,7 +20,7 @@ export default function PermissionDetailsPage({ params }: { params: { id: string
     action: "",
   });
 
-  const loadPermissionData = async () => {
+  const loadPermissionData = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -40,11 +40,11 @@ export default function PermissionDetailsPage({ params }: { params: { id: string
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [params.id]);
 
   useEffect(() => {
     void loadPermissionData();
-  }, [params.id]);
+  }, [params.id, loadPermissionData]);
 
   const handleSave = async () => {
     if (!permission) return;
@@ -118,7 +118,7 @@ export default function PermissionDetailsPage({ params }: { params: { id: string
               <h2 className="text-xl font-semibold">Berechtigungsdetails</h2>
               <div className="flex gap-2">
                 <Button
-                  variant={isEditing ? "default" : "outline"}
+                  variant={isEditing ? "primary" : "outline"}
                   onClick={() => {
                     if (isEditing) {
                       void handleSave();
@@ -130,7 +130,7 @@ export default function PermissionDetailsPage({ params }: { params: { id: string
                   {isEditing ? "Speichern" : "Bearbeiten"}
                 </Button>
                 <Button
-                  variant="destructive"
+                  variant="danger"
                   onClick={handleDelete}
                 >
                   Löschen
@@ -145,6 +145,7 @@ export default function PermissionDetailsPage({ params }: { params: { id: string
                 </label>
                 {isEditing ? (
                   <Input
+                    label="Name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   />
@@ -179,6 +180,7 @@ export default function PermissionDetailsPage({ params }: { params: { id: string
                 </label>
                 {isEditing ? (
                   <Input
+                    label="Resource"
                     value={formData.resource}
                     onChange={(e) => setFormData({ ...formData, resource: e.target.value })}
                   />
@@ -195,6 +197,7 @@ export default function PermissionDetailsPage({ params }: { params: { id: string
                 </label>
                 {isEditing ? (
                   <Input
+                    label="Action"
                     value={formData.action}
                     onChange={(e) => setFormData({ ...formData, action: e.target.value })}
                   />

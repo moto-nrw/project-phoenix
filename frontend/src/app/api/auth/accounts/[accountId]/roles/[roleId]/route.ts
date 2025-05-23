@@ -1,10 +1,9 @@
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@/server/auth";
-import { createPostHandler, createDeleteHandler } from "@/lib/route-wrapper";
-import { apiPost, apiDelete } from "@/lib/api-client";
 
 // Custom POST handler to handle 204 No Content responses
-export const POST = async (request, context) => {
+export const POST = async (request: NextRequest, context: { params: Promise<Record<string, string | string[] | undefined>> }) => {
     const session = await auth();
     
     if (!session?.user?.token) {
@@ -54,7 +53,7 @@ export const POST = async (request, context) => {
         }
         
         // If we have a JSON response, parse and return it
-        const data = await response.json();
+        const data = await response.json() as unknown;
         
         return NextResponse.json({
             success: true,
@@ -64,14 +63,14 @@ export const POST = async (request, context) => {
     } catch (error) {
         console.error("Error assigning role:", error);
         return NextResponse.json(
-            { error: error.message || "Failed to assign role" },
+            { error: error instanceof Error ? error.message : "Failed to assign role" },
             { status: 500 }
         );
     }
 };
 
 // Custom DELETE handler to handle 204 No Content responses
-export const DELETE = async (request, context) => {
+export const DELETE = async (request: NextRequest, context: { params: Promise<Record<string, string | string[] | undefined>> }) => {
     const session = await auth();
     
     if (!session?.user?.token) {
@@ -121,7 +120,7 @@ export const DELETE = async (request, context) => {
         }
         
         // If we have a JSON response, parse and return it
-        const data = await response.json();
+        const data = await response.json() as unknown;
         
         return NextResponse.json({
             success: true,
@@ -131,7 +130,7 @@ export const DELETE = async (request, context) => {
     } catch (error) {
         console.error("Error removing role:", error);
         return NextResponse.json(
-            { error: error.message || "Failed to remove role" },
+            { error: error instanceof Error ? error.message : "Failed to remove role" },
             { status: 500 }
         );
     }

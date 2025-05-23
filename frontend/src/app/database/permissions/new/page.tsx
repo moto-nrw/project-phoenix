@@ -67,6 +67,7 @@ export default function NewPermissionPage() {
                   Name *
                 </label>
                 <Input
+                  label="Name"
                   id="name"
                   type="text"
                   value={formData.name}
@@ -95,6 +96,7 @@ export default function NewPermissionPage() {
                   Resource *
                 </label>
                 <Input
+                  label="Resource"
                   id="resource"
                   type="text"
                   value={formData.resource}
@@ -112,6 +114,7 @@ export default function NewPermissionPage() {
                   Action *
                 </label>
                 <Input
+                  label="Action"
                   id="action"
                   type="text"
                   value={formData.action}

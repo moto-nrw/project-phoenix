@@ -104,7 +104,7 @@ export async function PUT(
             );
         }
 
-        const body = await request.json();
+        const body = await request.json() as unknown;
         const url = `${env.NEXT_PUBLIC_API_URL}/auth/roles/${roleId}`;
         
         const response = await fetch(url, {

@@ -1,9 +1,9 @@
-import { NextRequest } from "next/server";
-import { createGetHandler, createPostHandler } from "@/lib/route-wrapper";
+import type { NextRequest } from "next/server";
+import { createGetHandler } from "@/lib/route-wrapper";
 import { apiGet, apiPut } from "@/lib/api-client";
 import { auth } from "@/server/auth";
 
-export const GET = createGetHandler(async (request, token, params) => {
+export const GET = createGetHandler(async (request, token, _params) => {
     // Extract query parameters
     const searchParams = request.nextUrl.searchParams;
     const email = searchParams.get("email");
@@ -18,7 +18,7 @@ export const GET = createGetHandler(async (request, token, params) => {
         ? `/auth/accounts?${queryParams.toString()}`
         : "/auth/accounts";
 
-    const response = await apiGet(url, token);
+    const response = await apiGet<{ data: unknown }>(url, token);
     return response.data;
 });
 
@@ -30,11 +30,11 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        const body = await request.json();
+        const body = await request.json() as { id: string; [key: string]: unknown };
         const { id, ...updateData } = body;
         const response = await apiPut(`/auth/accounts/${id}`, updateData, session.user.token);
-        return Response.json(response.data);
-    } catch (error) {
+        return Response.json(response.data as unknown);
+    } catch {
         return Response.json({ error: "Failed to update account" }, { status: 500 });
     }
 }
