@@ -2,7 +2,7 @@
 
 import { Header } from './header';
 import { Sidebar } from './sidebar';
-import { BottomNavigation } from './bottom-navigation';
+import { MobileBottomNav } from './mobile-bottom-nav';
 
 interface ResponsiveLayoutProps {
   children: React.ReactNode;
@@ -16,16 +16,16 @@ export default function ResponsiveLayout({ children, userName }: ResponsiveLayou
       
       <div className="flex">
         {/* Desktop sidebar - only visible on md+ screens */}
-        <Sidebar className="hidden md:block" />
+        <Sidebar className="hidden lg:block" />
         
         {/* Main content with bottom padding on mobile for bottom navigation */}
-        <main className="flex-1 p-4 md:p-8 pb-20 md:pb-8">
+        <main className="flex-1 p-4 md:p-8">
           {children}
         </main>
       </div>
       
       {/* Mobile bottom navigation - only visible on mobile */}
-      <BottomNavigation />
+      <MobileBottomNav />
     </div>
   );
 }

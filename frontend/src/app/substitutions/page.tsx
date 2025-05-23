@@ -3,11 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Header } from "~/components/dashboard/header";
-import { Sidebar } from "~/components/dashboard/sidebar";
+import { ResponsiveLayout } from "~/components/dashboard";
 import { Input } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
-import { BackgroundWrapper } from "~/components/background-wrapper";
 
 // Teacher type based on DB schema seen in the migrations
 interface Teacher {
@@ -281,19 +279,9 @@ export default function SubstitutionPage() {
     const dropdownClass = "mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-teal-500 focus:outline-none appearance-none pr-8";
 
     return (
-        <BackgroundWrapper>
-            <div className="min-h-screen">
-                {/* Header */}
-                <Header userName={session?.user?.name ?? "Benutzer"} />
-
-                <div className="flex">
-                    {/* Sidebar */}
-                    <Sidebar />
-
-                    {/* Main Content */}
-                    <main className="flex-1 p-8">
-                        <div className="mx-auto max-w-7xl">
-                            <h1 className="mb-8 text-4xl font-bold text-gray-900">Vertretungsverwaltung</h1>
+        <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+            <div className="max-w-7xl mx-auto">
+                <h1 className="mb-8 text-4xl font-bold text-gray-900">Vertretungsverwaltung</h1>
 
                             {/* Search Panel */}
                             <div className="mb-8 overflow-hidden rounded-xl bg-white/90 p-6 shadow-md backdrop-blur-sm">
@@ -478,77 +466,74 @@ export default function SubstitutionPage() {
                                     )}
                                 </div>
                             </div>
+            </div>
+
+            {/* Substitution Assignment Popup */}
+            {showPopup && selectedTeacher && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+                    <div className="w-full max-w-md rounded-xl bg-white p-6 border border-gray-200 shadow-2xl">
+                        <h2 className="mb-4 text-xl font-bold text-gray-800">Vertretung zuweisen</h2>
+
+                        <div className="mb-6">
+                            <p className="mb-2 text-sm font-medium text-gray-700">Lehrkraft:</p>
+                            <p className="font-medium text-gray-900">{selectedTeacher.first_name} {selectedTeacher.second_name}</p>
                         </div>
-                    </main>
-                </div>
 
-                {/* Substitution Assignment Popup */}
-                {showPopup && selectedTeacher && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-                        <div className="w-full max-w-md rounded-xl bg-white p-6 border border-gray-200 shadow-2xl">
-                            <h2 className="mb-4 text-xl font-bold text-gray-800">Vertretung zuweisen</h2>
-
-                            <div className="mb-6">
-                                <p className="mb-2 text-sm font-medium text-gray-700">Lehrkraft:</p>
-                                <p className="font-medium text-gray-900">{selectedTeacher.first_name} {selectedTeacher.second_name}</p>
+                        {/* Group selection */}
+                        <div className="relative">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                OGS-Gruppe auswählen
+                            </label>
+                            <select
+                                value={selectedGroup}
+                                onChange={(e) => setSelectedGroup(e.target.value)}
+                                className={dropdownClass}
+                            >
+                                <option value="">Gruppe auswählen...</option>
+                                {groups.map((group) => (
+                                    <option key={group.id} value={group.name}>{group.name}</option>
+                                ))}
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
+                                <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
                             </div>
+                        </div>
 
-                            {/* Group selection */}
-                            <div className="relative">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    OGS-Gruppe auswählen
-                                </label>
-                                <select
-                                    value={selectedGroup}
-                                    onChange={(e) => setSelectedGroup(e.target.value)}
-                                    className={dropdownClass}
-                                >
-                                    <option value="">Gruppe auswählen...</option>
-                                    {groups.map((group) => (
-                                        <option key={group.id} value={group.name}>{group.name}</option>
-                                    ))}
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                                    <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                    </svg>
-                                </div>
-                            </div>
+                        {/* Days selection */}
+                        <div className="mb-6">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Anzahl der Tage
+                            </label>
+                            <input
+                                type="number"
+                                min="1"
+                                max="30"
+                                value={substitutionDays}
+                                onChange={(e) => setSubstitutionDays(parseInt(e.target.value) || 1)}
+                                className="mt-1 block w-full rounded-lg border-0 px-4 py-3 shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                            />
+                        </div>
 
-                            {/* Days selection */}
-                            <div className="mb-6">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Anzahl der Tage
-                                </label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    max="30"
-                                    value={substitutionDays}
-                                    onChange={(e) => setSubstitutionDays(parseInt(e.target.value) || 1)}
-                                    className="mt-1 block w-full rounded-lg border-0 px-4 py-3 shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                                />
-                            </div>
-
-                            {/* Actions */}
-                            <div className="flex justify-end space-x-3">
-                                <button
-                                    onClick={closePopup}
-                                    className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-                                >
-                                    Abbrechen
-                                </button>
-                                <button
-                                    onClick={handleAssignSubstitution}
-                                    className="rounded-lg bg-gradient-to-r from-teal-500 to-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm transition-all hover:from-teal-600 hover:to-blue-700 hover:shadow-md"
-                                >
-                                    Zuweisen
-                                </button>
-                            </div>
+                        {/* Actions */}
+                        <div className="flex justify-end space-x-3">
+                            <button
+                                onClick={closePopup}
+                                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+                            >
+                                Abbrechen
+                            </button>
+                            <button
+                                onClick={handleAssignSubstitution}
+                                className="rounded-lg bg-gradient-to-r from-teal-500 to-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm transition-all hover:from-teal-600 hover:to-blue-700 hover:shadow-md"
+                            >
+                                Zuweisen
+                            </button>
                         </div>
                     </div>
-                )}
-            </div>
-        </BackgroundWrapper>
+                </div>
+            )}
+        </ResponsiveLayout>
     );
 }

@@ -3,13 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Header } from "~/components/dashboard/header";
-import { Sidebar } from "~/components/dashboard/sidebar";
+import { ResponsiveLayout } from "~/components/dashboard";
 import { Input } from "~/components/ui";
-// Wir ersetzen den GroupSelector-Import
-// import { GroupSelector } from "~/components/groups";
 import { Alert } from "~/components/ui/alert";
-import { BackgroundWrapper } from "~/components/background-wrapper";
 
 // Student type based on what's seen in the code
 interface Student {
@@ -294,19 +290,9 @@ export default function StudentSearchPage() {
   const dropdownClass = "mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-teal-500 focus:outline-none appearance-none pr-8";
 
   return (
-      <BackgroundWrapper>
-        <div className="min-h-screen">
-          {/* Header */}
-          <Header userName={session?.user?.name ?? "Benutzer"} />
-
-          <div className="flex">
-            {/* Sidebar */}
-            <Sidebar />
-
-            {/* Main Content */}
-            <main className="flex-1 p-8">
-              <div className="mx-auto max-w-7xl">
-                <h1 className="mb-8 text-4xl font-bold text-gray-900">Schülersuche</h1>
+      <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+        <div className="max-w-7xl mx-auto">
+          <h1 className="mb-8 text-4xl font-bold text-gray-900">Schülersuche</h1>
 
                 {/* Search Panel */}
                 <div className="mb-8 overflow-hidden rounded-xl bg-white p-6 shadow-md">
@@ -526,10 +512,7 @@ export default function StudentSearchPage() {
                       </div>
                   )}
                 </div>
-              </div>
-            </main>
-          </div>
         </div>
-      </BackgroundWrapper>
+      </ResponsiveLayout>
   );
 }

@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Header } from "~/components/dashboard/header";
-import { Sidebar } from "~/components/dashboard/sidebar";
+import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
-import { BackgroundWrapper } from "~/components/background-wrapper";
 
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
 interface Room {
@@ -38,6 +37,12 @@ const categoryColors: Record<string, string> = {
 };
 
 export default function RoomsPage() {
+    const { data: session, status } = useSession({
+        required: true,
+        onUnauthenticated() {
+            router.push("/");
+        },
+    });
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -177,7 +182,7 @@ export default function RoomsPage() {
         setOccupiedFilter(null);
     };
 
-    if (loading && rooms.length === 0) {
+    if (status === "loading" || (loading && rooms.length === 0)) {
         return (
             <div className="flex min-h-screen items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
@@ -192,19 +197,9 @@ export default function RoomsPage() {
     const dropdownClass = "mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8";
 
     return (
-        <BackgroundWrapper>
-            <div className="min-h-screen">
-                {/* Header */}
-                <Header userName="Benutzer" />
-
-                <div className="flex">
-                    {/* Sidebar */}
-                    <Sidebar />
-
-                    {/* Main Content */}
-                    <main className="flex-1 p-8">
-                        <div className="mx-auto max-w-7xl">
-                            <h1 className="mb-8 text-4xl font-bold text-gray-900">Raumübersicht</h1>
+        <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+            <div className="max-w-7xl mx-auto">
+                <h1 className="mb-8 text-4xl font-bold text-gray-900">Raumübersicht</h1>
 
                             {/* Search and Filter Panel */}
                             <div className="mb-8 overflow-hidden rounded-xl bg-white p-6 shadow-md">
@@ -438,10 +433,7 @@ export default function RoomsPage() {
                                     </div>
                                 </div>
                             )}
-                        </div>
-                    </main>
-                </div>
             </div>
-        </BackgroundWrapper>
+        </ResponsiveLayout>
     );
 }

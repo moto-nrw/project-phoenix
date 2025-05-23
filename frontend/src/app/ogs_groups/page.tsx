@@ -3,11 +3,9 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { Header } from "~/components/dashboard/header";
-import { Sidebar } from "~/components/dashboard/sidebar";
+import { ResponsiveLayout } from "~/components/dashboard";
 import { Input } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
-import { BackgroundWrapper } from "~/components/background-wrapper";
 
 // Define types based on existing Student type
 interface Student {
@@ -276,18 +274,8 @@ export default function OGSGroupPage() {
     }
 
     return (
-        <BackgroundWrapper>
-            <div className="min-h-screen">
-                {/* Header */}
-                <Header userName={session?.user?.name ?? "Benutzer"} />
-
-                <div className="flex">
-                    {/* Sidebar */}
-                    <Sidebar />
-
-                    {/* Main Content */}
-                    <main className="flex-1 p-8">
-                        <div className="mx-auto max-w-7xl">
+        <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+            <div className="max-w-7xl mx-auto">
                             {/* OGS Group Header with Gradient */}
                             <div className="mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-blue-600 to-teal-500 shadow-lg">
                                 <div className="px-8 py-6 text-white">
@@ -592,10 +580,7 @@ export default function OGSGroupPage() {
                                     )}
                                 </div>
                             </div>
-                        </div>
-                    </main>
-                </div>
             </div>
-        </BackgroundWrapper>
+        </ResponsiveLayout>
     );
 }
