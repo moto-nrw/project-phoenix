@@ -54,6 +54,9 @@ export interface Student {
     name_lg?: string;
     contact_lg?: string;
     custom_users_id?: string;
+    // Additional fields for access control
+    has_full_access?: boolean;
+    group_supervisors?: SupervisorContact[];
 }
 
 // Mapping functions

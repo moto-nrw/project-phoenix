@@ -6,10 +6,10 @@ import type { ApiResponse } from "./api-helpers";
 import {
   mapSingleStudentResponse,
   mapStudentsResponse,
-  // mapStudentResponse, // Not used anymore - returning raw data
+  mapStudentResponse,
   prepareStudentForBackend,
 } from "./student-helpers";
-import type { BackendStudent } from "./student-helpers";
+import type { BackendStudent, Student } from "./student-helpers";
 import {
   mapSingleGroupResponse,
   mapGroupResponse, // Used in exported function
@@ -129,27 +129,8 @@ api.interceptors.response.use(
   },
 );
 
-// API interfaces
-export interface Student {
-  id: string;
-  name: string; // Derived from CustomUser's FirstName + SecondName
-  first_name?: string; // FirstName in CustomUser record
-  second_name?: string; // SecondName in CustomUser record
-  school_class: string; // From backend's SchoolClass field
-  grade?: string; // For frontend display/form use
-  studentId?: string; // For frontend display/form use
-  group_name?: string; // From related Group
-  group_id?: string; // ID of the related Group
-  in_house: boolean; // Current location status
-  wc?: boolean; // Bathroom status
-  school_yard?: boolean; // School yard status
-  bus?: boolean; // Bus status
-  name_lg?: string; // Legal Guardian name
-  contact_lg?: string; // Legal Guardian contact
-  custom_users_id?: string; // ID of the related CustomUser
-}
-
-// Re-export the Group and CombinedGroup types from group-helpers.ts
+// Re-export types for external usage
+export type { Student } from "./student-helpers";
 export type Group = ImportedGroup;
 export type CombinedGroup = ImportedCombinedGroup;
 
@@ -327,8 +308,27 @@ export const studentService = {
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
                 const data: unknown = await retryResponse.json();
-                // Return raw data to preserve additional fields like has_full_access
-                return data as Student;
+                // Use mapper for type safety while preserving additional fields
+                const mappedResponse = mapStudentResponse(data as BackendStudent);
+                
+                // Safely merge additional fields
+                const responseWithAccess = data as BackendStudent & {
+                  has_full_access?: boolean;
+                  group_supervisors?: Array<{
+                    id: number;
+                    first_name: string;
+                    last_name: string;
+                    email?: string;
+                    phone?: string;
+                    role: string;
+                  }>;
+                };
+                
+                return {
+                  ...mappedResponse,
+                  has_full_access: responseWithAccess.has_full_access,
+                  group_supervisors: responseWithAccess.group_supervisors,
+                };
               }
             }
           }
@@ -339,13 +339,51 @@ export const studentService = {
         // Type assertion to avoid unsafe assignment
         const responseData = await response.json() as unknown;
         
-        // Return raw data to preserve additional fields like has_full_access
-        return responseData as Student;
+        // Use mapper for type safety while preserving additional fields
+        const mappedResponse = mapStudentResponse(responseData as BackendStudent);
+        
+        // Safely merge additional fields
+        const responseWithAccess = responseData as BackendStudent & {
+          has_full_access?: boolean;
+          group_supervisors?: Array<{
+            id: number;
+            first_name: string;
+            last_name: string;
+            email?: string;
+            phone?: string;
+            role: string;
+          }>;
+        };
+        
+        return {
+          ...mappedResponse,
+          has_full_access: responseWithAccess.has_full_access,
+          group_supervisors: responseWithAccess.group_supervisors,
+        };
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        // Return raw data to preserve additional fields like has_full_access
-        return response.data as unknown as Student;
+        // Use mapper for type safety while preserving additional fields
+        const mappedResponse = mapStudentResponse(response.data as BackendStudent);
+        
+        // Safely merge additional fields
+        const responseWithAccess = response.data as BackendStudent & {
+          has_full_access?: boolean;
+          group_supervisors?: Array<{
+            id: number;
+            first_name: string;
+            last_name: string;
+            email?: string;
+            phone?: string;
+            role: string;
+          }>;
+        };
+        
+        return {
+          ...mappedResponse,
+          has_full_access: responseWithAccess.has_full_access,
+          group_supervisors: responseWithAccess.group_supervisors,
+        };
       }
     } catch (error) {
       throw handleApiError(error, `Error fetching student ${id}`);

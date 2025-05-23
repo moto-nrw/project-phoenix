@@ -8,16 +8,10 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { BackgroundWrapper } from "~/components/background-wrapper";
 import { studentService } from "~/lib/api";
-import type { SupervisorContact } from "~/lib/student-helpers";
+import type { Student, SupervisorContact } from "~/lib/student-helpers";
 
-// Student type
-interface Student {
-    id: string;
-    first_name: string;
-    second_name: string;
-    name?: string;
-    school_class: string;
-    group_id: string;
+// Extended Student type for this page
+interface ExtendedStudent extends Student {
     group_name?: string;
     in_house: boolean;
     wc: boolean;
@@ -41,7 +35,7 @@ export default function StudentDetailPage() {
     const studentId = params.id as string;
     const referrer = searchParams.get("from") ?? "/students/search";
 
-    const [student, setStudent] = useState<Student | null>(null);
+    const [student, setStudent] = useState<ExtendedStudent | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [hasFullAccess, setHasFullAccess] = useState(true);
@@ -56,8 +50,10 @@ export default function StudentDetailPage() {
             try {
                 const response = await studentService.getStudent(studentId);
                 
-                // Debug logging
-                console.log("Student API Response:", response);
+                // Debug logging (only in development)
+                if (process.env.NODE_ENV !== "production") {
+                    console.log("Student API Response:", response);
+                }
                 
                 // Extract the actual student data from the wrapped response
                 interface WrappedResponse {
@@ -89,14 +85,16 @@ export default function StudentDetailPage() {
                 const hasAccess = detailedResponse.has_full_access ?? true;
                 const groupSupervisors = detailedResponse.group_supervisors ?? [];
                 
-                // Debug logging
-                console.log("Extracted Student Data:", fetchedStudent);
-                console.log("Has Full Access:", hasAccess);
-                console.log("Supervisors:", groupSupervisors);
+                // Debug logging (only in development)
+                if (process.env.NODE_ENV !== "production") {
+                    console.log("Extracted Student Data:", fetchedStudent);
+                    console.log("Has Full Access:", hasAccess);
+                    console.log("Supervisors:", groupSupervisors);
+                }
                 
                 // Map the API response to the expected format
                 // Backend returns snake_case fields, frontend expects different names
-                const mappedStudent: Student = {
+                const mappedStudent: ExtendedStudent = {
                     id: String(detailedResponse.id ?? ""),
                     first_name: detailedResponse.first_name ?? "",
                     second_name: detailedResponse.last_name ?? "", // Backend uses last_name
@@ -260,7 +258,7 @@ export default function StudentDetailPage() {
                                     <div className="relative mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-gray-400 to-gray-600 p-6 text-white shadow-md">
                                         <div className="flex items-center">
                                             <div className="mr-6 flex h-24 w-24 items-center justify-center rounded-full bg-white/30 text-4xl font-bold">
-                                                {student.first_name[0]}{student.second_name[0]}
+                                                {student.first_name?.[0] ?? ''}{student.second_name?.[0] ?? ''}
                                             </div>
                                             <div>
                                                 <h1 className="text-3xl font-bold">{student.name}</h1>
@@ -340,7 +338,7 @@ export default function StudentDetailPage() {
                                     <div className="relative mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white shadow-md">
                                         <div className="flex items-center">
                                             <div className="mr-6 flex h-24 w-24 items-center justify-center rounded-full bg-white/30 text-4xl font-bold">
-                                                {student.first_name[0]}{student.second_name[0]}
+                                                {student.first_name?.[0] ?? ''}{student.second_name?.[0] ?? ''}
                                             </div>
                                             <div>
                                                 <h1 className="text-3xl font-bold">{student.name}</h1>
