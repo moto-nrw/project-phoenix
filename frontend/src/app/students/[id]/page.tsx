@@ -8,6 +8,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { BackgroundWrapper } from "~/components/background-wrapper";
 import { studentService } from "~/lib/api";
+import type { SupervisorContact } from "~/lib/student-helpers";
 
 // Student type
 interface Student {
@@ -43,6 +44,8 @@ export default function StudentDetailPage() {
     const [student, setStudent] = useState<Student | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [hasFullAccess, setHasFullAccess] = useState(true);
+    const [supervisors, setSupervisors] = useState<SupervisorContact[]>([]);
 
     // Fetch student data from API
     useEffect(() => {
@@ -52,6 +55,15 @@ export default function StudentDetailPage() {
 
             try {
                 const fetchedStudent = await studentService.getStudent(studentId);
+                
+                // Check if the response has the detailed format with proper typing
+                interface DetailedStudentResponse {
+                    has_full_access?: boolean;
+                    group_supervisors?: SupervisorContact[];
+                }
+                const detailedResponse = fetchedStudent as DetailedStudentResponse & typeof fetchedStudent;
+                const hasAccess = detailedResponse.has_full_access ?? true;
+                const groupSupervisors = detailedResponse.group_supervisors ?? [];
                 
                 // Map the API response to the expected format
                 const mappedStudent: Student = {
@@ -67,8 +79,8 @@ export default function StudentDetailPage() {
                     school_yard: fetchedStudent.school_yard ?? false,
                     bus: fetchedStudent.bus ?? false,
                     current_room: undefined, // Not available from API yet
-                    guardian_name: fetchedStudent.name_lg ?? "",
-                    guardian_contact: fetchedStudent.contact_lg ?? "",
+                    guardian_name: hasAccess ? (fetchedStudent.name_lg ?? "") : "",
+                    guardian_contact: hasAccess ? (fetchedStudent.contact_lg ?? "") : "",
                     guardian_phone: undefined, // Not available from API yet
                     birthday: undefined, // Not available from API yet
                     notes: undefined, // Not available from API yet
@@ -77,6 +89,8 @@ export default function StudentDetailPage() {
                 };
 
                 setStudent(mappedStudent);
+                setHasFullAccess(hasAccess);
+                setSupervisors(groupSupervisors);
                 setLoading(false);
             } catch (err) {
                 console.error("Error fetching student:", err);
@@ -208,32 +222,112 @@ export default function StudentDetailPage() {
                                 </button>
                             </div>
 
-                            {/* Student Profile Header with Status */}
-                            <div className="relative mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white shadow-md">
-                                <div className="flex items-center">
-                                    <div className="mr-6 flex h-24 w-24 items-center justify-center rounded-full bg-white/30 text-4xl font-bold">
-                                        {student.first_name[0]}{student.second_name[0]}
-                                    </div>
-                                    <div>
-                                        <h1 className="text-3xl font-bold">{student.name}</h1>
-                                        <div className="flex items-center mt-1">
-                                            <span className="opacity-90">Klasse {student.school_class}</span>
-                                            <span className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`} title={`Jahrgang ${year}`}></span>
-                                            <span className="mx-2">•</span>
-                                            <span className="opacity-90">Gruppe: {student.group_name}</span>
-                                        </div>
-
-                                        {/* Aktueller Standort - besser sichtbar - jetzt mit Raum */}
-                                        <div className="mt-3 flex items-center">
-                                            <span className="text-white font-medium mr-2">Aktueller Standort:</span>
-                                            <div className={`rounded-full px-3 py-1 ${status.bgLight} ${status.textColor} font-medium flex items-center`}>
-                                                <span className={`mr-1.5 inline-block h-2.5 w-2.5 rounded-full ${status.bgColor}`}></span>
-                                                {status.label}
+                            {/* Check if user has limited access */}
+                            {!hasFullAccess ? (
+                                // Limited Access View
+                                <>
+                                    {/* Student Basic Info */}
+                                    <div className="relative mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-gray-400 to-gray-600 p-6 text-white shadow-md">
+                                        <div className="flex items-center">
+                                            <div className="mr-6 flex h-24 w-24 items-center justify-center rounded-full bg-white/30 text-4xl font-bold">
+                                                {student.first_name[0]}{student.second_name[0]}
+                                            </div>
+                                            <div>
+                                                <h1 className="text-3xl font-bold">{student.name}</h1>
+                                                <div className="flex items-center mt-1">
+                                                    <span className="opacity-90">Klasse {student.school_class}</span>
+                                                    <span className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`} title={`Jahrgang ${year}`}></span>
+                                                    <span className="mx-2">•</span>
+                                                    <span className="opacity-90">Gruppe: {student.group_name}</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            </div>
+
+                                    {/* Limited Access Notice */}
+                                    <div className="mb-8 rounded-lg bg-yellow-50 border border-yellow-200 p-6">
+                                        <div className="flex items-start">
+                                            <svg className="h-6 w-6 text-yellow-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                            </svg>
+                                            <div>
+                                                <h3 className="text-lg font-medium text-yellow-800">Eingeschränkter Zugriff</h3>
+                                                <p className="mt-2 text-yellow-700">
+                                                    Sie haben keinen Zugriff auf die vollständigen Schülerdaten, da Sie nicht die Gruppe dieses Schülers betreuen.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Group Supervisors Contact */}
+                                    {supervisors.length > 0 && (
+                                        <div className="rounded-lg bg-white p-6 shadow-sm">
+                                            <h2 className="mb-4 text-xl font-bold text-gray-800">
+                                                Ansprechpartner für diesen Schüler
+                                            </h2>
+                                            <p className="mb-4 text-gray-600">
+                                                Bitte kontaktieren Sie eine der folgenden Personen für weitere Informationen:
+                                            </p>
+                                            <div className="space-y-3">
+                                                {supervisors.map((supervisor) => (
+                                                    <div key={supervisor.id} className="border rounded-lg p-4 bg-gray-50">
+                                                        <div className="flex items-center justify-between">
+                                                            <div>
+                                                                <p className="font-medium text-gray-900">
+                                                                    {supervisor.first_name} {supervisor.last_name}
+                                                                </p>
+                                                                <p className="text-sm text-gray-500 capitalize">{supervisor.role}</p>
+                                                                {supervisor.email && (
+                                                                    <p className="text-sm text-gray-600 mt-1">{supervisor.email}</p>
+                                                                )}
+                                                            </div>
+                                                            {supervisor.email && (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        window.location.href = `mailto:${supervisor.email}?subject=Anfrage zu ${student.name}`;
+                                                                    }}
+                                                                >
+                                                                    E-Mail senden
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                // Full Access View (existing content)
+                                <>
+                                    {/* Student Profile Header with Status */}
+                                    <div className="relative mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white shadow-md">
+                                        <div className="flex items-center">
+                                            <div className="mr-6 flex h-24 w-24 items-center justify-center rounded-full bg-white/30 text-4xl font-bold">
+                                                {student.first_name[0]}{student.second_name[0]}
+                                            </div>
+                                            <div>
+                                                <h1 className="text-3xl font-bold">{student.name}</h1>
+                                                <div className="flex items-center mt-1">
+                                                    <span className="opacity-90">Klasse {student.school_class}</span>
+                                                    <span className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`} title={`Jahrgang ${year}`}></span>
+                                                    <span className="mx-2">•</span>
+                                                    <span className="opacity-90">Gruppe: {student.group_name}</span>
+                                                </div>
+
+                                                {/* Aktueller Standort - besser sichtbar - jetzt mit Raum */}
+                                                <div className="mt-3 flex items-center">
+                                                    <span className="text-white font-medium mr-2">Aktueller Standort:</span>
+                                                    <div className={`rounded-full px-3 py-1 ${status.bgLight} ${status.textColor} font-medium flex items-center`}>
+                                                        <span className={`mr-1.5 inline-block h-2.5 w-2.5 rounded-full ${status.bgColor}`}></span>
+                                                        {status.label}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
 
                             {/* Navigation Tabs */}
                             <div className="mb-8 grid grid-cols-3 gap-4">
@@ -377,6 +471,8 @@ export default function StudentDetailPage() {
                                     </div>
                                 </div>
                             </div>
+                                </>
+                            )}
                         </div>
                     </main>
                 </div>
