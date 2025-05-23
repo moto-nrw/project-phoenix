@@ -32,8 +32,9 @@ const LogoutIcon = ({ className }: { className?: string }) => (
 
 export function Header({ userName = "Root" }: HeaderProps) {
     return (
-        <header className="w-full bg-white/80 py-4 shadow-sm backdrop-blur-sm relative z-50">
-            <div className="w-full px-4 flex items-center justify-between">
+        <header className="w-full bg-white/95 backdrop-blur-md py-4 shadow-sm border-b border-gray-200/50 relative z-50">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-50/80 via-white/40 to-green-50/80 md:bg-gradient-to-r md:from-blue-50/60 md:via-white/30 md:to-green-50/60"></div>
+            <div className="relative w-full px-4 flex items-center justify-between">
                 {/* Left container: Logo, MOTO text, and welcome message */}
                 <div className="flex items-center gap-3">
                     <Image
