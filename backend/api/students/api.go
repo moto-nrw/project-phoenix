@@ -214,20 +214,97 @@ func newStudentResponse(student *users.Student, person *users.Person, group *edu
 	return response
 }
 
-// listStudents handles listing all students
+// listStudents handles listing all students with staff-based filtering
 func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
-	// Create query options
-	queryOptions := base.NewQueryOptions()
-
-	// Add filters if provided
+	// Get query parameters
 	schoolClass := r.URL.Query().Get("school_class")
 	guardianName := r.URL.Query().Get("guardian_name")
 	firstName := r.URL.Query().Get("first_name")
 	lastName := r.URL.Query().Get("last_name")
 	location := r.URL.Query().Get("location")
 	groupIDStr := r.URL.Query().Get("group_id")
+	search := r.URL.Query().Get("search") // New search parameter
 
-	// Create filter
+	// Get user permissions to check admin status
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	isAdmin := hasAdminPermissions(userPermissions)
+
+	// Get current staff member if not admin
+	var allowedGroupIDs []int64
+	canAccessLocation := isAdmin
+
+	if !isAdmin {
+		// Get current staff member
+		_, err := rs.UserContextService.GetCurrentStaff(r.Context())
+		if err != nil {
+			// User is not a staff member, return empty list
+			common.RespondWithPagination(w, r, http.StatusOK, []StudentResponse{}, 1, 50, 0, "Students retrieved successfully")
+			return
+		}
+
+		// Get education groups supervised by this staff member
+		educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
+		if err != nil {
+			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+
+		// Get activity groups supervised by this staff member
+		activityGroups, err := rs.UserContextService.GetMyActivityGroups(r.Context())
+		if err != nil {
+			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+
+		// Collect all supervised group IDs
+		for _, group := range educationGroups {
+			allowedGroupIDs = append(allowedGroupIDs, group.ID)
+		}
+		// TODO: Handle activity groups in the future
+		// Activity groups might have education group IDs associated
+		// For now, we only handle education groups
+		_ = activityGroups
+
+		// If no groups are supervised and not searching for a specific group, return empty
+		if len(allowedGroupIDs) == 0 && groupIDStr == "" {
+			common.RespondWithPagination(w, r, http.StatusOK, []StudentResponse{}, 1, 50, 0, "Students retrieved successfully")
+			return
+		}
+
+		// If a specific group is requested, check if it's in the allowed list
+		if groupIDStr != "" {
+			if groupID, err := strconv.ParseInt(groupIDStr, 10, 64); err == nil {
+				allowed := false
+				for _, allowedID := range allowedGroupIDs {
+					if allowedID == groupID {
+						allowed = true
+						canAccessLocation = true
+						break
+					}
+				}
+				if !allowed {
+					if err := render.Render(w, r, ErrorUnauthorized(errors.New("access denied: you don't supervise this group"))); err != nil {
+						log.Printf("Error rendering error response: %v", err)
+					}
+					return
+				}
+				// Use only this specific group
+				allowedGroupIDs = []int64{groupID}
+			}
+		}
+	} else if groupIDStr != "" {
+		// Admin requesting specific group
+		if groupID, err := strconv.ParseInt(groupIDStr, 10, 64); err == nil {
+			allowedGroupIDs = []int64{groupID}
+		}
+	}
+
+	// Create query options
+	queryOptions := base.NewQueryOptions()
 	filter := base.NewFilter()
 
 	// Apply filters
@@ -236,11 +313,6 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	}
 	if guardianName != "" {
 		filter.ILike("guardian_name", "%"+guardianName+"%")
-	}
-	if groupIDStr != "" {
-		if groupID, err := strconv.ParseInt(groupIDStr, 10, 64); err == nil {
-			filter.Equal("group_id", groupID)
-		}
 	}
 
 	// Add pagination
@@ -265,74 +337,28 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	var students []*users.Student
 	var err error
 
-	// Get user permissions to check admin status
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	isAdmin := hasAdminPermissions(userPermissions)
-
-	// Track if user can access location data (admins or supervisors)
-	canAccessLocation := isAdmin
-
-	// If group_id is specified, check authorization and get students from that group
-	if groupIDStr != "" {
-		if groupID, parseErr := strconv.ParseInt(groupIDStr, 10, 64); parseErr == nil {
-			// Check if user supervises this group (for location access)
-			if !isAdmin {
-				myGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-				if err != nil {
-					if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-						log.Printf("Error rendering error response: %v", err)
-					}
-					return
-				}
-
-				// Check if the requested group_id is among the user's supervised groups
-				supervises := false
-				for _, group := range myGroups {
-					if group.ID == groupID {
-						supervises = true
-						canAccessLocation = true
-						break
-					}
-				}
-
-				// Non-admin users can only access groups they supervise
-				if !supervises {
-					if err := render.Render(w, r, ErrorUnauthorized(errors.New("access denied: you don't supervise this group"))); err != nil {
-						log.Printf("Error rendering error response: %v", err)
-					}
-					return
-				}
+	// Get students based on permissions
+	if isAdmin && len(allowedGroupIDs) == 0 {
+		// Admin with no specific group filter - get all students
+		students, err = rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
+		if err != nil {
+			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+				log.Printf("Error rendering error response: %v", err)
 			}
-
-			// Get students from this educational group
-			students, err = rs.StudentRepo.FindByGroupID(r.Context(), groupID)
-			if err != nil {
-				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-		} else {
-			// Invalid group_id format
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group_id format"))); err != nil {
+			return
+		}
+	} else if len(allowedGroupIDs) > 0 {
+		// Get students from allowed groups
+		students, err = rs.StudentRepo.FindByGroupIDs(r.Context(), allowedGroupIDs)
+		if err != nil {
+			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 				log.Printf("Error rendering error response: %v", err)
 			}
 			return
 		}
 	} else {
-		// Get all students using the new ListWithOptions method (when no group_id specified)
-		// Admins can access all students, non-admins get empty list for general queries
-		if !isAdmin {
-			students = []*users.Student{} // Non-admins cannot list all students
-		} else {
-			students, err = rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
-			if err != nil {
-				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-		}
+		// No access to any students
+		students = []*users.Student{}
 	}
 
 	// Build response with person data for each student
@@ -345,7 +371,19 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// Filter based on person name if needed
+		// Apply search filter if provided
+		if search != "" {
+			// Search in first name, last name, and student ID
+			studentIDStr := strconv.FormatInt(student.ID, 10)
+			if !containsIgnoreCase(person.FirstName, search) &&
+				!containsIgnoreCase(person.LastName, search) &&
+				!containsIgnoreCase(studentIDStr, search) &&
+				!containsIgnoreCase(person.FirstName+" "+person.LastName, search) {
+				continue
+			}
+		}
+
+		// Filter based on person name if needed (legacy filters)
 		if (firstName != "" && !containsIgnoreCase(person.FirstName, firstName)) ||
 			(lastName != "" && !containsIgnoreCase(person.LastName, lastName)) {
 			continue
