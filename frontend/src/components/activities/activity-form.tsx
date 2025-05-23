@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import type {
   Activity,
   ActivityCategory,
-  ActivityTime,
-} from "@/lib/activity-api";
+  ActivitySchedule,
+} from "~/lib/activity-helpers";
+import { roomService } from "~/lib/api";
 
 // Helper component for selecting a supervisor
 const SupervisorSelector = ({
@@ -19,23 +20,29 @@ const SupervisorSelector = ({
   label: string;
   supervisors?: Array<{ id: string; name: string }>;
 }) => {
+  
   return (
     <div>
       <label className="mb-1 block text-sm font-medium text-gray-700">
         {label}
       </label>
       <select
-        value={value}
+        value={value || ""}
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
       >
         <option value="">Supervisor auswählen</option>
-        {supervisors.map((supervisor) => (
-          <option key={supervisor.id} value={supervisor.id}>
-            {supervisor.name}
-          </option>
-        ))}
+        {supervisors && supervisors.length > 0 ? (
+          supervisors.map((supervisor) => (
+            <option key={supervisor.id} value={supervisor.id}>
+              {supervisor.name}
+            </option>
+          ))
+        ) : (
+          <option disabled value="">Keine Leiter verfügbar</option>
+        )}
       </select>
+      
     </div>
   );
 };
@@ -73,124 +80,241 @@ const CategorySelector = ({
   );
 };
 
+// Helper component for room selection
+const RoomSelector = ({
+  value,
+  onChange,
+  label,
+  rooms = [],
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  label: string;
+  rooms?: Array<{ id: string; name: string }>;
+}) => {
+  return (
+    <div>
+      <label className="mb-1 block text-sm font-medium text-gray-700">
+        {label}
+      </label>
+      <select
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+      >
+        <option value="">Keinen Raum zuweisen</option>
+        {rooms.map((room) => (
+          <option key={room.id} value={room.id}>
+            {room.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+};
+
 // Helper component for time slots
 const TimeSlotEditor = ({
   timeSlots,
   onAdd,
   onRemove,
+  onEdit,
   parentActivityId,
+  timeframes = [],
+  availableTimeSlots = [],
 }: {
-  timeSlots: ActivityTime[];
-  onAdd: (timeSlot: Omit<ActivityTime, "id" | "ag_id" | "created_at">) => void;
+  timeSlots: ActivitySchedule[];
+  onAdd: (timeSlot: Omit<ActivitySchedule, "id" | "created_at" | "updated_at">) => void;
   onRemove: (index: number) => void;
+  onEdit?: (index: number, timeSlot: Partial<ActivitySchedule>) => void;
   parentActivityId?: string;
+  timeframes?: Array<{ id: string; start_time: string; end_time: string; name?: string }>;
+  availableTimeSlots?: Array<{ weekday: string; timeframe_id?: string }>;
 }) => {
-  const [weekday, setWeekday] = useState("Monday");
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
-  // const [timespanId, setTimespanId] = useState('');
+  const [weekday, setWeekday] = useState("monday");
+  const [timeframeId, setTimeframeId] = useState("");
   const [isCreatingTimespan, setIsCreatingTimespan] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  
   // Use parent activity ID if provided, or default to a temporary one
   const activityId = parentActivityId ?? "temp";
 
   const weekdays = [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
+    { value: "monday", label: "Montag" },
+    { value: "tuesday", label: "Dienstag" },
+    { value: "wednesday", label: "Mittwoch" },
+    { value: "thursday", label: "Donnerstag" },
+    { value: "friday", label: "Freitag" },
+    { value: "saturday", label: "Samstag" },
+    { value: "sunday", label: "Sonntag" },
   ];
 
-  const handleAddTimeSlot = async () => {
-    if (!weekday || !startTime || !endTime) {
-      alert("Bitte geben Sie Wochentag, Startzeit und Endzeit an.");
+  // Check if a time slot is already in use by existing time slots
+  const isTimeSlotConflict = (weekday: string, timeframeId: string, excludeIndex?: number): boolean => {
+    // Skip timeframes with no ID (all-day slots)
+    if (!timeframeId) return false;
+    
+    return timeSlots.some((slot, index) => 
+      // Skip the slot we're currently editing
+      (excludeIndex === undefined || index !== excludeIndex) &&
+      // Check if weekday and timeframe match
+      slot.weekday.toLowerCase() === weekday.toLowerCase() && 
+      slot.timeframe_id === timeframeId
+    );
+  };
+
+  // Check if a time slot is already in use based on available slots from API
+  const isTimeSlotTaken = (weekday: string, timeframeId: string): boolean => {
+    // First check existing time slots for conflicts
+    if (isTimeSlotConflict(weekday, timeframeId)) {
+      return true;
+    }
+    
+    // If we don't have a list of available time slots from API, only check conflicts
+    if (!availableTimeSlots || availableTimeSlots.length === 0) return false;
+    
+    // Check if this time slot is available in the available slots
+    const isAvailable = availableTimeSlots.some(slot => 
+      slot.weekday.toLowerCase() === weekday.toLowerCase() && 
+      slot.timeframe_id === (timeframeId || undefined)
+    );
+    
+    // Return true if not available (taken)
+    return !isAvailable;
+  };
+
+  const handleAddTimeSlot = () => {
+    if (!weekday) {
+      setError("Bitte geben Sie einen Wochentag an.");
       return;
     }
 
+    // Check for conflicts with existing timeslots
+    if (timeframeId && isTimeSlotConflict(weekday, timeframeId)) {
+      setError(`Dieser Zeitslot ist bereits belegt (${formatWeekday(weekday)}, ${getTimeframeLabel(timeframeId)}).`);
+      return;
+    }
+    
     try {
       setIsCreatingTimespan(true);
+      setError(null);
 
-      // Create a timespan first
-      // Format the start and end times as ISO strings with current date
-      const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-      const formattedStartTime = `${today}T${startTime}:00Z`;
-      const formattedEndTime = `${today}T${endTime}:00Z`;
-
-      // Log the formatted times for debugging
-      console.log(
-        "Creating timespan with start_time:",
-        formattedStartTime,
-        "end_time:",
-        formattedEndTime,
-      );
-
-      const response = await fetch("/api/activities/timespans", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          start_time: formattedStartTime,
-          end_time: formattedEndTime,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        console.error("Error creating timespan:", errorData);
-        alert(
-          "Fehler beim Erstellen des Zeitraums. Bitte versuchen Sie es später erneut.",
-        );
-        return;
-      }
-
-      const data = (await response.json()) as { id: string };
-      const newTimespanId = data.id;
-
-      console.log(
-        "Created timespan with ID:",
-        newTimespanId,
-        "Full response:",
-        JSON.stringify(data),
-      );
-
-      // Debug pause to ensure timespan is fully created in the database
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Add the time slot with the new timespan ID
-      // The API expects timespan as an object with start_time and end_time
+      // Add the time slot
       onAdd({
         weekday,
-        timespan: {
-          start_time: startTime,
-          end_time: endTime
-        },
+        timeframe_id: timeframeId || undefined,
         activity_id: activityId || "new",
-        updated_at: new Date()
       });
 
       // Reset form
-      setStartTime("");
-      setEndTime("");
-      // This field is now commented out and no longer needed
-      // setTimespanId('');
-    } catch (error) {
-      console.error("Error adding time slot:", error);
-      alert(
-        "Fehler beim Hinzufügen des Zeitslots. Bitte versuchen Sie es später erneut.",
-      );
+      setTimeframeId("");
+    } catch {
+      setError("Fehler beim Hinzufügen des Zeitslots. Bitte versuchen Sie es später erneut.");
     } finally {
       setIsCreatingTimespan(false);
     }
   };
 
+  const handleEditTimeSlot = (index: number) => {
+    if (!onEdit) return;
+    
+    const slot = timeSlots[index];
+    if (!slot) return;
+    
+    // Set form values to the slot being edited
+    setWeekday(slot.weekday);
+    setTimeframeId(slot.timeframe_id ?? "");
+    setEditingIndex(index);
+  };
+
+  const handleSaveEdit = () => {
+    if (!onEdit || editingIndex === null) return;
+    
+    // Check for conflicts with existing timeslots (excluding the one being edited)
+    if (timeframeId && isTimeSlotConflict(weekday, timeframeId, editingIndex)) {
+      setError(`Dieser Zeitslot ist bereits belegt (${formatWeekday(weekday)}, ${getTimeframeLabel(timeframeId)}).`);
+      return;
+    }
+    
+    try {
+      setError(null);
+      
+      onEdit(editingIndex, {
+        weekday,
+        timeframe_id: timeframeId || undefined,
+      });
+      
+      // Reset edit mode
+      setEditingIndex(null);
+      setTimeframeId("");
+    } catch {
+      setError("Fehler beim Aktualisieren des Zeitslots. Bitte versuchen Sie es später erneut.");
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingIndex(null);
+    setTimeframeId("");
+    setWeekday("monday");
+    setError(null);
+  };
+
+  // Get a display label for a timeframe
+  const getTimeframeLabel = (timeframeId: string): string => {
+    const timeframe = timeframes.find(tf => tf.id === timeframeId);
+    if (!timeframe) return "Unbekannter Zeitrahmen";
+    
+    return timeframe.name ?? `${timeframe.start_time}-${timeframe.end_time}`;
+  };
+
+
+  const formatWeekday = (day: string): string => {
+    const weekdayMap: Record<string, string> = {
+      monday: "Montag",
+      tuesday: "Dienstag",
+      wednesday: "Mittwoch",
+      thursday: "Donnerstag",
+      friday: "Freitag",
+      saturday: "Samstag",
+      sunday: "Sonntag",
+    };
+    return weekdayMap[day.toLowerCase()] ?? day;
+  };
+
+  // Sort time slots by weekday
+  const sortedTimeSlots = [...timeSlots].sort((a, b) => {
+    const weekdayOrder: Record<string, number> = {
+      monday: 1,
+      tuesday: 2,
+      wednesday: 3,
+      thursday: 4,
+      friday: 5,
+      saturday: 6,
+      sunday: 7,
+    };
+    return (weekdayOrder[a.weekday.toLowerCase()] ?? 99) - (weekdayOrder[b.weekday.toLowerCase()] ?? 99);
+  });
+
+  // Group time slots by weekday for better organization
+  const timeSlotsByWeekday = sortedTimeSlots.reduce((acc, slot) => {
+    const day = slot.weekday.toLowerCase();
+    acc[day] ??= [];
+    acc[day].push(slot);
+    return acc;
+  }, {} as Record<string, ActivitySchedule[]>);
+
   return (
     <div className="space-y-4">
       <h3 className="text-md font-medium text-gray-700">Zeitslots</h3>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      {error && (
+        <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">
             Wochentag
@@ -199,10 +323,11 @@ const TimeSlotEditor = ({
             value={weekday}
             onChange={(e) => setWeekday(e.target.value)}
             className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+            aria-label="Wählen Sie einen Wochentag"
           >
             {weekdays.map((day) => (
-              <option key={day} value={day}>
-                {day}
+              <option key={day.value} value={day.value}>
+                {day.label}
               </option>
             ))}
           </select>
@@ -210,78 +335,159 @@ const TimeSlotEditor = ({
 
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">
-            Startzeit
+            Zeitrahmen
           </label>
-          <input
-            type="time"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
+          <select
+            value={timeframeId}
+            onChange={(e) => setTimeframeId(e.target.value)}
             className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-          />
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">
-            Endzeit
-          </label>
-          <input
-            type="time"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-          />
+            aria-label="Wählen Sie einen Zeitrahmen"
+          >
+            <option value="">Ganztägig</option>
+            {timeframes.map((timeframe) => {
+              const isTaken = isTimeSlotTaken(weekday, timeframe.id);
+              const isConflict = isTimeSlotConflict(
+                weekday, 
+                timeframe.id, 
+                editingIndex ?? undefined
+              );
+              
+              // If we're editing, don't disable if it's the same as the current value
+              const disabled = editingIndex !== null ? 
+                isConflict : // When editing, only disable conflicts
+                isTaken;    // When adding new, disable taken slots
+              
+              return (
+                <option 
+                  key={timeframe.id} 
+                  value={timeframe.id}
+                  disabled={disabled}
+                  className={disabled ? "text-gray-400" : ""}
+                >
+                  {timeframe.name ?? `${timeframe.start_time}-${timeframe.end_time}`}
+                  {disabled ? ' (Bereits belegt)' : ''}
+                </option>
+              );
+            })}
+          </select>
+          <div className="mt-1 text-xs text-gray-500">
+            {timeframeId ? (
+              timeframes.find(tf => tf.id === timeframeId) ? (
+                <span>Zeitrahmen: {getTimeframeLabel(timeframeId)}</span>
+              ) : "Unbekannter Zeitrahmen"
+            ) : "Bei 'Ganztägig' wird kein spezifischer Zeitrahmen festgelegt"}
+          </div>
         </div>
       </div>
 
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={handleAddTimeSlot}
-          disabled={isCreatingTimespan}
-          className="rounded-lg bg-purple-600 px-4 py-2 text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-gray-400"
-        >
-          {isCreatingTimespan ? "Wird hinzugefügt..." : "Zeitslot hinzufügen"}
-        </button>
+      <div className="flex justify-end gap-2">
+        {editingIndex !== null ? (
+          <>
+            <button
+              type="button"
+              onClick={cancelEdit}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              Abbrechen
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveEdit}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
+            >
+              Änderungen speichern
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={handleAddTimeSlot}
+            disabled={isCreatingTimespan}
+            className="rounded-lg bg-purple-600 px-4 py-2 text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+          >
+            {isCreatingTimespan ? "Wird hinzugefügt..." : "Zeitslot hinzufügen"}
+          </button>
+        )}
       </div>
 
-      {timeSlots.length > 0 && (
+      {sortedTimeSlots.length > 0 && (
         <div className="mt-4">
           <h4 className="mb-2 text-sm font-medium text-gray-700">
             Vorhandene Zeitslots:
           </h4>
-          <ul className="space-y-2">
-            {timeSlots.map((slot, index) => (
-              <li
-                key={slot.id || index}
-                className="flex items-center justify-between rounded border border-gray-200 bg-gray-50 p-2"
-              >
-                <span>
-                  {slot.weekday} {slot.timespan?.start_time ?? ""}
-                  {slot.timespan?.end_time
-                    ? ` - ${slot.timespan.end_time}`
-                    : ""}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onRemove(index)}
-                  className="text-red-500 hover:text-red-700"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </button>
-              </li>
+          
+          {/* Group by weekday for better organization */}
+          <div className="space-y-4">
+            {Object.entries(timeSlotsByWeekday).map(([day, daySlots]) => (
+              <div key={day} className="rounded-lg border border-gray-200 overflow-hidden">
+                <div className="bg-gray-100 px-3 py-2 font-medium">{formatWeekday(day)}</div>
+                <ul className="divide-y divide-gray-100">
+                  {daySlots.map((slot, slotIndex) => {
+                    const index = timeSlots.findIndex(s => s.id === slot.id);
+                    const timeframe = slot.timeframe_id ? 
+                      timeframes.find(tf => tf.id === slot.timeframe_id) : null;
+                      
+                    return (
+                      <li
+                        key={slot.id || slotIndex}
+                        className="flex items-center justify-between px-3 py-2 hover:bg-gray-50"
+                      >
+                        <span className="flex items-center">
+                          <div className={`h-3 w-3 rounded-full mr-2 ${timeframe ? 'bg-blue-500' : 'bg-green-500'}`} />
+                          {timeframe ? (
+                            <span>
+                              {timeframe.name ?? `${timeframe.start_time}-${timeframe.end_time}`}
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">Ganztägig</span>
+                          )}
+                        </span>
+                        <div className="flex space-x-2">
+                          {onEdit && (
+                            <button
+                              type="button"
+                              onClick={() => handleEditTimeSlot(index)}
+                              className="text-blue-500 hover:text-blue-700"
+                              aria-label="Zeitslot bearbeiten"
+                            >
+                              <svg 
+                                xmlns="http://www.w3.org/2000/svg" 
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                                className="h-5 w-5"
+                              >
+                                <path d="M5.433 13.917l1.262-3.155A4 4 0 017.58 9.42l6.92-6.918a2.121 2.121 0 013 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 01-.65-.65z" />
+                                <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0010 3H4.75A2.75 2.75 0 002 5.75v9.5A2.75 2.75 0 004.75 18h9.5A2.75 2.75 0 0017 15.25V10a.75.75 0 00-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5z" />
+                              </svg>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => onRemove(index)}
+                            className="text-red-500 hover:text-red-700"
+                            aria-label="Zeitslot entfernen"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       )}
     </div>
@@ -297,6 +503,7 @@ interface ActivityFormProps {
   submitLabel: string;
   categories?: ActivityCategory[];
   supervisors?: Array<{ id: string; name: string }>;
+  rooms?: Array<{ id: string; name: string }>;
 }
 
 export default function ActivityForm({
@@ -307,7 +514,8 @@ export default function ActivityForm({
   formTitle,
   submitLabel,
   categories = [],
-  supervisors = [],
+  supervisors: initialSupervisors = [],
+  rooms: initialRooms = [],
 }: ActivityFormProps) {
   const [formData, setFormData] = useState<Partial<Activity>>({
     name: "",
@@ -315,19 +523,30 @@ export default function ActivityForm({
     is_open_ags: false,
     supervisor_id: "",
     ag_category_id: "",
+    planned_room_id: "",
   });
 
-  const [timeSlots, setTimeSlots] = useState<ActivityTime[]>([]);
+  const [timeSlots, setTimeSlots] = useState<ActivitySchedule[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [rooms, setRooms] = useState<Array<{ id: string; name: string }>>(initialRooms);
+  // Use supervisors prop directly instead of local state
+  const [timeframes, setTimeframes] = useState<Array<{ id: string; start_time: string; end_time: string; name?: string }>>([]);
+  const [availableTimeSlots, setAvailableTimeSlots] = useState<Array<{ weekday: string; timeframe_id?: string }>>([]);
+  const [isLoadingTimeframes, setIsLoadingTimeframes] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true);
 
+  // Load initial data
   useEffect(() => {
     if (initialData) {
+      
       setFormData({
+        id: initialData.id,
         name: initialData.name ?? "",
         max_participant: initialData.max_participant ?? 0,
         is_open_ags: initialData.is_open_ags ?? false,
         supervisor_id: initialData.supervisor_id ?? "",
         ag_category_id: initialData.ag_category_id ?? "",
+        planned_room_id: initialData.planned_room_id ?? "",
       });
 
       if (initialData.times) {
@@ -335,6 +554,106 @@ export default function ActivityForm({
       }
     }
   }, [initialData]);
+  
+  // Fetch rooms and supervisors on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoadingData(true);
+        
+        // Only fetch rooms if not provided through props
+        const roomsData = rooms.length === 0 ? await roomService.getRooms() : rooms;
+        
+        // Use supervisors from props - no fallback API call
+        
+        
+        if (rooms.length === 0) {
+          setRooms(roomsData);
+        }
+        
+        // Supervisors are managed by parent component, no need to fetch or set
+        
+        setError(null);
+      } catch {
+        setError("Fehler beim Laden der Daten. Bitte versuchen Sie es später erneut.");
+      } finally {
+        setIsLoadingData(false);
+      }
+    };
+
+    void fetchData();
+  }, [rooms.length, initialSupervisors, rooms]);
+  
+  // Fetch timeframes and available time slots
+  useEffect(() => {
+    const fetchTimeframesData = async () => {
+      try {
+        setIsLoadingTimeframes(true);
+        
+        // Fetch timeframes from the API
+        const response = await fetch('/api/schedules/timeframes');
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch timeframes: ${response.status} ${response.statusText}`);
+        }
+        
+        const timeframesData = await response.json() as Array<{ id: string; start_time: string; end_time: string; name?: string }> | { data: Array<{ id: string; start_time: string; end_time: string; name?: string }> };
+        
+        // Check if we got valid timeframe data
+        let fetchedTimeframes: Array<{ id: string; start_time: string; end_time: string; name?: string }> = [];
+        
+        if (Array.isArray(timeframesData) && timeframesData.length > 0) {
+          fetchedTimeframes = timeframesData;
+        } else if (timeframesData && 'data' in timeframesData && Array.isArray(timeframesData.data)) {
+          // Handle wrapped response format
+          fetchedTimeframes = timeframesData.data;
+        }
+        
+        setTimeframes(fetchedTimeframes);
+        
+        // Fetch available timeslots if we have an activity ID
+        let availableSlots: Array<{ weekday: string; timeframe_id?: string }> = [];
+        
+        if (formData.id) {
+          try {
+            // Try to fetch available time slots from API
+            const slotsResponse = await fetch(`/api/activities/${formData.id}/schedules/available`);
+            
+            if (slotsResponse.ok) {
+              const slotsData = await slotsResponse.json() as Array<{ weekday: string; timeframe_id?: string }> | { data: Array<{ weekday: string; timeframe_id?: string }> };
+              if (Array.isArray(slotsData)) {
+                availableSlots = slotsData;
+              } else if (slotsData && 'data' in slotsData && Array.isArray(slotsData.data)) {
+                availableSlots = slotsData.data;
+              }
+            }
+          } catch {
+            // Silently handle error and continue with fallback
+          }
+        }
+        
+        // If we couldn't get slots from API or it's a new activity, generate all possible slots
+        if (availableSlots.length === 0) {
+          availableSlots = fetchedTimeframes.flatMap(tf => 
+            ["monday", "tuesday", "wednesday", "thursday", "friday"].map(day => ({
+              weekday: day,
+              timeframe_id: tf.id
+            }))
+          );
+        }
+        
+        setAvailableTimeSlots(availableSlots);
+      } catch {
+        // Handle error by clearing timeframes
+        setTimeframes([]);
+        setAvailableTimeSlots([]);
+      } finally {
+        setIsLoadingTimeframes(false);
+      }
+    };
+    
+    void fetchTimeframesData();
+  }, [formData.id]);
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -362,6 +681,25 @@ export default function ActivityForm({
     }
   };
 
+  const prepareDataForSubmission = (): Partial<Activity> & { schedules?: Array<{
+    id?: number;
+    weekday: string;
+    timeframe_id: number | null;
+  }> } => {
+    // Convert form data to what the backend API expects
+    const submissionData = {
+      ...formData,
+      // Add schedules for backend - handle both temp and real IDs
+      schedules: timeSlots.map(slot => ({
+        id: slot.id && !slot.id.startsWith('temp') ? parseInt(slot.id, 10) : undefined,
+        weekday: slot.weekday.toUpperCase(),
+        timeframe_id: slot.timeframe_id ? parseInt(slot.timeframe_id, 10) : null
+      }))
+    };
+
+    return submissionData;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -369,7 +707,6 @@ export default function ActivityForm({
     if (
       !formData.name ||
       !formData.max_participant ||
-      !formData.supervisor_id ||
       !formData.ag_category_id
     ) {
       setError("Bitte füllen Sie alle Pflichtfelder aus.");
@@ -379,22 +716,13 @@ export default function ActivityForm({
     try {
       setError(null);
 
-      // Include time slots in submission data and ensure category ID is included
-      const submissionData = {
-        ...formData,
-        times: timeSlots,
-      };
+      // Prepare data for submission
+      const submissionData = prepareDataForSubmission();
 
-      // Debug log to see what we're submitting
-      console.log(
-        "Submitting form data:",
-        JSON.stringify(submissionData, null, 2),
-      );
 
       // Call the provided submit function with form data
       await onSubmitAction(submissionData);
-    } catch (err) {
-      console.error("Error submitting form:", err);
+    } catch {
       setError(
         "Fehler beim Speichern der Aktivitätsdaten. Bitte versuchen Sie es später erneut.",
       );
@@ -402,12 +730,13 @@ export default function ActivityForm({
   };
 
   const handleAddTimeSlot = (
-    newTimeSlot: Omit<ActivityTime, "id" | "ag_id" | "created_at">,
+    newTimeSlot: Omit<ActivitySchedule, "id" | "created_at" | "updated_at">,
   ) => {
     // Generate a temporary ID for UI purposes
-    const tempTimeSlot: ActivityTime = {
+    const tempTimeSlot: ActivitySchedule = {
       id: `temp-${Date.now()}`,
       created_at: new Date(),
+      updated_at: new Date(),
       // Use spread to get properties from newTimeSlot, but avoid duplicates
       ...newTimeSlot,
     };
@@ -417,6 +746,24 @@ export default function ActivityForm({
 
   const handleRemoveTimeSlot = (index: number) => {
     setTimeSlots((prev) => prev.filter((_, i) => i !== index));
+  };
+  
+  const handleEditTimeSlot = (index: number, updatedSlot: Partial<ActivitySchedule>) => {
+    setTimeSlots((prev) => {
+      const newTimeSlots = [...prev];
+      if (newTimeSlots[index]) {
+        newTimeSlots[index] = {
+          ...newTimeSlots[index],
+          ...updatedSlot,
+          // If this is a backend item with no changes yet, mark it as temp for UI
+          id: newTimeSlots[index].id.startsWith('temp-') 
+            ? newTimeSlots[index].id 
+            : `temp-edit-${newTimeSlots[index].id}`,
+          updated_at: new Date()
+        };
+      }
+      return newTimeSlots;
+    });
   };
 
   return (
@@ -497,12 +844,30 @@ export default function ActivityForm({
                     supervisor_id: value,
                   }));
                 }}
-                label="Leitung*"
-                supervisors={supervisors}
+                label="Leitung"
+                supervisors={initialSupervisors}
+              />
+              {!isLoadingData && initialSupervisors.length === 0 && (
+                <div className="text-sm text-orange-500 italic">
+                  Keine Leiter verfügbar
+                </div>
+              )}
+
+              {/* Room selector */}
+              <RoomSelector
+                value={formData.planned_room_id ?? ""}
+                onChange={(value) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    planned_room_id: value,
+                  }));
+                }}
+                label="Geplanter Raum"
+                rooms={rooms}
               />
 
               {/* Is Open checkbox */}
-              <div className="mt-2 flex items-center md:col-span-2">
+              <div className="mt-2 flex items-center">
                 <input
                   type="checkbox"
                   id="is_open_ags"
@@ -526,8 +891,16 @@ export default function ActivityForm({
               timeSlots={timeSlots}
               onAdd={handleAddTimeSlot}
               onRemove={handleRemoveTimeSlot}
+              onEdit={handleEditTimeSlot}
               parentActivityId={formData.id}
+              timeframes={timeframes}
+              availableTimeSlots={availableTimeSlots}
             />
+            {isLoadingTimeframes && (
+              <div className="mt-2 text-sm text-gray-500 italic">
+                Zeitrahmen werden geladen...
+              </div>
+            )}
           </div>
 
           {/* Form actions */}

@@ -48,6 +48,7 @@ func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 	var students []*users.Student
 	err := r.db.NewSelect().
 		Model(&students).
+		ModelTableExpr("users.students AS student").
 		Where("group_id = ?", groupID).
 		Scan(ctx)
 
@@ -66,6 +67,7 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 	var students []*users.Student
 	err := r.db.NewSelect().
 		Model(&students).
+		ModelTableExpr("users.students AS student").
 		Where("LOWER(school_class) = LOWER(?)", schoolClass).
 		Scan(ctx)
 

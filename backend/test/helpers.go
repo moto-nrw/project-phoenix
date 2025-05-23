@@ -54,14 +54,24 @@ type TestData struct {
 
 // CreateTestJWTAuth creates a JWT auth service with a test secret
 func CreateTestJWTAuth() (*jwt.TokenAuth, error) {
-	// Use a fixed test secret
-	return jwt.NewTokenAuthWithSecret("test-secret-key-thats-at-least-32-chars-long")
+	// Use the regular JWT secret from environment variables
+	testSecret := viper.GetString("AUTH_JWT_SECRET")
+	if testSecret == "" {
+		testSecret = "TEST_SECRET_KEY_DO_NOT_USE_IN_PRODUCTION"
+	}
+	return jwt.NewTokenAuthWithSecret(testSecret)
 }
 
 // SetupTestDatabase configures the test database connection
 func SetupTestDatabase() {
 	// Set test database configuration for in-memory or test database
-	viper.Set("test_db_dsn", "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable")
+	// Use DB_DSN environment variable or fallback to a test-specific connection
+	testDsn := viper.GetString("DB_DSN")
+	if testDsn == "" {
+		// Default to SSL with certificate verification for test database
+		testDsn = "postgres://postgres:postgres@localhost:5432/postgres?sslmode=verify-ca&sslrootcert=/var/lib/postgresql/ssl/certs/ca.crt"
+	}
+	viper.Set("test_db_dsn", testDsn)
 	// You could also use an in-memory SQLite database for tests if desired
 }
 

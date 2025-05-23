@@ -11,10 +11,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Key Technologies:**
 - Backend: Go (1.21+) with Chi router, Bun ORM for PostgreSQL
 - Frontend: Next.js (v15+) with React (v19+), Tailwind CSS (v4+)
-- Database: PostgreSQL (17+)
+- Database: PostgreSQL (17+) with SSL encryption (GDPR compliance)
 - Authentication: JWT-based auth system with role-based access control
 - RFID Integration: Custom API endpoints for device communication
-- Deployment: Docker/Docker Compose
+- Deployment: Docker/Docker Compose with Caddy for production
 
 ## Architecture Overview
 
@@ -108,6 +108,9 @@ npm run format:write            # Fix formatting issues
 
 ### Docker Operations
 ```bash
+# SSL Setup (Required before starting services)
+cd config/ssl/postgres && ./create-certs.sh && cd ../../..
+
 # Quick Start
 docker compose up               # Start all services
 docker compose up -d postgres   # Start only database
@@ -128,16 +131,26 @@ docker compose down -v          # Stop and remove volumes
 
 ## Environment Configuration
 
-### Quick Start
+### Quick Start (New Development Environment)
 ```bash
-# Start database
-docker compose up -d postgres
+# Option 1: Use the automated setup script (recommended)
+./scripts/setup-dev.sh          # Creates configs and SSL certs automatically
 
-# Run migrations
-docker compose run server ./main migrate
+# Option 2: Manual setup
+# Generate SSL certificates (required for database security)
+cd config/ssl/postgres
+chmod +x create-certs.sh
+./create-certs.sh
+cd ../../..
 
-# Start all services
-docker compose up
+# Copy environment files
+cp backend/dev.env.example backend/dev.env
+cp frontend/.env.local.example frontend/.env.local
+
+# Start services
+docker compose up -d postgres   # Start database
+docker compose run server ./main migrate  # Run migrations
+docker compose up               # Start all services
 
 # Frontend checks
 cd frontend && npm run check
@@ -146,8 +159,9 @@ cd frontend && npm run check
 ### Backend Environment Variables (dev.env)
 ```bash
 # Database
-DB_DSN=postgres://username:password@localhost:5432/database?sslmode=disable
+DB_DSN=postgres://username:password@localhost:5432/database?sslmode=require
 DB_DEBUG=true                   # Log SQL queries
+# Note: sslmode=require enables SSL for GDPR compliance and security
 
 # Authentication  
 AUTH_JWT_SECRET=your_jwt_secret_here  # Change in production!
@@ -225,6 +239,17 @@ Each domain has:
 - Implementation in `database/repositories/{domain}/`
 - Service layer in `services/{domain}/`
 
+**Factory Pattern**: Both services and repositories use factories for dependency injection:
+```go
+// Services factory in services/factory.go
+serviceFactory := services.NewFactory(repoFactory, mailer)
+authService := serviceFactory.NewAuthService()
+
+// Repository factory in database/repositories/factory.go
+repoFactory := repositories.NewFactory(db)
+userRepo := repoFactory.NewUserRepository()
+```
+
 #### Important BUN ORM Pattern for Schema-Qualified Tables
 When working with PostgreSQL schemas, BUN requires explicit table expressions in repository methods:
 
@@ -257,10 +282,37 @@ func (g *Group) BeforeAppendModel(query any) error {
 - Run with `go run main.go migrate`
 - Reset with `go run main.go migrate reset` (WARNING: drops all data)
 
+## SSL Security Setup
+
+PostgreSQL uses SSL encryption for GDPR compliance:
+
+```bash
+# Generate SSL certificates (required before first run)
+cd config/ssl/postgres
+chmod +x create-certs.sh
+./create-certs.sh
+cd ../../..
+
+# Check certificate expiration periodically
+./config/ssl/postgres/check-cert-expiration.sh
+```
+
+**Connection String SSL Modes:**
+- Development: `sslmode=require` (basic encryption)
+- Production: `sslmode=verify-full` (full certificate validation)
+
+**SSL Configuration:**
+- Minimum TLS 1.2 with strong ciphers
+- Certificate files in `config/ssl/postgres/certs/` (git-ignored)
+- Server enforces SSL via `pg_hba.conf`
+
 ## Common Issues and Solutions
 
 ### Backend Issues
 - **Database Connection**: Check `DB_DSN` in dev.env and ensure PostgreSQL is running
+- **SSL Certificate Issues**: Run `config/ssl/postgres/create-certs.sh` to generate certificates
+- **SSL Verification Issues**: Ensure certificate paths are correct and certificates are valid
+- **Certificate Expiration**: Check certificate expiration with `./check-cert-expiration.sh` 
 - **JWT Errors**: Verify `AUTH_JWT_SECRET` is set and consistent
 - **CORS Issues**: Ensure `ENABLE_CORS=true` for local development
 - **SQL Debugging**: Set `DB_DEBUG=true` to see queries
@@ -441,6 +493,7 @@ export default function Page() {
 5. Implement service business logic
 6. Create API handlers in `api/{domain}/`
 7. Write tests for repository and service layers
+8. Run linter: `golangci-lint run --timeout 10m`
 
 ### Frontend Development Flow
 1. Define TypeScript interfaces in `lib/{domain}-helpers.ts`
@@ -502,3 +555,24 @@ Backend sessions use JWT with separate access and refresh tokens:
 - Refresh tokens: 1 hour
 - Tokens stored in HTTP-only cookies
 - Frontend uses NextAuth to manage session state
+
+## Production Deployment
+
+```bash
+# Use production Docker Compose configuration
+cp docker-compose.prod.example.yml docker-compose.prod.yml
+# Edit docker-compose.prod.yml with production values
+
+# Generate production SSL certificates (use CA-signed certs)
+cd deployment/production/ssl/postgres
+./create-certs.sh
+
+# Deploy with production config
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Production includes:
+- Caddy for automatic HTTPS
+- PostgreSQL with `sslmode=verify-full`
+- Health checks and restart policies
+- Resource limits and persistent volumes
