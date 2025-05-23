@@ -43,9 +43,18 @@ export default function StudentSearchPage() {
         setLoadingGroups(true);
         const fetchedGroups = await groupService.getGroups();
         setGroups(fetchedGroups);
-      } catch (err) {
-        console.error("Error loading groups:", err);
-        // Don't show error to user, groups are optional for search
+      } catch (err: unknown) {
+        // Check if it's a 403 permission error
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        if (errorMessage.includes("403")) {
+          // Silently handle permission error - groups are optional
+          console.log("User doesn't have permission to view groups - this is expected for some users");
+        } else {
+          // Log other errors
+          console.error("Error loading groups:", err);
+        }
+        // Set empty groups array
+        setGroups([]);
       } finally {
         setLoadingGroups(false);
       }

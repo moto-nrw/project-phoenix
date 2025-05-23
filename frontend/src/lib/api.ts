@@ -617,7 +617,12 @@ export const groupService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          // Don't log 403 errors as errors - they're expected for permission issues
+          if (response.status === 403) {
+            console.log(`Permission denied for groups endpoint (403)`);
+          } else {
+            console.error(`API error: ${response.status}`, errorText);
+          }
 
           // Try token refresh on 401 errors
           if (response.status === 401) {
