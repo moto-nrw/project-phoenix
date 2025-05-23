@@ -11,10 +11,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Key Technologies:**
 - Backend: Go (1.21+) with Chi router, Bun ORM for PostgreSQL
 - Frontend: Next.js (v15+) with React (v19+), Tailwind CSS (v4+)
-- Database: PostgreSQL (17+)
+- Database: PostgreSQL (17+) with SSL encryption (GDPR compliance)
 - Authentication: JWT-based auth system with role-based access control
 - RFID Integration: Custom API endpoints for device communication
-- Deployment: Docker/Docker Compose
+- Deployment: Docker/Docker Compose with Caddy for production
 
 ## Architecture Overview
 
@@ -131,22 +131,26 @@ docker compose down -v          # Stop and remove volumes
 
 ## Environment Configuration
 
-### Quick Start
+### Quick Start (New Development Environment)
 ```bash
+# Option 1: Use the automated setup script (recommended)
+./scripts/setup-dev.sh          # Creates configs and SSL certs automatically
+
+# Option 2: Manual setup
 # Generate SSL certificates (required for database security)
 cd config/ssl/postgres
 chmod +x create-certs.sh
 ./create-certs.sh
 cd ../../..
 
-# Start database
-docker compose up -d postgres
+# Copy environment files
+cp backend/dev.env.example backend/dev.env
+cp frontend/.env.local.example frontend/.env.local
 
-# Run migrations
-docker compose run server ./main migrate
-
-# Start all services
-docker compose up
+# Start services
+docker compose up -d postgres   # Start database
+docker compose run server ./main migrate  # Run migrations
+docker compose up               # Start all services
 
 # Frontend checks
 cd frontend && npm run check
@@ -235,6 +239,17 @@ Each domain has:
 - Implementation in `database/repositories/{domain}/`
 - Service layer in `services/{domain}/`
 
+**Factory Pattern**: Both services and repositories use factories for dependency injection:
+```go
+// Services factory in services/factory.go
+serviceFactory := services.NewFactory(repoFactory, mailer)
+authService := serviceFactory.NewAuthService()
+
+// Repository factory in database/repositories/factory.go
+repoFactory := repositories.NewFactory(db)
+userRepo := repoFactory.NewUserRepository()
+```
+
 #### Important BUN ORM Pattern for Schema-Qualified Tables
 When working with PostgreSQL schemas, BUN requires explicit table expressions in repository methods:
 
@@ -269,45 +284,27 @@ func (g *Group) BeforeAppendModel(query any) error {
 
 ## SSL Security Setup
 
-### SSL Certificate Generation
+PostgreSQL uses SSL encryption for GDPR compliance:
+
 ```bash
-# Generate SSL certificates for PostgreSQL (required for GDPR compliance)
+# Generate SSL certificates (required before first run)
 cd config/ssl/postgres
 chmod +x create-certs.sh
 ./create-certs.sh
+cd ../../..
 
-# Check certificate expiration (should be run periodically)
-chmod +x check-cert-expiration.sh
-./check-cert-expiration.sh
+# Check certificate expiration periodically
+./config/ssl/postgres/check-cert-expiration.sh
 ```
 
-### Enhanced PostgreSQL SSL Configuration
-The PostgreSQL database uses a robust SSL configuration for security:
+**Connection String SSL Modes:**
+- Development: `sslmode=require` (basic encryption)
+- Production: `sslmode=verify-full` (full certificate validation)
 
-- **TLS Version**: Minimum TLS 1.2 (`ssl_min_protocol_version = 'TLSv1.2'`)
-- **Cipher Configuration**: Strong cipher suites configured (`ssl_ciphers = 'HIGH:!aNULL:!MD5:!3DES:!LOW:!EXP:!RC4'`)
-- **Server Preference**: Server controls cipher selection (`ssl_prefer_server_ciphers = on`)
-- **Authentication**: Secure password authentication with `scram-sha-256`
-
-### Server-Side SSL Enforcement
-SSL is enforced at the server level through `pg_hba.conf`:
-- Remote connections require SSL (`hostssl` entries)
-- Non-SSL connections are explicitly rejected (`hostnossl` entries)
-- Certificate validation is required for all connections
-
-### Directory Structure
-- SSL configuration is in `config/ssl/postgres/`
-- Certificate files are in `config/ssl/postgres/certs/` (not committed to git)
-- Production SSL configuration is in `deployment/production/ssl/postgres/`
-- Configuration includes `postgresql.conf` and `pg_hba.conf`
-
-### Connection String Options
-- Development: `DB_DSN=postgres://username:password@localhost:5432/database?sslmode=verify-ca&sslrootcert=/path/to/ca.crt`
-- Production: `DB_DSN=postgres://username:password@localhost:5432/database?sslmode=verify-full&sslrootcert=/path/to/ca.crt`
-
-SSL modes:
-- `verify-ca`: Verifies that the server certificate is signed by a trusted CA
-- `verify-full`: Verifies CA signature AND that the server hostname matches the certificate
+**SSL Configuration:**
+- Minimum TLS 1.2 with strong ciphers
+- Certificate files in `config/ssl/postgres/certs/` (git-ignored)
+- Server enforces SSL via `pg_hba.conf`
 
 ## Common Issues and Solutions
 
@@ -496,6 +493,7 @@ export default function Page() {
 5. Implement service business logic
 6. Create API handlers in `api/{domain}/`
 7. Write tests for repository and service layers
+8. Run linter: `golangci-lint run --timeout 10m`
 
 ### Frontend Development Flow
 1. Define TypeScript interfaces in `lib/{domain}-helpers.ts`
@@ -557,3 +555,24 @@ Backend sessions use JWT with separate access and refresh tokens:
 - Refresh tokens: 1 hour
 - Tokens stored in HTTP-only cookies
 - Frontend uses NextAuth to manage session state
+
+## Production Deployment
+
+```bash
+# Use production Docker Compose configuration
+cp docker-compose.prod.example.yml docker-compose.prod.yml
+# Edit docker-compose.prod.yml with production values
+
+# Generate production SSL certificates (use CA-signed certs)
+cd deployment/production/ssl/postgres
+./create-certs.sh
+
+# Deploy with production config
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Production includes:
+- Caddy for automatic HTTPS
+- PostgreSQL with `sslmode=verify-full`
+- Health checks and restart policies
+- Resource limits and persistent volumes

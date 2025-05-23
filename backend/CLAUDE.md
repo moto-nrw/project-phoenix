@@ -13,6 +13,8 @@ go run main.go migrate          # Run database migrations
 go run main.go migrate status   # Show migration status
 go run main.go migrate validate # Validate migration dependencies
 go run main.go migrate reset    # WARNING: Reset database and run all migrations
+go run main.go seed             # Populate database with test data
+go run main.go seed --reset     # Clear and repopulate test data
 
 # Documentation generation
 go run main.go gendoc           # Generate both routes.md and OpenAPI spec
@@ -119,6 +121,98 @@ auth/           # Authentication subsystem
 
 6. **JWT Authentication**: Access tokens (15min) and refresh tokens (1hr) with role-based permissions
 
+## Critical BUN ORM Patterns
+
+### Schema-Qualified Table Expressions
+
+CRITICAL: Always use quotes around table aliases in PostgreSQL schema-qualified queries:
+
+```go
+// CORRECT - Quotes around alias
+ModelTableExpr(`users.teachers AS "teacher"`)
+
+// WRONG - Will cause "TeacherResult does not have column 'id'" errors
+ModelTableExpr(`users.teachers AS teacher`)
+```
+
+### Loading Nested Relationships
+
+When loading nested relationships (e.g., Teacher → Staff → Person), use explicit JOINs with column aliasing:
+
+```go
+type teacherResult struct {
+    Teacher *users.Teacher `bun:"teacher"`
+    Staff   *users.Staff   `bun:"staff"`
+    Person  *users.Person  `bun:"person"`
+}
+
+err := r.db.NewSelect().
+    Model(result).
+    ModelTableExpr(`users.teachers AS "teacher"`).
+    // IMPORTANT: Explicit column mapping for each table
+    ColumnExpr(`"teacher".id AS "teacher__id"`).
+    ColumnExpr(`"staff".id AS "staff__id"`).
+    ColumnExpr(`"person".first_name AS "person__first_name"`).
+    Join(`INNER JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id`).
+    Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+    Where(`"teacher".id = ?`, id).
+    Scan(ctx)
+```
+
+### Model BeforeAppendModel Hook
+
+Models should implement `BeforeAppendModel` when using schemas:
+
+```go
+func (g *Group) BeforeAppendModel(query any) error {
+    if q, ok := query.(*bun.SelectQuery); ok {
+        q.ModelTableExpr(`education.groups AS "group"`)
+    }
+    // Handle other query types...
+    return nil
+}
+```
+
+## Repository and Service Factories
+
+```go
+// Create repository factory
+repoFactory := repositories.NewFactory(db)
+userRepo := repoFactory.NewUserRepository()
+
+// Create service factory
+serviceFactory := services.NewFactory(repoFactory, mailer)
+authService := serviceFactory.NewAuthService()
+```
+
+## Transaction Context Pattern
+
+Pass transactions via context:
+
+```go
+// Start transaction and add to context
+ctx = base.ContextWithTx(ctx, &tx)
+
+// Repositories check for transaction in context
+if tx, ok := base.TxFromContext(ctx); ok {
+    // Use transaction
+}
+```
+
+## QueryOptions Pattern
+
+Use the base QueryOptions for consistent query building:
+
+```go
+options := base.NewQueryOptions()
+filter := base.NewFilter()
+filter.Equal("name", "value")
+filter.ILike("field", "%pattern%")
+filter.In("id", []int64{1, 2, 3})
+options.Filter = filter
+options.WithPagination(1, 50)
+```
+
 ## Testing
 
 ```go
@@ -141,8 +235,6 @@ func TestUserLogin(t *testing.T) {
 Test helpers are in `test/helpers.go`. Integration tests use a real test database.
 
 ## Common Linting Issues
-
-From `docs/linting-issues.md`:
 
 1. **Unchecked errors** (errcheck):
    ```go
@@ -167,7 +259,7 @@ From `docs/linting-issues.md`:
 
 - Routes are documented in `routes.md` (generated)
 - OpenAPI spec in `docs/openapi.yaml` (generated)
-- RFID integration guides in `docs/rfid-*.md`
+- Seed data documentation in `docs/seed-data.md`
 
 ## SSL Security
 
@@ -197,4 +289,3 @@ The system integrates with RFID readers for tracking:
 - Device authentication via API endpoints
 - Real-time student location tracking
 - Room occupancy monitoring
-- See `docs/rfid-integration-guide.md` for details
