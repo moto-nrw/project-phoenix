@@ -85,7 +85,7 @@ func (rl *RateLimiter) cleanupVisitors() {
 func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := getClientIP(r)
+			ip := GetClientIP(r)
 			limiter := rl.getVisitor(ip)
 
 			if !limiter.Allow() {
@@ -108,8 +108,8 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 	}
 }
 
-// getClientIP extracts the real client IP address from the request
-func getClientIP(r *http.Request) string {
+// GetClientIP extracts the real client IP address from the request
+func GetClientIP(r *http.Request) string {
 	// Check X-Real-IP header first (set by reverse proxy)
 	if ip := r.Header.Get("X-Real-IP"); ip != "" {
 		return ip

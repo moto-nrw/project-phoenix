@@ -31,7 +31,7 @@ func NewSecurityLogger() *SecurityLogger {
 
 // LogEvent logs a security event with context
 func (sl *SecurityLogger) LogEvent(eventType string, r *http.Request, details map[string]interface{}) {
-	ip := getClientIP(r)
+	ip := GetClientIP(r)
 	userAgent := r.Header.Get("User-Agent")
 	
 	logEntry := fmt.Sprintf("event=%s ip=%s method=%s path=%s ua=%q",
@@ -65,11 +65,8 @@ func (sl *SecurityLogger) LogRateLimitExceeded(r *http.Request) {
 func SecurityLoggingMiddleware(sl *SecurityLogger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Log suspicious patterns
-			if r.URL.Path == "/auth/login" && r.Method == "POST" {
-				// Could add more sophisticated checks here
-				// For example, check for SQL injection attempts, unusual payloads, etc.
-			}
+			// TODO: Add suspicious pattern detection for login attempts
+			// e.g., SQL injection attempts, unusual payloads, etc.
 			
 			// Wrap response writer to capture status code
 			wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
