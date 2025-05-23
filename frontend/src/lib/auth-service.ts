@@ -1307,6 +1307,51 @@ export const authService = {
         }
     },
 
+    // Get all available permissions for assignment
+    getAvailablePermissions: async (): Promise<Permission[]> => {
+        const useProxyApi = typeof window !== "undefined";
+        const url = useProxyApi
+            ? "/api/auth/permissions"
+            : `${env.NEXT_PUBLIC_API_URL}/auth/permissions`;
+
+        try {
+            if (useProxyApi) {
+                const session = await getSession();
+                const response = await fetch(url, {
+                    headers: {
+                        Authorization: `Bearer ${session?.user?.token}`,
+                        "Content-Type": "application/json",
+                    },
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(`Get available permissions error: ${response.status}`, errorText);
+                    throw new Error(`Get available permissions failed: ${response.status}`);
+                }
+
+                const responseData = await response.json() as ApiResponse<BackendPermission[]>;
+                
+                // Check if data exists and is an array
+                if (!responseData.data || !Array.isArray(responseData.data)) {
+                    console.error("Unexpected response structure:", responseData);
+                    throw new Error("Invalid response format from permissions API");
+                }
+                
+                // Map the permissions, filtering out any invalid ones
+                return responseData.data
+                    .filter(perm => perm && perm.name && perm.resource && perm.action)
+                    .map(mapPermissionResponse);
+            } else {
+                const response = await api.get<ApiResponse<BackendPermission[]>>(url);
+                return response.data.data.map(mapPermissionResponse);
+            }
+        } catch (error) {
+            console.error("Get available permissions error:", error);
+            throw error;
+        }
+    },
+
     // Admin endpoints - Token management
     getActiveTokens: async (accountId: string): Promise<Token[]> => {
         const useProxyApi = typeof window !== "undefined";

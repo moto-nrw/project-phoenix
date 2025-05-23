@@ -43,9 +43,12 @@ export default function TeacherDetailsPage() {
     const [rolePermissions, setRolePermissions] = useState<Permission[]>([]);
     const [effectivePermissions, setEffectivePermissions] = useState<Permission[]>([]);
     const [allRoles, setAllRoles] = useState<Role[]>([]);
+    const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
     const [loadingAccount, setLoadingAccount] = useState(false);
     const [loadingRoles, setLoadingRoles] = useState(false);
     const [loadingPermissions, setLoadingPermissions] = useState(false);
+    const [loadingAllPermissions, setLoadingAllPermissions] = useState(false);
+    const [showPermissionManagement, setShowPermissionManagement] = useState(false);
     
     // User authorization state
     const [userPermissions, setUserPermissions] = useState<Permission[]>([]);
@@ -482,6 +485,23 @@ export default function TeacherDetailsPage() {
         }
     }, []);
 
+    // Function to fetch all available permissions for assignment
+    const fetchAllPermissions = useCallback(async () => {
+        try {
+            setLoadingAllPermissions(true);
+            console.log("Fetching all available permissions");
+            
+            const permissions = await authService.getAvailablePermissions();
+            console.log(`Found ${permissions.length} total permissions:`, permissions);
+            setAllPermissions(permissions);
+        } catch (err) {
+            console.error("Error in fetchAllPermissions:", err);
+            setAllPermissions([]);
+        } finally {
+            setLoadingAllPermissions(false);
+        }
+    }, []);
+
     // Function to handle teacher deletion
     const handleDeleteTeacher = async () => {
         if (!id) return;
@@ -549,6 +569,46 @@ export default function TeacherDetailsPage() {
             // Still update the roles list to refresh state
             try {
                 await fetchAccountRoles(account.id);
+            } catch (refreshErr) {
+                // Ignore errors during refresh
+            }
+        }
+    };
+
+    // Function to assign permission
+    const handleAssignPermission = async (permissionId: string) => {
+        if (!account) return;
+
+        try {
+            await authService.grantPermissionToAccount(account.id, permissionId);
+            await fetchAccountPermissions(account.id);
+        } catch (err) {
+            console.error("Error assigning permission:", err);
+            setError("Fehler beim Zuweisen der Berechtigung.");
+            
+            // Still update the permissions list to refresh state
+            try {
+                await fetchAccountPermissions(account.id);
+            } catch (refreshErr) {
+                // Ignore errors during refresh
+            }
+        }
+    };
+
+    // Function to remove permission
+    const handleRemovePermission = async (permissionId: string) => {
+        if (!account) return;
+
+        try {
+            await authService.removePermissionFromAccount(account.id, permissionId);
+            await fetchAccountPermissions(account.id);
+        } catch (err) {
+            console.error("Error removing permission:", err);
+            setError("Fehler beim Entfernen der Berechtigung.");
+            
+            // Still update the permissions list to refresh state
+            try {
+                await fetchAccountPermissions(account.id);
             } catch (refreshErr) {
                 // Ignore errors during refresh
             }
@@ -626,9 +686,14 @@ export default function TeacherDetailsPage() {
                 if (accountRoles.length === 0 || rolePermissions.length === 0) {
                     void fetchAccountRoles(account.id);
                 }
+                
+                // Fetch all available permissions for assignment
+                if (allPermissions.length === 0) {
+                    void fetchAllPermissions();
+                }
             }
         }
-    }, [account, accountRoles, accountPermissions, rolePermissions, allRoles, fetchAccountRoles, fetchAccountPermissions, fetchAllRoles]);
+    }, [account, accountRoles, accountPermissions, rolePermissions, allRoles, allPermissions, fetchAccountRoles, fetchAccountPermissions, fetchAllRoles, fetchAllPermissions]);
 
     // Initial data load
     useEffect(() => {
@@ -644,10 +709,11 @@ export default function TeacherDetailsPage() {
         }
     }, [teacher, fetchAccountInfo, account, loadingAccount]);
 
-    // Fetch all roles on component mount
+    // Fetch all roles and permissions on component mount
     useEffect(() => {
         void fetchAllRoles();
-    }, [fetchAllRoles]);
+        void fetchAllPermissions();
+    }, [fetchAllRoles, fetchAllPermissions]);
 
     // Calculate effective permissions when either direct permissions or role permissions change
     useEffect(() => {
@@ -1017,9 +1083,30 @@ export default function TeacherDetailsPage() {
 
                     {activeTab === "permissions" && (
                         <div>
-                            <h3 className="mb-4 text-lg font-semibold text-gray-800">
-                                Berechtigungen
-                            </h3>
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-semibold text-gray-800">
+                                    Berechtigungen
+                                </h3>
+                                {hasAuthManagePermission && account && account.id !== "0" && !loadingUserPermissions && (
+                                    <button
+                                        className={`p-1.5 rounded-lg transition-colors ${
+                                            showPermissionManagement 
+                                                ? "bg-gray-100 hover:bg-gray-200 text-gray-700" 
+                                                : "bg-blue-100 hover:bg-blue-200 text-blue-700"
+                                        }`}
+                                        title={showPermissionManagement ? "Anzeigen" : "Verwalten"}
+                                        onClick={() => {
+                                            setShowPermissionManagement(!showPermissionManagement);
+                                            // Load all permissions when enabling management mode
+                                            if (!showPermissionManagement && allPermissions.length === 0) {
+                                                void fetchAllPermissions();
+                                            }
+                                        }}
+                                    >
+                                        {showPermissionManagement ? "👁️" : "⚙️"}
+                                    </button>
+                                )}
+                            </div>
                             
                             {loadingUserPermissions ? (
                                 <p>Überprüfe Berechtigungen...</p>
@@ -1050,22 +1137,77 @@ export default function TeacherDetailsPage() {
                                         ) : (
                                             <div className="space-y-2">
                                                 {accountPermissions.map((permission) => (
-                                                    <div key={permission.id} className="rounded-lg border p-3">
-                                                        <p className="font-medium">{permission.name}</p>
-                                                        {permission.description && (
-                                                            <p className="text-sm text-gray-600">{permission.description}</p>
+                                                    <div key={permission.id} className={`rounded-lg border p-3 ${showPermissionManagement ? "flex items-center justify-between" : ""}`}>
+                                                        <div>
+                                                            <p className="font-medium">{permission.name}</p>
+                                                            {permission.description && (
+                                                                <p className="text-sm text-gray-600">{permission.description}</p>
+                                                            )}
+                                                            <p className="text-xs text-gray-500 mt-1">
+                                                                {permission.resource}:{permission.action}
+                                                            </p>
+                                                        </div>
+                                                        {showPermissionManagement && (
+                                                            <Button
+                                                                variant="outline_danger"
+                                                                size="sm"
+                                                                onClick={() => handleRemovePermission(permission.id)}
+                                                            >
+                                                                Entfernen
+                                                            </Button>
                                                         )}
-                                                        <p className="text-xs text-gray-500 mt-1">
-                                                            {permission.resource}:{permission.action}
-                                                        </p>
                                                     </div>
                                                 ))}
                                             </div>
                                         )}
                                     </div>
 
+                                    {showPermissionManagement && (
+                                        <div className="mb-6 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+                                            <h4 className="mb-3 font-medium text-gray-700 flex items-center">
+                                                <span className="mr-2">⚙️</span>
+                                                Verfügbare Berechtigungen zuweisen
+                                            </h4>
+                                            {loadingAllPermissions ? (
+                                                <div className="flex items-center justify-center py-10">
+                                                    <div className="animate-pulse text-blue-500">Lade verfügbare Berechtigungen...</div>
+                                                </div>
+                                            ) : allPermissions.length === 0 ? (
+                                                <p className="text-gray-500">Keine Berechtigungen verfügbar</p>
+                                            ) : (
+                                                <div className="space-y-2 max-h-64 overflow-y-auto">
+                                                    {allPermissions
+                                                        .filter((permission) => !accountPermissions.some((ap) => ap.id === permission.id))
+                                                        .map((permission) => (
+                                                            <div key={permission.id} className="flex items-center justify-between rounded-lg border bg-white p-3">
+                                                                <div>
+                                                                    <p className="font-medium text-sm">{permission.name}</p>
+                                                                    {permission.description && (
+                                                                        <p className="text-sm text-gray-600">{permission.description}</p>
+                                                                    )}
+                                                                    <p className="text-xs text-gray-500 mt-1">
+                                                                        {permission.resource}:{permission.action}
+                                                                    </p>
+                                                                </div>
+                                                                <Button
+                                                                    variant="primary"
+                                                                    size="sm"
+                                                                    onClick={() => handleAssignPermission(permission.id)}
+                                                                >
+                                                                    Zuweisen
+                                                                </Button>
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     <div>
                                         <h4 className="mb-2 font-medium text-gray-700">Effektive Berechtigungen (inkl. Rollen)</h4>
+                                        <p className="text-sm text-gray-600 mb-3">
+                                            Alle Berechtigungen die dieser Benutzer hat, sowohl direkt zugewiesene als auch über Rollen.
+                                        </p>
                                         {effectivePermissions.length === 0 ? (
                                             <p className="text-gray-500">Keine effektiven Berechtigungen</p>
                                         ) : (
