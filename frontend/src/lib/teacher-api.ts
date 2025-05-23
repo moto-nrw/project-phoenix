@@ -21,6 +21,9 @@ export interface Teacher {
     // Optional fields from staff API for consistency
     person_id?: number;
     is_teacher?: boolean;
+    // ID fields for proper mapping
+    staff_id?: string;
+    teacher_id?: string;
 }
 
 export interface TeacherWithCredentials extends Teacher {
