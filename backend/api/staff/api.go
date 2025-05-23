@@ -1,6 +1,7 @@
 package staff
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -305,6 +306,22 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, response, "Staff member retrieved successfully")
 }
 
+// grantDefaultPermissions grants default permissions to a newly created account
+func (rs *Resource) grantDefaultPermissions(ctx context.Context, accountID int64, role string) {
+	if rs.AuthService == nil {
+		return
+	}
+	
+	// Get the groups:read permission
+	perm, err := rs.AuthService.GetPermissionByName(ctx, permissions.GroupsRead)
+	if err == nil && perm != nil {
+		// Grant the permission to the account
+		if err := rs.AuthService.GrantPermissionToAccount(ctx, int(accountID), int(perm.ID)); err != nil {
+			log.Printf("Failed to grant groups:read permission to %s account %d: %v", role, accountID, err)
+		}
+	}
+}
+
 // createStaff handles creating a new staff member
 func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse request
@@ -363,15 +380,8 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Grant groups:read permission to teacher if they have an account
-		if person.AccountID != nil && rs.AuthService != nil {
-			// Get the groups:read permission
-			perm, err := rs.AuthService.GetPermissionByName(r.Context(), permissions.GroupsRead)
-			if err == nil && perm != nil {
-				// Grant the permission to the account
-				if err := rs.AuthService.GrantPermissionToAccount(r.Context(), int(*person.AccountID), int(perm.ID)); err != nil {
-					log.Printf("Failed to grant groups:read permission to teacher account %d: %v", *person.AccountID, err)
-				}
-			}
+		if person.AccountID != nil {
+			rs.grantDefaultPermissions(r.Context(), *person.AccountID, "teacher")
 		}
 
 		// Return teacher response
@@ -381,15 +391,8 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Grant groups:read permission to staff if they have an account
-	if person.AccountID != nil && rs.AuthService != nil {
-		// Get the groups:read permission
-		perm, err := rs.AuthService.GetPermissionByName(r.Context(), permissions.GroupsRead)
-		if err == nil && perm != nil {
-			// Grant the permission to the account
-			if err := rs.AuthService.GrantPermissionToAccount(r.Context(), int(*person.AccountID), int(perm.ID)); err != nil {
-				log.Printf("Failed to grant groups:read permission to staff account %d: %v", *person.AccountID, err)
-			}
-		}
+	if person.AccountID != nil {
+		rs.grantDefaultPermissions(r.Context(), *person.AccountID, "staff")
 	}
 
 	// Return staff response
