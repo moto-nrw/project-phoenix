@@ -48,19 +48,19 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
   
   try {
     // Fetch student from backend API
-    const response = await apiGet<ApiStudentResponse>(`/api/students/${id}`, token);
+    // Using unknown type and will validate structure
+    const response = await apiGet<unknown>(`/api/students/${id}`, token);
     
-    // Handle null or undefined response
-    if (!response?.data) {
-      console.warn("API returned null response for student");
+    // Type guard to check response structure
+    if (!response || typeof response !== 'object' || !('data' in response)) {
+      console.warn("API returned invalid response for student");
       throw new Error('Student not found');
     }
     
-    const student = response.data;
+    const typedResponse = response as { data: unknown };
     
-    // Map the response to frontend format using the same mapping function for consistency
-    const mappedStudent = mapStudentResponse(student as BackendStudent);
-    return mappedStudent;
+    // Return the raw data to preserve has_full_access and group_supervisors fields
+    return typedResponse.data;
   } catch (error) {
     console.error("Error fetching student:", error);
     throw error;

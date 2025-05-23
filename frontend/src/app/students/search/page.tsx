@@ -1,130 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Header } from "~/components/dashboard/header";
 import { Sidebar } from "~/components/dashboard/sidebar";
 import { Input } from "~/components/ui";
-// Wir ersetzen den GroupSelector-Import
-// import { GroupSelector } from "~/components/groups";
 import { Alert } from "~/components/ui/alert";
 import { BackgroundWrapper } from "~/components/background-wrapper";
-
-// Student type based on what's seen in the code
-interface Student {
-  id: string;
-  first_name: string;
-  second_name: string;
-  name?: string;
-  school_class: string;
-  group_id: string;
-  group_name?: string;
-  in_house: boolean;
-  wc: boolean;
-  school_yard: boolean;
-  bus: boolean;
-}
-
-// Demo data for students - defined outside component to avoid dependency issues
-const exampleStudents: Student[] = [
-  {
-    id: "1",
-    first_name: "Emma",
-    second_name: "Müller",
-    school_class: "1a",
-    group_id: "g1",
-    group_name: "Bären",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "2",
-    first_name: "Max",
-    second_name: "Schmidt",
-    school_class: "1b",
-    group_id: "g1",
-    group_name: "Bären",
-    in_house: false,
-    wc: true,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "3",
-    first_name: "Sophie",
-    second_name: "Wagner",
-    school_class: "2a",
-    group_id: "g2",
-    group_name: "Füchse",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "4",
-    first_name: "Leon",
-    second_name: "Fischer",
-    school_class: "2b",
-    group_id: "g2",
-    group_name: "Füchse",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "5",
-    first_name: "Mia",
-    second_name: "Weber",
-    school_class: "3a",
-    group_id: "g3",
-    group_name: "Eulen",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "6",
-    first_name: "Noah",
-    second_name: "Becker",
-    school_class: "3b",
-    group_id: "g3",
-    group_name: "Eulen",
-    in_house: false,
-    wc: false,
-    school_yard: true,
-    bus: false
-  },
-  {
-    id: "7",
-    first_name: "Lina",
-    second_name: "Schulz",
-    school_class: "4a",
-    group_id: "g4",
-    group_name: "Wölfe",
-    in_house: false,
-    wc: false,
-    school_yard: false,
-    bus: true
-  },
-  {
-    id: "8",
-    first_name: "Felix",
-    second_name: "Hoffmann",
-    school_class: "4b",
-    group_id: "g4",
-    group_name: "Wölfe",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  }
-];
+import { studentService, groupService } from "~/lib/api";
+import type { Student, Group } from "~/lib/api";
 
 export default function StudentSearchPage() {
   const router = useRouter();
@@ -135,14 +20,10 @@ export default function StudentSearchPage() {
     },
   });
 
-  // Mock Groups für die Gruppenauswahl
-  const mockGroups = [
-    { id: "g1", name: "Bären" },
-    { id: "g2", name: "Füchse" },
-    { id: "g3", name: "Eulen" },
-    { id: "g4", name: "Wölfe" }
-  ];
-
+  // State for groups and students
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(true);
+  
   // Search state
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGroup, setSelectedGroup] = useState("");
@@ -151,64 +32,99 @@ export default function StudentSearchPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
   const [error, setError] = useState<string | null>(null);
+  
+  // Debouncing ref
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Load groups on component mount
+  useEffect(() => {
+    const loadGroups = async () => {
+      try {
+        setLoadingGroups(true);
+        const fetchedGroups = await groupService.getGroups();
+        setGroups(fetchedGroups);
+      } catch (err: unknown) {
+        // Check if it's a 403 permission error
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        if (errorMessage.includes("403")) {
+          // Silently handle permission error - groups are optional
+          console.log("User doesn't have permission to view groups - this is expected for some users");
+        } else {
+          // Log other errors
+          console.error("Error loading groups:", err);
+        }
+        // Set empty groups array
+        setGroups([]);
+      } finally {
+        setLoadingGroups(false);
+      }
+    };
+    
+    void loadGroups();
+  }, []);
 
   // Using useCallback to memoize the fetchStudents function
   const fetchStudents = useCallback(async (filters?: {
     search?: string;
-    inHouse?: boolean;
     groupId?: string;
   }) => {
     setIsSearching(true);
     setError(null);
 
     try {
-      // Simuliere eine API-Anfrage mit den Beispieldaten
-      setTimeout(() => {
-        let filteredExampleStudents = [...exampleStudents];
-
-        // Filtern nach Suchbegriff
-        if (filters?.search) {
-          const searchLower = filters.search.toLowerCase();
-          filteredExampleStudents = filteredExampleStudents.filter(student =>
-              student.first_name.toLowerCase().includes(searchLower) ||
-              student.second_name.toLowerCase().includes(searchLower)
-          );
-        }
-
-        // Filtern nach Anwesenheit
-        if (filters?.inHouse !== undefined) {
-          filteredExampleStudents = filteredExampleStudents.filter(student =>
-              student.in_house === filters.inHouse
-          );
-        }
-
-        // Filtern nach Gruppe
-        if (filters?.groupId) {
-          filteredExampleStudents = filteredExampleStudents.filter(student =>
-              student.group_id === filters.groupId
-          );
-        }
-
-        setStudents(filteredExampleStudents);
-        setIsSearching(false);
-      }, 500); // Kleine Verzögerung für realistischeres Verhalten
+      const fetchedStudents = await studentService.getStudents(filters);
+      setStudents(fetchedStudents);
     } catch (err) {
       console.error("Error fetching students:", err);
       setError("Fehler beim Laden der Schülerdaten.");
       setStudents([]);
+    } finally {
       setIsSearching(false);
     }
-  }, []);  // Empty dependency array as it doesn't depend on any state or props
+  }, []);
 
   // Load initial data - now includes fetchStudents in the dependency array
   useEffect(() => {
     void fetchStudents();
   }, [fetchStudents]);
 
+  // Debounced search effect
+  useEffect(() => {
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Set new timeout for search
+    searchTimeoutRef.current = setTimeout(() => {
+      const filters: {
+        search?: string;
+        groupId?: string;
+      } = {};
+
+      if (searchTerm.trim()) {
+        filters.search = searchTerm.trim();
+      }
+
+      if (selectedGroup) {
+        filters.groupId = selectedGroup;
+      }
+
+      void fetchStudents(filters);
+    }, 300); // 300ms debounce delay
+
+    // Cleanup timeout on unmount or when dependencies change
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm, selectedGroup, fetchStudents]);
+
   const handleSearch = async () => {
+    // Immediate search when button is clicked
     const filters: {
       search?: string;
-      inHouse?: boolean;
       groupId?: string;
     } = {};
 
@@ -220,10 +136,6 @@ export default function StudentSearchPage() {
       filters.groupId = selectedGroup;
     }
 
-    if (attendanceFilter === "in_house") {
-      filters.inHouse = true;
-    }
-
     void fetchStudents(filters);
   };
 
@@ -232,6 +144,10 @@ export default function StudentSearchPage() {
     setSelectedGroup("");
     setSelectedYear("all");
     setAttendanceFilter("all");
+    // Clear timeout to prevent pending searches
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
     void fetchStudents();
   };
 
@@ -332,9 +248,10 @@ export default function StudentSearchPage() {
                           value={selectedGroup}
                           onChange={(e) => setSelectedGroup(e.target.value)}
                           className={dropdownClass}
+                          disabled={loadingGroups}
                       >
-                        <option value="">Alle Gruppen</option>
-                        {mockGroups.map(group => (
+                        <option value="">{loadingGroups ? "Lade Gruppen..." : "Alle Gruppen"}</option>
+                        {groups.map(group => (
                             <option key={group.id} value={group.id}>{group.name}</option>
                         ))}
                       </select>
@@ -466,7 +383,7 @@ export default function StudentSearchPage() {
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center space-x-3">
                                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 font-medium text-white">
-                                          {(student.first_name?.charAt(0) || "S").toUpperCase()}
+                                          {(student.first_name?.charAt(0) ?? "S").toUpperCase()}
                                         </div>
 
                                         <div className="flex flex-col">

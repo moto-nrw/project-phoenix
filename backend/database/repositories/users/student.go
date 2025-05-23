@@ -62,6 +62,29 @@ func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 	return students, nil
 }
 
+// FindByGroupIDs retrieves students by multiple group IDs
+func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*users.Student, error) {
+	if len(groupIDs) == 0 {
+		return []*users.Student{}, nil
+	}
+
+	var students []*users.Student
+	err := r.db.NewSelect().
+		Model(&students).
+		ModelTableExpr("users.students AS student").
+		Where("group_id IN (?)", bun.In(groupIDs)).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by group IDs",
+			Err: err,
+		}
+	}
+
+	return students, nil
+}
+
 // FindBySchoolClass retrieves students by their school class
 func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass string) ([]*users.Student, error) {
 	var students []*users.Student

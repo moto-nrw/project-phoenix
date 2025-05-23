@@ -250,6 +250,11 @@ func (m *SimpleMockStudentRepository) RemoveFromGroup(ctx context.Context, stude
 	return nil
 }
 
+func (m *SimpleMockStudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
+	args := m.Called(ctx, groupIDs)
+	return args.Get(0).([]*userModels.Student), args.Error(1)
+}
+
 type SimpleMockStaffRepository struct {
 	mock.Mock
 }

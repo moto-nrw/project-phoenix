@@ -52,8 +52,8 @@ func (r *SupervisorPlannedRepository) FindByStaffID(ctx context.Context, staffID
 func (r *SupervisorPlannedRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activities.SupervisorPlanned, error) {
 	type supervisorResult struct {
 		Supervisor *activities.SupervisorPlanned `bun:"supervisor"`
-		Staff      *users.Staff                   `bun:"staff"`
-		Person     *users.Person                  `bun:"person"`
+		Staff      *users.Staff                  `bun:"staff"`
+		Person     *users.Person                 `bun:"person"`
 	}
 
 	var results []supervisorResult
@@ -113,8 +113,8 @@ func (r *SupervisorPlannedRepository) FindByGroupID(ctx context.Context, groupID
 func (r *SupervisorPlannedRepository) FindPrimaryByGroupID(ctx context.Context, groupID int64) (*activities.SupervisorPlanned, error) {
 	type supervisorResult struct {
 		Supervisor *activities.SupervisorPlanned `bun:"supervisor"`
-		Staff      *users.Staff                   `bun:"staff"`
-		Person     *users.Person                  `bun:"person"`
+		Staff      *users.Staff                  `bun:"staff"`
+		Person     *users.Person                 `bun:"person"`
 	}
 
 	var result supervisorResult

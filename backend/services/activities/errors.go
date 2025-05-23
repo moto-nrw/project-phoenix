@@ -38,7 +38,7 @@ var (
 
 	// ErrGroupClosed returned when an activity group is not open for enrollment
 	ErrGroupClosed = errors.New("activity group is not open for enrollment")
-	
+
 	// ErrCannotDeletePrimary returned when attempting to delete a primary supervisor
 	ErrCannotDeletePrimary = errors.New("cannot delete primary supervisor")
 )
