@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
         const body = await request.json() as { id: string; [key: string]: unknown };
         const { id, ...updateData } = body;
         const response = await apiPut(`/auth/accounts/${id}`, updateData, session.user.token);
-        return Response.json(response.data as unknown);
+        return Response.json(response.data);
     } catch {
         return Response.json({ error: "Failed to update account" }, { status: 500 });
     }
