@@ -36,7 +36,8 @@ export function Header({ userName = "Root" }: HeaderProps) {
     const { data: session } = useSession();
     
     // Determine the display name with proper fallback logic
-    const displayName = person?.first_name ?? userName ?? session?.user?.name ?? "Root";
+    // Now firstName is available immediately from session, no flash!
+    const displayName = session?.user?.firstName ?? person?.first_name ?? userName ?? session?.user?.name ?? "Root";
     
     return (
         <header className="w-full bg-white/80 py-4 shadow-sm backdrop-blur-sm">

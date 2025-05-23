@@ -311,7 +311,7 @@ func (rs *Resource) grantDefaultPermissions(ctx context.Context, accountID int64
 	if rs.AuthService == nil {
 		return
 	}
-	
+
 	// Get the groups:read permission
 	perm, err := rs.AuthService.GetPermissionByName(ctx, permissions.GroupsRead)
 	if err == nil && perm != nil {

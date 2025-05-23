@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
 
@@ -29,6 +30,7 @@ type Service struct {
 	rolePermissionRepo     auth.RolePermissionRepository // Add this
 	tokenRepo              auth.TokenRepository
 	passwordResetTokenRepo auth.PasswordResetTokenRepository // Add this
+	personRepo             users.PersonRepository            // Add this for first name
 	tokenAuth              *jwt.TokenAuth
 	jwtExpiry              time.Duration
 	jwtRefreshExpiry       time.Duration
@@ -47,6 +49,7 @@ func NewService(
 	roleRepo auth.RoleRepository, // Add this
 	rolePermissionRepo auth.RolePermissionRepository, // Add this
 	passwordResetTokenRepo auth.PasswordResetTokenRepository, // Add this
+	personRepo users.PersonRepository, // Add this for first name
 	db *bun.DB,
 ) (*Service, error) {
 
@@ -65,6 +68,7 @@ func NewService(
 		rolePermissionRepo:     rolePermissionRepo, // Add this
 		tokenRepo:              tokenRepo,
 		passwordResetTokenRepo: passwordResetTokenRepo, // Add this
+		personRepo:             personRepo,             // Add this for first name
 		tokenAuth:              tokenAuth,
 		jwtExpiry:              tokenAuth.JwtExpiry,
 		jwtRefreshExpiry:       tokenAuth.JwtRefreshExpiry,
@@ -85,6 +89,7 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 	var rolePermissionRepo = s.rolePermissionRepo // Add this
 	var tokenRepo = s.tokenRepo
 	var passwordResetTokenRepo = s.passwordResetTokenRepo // Add this
+	var personRepo = s.personRepo                         // Add this for first name
 
 	// Try to cast repositories to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.accountRepo.(base.TransactionalRepository); ok {
@@ -114,6 +119,9 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 	if txRepo, ok := s.passwordResetTokenRepo.(base.TransactionalRepository); ok { // Add this
 		passwordResetTokenRepo = txRepo.WithTx(tx).(auth.PasswordResetTokenRepository)
 	}
+	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok { // Add this for first name
+		personRepo = txRepo.WithTx(tx).(users.PersonRepository)
+	}
 
 	// Return a new service with the transaction
 	return &Service{
@@ -126,6 +134,7 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 		rolePermissionRepo:     rolePermissionRepo, // Add this
 		tokenRepo:              tokenRepo,
 		passwordResetTokenRepo: passwordResetTokenRepo, // Add this
+		personRepo:             personRepo,             // Add this for first name
 		tokenAuth:              s.tokenAuth,
 		jwtExpiry:              s.jwtExpiry,
 		jwtRefreshExpiry:       s.jwtRefreshExpiry,
@@ -233,12 +242,20 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, st
 		username = *account.Username
 	}
 
+	// Fetch person's first name
+	firstName := ""
+	person, err := s.personRepo.FindByAccountID(ctx, account.ID)
+	if err == nil && person != nil {
+		firstName = person.FirstName
+	}
+
 	// Generate token pair
 	// Create JWT claims
 	appClaims := jwt.AppClaims{
 		ID:          int(account.ID),
 		Sub:         email, // Use email as subject
 		Username:    username,
+		FirstName:   firstName,
 		Roles:       roleNames,
 		Permissions: permissionStrs, // Use string array here
 	}
