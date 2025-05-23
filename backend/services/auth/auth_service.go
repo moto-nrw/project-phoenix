@@ -803,7 +803,7 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 	// Direct database query as a workaround for BUN ORM issues with schema-qualified tables
 	var count int
 	err := s.db.QueryRow(
-		"SELECT COUNT(*) FROM auth.account_roles WHERE account_id = ? AND role_id = ?", 
+		"SELECT COUNT(*) FROM auth.account_roles WHERE account_id = ? AND role_id = ?",
 		accountID, roleID).Scan(&count)
 
 	if err != nil {
@@ -817,7 +817,7 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 
 	// Insert the role assignment
 	_, err = s.db.Exec(
-		"INSERT INTO auth.account_roles (account_id, role_id) VALUES (?, ?)", 
+		"INSERT INTO auth.account_roles (account_id, role_id) VALUES (?, ?)",
 		accountID, roleID)
 
 	if err != nil {
@@ -831,7 +831,7 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int) error {
 	// Direct database query as a workaround for BUN ORM issues with schema-qualified tables
 	_, err := s.db.Exec(
-		"DELETE FROM auth.account_roles WHERE account_id = ? AND role_id = ?", 
+		"DELETE FROM auth.account_roles WHERE account_id = ? AND role_id = ?",
 		accountID, roleID)
 
 	if err != nil {

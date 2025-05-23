@@ -67,7 +67,7 @@ func (r *RoleRepository) FindByAccountID(ctx context.Context, accountID int64) (
 func (r *RoleRepository) AssignRoleToAccount(ctx context.Context, accountID int64, roleID int64) error {
 	// Check if the role assignment already exists
 	var count int
-	err := r.db.QueryRow("SELECT COUNT(*) FROM auth.account_roles WHERE account_id = $1 AND role_id = $2", 
+	err := r.db.QueryRow("SELECT COUNT(*) FROM auth.account_roles WHERE account_id = $1 AND role_id = $2",
 		accountID, roleID).Scan(&count)
 
 	if err != nil {
@@ -84,7 +84,7 @@ func (r *RoleRepository) AssignRoleToAccount(ctx context.Context, accountID int6
 
 	// Create the role assignment
 	_, err = r.db.Exec(
-		"INSERT INTO auth.account_roles (account_id, role_id) VALUES ($1, $2)", 
+		"INSERT INTO auth.account_roles (account_id, role_id) VALUES ($1, $2)",
 		accountID, roleID)
 
 	if err != nil {
