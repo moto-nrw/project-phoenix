@@ -25,6 +25,7 @@ services:
       EMAIL_SMTP_USER: ${EMAIL_SMTP_USER}
       EMAIL_SMTP_PASSWORD: ${EMAIL_SMTP_PASSWORD}
       ENABLE_CORS: ${ENABLE_CORS:-"true"}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
     command: ["./main", "serve", "--db_debug"]
 
   frontend:

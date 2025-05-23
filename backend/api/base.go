@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -77,8 +79,20 @@ func New(enableCORS bool) (*API, error) {
 
 	// Setup CORS if enabled
 	if enableCORS {
+		// Get allowed origins from environment variable
+		// Default to "*" for backwards compatibility if not specified
+		// This maintains current behavior while allowing restriction in production
+		allowedOrigins := []string{"*"}
+		if originsEnv := os.Getenv("CORS_ALLOWED_ORIGINS"); originsEnv != "" {
+			// Parse comma-separated origins
+			allowedOrigins = strings.Split(originsEnv, ",")
+			for i := range allowedOrigins {
+				allowedOrigins[i] = strings.TrimSpace(allowedOrigins[i])
+			}
+		}
+
 		api.Router.Use(cors.Handler(cors.Options{
-			AllowedOrigins:   []string{"*"},
+			AllowedOrigins:   allowedOrigins,
 			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 			ExposedHeaders:   []string{"Link"},
