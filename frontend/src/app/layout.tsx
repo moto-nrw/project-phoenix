@@ -1,6 +1,6 @@
 import "~/styles/globals.css";
 
-import { SessionProvider } from "~/components/session-provider";
+import { Providers } from "./providers";
 import { BackgroundWrapper } from "~/components/background-wrapper";
 import { Inter } from "next/font/google";
 
@@ -24,9 +24,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`font-sans ${inter.className}`}>
-        <SessionProvider>
+        <Providers>
           <BackgroundWrapper>{children}</BackgroundWrapper>
-        </SessionProvider>
+        </Providers>
       </body>
     </html>
   );
