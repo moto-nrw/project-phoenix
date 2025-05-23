@@ -14,6 +14,11 @@ services:
       ENABLE_CORS: "true"  # Changed to true since frontend needs CORS
       # For production, restrict CORS to your actual domains:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-"https://${DOMAIN},https://${API_DOMAIN}"}
+      # Rate limiting (HIGHLY RECOMMENDED for production)
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-"true"}
+      RATE_LIMIT_REQUESTS_PER_MINUTE: ${RATE_LIMIT_REQUESTS_PER_MINUTE:-60}
+      RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:-10}
+      RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE: ${RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE:-5}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
       AUTH_JWT_EXPIRY: 15m
       AUTH_JWT_REFRESH_EXPIRY: 1h
