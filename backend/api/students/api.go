@@ -89,6 +89,23 @@ type StudentResponse struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 }
 
+// SupervisorContact represents contact information for a group supervisor
+type SupervisorContact struct {
+	ID        int64  `json:"id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Email     string `json:"email,omitempty"`
+	Phone     string `json:"phone,omitempty"`
+	Role      string `json:"role"` // "teacher" or "staff"
+}
+
+// StudentDetailResponse represents a detailed student response with access control
+type StudentDetailResponse struct {
+	StudentResponse
+	HasFullAccess      bool                 `json:"has_full_access"`
+	GroupSupervisors   []SupervisorContact  `json:"group_supervisors,omitempty"`
+}
+
 // StudentRequest represents a student creation request with person details
 type StudentRequest struct {
 	// Person details (required)
@@ -214,20 +231,35 @@ func newStudentResponse(student *users.Student, person *users.Person, group *edu
 	return response
 }
 
-// listStudents handles listing all students
+// listStudents handles listing all students with staff-based filtering
 func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
-	// Create query options
-	queryOptions := base.NewQueryOptions()
-
-	// Add filters if provided
+	// Get query parameters
 	schoolClass := r.URL.Query().Get("school_class")
 	guardianName := r.URL.Query().Get("guardian_name")
 	firstName := r.URL.Query().Get("first_name")
 	lastName := r.URL.Query().Get("last_name")
 	location := r.URL.Query().Get("location")
 	groupIDStr := r.URL.Query().Get("group_id")
+	search := r.URL.Query().Get("search") // New search parameter
 
-	// Create filter
+	// Get user permissions to check admin status
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	isAdmin := hasAdminPermissions(userPermissions)
+
+	// For search functionality, we show all students regardless of group supervision
+	// Permission checking will be done on individual student detail view
+	var allowedGroupIDs []int64
+	canAccessLocation := isAdmin
+
+	// If a specific group filter is requested, apply it
+	if groupIDStr != "" {
+		if groupID, err := strconv.ParseInt(groupIDStr, 10, 64); err == nil {
+			allowedGroupIDs = []int64{groupID}
+		}
+	}
+
+	// Create query options
+	queryOptions := base.NewQueryOptions()
 	filter := base.NewFilter()
 
 	// Apply filters
@@ -236,11 +268,6 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	}
 	if guardianName != "" {
 		filter.ILike("guardian_name", "%"+guardianName+"%")
-	}
-	if groupIDStr != "" {
-		if groupID, err := strconv.ParseInt(groupIDStr, 10, 64); err == nil {
-			filter.Equal("group_id", groupID)
-		}
 	}
 
 	// Add pagination
@@ -265,73 +292,24 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	var students []*users.Student
 	var err error
 
-	// Get user permissions to check admin status
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	isAdmin := hasAdminPermissions(userPermissions)
-
-	// Track if user can access location data (admins or supervisors)
-	canAccessLocation := isAdmin
-
-	// If group_id is specified, check authorization and get students from that group
-	if groupIDStr != "" {
-		if groupID, parseErr := strconv.ParseInt(groupIDStr, 10, 64); parseErr == nil {
-			// Check if user supervises this group (for location access)
-			if !isAdmin {
-				myGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-				if err != nil {
-					if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-						log.Printf("Error rendering error response: %v", err)
-					}
-					return
-				}
-
-				// Check if the requested group_id is among the user's supervised groups
-				supervises := false
-				for _, group := range myGroups {
-					if group.ID == groupID {
-						supervises = true
-						canAccessLocation = true
-						break
-					}
-				}
-
-				// Non-admin users can only access groups they supervise
-				if !supervises {
-					if err := render.Render(w, r, ErrorUnauthorized(errors.New("access denied: you don't supervise this group"))); err != nil {
-						log.Printf("Error rendering error response: %v", err)
-					}
-					return
-				}
-			}
-
-			// Get students from this educational group
-			students, err = rs.StudentRepo.FindByGroupID(r.Context(), groupID)
-			if err != nil {
-				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-		} else {
-			// Invalid group_id format
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group_id format"))); err != nil {
+	// Get students - show all for search functionality
+	if len(allowedGroupIDs) > 0 {
+		// Specific group filter requested
+		students, err = rs.StudentRepo.FindByGroupIDs(r.Context(), allowedGroupIDs)
+		if err != nil {
+			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 				log.Printf("Error rendering error response: %v", err)
 			}
 			return
 		}
 	} else {
-		// Get all students using the new ListWithOptions method (when no group_id specified)
-		// Admins can access all students, non-admins get empty list for general queries
-		if !isAdmin {
-			students = []*users.Student{} // Non-admins cannot list all students
-		} else {
-			students, err = rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
-			if err != nil {
-				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
+		// No specific group filter - get all students
+		students, err = rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
+		if err != nil {
+			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+				log.Printf("Error rendering error response: %v", err)
 			}
+			return
 		}
 	}
 
@@ -345,7 +323,19 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// Filter based on person name if needed
+		// Apply search filter if provided
+		if search != "" {
+			// Search in first name, last name, and student ID
+			studentIDStr := strconv.FormatInt(student.ID, 10)
+			if !containsIgnoreCase(person.FirstName, search) &&
+				!containsIgnoreCase(person.LastName, search) &&
+				!containsIgnoreCase(studentIDStr, search) &&
+				!containsIgnoreCase(person.FirstName+" "+person.LastName, search) {
+				continue
+			}
+		}
+
+		// Filter based on person name if needed (legacy filters)
 		if (firstName != "" && !containsIgnoreCase(person.FirstName, firstName)) ||
 			(lastName != "" && !containsIgnoreCase(person.LastName, lastName)) {
 			continue
@@ -409,14 +399,69 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Check if user can access location data (admins can always access)
+	// Check if user has full access
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	canAccessLocation := hasAdminPermissions(userPermissions)
+	isAdmin := hasAdminPermissions(userPermissions)
+	hasFullAccess := isAdmin
 
-	// TODO: For individual student access, could also check if user supervises the student's group
-	// This would require additional logic to verify supervision
+	// Check if user supervises the student's group
+	if !hasFullAccess && student.GroupID != nil {
+		staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
+		if err == nil && staff != nil {
+			// Check if staff supervises this group
+			educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
+			if err == nil {
+				for _, supervGroup := range educationGroups {
+					if supervGroup.ID == *student.GroupID {
+						hasFullAccess = true
+						break
+					}
+				}
+			}
+		}
+	}
 
-	common.Respond(w, r, http.StatusOK, newStudentResponse(student, person, group, canAccessLocation), "Student retrieved successfully")
+	// Prepare response
+	response := StudentDetailResponse{
+		StudentResponse: newStudentResponse(student, person, group, hasFullAccess),
+		HasFullAccess:   hasFullAccess,
+	}
+
+	// If user doesn't have full access, add supervisor contacts
+	if !hasFullAccess && group != nil {
+		supervisors := []SupervisorContact{}
+
+		// Get group teachers/supervisors
+		teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
+		if err == nil {
+			for _, teacher := range teachers {
+				if teacher != nil && teacher.Staff != nil && teacher.Staff.Person != nil {
+					supervisor := SupervisorContact{
+						ID:        teacher.ID,
+						FirstName: teacher.Staff.Person.FirstName,
+						LastName:  teacher.Staff.Person.LastName,
+						Role:      "teacher",
+					}
+					// Get email from person's account if available
+					if teacher.Staff.Person.Account != nil {
+						supervisor.Email = teacher.Staff.Person.Account.Email
+					}
+					supervisors = append(supervisors, supervisor)
+				}
+			}
+		}
+
+		response.GroupSupervisors = supervisors
+
+		// Clear sensitive data for users without full access
+		response.Location = ""
+		response.GuardianContact = ""
+		response.GuardianEmail = ""
+		response.GuardianPhone = ""
+		response.TagID = ""
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Student retrieved successfully")
 }
 
 // createStudent handles creating a new student with their person record

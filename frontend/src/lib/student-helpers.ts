@@ -20,6 +20,22 @@ export interface BackendStudent {
     updated_at: string;
 }
 
+// Supervisor contact information
+export interface SupervisorContact {
+    id: number;
+    first_name: string;
+    last_name: string;
+    email?: string;
+    phone?: string;
+    role: string;
+}
+
+// Detailed student response with access control
+export interface BackendStudentDetail extends BackendStudent {
+    has_full_access: boolean;
+    group_supervisors?: SupervisorContact[];
+}
+
 // Frontend types (mapped from backend)
 export interface Student {
     id: string;
@@ -38,6 +54,9 @@ export interface Student {
     name_lg?: string;
     contact_lg?: string;
     custom_users_id?: string;
+    // Additional fields for access control
+    has_full_access?: boolean;
+    group_supervisors?: SupervisorContact[];
 }
 
 // Mapping functions

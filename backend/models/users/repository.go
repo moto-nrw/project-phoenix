@@ -2,8 +2,9 @@ package users
 
 import (
 	"context"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // RFIDCardRepository defines operations for managing RFID cards
@@ -82,6 +83,9 @@ type StudentRepository interface {
 
 	// FindByGroupID retrieves students by their group ID
 	FindByGroupID(ctx context.Context, groupID int64) ([]*Student, error)
+
+	// FindByGroupIDs retrieves students by multiple group IDs
+	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*Student, error)
 
 	// FindBySchoolClass retrieves students by their school class
 	FindBySchoolClass(ctx context.Context, schoolClass string) ([]*Student, error)

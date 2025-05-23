@@ -504,7 +504,7 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prepare schedules
-	
+
 	schedules := make([]*activities.Schedule, 0, len(req.Schedules))
 	for _, s := range req.Schedules {
 		schedules = append(schedules, &activities.Schedule{
@@ -599,7 +599,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 
 	// Handle supervisor updates - always process since frontend always sends this field
 	if true { // Always process supervisor updates
-		
+
 		// First, remove all existing supervisors for this group
 		existingSupervisors, err := rs.ActivityService.GetGroupSupervisors(r.Context(), updatedGroup.ID)
 		if err != nil {
@@ -612,7 +612,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		
+
 		// Then add the new supervisors
 		for i, staffID := range req.SupervisorIDs {
 			isPrimary := i == 0 // First supervisor is primary
@@ -638,7 +638,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		
+
 		// Add the new schedules
 		for _, scheduleReq := range req.Schedules {
 			schedule := &activities.Schedule{
@@ -1272,7 +1272,7 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 func convertWeekdayToString(weekday string) string {
 	weekdayMap := map[string]string{
 		"MON": "Monday",
-		"TUE": "Tuesday", 
+		"TUE": "Tuesday",
 		"WED": "Wednesday",
 		"THU": "Thursday",
 		"FRI": "Friday",
