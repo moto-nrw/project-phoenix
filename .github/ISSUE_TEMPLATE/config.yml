@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Project Documentation
+    url: https://github.com/moto-nrw/project-phoenix#readme
+    about: Check our documentation first - your question might already be answered!

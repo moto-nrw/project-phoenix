@@ -4,9 +4,9 @@ import { useSession } from "next-auth/react";
 import { redirect, useParams } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
-import type { Activity } from "@/lib/activity-api";
+import type { Activity } from "@/lib/activity-helpers";
 import type { Student } from "@/lib/api";
-import { activityService } from "@/lib/activity-api";
+import { activityService } from "@/lib/activity-service";
 import { studentService } from "@/lib/api";
 import Link from "next/link";
 
@@ -41,16 +41,21 @@ export default function AddStudentsToActivityPage() {
         }
 
         try {
-          // Fetch activity details
-          const activityData = await activityService.getActivity(id as string);
-          setActivity(activityData);
-
-          // Get all students
-          const allStudents = await studentService.getStudents();
+          // Fetch activity details and enrolled students
+          const [activityData, enrolledStudents, allStudents] = await Promise.all([
+            activityService.getActivity(id as string),
+            activityService.getEnrolledStudents(id as string),
+            studentService.getStudents()
+          ]);
+          
+          setActivity({
+            ...activityData,
+            students: enrolledStudents
+          });
 
           // Filter out students already enrolled
           const enrolledStudentIds = new Set(
-            (activityData.students ?? []).map((student) => student.id),
+            enrolledStudents.map((student) => student.id),
           );
 
           // Available students are those not already enrolled
@@ -91,7 +96,7 @@ export default function AddStudentsToActivityPage() {
     setEnrollingStudent(studentId);
 
     try {
-      await activityService.enrollStudent(id as string, studentId);
+      await activityService.enrollStudent(id as string, { studentId });
 
       // Find the enrolled student for the success message
       const enrolledStudent = availableStudents.find((s) => s.id === studentId);
@@ -102,11 +107,27 @@ export default function AddStudentsToActivityPage() {
         current.filter((student) => student.id !== studentId),
       );
 
-      // Update the activity data to reflect new enrollment count
-      if (activity && typeof activity.participant_count === "number") {
+      // Update the activity data to reflect new enrollment
+      if (activity) {
+        const enrolledStudent = availableStudents.find((s) => s.id === studentId);
         setActivity({
           ...activity,
-          participant_count: activity.participant_count + 1,
+          participant_count: typeof activity.participant_count === "number" 
+            ? activity.participant_count + 1 
+            : (activity.students?.length ?? 0) + 1,
+          students: [
+            ...(activity.students ?? []),
+            ...(enrolledStudent ? [{
+              id: studentId,
+              activity_id: id as string,
+              student_id: studentId,
+              name: enrolledStudent.name,
+              school_class: enrolledStudent.school_class ?? '',
+              in_house: enrolledStudent.in_house ?? false,
+              created_at: new Date(),
+              updated_at: new Date()
+            }] : [])
+          ]
         });
       }
 

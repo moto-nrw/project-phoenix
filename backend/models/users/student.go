@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/uptrace/bun"
 )
 
 // Student represents a student in the system
@@ -24,12 +25,27 @@ type Student struct {
 	GuardianPhone   *string `bun:"guardian_phone" json:"guardian_phone,omitempty"`
 	GroupID         *int64  `bun:"group_id" json:"group_id,omitempty"`
 
-	// Relations not stored in the database
-	Person *Person `bun:"-" json:"person,omitempty"`
+	// Relations
+	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
 	// Group relation is loaded dynamically to avoid import cycle
 }
 
-// BeforeAppendModel is removed to avoid conflicts with repository ModelTableExpr
+// BeforeAppendModel sets the correct table expression
+func (s *Student) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr("users.students")
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr("users.students")
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr("users.students")
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr("users.students")
+	}
+	return nil
+}
 
 // TableName returns the database table name
 func (s *Student) TableName() string {

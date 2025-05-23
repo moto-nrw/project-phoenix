@@ -28,3 +28,8 @@ func ErrorInternalServer(err error) render.Renderer {
 func ErrorNotFound(err error) render.Renderer {
 	return common.ErrorNotFound(err)
 }
+
+// ErrorUnauthorized returns a 401 Unauthorized error response
+func ErrorUnauthorized(err error) render.Renderer {
+	return common.ErrorUnauthorized(err)
+}

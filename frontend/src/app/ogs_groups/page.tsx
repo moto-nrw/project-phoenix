@@ -8,22 +8,10 @@ import { Sidebar } from "~/components/dashboard/sidebar";
 import { Input } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
 import { BackgroundWrapper } from "~/components/background-wrapper";
+import { userContextService } from "~/lib/usercontext-api";
+import type { Student } from "~/lib/student-helpers";
 
-// Define types based on existing Student type
-interface Student {
-    id: string;
-    first_name: string;
-    second_name: string;
-    name?: string;
-    school_class: string;
-    group_id: string;
-    group_name?: string;
-    in_house: boolean;
-    wc: boolean;
-    school_yard: boolean;
-    bus: boolean;
-}
-
+// Define OGSGroup type based on EducationalGroup with additional fields
 interface OGSGroup {
     id: string;
     name: string;
@@ -41,6 +29,9 @@ export default function OGSGroupPage() {
             redirect("/");
         },
     });
+
+    // Check if user has access to OGS groups
+    const [hasAccess, setHasAccess] = useState<boolean | null>(null);
 
     // State variables
     const [ogsGroup, setOGSGroup] = useState<OGSGroup | null>(null);
@@ -61,165 +52,105 @@ export default function OGSGroupPage() {
         bus: 0,
     });
 
-    // Mock data for OGS group - replace with actual API call in production
+    // Check access and fetch OGS group data
     useEffect(() => {
-        const fetchOGSGroupData = async () => {
+        const checkAccessAndFetchData = async () => {
             try {
                 setIsLoading(true);
 
-                // Simulate API fetch delay
-                await new Promise(resolve => setTimeout(resolve, 800));
+                // First check if user has any educational groups (OGS groups)
+                const myGroups = await userContextService.getMyEducationalGroups();
+                
+                if (myGroups.length === 0) {
+                    // User has no OGS groups, redirect to dashboard
+                    setHasAccess(false);
+                    redirect("/dashboard");
+                    return;
+                }
 
-                // Mock OGS Group data - this would be replaced with actual API call
-                const mockOgsGroup: OGSGroup = {
-                    id: "g1",
-                    name: "Sonnenschein",
-                    room_name: "Raum 103",
-                    room_id: "r103",
-                    student_count: 24,
-                    supervisor_name: "Frau Meyer"
+                setHasAccess(true);
+
+                // Use the first group as the OGS group (assuming user has access to one OGS group)
+                const educationalGroup = myGroups[0];
+                
+                if (!educationalGroup) {
+                    throw new Error('No educational group found');
+                }
+                
+                const ogsGroupData: OGSGroup = {
+                    id: educationalGroup.id,
+                    name: educationalGroup.name,
+                    room_name: educationalGroup.room?.name,
+                    room_id: educationalGroup.room_id,
+                    student_count: 0, // Will be calculated from actual students
+                    supervisor_name: undefined // Will be fetched separately if needed
                 };
 
-                // Mock Students data
-                const mockStudents: Student[] = [
-                    {
-                        id: "1",
-                        first_name: "Emma",
-                        second_name: "Müller",
-                        name: "Emma Müller",
-                        school_class: "1a",
-                        group_id: "g1",
-                        group_name: "Sonnenschein",
-                        in_house: true,
-                        wc: false,
-                        school_yard: false,
-                        bus: false
-                    },
-                    {
-                        id: "2",
-                        first_name: "Max",
-                        second_name: "Schmidt",
-                        name: "Max Schmidt",
-                        school_class: "1b",
-                        group_id: "g1",
-                        group_name: "Sonnenschein",
-                        in_house: false,
-                        wc: true,
-                        school_yard: false,
-                        bus: false
-                    },
-                    {
-                        id: "3",
-                        first_name: "Sophie",
-                        second_name: "Wagner",
-                        name: "Sophie Wagner",
-                        school_class: "2a",
-                        group_id: "g1",
-                        group_name: "Sonnenschein",
-                        in_house: true,
-                        wc: false,
-                        school_yard: false,
-                        bus: false
-                    },
-                    {
-                        id: "4",
-                        first_name: "Leon",
-                        second_name: "Fischer",
-                        name: "Leon Fischer",
-                        school_class: "2b",
-                        group_id: "g1",
-                        group_name: "Sonnenschein",
-                        in_house: true,
-                        wc: false,
-                        school_yard: false,
-                        bus: false
-                    },
-                    {
-                        id: "5",
-                        first_name: "Mia",
-                        second_name: "Weber",
-                        name: "Mia Weber",
-                        school_class: "3a",
-                        group_id: "g1",
-                        group_name: "Sonnenschein",
-                        in_house: true,
-                        wc: false,
-                        school_yard: false,
-                        bus: false
-                    },
-                    {
-                        id: "6",
-                        first_name: "Noah",
-                        second_name: "Becker",
-                        name: "Noah Becker",
-                        school_class: "3b",
-                        group_id: "g1",
-                        group_name: "Sonnenschein",
-                        in_house: false,
-                        wc: false,
-                        school_yard: true,
-                        bus: false
-                    },
-                    {
-                        id: "7",
-                        first_name: "Lina",
-                        second_name: "Schulz",
-                        name: "Lina Schulz",
-                        school_class: "4a",
-                        group_id: "g1",
-                        group_name: "Sonnenschein",
-                        in_house: false,
-                        wc: false,
-                        school_yard: false,
-                        bus: true
-                    },
-                    {
-                        id: "8",
-                        first_name: "Felix",
-                        second_name: "Hoffmann",
-                        name: "Felix Hoffmann",
-                        school_class: "4b",
-                        group_id: "g1",
-                        group_name: "Sonnenschein",
-                        in_house: true,
-                        wc: false,
-                        school_yard: false,
-                        bus: false
+                setOGSGroup(ogsGroupData);
+
+                // Fetch students for this group
+                const response = await fetch(`/api/students?group_id=${educationalGroup.id}`, {
+                    headers: {
+                        'Authorization': `Bearer ${session?.user?.token}`,
+                        'Content-Type': 'application/json'
                     }
-                ];
+                });
 
-                setOGSGroup(mockOgsGroup);
-                setStudents(mockStudents);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch students: ${response.status}`);
+                }
 
-                // Calculate statistics
-                const presentCount = mockStudents.filter(s => s.in_house).length;
-                const schoolyardCount = mockStudents.filter(s => s.school_yard).length;
-                const bathroomCount = mockStudents.filter(s => s.wc).length;
-                const busCount = mockStudents.filter(s => s.bus).length;
+                const responseData: { data?: Student[] } = await response.json() as { data?: Student[] };
+                
+                // Extract data from API response wrapper
+                const studentsData: Student[] = responseData.data ?? responseData as Student[];
+                
+                // Ensure studentsData is an array
+                if (Array.isArray(studentsData)) {
+                    setStudents(studentsData);
+                } else {
+                    setStudents([]);
+                }
+
+                // Calculate statistics from real data (only if we have valid array data)
+                const validStudents = Array.isArray(studentsData) ? studentsData : [];
+                const presentCount = validStudents.filter(s => s.in_house).length;
+                const schoolyardCount = validStudents.filter(s => s.school_yard).length;
+                const bathroomCount = validStudents.filter(s => s.wc).length;
+                const busCount = validStudents.filter(s => s.bus).length;
 
                 setStats({
-                    totalStudents: mockStudents.length,
+                    totalStudents: validStudents.length,
                     presentStudents: presentCount,
-                    absentStudents: mockStudents.length - presentCount - schoolyardCount - bathroomCount - busCount,
+                    absentStudents: validStudents.length - presentCount - schoolyardCount - bathroomCount - busCount,
                     schoolyard: schoolyardCount,
                     bathroom: bathroomCount,
                     bus: busCount
                 });
 
+                // Update group with actual student count
+                setOGSGroup(prev => prev ? { ...prev, student_count: validStudents.length } : null);
+
                 setError(null);
             } catch (err) {
-                console.error("Error fetching OGS group data:", err);
-                setError("Fehler beim Laden der OGS-Gruppendaten.");
+                if (err instanceof Error && err.message.includes("403")) {
+                    setError("Sie haben keine Berechtigung für den Zugriff auf OGS-Gruppendaten.");
+                    setHasAccess(false);
+                } else {
+                    setError("Fehler beim Laden der OGS-Gruppendaten.");
+                }
             } finally {
                 setIsLoading(false);
             }
         };
 
-        void fetchOGSGroupData();
-    }, []);
+        if (session?.user?.token) {
+            void checkAccessAndFetchData();
+        }
+    }, [session?.user?.token]);
 
-    // Apply filters to students
-    const filteredStudents = students.filter((student) => {
+    // Apply filters to students (ensure students is an array)
+    const filteredStudents = (Array.isArray(students) ? students : []).filter((student) => {
         // Apply search filter
         if (searchTerm && !student.name?.toLowerCase().includes(searchTerm.toLowerCase()) &&
             !student.school_class?.toLowerCase().includes(searchTerm.toLowerCase())) {
@@ -234,7 +165,7 @@ export default function OGSGroupPage() {
 
         // Apply year filter
         if (selectedYear !== "all") {
-            const yearMatch = /^(\d)/.exec(student.school_class);
+            const yearMatch = /^(\d)/.exec(student.school_class || '');
             const studentYear = yearMatch ? yearMatch[1] : null;
             if (studentYear !== selectedYear) {
                 return false;
@@ -264,7 +195,7 @@ export default function OGSGroupPage() {
     // Common class for all dropdowns to ensure consistent height
     const dropdownClass = "mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-teal-500 focus:outline-none appearance-none pr-8";
 
-    if (status === "loading" || isLoading) {
+    if (status === "loading" || isLoading || hasAccess === null) {
         return (
             <div className="flex min-h-screen items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
@@ -273,6 +204,12 @@ export default function OGSGroupPage() {
                 </div>
             </div>
         );
+    }
+
+    // If user doesn't have access, redirect to dashboard
+    if (hasAccess === false) {
+        redirect("/dashboard");
+        return null;
     }
 
     return (
@@ -510,13 +447,13 @@ export default function OGSGroupPage() {
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-center space-x-3">
                                                             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 font-medium text-white">
-                                                                {student.first_name?.charAt(0).toUpperCase() || "S"}
+                                                                {student.first_name?.charAt(0).toUpperCase() ?? student.name?.charAt(0).toUpperCase() ?? "S"}
                                                             </div>
 
                                                             <div className="flex flex-col">
                                                                 <div className="flex items-center">
                                                                     <span className="font-medium text-gray-900 transition-colors group-hover:text-blue-600">
-                                                                      {student.first_name} {student.second_name}
+                                                                      {student.name ?? `${student.first_name ?? ''} ${student.second_name ?? ''}`.trim()}
                                                                     </span>
                                                                     {/* Year indicator */}
                                                                     <span className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`} title={`Jahrgang ${year}`}></span>

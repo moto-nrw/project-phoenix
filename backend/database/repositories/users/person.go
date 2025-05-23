@@ -3,6 +3,7 @@ package users
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -36,6 +37,10 @@ func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*user
 		Scan(ctx)
 
 	if err != nil {
+		// Handle "no rows found" as a normal case, not an error
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by tag ID",
 			Err: err,
@@ -55,6 +60,10 @@ func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64)
 		Scan(ctx)
 
 	if err != nil {
+		// Handle "no rows found" as a normal case, not an error
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by account ID",
 			Err: err,

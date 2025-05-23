@@ -1,0 +1,75 @@
+services:
+  server:
+    image: ghcr.io/yungweng/phoenix-server:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      LOG_LEVEL: info
+      LOG_TEXTLOGGING: "false"
+      PORT: 8080
+      # Use sslmode=require for encrypted connections with self-signed certs
+      DB_DSN: postgres://postgres:${POSTGRES_PASSWORD}@localhost:5432/postgres?sslmode=require
+      DB_DEBUG: "false"
+      ENABLE_CORS: "false"
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+      AUTH_JWT_EXPIRY: 15m
+      AUTH_JWT_REFRESH_EXPIRY: 1h
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+    command: ["./main", "serve"]
+    restart: unless-stopped
+    network_mode: host
+
+  frontend:
+    image: ghcr.io/yungweng/phoenix-frontend:latest
+    environment:
+      NEXT_PUBLIC_API_URL: "https://${API_DOMAIN:-api.example.com}"
+      API_URL: "http://localhost:8080"
+      NEXTAUTH_URL: "https://${DOMAIN:-example.com}"
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      AUTH_TRUST_HOST: "true"
+      SKIP_ENV_VALIDATION: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      NODE_ENV: production
+    depends_on:
+      - server
+    restart: unless-stopped
+    network_mode: host
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - /etc/docker/postgres/ssl/certs:/var/lib/postgresql/ssl/certs:ro
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    command:
+      [
+        "postgres",
+        "-c",
+        "ssl=on",
+        "-c",
+        "ssl_cert_file=/var/lib/postgresql/ssl/certs/server.crt",
+        "-c",
+        "ssl_key_file=/var/lib/postgresql/ssl/certs/server.key",
+        "-c",
+        "ssl_ca_file=/var/lib/postgresql/ssl/certs/ca.crt",
+        "-c",
+        "ssl_min_protocol_version=TLSv1.2",
+        "-c",
+        "password_encryption=scram-sha-256",
+        "-c",
+        "listen_addresses=*",
+      ]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    network_mode: host
+
+volumes:
+  postgres:

@@ -14,8 +14,8 @@ type Staff struct {
 	PersonID   int64  `bun:"person_id,notnull,unique" json:"person_id"`
 	StaffNotes string `bun:"staff_notes" json:"staff_notes,omitempty"`
 
-	// Relations not stored in the database
-	Person *Person `bun:"-" json:"person,omitempty"`
+	// Relations
+	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
 }
 
 func (s *Staff) BeforeAppendModel(query any) error {
