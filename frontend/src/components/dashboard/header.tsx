@@ -103,8 +103,8 @@ export function Header({ userName = "Root" }: HeaderProps) {
             {/* Subtle top accent line */}
             <div className="h-0.5 bg-gradient-to-r from-[#5080d8] via-gray-200 to-[#83cd2d]"></div>
             
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center justify-between h-16">
+            <div className="w-full px-4 sm:px-6 lg:px-8">
+                <div className="flex items-center justify-between h-16 w-full">
                     {/* Left section: Logo + Brand */}
                     <div className="flex items-center space-x-4">
                         <div className="flex-shrink-0 flex items-center space-x-3">
@@ -144,8 +144,8 @@ export function Header({ userName = "Root" }: HeaderProps) {
                         </div>
                     </div>
 
-                    {/* Center section: Search (desktop only) */}
-                    <div className="hidden lg:flex flex-1 max-w-lg mx-8">
+                    {/* Center section: Search (desktop only) - aligned with sidebar */}
+                    <div className="hidden lg:flex flex-1 max-w-lg ml-64 mr-8">
                         <div className="relative w-full">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
