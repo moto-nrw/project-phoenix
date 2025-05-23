@@ -12,13 +12,12 @@ import type { Student, SupervisorContact } from "~/lib/student-helpers";
 
 // Extended Student type for this page
 interface ExtendedStudent extends Student {
-    group_name?: string;
-    in_house: boolean;
+    // Override optional location fields to be required
     wc: boolean;
     school_yard: boolean;
     bus: boolean;
-    current_room?: string; // Added: current room field
-    // Additional fields for student details page
+    // Additional fields specific to the detail page
+    current_room?: string;
     guardian_name: string;
     guardian_contact: string;
     guardian_phone?: string;
