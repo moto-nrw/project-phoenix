@@ -54,34 +54,64 @@ export default function StudentDetailPage() {
             setError(null);
 
             try {
-                const fetchedStudent = await studentService.getStudent(studentId);
+                const response = await studentService.getStudent(studentId);
+                
+                // Debug logging
+                console.log("Student API Response:", response);
+                
+                // Extract the actual student data from the wrapped response
+                interface WrappedResponse {
+                    data?: unknown;
+                    success?: boolean;
+                    message?: string;
+                }
+                const wrappedResponse = response as WrappedResponse;
+                const fetchedStudent = wrappedResponse.data ?? response;
                 
                 // Check if the response has the detailed format with proper typing
                 interface DetailedStudentResponse {
+                    id?: number;
+                    first_name?: string;
+                    last_name?: string;
+                    name?: string;
+                    school_class?: string;
+                    group_id?: number;
+                    group_name?: string;
+                    location?: string;
+                    guardian_name?: string;
+                    guardian_contact?: string;
+                    guardian_phone?: string;
+                    guardian_email?: string;
                     has_full_access?: boolean;
                     group_supervisors?: SupervisorContact[];
                 }
-                const detailedResponse = fetchedStudent as DetailedStudentResponse & typeof fetchedStudent;
+                const detailedResponse = fetchedStudent as DetailedStudentResponse;
                 const hasAccess = detailedResponse.has_full_access ?? true;
                 const groupSupervisors = detailedResponse.group_supervisors ?? [];
                 
+                // Debug logging
+                console.log("Extracted Student Data:", fetchedStudent);
+                console.log("Has Full Access:", hasAccess);
+                console.log("Supervisors:", groupSupervisors);
+                
                 // Map the API response to the expected format
+                // Backend returns snake_case fields, frontend expects different names
                 const mappedStudent: Student = {
-                    id: fetchedStudent.id,
-                    first_name: fetchedStudent.first_name ?? "",
-                    second_name: fetchedStudent.second_name ?? "",
-                    name: fetchedStudent.name ?? `${fetchedStudent.first_name ?? ""} ${fetchedStudent.second_name ?? ""}`,
-                    school_class: fetchedStudent.school_class ?? "",
-                    group_id: fetchedStudent.group_id ?? "",
-                    group_name: fetchedStudent.group_name ?? "",
-                    in_house: fetchedStudent.in_house ?? false,
-                    wc: fetchedStudent.wc ?? false,
-                    school_yard: fetchedStudent.school_yard ?? false,
-                    bus: fetchedStudent.bus ?? false,
+                    id: String(detailedResponse.id ?? ""),
+                    first_name: detailedResponse.first_name ?? "",
+                    second_name: detailedResponse.last_name ?? "", // Backend uses last_name
+                    name: detailedResponse.name ?? `${detailedResponse.first_name ?? ""} ${detailedResponse.last_name ?? ""}`,
+                    school_class: detailedResponse.school_class ?? "",
+                    group_id: String(detailedResponse.group_id ?? ""),
+                    group_name: detailedResponse.group_name ?? "",
+                    in_house: detailedResponse.location === "In House",
+                    wc: detailedResponse.location === "WC",
+                    school_yard: detailedResponse.location === "School Yard",
+                    bus: detailedResponse.location === "Bus",
                     current_room: undefined, // Not available from API yet
-                    guardian_name: hasAccess ? (fetchedStudent.name_lg ?? "") : "",
-                    guardian_contact: hasAccess ? (fetchedStudent.contact_lg ?? "") : "",
-                    guardian_phone: undefined, // Not available from API yet
+                    guardian_name: hasAccess ? (detailedResponse.guardian_name ?? "") : "",
+                    guardian_contact: hasAccess ? (detailedResponse.guardian_contact ?? "") : "",
+                    guardian_phone: hasAccess ? (detailedResponse.guardian_phone ?? "") : "",
                     birthday: undefined, // Not available from API yet
                     notes: undefined, // Not available from API yet
                     buskind: undefined, // Not available from API yet
@@ -237,8 +267,12 @@ export default function StudentDetailPage() {
                                                 <div className="flex items-center mt-1">
                                                     <span className="opacity-90">Klasse {student.school_class}</span>
                                                     <span className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`} title={`Jahrgang ${year}`}></span>
-                                                    <span className="mx-2">•</span>
-                                                    <span className="opacity-90">Gruppe: {student.group_name}</span>
+                                                    {student.group_name && (
+                                                        <>
+                                                            <span className="mx-2">•</span>
+                                                            <span className="opacity-90">Gruppe: {student.group_name}</span>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -329,42 +363,42 @@ export default function StudentDetailPage() {
                                         </div>
                                     </div>
 
-                            {/* Navigation Tabs */}
-                            <div className="mb-8 grid grid-cols-3 gap-4">
-                                <button
-                                    className="flex flex-col items-center justify-center rounded-lg bg-white p-4 shadow-sm transition-all hover:shadow-md border border-gray-100 hover:border-blue-200"
-                                    onClick={() => router.push(`/students/${studentId}/room-history?from=${referrer}`)}
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                    </svg>
-                                    <span className="text-gray-800 font-medium">Raumverlauf</span>
-                                </button>
+                                    {/* Navigation Tabs */}
+                                    <div className="mb-8 grid grid-cols-3 gap-4">
+                                        <button
+                                            className="flex flex-col items-center justify-center rounded-lg bg-white p-4 shadow-sm transition-all hover:shadow-md border border-gray-100 hover:border-blue-200"
+                                            onClick={() => router.push(`/students/${studentId}/room-history?from=${referrer}`)}
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                            </svg>
+                                            <span className="text-gray-800 font-medium">Raumverlauf</span>
+                                        </button>
 
-                                <button
-                                    className="flex flex-col items-center justify-center rounded-lg bg-white p-4 shadow-sm transition-all hover:shadow-md border border-gray-100 hover:border-blue-200"
-                                    onClick={() => router.push(`/students/${studentId}/feedback-history?from=${referrer}`)}
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                                    </svg>
-                                    <span className="text-gray-800 font-medium">Feedbackhistorie</span>
-                                </button>
+                                        <button
+                                            className="flex flex-col items-center justify-center rounded-lg bg-white p-4 shadow-sm transition-all hover:shadow-md border border-gray-100 hover:border-blue-200"
+                                            onClick={() => router.push(`/students/${studentId}/feedback-history?from=${referrer}`)}
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                                            </svg>
+                                            <span className="text-gray-800 font-medium">Feedbackhistorie</span>
+                                        </button>
 
-                                <button
-                                    className="flex flex-col items-center justify-center rounded-lg bg-white p-4 shadow-sm transition-all hover:shadow-md border border-gray-100 hover:border-blue-200"
-                                    onClick={() => router.push(`/students/${studentId}/mensa-history?from=${referrer}`)}
-                                >
-                                    {/* Gabel Icon für Mensa */}
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-yellow-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.5 3v18M7 3v3.5M10 3v3.5M7 10h3M15.5 3v3c0 1-2 2-2 2v13" />
-                                    </svg>
-                                    <span className="text-gray-800 font-medium">Mensaverlauf</span>
-                                </button>
-                            </div>
+                                        <button
+                                            className="flex flex-col items-center justify-center rounded-lg bg-white p-4 shadow-sm transition-all hover:shadow-md border border-gray-100 hover:border-blue-200"
+                                            onClick={() => router.push(`/students/${studentId}/mensa-history?from=${referrer}`)}
+                                        >
+                                            {/* Gabel Icon für Mensa */}
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-yellow-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.5 3v18M7 3v3.5M10 3v3.5M7 10h3M15.5 3v3c0 1-2 2-2 2v13" />
+                                            </svg>
+                                            <span className="text-gray-800 font-medium">Mensaverlauf</span>
+                                        </button>
+                                    </div>
 
-                            {/* Student Information */}
-                            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                                    {/* Student Information */}
+                                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                                 {/* Personal Information */}
                                 <div className="rounded-lg bg-white p-6 shadow-sm">
                                     <h2 className="mb-4 border-b border-blue-200 pb-2 text-xl font-bold text-gray-800">

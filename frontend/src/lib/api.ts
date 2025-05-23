@@ -6,7 +6,7 @@ import type { ApiResponse } from "./api-helpers";
 import {
   mapSingleStudentResponse,
   mapStudentsResponse,
-  mapStudentResponse,
+  // mapStudentResponse, // Not used anymore - returning raw data
   prepareStudentForBackend,
 } from "./student-helpers";
 import type { BackendStudent } from "./student-helpers";
@@ -327,8 +327,8 @@ export const studentService = {
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
                 const data: unknown = await retryResponse.json();
-                // The data is already the student object (not wrapped in a data property)
-                return mapStudentResponse(data as BackendStudent);
+                // Return raw data to preserve additional fields like has_full_access
+                return data as Student;
               }
             }
           }
@@ -337,43 +337,15 @@ export const studentService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json() as {
-          data?: unknown;
-          [key: string]: unknown;
-        };
+        const responseData = await response.json() as unknown;
         
-        // If response is wrapped (from our Next.js API route), extract the data
-        if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
-          const studentData = responseData.data;
-          
-          // If the extracted data is already mapped (has frontend structure)
-          if (typeof studentData === 'object' && studentData && 'name' in studentData && 'first_name' in studentData) {
-            return studentData as Student;
-          }
-          
-          // Otherwise map it
-          return mapStudentResponse(studentData as BackendStudent);
-        }
-        
-        // If response is already mapped (has the frontend structure)
-        const responseObj = responseData as unknown as {
-          name?: string;
-          first_name?: string;
-          [key: string]: unknown;
-        };
-        
-        if (responseObj && typeof responseObj === 'object' && 'name' in responseObj && 'first_name' in responseObj) {
-          return responseObj as unknown as Student;
-        }
-        
-        // Otherwise, assume it's backend format and map it
-        const mappedResponse = mapStudentResponse(responseObj as unknown as BackendStudent);
-        return mappedResponse;
+        // Return raw data to preserve additional fields like has_full_access
+        return responseData as Student;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        // The response.data is already the student object
-        return mapStudentResponse(response.data as unknown as BackendStudent);
+        // Return raw data to preserve additional fields like has_full_access
+        return response.data as unknown as Student;
       }
     } catch (error) {
       throw handleApiError(error, `Error fetching student ${id}`);
