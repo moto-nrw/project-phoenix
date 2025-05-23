@@ -7,6 +7,7 @@ import { Sidebar } from "~/components/dashboard/sidebar";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { BackgroundWrapper } from "~/components/background-wrapper";
+import { studentService } from "~/lib/api";
 
 // Student type
 interface Student {
@@ -43,47 +44,48 @@ export default function StudentDetailPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Fetch student data (mocked for now)
+    // Fetch student data from API
     useEffect(() => {
-        setLoading(true);
-        setError(null);
+        const fetchStudent = async () => {
+            setLoading(true);
+            setError(null);
 
-        // Simulate API request with timeout
-        const timer = setTimeout(() => {
             try {
-                // Mock student data based on ID
-                const mockStudent: Student = {
-                    id: studentId,
-                    first_name: "Emma",
-                    second_name: "Müller",
-                    name: "Emma Müller",
-                    school_class: "3b",
-                    group_id: "g3",
-                    group_name: "Eulen",
-                    in_house: true,
-                    wc: false,
-                    school_yard: false,
-                    bus: false,
-                    current_room: "Raum 1.2", // Added: current room
-                    guardian_name: "Maria Müller",
-                    guardian_contact: "muellers@example.com",
-                    guardian_phone: "+49 176 12345678",
-                    birthday: "2016-06-15",
-                    notes: "Nimmt an der Musik-AG teil. Liebt Kunst und Lesen.",
-                    buskind: true,
-                    attendance_rate: 92.5
+                const fetchedStudent = await studentService.getStudent(studentId);
+                
+                // Map the API response to the expected format
+                const mappedStudent: Student = {
+                    id: fetchedStudent.id,
+                    first_name: fetchedStudent.first_name ?? "",
+                    second_name: fetchedStudent.second_name ?? "",
+                    name: fetchedStudent.name ?? `${fetchedStudent.first_name ?? ""} ${fetchedStudent.second_name ?? ""}`,
+                    school_class: fetchedStudent.school_class ?? "",
+                    group_id: fetchedStudent.group_id ?? "",
+                    group_name: fetchedStudent.group_name ?? "",
+                    in_house: fetchedStudent.in_house ?? false,
+                    wc: fetchedStudent.wc ?? false,
+                    school_yard: fetchedStudent.school_yard ?? false,
+                    bus: fetchedStudent.bus ?? false,
+                    current_room: undefined, // Not available from API yet
+                    guardian_name: fetchedStudent.name_lg ?? "",
+                    guardian_contact: fetchedStudent.contact_lg ?? "",
+                    guardian_phone: undefined, // Not available from API yet
+                    birthday: undefined, // Not available from API yet
+                    notes: undefined, // Not available from API yet
+                    buskind: undefined, // Not available from API yet
+                    attendance_rate: undefined // Not available from API yet
                 };
 
-                setStudent(mockStudent);
+                setStudent(mappedStudent);
                 setLoading(false);
             } catch (err) {
                 console.error("Error fetching student:", err);
                 setError("Fehler beim Laden der Schülerdaten.");
                 setLoading(false);
             }
-        }, 800);
+        };
 
-        return () => clearTimeout(timer);
+        void fetchStudent();
     }, [studentId]);
 
     // Helper function to determine status label and color
