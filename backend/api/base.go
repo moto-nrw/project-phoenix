@@ -78,6 +78,9 @@ func New(enableCORS bool) (*API, error) {
 	api.Router.Use(middleware.RealIP)
 	api.Router.Use(middleware.Logger)
 	api.Router.Use(middleware.Recoverer)
+	
+	// Add security headers to all responses
+	api.Router.Use(customMiddleware.SecurityHeaders)
 
 	// Setup CORS if enabled
 	if enableCORS {
@@ -103,6 +106,13 @@ func New(enableCORS bool) (*API, error) {
 		}))
 	}
 
+	// Setup security logging if enabled
+	var securityLogger *customMiddleware.SecurityLogger
+	if securityLogging := os.Getenv("SECURITY_LOGGING_ENABLED"); securityLogging == "true" {
+		securityLogger = customMiddleware.NewSecurityLogger()
+		api.Router.Use(customMiddleware.SecurityLoggingMiddleware(securityLogger))
+	}
+
 	// Setup rate limiting if enabled
 	if rateLimitEnabled := os.Getenv("RATE_LIMIT_ENABLED"); rateLimitEnabled == "true" {
 		// Get rate limit configuration from environment
@@ -122,6 +132,9 @@ func New(enableCORS bool) (*API, error) {
 
 		// Create general rate limiter for all endpoints
 		generalRateLimiter := customMiddleware.NewRateLimiter(generalLimit, generalBurst)
+		if securityLogger != nil {
+			generalRateLimiter.SetLogger(securityLogger)
+		}
 		api.Router.Use(generalRateLimiter.Middleware())
 	}
 
@@ -156,6 +169,12 @@ func (a *API) registerRoutesWithRateLimiting() {
 	// Check if rate limiting is enabled
 	rateLimitEnabled := os.Getenv("RATE_LIMIT_ENABLED") == "true"
 	
+	// Get security logger if it exists
+	var securityLogger *customMiddleware.SecurityLogger
+	if securityLogging := os.Getenv("SECURITY_LOGGING_ENABLED"); securityLogging == "true" {
+		securityLogger = customMiddleware.NewSecurityLogger()
+	}
+	
 	// Configure auth-specific rate limiting if enabled
 	var authRateLimiter *customMiddleware.RateLimiter
 	if rateLimitEnabled {
@@ -167,6 +186,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 			}
 		}
 		authRateLimiter = customMiddleware.NewRateLimiter(authLimit, 2) // small burst for auth
+		if securityLogger != nil {
+			authRateLimiter.SetLogger(securityLogger)
+		}
 	}
 	a.Router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("MOTO API - Phoenix Project"))

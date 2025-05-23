@@ -17,6 +17,7 @@ type RateLimiter struct {
 	r        rate.Limit // requests per second
 	b        int        // burst size
 	ttl      time.Duration
+	logger   *SecurityLogger // optional security logger
 }
 
 // visitor tracks rate limiting for a single IP
@@ -34,12 +35,18 @@ func NewRateLimiter(requestsPerMinute int, burst int) *RateLimiter {
 		r:        rate.Limit(float64(requestsPerMinute) / 60.0), // convert to per second
 		b:        burst,
 		ttl:      3 * time.Minute, // cleanup visitors after 3 minutes of inactivity
+		logger:   nil,             // can be set with SetLogger
 	}
 
 	// Start cleanup goroutine
 	go rl.cleanupVisitors()
 
 	return rl
+}
+
+// SetLogger sets the security logger for the rate limiter
+func (rl *RateLimiter) SetLogger(logger *SecurityLogger) {
+	rl.logger = logger
 }
 
 // getVisitor returns the rate limiter for the given IP
@@ -86,6 +93,11 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 				w.Header().Set("X-RateLimit-Remaining", "0")
 				w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(time.Minute).Unix()))
 				w.Header().Set("Retry-After", "60")
+				
+				// Log rate limit violation if logger is available
+				if rl.logger != nil {
+					rl.logger.LogRateLimitExceeded(r)
+				}
 				
 				http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
 				return
