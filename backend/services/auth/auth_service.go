@@ -242,7 +242,6 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, st
 		username = *account.Username
 	}
 
-	// Fetch person's first name
 	firstName := ""
 	person, err := s.personRepo.FindByAccountID(ctx, account.ID)
 	if err == nil && person != nil {
