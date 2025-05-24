@@ -10,6 +10,14 @@ services:
         condition: service_healthy
     ports:
       - 8080:8080
+    develop:
+      watch:
+        - action: rebuild
+          path: ./backend
+          ignore:
+            - backend/bin/
+            - backend/*.log
+            - backend/tmp/
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-debug}
       LOG_TEXTLOGGING: ${LOG_TEXTLOGGING:-"true"}

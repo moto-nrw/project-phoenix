@@ -3,7 +3,7 @@ FROM golang:1.23-alpine AS builder
 
 WORKDIR /src
 
-# Download dependencies with cache mount
+# Download dependencies with cache mount (only for dependencies)
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
@@ -11,9 +11,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # Add source code
 COPY . .
 
-# Build with cache mounts for faster rebuilds
+# Build with module cache mount to avoid re-downloading
 RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o main .
 
 # Multi-Stage production build
