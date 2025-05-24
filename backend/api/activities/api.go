@@ -129,7 +129,7 @@ type ActivityResponse struct {
 // ScheduleResponse represents a schedule API response
 type ScheduleResponse struct {
 	ID              int64     `json:"id"`
-	Weekday         string    `json:"weekday"`
+	Weekday         int       `json:"weekday"`
 	TimeframeID     *int64    `json:"timeframe_id,omitempty"`
 	ActivityGroupID int64     `json:"activity_group_id"`
 	CreatedAt       time.Time `json:"created_at"`
@@ -165,7 +165,7 @@ type ActivityRequest struct {
 
 // ScheduleRequest represents a schedule in activity creation/update request
 type ScheduleRequest struct {
-	Weekday     string `json:"weekday"`
+	Weekday     int    `json:"weekday"`
 	TimeframeID *int64 `json:"timeframe_id,omitempty"`
 }
 
@@ -504,7 +504,7 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prepare schedules
-	
+
 	schedules := make([]*activities.Schedule, 0, len(req.Schedules))
 	for _, s := range req.Schedules {
 		schedules = append(schedules, &activities.Schedule{
@@ -599,7 +599,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 
 	// Handle supervisor updates - always process since frontend always sends this field
 	if true { // Always process supervisor updates
-		
+
 		// First, remove all existing supervisors for this group
 		existingSupervisors, err := rs.ActivityService.GetGroupSupervisors(r.Context(), updatedGroup.ID)
 		if err != nil {
@@ -612,7 +612,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		
+
 		// Then add the new supervisors
 		for i, staffID := range req.SupervisorIDs {
 			isPrimary := i == 0 // First supervisor is primary
@@ -638,7 +638,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		
+
 		// Add the new schedules
 		for _, scheduleReq := range req.Schedules {
 			schedule := &activities.Schedule{
@@ -647,7 +647,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 			}
 			_, err = rs.ActivityService.AddSchedule(r.Context(), updatedGroup.ID, schedule)
 			if err != nil {
-				log.Printf("Warning: Failed to add schedule (weekday=%s, timeframe=%v): %v", scheduleReq.Weekday, scheduleReq.TimeframeID, err)
+				log.Printf("Warning: Failed to add schedule (weekday=%d, timeframe=%v): %v", scheduleReq.Weekday, scheduleReq.TimeframeID, err)
 				// Don't fail the whole update, just log the warning
 			}
 		}
@@ -1198,11 +1198,15 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 	durationStr := r.URL.Query().Get("duration") // Duration in minutes
 
 	// Validate weekday if provided
-	if weekday != "" && !activities.IsValidWeekday(weekday) {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid weekday"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+	if weekday != "" {
+		// Parse weekday as integer
+		weekdayInt, err := strconv.Atoi(weekday)
+		if err != nil || !activities.IsValidWeekday(weekdayInt) {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid weekday"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
 		}
-		return
 	}
 
 	// Parse room ID if provided (currently unused)
@@ -1272,7 +1276,7 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 func convertWeekdayToString(weekday string) string {
 	weekdayMap := map[string]string{
 		"MON": "Monday",
-		"TUE": "Tuesday", 
+		"TUE": "Tuesday",
 		"WED": "Wednesday",
 		"THU": "Thursday",
 		"FRI": "Friday",

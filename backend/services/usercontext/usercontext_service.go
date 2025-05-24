@@ -210,11 +210,11 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 	// Try to get the current teacher
 	teacher, err := s.GetCurrentTeacher(ctx)
 	if err != nil {
-		if !errors.Is(err, ErrUserNotLinkedToTeacher) && !errors.Is(err, ErrUserNotLinkedToStaff) {
+		if !errors.Is(err, ErrUserNotLinkedToTeacher) && !errors.Is(err, ErrUserNotLinkedToStaff) && !errors.Is(err, ErrUserNotLinkedToPerson) {
 			return nil, err
 		}
 
-		// User is not a teacher, return empty list (could expand to other user types later)
+		// User is not a teacher or not linked to person/staff, return empty list (could expand to other user types later)
 		return []*education.Group{}, nil
 	}
 
@@ -232,11 +232,11 @@ func (s *userContextService) GetMyActivityGroups(ctx context.Context) ([]*activi
 	// Try to get the current staff
 	staff, err := s.GetCurrentStaff(ctx)
 	if err != nil {
-		if !errors.Is(err, ErrUserNotLinkedToStaff) {
+		if !errors.Is(err, ErrUserNotLinkedToStaff) && !errors.Is(err, ErrUserNotLinkedToPerson) {
 			return nil, err
 		}
 
-		// User is not staff, return empty list (could expand to other user types later)
+		// User is not staff or not linked to person, return empty list (could expand to other user types later)
 		return []*activities.Group{}, nil
 	}
 
@@ -260,11 +260,11 @@ func (s *userContextService) GetMyActiveGroups(ctx context.Context) ([]*active.G
 	// Try to get the current staff
 	staff, err := s.GetCurrentStaff(ctx)
 	if err != nil {
-		if !errors.Is(err, ErrUserNotLinkedToStaff) {
+		if !errors.Is(err, ErrUserNotLinkedToStaff) && !errors.Is(err, ErrUserNotLinkedToPerson) {
 			return nil, err
 		}
 
-		// User is not staff, return empty list
+		// User is not staff or not linked to person, return empty list
 		return []*active.Group{}, nil
 	}
 
@@ -350,11 +350,11 @@ func (s *userContextService) GetMySupervisedGroups(ctx context.Context) ([]*acti
 	// Try to get the current staff
 	staff, err := s.GetCurrentStaff(ctx)
 	if err != nil {
-		if !errors.Is(err, ErrUserNotLinkedToStaff) {
+		if !errors.Is(err, ErrUserNotLinkedToStaff) && !errors.Is(err, ErrUserNotLinkedToPerson) {
 			return nil, err
 		}
 
-		// User is not staff, return empty list
+		// User is not staff or not linked to person, return empty list
 		return []*active.Group{}, nil
 	}
 

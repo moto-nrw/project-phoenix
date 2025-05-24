@@ -1,8 +1,8 @@
 package groups
 
 import (
-	"log"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -61,15 +61,15 @@ func (rs *Resource) Router() chi.Router {
 
 // GroupResponse represents a group API response
 type GroupResponse struct {
-	ID                 int64             `json:"id"`
-	Name               string            `json:"name"`
-	RoomID             *int64            `json:"room_id,omitempty"`
-	Room               *Room             `json:"room,omitempty"`
-	RepresentativeID   *int64            `json:"representative_id,omitempty"`
-	Representative     *TeacherResponse  `json:"representative,omitempty"`
-	Teachers           []TeacherResponse `json:"teachers,omitempty"`
-	CreatedAt          time.Time         `json:"created_at"`
-	UpdatedAt          time.Time         `json:"updated_at"`
+	ID               int64             `json:"id"`
+	Name             string            `json:"name"`
+	RoomID           *int64            `json:"room_id,omitempty"`
+	Room             *Room             `json:"room,omitempty"`
+	RepresentativeID *int64            `json:"representative_id,omitempty"`
+	Representative   *TeacherResponse  `json:"representative,omitempty"`
+	Teachers         []TeacherResponse `json:"teachers,omitempty"`
+	CreatedAt        time.Time         `json:"created_at"`
+	UpdatedAt        time.Time         `json:"updated_at"`
 }
 
 // TeacherResponse represents a teacher in API responses
@@ -125,11 +125,11 @@ func newGroupResponse(group *education.Group, teachers []*users.Teacher) GroupRe
 	// Add teacher details if available
 	if len(teachers) > 0 {
 		teacherResponses := make([]TeacherResponse, 0, len(teachers))
-		
+
 		// First teacher is the representative by convention
 		firstTeacher := teachers[0]
 		response.RepresentativeID = &firstTeacher.ID
-		
+
 		// Convert all teachers to response format
 		for _, teacher := range teachers {
 			teacherResp := TeacherResponse{
@@ -139,16 +139,16 @@ func newGroupResponse(group *education.Group, teachers []*users.Teacher) GroupRe
 				Role:           teacher.Role,
 				FullName:       teacher.GetFullName(),
 			}
-			
+
 			// Extract first and last name from staff if available
 			if teacher.Staff != nil && teacher.Staff.Person != nil {
 				teacherResp.FirstName = teacher.Staff.Person.FirstName
 				teacherResp.LastName = teacher.Staff.Person.LastName
 			}
-			
+
 			teacherResponses = append(teacherResponses, teacherResp)
 		}
-		
+
 		// Set first teacher as representative
 		response.Representative = &teacherResponses[0]
 		response.Teachers = teacherResponses

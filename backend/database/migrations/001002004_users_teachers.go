@@ -1,10 +1,10 @@
 package migrations
 
 import (
-	"log"
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 
 	"github.com/uptrace/bun"
 )

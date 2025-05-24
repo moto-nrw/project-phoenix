@@ -27,7 +27,11 @@ func NewResource(service usercontext.UserContextService) *Resource {
 		router:  chi.NewRouter(),
 	}
 
-	// Setup routes
+	// Create JWT auth instance for middleware
+	tokenAuth, _ := jwt.NewTokenAuth()
+
+	// Setup routes with proper authentication chain
+	r.router.Use(tokenAuth.Verifier())
 	r.router.Use(jwt.Authenticator)
 
 	// User profile endpoints

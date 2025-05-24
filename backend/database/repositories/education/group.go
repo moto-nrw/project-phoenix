@@ -87,13 +87,13 @@ func (r *GroupRepository) FindByTeacher(ctx context.Context, teacherID int64) ([
 // FindWithRoom retrieves a group with its associated room
 func (r *GroupRepository) FindWithRoom(ctx context.Context, groupID int64) (*education.Group, error) {
 	group := new(education.Group)
-	
+
 	// Perform manual join to avoid schema issues with Relation()
 	type Result struct {
 		*education.Group `bun:",extend"`
-		Room *facilities.Room `bun:"rel:belongs-to,join:room_id=id"`
+		Room             *facilities.Room `bun:"rel:belongs-to,join:room_id=id"`
 	}
-	
+
 	result := new(Result)
 	err := r.db.NewSelect().
 		Model(result).

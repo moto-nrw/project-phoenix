@@ -82,7 +82,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
       const mappedStaff = response
         .filter((staff: BackendStaffResponse) => staff.is_teacher) // Only include teachers
         .map((staff: BackendStaffResponse) => ({
-          id: String(staff.id), // Convert to string to match frontend expectations
+          id: String(staff.teacher_id ?? staff.id), // Use teacher_id if available, otherwise staff id
           name: staff.person ? `${staff.person.first_name} ${staff.person.last_name}` : "",
           first_name: staff.person?.first_name ?? "",
           last_name: staff.person?.last_name ?? "",
@@ -93,6 +93,9 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
           staff_notes: staff.staff_notes ?? null,
           created_at: staff.created_at,
           updated_at: staff.updated_at,
+          // Include both IDs for debugging
+          staff_id: String(staff.id),
+          teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
         }));
       
       return mappedStaff;
@@ -104,7 +107,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
       const mappedStaff = response.data
         .filter((staff: BackendStaffResponse) => staff.is_teacher) // Only include teachers
         .map((staff: BackendStaffResponse) => ({
-          id: String(staff.id), // Convert to string to match frontend expectations
+          id: String(staff.teacher_id ?? staff.id), // Use teacher_id if available, otherwise staff id
           name: staff.person ? `${staff.person.first_name} ${staff.person.last_name}` : "",
           first_name: staff.person?.first_name ?? "",
           last_name: staff.person?.last_name ?? "",
@@ -115,6 +118,9 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
           staff_notes: staff.staff_notes ?? null,
           created_at: staff.created_at,
           updated_at: staff.updated_at,
+          // Include both IDs for debugging
+          staff_id: String(staff.id),
+          teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
         }));
       
       return mappedStaff;
@@ -143,6 +149,8 @@ interface TeacherResponse {
   staff_notes: string | null;
   created_at: string;
   updated_at: string;
+  staff_id?: string;
+  teacher_id?: string;
 }
 
 /**
@@ -168,7 +176,7 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
       // Map the response to match the Teacher interface from teacher-api.ts
       return {
         ...response,
-        id: String(response.id),
+        id: String(response.teacher_id ?? response.id),
         name: response.person ? `${response.person.first_name} ${response.person.last_name}` : "",
         first_name: response.person?.first_name ?? "",
         last_name: response.person?.last_name ?? "",
@@ -177,6 +185,8 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
         qualifications: response.qualifications ?? null,
         tag_id: response.person?.tag_id ?? null,
         staff_notes: response.staff_notes ?? null,
+        staff_id: String(response.id),
+        teacher_id: response.teacher_id ? String(response.teacher_id) : undefined,
       };
     } catch (error) {
       // Check for permission errors (403 Forbidden)

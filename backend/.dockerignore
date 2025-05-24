@@ -1,0 +1,55 @@
+# Git
+.git
+.gitignore
+
+# Go build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+main
+bin/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+vendor/
+
+# Environment files
+.env
+*.env
+!dev.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+docs/
+
+# Temporary files
+tmp/
+temp/
+
+# Log files
+*.log
+
+# Database
+*.db
+*.sqlite3
+
+# Tests
+*_test.go
+test/

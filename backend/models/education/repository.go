@@ -3,7 +3,7 @@ package education
 import (
 	"context"
 	"time"
-	
+
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 

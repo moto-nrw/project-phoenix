@@ -474,7 +474,7 @@ func (s *Service) DeleteSchedule(ctx context.Context, id int64) error {
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		// Get transactional service
 		txService := s.WithTx(tx).(ActivityService)
-		
+
 		// Check if schedule exists
 		_, err := txService.(*Service).scheduleRepo.FindByID(ctx, id)
 		if err != nil {
@@ -483,15 +483,15 @@ func (s *Service) DeleteSchedule(ctx context.Context, id int64) error {
 			}
 			return &ActivityError{Op: "find schedule", Err: err}
 		}
-		
+
 		// Delete the schedule
 		if err := txService.(*Service).scheduleRepo.Delete(ctx, id); err != nil {
 			return &ActivityError{Op: "delete schedule", Err: err}
 		}
-		
+
 		return nil
 	})
-	
+
 	if err != nil {
 		return &ActivityError{Op: "delete schedule", Err: err}
 	}
@@ -503,11 +503,11 @@ func (s *Service) DeleteSchedule(ctx context.Context, id int64) error {
 func (s *Service) UpdateSchedule(ctx context.Context, schedule *activities.Schedule) (*activities.Schedule, error) {
 	// Execute in transaction for consistency
 	var result *activities.Schedule
-	
+
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		// Get transactional service
 		txService := s.WithTx(tx).(ActivityService)
-		
+
 		// Check if schedule exists
 		existingSchedule, err := txService.(*Service).scheduleRepo.FindByID(ctx, schedule.ID)
 		if err != nil {
@@ -516,37 +516,37 @@ func (s *Service) UpdateSchedule(ctx context.Context, schedule *activities.Sched
 			}
 			return &ActivityError{Op: "find schedule", Err: err}
 		}
-		
+
 		// Validate the schedule
 		if err := schedule.Validate(); err != nil {
 			return &ActivityError{Op: "validate schedule", Err: err}
 		}
-		
+
 		// Make sure the relationship to group is preserved
 		if schedule.ActivityGroupID != existingSchedule.ActivityGroupID {
 			return &ActivityError{Op: "update schedule", Err: errors.New("cannot change activity group for a schedule")}
 		}
-		
+
 		// Update the schedule
 		if err := txService.(*Service).scheduleRepo.Update(ctx, schedule); err != nil {
 			return &ActivityError{Op: "update schedule", Err: err}
 		}
-		
+
 		// Get the updated schedule
 		updatedSchedule, err := txService.(*Service).scheduleRepo.FindByID(ctx, schedule.ID)
 		if err != nil {
 			return &ActivityError{Op: "retrieve updated schedule", Err: err}
 		}
-		
+
 		// Store result for returning after transaction completes
 		result = updatedSchedule
 		return nil
 	})
-	
+
 	if err != nil {
 		return nil, &ActivityError{Op: "update schedule", Err: err}
 	}
-	
+
 	return result, nil
 }
 
@@ -556,11 +556,11 @@ func (s *Service) UpdateSchedule(ctx context.Context, schedule *activities.Sched
 func (s *Service) AddSupervisor(ctx context.Context, groupID int64, staffID int64, isPrimary bool) (*activities.SupervisorPlanned, error) {
 	// Execute everything in a transaction to ensure consistency
 	var result *activities.SupervisorPlanned
-	
+
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		// Get transactional service
 		txService := s.WithTx(tx).(ActivityService)
-		
+
 		// Check if group exists
 		_, err := txService.(*Service).groupRepo.FindByID(ctx, groupID)
 		if err != nil {
@@ -569,31 +569,31 @@ func (s *Service) AddSupervisor(ctx context.Context, groupID int64, staffID int6
 			}
 			return &ActivityError{Op: "find group", Err: err}
 		}
-		
+
 		// Check if supervisor already exists for this staff in this group
 		existingSupervisors, err := txService.(*Service).supervisorRepo.FindByGroupID(ctx, groupID)
 		if err != nil {
 			return &ActivityError{Op: "get existing supervisors", Err: err}
 		}
-		
+
 		for _, existing := range existingSupervisors {
 			if existing.StaffID == staffID {
 				return &ActivityError{Op: "add supervisor", Err: errors.New("supervisor already assigned to this group")}
 			}
 		}
-		
+
 		// Create supervisor record
 		supervisor := &activities.SupervisorPlanned{
 			GroupID:   groupID,
 			StaffID:   staffID,
 			IsPrimary: isPrimary,
 		}
-		
+
 		// Validate
 		if err := supervisor.Validate(); err != nil {
 			return &ActivityError{Op: "validate supervisor", Err: err}
 		}
-		
+
 		// If this is primary, unset primary flag for all other supervisors
 		if isPrimary {
 			for _, existing := range existingSupervisors {
@@ -605,27 +605,27 @@ func (s *Service) AddSupervisor(ctx context.Context, groupID int64, staffID int6
 				}
 			}
 		}
-		
+
 		// Create the new supervisor
 		if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
 			return &ActivityError{Op: "create supervisor", Err: err}
 		}
-		
+
 		// Retrieve the created supervisor from DB to get all fields
 		createdSupervisor, err := txService.(*Service).supervisorRepo.FindByID(ctx, supervisor.ID)
 		if err != nil {
 			return &ActivityError{Op: "retrieve created supervisor", Err: err}
 		}
-		
+
 		// Store the result for returning after transaction completes
 		result = createdSupervisor
 		return nil
 	})
-	
+
 	if err != nil {
 		return nil, &ActivityError{Op: "add supervisor", Err: err}
 	}
-	
+
 	return result, nil
 }
 
@@ -661,11 +661,11 @@ func (s *Service) GetGroupSupervisors(ctx context.Context, groupID int64) ([]*ac
 func (s *Service) UpdateSupervisor(ctx context.Context, supervisor *activities.SupervisorPlanned) (*activities.SupervisorPlanned, error) {
 	// Execute in transaction for consistency
 	var result *activities.SupervisorPlanned
-	
+
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		// Get transactional service
 		txService := s.WithTx(tx).(ActivityService)
-		
+
 		// Check if supervisor exists
 		existingSupervisor, err := txService.(*Service).supervisorRepo.FindByID(ctx, supervisor.ID)
 		if err != nil {
@@ -674,12 +674,12 @@ func (s *Service) UpdateSupervisor(ctx context.Context, supervisor *activities.S
 			}
 			return &ActivityError{Op: "find supervisor", Err: err}
 		}
-		
+
 		// Validate the supervisor
 		if err := supervisor.Validate(); err != nil {
 			return &ActivityError{Op: "validate supervisor", Err: err}
 		}
-		
+
 		// If updating primary status
 		if existingSupervisor.IsPrimary != supervisor.IsPrimary {
 			if supervisor.IsPrimary {
@@ -688,7 +688,7 @@ func (s *Service) UpdateSupervisor(ctx context.Context, supervisor *activities.S
 				if err != nil {
 					return &ActivityError{Op: "find group supervisors", Err: err}
 				}
-				
+
 				for _, other := range otherSupervisors {
 					if other.ID != supervisor.ID && other.IsPrimary {
 						other.IsPrimary = false
@@ -702,27 +702,27 @@ func (s *Service) UpdateSupervisor(ctx context.Context, supervisor *activities.S
 				return &ActivityError{Op: "update supervisor", Err: errors.New("at least one supervisor must remain primary")}
 			}
 		}
-		
+
 		// Update the supervisor
 		if err := txService.(*Service).supervisorRepo.Update(ctx, supervisor); err != nil {
 			return &ActivityError{Op: "update supervisor", Err: err}
 		}
-		
+
 		// Get the updated supervisor
 		updatedSupervisor, err := txService.(*Service).supervisorRepo.FindByID(ctx, supervisor.ID)
 		if err != nil {
 			return &ActivityError{Op: "retrieve updated supervisor", Err: err}
 		}
-		
+
 		// Store result for returning after transaction completes
 		result = updatedSupervisor
 		return nil
 	})
-	
+
 	if err != nil {
 		return nil, &ActivityError{Op: "update supervisor", Err: err}
 	}
-	
+
 	return result, nil
 }
 
@@ -733,7 +733,7 @@ func (s *Service) GetStaffAssignments(ctx context.Context, staffID int64) ([]*ac
 	if err != nil {
 		return nil, &ActivityError{Op: "get staff assignments", Err: err}
 	}
-	
+
 	return assignments, nil
 }
 
@@ -799,7 +799,7 @@ func (s *Service) SetPrimarySupervisor(ctx context.Context, id int64) error {
 		for _, sup := range supervisors {
 			// Only update if primary status is changing
 			isPrimaryChanging := (sup.ID == id && !sup.IsPrimary) || (sup.ID != id && sup.IsPrimary)
-			
+
 			if isPrimaryChanging {
 				// Set new primary status
 				if sup.ID == id {
@@ -807,7 +807,7 @@ func (s *Service) SetPrimarySupervisor(ctx context.Context, id int64) error {
 				} else {
 					sup.IsPrimary = false
 				}
-				
+
 				// Update in database
 				if err := txService.(*Service).supervisorRepo.Update(ctx, sup); err != nil {
 					return &ActivityError{Op: "update supervisor primary status", Err: err}
@@ -1045,13 +1045,13 @@ func (s *Service) GetStudentEnrollments(ctx context.Context, studentID int64) ([
 		// Create a filter to get groups by IDs
 		options := base.NewQueryOptions()
 		filter := base.NewFilter()
-		
+
 		// Convert int64 slice to []interface{}
 		interfaceIDs := make([]interface{}, len(groupIDs))
 		for i, id := range groupIDs {
 			interfaceIDs[i] = id
 		}
-		
+
 		filter.In("id", interfaceIDs...)
 		options.Filter = filter
 
@@ -1110,7 +1110,7 @@ func (s *Service) UpdateAttendanceStatus(ctx context.Context, enrollmentID int64
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		// Get transactional service
 		txService := s.WithTx(tx).(ActivityService)
-		
+
 		// Check if enrollment exists
 		_, err := txService.(*Service).enrollmentRepo.FindByID(ctx, enrollmentID)
 		if err != nil {
@@ -1119,19 +1119,19 @@ func (s *Service) UpdateAttendanceStatus(ctx context.Context, enrollmentID int64
 			}
 			return &ActivityError{Op: "find enrollment", Err: err}
 		}
-		
+
 		// Update the status
 		if err := txService.(*Service).enrollmentRepo.UpdateAttendanceStatus(ctx, enrollmentID, status); err != nil {
 			return &ActivityError{Op: "update attendance status", Err: err}
 		}
-		
+
 		return nil
 	})
-	
+
 	if err != nil {
 		return &ActivityError{Op: "update attendance status", Err: err}
 	}
-	
+
 	return nil
 }
 
@@ -1140,16 +1140,16 @@ func (s *Service) GetEnrollmentsByDate(ctx context.Context, date time.Time) ([]*
 	// NOTE: This is a placeholder implementation
 	// The actual implementation would likely query enrollments with schedules active on the given date
 	// and possibly filter for attendance status
-	
+
 	// This would require a custom repository method with SQL join between enrollments and schedules
 	// For now, we just use the date range finder with the date as both start and end
-	
+
 	// Using the repository's FindByEnrollmentDateRange method
 	enrollments, err := s.enrollmentRepo.FindByEnrollmentDateRange(ctx, date, date)
 	if err != nil {
 		return nil, &ActivityError{Op: "get enrollments by date", Err: err}
 	}
-	
+
 	return enrollments, nil
 }
 
@@ -1157,13 +1157,13 @@ func (s *Service) GetEnrollmentsByDate(ctx context.Context, date time.Time) ([]*
 func (s *Service) GetEnrollmentHistory(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*activities.StudentEnrollment, error) {
 	// NOTE: This is a placeholder implementation
 	// The actual implementation would query enrollments with schedules active in the given date range
-	
+
 	// Get all enrollments for the student
 	enrollments, err := s.enrollmentRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
 		return nil, &ActivityError{Op: "get enrollment history", Err: err}
 	}
-	
+
 	// Filter by date range (simplified logic, actual implementation would be more complex)
 	var filteredEnrollments []*activities.StudentEnrollment
 	for _, enrollment := range enrollments {
@@ -1171,7 +1171,7 @@ func (s *Service) GetEnrollmentHistory(ctx context.Context, studentID int64, sta
 			filteredEnrollments = append(filteredEnrollments, enrollment)
 		}
 	}
-	
+
 	return filteredEnrollments, nil
 }
 
@@ -1223,6 +1223,6 @@ func (s *Service) GetOpenGroups(ctx context.Context) ([]*activities.Group, error
 	if err != nil {
 		return nil, &ActivityError{Op: "get open groups", Err: err}
 	}
-	
+
 	return groups, nil
 }

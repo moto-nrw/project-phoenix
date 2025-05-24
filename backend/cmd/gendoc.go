@@ -2,13 +2,14 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/moto-nrw/project-phoenix/api"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/docgen"

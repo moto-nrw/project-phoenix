@@ -39,7 +39,7 @@ export interface BackendActivityCategory {
 
 export interface BackendActivitySchedule {
     id: number;
-    weekday: string; // MONDAY, TUESDAY, etc.
+    weekday: number; // ISO 8601 integers 1-7 (1=Monday, 7=Sunday)
     timeframe_id?: number;
     activity_group_id: number;
     created_at: string;
@@ -290,7 +290,7 @@ export function mapActivityResponse(backendActivity: BackendActivity): Activity 
         activity.times = backendActivity.schedules.map(schedule => ({
             id: String(schedule.id),
             activity_id: String(schedule.activity_group_id),
-            weekday: schedule.weekday.toLowerCase(),
+            weekday: String(schedule.weekday),
             timeframe_id: schedule.timeframe_id ? String(schedule.timeframe_id) : undefined,
             created_at: new Date(schedule.created_at),
             updated_at: new Date(schedule.updated_at)
@@ -315,7 +315,7 @@ export function mapActivityScheduleResponse(backendSchedule: BackendActivitySche
     return {
         id: String(backendSchedule.id),
         activity_id: String(backendSchedule.activity_group_id),
-        weekday: backendSchedule.weekday.toLowerCase(),
+        weekday: String(backendSchedule.weekday),
         timeframe_id: backendSchedule.timeframe_id ? String(backendSchedule.timeframe_id) : undefined,
         created_at: new Date(backendSchedule.created_at),
         updated_at: new Date(backendSchedule.updated_at),
@@ -491,7 +491,7 @@ export function prepareActivityScheduleForBackend(schedule: Partial<ActivitySche
     return {
         id: schedule.id ? parseInt(schedule.id, 10) : undefined,
         activity_group_id: schedule.activity_id ? parseInt(schedule.activity_id, 10) : undefined,
-        weekday: schedule.weekday ? schedule.weekday.toUpperCase() : undefined,
+        weekday: schedule.weekday ? parseInt(schedule.weekday, 10) : undefined,
         timeframe_id: schedule.timeframe_id ? parseInt(schedule.timeframe_id, 10) : undefined,
     };
 }
@@ -505,7 +505,7 @@ export interface CreateActivityRequest {
     planned_room_id?: number;
     supervisor_ids?: number[];
     schedules?: {
-        weekday: string;
+        weekday: number;
         timeframe_id?: number;
     }[];
 }
@@ -518,7 +518,7 @@ export interface UpdateActivityRequest {
     planned_room_id?: number;
     supervisor_ids?: number[];
     schedules?: {
-        weekday: string;
+        weekday: number;
         timeframe_id?: number;
     }[];
 }
@@ -562,67 +562,47 @@ export function formatActivityTimes(activity: Activity | ActivitySchedule[]): st
     return "Keine Zeiten festgelegt";
 }
 
+
 export function formatWeekday(weekday: string): string {
     const weekdays: Record<string, string> = {
-        "monday": "Mo",
-        "tuesday": "Di",
-        "wednesday": "Mi",
-        "thursday": "Do",
-        "friday": "Fr",
-        "saturday": "Sa",
-        "sunday": "So"
+        "1": "Mo",
+        "2": "Di",
+        "3": "Mi",
+        "4": "Do",
+        "5": "Fr",
+        "6": "Sa",
+        "7": "So"
     };
     
-    return weekdays[weekday.toLowerCase()] ?? weekday;
+    return weekdays[weekday] ?? weekday;
 }
 
 export function getWeekdayFullName(weekday: string): string {
     const weekdays: Record<string, string> = {
-        "monday": "Montag",
-        "tuesday": "Dienstag",
-        "wednesday": "Mittwoch",
-        "thursday": "Donnerstag",
-        "friday": "Freitag",
-        "saturday": "Samstag",
-        "sunday": "Sonntag",
-        "mo": "Montag",
-        "di": "Dienstag",
-        "mi": "Mittwoch",
-        "do": "Donnerstag",
-        "fr": "Freitag",
-        "sa": "Samstag",
-        "so": "Sonntag"
+        "1": "Montag",
+        "2": "Dienstag",
+        "3": "Mittwoch",
+        "4": "Donnerstag",
+        "5": "Freitag",
+        "6": "Samstag",
+        "7": "Sonntag"
     };
     
-    return weekdays[weekday.toLowerCase()] ?? weekday;
+    return weekdays[weekday] ?? weekday;
 }
 
 export function getWeekdayOrder(weekday: string): number {
     const order: Record<string, number> = {
-        "monday": 1,
-        "montag": 1,
-        "mo": 1,
-        "tuesday": 2,
-        "dienstag": 2,
-        "di": 2,
-        "wednesday": 3,
-        "mittwoch": 3,
-        "mi": 3,
-        "thursday": 4,
-        "donnerstag": 4,
-        "do": 4,
-        "friday": 5,
-        "freitag": 5,
-        "fr": 5,
-        "saturday": 6,
-        "samstag": 6, 
-        "sa": 6,
-        "sunday": 7,
-        "sonntag": 7,
-        "so": 7
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7
     };
     
-    return order[weekday.toLowerCase()] ?? 99;
+    return order[weekday] ?? 99;
 }
 
 export function sortSchedulesByWeekday(schedules: ActivitySchedule[]): ActivitySchedule[] {

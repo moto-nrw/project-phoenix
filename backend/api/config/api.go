@@ -1,8 +1,8 @@
 package config
 
 import (
-	"log"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"time"

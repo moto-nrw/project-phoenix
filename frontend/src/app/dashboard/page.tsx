@@ -286,9 +286,11 @@ export default function DashboardPage() {
         );
     }
 
+
     const firstName = session?.user?.name?.split(' ')[0] ?? "Root";
     const greeting = getTimeBasedGreeting();
     const currentDate = getCurrentDate();
+
 
     return (
         <ResponsiveLayout userName={session?.user?.name ?? "Root"}>

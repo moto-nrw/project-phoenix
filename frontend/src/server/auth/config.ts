@@ -16,6 +16,7 @@ declare module "next-auth" {
       token?: string;
       refreshToken?: string;
       roles?: string[];
+      firstName?: string;
     } & DefaultSession["user"];
   }
 
@@ -23,6 +24,7 @@ declare module "next-auth" {
     token?: string;
     refreshToken?: string;
     roles?: string[];
+    firstName?: string;
   }
 }
 
@@ -101,6 +103,7 @@ export const authConfig = {
               id: string | number;
               sub?: string;
               username?: string;
+              first_name?: string;
               roles?: string[];
               email?: string;
             };
@@ -131,6 +134,7 @@ export const authConfig = {
               token: responseData.access_token,
               refreshToken: responseData.refresh_token,
               roles: roles,
+              firstName: payload.first_name,
             };
           } catch (e) {
             console.error("Error parsing JWT:", e);
@@ -161,6 +165,7 @@ export const authConfig = {
         token.token = user.token;
         token.refreshToken = user.refreshToken;
         token.roles = user.roles;
+        token.firstName = user.firstName;
       }
       return token;
     },
@@ -173,6 +178,7 @@ export const authConfig = {
           token: token.token as string,
           refreshToken: token.refreshToken as string,
           roles: token.roles as string[],
+          firstName: token.firstName as string,
         },
       };
     },

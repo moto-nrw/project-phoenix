@@ -301,6 +301,7 @@ export function Header({ userName = "Root" }: HeaderProps) {
                                         Einstellungen
                                     </Link>
 
+
                                     {/* Help button in profile menu */}
                                     <button 
                                         onClick={(e) => {

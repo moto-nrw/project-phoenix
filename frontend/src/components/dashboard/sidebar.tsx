@@ -64,9 +64,23 @@ interface SidebarProps {
     className?: string;
 }
 
-export function Sidebar({ className = "" }: SidebarProps) {
+function SidebarContent({ className = "" }: SidebarProps) {
     // Aktuelle Route ermitteln
     const pathname = usePathname();
+
+    // Check if user has educational groups
+    const { hasEducationalGroups, isLoading } = useHasEducationalGroups();
+
+    // Filter navigation items based on user's educational groups
+    const filteredNavItems = NAV_ITEMS.filter(item => {
+        // Always show all items except "OGS Gruppe"
+        if (item.href !== "/ogs_groups") {
+            return true;
+        }
+        // Only show "OGS Gruppe" if user has educational groups
+        // Don't show it while loading to avoid flickering
+        return !isLoading && hasEducationalGroups;
+    });
 
     // Funktion zur Überprüfung, ob ein Link aktiv ist
     const isActiveLink = (href: string) => {
@@ -79,7 +93,7 @@ export function Sidebar({ className = "" }: SidebarProps) {
         return pathname.startsWith(href);
     };
 
-    // CSS-Klassen für Links generieren
+
     const getLinkClasses = (href: string) => {
         const baseClasses = "flex items-center px-5 py-3 text-base font-medium rounded-lg transition-colors";
         const activeClasses = "bg-blue-50 text-blue-600 border-l-4 border-blue-600";
@@ -94,7 +108,7 @@ export function Sidebar({ className = "" }: SidebarProps) {
             <aside className={`w-64 bg-white border-r border-gray-200 min-h-screen overflow-y-auto ${className}`}>
                 <div className="p-4">
                     <nav className="space-y-2">
-                        {NAV_ITEMS.map((item) => (
+                        {filteredNavItems.map((item) => (
                             <Link
                                 key={item.href}
                                 href={item.href}
@@ -111,5 +125,13 @@ export function Sidebar({ className = "" }: SidebarProps) {
             </aside>
 
         </>
+    );
+}
+
+export function Sidebar({ className = "" }: SidebarProps) {
+    return (
+        <UserContextProvider>
+            <SidebarContent className={className} />
+        </UserContextProvider>
     );
 }
