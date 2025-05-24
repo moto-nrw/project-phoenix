@@ -127,7 +127,7 @@ const TimeSlotEditor = ({
   onRemove: (index: number) => void;
   onEdit?: (index: number, timeSlot: Partial<ActivitySchedule>) => void;
   parentActivityId?: string;
-  timeframes?: Array<{ id: string; start_time: string; end_time: string; name?: string }>;
+  timeframes?: Array<{ id: string; start_time: string; end_time: string; name?: string; display_name?: string; description?: string }>;
 }) => {
   const [weekday, setWeekday] = useState("1");
   const [timeframeId, setTimeframeId] = useState("");
@@ -489,7 +489,6 @@ export default function ActivityForm({
   const [rooms, setRooms] = useState<Array<{ id: string; name: string }>>(initialRooms);
   // Use supervisors prop directly instead of local state
   const [timeframes, setTimeframes] = useState<Array<{ id: string; start_time: string; end_time: string; name?: string }>>([]);
-  const [availableTimeSlots, setAvailableTimeSlots] = useState<Array<{ weekday: string; timeframe_id?: string }>>([]);
   const [isLoadingTimeframes, setIsLoadingTimeframes] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
 
@@ -568,43 +567,9 @@ export default function ActivityForm({
         }
         
         setTimeframes(fetchedTimeframes);
-        
-        // Fetch available timeslots if we have an activity ID
-        let availableSlots: Array<{ weekday: string; timeframe_id?: string }> = [];
-        
-        if (formData.id) {
-          try {
-            // Try to fetch available time slots from API
-            const slotsResponse = await fetch(`/api/activities/${formData.id}/schedules/available`);
-            
-            if (slotsResponse.ok) {
-              const slotsData = await slotsResponse.json() as Array<{ weekday: string; timeframe_id?: string }> | { data: Array<{ weekday: string; timeframe_id?: string }> };
-              if (Array.isArray(slotsData)) {
-                availableSlots = slotsData;
-              } else if (slotsData && 'data' in slotsData && Array.isArray(slotsData.data)) {
-                availableSlots = slotsData.data;
-              }
-            }
-          } catch {
-            // Silently handle error and continue with fallback
-          }
-        }
-        
-        // If we couldn't get slots from API or it's a new activity, generate all possible slots
-        if (availableSlots.length === 0) {
-          availableSlots = fetchedTimeframes.flatMap(tf => 
-            ["1", "2", "3", "4", "5"].map(day => ({
-              weekday: day,
-              timeframe_id: tf.id
-            }))
-          );
-        }
-        
-        setAvailableTimeSlots(availableSlots);
       } catch {
         // Handle error by clearing timeframes
         setTimeframes([]);
-        setAvailableTimeSlots([]);
       } finally {
         setIsLoadingTimeframes(false);
       }
@@ -852,7 +817,6 @@ export default function ActivityForm({
               onEdit={handleEditTimeSlot}
               parentActivityId={formData.id}
               timeframes={timeframes}
-              availableTimeSlots={availableTimeSlots}
             />
             {isLoadingTimeframes && (
               <div className="mt-2 text-sm text-gray-500 italic">
