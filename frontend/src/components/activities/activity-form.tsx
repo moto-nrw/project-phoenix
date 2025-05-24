@@ -121,7 +121,6 @@ const TimeSlotEditor = ({
   onEdit,
   parentActivityId,
   timeframes = [],
-  availableTimeSlots = [],
 }: {
   timeSlots: ActivitySchedule[];
   onAdd: (timeSlot: Omit<ActivitySchedule, "id" | "created_at" | "updated_at">) => void;
@@ -129,7 +128,6 @@ const TimeSlotEditor = ({
   onEdit?: (index: number, timeSlot: Partial<ActivitySchedule>) => void;
   parentActivityId?: string;
   timeframes?: Array<{ id: string; start_time: string; end_time: string; name?: string }>;
-  availableTimeSlots?: Array<{ weekday: string; timeframe_id?: string }>;
 }) => {
   const [weekday, setWeekday] = useState("1");
   const [timeframeId, setTimeframeId] = useState("");
@@ -164,34 +162,15 @@ const TimeSlotEditor = ({
     );
   };
 
-  // Check if a time slot is already in use based on available slots from API
-  const isTimeSlotTaken = (weekday: string, timeframeId: string): boolean => {
-    // First check existing time slots for conflicts
-    if (isTimeSlotConflict(weekday, timeframeId)) {
-      return true;
-    }
-    
-    // If we don't have a list of available time slots from API, only check conflicts
-    if (!availableTimeSlots || availableTimeSlots.length === 0) return false;
-    
-    // Check if this time slot is available in the available slots
-    const isAvailable = availableTimeSlots.some(slot => 
-      slot.weekday.toLowerCase() === weekday.toLowerCase() && 
-      slot.timeframe_id === (timeframeId || undefined)
-    );
-    
-    // Return true if not available (taken)
-    return !isAvailable;
-  };
 
   const handleAddTimeSlot = () => {
-    if (!weekday) {
-      setError("Bitte geben Sie einen Wochentag an.");
+    if (!timeframeId) {
+      setError("Bitte wählen Sie einen Zeitrahmen aus");
       return;
     }
 
     // Check for conflicts with existing timeslots
-    if (timeframeId && isTimeSlotConflict(weekday, timeframeId)) {
+    if (isTimeSlotConflict(weekday, timeframeId)) {
       setError(`Dieser Zeitslot ist bereits belegt (${formatWeekday(weekday)}, ${getTimeframeLabel(timeframeId)}).`);
       return;
     }
@@ -325,8 +304,7 @@ const TimeSlotEditor = ({
           <select
             value={weekday}
             onChange={(e) => setWeekday(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-            aria-label="Wählen Sie einen Wochentag"
+            className="w-full rounded-lg border border-gray-300 px-4 py-2"
           >
             {weekdays.map((day) => (
               <option key={day.value} value={day.value}>
@@ -343,43 +321,20 @@ const TimeSlotEditor = ({
           <select
             value={timeframeId}
             onChange={(e) => setTimeframeId(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-            aria-label="Wählen Sie einen Zeitrahmen"
+            className="w-full rounded-lg border border-gray-300 px-4 py-2"
           >
-            <option value="">Ganztägig</option>
-            {timeframes.map((timeframe) => {
-              const isTaken = isTimeSlotTaken(weekday, timeframe.id);
-              const isConflict = isTimeSlotConflict(
-                weekday, 
-                timeframe.id, 
-                editingIndex ?? undefined
-              );
-              
-              // If we're editing, don't disable if it's the same as the current value
-              const disabled = editingIndex !== null ? 
-                isConflict : // When editing, only disable conflicts
-                isTaken;    // When adding new, disable taken slots
-              
-              return (
-                <option 
-                  key={timeframe.id} 
-                  value={timeframe.id}
-                  disabled={disabled}
-                  className={disabled ? "text-gray-400" : ""}
-                >
-                  {timeframe.name ?? `${timeframe.start_time}-${timeframe.end_time}`}
-                  {disabled ? ' (Bereits belegt)' : ''}
-                </option>
-              );
-            })}
+            <option value="">Zeitrahmen auswählen</option>
+            {timeframes.map((timeframe) => (
+              <option key={timeframe.id} value={timeframe.id}>
+                {timeframe.name ?? `${timeframe.start_time}-${timeframe.end_time}`}
+              </option>
+            ))}
           </select>
-          <div className="mt-1 text-xs text-gray-500">
-            {timeframeId ? (
-              timeframes.find(tf => tf.id === timeframeId) ? (
-                <span>Zeitrahmen: {getTimeframeLabel(timeframeId)}</span>
-              ) : "Unbekannter Zeitrahmen"
-            ) : "Bei 'Ganztägig' wird kein spezifischer Zeitrahmen festgelegt"}
-          </div>
+          {timeframes.length === 0 && (
+            <p className="mt-1 text-sm text-red-600">
+              Keine Zeitrahmen verfügbar. Bitte erstellen Sie zuerst Zeitrahmen in den Systemeinstellungen.
+            </p>
+          )}
         </div>
       </div>
 
@@ -405,10 +360,10 @@ const TimeSlotEditor = ({
           <button
             type="button"
             onClick={handleAddTimeSlot}
-            disabled={isCreatingTimespan}
-            className="rounded-lg bg-purple-600 px-4 py-2 text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+            disabled={isCreatingTimespan || !timeframeId || timeframes.length === 0}
+            className="rounded-lg bg-green-500 px-4 py-2 text-white transition-colors hover:bg-green-600 disabled:opacity-50"
           >
-            {isCreatingTimespan ? "Wird hinzugefügt..." : "Zeitslot hinzufügen"}
+            {isCreatingTimespan ? "Wird hinzugefügt..." : "Zeit hinzufügen"}
           </button>
         )}
       </div>
