@@ -45,6 +45,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/", rs.listRooms)
 		r.Get("/{id}", rs.getRoom)
 		r.Get("/by-category", rs.getRoomsByCategory)
+		r.Get("/{id}/history", rs.getRoomHistory)
 	})
 
 	// Protected routes that require authentication and permissions
@@ -397,4 +398,44 @@ func (rs *Resource) getAvailableRooms(w http.ResponseWriter, r *http.Request) {
 
 	// Return response
 	common.Respond(w, r, http.StatusOK, roomResponses, "Available rooms retrieved successfully")
+}
+
+// getRoomHistory handles getting the visit history for a room
+func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
+	// Parse ID from URL
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get time range from query parameters
+	startTime := time.Now().AddDate(0, 0, -7) // Default to last 7 days
+	endTime := time.Now()
+
+	if startStr := r.URL.Query().Get("start"); startStr != "" {
+		if parsedStart, err := time.Parse(time.RFC3339, startStr); err == nil {
+			startTime = parsedStart
+		}
+	}
+
+	if endStr := r.URL.Query().Get("end"); endStr != "" {
+		if parsedEnd, err := time.Parse(time.RFC3339, endStr); err == nil {
+			endTime = parsedEnd
+		}
+	}
+
+	// Get room history from service
+	history, err := rs.FacilityService.GetRoomHistory(r.Context(), id, startTime, endTime)
+	if err != nil {
+		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Return response
+	common.Respond(w, r, http.StatusOK, history, "Room history retrieved successfully")
 }
