@@ -2,6 +2,9 @@ services:
   server:
     build:
       context: ./backend
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
     depends_on:
       postgres:
         condition: service_healthy
@@ -36,6 +39,9 @@ services:
   frontend:
     build:
       context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
     ports:
       - "3000:3000"
     environment:
@@ -76,8 +82,6 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 1s
       timeout: 1s
-      retries: 10
-      start_period: 10s
-
+      retries: 2
 volumes:
   postgres:

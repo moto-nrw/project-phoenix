@@ -1,10 +1,12 @@
+# syntax=docker/dockerfile:1
 FROM node:20-alpine AS base
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies with cache mount
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --cache /root/.npm
 
 # Copy source files
 COPY . .
