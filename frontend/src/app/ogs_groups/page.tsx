@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-// @ts-expect-error - ResponsiveLayout import issue
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Input } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
@@ -437,7 +436,7 @@ export default function OGSGroupPage() {
                                 <div className="space-y-2">
                                     {filteredStudents.length > 0 ? (
                                         filteredStudents.map((student) => {
-                                            const year = getSchoolYear(student.school_class);
+                                            const year = getSchoolYear(student.school_class ?? '');
                                             const yearColor = getYearColor(year);
 
                                             return (

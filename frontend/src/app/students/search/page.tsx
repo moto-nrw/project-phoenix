@@ -147,40 +147,6 @@ function SearchPageContent() {
   // Mobile-specific state
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
-  // Load demo data and groups on mount
-  useEffect(() => {
-    // Set demo students
-    setStudents(exampleStudents);
-
-    // Extract unique groups from demo data
-    const uniqueGroups = Array.from(
-      new Set(exampleStudents.map(s => s.group_name).filter(Boolean))
-    ).map((name, index) => ({
-      id: `g${index + 1}`,
-      name: name!
-    }));
-    setGroups(uniqueGroups);
-  }, []);
-
-  // Debounced search effect
-  useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    searchTimeoutRef.current = setTimeout(() => {
-      if (searchTerm.length >= 2 || searchTerm.length === 0) {
-        void fetchStudents();
-      }
-    }, 300);
-
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [searchTerm, fetchStudents]);
-
   const fetchStudents = useCallback(async (filters?: {
     search?: string;
     groupId?: string;
@@ -216,6 +182,40 @@ function SearchPageContent() {
       setIsSearching(false);
     }
   }, [searchTerm, selectedGroup]);
+
+  // Load demo data and groups on mount
+  useEffect(() => {
+    // Set demo students
+    setStudents(exampleStudents);
+
+    // Extract unique groups from demo data
+    const uniqueGroups = Array.from(
+      new Set(exampleStudents.map(s => s.group_name).filter(Boolean))
+    ).map((name, index) => ({
+      id: `g${index + 1}`,
+      name: name!
+    }));
+    setGroups(uniqueGroups);
+  }, []);
+
+  // Debounced search effect
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      if (searchTerm.length >= 2 || searchTerm.length === 0) {
+        void fetchStudents();
+      }
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm, fetchStudents]);
 
   const handleSearch = () => {
     const filters = {
