@@ -165,7 +165,7 @@ type ActivityRequest struct {
 
 // ScheduleRequest represents a schedule in activity creation/update request
 type ScheduleRequest struct {
-	Weekday     string `json:"weekday"`
+	Weekday     int    `json:"weekday"`
 	TimeframeID *int64 `json:"timeframe_id,omitempty"`
 }
 
@@ -262,7 +262,7 @@ func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityR
 			// Create schedule response with safer access to fields
 			scheduleResponse := ScheduleResponse{
 				ID:              schedule.ID,
-				Weekday:         schedule.Weekday,
+				Weekday:         weekdayIntToString(schedule.Weekday),
 				ActivityGroupID: schedule.ActivityGroupID,
 				CreatedAt:       schedule.CreatedAt,
 				UpdatedAt:       schedule.UpdatedAt,
@@ -467,7 +467,7 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 			if schedule != nil {
 				responseSchedules = append(responseSchedules, ScheduleResponse{
 					ID:              schedule.ID,
-					Weekday:         schedule.Weekday,
+					Weekday:         weekdayIntToString(schedule.Weekday),
 					TimeframeID:     schedule.TimeframeID,
 					ActivityGroupID: schedule.ActivityGroupID,
 					CreatedAt:       schedule.CreatedAt,
@@ -647,7 +647,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 			}
 			_, err = rs.ActivityService.AddSchedule(r.Context(), updatedGroup.ID, schedule)
 			if err != nil {
-				log.Printf("Warning: Failed to add schedule (weekday=%s, timeframe=%v): %v", scheduleReq.Weekday, scheduleReq.TimeframeID, err)
+				log.Printf("Warning: Failed to add schedule (weekday=%d, timeframe=%v): %v", scheduleReq.Weekday, scheduleReq.TimeframeID, err)
 				// Don't fail the whole update, just log the warning
 			}
 		}
@@ -1078,6 +1078,60 @@ func formatEndTime(endTime *time.Time) string {
 	return endTime.Format("15:04")
 }
 
+// weekdayIntToString converts integer weekday (1-7) to string representation
+func weekdayIntToString(weekday int) string {
+	weekdayNames := map[int]string{
+		1: "MONDAY",
+		2: "TUESDAY",
+		3: "WEDNESDAY",
+		4: "THURSDAY",
+		5: "FRIDAY",
+		6: "SATURDAY",
+		7: "SUNDAY",
+	}
+	if name, ok := weekdayNames[weekday]; ok {
+		return name
+	}
+	return fmt.Sprintf("INVALID_%d", weekday)
+}
+
+// weekdayStringToInt converts string weekday to integer (1-7)
+func weekdayStringToInt(weekday string) int {
+	weekdayMap := map[string]int{
+		"MONDAY":    1,
+		"TUESDAY":   2,
+		"WEDNESDAY": 3,
+		"THURSDAY":  4,
+		"FRIDAY":    5,
+		"SATURDAY":  6,
+		"SUNDAY":    7,
+		// Also support lowercase
+		"monday":    1,
+		"tuesday":   2,
+		"wednesday": 3,
+		"thursday":  4,
+		"friday":    5,
+		"saturday":  6,
+		"sunday":    7,
+		// Support short codes
+		"MON": 1,
+		"TUE": 2,
+		"WED": 3,
+		"THU": 4,
+		"FRI": 5,
+		"SAT": 6,
+		"SUN": 7,
+	}
+	if val, ok := weekdayMap[weekday]; ok {
+		return val
+	}
+	// Try to parse as integer directly
+	if num, err := strconv.Atoi(weekday); err == nil && num >= 1 && num <= 7 {
+		return num
+	}
+	return 0 // Invalid
+}
+
 // SCHEDULE MANAGEMENT HANDLERS
 
 // getActivitySchedules retrieves all schedules for a specific activity
@@ -1118,7 +1172,7 @@ func (rs *Resource) getActivitySchedules(w http.ResponseWriter, r *http.Request)
 
 		responses = append(responses, ScheduleResponse{
 			ID:              schedule.ID,
-			Weekday:         schedule.Weekday,
+			Weekday:         weekdayIntToString(schedule.Weekday),
 			TimeframeID:     schedule.TimeframeID,
 			ActivityGroupID: schedule.ActivityGroupID,
 			CreatedAt:       schedule.CreatedAt,
@@ -1178,7 +1232,7 @@ func (rs *Resource) getActivitySchedule(w http.ResponseWriter, r *http.Request) 
 	// Convert to response object
 	response := ScheduleResponse{
 		ID:              schedule.ID,
-		Weekday:         schedule.Weekday,
+		Weekday:         weekdayIntToString(schedule.Weekday),
 		TimeframeID:     schedule.TimeframeID,
 		ActivityGroupID: schedule.ActivityGroupID,
 		CreatedAt:       schedule.CreatedAt,
@@ -1198,11 +1252,15 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 	durationStr := r.URL.Query().Get("duration") // Duration in minutes
 
 	// Validate weekday if provided
-	if weekday != "" && !activities.IsValidWeekday(weekday) {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid weekday"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+	if weekday != "" {
+		// Convert weekday string to integer for validation
+		weekdayInt := weekdayStringToInt(weekday)
+		if !activities.IsValidWeekday(weekdayInt) {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid weekday"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
 		}
-		return
 	}
 
 	// Parse room ID if provided (currently unused)
@@ -1348,7 +1406,7 @@ func (rs *Resource) createActivitySchedule(w http.ResponseWriter, r *http.Reques
 	// Convert to response
 	response := ScheduleResponse{
 		ID:              createdSchedule.ID,
-		Weekday:         createdSchedule.Weekday,
+		Weekday:         weekdayIntToString(createdSchedule.Weekday),
 		TimeframeID:     createdSchedule.TimeframeID,
 		ActivityGroupID: createdSchedule.ActivityGroupID,
 		CreatedAt:       createdSchedule.CreatedAt,
@@ -1428,7 +1486,7 @@ func (rs *Resource) updateActivitySchedule(w http.ResponseWriter, r *http.Reques
 	// Convert to response
 	response := ScheduleResponse{
 		ID:              updatedSchedule.ID,
-		Weekday:         updatedSchedule.Weekday,
+		Weekday:         weekdayIntToString(updatedSchedule.Weekday),
 		TimeframeID:     updatedSchedule.TimeframeID,
 		ActivityGroupID: updatedSchedule.ActivityGroupID,
 		CreatedAt:       updatedSchedule.CreatedAt,

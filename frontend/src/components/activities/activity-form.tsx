@@ -131,7 +131,7 @@ const TimeSlotEditor = ({
   timeframes?: Array<{ id: string; start_time: string; end_time: string; name?: string }>;
   availableTimeSlots?: Array<{ weekday: string; timeframe_id?: string }>;
 }) => {
-  const [weekday, setWeekday] = useState("monday");
+  const [weekday, setWeekday] = useState("1");
   const [timeframeId, setTimeframeId] = useState("");
   const [isCreatingTimespan, setIsCreatingTimespan] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,13 +141,13 @@ const TimeSlotEditor = ({
   const activityId = parentActivityId ?? "temp";
 
   const weekdays = [
-    { value: "monday", label: "Montag" },
-    { value: "tuesday", label: "Dienstag" },
-    { value: "wednesday", label: "Mittwoch" },
-    { value: "thursday", label: "Donnerstag" },
-    { value: "friday", label: "Freitag" },
-    { value: "saturday", label: "Samstag" },
-    { value: "sunday", label: "Sonntag" },
+    { value: "1", label: "Montag" },
+    { value: "2", label: "Dienstag" },
+    { value: "3", label: "Mittwoch" },
+    { value: "4", label: "Donnerstag" },
+    { value: "5", label: "Freitag" },
+    { value: "6", label: "Samstag" },
+    { value: "7", label: "Sonntag" },
   ];
 
   // Check if a time slot is already in use by existing time slots
@@ -256,7 +256,7 @@ const TimeSlotEditor = ({
   const cancelEdit = () => {
     setEditingIndex(null);
     setTimeframeId("");
-    setWeekday("monday");
+    setWeekday("1");
     setError(null);
   };
 
@@ -271,6 +271,14 @@ const TimeSlotEditor = ({
 
   const formatWeekday = (day: string): string => {
     const weekdayMap: Record<string, string> = {
+      "1": "Montag",
+      "2": "Dienstag",
+      "3": "Mittwoch",
+      "4": "Donnerstag",
+      "5": "Freitag",
+      "6": "Samstag",
+      "7": "Sonntag",
+      // Support legacy string values for backward compatibility
       monday: "Montag",
       tuesday: "Dienstag",
       wednesday: "Mittwoch",
@@ -279,12 +287,20 @@ const TimeSlotEditor = ({
       saturday: "Samstag",
       sunday: "Sonntag",
     };
-    return weekdayMap[day.toLowerCase()] ?? day;
+    return weekdayMap[day.toLowerCase()] ?? weekdayMap[day] ?? day;
   };
 
   // Sort time slots by weekday
   const sortedTimeSlots = [...timeSlots].sort((a, b) => {
     const weekdayOrder: Record<string, number> = {
+      "1": 1,
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "5": 5,
+      "6": 6,
+      "7": 7,
+      // Legacy support
       monday: 1,
       tuesday: 2,
       wednesday: 3,
@@ -293,12 +309,15 @@ const TimeSlotEditor = ({
       saturday: 6,
       sunday: 7,
     };
-    return (weekdayOrder[a.weekday.toLowerCase()] ?? 99) - (weekdayOrder[b.weekday.toLowerCase()] ?? 99);
+    const aOrder = weekdayOrder[a.weekday] ?? weekdayOrder[a.weekday.toLowerCase()] ?? 99;
+    const bOrder = weekdayOrder[b.weekday] ?? weekdayOrder[b.weekday.toLowerCase()] ?? 99;
+    return aOrder - bOrder;
   });
 
   // Group time slots by weekday for better organization
   const timeSlotsByWeekday = sortedTimeSlots.reduce((acc, slot) => {
-    const day = slot.weekday.toLowerCase();
+    // Use the weekday directly (it's now an integer string)
+    const day = slot.weekday;
     acc[day] ??= [];
     acc[day].push(slot);
     return acc;
@@ -635,7 +654,7 @@ export default function ActivityForm({
         // If we couldn't get slots from API or it's a new activity, generate all possible slots
         if (availableSlots.length === 0) {
           availableSlots = fetchedTimeframes.flatMap(tf => 
-            ["monday", "tuesday", "wednesday", "thursday", "friday"].map(day => ({
+            ["1", "2", "3", "4", "5"].map(day => ({
               weekday: day,
               timeframe_id: tf.id
             }))
@@ -683,7 +702,7 @@ export default function ActivityForm({
 
   const prepareDataForSubmission = (): Partial<Activity> & { schedules?: Array<{
     id?: number;
-    weekday: string;
+    weekday: number;
     timeframe_id: number | null;
   }> } => {
     // Convert form data to what the backend API expects
@@ -692,7 +711,7 @@ export default function ActivityForm({
       // Add schedules for backend - handle both temp and real IDs
       schedules: timeSlots.map(slot => ({
         id: slot.id && !slot.id.startsWith('temp') ? parseInt(slot.id, 10) : undefined,
-        weekday: slot.weekday.toUpperCase(),
+        weekday: parseInt(slot.weekday, 10),
         timeframe_id: slot.timeframe_id ? parseInt(slot.timeframe_id, 10) : null
       }))
     };

@@ -56,7 +56,7 @@ export const PUT = createPutHandler(async (
   try {
     // Prepare data for backend
     const backendData = {
-      weekday: body.weekday?.toUpperCase(),
+      weekday: body.weekday ? parseInt(body.weekday.toString(), 10) : undefined,
       timeframe_id: body.timeframe_id
     };
     

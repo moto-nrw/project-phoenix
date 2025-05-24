@@ -758,7 +758,7 @@ func intPtr(i int) *int {
 }
 
 func seedActivitySchedules(ctx context.Context, tx bun.Tx, activityGroupIDs []int64, timeframeIDs []int64, rng *rand.Rand) ([]int64, error) {
-	weekdays := []string{"Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"}
+	weekdays := []int{1, 2, 3, 4, 5} // Monday to Friday (ISO 8601: 1=Monday, 5=Friday)
 	// Activity blocks are timeframes 2 and 4 (1. AG-Block and 2. AG-Block)
 	activityTimeframes := []int64{timeframeIDs[2], timeframeIDs[4]}
 
@@ -770,7 +770,7 @@ func seedActivitySchedules(ctx context.Context, tx bun.Tx, activityGroupIDs []in
 		sessionsPerWeek := rng.Intn(3) + 1
 		
 		// Pick random weekdays
-		shuffledWeekdays := make([]string, len(weekdays))
+		shuffledWeekdays := make([]int, len(weekdays))
 		copy(shuffledWeekdays, weekdays)
 		for i := len(shuffledWeekdays) - 1; i > 0; i-- {
 			j := rng.Intn(i + 1)
