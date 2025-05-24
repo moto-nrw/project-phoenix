@@ -266,7 +266,7 @@ export default function DashboardPage() {
     return (
         <div className="min-h-screen">
             {/* Header */}
-            <Header userName={session?.user?.name ?? "Root"} />
+            <Header userName={session?.user?.name ?? "Benutzer"} />
 
             <div className="flex">
                 {/* Sidebar Navigation */}

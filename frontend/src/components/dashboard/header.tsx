@@ -4,6 +4,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { useCurrentPerson } from "~/lib/usercontext-context";
+import { useSession } from "next-auth/react";
 
 interface HeaderProps {
     userName?: string;
@@ -29,7 +31,14 @@ const LogoutIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
-export function Header({ userName = "Root" }: HeaderProps) {
+export function Header({ userName = "Benutzer" }: HeaderProps) {
+    const { person } = useCurrentPerson();
+    const { data: session } = useSession();
+    
+    // Determine the display name with proper fallback logic
+    // Now firstName is available immediately from session, no flash!
+    const displayName = session?.user?.firstName ?? person?.first_name ?? userName ?? session?.user?.name ?? "Benutzer";
+    
     return (
         <header className="w-full bg-white/80 py-4 shadow-sm backdrop-blur-sm">
             <div className="w-full px-4 flex items-center justify-between">
@@ -57,7 +66,7 @@ export function Header({ userName = "Root" }: HeaderProps) {
                         moto
                     </span>
                     <h1 className="text-lg md:text-2xl font-bold ml-3 md:ml-6">
-                        <span>Willkommen, {userName}!</span>
+                        <span>Willkommen, {displayName}!</span>
                     </h1>
                 </div>
 

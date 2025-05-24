@@ -3,11 +3,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { userContextService } from "./usercontext-api";
-import type { EducationalGroup } from "./usercontext-helpers";
+import type { EducationalGroup, Person } from "./usercontext-helpers";
 
 interface UserContextState {
     educationalGroups: EducationalGroup[];
     hasEducationalGroups: boolean;
+    person: Person | null;
     isLoading: boolean;
     error: string | null;
     refetch: () => Promise<void>;
@@ -22,13 +23,15 @@ interface UserContextProviderProps {
 export function UserContextProvider({ children }: UserContextProviderProps) {
     const { data: session, status } = useSession();
     const [educationalGroups, setEducationalGroups] = useState<EducationalGroup[]>([]);
+    const [person, setPerson] = useState<Person | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const fetchEducationalGroups = useCallback(async () => {
+    const fetchUserData = useCallback(async () => {
         // Only fetch if we have an authenticated session
         if (!session?.user?.token) {
             setEducationalGroups([]);
+            setPerson(null);
             setIsLoading(false);
             return;
         }
@@ -36,13 +39,31 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
         try {
             setIsLoading(true);
             setError(null);
-            const groups = await userContextService.getMyEducationalGroups();
+            
+            // Fetch both educational groups and person data in parallel
+            const [groups, personData] = await Promise.all([
+                userContextService.getMyEducationalGroups(),
+                userContextService.getCurrentPerson().catch((err: unknown) => {
+                    console.error("Error fetching current person:", err);
+                    if (err && typeof err === 'object' && 'response' in err && 
+                        typeof err.response === 'object' && err.response && 
+                        'status' in err.response && err.response.status === 404) {
+                        // Return null if person not found (404)
+                        return null;
+                    }
+                    // Rethrow other errors to be handled by the outer try-catch
+                    throw err;
+                })
+            ]);
+            
             setEducationalGroups(groups);
+            setPerson(personData);
         } catch (err) {
-            console.error("Failed to fetch educational groups:", err);
-            setError(err instanceof Error ? err.message : "Failed to fetch educational groups");
-            // Set empty array on error so UI doesn't show OGS groups
+            console.error("Failed to fetch user data:", err);
+            setError(err instanceof Error ? err.message : "Failed to fetch user data");
+            // Set empty data on error
             setEducationalGroups([]);
+            setPerson(null);
         } finally {
             setIsLoading(false);
         }
@@ -51,10 +72,11 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
     useEffect(() => {
         // Only fetch when session status is "authenticated" and we have a token
         if (status === "authenticated" && session?.user?.token) {
-            void fetchEducationalGroups();
+            void fetchUserData();
         } else if (status === "unauthenticated") {
             // Clear data when unauthenticated
             setEducationalGroups([]);
+            setPerson(null);
             setIsLoading(false);
             setError(null);
         }
@@ -62,14 +84,15 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
         else if (status === "loading") {
             setIsLoading(true);
         }
-    }, [status, session?.user?.token, fetchEducationalGroups]);
+    }, [status, session?.user?.token, fetchUserData]);
 
     const value: UserContextState = {
         educationalGroups,
         hasEducationalGroups: educationalGroups.length > 0,
+        person,
         isLoading,
         error,
-        refetch: fetchEducationalGroups,
+        refetch: fetchUserData,
     };
 
     return (
@@ -91,4 +114,19 @@ export function useUserContext() {
 export function useHasEducationalGroups() {
     const { hasEducationalGroups, isLoading, error } = useUserContext();
     return { hasEducationalGroups, isLoading, error };
+}
+
+// Hook for accessing current user's person data
+export function useCurrentPerson() {
+    const { person, isLoading, error } = useUserContext();
+    return { person, isLoading, error };
+}
+
+// Safe hook for accessing current user's person data (returns null when not in provider)
+export function useCurrentPersonSafe() {
+    const context = useContext(UserContextContext);
+    if (context === undefined) {
+        return { person: null, isLoading: false, error: null };
+    }
+    return { person: context.person, isLoading: context.isLoading, error: context.error };
 }

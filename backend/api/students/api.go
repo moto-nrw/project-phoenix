@@ -102,8 +102,8 @@ type SupervisorContact struct {
 // StudentDetailResponse represents a detailed student response with access control
 type StudentDetailResponse struct {
 	StudentResponse
-	HasFullAccess      bool                 `json:"has_full_access"`
-	GroupSupervisors   []SupervisorContact  `json:"group_supervisors,omitempty"`
+	HasFullAccess    bool                `json:"has_full_access"`
+	GroupSupervisors []SupervisorContact `json:"group_supervisors,omitempty"`
 }
 
 // StudentRequest represents a student creation request with person details
