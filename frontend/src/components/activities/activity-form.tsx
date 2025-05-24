@@ -244,7 +244,7 @@ const TimeSlotEditor = ({
     const timeframe = timeframes.find(tf => tf.id === timeframeId);
     if (!timeframe) return "Unbekannter Zeitrahmen";
     
-    return timeframe.name ?? `${timeframe.start_time}-${timeframe.end_time}`;
+    return timeframe.display_name ?? timeframe.description ?? `${timeframe.start_time}-${timeframe.end_time}`;
   };
 
 
@@ -326,7 +326,7 @@ const TimeSlotEditor = ({
             <option value="">Zeitrahmen auswählen</option>
             {timeframes.map((timeframe) => (
               <option key={timeframe.id} value={timeframe.id}>
-                {timeframe.name ?? `${timeframe.start_time}-${timeframe.end_time}`}
+                {timeframe.display_name ?? timeframe.description ?? `${timeframe.start_time}-${timeframe.end_time}`}
               </option>
             ))}
           </select>
@@ -394,7 +394,7 @@ const TimeSlotEditor = ({
                           <div className={`h-3 w-3 rounded-full mr-2 ${timeframe ? 'bg-blue-500' : 'bg-green-500'}`} />
                           {timeframe ? (
                             <span>
-                              {timeframe.name ?? `${timeframe.start_time}-${timeframe.end_time}`}
+                              {timeframe.display_name ?? timeframe.description ?? `${timeframe.start_time}-${timeframe.end_time}`}
                             </span>
                           ) : (
                             <span className="text-gray-500">Ganztägig</span>
