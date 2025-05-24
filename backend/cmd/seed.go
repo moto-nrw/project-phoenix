@@ -16,8 +16,8 @@ import (
 // seedCmd represents the seed command
 var seedCmd = &cobra.Command{
 	Use:   "seed",
-	Short: "Seed the database with dummy data",
-	Long: `Seed the database with dummy data for testing purposes.
+	Short: "Seed the database with German test data",
+	Long: `Seed the database with German test data for testing purposes.
 This command creates:
 - 24 rooms (classrooms, labs, gym, etc.)
 - 25 groups (grade classes and activity groups)
@@ -176,38 +176,38 @@ func seedRooms(ctx context.Context, tx bun.Tx) ([]int64, error) {
 		category string
 		color    string
 	}{
-		// Classrooms
-		{"101", "Main Building", 1, 30, "Classroom", "#4A90E2"},
-		{"102", "Main Building", 1, 30, "Classroom", "#4A90E2"},
-		{"103", "Main Building", 1, 25, "Classroom", "#4A90E2"},
-		{"201", "Main Building", 2, 35, "Classroom", "#4A90E2"},
-		{"202", "Main Building", 2, 30, "Classroom", "#4A90E2"},
-		{"203", "Main Building", 2, 28, "Classroom", "#4A90E2"},
-		// Science Labs
-		{"Lab 1", "Science Building", 1, 24, "Laboratory", "#50E3C2"},
-		{"Lab 2", "Science Building", 1, 24, "Laboratory", "#50E3C2"},
-		{"Chemistry Lab", "Science Building", 2, 20, "Laboratory", "#50E3C2"},
-		{"Physics Lab", "Science Building", 2, 20, "Laboratory", "#50E3C2"},
-		// Sports Facilities
-		{"Main Gym", "Sports Complex", 1, 100, "Sports", "#7ED321"},
-		{"Small Gym", "Sports Complex", 1, 50, "Sports", "#7ED321"},
-		// Art Rooms
-		{"Art Studio 1", "Creative Wing", 1, 20, "Art", "#F5A623"},
-		{"Music Room", "Creative Wing", 1, 25, "Music", "#BD10E0"},
-		// Computer Labs
-		{"Computer Lab 1", "Tech Center", 1, 30, "Computer", "#9013FE"},
-		{"Computer Lab 2", "Tech Center", 2, 30, "Computer", "#9013FE"},
-		// Library
-		{"Main Library", "Library Building", 1, 80, "Library", "#B8E986"},
-		{"Study Room 1", "Library Building", 2, 15, "Study", "#B8E986"},
-		// Special Purpose
-		{"Cafeteria", "Main Building", 0, 200, "Dining", "#F8E71C"},
-		{"Auditorium", "Main Building", 1, 300, "Assembly", "#D0021B"},
-		{"Nurse's Office", "Main Building", 1, 10, "Medical", "#FF6900"},
-		// Offices
-		{"Principal's Office", "Admin Building", 1, 5, "Office", "#A020F0"},
-		{"Teachers' Lounge", "Admin Building", 1, 40, "Office", "#A020F0"},
-		{"Conference Room", "Admin Building", 2, 20, "Meeting", "#A020F0"},
+		// Klassenzimmer
+		{"101", "Hauptgebäude", 1, 30, "Klassenzimmer", "#4A90E2"},
+		{"102", "Hauptgebäude", 1, 30, "Klassenzimmer", "#4A90E2"},
+		{"103", "Hauptgebäude", 1, 25, "Klassenzimmer", "#4A90E2"},
+		{"201", "Hauptgebäude", 2, 35, "Klassenzimmer", "#4A90E2"},
+		{"202", "Hauptgebäude", 2, 30, "Klassenzimmer", "#4A90E2"},
+		{"203", "Hauptgebäude", 2, 28, "Klassenzimmer", "#4A90E2"},
+		// Naturwissenschaftliche Labore
+		{"Labor 1", "Naturwissenschaftstrakt", 1, 24, "Labor", "#50E3C2"},
+		{"Labor 2", "Naturwissenschaftstrakt", 1, 24, "Labor", "#50E3C2"},
+		{"Chemielabor", "Naturwissenschaftstrakt", 2, 20, "Labor", "#50E3C2"},
+		{"Physiklabor", "Naturwissenschaftstrakt", 2, 20, "Labor", "#50E3C2"},
+		// Sportanlagen
+		{"Hauptsporthalle", "Sportkomplex", 1, 100, "Sport", "#7ED321"},
+		{"Kleine Sporthalle", "Sportkomplex", 1, 50, "Sport", "#7ED321"},
+		// Kunsträume
+		{"Kunstraum 1", "Kreativtrakt", 1, 20, "Kunst", "#F5A623"},
+		{"Musikraum", "Kreativtrakt", 1, 25, "Musik", "#BD10E0"},
+		// Computerräume
+		{"Computerraum 1", "IT-Zentrum", 1, 30, "Computer", "#9013FE"},
+		{"Computerraum 2", "IT-Zentrum", 2, 30, "Computer", "#9013FE"},
+		// Bibliothek
+		{"Hauptbibliothek", "Bibliotheksgebäude", 1, 80, "Bibliothek", "#B8E986"},
+		{"Lernraum 1", "Bibliotheksgebäude", 2, 15, "Lernraum", "#B8E986"},
+		// Sonderzweckräume
+		{"Mensa", "Hauptgebäude", 0, 200, "Speiseraum", "#F8E71C"},
+		{"Aula", "Hauptgebäude", 1, 300, "Versammlung", "#D0021B"},
+		{"Krankenzimmer", "Hauptgebäude", 1, 10, "Medizin", "#FF6900"},
+		// Büros
+		{"Rektorat", "Verwaltungsgebäude", 1, 5, "Büro", "#A020F0"},
+		{"Lehrerzimmer", "Verwaltungsgebäude", 1, 40, "Büro", "#A020F0"},
+		{"Konferenzraum", "Verwaltungsgebäude", 2, 20, "Besprechung", "#A020F0"},
 	}
 
 	roomIDs := make([]int64, 0, len(roomData))
@@ -245,34 +245,34 @@ func seedGroups(ctx context.Context, tx bun.Tx, roomIDs []int64) ([]int64, error
 		name   string
 		roomID *int64
 	}{
-		// Grade classes - assign to available classrooms
-		{"Class 1A", room1},
-		{"Class 1B", room2},
-		{"Class 2A", room3},
-		{"Class 2B", room4},
-		{"Class 3A", room5},
-		{"Class 3B", room6},
-		{"Class 4A", nil}, // No more classrooms available
-		{"Class 4B", nil},
-		{"Class 5A", nil},
-		{"Class 5B", nil},
-		// Activity groups - no specific room assignment
-		{"Science Club", nil},
-		{"Art Club", nil},
-		{"Drama Club", nil},
-		{"Math Club", nil},
-		{"Chess Club", nil},
-		{"Sports Team A", nil},
-		{"Sports Team B", nil},
-		{"Music Band", nil},
-		{"Debate Club", nil},
-		{"Computer Club", nil},
-		// Special groups
-		{"After School Care", nil},
-		{"Morning Care", nil},
-		{"Homework Help", nil},
-		{"Reading Club", nil},
-		{"Environmental Club", nil},
+		// Schulklassen - Zuweisung zu verfügbaren Klassenräumen
+		{"Klasse 1A", room1},
+		{"Klasse 1B", room2},
+		{"Klasse 2A", room3},
+		{"Klasse 2B", room4},
+		{"Klasse 3A", room5},
+		{"Klasse 3B", room6},
+		{"Klasse 4A", nil}, // Keine weiteren Klassenräume verfügbar
+		{"Klasse 4B", nil},
+		{"Klasse 5A", nil},
+		{"Klasse 5B", nil},
+		// Aktivitätsgruppen - keine spezifische Raumzuweisung
+		{"Naturwissenschafts-AG", nil},
+		{"Kunst-AG", nil},
+		{"Theater-AG", nil},
+		{"Mathematik-AG", nil},
+		{"Schach-AG", nil},
+		{"Sportmannschaft A", nil},
+		{"Sportmannschaft B", nil},
+		{"Schulband", nil},
+		{"Debattier-AG", nil},
+		{"Computer-AG", nil},
+		// Betreuungsgruppen
+		{"Nachmittagsbetreuung", nil},
+		{"Frühbetreuung", nil},
+		{"Hausaufgabenhilfe", nil},
+		{"Lese-AG", nil},
+		{"Umwelt-AG", nil},
 	}
 
 	groupIDs := make([]int64, 0, len(groupData))
@@ -315,27 +315,27 @@ func seedRFIDCards(ctx context.Context, tx bun.Tx) ([]string, error) {
 }
 
 func seedPersons(ctx context.Context, tx bun.Tx, rfidIDs []string, rng *rand.Rand) ([]int64, error) {
-	// First names
+	// Vornamen
 	firstNames := []string{
-		"Emma", "Liam", "Olivia", "Noah", "Ava", "Ethan", "Sophia", "Mason",
-		"Isabella", "William", "Mia", "James", "Charlotte", "Benjamin", "Amelia",
-		"Lucas", "Harper", "Henry", "Evelyn", "Alexander", "Abigail", "Michael",
-		"Emily", "Elijah", "Elizabeth", "Daniel", "Mila", "Aiden", "Ella",
-		"Matthew", "Avery", "Joseph", "Sofia", "Samuel", "Camila", "David",
-		"Aria", "Carter", "Scarlett", "Jackson", "Victoria", "Sebastian", "Madison",
-		"Jack", "Luna", "Owen", "Grace", "Luke", "Chloe", "Gabriel",
+		"Emma", "Ben", "Mia", "Finn", "Hannah", "Paul", "Lina", "Felix",
+		"Sophia", "Noah", "Emilia", "Leon", "Ella", "Elias", "Clara", "Anton",
+		"Anna", "Julian", "Lea", "Emil", "Marie", "Luca", "Leni", "Maximilian",
+		"Ida", "Jonas", "Greta", "Moritz", "Amelie", "Jakob", "Frieda", "David",
+		"Mathilda", "Theo", "Luisa", "Tim", "Charlotte", "Samuel", "Mila", "Alexander",
+		"Johanna", "Matteo", "Nele", "Friedrich", "Paula", "Oskar", "Alma", "Gabriel",
+		"Marlene", "Carl", "Pia", "Leonard", "Juna", "Karl", "Lotte",
 	}
 
-	// Last names
+	// Nachnamen
 	lastNames := []string{
-		"Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller",
-		"Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez",
-		"Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin",
-		"Lee", "Perez", "Thompson", "White", "Harris", "Sanchez", "Clark",
-		"Ramirez", "Lewis", "Robinson", "Walker", "Young", "Allen", "King",
-		"Wright", "Scott", "Torres", "Nguyen", "Hill", "Flores", "Green",
-		"Adams", "Nelson", "Baker", "Hall", "Rivera", "Campbell", "Mitchell",
-		"Carter", "Roberts",
+		"Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner",
+		"Becker", "Schulz", "Hoffmann", "Schäfer", "Koch", "Bauer",
+		"Richter", "Klein", "Wolf", "Schröder", "Neumann", "Schwarz", "Zimmermann",
+		"Braun", "Krüger", "Hofmann", "Hartmann", "Lange", "Schmitt", "Werner",
+		"Schmitz", "Krause", "Meier", "Lehmann", "Schmid", "Schulze", "Maier",
+		"Köhler", "Herrmann", "König", "Walter", "Peters", "Lang", "Möller",
+		"Weis", "Jung", "Hahn", "Schubert", "Vogel", "Friedrich", "Keller",
+		"Schwarz", "Günther",
 	}
 
 	// Create 150 persons (30 staff/teachers + 120 students)
@@ -362,16 +362,16 @@ func seedPersons(ctx context.Context, tx bun.Tx, rfidIDs []string, rng *rand.Ran
 
 func seedStaff(ctx context.Context, tx bun.Tx, personIDs []int64) ([]int64, error) {
 	notes := []string{
-		"Experienced team member",
-		"Department head",
-		"Subject coordinator",
-		"Administrative support",
-		"Senior staff member",
-		"New hire - training in progress",
-		"Part-time staff",
-		"Full-time staff",
-		"Support staff",
-		"Technical specialist",
+		"Erfahrenes Teammitglied",
+		"Abteilungsleiter",
+		"Fachkoordinator",
+		"Verwaltungsunterstützung",
+		"Erfahrene Lehrkraft",
+		"Neue Lehrkraft - in Einarbeitung",
+		"Teilzeitkraft",
+		"Vollzeitkraft",
+		"Unterstützungspersonal",
+		"Fachspezialist",
 	}
 
 	staffIDs := make([]int64, 0, len(personIDs))
@@ -398,26 +398,26 @@ func seedTeachers(ctx context.Context, tx bun.Tx, staffIDs []int64) ([]int64, er
 		role           string
 		qualifications string
 	}{
-		{"Mathematics", "Senior Math Teacher", "M.Ed. Mathematics, 10 years experience"},
-		{"Mathematics", "Math Teacher", "B.Ed. Mathematics, 5 years experience"},
-		{"Science", "Head of Science", "Ph.D. Physics, 15 years experience"},
-		{"Science", "Science Teacher", "M.Sc. Chemistry, 7 years experience"},
-		{"English", "English Department Head", "M.A. English Literature, 12 years experience"},
-		{"English", "English Teacher", "B.A. English, 3 years experience"},
-		{"History", "History Teacher", "M.A. History, 8 years experience"},
-		{"Geography", "Geography Teacher", "B.Ed. Geography, 6 years experience"},
-		{"Physical Education", "PE Coordinator", "B.Ed. Physical Education, 10 years experience"},
-		{"Physical Education", "PE Teacher", "Sports Science Degree, 4 years experience"},
-		{"Art", "Art Teacher", "B.F.A., 5 years experience"},
-		{"Music", "Music Teacher", "B.Mus., 7 years experience"},
-		{"Computer Science", "IT Teacher", "B.Sc. Computer Science, 6 years experience"},
-		{"Languages", "Spanish Teacher", "B.A. Spanish, Native Speaker"},
-		{"Languages", "French Teacher", "M.A. French Literature, 9 years experience"},
-		{"Special Education", "Special Ed Coordinator", "M.Ed. Special Education, 11 years experience"},
-		{"Library", "Librarian", "M.L.S., 8 years experience"},
-		{"Counseling", "School Counselor", "M.Ed. Counseling, 13 years experience"},
-		{"Administration", "Vice Principal", "M.Ed. Administration, 15 years experience"},
-		{"Administration", "Principal", "Ph.D. Education, 20 years experience"},
+		{"Mathematik", "Lehrerin für Mathematik", "Master of Education Mathematik, 10 Jahre Erfahrung"},
+		{"Mathematik", "Mathematiklehrer", "Bachelor of Education Mathematik, 5 Jahre Erfahrung"},
+		{"Naturwissenschaften", "Fachbereichsleiter Naturwissenschaften", "Promotion in Physik, 15 Jahre Erfahrung"},
+		{"Naturwissenschaften", "Naturwissenschaftslehrerin", "Master Chemie, 7 Jahre Erfahrung"},
+		{"Deutsch", "Fachbereichsleiter Deutsch", "Master Deutsche Literatur, 12 Jahre Erfahrung"},
+		{"Deutsch", "Deutschlehrerin", "Bachelor Germanistik, 3 Jahre Erfahrung"},
+		{"Geschichte", "Geschichtslehrer", "Master Geschichte, 8 Jahre Erfahrung"},
+		{"Geografie", "Geografielehrerin", "Bachelor of Education Geografie, 6 Jahre Erfahrung"},
+		{"Sport", "Sportkoordinator", "Bachelor of Education Sport, 10 Jahre Erfahrung"},
+		{"Sport", "Sportlehrerin", "Sportwissenschaft, 4 Jahre Erfahrung"},
+		{"Kunst", "Kunstlehrer", "Bachelor Bildende Kunst, 5 Jahre Erfahrung"},
+		{"Musik", "Musiklehrerin", "Bachelor Musik, 7 Jahre Erfahrung"},
+		{"Informatik", "IT-Lehrer", "Bachelor Informatik, 6 Jahre Erfahrung"},
+		{"Fremdsprachen", "Spanischlehrerin", "Bachelor Spanisch, Muttersprachlerin"},
+		{"Fremdsprachen", "Französischlehrer", "Master Französische Literatur, 9 Jahre Erfahrung"},
+		{"Sonderpädagogik", "Sonderpädagogik-Koordinatorin", "Master Sonderpädagogik, 11 Jahre Erfahrung"},
+		{"Bibliothek", "Bibliothekarin", "Master Bibliothekswissenschaft, 8 Jahre Erfahrung"},
+		{"Beratung", "Schulberaterin", "Master Pädagogik, 13 Jahre Erfahrung"},
+		{"Verwaltung", "Stellvertretende Schulleiterin", "Master Schulmanagement, 15 Jahre Erfahrung"},
+		{"Verwaltung", "Schulleiter", "Promotion Pädagogik, 20 Jahre Erfahrung"},
 	}
 
 	teacherIDs := make([]int64, 0, len(staffIDs))
@@ -442,14 +442,14 @@ func seedTeachers(ctx context.Context, tx bun.Tx, staffIDs []int64) ([]int64, er
 }
 
 func seedStudents(ctx context.Context, tx bun.Tx, personIDs []int64, classGroupIDs []int64, rng *rand.Rand) ([]int64, error) {
-	// Guardian first names
+	// Vornamen der Erziehungsberechtigten
 	guardianFirstNames := []string{
-		"John", "Mary", "Robert", "Patricia", "James", "Jennifer", "Michael",
-		"Linda", "William", "Elizabeth", "David", "Barbara", "Richard", "Susan",
-		"Joseph", "Jessica", "Thomas", "Sarah", "Charles", "Karen",
+		"Andreas", "Sabine", "Michael", "Petra", "Thomas", "Andrea", "Stefan",
+		"Claudia", "Frank", "Monika", "Markus", "Birgit", "Christian", "Ute",
+		"Martin", "Karin", "Ralf", "Gabriele", "Jörg", "Susanne",
 	}
 
-	// Grades for school classes
+	// Klassen
 	grades := []string{"1A", "1B", "2A", "2B", "3A", "3B", "4A", "4B", "5A", "5B"}
 
 	studentIDs := make([]int64, 0, len(personIDs))
@@ -468,8 +468,8 @@ func seedStudents(ctx context.Context, tx bun.Tx, personIDs []int64, classGroupI
 		guardianName := fmt.Sprintf("%s %s", guardianFirstName, personLastName)
 
 		// Generate contact info
-		guardianPhone := fmt.Sprintf("+1 555-%03d-%04d", rng.Intn(1000), rng.Intn(10000))
-		guardianEmail := fmt.Sprintf("%s.%s@email.com",
+		guardianPhone := fmt.Sprintf("+49 %d %d-%d", 30+rng.Intn(900), rng.Intn(900)+100, rng.Intn(9000)+1000)
+		guardianEmail := fmt.Sprintf("%s.%s@gmx.de",
 			strings.ToLower(guardianFirstName),
 			strings.ToLower(personLastName))
 
