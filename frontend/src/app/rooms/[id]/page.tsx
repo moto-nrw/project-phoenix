@@ -190,12 +190,12 @@ export default function RoomDetailPage() {
           }
         }
 
-        const roomResponseData = await roomResponse.json();
+        const roomResponseData = await roomResponse.json() as { data?: BackendRoom } & BackendRoom;
         console.log("Room page received data:", roomResponseData);
         
         // Handle wrapped response format
-        const roomData = roomResponseData.data || roomResponseData;
-        const frontendRoom = mapBackendToFrontendRoom(roomData as BackendRoom);
+        const roomData = roomResponseData.data ?? roomResponseData;
+        const frontendRoom = mapBackendToFrontendRoom(roomData);
         setRoom(frontendRoom);
 
         // Fetch room history data
