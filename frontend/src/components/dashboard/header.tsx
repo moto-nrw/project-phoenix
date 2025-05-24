@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { HelpButton } from "@/components/ui/help_button";
@@ -63,6 +64,7 @@ function getPageTitle(pathname: string): string {
     }
 }
 
+
 interface HeaderProps {
     userName?: string;
 }
@@ -86,6 +88,7 @@ const LogoutIcon = ({ className }: { className?: string }) => (
         <line x1="21" y1="12" x2="9" y2="12" />
     </svg>
 );
+
 
 
 export function Header({ userName = "Root" }: HeaderProps) {
@@ -122,6 +125,7 @@ export function Header({ userName = "Root" }: HeaderProps) {
     const closeMobileNotification = () => {
         setIsMobileNotificationOpen(false);
     };
+
 
     return (
         <header className="sticky top-0 w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 z-50">

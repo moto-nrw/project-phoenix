@@ -45,6 +45,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/", rs.listRooms)
 		r.Get("/{id}", rs.getRoom)
 		r.Get("/by-category", rs.getRoomsByCategory)
+		r.Get("/{id}/history", rs.getRoomHistory)
 	})
 
 	// Protected routes that require authentication and permissions
@@ -397,4 +398,62 @@ func (rs *Resource) getAvailableRooms(w http.ResponseWriter, r *http.Request) {
 
 	// Return response
 	common.Respond(w, r, http.StatusOK, roomResponses, "Available rooms retrieved successfully")
+}
+
+// getRoomHistory handles getting the visit history for a room
+func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
+	// Parse ID from URL
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get time range from query parameters
+	startTime := time.Now().AddDate(0, 0, -7) // Default to last 7 days
+	endTime := time.Now()
+
+	if startStr := r.URL.Query().Get("start"); startStr != "" {
+		parsedStart, err := time.Parse(time.RFC3339, startStr)
+		if err != nil {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start date format"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+		startTime = parsedStart
+	}
+
+	if endStr := r.URL.Query().Get("end"); endStr != "" {
+		parsedEnd, err := time.Parse(time.RFC3339, endStr)
+		if err != nil {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+		endTime = parsedEnd
+	}
+
+	// Validate date range
+	if startTime.After(endTime) {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("start date must be before end date"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get room history from service
+	history, err := rs.FacilityService.GetRoomHistory(r.Context(), id, startTime, endTime)
+	if err != nil {
+		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Return response
+	common.Respond(w, r, http.StatusOK, history, "Room history retrieved successfully")
 }
