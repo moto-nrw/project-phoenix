@@ -29,6 +29,7 @@ func (r *AccountRoleRepository) FindByAccountID(ctx context.Context, accountID i
 	var accountRoles []*auth.AccountRole
 	err := r.db.NewSelect().
 		Model(&accountRoles).
+		ModelTableExpr(`auth.account_roles AS "account_role"`).
 		Where("account_id = ?", accountID).
 		Scan(ctx)
 

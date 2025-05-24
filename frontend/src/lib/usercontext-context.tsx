@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import { userContextService } from "./usercontext-api";
 import type { EducationalGroup } from "./usercontext-helpers";
 
@@ -21,6 +22,7 @@ interface UserContextProviderProps {
 
 export function UserContextProvider({ children }: UserContextProviderProps) {
     const { data: session, status } = useSession();
+    const pathname = usePathname();
     const [educationalGroups, setEducationalGroups] = useState<EducationalGroup[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -52,20 +54,19 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
     }, [session?.user?.token]);
 
     useEffect(() => {
-        // Only fetch when session status is "authenticated" and we have a token
-        if (status === "authenticated" && session?.user?.token) {
+        // Skip API calls on login/register pages
+        const isAuthPage = pathname === "/" || pathname === "/register";
+        
+        // Only fetch when session status is "authenticated" and we have a token and not on auth pages
+        if (status === "authenticated" && session?.user?.token && !isAuthPage) {
             void fetchUserData();
-        } else if (status === "unauthenticated") {
-            // Clear data when unauthenticated
+        } else if (status === "unauthenticated" || status === "loading" || isAuthPage) {
+            // Clear data when unauthenticated, loading, or on auth pages
             setEducationalGroups([]);
             setIsLoading(false);
             setError(null);
         }
-        // Set loading state when session is loading
-        else if (status === "loading") {
-            setIsLoading(true);
-        }
-    }, [status, session?.user?.token, fetchUserData]);
+    }, [status, session?.user?.token, pathname, fetchUserData]);
 
     const value: UserContextState = {
         educationalGroups,
