@@ -3,6 +3,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { createPortal } from 'react-dom';
+import { useModal } from './modal-context';
 
 // Notification interfaces (copied from notification-center.tsx for mobile use)
 interface Notification {
@@ -158,6 +160,7 @@ export function MobileNotificationModal({ isOpen, onClose }: MobileNotificationM
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const modalRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const { openModal, closeModal } = useModal();
 
   // Handle escape key and backdrop click
   useEffect(() => {
@@ -178,6 +181,15 @@ export function MobileNotificationModal({ isOpen, onClose }: MobileNotificationM
       document.addEventListener('mousedown', handleClickOutside);
       // Prevent body scroll when modal is open
       document.body.style.overflow = 'hidden';
+      // Trigger blur effect on layout
+      openModal();
+      // Dispatch custom event for ResponsiveLayout
+      window.dispatchEvent(new CustomEvent('mobile-modal-open'));
+    } else {
+      // Remove blur effect on layout
+      closeModal();
+      // Dispatch custom event for ResponsiveLayout
+      window.dispatchEvent(new CustomEvent('mobile-modal-close'));
     }
 
     return () => {
@@ -185,7 +197,7 @@ export function MobileNotificationModal({ isOpen, onClose }: MobileNotificationM
       document.removeEventListener('mousedown', handleClickOutside);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, openModal, closeModal]);
 
   // Calculate notification counts
   const unreadCount = notifications.filter(n => !n.isRead).length;
@@ -225,13 +237,13 @@ export function MobileNotificationModal({ isOpen, onClose }: MobileNotificationM
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 lg:hidden">
-      {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/25 backdrop-blur-sm transition-opacity duration-300" />
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] lg:hidden">
+      {/* Backdrop without blur (blur is handled by ResponsiveLayout) */}
+      <div className="fixed inset-0 bg-black/30 transition-all duration-300" />
       
       {/* Modal */}
-      <div className="fixed inset-x-0 top-0 z-50">
+      <div className="fixed inset-x-0 top-0 z-[9999]">
         <div 
           ref={modalRef}
           className="mx-4 mt-6 mb-safe bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden"
@@ -395,4 +407,11 @@ export function MobileNotificationModal({ isOpen, onClose }: MobileNotificationM
       </div>
     </div>
   );
+
+  // Render to body to avoid being affected by ResponsiveLayout blur
+  if (typeof document !== 'undefined') {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 }

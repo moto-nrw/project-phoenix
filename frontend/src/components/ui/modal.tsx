@@ -2,6 +2,7 @@
 
 import React, { useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { useModal } from "../dashboard/modal-context";
 
 interface ModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export function Modal({
 }: ModalProps) {
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isExiting, setIsExiting] = React.useState(false);
+  const { openModal, closeModal } = useModal();
 
   // Enhanced close handler with exit animation
   const handleClose = useCallback(() => {
@@ -44,11 +46,20 @@ export function Modal({
       document.addEventListener("keydown", handleEscKey);
       // Disable scrolling on body when modal is open
       document.body.style.overflow = "hidden";
+      // Trigger blur effect on layout
+      openModal();
+      // Dispatch custom event for ResponsiveLayout (help modal)
+      window.dispatchEvent(new CustomEvent('mobile-modal-open'));
       
       // Trigger sophisticated entrance animation with slight delay for smooth effect
       setTimeout(() => {
         setIsAnimating(true);
       }, 10);
+    } else {
+      // Remove blur effect on layout
+      closeModal();
+      // Dispatch custom event for ResponsiveLayout
+      window.dispatchEvent(new CustomEvent('mobile-modal-close'));
     }
 
     return () => {
@@ -60,7 +71,7 @@ export function Modal({
         setIsExiting(false);
       }
     };
-  }, [isOpen, handleClose]);
+  }, [isOpen, handleClose, openModal, closeModal]);
 
   if (!isOpen) return null;
 
@@ -75,8 +86,8 @@ export function Modal({
     <div
       className={`fixed inset-0 z-[9999] flex items-center justify-center transition-all duration-400 ease-out ${
         isAnimating && !isExiting 
-          ? 'bg-black/40 backdrop-blur-md' 
-          : 'bg-black/0 backdrop-blur-none'
+          ? 'bg-black/40' 
+          : 'bg-black/0'
       }`}
       onClick={handleBackdropClick}
       style={{ 

@@ -13,3 +13,4 @@ export * from "./global-search";
 export * from "./mobile-search-modal";
 export * from "./notification-center";
 export * from "./mobile-notification-modal";
+export * from "./modal-context";

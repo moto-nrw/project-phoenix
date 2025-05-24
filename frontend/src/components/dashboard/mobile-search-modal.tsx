@@ -2,7 +2,9 @@
 "use client";
 
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { GlobalSearch } from './global-search';
+import { useModal } from './modal-context';
 
 interface MobileSearchModalProps {
   isOpen: boolean;
@@ -11,6 +13,7 @@ interface MobileSearchModalProps {
 
 export function MobileSearchModal({ isOpen, onClose }: MobileSearchModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
+  const { openModal, closeModal } = useModal();
 
   // Handle escape key and backdrop click
   useEffect(() => {
@@ -31,6 +34,15 @@ export function MobileSearchModal({ isOpen, onClose }: MobileSearchModalProps) {
       document.addEventListener('mousedown', handleClickOutside);
       // Prevent body scroll when modal is open
       document.body.style.overflow = 'hidden';
+      // Trigger blur effect on layout
+      openModal();
+      // Dispatch custom event for ResponsiveLayout
+      window.dispatchEvent(new CustomEvent('mobile-modal-open'));
+    } else {
+      // Remove blur effect on layout
+      closeModal();
+      // Dispatch custom event for ResponsiveLayout
+      window.dispatchEvent(new CustomEvent('mobile-modal-close'));
     }
 
     return () => {
@@ -38,7 +50,7 @@ export function MobileSearchModal({ isOpen, onClose }: MobileSearchModalProps) {
       document.removeEventListener('mousedown', handleClickOutside);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, openModal, closeModal]);
 
   // Auto-focus search input when opened
   useEffect(() => {
@@ -53,13 +65,13 @@ export function MobileSearchModal({ isOpen, onClose }: MobileSearchModalProps) {
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 lg:hidden">
-      {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/25 backdrop-blur-sm transition-opacity duration-300" />
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] lg:hidden">
+      {/* Backdrop without blur (blur is handled by ResponsiveLayout) */}
+      <div className="fixed inset-0 bg-black/30 transition-all duration-300" />
       
       {/* Modal */}
-      <div className="fixed inset-x-0 top-0 z-50">
+      <div className="fixed inset-x-0 top-0 z-[9999]">
         <div 
           ref={modalRef}
           className="mx-4 mt-4 mb-safe bg-white rounded-2xl shadow-2xl overflow-hidden"
@@ -150,4 +162,11 @@ export function MobileSearchModal({ isOpen, onClose }: MobileSearchModalProps) {
       </div>
     </div>
   );
+
+  // Render to body to avoid being affected by ResponsiveLayout blur
+  if (typeof document !== 'undefined') {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 }

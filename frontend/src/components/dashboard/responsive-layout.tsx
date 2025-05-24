@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Header } from './header';
 import { Sidebar } from './sidebar';
 import { MobileBottomNav } from './mobile-bottom-nav';
@@ -10,11 +11,31 @@ interface ResponsiveLayoutProps {
 }
 
 export default function ResponsiveLayout({ children, userName }: ResponsiveLayoutProps) {
+  const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
+
+  // Listen for modal state changes via custom events
+  useEffect(() => {
+    const handleModalOpen = () => setIsMobileModalOpen(true);
+    const handleModalClose = () => setIsMobileModalOpen(false);
+
+    window.addEventListener('mobile-modal-open', handleModalOpen);
+    window.addEventListener('mobile-modal-close', handleModalClose);
+
+    return () => {
+      window.removeEventListener('mobile-modal-open', handleModalOpen);
+      window.removeEventListener('mobile-modal-close', handleModalClose);
+    };
+  }, []);
+
   return (
     <div className="min-h-screen">
-      <Header userName={userName} />
+      {/* Header with conditional blur */}
+      <div className={`transition-all duration-300 ${isMobileModalOpen ? 'blur-md lg:blur-none' : ''}`}>
+        <Header userName={userName} />
+      </div>
       
-      <div className="flex">
+      {/* Main content with conditional blur */}
+      <div className={`flex transition-all duration-300 ${isMobileModalOpen ? 'blur-md lg:blur-none' : ''}`}>
         {/* Desktop sidebar - only visible on md+ screens */}
         <Sidebar className="hidden lg:block" />
         
@@ -24,8 +45,8 @@ export default function ResponsiveLayout({ children, userName }: ResponsiveLayou
         </main>
       </div>
       
-      {/* Mobile bottom navigation - only visible on mobile */}
-      <MobileBottomNav />
+      {/* Mobile bottom navigation with conditional blur */}
+      <MobileBottomNav className={`transition-all duration-300 ${isMobileModalOpen ? 'blur-md lg:blur-none' : ''}`} />
     </div>
   );
 }

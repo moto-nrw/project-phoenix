@@ -89,7 +89,11 @@ const MoreIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-export function MobileBottomNav() {
+interface MobileBottomNavProps {
+  className?: string;
+}
+
+export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
   const pathname = usePathname();
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -286,7 +290,7 @@ export function MobileBottomNav() {
       <nav 
         className={`lg:hidden fixed bottom-0 left-0 right-0 z-30 transition-all duration-300 ease-out ${
           isVisible ? 'translate-y-0' : 'translate-y-full'
-        }`}
+        } ${className}`}
       >
         {/* Gradient backdrop blur */}
         <div className="absolute inset-0 bg-gradient-to-t from-white/95 via-white/90 to-transparent backdrop-blur-xl" />
