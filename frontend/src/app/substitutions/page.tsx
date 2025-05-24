@@ -132,8 +132,6 @@ export default function SubstitutionPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Mobile-specific state
-    const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
     // Popup states
     const [showPopup, setShowPopup] = useState(false);
@@ -214,7 +212,6 @@ export default function SubstitutionPage() {
     // Handle filter reset
     const handleFilterReset = () => {
         setSearchTerm("");
-        setIsMobileFiltersOpen(false);
         void fetchTeachers();
     };
 
@@ -279,8 +276,6 @@ export default function SubstitutionPage() {
         );
     }
 
-    // Common class for all dropdowns to ensure consistent height
-    const dropdownClass = "mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-teal-500 focus:outline-none appearance-none pr-8";
 
     return (
         <ResponsiveLayout userName={session?.user?.name ?? "Root"}>

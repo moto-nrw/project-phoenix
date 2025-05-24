@@ -238,7 +238,7 @@ export default function RoomDetailPage() {
     };
 
     void fetchRoomData();
-  }, [roomId]);
+  }, [roomId, session?.user?.token]);
 
   // Format date for display
   const formatDate = (dateString: string): string => {

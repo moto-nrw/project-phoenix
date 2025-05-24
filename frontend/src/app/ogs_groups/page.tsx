@@ -3,10 +3,24 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-// @ts-ignore
+// @ts-expect-error - ResponsiveLayout import issue
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Input } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
+import { userContextService } from "~/lib/usercontext-api";
+
+// Student type (should match the API response)
+interface Student {
+    id: string;
+    name?: string;
+    first_name?: string;
+    second_name?: string;
+    school_class?: string;
+    in_house: boolean;
+    wc: boolean;
+    school_yard: boolean;
+    bus: boolean;
+}
 
 
 // Define OGSGroup type based on EducationalGroup with additional fields
@@ -163,7 +177,7 @@ export default function OGSGroupPage() {
 
         // Apply year filter
         if (selectedYear !== "all") {
-            const yearMatch = /^(\d)/.exec(student.school_class || '');
+            const yearMatch = /^(\d)/.exec(student.school_class ?? '');
             const studentYear = yearMatch ? yearMatch[1] : null;
             if (studentYear !== selectedYear) {
                 return false;

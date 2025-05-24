@@ -143,7 +143,6 @@ function SearchPageContent() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loadingGroups, setLoadingGroups] = useState(false);
 
   // Mobile-specific state
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
@@ -180,7 +179,7 @@ function SearchPageContent() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchTerm]);
+  }, [searchTerm, fetchStudents]);
 
   const fetchStudents = useCallback(async (filters?: {
     search?: string;
@@ -375,9 +374,8 @@ function SearchPageContent() {
                   value={selectedGroup}
                   onChange={(e) => setSelectedGroup(e.target.value)}
                   className="mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 text-base shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8"
-                  disabled={loadingGroups}
                 >
-                  <option value="">{loadingGroups ? "Lade Gruppen..." : "Alle Gruppen"}</option>
+                  <option value="">Alle Gruppen</option>
                   {groups.map(group => (
                     <option key={group.id} value={group.id}>{group.name}</option>
                   ))}
