@@ -311,13 +311,13 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
-                {/* Stats Grid - Mobile Responsive */}
+                {/* Stats Grid - Mobile Responsive with Equal Heights */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-6 md:mb-8">
-                    <div className="grid grid-cols-1 gap-4 md:gap-6">
+                    <div className="flex flex-col gap-4 md:gap-6">
                         <QuickActions />
                         <StudentStats />
                     </div>
-                    <div className="grid grid-cols-1 gap-4 md:gap-6">
+                    <div className="flex flex-col gap-4 md:gap-6">
                         <OGSGroupsStats />
                         <ActivityStats />
                     </div>

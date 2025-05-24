@@ -7,6 +7,10 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { HelpButton } from "@/components/ui/help_button";
 import { getHelpContent } from "@/lib/help-content";
+import { GlobalSearch } from "./global-search";
+import { MobileSearchModal } from "./mobile-search-modal";
+import { NotificationCenter } from "./notification-center";
+import { MobileNotificationModal } from "./mobile-notification-modal";
 
 // Function to get page title based on pathname
 function getPageTitle(pathname: string): string {
@@ -86,9 +90,14 @@ const LogoutIcon = ({ className }: { className?: string }) => (
 
 export function Header({ userName = "Root" }: HeaderProps) {
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+    const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+    const [isMobileNotificationOpen, setIsMobileNotificationOpen] = useState(false);
     const pathname = usePathname();
     const helpContent = getHelpContent(pathname);
     const pageTitle = getPageTitle(pathname);
+
+    // Mock notification state for mobile button
+    const [hasUnreadNotifications] = useState(true); // This would come from global state
 
     const toggleProfileMenu = () => {
         setIsProfileMenuOpen(!isProfileMenuOpen);
@@ -98,16 +107,32 @@ export function Header({ userName = "Root" }: HeaderProps) {
         setIsProfileMenuOpen(false);
     };
 
+    const openMobileSearch = () => {
+        setIsMobileSearchOpen(true);
+    };
+
+    const closeMobileSearch = () => {
+        setIsMobileSearchOpen(false);
+    };
+
+    const openMobileNotification = () => {
+        setIsMobileNotificationOpen(true);
+    };
+
+    const closeMobileNotification = () => {
+        setIsMobileNotificationOpen(false);
+    };
+
     return (
         <header className="sticky top-0 w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 z-50">
             {/* Subtle top accent line */}
             <div className="h-0.5 bg-gradient-to-r from-[#5080d8] via-gray-200 to-[#83cd2d]"></div>
             
             <div className="w-full px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center justify-between h-16 w-full">
-                    {/* Left section: Logo + Brand */}
-                    <div className="flex items-center space-x-4">
-                        <div className="flex-shrink-0 flex items-center space-x-3">
+                <div className="flex items-center h-16 w-full">
+                    {/* Left section: Logo + Brand + Context */}
+                    <div className="flex items-center space-x-4 flex-shrink-0">
+                        <div className="flex items-center space-x-3">
                             <div className="relative">
                                 <Image
                                     src="/images/moto_transparent.png"
@@ -144,34 +169,17 @@ export function Header({ userName = "Root" }: HeaderProps) {
                         </div>
                     </div>
 
-                    {/* Center section: Search (desktop only) - aligned with sidebar */}
-                    <div className="hidden lg:flex flex-1 max-w-lg ml-64 mr-8">
-                        <div className="relative w-full">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
-                            </div>
-                            <input
-                                type="text"
-                                placeholder="Schüler, Räume, Aktivitäten suchen..."
-                                className="block w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5080d8]/50 focus:border-transparent bg-gray-50/50 hover:bg-white/80 transition-colors duration-200"
-                            />
-                        </div>
+                    {/* Search bar aligned with sidebar end - positioned to start exactly where sidebar ends */}
+                    <div className="hidden lg:block absolute left-64 pl-6">
+                        <GlobalSearch className="w-80" />
                     </div>
 
                     {/* Right section: Actions + Profile */}
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-3 ml-auto">{/* ml-auto pushes content to the right */}
                         {/* Quick action buttons (desktop only) */}
                         <div className="hidden lg:flex items-center space-x-2">
                             {/* Notifications */}
-                            <button className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors duration-200">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                                </svg>
-                                {/* Notification dot */}
-                                <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></div>
-                            </button>
+                            <NotificationCenter />
 
                             {/* Help */}
                             <HelpButton
@@ -181,12 +189,34 @@ export function Header({ userName = "Root" }: HeaderProps) {
                             />
                         </div>
 
-                        {/* Mobile search button */}
-                        <button className="lg:hidden p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors duration-200 active:bg-gray-200">
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                        </button>
+                        {/* Mobile action buttons */}
+                        <div className="lg:hidden flex items-center space-x-2">
+                            {/* Mobile notifications button */}
+                            <button 
+                                onClick={openMobileNotification}
+                                className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors duration-200 active:bg-gray-200"
+                                aria-label="Benachrichtigungen öffnen"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                </svg>
+                                {/* Mobile notification dot - only show when there are unread notifications */}
+                                {hasUnreadNotifications && (
+                                    <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></div>
+                                )}
+                            </button>
+
+                            {/* Mobile search button */}
+                            <button 
+                                onClick={openMobileSearch}
+                                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors duration-200 active:bg-gray-200"
+                                aria-label="Suche öffnen"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </button>
+                        </div>
 
                         {/* User menu */}
                         <div className="relative">
@@ -308,6 +338,18 @@ export function Header({ userName = "Root" }: HeaderProps) {
                     </div>
                 </div>
             </div>
+            
+            {/* Mobile Search Modal */}
+            <MobileSearchModal 
+                isOpen={isMobileSearchOpen} 
+                onClose={closeMobileSearch} 
+            />
+            
+            {/* Mobile Notification Modal */}
+            <MobileNotificationModal 
+                isOpen={isMobileNotificationOpen} 
+                onClose={closeMobileNotification} 
+            />
         </header>
     );
 }

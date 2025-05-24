@@ -164,7 +164,7 @@ export function MobileBottomNav() {
             }}
           ></div>
           <div 
-            className="absolute top-px left-0 right-0 h-7 bg-white/95 pointer-events-none"
+            className="absolute top-px left-0 right-0 h-7 bg-white pointer-events-none"
             style={{
               borderTopLeftRadius: '1.5rem',
               borderTopRightRadius: '1.5rem'
