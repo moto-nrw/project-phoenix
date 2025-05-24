@@ -7,21 +7,18 @@ import {
     mapActivityGroupResponse,
     mapActiveGroupResponse,
     mapUserProfileResponse,
-    mapPersonResponse,
     mapStaffResponse,
     mapTeacherResponse,
     type EducationalGroup,
     type ActivityGroup,
     type ActiveGroup,
     type UserProfile,
-    type Person,
     type Staff,
     type Teacher,
     type BackendEducationalGroup,
     type BackendActivityGroup,
     type BackendActiveGroup,
     type BackendUserProfile,
-    type BackendPerson,
     type BackendStaff,
     type BackendTeacher,
 } from "./usercontext-helpers";
@@ -65,41 +62,6 @@ export const userContextService = {
             }
         } catch (error) {
             console.error("Get current user error:", error);
-            throw error;
-        }
-    },
-
-    // Get current user's person profile
-    getCurrentPerson: async (): Promise<Person> => {
-        const useProxyApi = typeof window !== "undefined";
-        const url = useProxyApi
-            ? "/api/me/profile"
-            : `${env.NEXT_PUBLIC_API_URL}/me/profile`;
-
-        try {
-            if (useProxyApi) {
-                const session = await getSession();
-                const response = await fetch(url, {
-                    headers: {
-                        Authorization: `Bearer ${session?.user?.token}`,
-                        "Content-Type": "application/json",
-                    },
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error(`Get current person error: ${response.status}`, errorText);
-                    throw new Error(`Get current person failed: ${response.status}`);
-                }
-
-                const responseData = await response.json() as ApiResponse<BackendPerson>;
-                return mapPersonResponse(responseData.data);
-            } else {
-                const response = await api.get<ApiResponse<BackendPerson>>(url);
-                return mapPersonResponse(response.data.data);
-            }
-        } catch (error) {
-            console.error("Get current person error:", error);
             throw error;
         }
     },
