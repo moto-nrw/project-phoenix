@@ -117,13 +117,15 @@ func GetClientIP(r *http.Request) string {
 
 	// Check X-Forwarded-For header
 	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Take the first IP if there are multiple
-		if idx := len(xff) - 1; idx > 0 {
-			if idx = len(xff[:idx]) - 1; idx > 0 {
-				return xff[:idx]
-			}
+		// Split the header value on commas and trim each entry
+		ips := strings.Split(xff, ",")
+		for i, ip := range ips {
+			ips[i] = strings.TrimSpace(ip)
 		}
-		return xff
+		// Return the first IP in the list
+		if len(ips) > 0 {
+			return ips[0]
+		}
 	}
 
 	// Fall back to RemoteAddr
