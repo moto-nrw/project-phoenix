@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-// @ts-expect-error
 import { ResponsiveLayout } from "@/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { useSession } from "next-auth/react";

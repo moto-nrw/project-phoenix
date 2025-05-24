@@ -6,6 +6,8 @@ import { ResponsiveLayout } from "@/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { useSession } from "next-auth/react";
+import { studentService } from "~/lib/api";
+import type { Student, SupervisorContact } from "~/lib/student-helpers";
 
 
 // Extended Student type for this page
@@ -475,8 +477,9 @@ export default function StudentDetailPage() {
                                     </div>
                                 </div>
                             </div>
-
-            </div>
-        </ResponsiveLayout>
-    );
-}
+                                </>
+                            )}
+                        </div>
+                    </ResponsiveLayout>
+                );
+            }

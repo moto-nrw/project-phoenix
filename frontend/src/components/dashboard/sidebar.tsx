@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { UserContextProvider, useHasEducationalGroups } from "~/lib/usercontext-context";
 
 // Type für Navigation Items
 interface NavItem {
