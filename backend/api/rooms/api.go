@@ -416,15 +416,33 @@ func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 	endTime := time.Now()
 
 	if startStr := r.URL.Query().Get("start"); startStr != "" {
-		if parsedStart, err := time.Parse(time.RFC3339, startStr); err == nil {
-			startTime = parsedStart
+		parsedStart, err := time.Parse(time.RFC3339, startStr)
+		if err != nil {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start date format"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
 		}
+		startTime = parsedStart
 	}
 
 	if endStr := r.URL.Query().Get("end"); endStr != "" {
-		if parsedEnd, err := time.Parse(time.RFC3339, endStr); err == nil {
-			endTime = parsedEnd
+		parsedEnd, err := time.Parse(time.RFC3339, endStr)
+		if err != nil {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
 		}
+		endTime = parsedEnd
+	}
+
+	// Validate date range
+	if startTime.After(endTime) {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("start date must be before end date"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
 	}
 
 	// Get room history from service
