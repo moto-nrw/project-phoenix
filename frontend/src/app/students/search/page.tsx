@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Input } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
-
 
 // Student type based on what's seen in the code
 interface Student {
@@ -21,6 +20,11 @@ interface Student {
   wc: boolean;
   school_yard: boolean;
   bus: boolean;
+}
+
+interface Group {
+  id: string;
+  name: string;
 }
 
 // Demo data for students - defined outside component to avoid dependency issues
@@ -100,10 +104,10 @@ const exampleStudents: Student[] = [
   {
     id: "7",
     first_name: "Lina",
-    second_name: "Schulz",
+    second_name: "Hoffmann",
     school_class: "4a",
     group_id: "g4",
-    group_name: "Wölfe",
+    group_name: "Drachen",
     in_house: false,
     wc: false,
     school_yard: false,
@@ -111,11 +115,11 @@ const exampleStudents: Student[] = [
   },
   {
     id: "8",
-    first_name: "Felix",
-    second_name: "Hoffmann",
+    first_name: "Paul",
+    second_name: "Richter",
     school_class: "4b",
     group_id: "g4",
-    group_name: "Wölfe",
+    group_name: "Drachen",
     in_house: true,
     wc: false,
     school_yard: false,
@@ -123,131 +127,102 @@ const exampleStudents: Student[] = [
   }
 ];
 
-
-export default function StudentSearchPage() {
+function SearchPageContent() {
+  const { data: session, status } = useSession();
   const router = useRouter();
-  const { data: session, status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      router.push("/");
-    },
-  });
-
-  // State for groups and students
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [loadingGroups, setLoadingGroups] = useState(true);
-  
-  // Search state
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedGroup, setSelectedGroup] = useState("");
-  const [selectedYear, setSelectedYear] = useState<string>("all");
-  const [attendanceFilter, setAttendanceFilter] = useState<string>("all");
-  const [isSearching, setIsSearching] = useState(false);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Debouncing ref
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load groups on component mount
+  // Search and filter state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedGroup, setSelectedGroup] = useState("");
+  const [selectedYear, setSelectedYear] = useState("all");
+  const [attendanceFilter, setAttendanceFilter] = useState("all");
+
+  // Data state
+  const [students, setStudents] = useState<Student[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+
+  // Mobile-specific state
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+
+  // Load demo data and groups on mount
   useEffect(() => {
-    const loadGroups = async () => {
-      try {
-        setLoadingGroups(true);
-        const fetchedGroups = await groupService.getGroups();
-        setGroups(fetchedGroups);
-      } catch (err: unknown) {
-        // Check if it's a 403 permission error
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        if (errorMessage.includes("403")) {
-          // Silently handle permission error - groups are optional
-          console.log("User doesn't have permission to view groups - this is expected for some users");
-        } else {
-          // Log other errors
-          console.error("Error loading groups:", err);
-        }
-        // Set empty groups array
-        setGroups([]);
-      } finally {
-        setLoadingGroups(false);
-      }
-    };
-    
-    void loadGroups();
+    // Set demo students
+    setStudents(exampleStudents);
+
+    // Extract unique groups from demo data
+    const uniqueGroups = Array.from(
+      new Set(exampleStudents.map(s => s.group_name).filter(Boolean))
+    ).map((name, index) => ({
+      id: `g${index + 1}`,
+      name: name!
+    }));
+    setGroups(uniqueGroups);
   }, []);
-
-  // Using useCallback to memoize the fetchStudents function
-  const fetchStudents = useCallback(async (filters?: {
-    search?: string;
-    groupId?: string;
-  }) => {
-    setIsSearching(true);
-    setError(null);
-
-    try {
-      const fetchedStudents = await studentService.getStudents(filters);
-      setStudents(fetchedStudents);
-    } catch (err) {
-      console.error("Error fetching students:", err);
-      setError("Fehler beim Laden der Schülerdaten.");
-      setStudents([]);
-    } finally {
-      setIsSearching(false);
-    }
-  }, []);
-
-  // Load initial data - now includes fetchStudents in the dependency array
-  useEffect(() => {
-    void fetchStudents();
-  }, [fetchStudents]);
 
   // Debounced search effect
   useEffect(() => {
-    // Clear previous timeout
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
 
-    // Set new timeout for search
     searchTimeoutRef.current = setTimeout(() => {
-      const filters: {
-        search?: string;
-        groupId?: string;
-      } = {};
-
-      if (searchTerm.trim()) {
-        filters.search = searchTerm.trim();
+      if (searchTerm.length >= 2 || searchTerm.length === 0) {
+        void fetchStudents();
       }
+    }, 300);
 
-      if (selectedGroup) {
-        filters.groupId = selectedGroup;
-      }
-
-      void fetchStudents(filters);
-    }, 300); // 300ms debounce delay
-
-    // Cleanup timeout on unmount or when dependencies change
     return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchTerm, selectedGroup, fetchStudents]);
+  }, [searchTerm]);
 
-  const handleSearch = async () => {
-    // Immediate search when button is clicked
-    const filters: {
-      search?: string;
-      groupId?: string;
-    } = {};
+  const fetchStudents = useCallback(async (filters?: {
+    search?: string;
+    groupId?: string;
+  }) => {
+    try {
+      setIsSearching(true);
+      setError(null);
 
-    if (searchTerm.trim()) {
-      filters.search = searchTerm.trim();
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // For demo, just filter the example students
+      let filtered = [...exampleStudents];
+
+      const searchQuery = filters?.search ?? searchTerm;
+      if (searchQuery) {
+        filtered = filtered.filter(student =>
+          student.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          student.second_name.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+      }
+
+      const groupFilter = filters?.groupId ?? selectedGroup;
+      if (groupFilter) {
+        filtered = filtered.filter(student => student.group_id === groupFilter);
+      }
+
+      setStudents(filtered);
+    } catch (error) {
+      console.error("Error fetching students:", error);
+      setError("Fehler beim Laden der Schülerdaten.");
+    } finally {
+      setIsSearching(false);
     }
+  }, [searchTerm, selectedGroup]);
 
-    if (selectedGroup) {
-      filters.groupId = selectedGroup;
-    }
+  const handleSearch = () => {
+    const filters = {
+      search: searchTerm,
+      groupId: selectedGroup,
+    };
 
     void fetchStudents(filters);
   };
@@ -257,6 +232,8 @@ export default function StudentSearchPage() {
     setSelectedGroup("");
     setSelectedYear("all");
     setAttendanceFilter("all");
+    setIsMobileFiltersOpen(false);
+    
     // Clear timeout to prevent pending searches
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
@@ -308,245 +285,305 @@ export default function StudentSearchPage() {
     }
   };
 
+  // Helper function to get location status
+  const getLocationStatus = (student: Student) => {
+    if (student.in_house) return { label: "Im Haus", color: "bg-green-500 text-green-50" };
+    if (student.wc) return { label: "Toilette", color: "bg-blue-500 text-blue-50" };
+    if (student.school_yard) return { label: "Schulhof", color: "bg-yellow-500 text-yellow-50" };
+    if (student.bus) return { label: "Zuhause", color: "bg-orange-500 text-orange-50" };
+    return { label: "Unbekannt", color: "bg-gray-500 text-gray-50" };
+  };
+
   if (status === "loading") {
     return (
-        <div className="flex min-h-screen items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-            <p className="text-gray-600">Daten werden geladen...</p>
-          </div>
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+          <p className="text-gray-600">Daten werden geladen...</p>
         </div>
+      </div>
     );
   }
 
-  // Common class for all dropdowns to ensure consistent height
-  const dropdownClass = "mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-teal-500 focus:outline-none appearance-none pr-8";
-
   return (
-      <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
-        <div className="max-w-7xl mx-auto">
-          <h1 className="mb-8 text-4xl font-bold text-gray-900">Schülersuche</h1>
-
-                {/* Search Panel */}
-                <div className="mb-8 overflow-hidden rounded-xl bg-white p-6 shadow-md">
-                  <h2 className="mb-4 text-xl font-bold text-gray-800">Suchkriterien</h2>
-
-                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-                    {/* Name Search */}
-                    <Input
-                        label="Name"
-                        name="searchTerm"
-                        placeholder="Vor- oder Nachname"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="h-12" // Add fixed height to the Input component
-                    />
-
-                    {/* Group Filter */}
-                    <div className="relative">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Gruppe
-                      </label>
-                      <select
-                          value={selectedGroup}
-                          onChange={(e) => setSelectedGroup(e.target.value)}
-                          className={dropdownClass}
-                          disabled={loadingGroups}
-                      >
-                        <option value="">{loadingGroups ? "Lade Gruppen..." : "Alle Gruppen"}</option>
-                        {groups.map(group => (
-                            <option key={group.id} value={group.id}>{group.name}</option>
-                        ))}
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                        <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                    </div>
-
-                    {/* School Year Filter */}
-                    <div className="relative">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Jahrgangsstufe
-                      </label>
-                      <select
-                          value={selectedYear}
-                          onChange={(e) => setSelectedYear(e.target.value)}
-                          className={dropdownClass}
-                      >
-                        <option value="all">Alle Jahrgänge</option>
-                        <option value="1">Jahrgang 1</option>
-                        <option value="2">Jahrgang 2</option>
-                        <option value="3">Jahrgang 3</option>
-                        <option value="4">Jahrgang 4</option>
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                        <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                    </div>
-
-                    {/* Attendance Status */}
-                    <div className="relative">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Anwesenheitsstatus
-                      </label>
-                      <select
-                          value={attendanceFilter}
-                          onChange={(e) => setAttendanceFilter(e.target.value)}
-                          className={dropdownClass}
-                      >
-                        <option value="all">Alle</option>
-                        <option value="in_house">In Räumen</option>
-                        <option value="wc">Toilette</option>
-                        <option value="school_yard">Schulhof</option>
-                        <option value="bus">Zuhause</option>
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                        <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Search Actions */}
-                  <div className="mt-6 flex flex-wrap justify-end gap-3">
-                    <button
-                        onClick={handleFilterReset}
-                        className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-                    >
-                      Zurücksetzen
-                    </button>
-                    <button
-                        onClick={handleSearch}
-                        disabled={isSearching}
-                        className="rounded-lg bg-gradient-to-r from-teal-500 to-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm transition-all hover:from-teal-600 hover:to-blue-700 hover:shadow-md disabled:opacity-70"
-                    >
-                      {isSearching ? "Suche läuft..." : "Suchen"}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Results Section */}
-                <div className="overflow-hidden rounded-xl bg-white p-6 shadow-md">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-bold text-gray-800">Suchergebnisse</h2>
-                    <div className="flex items-center space-x-6">
-                      {/* Year legend */}
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center">
-                          <span className="inline-block h-3 w-3 rounded-full bg-blue-500 mr-1"></span>
-                          <span className="text-xs text-gray-600">Jahr 1</span>
-                        </div>
-                        <div className="flex items-center">
-                          <span className="inline-block h-3 w-3 rounded-full bg-green-500 mr-1"></span>
-                          <span className="text-xs text-gray-600">Jahr 2</span>
-                        </div>
-                        <div className="flex items-center">
-                          <span className="inline-block h-3 w-3 rounded-full bg-yellow-500 mr-1"></span>
-                          <span className="text-xs text-gray-600">Jahr 3</span>
-                        </div>
-                        <div className="flex items-center">
-                          <span className="inline-block h-3 w-3 rounded-full bg-purple-500 mr-1"></span>
-                          <span className="text-xs text-gray-600">Jahr 4</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {error && (
-                      <div className="mb-6">
-                        <Alert type="error" message={error} />
-                      </div>
-                  )}
-
-                  {isSearching ? (
-                      <div className="py-8 text-center">
-                        <div className="flex flex-col items-center gap-4">
-                          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-                          <p className="text-gray-500">Suche läuft...</p>
-                        </div>
-                      </div>
-                  ) : (
-                      <div className="space-y-2">
-                        {filteredStudents.length > 0 ? (
-                            filteredStudents.map((student) => {
-                              const year = getSchoolYear(student.school_class);
-                              const yearColor = getYearColor(year);
-
-                              return (
-                                  <div
-                                      key={student.id}
-                                      onClick={() => router.push(`/students/${student.id}`)}
-                                      className="group cursor-pointer rounded-lg border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:translate-y-[-1px] hover:border-blue-200 hover:shadow-md"
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center space-x-3">
-                                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 font-medium text-white">
-                                          {(student.first_name?.charAt(0) ?? "S").toUpperCase()}
-                                        </div>
-
-                                        <div className="flex flex-col">
-                                          <div className="flex items-center">
-                                          <span className="font-medium text-gray-900 transition-colors group-hover:text-blue-600">
-                                            {student.first_name} {student.second_name}
-                                          </span>
-                                            {/* Year indicator */}
-                                            <span className={`ml-2 inline-block h-3 w-3 rounded-full ${yearColor}`} title={`Jahrgang ${year}`}></span>
-                                          </div>
-                                          <span className="text-sm text-gray-500">
-                                          Klasse: {student.school_class}
-                                            {student.group_name && ` | Gruppe: ${student.group_name}`}
-                                        </span>
-                                        </div>
-                                      </div>
-
-                                      <div className="flex items-center space-x-4">
-                                        {/* Attendance indicator */}
-                                        <div className="relative flex items-center">
-                                          <div
-                                              className={`h-4 w-4 rounded-full ${student.in_house ? "bg-green-500" : "bg-red-500"}`}
-                                              title={student.in_house ? "Anwesend" : "Abwesend"}
-                                          >
-                                            {student.in_house && (
-                                                <span className="absolute -top-0.5 -left-0.5 flex h-5 w-5">
-                                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            className="h-5 w-5 text-gray-400 transition-all duration-200 group-hover:translate-x-1 group-hover:text-blue-500"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                        >
-                                          <path
-                                              strokeLinecap="round"
-                                              strokeLinejoin="round"
-                                              strokeWidth={2}
-                                              d="M9 5l7 7-7 7"
-                                          />
-                                        </svg>
-                                      </div>
-                                    </div>
-                                  </div>
-                              );
-                            })
-                        ) : (
-                            <div className="py-8 text-center">
-                              <p className="text-gray-500">Keine Schüler gefunden. Bitte passen Sie Ihre Suchkriterien an.</p>
-                            </div>
-                        )}
-                      </div>
-                  )}
-                </div>
+    <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+      <div className="max-w-7xl mx-auto">
+        {/* Mobile-optimized Header */}
+        <div className="mb-4 md:mb-8">
+          <h1 className="text-2xl md:text-4xl font-bold text-gray-900">Schülersuche</h1>
+          <p className="mt-1 text-sm md:text-base text-gray-600">Finde Schüler nach Namen, Gruppe oder Status</p>
         </div>
-      </ResponsiveLayout>
+
+        {/* Mobile Search Bar - Always Visible */}
+        <div className="mb-4 md:hidden">
+          <Input
+            label="Schnellsuche"
+            name="searchTerm"
+            placeholder="Schüler suchen..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="text-base" // Prevent iOS zoom
+          />
+        </div>
+
+        {/* Mobile Filter Toggle */}
+        <div className="mb-4 md:hidden">
+          <button
+            onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
+            className="flex w-full items-center justify-between rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-gray-200 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          >
+            <span className="text-sm font-medium text-gray-700">
+              Filter & Erweiterte Suche
+            </span>
+            <svg 
+              className={`h-5 w-5 text-gray-400 transition-transform ${isMobileFiltersOpen ? 'rotate-180' : ''}`} 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Search Panel - Desktop always visible, Mobile collapsible */}
+        <div className={`mb-6 overflow-hidden rounded-xl bg-white shadow-md transition-all duration-300 ${
+          isMobileFiltersOpen ? 'block' : 'hidden md:block'
+        }`}>
+          <div className="p-4 md:p-6">
+            <h2 className="mb-4 text-lg md:text-xl font-bold text-gray-800">Suchkriterien</h2>
+
+            <div className="grid grid-cols-1 gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-4">
+              {/* Name Search - Desktop only (mobile has quick search above) */}
+              <div className="hidden md:block">
+                <Input
+                  label="Name"
+                  name="searchTerm"
+                  placeholder="Vor- oder Nachname"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="h-12 text-base"
+                />
+              </div>
+
+              {/* Group Filter */}
+              <div className="relative">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Gruppe
+                </label>
+                <select
+                  value={selectedGroup}
+                  onChange={(e) => setSelectedGroup(e.target.value)}
+                  className="mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 text-base shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8"
+                  disabled={loadingGroups}
+                >
+                  <option value="">{loadingGroups ? "Lade Gruppen..." : "Alle Gruppen"}</option>
+                  {groups.map(group => (
+                    <option key={group.id} value={group.id}>{group.name}</option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
+                  <svg className="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* School Year Filter */}
+              <div className="relative">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Jahrgangsstufe
+                </label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 text-base shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8"
+                >
+                  <option value="all">Alle Jahrgänge</option>
+                  <option value="1">Jahrgang 1</option>
+                  <option value="2">Jahrgang 2</option>
+                  <option value="3">Jahrgang 3</option>
+                  <option value="4">Jahrgang 4</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
+                  <svg className="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Attendance Status */}
+              <div className="relative">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Anwesenheitsstatus
+                </label>
+                <select
+                  value={attendanceFilter}
+                  onChange={(e) => setAttendanceFilter(e.target.value)}
+                  className="mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 text-base shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8"
+                >
+                  <option value="all">Alle</option>
+                  <option value="in_house">In Räumen</option>
+                  <option value="wc">Toilette</option>
+                  <option value="school_yard">Schulhof</option>
+                  <option value="bus">Zuhause</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
+                  <svg className="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Search Actions */}
+            <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
+              <button
+                onClick={handleFilterReset}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 order-2 sm:order-1"
+              >
+                Zurücksetzen
+              </button>
+              <button
+                onClick={handleSearch}
+                disabled={isSearching}
+                className="rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm transition-all hover:from-blue-600 hover:to-blue-700 hover:shadow-md disabled:opacity-70 order-1 sm:order-2"
+              >
+                {isSearching ? "Suche läuft..." : "Suchen"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Results Section */}
+        <div className="rounded-xl bg-white shadow-md overflow-hidden">
+          <div className="p-4 md:p-6">
+            {/* Results Header - Mobile Optimized */}
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 md:mb-6 gap-4">
+              <div>
+                <h2 className="text-lg md:text-xl font-bold text-gray-800">
+                  Suchergebnisse
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  {filteredStudents.length} {filteredStudents.length === 1 ? 'Schüler gefunden' : 'Schüler gefunden'}
+                </p>
+              </div>
+              
+              {/* Year Legend - Hidden on mobile, shown on tablet+ */}
+              <div className="hidden md:flex items-center space-x-4">
+                <div className="flex items-center">
+                  <span className="inline-block h-3 w-3 rounded-full bg-blue-500 mr-1"></span>
+                  <span className="text-xs text-gray-600">Jahr 1</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="inline-block h-3 w-3 rounded-full bg-green-500 mr-1"></span>
+                  <span className="text-xs text-gray-600">Jahr 2</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="inline-block h-3 w-3 rounded-full bg-yellow-500 mr-1"></span>
+                  <span className="text-xs text-gray-600">Jahr 3</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="inline-block h-3 w-3 rounded-full bg-purple-500 mr-1"></span>
+                  <span className="text-xs text-gray-600">Jahr 4</span>
+                </div>
+              </div>
+            </div>
+
+            {error && (
+              <div className="mb-6">
+                <Alert type="error" message={error} />
+              </div>
+            )}
+
+            {isSearching ? (
+              <div className="py-12 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+                  <p className="text-gray-600">Suche läuft...</p>
+                </div>
+              </div>
+            ) : filteredStudents.length === 0 ? (
+              <div className="py-12 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">Keine Schüler gefunden</h3>
+                    <p className="text-gray-600">Versuche deine Suchkriterien anzupassen.</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Student Grid - Mobile Optimized */
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredStudents.map((student) => {
+                  const year = getSchoolYear(student.school_class);
+                  const yearColor = getYearColor(year);
+                  const locationStatus = getLocationStatus(student);
+
+                  return (
+                    <div
+                      key={student.id}
+                      onClick={() => router.push(`/students/${student.id}?from=/students/search`)}
+                      className="group cursor-pointer rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-all duration-200 hover:border-blue-300 hover:shadow-md active:scale-[0.98]"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+                            {student.first_name} {student.second_name}
+                          </h3>
+                          <div className="flex items-center mt-1 gap-2">
+                            <span className="text-sm text-gray-500">
+                              Klasse {student.school_class}
+                            </span>
+                            <span className={`inline-block h-2 w-2 rounded-full ${yearColor}`} />
+                          </div>
+                        </div>
+                        <svg className="h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+
+                      <div className="space-y-2">
+                        {student.group_name && (
+                          <div className="flex items-center text-sm text-gray-600">
+                            <svg className="h-4 w-4 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            Gruppe: {student.group_name}
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-500">Status:</span>
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${locationStatus.color}`}>
+                            {locationStatus.label}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </ResponsiveLayout>
+  );
+}
+
+// Main component with Suspense wrapper
+export default function StudentSearchPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+      </div>
+    }>
+      <SearchPageContent />
+    </Suspense>
   );
 }
