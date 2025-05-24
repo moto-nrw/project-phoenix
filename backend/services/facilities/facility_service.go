@@ -4,6 +4,7 @@ package facilities
 import (
 	"context"
 	"sort"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -281,4 +282,41 @@ func (s *service) GetCategoryList(ctx context.Context) ([]string, error) {
 	sort.Strings(categories)
 
 	return categories, nil
+}
+
+// GetRoomHistory retrieves the visit history for a room within the specified time range
+func (s *service) GetRoomHistory(ctx context.Context, roomID int64, startTime, endTime time.Time) ([]RoomHistoryEntry, error) {
+	// First verify the room exists
+	_, err := s.roomRepo.FindByID(ctx, roomID)
+	if err != nil {
+		return nil, &FacilitiesError{Op: "get room history", Err: ErrRoomNotFound}
+	}
+
+	// Query active_visits table for room history
+	var history []RoomHistoryEntry
+	
+	// Build the query
+	err = s.db.NewSelect().
+		TableExpr("active.visits AS v").
+		ColumnExpr("v.student_id").
+		ColumnExpr("CONCAT(p.first_name, ' ', p.last_name) AS student_name").
+		ColumnExpr("ag.group_id AS group_id").
+		ColumnExpr("g.name AS group_name").
+		ColumnExpr("v.entry_time AS checked_in").
+		ColumnExpr("v.exit_time AS checked_out").
+		Join("INNER JOIN active.groups AS ag ON ag.id = v.active_group_id").
+		Join("INNER JOIN activities.groups AS g ON g.id = ag.group_id").
+		Join("INNER JOIN users.students AS s ON s.id = v.student_id").
+		Join("INNER JOIN users.persons AS p ON p.id = s.person_id").
+		Where("ag.room_id = ?", roomID).
+		Where("v.entry_time >= ?", startTime).
+		Where("v.entry_time <= ?", endTime).
+		OrderExpr("v.entry_time DESC").
+		Scan(ctx, &history)
+
+	if err != nil {
+		return nil, &FacilitiesError{Op: "get room history", Err: err}
+	}
+
+	return history, nil
 }

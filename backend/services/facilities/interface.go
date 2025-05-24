@@ -3,6 +3,7 @@ package facilities
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -28,4 +29,15 @@ type Service interface {
 	GetRoomUtilization(ctx context.Context, roomID int64) (float64, error)
 	GetBuildingList(ctx context.Context) ([]string, error)
 	GetCategoryList(ctx context.Context) ([]string, error)
+	GetRoomHistory(ctx context.Context, roomID int64, startTime, endTime time.Time) ([]RoomHistoryEntry, error)
+}
+
+// RoomHistoryEntry represents a single room history entry
+type RoomHistoryEntry struct {
+	StudentID   int64      `json:"student_id"`
+	StudentName string     `json:"student_name"`
+	GroupID     int64      `json:"group_id"`
+	GroupName   string     `json:"group_name"`
+	CheckedIn   time.Time  `json:"checked_in"`
+	CheckedOut  *time.Time `json:"checked_out,omitempty"`
 }
