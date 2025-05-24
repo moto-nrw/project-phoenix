@@ -39,7 +39,7 @@ export interface BackendActivityCategory {
 
 export interface BackendActivitySchedule {
     id: number;
-    weekday: number | string; // Now integers 1-7 (ISO 8601) but backend might still return "MONDAY" etc.
+    weekday: number; // ISO 8601 integers 1-7 (1=Monday, 7=Sunday)
     timeframe_id?: number;
     activity_group_id: number;
     created_at: string;
@@ -290,7 +290,7 @@ export function mapActivityResponse(backendActivity: BackendActivity): Activity 
         activity.times = backendActivity.schedules.map(schedule => ({
             id: String(schedule.id),
             activity_id: String(schedule.activity_group_id),
-            weekday: mapWeekdayFromBackend(schedule.weekday),
+            weekday: String(schedule.weekday),
             timeframe_id: schedule.timeframe_id ? String(schedule.timeframe_id) : undefined,
             created_at: new Date(schedule.created_at),
             updated_at: new Date(schedule.updated_at)
@@ -315,7 +315,7 @@ export function mapActivityScheduleResponse(backendSchedule: BackendActivitySche
     return {
         id: String(backendSchedule.id),
         activity_id: String(backendSchedule.activity_group_id),
-        weekday: mapWeekdayFromBackend(backendSchedule.weekday),
+        weekday: String(backendSchedule.weekday),
         timeframe_id: backendSchedule.timeframe_id ? String(backendSchedule.timeframe_id) : undefined,
         created_at: new Date(backendSchedule.created_at),
         updated_at: new Date(backendSchedule.updated_at),
@@ -562,31 +562,6 @@ export function formatActivityTimes(activity: Activity | ActivitySchedule[]): st
     return "Keine Zeiten festgelegt";
 }
 
-// Map weekday from backend format (either "MONDAY" or integer) to frontend format (integer string)
-function mapWeekdayFromBackend(weekday: string | number): string {
-    // If it's a number, convert to string
-    if (typeof weekday === 'number') {
-        return String(weekday);
-    }
-    
-    // If it's already a number string, return it
-    if (/^\d$/.test(weekday)) {
-        return weekday;
-    }
-    
-    // Map English weekday names to numbers
-    const weekdayMap: Record<string, string> = {
-        "MONDAY": "1",
-        "TUESDAY": "2", 
-        "WEDNESDAY": "3",
-        "THURSDAY": "4",
-        "FRIDAY": "5",
-        "SATURDAY": "6",
-        "SUNDAY": "7",
-    };
-    
-    return weekdayMap[weekday.toUpperCase()] ?? weekday;
-}
 
 export function formatWeekday(weekday: string): string {
     const weekdays: Record<string, string> = {
@@ -596,18 +571,10 @@ export function formatWeekday(weekday: string): string {
         "4": "Do",
         "5": "Fr",
         "6": "Sa",
-        "7": "So",
-        // Legacy support
-        "monday": "Mo",
-        "tuesday": "Di",
-        "wednesday": "Mi",
-        "thursday": "Do",
-        "friday": "Fr",
-        "saturday": "Sa",
-        "sunday": "So"
+        "7": "So"
     };
     
-    return weekdays[weekday.toLowerCase()] ?? weekdays[weekday] ?? weekday;
+    return weekdays[weekday] ?? weekday;
 }
 
 export function getWeekdayFullName(weekday: string): string {
@@ -618,25 +585,10 @@ export function getWeekdayFullName(weekday: string): string {
         "4": "Donnerstag",
         "5": "Freitag",
         "6": "Samstag",
-        "7": "Sonntag",
-        // Legacy support
-        "monday": "Montag",
-        "tuesday": "Dienstag",
-        "wednesday": "Mittwoch",
-        "thursday": "Donnerstag",
-        "friday": "Freitag",
-        "saturday": "Samstag",
-        "sunday": "Sonntag",
-        "mo": "Montag",
-        "di": "Dienstag",
-        "mi": "Mittwoch",
-        "do": "Donnerstag",
-        "fr": "Freitag",
-        "sa": "Samstag",
-        "so": "Sonntag"
+        "7": "Sonntag"
     };
     
-    return weekdays[weekday.toLowerCase()] ?? weekdays[weekday] ?? weekday;
+    return weekdays[weekday] ?? weekday;
 }
 
 export function getWeekdayOrder(weekday: string): number {
@@ -647,32 +599,10 @@ export function getWeekdayOrder(weekday: string): number {
         "4": 4,
         "5": 5,
         "6": 6,
-        "7": 7,
-        // Legacy support
-        "monday": 1,
-        "montag": 1,
-        "mo": 1,
-        "tuesday": 2,
-        "dienstag": 2,
-        "di": 2,
-        "wednesday": 3,
-        "mittwoch": 3,
-        "mi": 3,
-        "thursday": 4,
-        "donnerstag": 4,
-        "do": 4,
-        "friday": 5,
-        "freitag": 5,
-        "fr": 5,
-        "saturday": 6,
-        "samstag": 6, 
-        "sa": 6,
-        "sunday": 7,
-        "sonntag": 7,
-        "so": 7
+        "7": 7
     };
     
-    return order[weekday] ?? order[weekday.toLowerCase()] ?? 99;
+    return order[weekday] ?? 99;
 }
 
 export function sortSchedulesByWeekday(schedules: ActivitySchedule[]): ActivitySchedule[] {

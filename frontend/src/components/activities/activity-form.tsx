@@ -277,17 +277,9 @@ const TimeSlotEditor = ({
       "4": "Donnerstag",
       "5": "Freitag",
       "6": "Samstag",
-      "7": "Sonntag",
-      // Support legacy string values for backward compatibility
-      monday: "Montag",
-      tuesday: "Dienstag",
-      wednesday: "Mittwoch",
-      thursday: "Donnerstag",
-      friday: "Freitag",
-      saturday: "Samstag",
-      sunday: "Sonntag",
+      "7": "Sonntag"
     };
-    return weekdayMap[day.toLowerCase()] ?? weekdayMap[day] ?? day;
+    return weekdayMap[day] ?? day;
   };
 
   // Sort time slots by weekday
@@ -299,18 +291,10 @@ const TimeSlotEditor = ({
       "4": 4,
       "5": 5,
       "6": 6,
-      "7": 7,
-      // Legacy support
-      monday: 1,
-      tuesday: 2,
-      wednesday: 3,
-      thursday: 4,
-      friday: 5,
-      saturday: 6,
-      sunday: 7,
+      "7": 7
     };
-    const aOrder = weekdayOrder[a.weekday] ?? weekdayOrder[a.weekday.toLowerCase()] ?? 99;
-    const bOrder = weekdayOrder[b.weekday] ?? weekdayOrder[b.weekday.toLowerCase()] ?? 99;
+    const aOrder = weekdayOrder[a.weekday] ?? 99;
+    const bOrder = weekdayOrder[b.weekday] ?? 99;
     return aOrder - bOrder;
   });
 
