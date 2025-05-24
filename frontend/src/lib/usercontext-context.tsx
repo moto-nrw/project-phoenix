@@ -43,7 +43,15 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
             // Fetch both educational groups and person data in parallel
             const [groups, personData] = await Promise.all([
                 userContextService.getMyEducationalGroups(),
-                userContextService.getCurrentPerson().catch(() => null) // Don't fail if person fetch fails
+                userContextService.getCurrentPerson().catch((err) => {
+                    console.error("Error fetching current person:", err);
+                    if (err?.response?.status === 404) {
+                        // Return null if person not found (404)
+                        return null;
+                    }
+                    // Rethrow other errors to be handled by the outer try-catch
+                    throw err;
+                })
             ]);
             
             setEducationalGroups(groups);
