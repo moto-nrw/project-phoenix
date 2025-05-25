@@ -816,27 +816,24 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 		return &AuthError{Op: "assign role", Err: errors.New("role not found")}
 	}
 
-	// Direct database query as a workaround for BUN ORM issues with schema-qualified tables
-	var count int
-	err := s.db.QueryRow(
-		"SELECT COUNT(*) FROM auth.account_roles WHERE account_id = ? AND role_id = ?",
-		accountID, roleID).Scan(&count)
-
-	if err != nil {
+	// Check if role is already assigned using the repository
+	existingRole, err := s.accountRoleRepo.FindByAccountAndRole(ctx, int64(accountID), int64(roleID))
+	if err != nil && !strings.Contains(err.Error(), "no rows") {
 		return &AuthError{Op: "check role assignment", Err: err}
 	}
 
-	if count > 0 {
+	if existingRole != nil {
 		// Role already assigned, no action needed
 		return nil
 	}
 
-	// Insert the role assignment
-	_, err = s.db.Exec(
-		"INSERT INTO auth.account_roles (account_id, role_id) VALUES (?, ?)",
-		accountID, roleID)
+	// Create the role assignment using the repository
+	accountRole := &auth.AccountRole{
+		AccountID: int64(accountID),
+		RoleID:    int64(roleID),
+	}
 
-	if err != nil {
+	if err := s.accountRoleRepo.Create(ctx, accountRole); err != nil {
 		return &AuthError{Op: "assign role to account", Err: err}
 	}
 
@@ -845,12 +842,8 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 
 // RemoveRoleFromAccount removes a role from an account
 func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int) error {
-	// Direct database query as a workaround for BUN ORM issues with schema-qualified tables
-	_, err := s.db.Exec(
-		"DELETE FROM auth.account_roles WHERE account_id = ? AND role_id = ?",
-		accountID, roleID)
-
-	if err != nil {
+	// Use the repository to delete the role assignment
+	if err := s.accountRoleRepo.DeleteByAccountAndRole(ctx, int64(accountID), int64(roleID)); err != nil {
 		return &AuthError{Op: "remove role from account", Err: err}
 	}
 	return nil
