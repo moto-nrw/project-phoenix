@@ -129,7 +129,7 @@ type ActivityResponse struct {
 // ScheduleResponse represents a schedule API response
 type ScheduleResponse struct {
 	ID              int64     `json:"id"`
-	Weekday         string    `json:"weekday"`
+	Weekday         int       `json:"weekday"`
 	TimeframeID     *int64    `json:"timeframe_id,omitempty"`
 	ActivityGroupID int64     `json:"activity_group_id"`
 	CreatedAt       time.Time `json:"created_at"`
@@ -165,7 +165,7 @@ type ActivityRequest struct {
 
 // ScheduleRequest represents a schedule in activity creation/update request
 type ScheduleRequest struct {
-	Weekday     string `json:"weekday"`
+	Weekday     int    `json:"weekday"`
 	TimeframeID *int64 `json:"timeframe_id,omitempty"`
 }
 
@@ -647,7 +647,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 			}
 			_, err = rs.ActivityService.AddSchedule(r.Context(), updatedGroup.ID, schedule)
 			if err != nil {
-				log.Printf("Warning: Failed to add schedule (weekday=%s, timeframe=%v): %v", scheduleReq.Weekday, scheduleReq.TimeframeID, err)
+				log.Printf("Warning: Failed to add schedule (weekday=%d, timeframe=%v): %v", scheduleReq.Weekday, scheduleReq.TimeframeID, err)
 				// Don't fail the whole update, just log the warning
 			}
 		}
@@ -1198,11 +1198,15 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 	durationStr := r.URL.Query().Get("duration") // Duration in minutes
 
 	// Validate weekday if provided
-	if weekday != "" && !activities.IsValidWeekday(weekday) {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid weekday"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+	if weekday != "" {
+		// Parse weekday as integer
+		weekdayInt, err := strconv.Atoi(weekday)
+		if err != nil || !activities.IsValidWeekday(weekdayInt) {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid weekday"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
 		}
-		return
 	}
 
 	// Parse room ID if provided (currently unused)

@@ -51,57 +51,28 @@ export function HelpButton({ title, content, buttonClassName = "" }: HelpButtonP
                 onClose={() => setIsOpen(false)}
                 title={title}
             >
-                <div className="text-left">
-                    {/* Content linksbündig mit wichtigen Wörtern bold */}
-                    <div className="prose prose-sm max-w-none text-left">
-                        {content}
-                    </div>
-
-                    {/* Verstanden Button mit Icon am unteren Rand */}
-                    <div className="mt-6 flex justify-center">
-                        <button
-                            onClick={() => setIsOpen(false)}
-                            className="inline-flex items-center gap-2 px-4 py-2 text-white rounded-md
-                                hover:shadow-lg hover:scale-105 transition-all duration-300
-                                shadow-md shadow-green-200 hover:shadow-green-300
-                                focus:outline-none focus:ring-2 focus:ring-green-300 focus:ring-offset-2"
-                            style={{
-                                backgroundColor: '#83cd2d'
-                            }}
-                        >
-                            <span className="font-semibold">Verstanden</span>
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M5 13l4 4L19 7"
-                                />
-                            </svg>
-                        </button>
-                    </div>
-
-                    {/* Impressum Link - nur auf der Login-Seite anzeigen */}
-                    {isLoginPage && (
-                        <div className="mt-4 text-center">
-                            <a
-                                href="https://moto.nrw/impressum/"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-gray-400 text-xs hover:text-gray-600 transition-colors duration-200 underline"
-                                aria-label="Zum Impressum"
-                            >
-                                Impressum
-                            </a>
-                        </div>
-                    )}
+                {/* Modern content styling */}
+                <div className="prose prose-gray max-w-none">
+                    {content}
                 </div>
+
+                {/* Impressum Link - nur auf der Login-Seite anzeigen */}
+                {isLoginPage && (
+                    <div className="mt-6 pt-4 border-t border-gray-200">
+                        <a
+                            href="https://moto.nrw/impressum/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors duration-200 hover:underline"
+                            aria-label="Zum Impressum"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-1M10 6V4a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2h-2M10 6l8 8" />
+                            </svg>
+                            Impressum
+                        </a>
+                    </div>
+                )}
             </Modal>
         </>
     );

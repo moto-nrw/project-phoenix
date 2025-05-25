@@ -3,7 +3,67 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Button } from "@/components/ui/button";
+
+import { useState } from "react";
+import { usePathname } from "next/navigation";
+import { HelpButton } from "@/components/ui/help_button";
+import { getHelpContent } from "@/lib/help-content";
+import { GlobalSearch } from "./global-search";
+import { MobileSearchModal } from "./mobile-search-modal";
+import { NotificationCenter } from "./notification-center";
+import { MobileNotificationModal } from "./mobile-notification-modal";
+
+// Function to get page title based on pathname
+function getPageTitle(pathname: string): string {
+    // Handle specific routes with dynamic segments
+    if (pathname.startsWith("/students/") && pathname !== "/students") {
+        if (pathname.includes("/feedback_history")) return "Feedback Historie";
+        if (pathname.includes("/mensa_history")) return "Mensa Historie";
+        if (pathname.includes("/room_history")) return "Raum Historie";
+        return "Schüler Details";
+    }
+    
+    if (pathname.startsWith("/rooms/") && pathname !== "/rooms") {
+        return "Raum Details";
+    }
+    
+    if (pathname.startsWith("/database/")) {
+        if (pathname.includes("/activities")) return "Aktivitäten Datenbank";
+        if (pathname.includes("/groups")) return "Gruppen Datenbank";
+        if (pathname.includes("/students")) return "Schüler Datenbank";
+        if (pathname.includes("/teachers")) return "Lehrer Datenbank";
+        if (pathname.includes("/rooms")) return "Räume Datenbank";
+        return "Datenbank";
+    }
+
+    // Handle main routes
+    switch (pathname) {
+        case "/dashboard":
+        case "/":
+            return "Home";
+        case "/ogs_groups":
+            return "OGS Gruppen";
+        case "/students":
+            return "Schüler";
+        case "/students/search":
+            return "Schüler Suche";
+        case "/rooms":
+            return "Räume";
+        case "/activities":
+            return "Aktivitäten";
+        case "/statistics":
+            return "Statistiken";
+        case "/substitutions":
+            return "Vertretungen";
+        case "/database":
+            return "Datenbank";
+        case "/settings":
+            return "Einstellungen";
+        default:
+            return "Home";
+    }
+}
+
 
 interface HeaderProps {
     userName?: string;
@@ -29,62 +89,272 @@ const LogoutIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
-export function Header({ userName = "Root" }: HeaderProps) {
+
+
+export function Header({ userName = "Benutzer" }: HeaderProps) {
+    const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+    const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+    const [isMobileNotificationOpen, setIsMobileNotificationOpen] = useState(false);
+    const pathname = usePathname();
+    const helpContent = getHelpContent(pathname);
+    const pageTitle = getPageTitle(pathname);
+
+    // Mock notification state for mobile button
+    const [hasUnreadNotifications] = useState(true); // This would come from global state
+
+    const toggleProfileMenu = () => {
+        setIsProfileMenuOpen(!isProfileMenuOpen);
+    };
+
+    const closeProfileMenu = () => {
+        setIsProfileMenuOpen(false);
+    };
+
+    const openMobileSearch = () => {
+        setIsMobileSearchOpen(true);
+    };
+
+    const closeMobileSearch = () => {
+        setIsMobileSearchOpen(false);
+    };
+
+    const openMobileNotification = () => {
+        setIsMobileNotificationOpen(true);
+    };
+
+    const closeMobileNotification = () => {
+        setIsMobileNotificationOpen(false);
+    };
+
+
     return (
-        <header className="w-full bg-white/80 py-4 shadow-sm backdrop-blur-sm">
-            <div className="w-full px-4 flex items-center justify-between">
-                {/* Left container: Logo, MOTO text, and welcome message */}
-                <div className="flex items-center gap-3">
-                    <Image
-                        src="/images/moto_transparent.png"
-                        alt="Logo"
-                        width={40}
-                        height={40}
-                        className="h-10 w-auto"
-                    />
-                    <span
-                        className="text-3xl font-extrabold inline-block"
-                        style={{
-                            fontFamily: 'var(--font-geist-sans)',
-                            letterSpacing: '-0.5px',
-                            fontWeight: 800,
-                            background: 'linear-gradient(135deg, #5080d8, #83cd2d)',
-                            WebkitBackgroundClip: 'text',
-                            backgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                        }}
-                    >
-                        moto
-                    </span>
-                    <h1 className="text-lg md:text-2xl font-bold ml-3 md:ml-6">
-                        <span>Willkommen, {userName}!</span>
-                    </h1>
-                </div>
-
-                {/* Right container: Logout button */}
-                <div className="flex-shrink-0">
-                    <Link href="/logout">
-                        <Button
-                            variant="outline_danger"
-                            size="sm"
-                            className="group relative flex items-center gap-2 overflow-hidden border-gray-300 hover:border-red-400 hover:bg-red-50/80 text-[#FF3130] hover:text-[#FF3130] transition-all duration-200"
-                        >
-                            {/* Icon mit Animation */}
-                            <LogoutIcon className="w-4 h-4 text-[#FF3130] group-hover:text-red-600 transition-colors duration-200" />
-
-                            {/* Text nur auf Desktop sichtbar */}
-                            <span className="hidden sm:inline group-hover:text-[#FF3130] transition-colors duration-200">
-                                Abmelden
-                            </span>
-
-                            {/* Subtiler Hover-Effekt */}
-                            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                <div className="absolute inset-0 bg-gradient-to-r from-red-50/0 via-red-50/40 to-red-50/0"></div>
+        <header className="sticky top-0 w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 z-50">
+            {/* Subtle top accent line */}
+            <div className="h-0.5 bg-gradient-to-r from-[#5080d8] via-gray-200 to-[#83cd2d]"></div>
+            
+            <div className="w-full px-4 sm:px-6 lg:px-8">
+                <div className="flex items-center h-16 w-full">
+                    {/* Left section: Logo + Brand + Context */}
+                    <div className="flex items-center space-x-4 flex-shrink-0">
+                        <div className="flex items-center space-x-3">
+                            <div className="relative">
+                                <Image
+                                    src="/images/moto_transparent.png"
+                                    alt="moto"
+                                    width={40}
+                                    height={40}
+                                    className="w-9 h-9"
+                                />
+                                {/* Subtle glow effect */}
+                                <div className="absolute inset-0 w-9 h-9 rounded-full bg-gradient-to-br from-[#5080d8]/20 to-[#83cd2d]/20 blur-sm -z-10"></div>
                             </div>
-                        </Button>
-                    </Link>
+                            
+                            <div className="flex items-center space-x-3">
+                                <span
+                                    className="text-xl font-bold tracking-tight"
+                                    style={{
+                                        background: 'linear-gradient(135deg, #5080d8, #83cd2d)',
+                                        WebkitBackgroundClip: 'text',
+                                        backgroundClip: 'text',
+                                        WebkitTextFillColor: 'transparent',
+                                    }}
+                                >
+                                    moto
+                                </span>
+                                
+                                {/* Breadcrumb separator */}
+                                <div className="hidden md:block w-px h-5 bg-gray-300"></div>
+                                
+                                {/* Context indicator */}
+                                <span className="hidden md:inline text-sm font-medium text-gray-600">
+                                    {pageTitle}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Search bar aligned with sidebar end - positioned to start exactly where sidebar ends */}
+                    <div className="hidden lg:block absolute left-64 pl-6">
+                        <GlobalSearch className="w-80" />
+                    </div>
+
+                    {/* Right section: Actions + Profile */}
+                    <div className="flex items-center space-x-3 ml-auto">{/* ml-auto pushes content to the right */}
+                        {/* Quick action buttons (desktop only) */}
+                        <div className="hidden lg:flex items-center space-x-2">
+                            {/* Notifications */}
+                            <NotificationCenter />
+
+                            {/* Help */}
+                            <HelpButton
+                                title={helpContent.title}
+                                content={helpContent.content}
+                                buttonClassName="!w-[40px] !h-[40px] !min-w-[40px] !min-h-[40px] p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 !bg-transparent rounded-lg transition-colors duration-200"
+                            />
+                        </div>
+
+                        {/* Mobile action buttons */}
+                        <div className="lg:hidden flex items-center space-x-2">
+                            {/* Mobile notifications button */}
+                            <button 
+                                onClick={openMobileNotification}
+                                className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors duration-200 active:bg-gray-200"
+                                aria-label="Benachrichtigungen öffnen"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                </svg>
+                                {/* Mobile notification dot - only show when there are unread notifications */}
+                                {hasUnreadNotifications && (
+                                    <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></div>
+                                )}
+                            </button>
+
+                            {/* Mobile search button */}
+                            <button 
+                                onClick={openMobileSearch}
+                                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors duration-200 active:bg-gray-200"
+                                aria-label="Suche öffnen"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* User menu */}
+                        <div className="relative">
+                            <button 
+                                onClick={toggleProfileMenu}
+                                className="flex items-center space-x-2 p-1.5 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors duration-200 touch-manipulation"
+                            >
+                                <div 
+                                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-semibold ring-2 ring-white shadow-sm"
+                                    style={{
+                                        background: 'linear-gradient(135deg, #5080d8, #83cd2d)'
+                                    }}
+                                >
+                                    {userName.split(' ').map(n => n[0]).join('').toUpperCase()}
+                                </div>
+                                
+                                <div className="hidden md:block text-left">
+                                    <div className="text-sm font-medium text-gray-900">
+                                        {userName.split(' ')[0]}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                        Administrator
+                                    </div>
+                                </div>
+                                
+                                <svg className={`w-4 h-4 text-gray-400 transition-all duration-200 ${isProfileMenuOpen ? 'rotate-180 text-gray-600' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            
+                            {/* Backdrop for mobile */}
+                            {isProfileMenuOpen && (
+                                <div 
+                                    className="fixed inset-0 z-40 md:hidden"
+                                    onClick={closeProfileMenu}
+                                />
+                            )}
+                            
+                            {/* Enhanced dropdown menu */}
+                            <div className={`absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-200 transition-all duration-200 z-50 ${
+                                isProfileMenuOpen ? 'opacity-100 visible' : 'opacity-0 invisible'
+                            }`}>
+                                {/* User info header */}
+                                <div className="px-4 py-3 border-b border-gray-100">
+                                    <div className="flex items-center space-x-3">
+                                        <div 
+                                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold"
+                                            style={{
+                                                background: 'linear-gradient(135deg, #5080d8, #83cd2d)'
+                                            }}
+                                        >
+                                            {userName.split(' ').map(n => n[0]).join('').toUpperCase()}
+                                        </div>
+                                        <div>
+                                            <div className="font-medium text-gray-900">{userName}</div>
+                                            <div className="text-sm text-gray-500">admin@moto.nrw</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Menu items */}
+                                <div className="py-2">
+                                    <Link 
+                                        href="/profile" 
+                                        onClick={closeProfileMenu}
+                                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors duration-150"
+                                    >
+                                        <svg className="w-4 h-4 mr-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                        </svg>
+                                        Profil anzeigen
+                                    </Link>
+                                    
+                                    <Link 
+                                        href="/settings" 
+                                        onClick={closeProfileMenu}
+                                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors duration-150"
+                                    >
+                                        <svg className="w-4 h-4 mr-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.50 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                        </svg>
+                                        Einstellungen
+                                    </Link>
+
+
+                                    {/* Help button in profile menu */}
+                                    <button 
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            closeProfileMenu();
+                                            // Trigger help button click after a small delay to ensure menu closes first
+                                            setTimeout(() => {
+                                                const helpButton = document.querySelector('[aria-label="Hilfe anzeigen"]');
+                                                if (helpButton) {
+                                                    (helpButton as HTMLButtonElement).click();
+                                                }
+                                            }, 100);
+                                        }}
+                                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors duration-150 w-full text-left"
+                                    >
+                                        <svg className="w-4 h-4 mr-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Hilfe & Support
+                                    </button>
+                                    
+                                    <div className="border-t border-gray-100 my-2"></div>
+                                    
+                                    <Link 
+                                        href="/logout" 
+                                        onClick={closeProfileMenu}
+                                        className="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors duration-150"
+                                    >
+                                        <LogoutIcon className="w-4 h-4 mr-3" />
+                                        Abmelden
+                                    </Link>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
+            
+            {/* Mobile Search Modal */}
+            <MobileSearchModal 
+                isOpen={isMobileSearchOpen} 
+                onClose={closeMobileSearch} 
+            />
+            
+            {/* Mobile Notification Modal */}
+            <MobileNotificationModal 
+                isOpen={isMobileNotificationOpen} 
+                onClose={closeMobileNotification} 
+            />
         </header>
     );
 }

@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { PageHeader, SectionTitle, DataTypeCard } from "@/components/dashboard";
+import { ResponsiveLayout, SectionTitle, DataTypeCard } from "@/components/dashboard";
 
 // Icon components
 const UserIcon = () => (
@@ -74,7 +74,7 @@ const RoomsIcon = () => (
 );
 
 export default function DatabasePage() {
-  const { status } = useSession({
+  const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/");
@@ -90,12 +90,10 @@ export default function DatabasePage() {
   }
 
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <PageHeader title="Datenbankänderungen" backUrl="/dashboard" />
-
-      {/* Main Content */}
-      <main className="container mx-auto p-4 py-8">
+    <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+      <div className="max-w-7xl mx-auto">
+        <h1 className="mb-8 text-4xl font-bold text-gray-900">Datenbankänderungen</h1>
+        
         <SectionTitle title="Datensatz auswählen" />
 
         {/* Database Selection Cards */}
@@ -201,7 +199,7 @@ export default function DatabasePage() {
             }
           />
         </div>
-      </main>
-    </div>
+      </div>
+    </ResponsiveLayout>
   );
 }

@@ -120,8 +120,11 @@ export default function NewActivityPage() {
         category_id: parseInt(activityData.ag_category_id, 10),
         planned_room_id: formData.planned_room_id ? parseInt(formData.planned_room_id, 10) : undefined,
         supervisor_ids: activityData.supervisor_id ? [parseInt(activityData.supervisor_id, 10)] : [],
-        // Include schedules from form data if present
-        schedules: formData.schedules ?? []
+        // Include schedules from form data if present, converting weekday to number
+        schedules: formData.schedules?.map(schedule => ({
+          ...schedule,
+          weekday: parseInt(schedule.weekday, 10)
+        })) ?? []
       };
       
       const newActivity = await activityService.createActivity(createRequest);

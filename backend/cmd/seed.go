@@ -16,13 +16,20 @@ import (
 // seedCmd represents the seed command
 var seedCmd = &cobra.Command{
 	Use:   "seed",
-	Short: "Seed the database with dummy data",
-	Long: `Seed the database with dummy data for testing purposes.
-This command creates:
-- 24 rooms (classrooms, labs, gym, etc.)
-- 25 groups (grade classes and activity groups)
+	Short: "Seed the database with German test data",
+	Long: `Seed the database with German test data for testing purposes.
+This command creates a complete OGS (Offene Ganztagsschule) dataset:
+- 24 rooms (classrooms, labs, gym, library, etc.)
+- 25 education groups (grade classes)
 - 150 persons (30 staff/teachers, 120 students)
-- All necessary relationships between entities
+- 8 activity categories (Sport, Kunst & Basteln, Musik, etc.)
+- 19 activity groups (Fußball-AG, Computer-Grundlagen, etc.)
+- 6 OGS timeframes (12:00-17:00 afternoon supervision)
+- Activity schedules linking groups to weekdays and times
+- Supervisor assignments for all activities
+- Student enrollments in activities
+- 7 IoT devices (RFID readers, sensors)
+- Privacy consents (GDPR compliance)
 
 Usage:
   go run main.go seed
@@ -135,6 +142,70 @@ func seedDatabase(ctx context.Context, reset bool) {
 		}
 		fmt.Printf("Created %d students\n", len(studentIDs))
 
+		// 7. Create Activity Categories (no dependencies)
+		fmt.Println("Creating activity categories...")
+		categoryIDs, err := seedActivityCategories(ctx, tx)
+		if err != nil {
+			return fmt.Errorf("failed to seed activity categories: %w", err)
+		}
+		fmt.Printf("Created %d activity categories\n", len(categoryIDs))
+
+		// 8. Create Schedule Timeframes (no dependencies)
+		fmt.Println("Creating schedule timeframes...")
+		timeframeIDs, err := seedScheduleTimeframes(ctx, tx)
+		if err != nil {
+			return fmt.Errorf("failed to seed schedule timeframes: %w", err)
+		}
+		fmt.Printf("Created %d schedule timeframes\n", len(timeframeIDs))
+
+		// 9. Create Activity Groups (depends on categories and rooms)
+		fmt.Println("Creating activity groups...")
+		activityGroupIDs, err := seedActivityGroups(ctx, tx, categoryIDs, roomIDs, rng)
+		if err != nil {
+			return fmt.Errorf("failed to seed activity groups: %w", err)
+		}
+		fmt.Printf("Created %d activity groups\n", len(activityGroupIDs))
+
+		// 10. Create Activity Schedules (depends on activity groups and timeframes)
+		fmt.Println("Creating activity schedules...")
+		scheduleIDs, err := seedActivitySchedules(ctx, tx, activityGroupIDs, timeframeIDs, rng)
+		if err != nil {
+			return fmt.Errorf("failed to seed activity schedules: %w", err)
+		}
+		fmt.Printf("Created %d activity schedules\n", len(scheduleIDs))
+
+		// 11. Create Activity Supervisors (depends on activity groups and staff)
+		fmt.Println("Creating activity supervisors...")
+		supervisorIDs, err := seedActivitySupervisors(ctx, tx, activityGroupIDs, staffIDs, rng)
+		if err != nil {
+			return fmt.Errorf("failed to seed activity supervisors: %w", err)
+		}
+		fmt.Printf("Created %d activity supervisors\n", len(supervisorIDs))
+
+		// 12. Create Student Enrollments (depends on activity groups and students)
+		fmt.Println("Creating student enrollments...")
+		enrollmentIDs, err := seedStudentEnrollments(ctx, tx, activityGroupIDs, studentIDs, rng)
+		if err != nil {
+			return fmt.Errorf("failed to seed student enrollments: %w", err)
+		}
+		fmt.Printf("Created %d student enrollments\n", len(enrollmentIDs))
+
+		// 13. Create IoT Devices (depends on persons)
+		fmt.Println("Creating IoT devices...")
+		deviceIDs, err := seedIoTDevices(ctx, tx, personIDs[:5], rng) // First 5 persons register devices
+		if err != nil {
+			return fmt.Errorf("failed to seed IoT devices: %w", err)
+		}
+		fmt.Printf("Created %d IoT devices\n", len(deviceIDs))
+
+		// 14. Create Privacy Consents (depends on students)
+		fmt.Println("Creating privacy consents...")
+		consentIDs, err := seedPrivacyConsents(ctx, tx, studentIDs, rng)
+		if err != nil {
+			return fmt.Errorf("failed to seed privacy consents: %w", err)
+		}
+		fmt.Printf("Created %d privacy consents\n", len(consentIDs))
+
 		return nil
 	})
 
@@ -148,6 +219,14 @@ func seedDatabase(ctx context.Context, reset bool) {
 func resetData(ctx context.Context, db *bun.DB) error {
 	// Delete in reverse order of dependencies
 	tables := []string{
+		"users.privacy_consents",
+		"iot.devices",
+		"activities.student_enrollments",
+		"activities.supervisors",
+		"activities.schedules",
+		"activities.groups",
+		"activities.categories",
+		"schedule.timeframes",
 		"users.students",
 		"users.teachers",
 		"users.staff",
@@ -176,38 +255,38 @@ func seedRooms(ctx context.Context, tx bun.Tx) ([]int64, error) {
 		category string
 		color    string
 	}{
-		// Classrooms
-		{"101", "Main Building", 1, 30, "Classroom", "#4A90E2"},
-		{"102", "Main Building", 1, 30, "Classroom", "#4A90E2"},
-		{"103", "Main Building", 1, 25, "Classroom", "#4A90E2"},
-		{"201", "Main Building", 2, 35, "Classroom", "#4A90E2"},
-		{"202", "Main Building", 2, 30, "Classroom", "#4A90E2"},
-		{"203", "Main Building", 2, 28, "Classroom", "#4A90E2"},
-		// Science Labs
-		{"Lab 1", "Science Building", 1, 24, "Laboratory", "#50E3C2"},
-		{"Lab 2", "Science Building", 1, 24, "Laboratory", "#50E3C2"},
-		{"Chemistry Lab", "Science Building", 2, 20, "Laboratory", "#50E3C2"},
-		{"Physics Lab", "Science Building", 2, 20, "Laboratory", "#50E3C2"},
-		// Sports Facilities
-		{"Main Gym", "Sports Complex", 1, 100, "Sports", "#7ED321"},
-		{"Small Gym", "Sports Complex", 1, 50, "Sports", "#7ED321"},
-		// Art Rooms
-		{"Art Studio 1", "Creative Wing", 1, 20, "Art", "#F5A623"},
-		{"Music Room", "Creative Wing", 1, 25, "Music", "#BD10E0"},
-		// Computer Labs
-		{"Computer Lab 1", "Tech Center", 1, 30, "Computer", "#9013FE"},
-		{"Computer Lab 2", "Tech Center", 2, 30, "Computer", "#9013FE"},
-		// Library
-		{"Main Library", "Library Building", 1, 80, "Library", "#B8E986"},
-		{"Study Room 1", "Library Building", 2, 15, "Study", "#B8E986"},
-		// Special Purpose
-		{"Cafeteria", "Main Building", 0, 200, "Dining", "#F8E71C"},
-		{"Auditorium", "Main Building", 1, 300, "Assembly", "#D0021B"},
-		{"Nurse's Office", "Main Building", 1, 10, "Medical", "#FF6900"},
-		// Offices
-		{"Principal's Office", "Admin Building", 1, 5, "Office", "#A020F0"},
-		{"Teachers' Lounge", "Admin Building", 1, 40, "Office", "#A020F0"},
-		{"Conference Room", "Admin Building", 2, 20, "Meeting", "#A020F0"},
+		// Klassenzimmer
+		{"101", "Hauptgebäude", 1, 30, "Klassenzimmer", "#4A90E2"},
+		{"102", "Hauptgebäude", 1, 30, "Klassenzimmer", "#4A90E2"},
+		{"103", "Hauptgebäude", 1, 25, "Klassenzimmer", "#4A90E2"},
+		{"201", "Hauptgebäude", 2, 35, "Klassenzimmer", "#4A90E2"},
+		{"202", "Hauptgebäude", 2, 30, "Klassenzimmer", "#4A90E2"},
+		{"203", "Hauptgebäude", 2, 28, "Klassenzimmer", "#4A90E2"},
+		// Naturwissenschaftliche Labore
+		{"Labor 1", "Naturwissenschaftstrakt", 1, 24, "Labor", "#50E3C2"},
+		{"Labor 2", "Naturwissenschaftstrakt", 1, 24, "Labor", "#50E3C2"},
+		{"Chemielabor", "Naturwissenschaftstrakt", 2, 20, "Labor", "#50E3C2"},
+		{"Physiklabor", "Naturwissenschaftstrakt", 2, 20, "Labor", "#50E3C2"},
+		// Sportanlagen
+		{"Hauptsporthalle", "Sportkomplex", 1, 100, "Sport", "#7ED321"},
+		{"Kleine Sporthalle", "Sportkomplex", 1, 50, "Sport", "#7ED321"},
+		// Kunsträume
+		{"Kunstraum 1", "Kreativtrakt", 1, 20, "Kunst", "#F5A623"},
+		{"Musikraum", "Kreativtrakt", 1, 25, "Musik", "#BD10E0"},
+		// Computerräume
+		{"Computerraum 1", "IT-Zentrum", 1, 30, "Computer", "#9013FE"},
+		{"Computerraum 2", "IT-Zentrum", 2, 30, "Computer", "#9013FE"},
+		// Bibliothek
+		{"Hauptbibliothek", "Bibliotheksgebäude", 1, 80, "Bibliothek", "#B8E986"},
+		{"Lernraum 1", "Bibliotheksgebäude", 2, 15, "Lernraum", "#B8E986"},
+		// Sonderzweckräume
+		{"Mensa", "Hauptgebäude", 0, 200, "Speiseraum", "#F8E71C"},
+		{"Aula", "Hauptgebäude", 1, 300, "Versammlung", "#D0021B"},
+		{"Krankenzimmer", "Hauptgebäude", 1, 10, "Medizin", "#FF6900"},
+		// Büros
+		{"Rektorat", "Verwaltungsgebäude", 1, 5, "Büro", "#A020F0"},
+		{"Lehrerzimmer", "Verwaltungsgebäude", 1, 40, "Büro", "#A020F0"},
+		{"Konferenzraum", "Verwaltungsgebäude", 2, 20, "Besprechung", "#A020F0"},
 	}
 
 	roomIDs := make([]int64, 0, len(roomData))
@@ -245,34 +324,34 @@ func seedGroups(ctx context.Context, tx bun.Tx, roomIDs []int64) ([]int64, error
 		name   string
 		roomID *int64
 	}{
-		// Grade classes - assign to available classrooms
-		{"Class 1A", room1},
-		{"Class 1B", room2},
-		{"Class 2A", room3},
-		{"Class 2B", room4},
-		{"Class 3A", room5},
-		{"Class 3B", room6},
-		{"Class 4A", nil}, // No more classrooms available
-		{"Class 4B", nil},
-		{"Class 5A", nil},
-		{"Class 5B", nil},
-		// Activity groups - no specific room assignment
-		{"Science Club", nil},
-		{"Art Club", nil},
-		{"Drama Club", nil},
-		{"Math Club", nil},
-		{"Chess Club", nil},
-		{"Sports Team A", nil},
-		{"Sports Team B", nil},
-		{"Music Band", nil},
-		{"Debate Club", nil},
-		{"Computer Club", nil},
-		// Special groups
-		{"After School Care", nil},
-		{"Morning Care", nil},
-		{"Homework Help", nil},
-		{"Reading Club", nil},
-		{"Environmental Club", nil},
+		// Schulklassen - Zuweisung zu verfügbaren Klassenräumen
+		{"Klasse 1A", room1},
+		{"Klasse 1B", room2},
+		{"Klasse 2A", room3},
+		{"Klasse 2B", room4},
+		{"Klasse 3A", room5},
+		{"Klasse 3B", room6},
+		{"Klasse 4A", nil}, // Keine weiteren Klassenräume verfügbar
+		{"Klasse 4B", nil},
+		{"Klasse 5A", nil},
+		{"Klasse 5B", nil},
+		// Aktivitätsgruppen - keine spezifische Raumzuweisung
+		{"Naturwissenschafts-AG", nil},
+		{"Kunst-AG", nil},
+		{"Theater-AG", nil},
+		{"Mathematik-AG", nil},
+		{"Schach-AG", nil},
+		{"Sportmannschaft A", nil},
+		{"Sportmannschaft B", nil},
+		{"Schulband", nil},
+		{"Debattier-AG", nil},
+		{"Computer-AG", nil},
+		// Betreuungsgruppen
+		{"Nachmittagsbetreuung", nil},
+		{"Frühbetreuung", nil},
+		{"Hausaufgabenhilfe", nil},
+		{"Lese-AG", nil},
+		{"Umwelt-AG", nil},
 	}
 
 	groupIDs := make([]int64, 0, len(groupData))
@@ -315,27 +394,27 @@ func seedRFIDCards(ctx context.Context, tx bun.Tx) ([]string, error) {
 }
 
 func seedPersons(ctx context.Context, tx bun.Tx, rfidIDs []string, rng *rand.Rand) ([]int64, error) {
-	// First names
+	// Vornamen
 	firstNames := []string{
-		"Emma", "Liam", "Olivia", "Noah", "Ava", "Ethan", "Sophia", "Mason",
-		"Isabella", "William", "Mia", "James", "Charlotte", "Benjamin", "Amelia",
-		"Lucas", "Harper", "Henry", "Evelyn", "Alexander", "Abigail", "Michael",
-		"Emily", "Elijah", "Elizabeth", "Daniel", "Mila", "Aiden", "Ella",
-		"Matthew", "Avery", "Joseph", "Sofia", "Samuel", "Camila", "David",
-		"Aria", "Carter", "Scarlett", "Jackson", "Victoria", "Sebastian", "Madison",
-		"Jack", "Luna", "Owen", "Grace", "Luke", "Chloe", "Gabriel",
+		"Emma", "Ben", "Mia", "Finn", "Hannah", "Paul", "Lina", "Felix",
+		"Sophia", "Noah", "Emilia", "Leon", "Ella", "Elias", "Clara", "Anton",
+		"Anna", "Julian", "Lea", "Emil", "Marie", "Luca", "Leni", "Maximilian",
+		"Ida", "Jonas", "Greta", "Moritz", "Amelie", "Jakob", "Frieda", "David",
+		"Mathilda", "Theo", "Luisa", "Tim", "Charlotte", "Samuel", "Mila", "Alexander",
+		"Johanna", "Matteo", "Nele", "Friedrich", "Paula", "Oskar", "Alma", "Gabriel",
+		"Marlene", "Carl", "Pia", "Leonard", "Juna", "Karl", "Lotte",
 	}
 
-	// Last names
+	// Nachnamen
 	lastNames := []string{
-		"Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller",
-		"Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez",
-		"Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin",
-		"Lee", "Perez", "Thompson", "White", "Harris", "Sanchez", "Clark",
-		"Ramirez", "Lewis", "Robinson", "Walker", "Young", "Allen", "King",
-		"Wright", "Scott", "Torres", "Nguyen", "Hill", "Flores", "Green",
-		"Adams", "Nelson", "Baker", "Hall", "Rivera", "Campbell", "Mitchell",
-		"Carter", "Roberts",
+		"Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner",
+		"Becker", "Schulz", "Hoffmann", "Schäfer", "Koch", "Bauer",
+		"Richter", "Klein", "Wolf", "Schröder", "Neumann", "Schwarz", "Zimmermann",
+		"Braun", "Krüger", "Hofmann", "Hartmann", "Lange", "Schmitt", "Werner",
+		"Schmitz", "Krause", "Meier", "Lehmann", "Schmid", "Schulze", "Maier",
+		"Köhler", "Herrmann", "König", "Walter", "Peters", "Lang", "Möller",
+		"Weis", "Jung", "Hahn", "Schubert", "Vogel", "Friedrich", "Keller",
+		"Schwarz", "Günther",
 	}
 
 	// Create 150 persons (30 staff/teachers + 120 students)
@@ -362,16 +441,16 @@ func seedPersons(ctx context.Context, tx bun.Tx, rfidIDs []string, rng *rand.Ran
 
 func seedStaff(ctx context.Context, tx bun.Tx, personIDs []int64) ([]int64, error) {
 	notes := []string{
-		"Experienced team member",
-		"Department head",
-		"Subject coordinator",
-		"Administrative support",
-		"Senior staff member",
-		"New hire - training in progress",
-		"Part-time staff",
-		"Full-time staff",
-		"Support staff",
-		"Technical specialist",
+		"Erfahrenes Teammitglied",
+		"Abteilungsleiter",
+		"Fachkoordinator",
+		"Verwaltungsunterstützung",
+		"Erfahrene Lehrkraft",
+		"Neue Lehrkraft - in Einarbeitung",
+		"Teilzeitkraft",
+		"Vollzeitkraft",
+		"Unterstützungspersonal",
+		"Fachspezialist",
 	}
 
 	staffIDs := make([]int64, 0, len(personIDs))
@@ -398,26 +477,26 @@ func seedTeachers(ctx context.Context, tx bun.Tx, staffIDs []int64) ([]int64, er
 		role           string
 		qualifications string
 	}{
-		{"Mathematics", "Senior Math Teacher", "M.Ed. Mathematics, 10 years experience"},
-		{"Mathematics", "Math Teacher", "B.Ed. Mathematics, 5 years experience"},
-		{"Science", "Head of Science", "Ph.D. Physics, 15 years experience"},
-		{"Science", "Science Teacher", "M.Sc. Chemistry, 7 years experience"},
-		{"English", "English Department Head", "M.A. English Literature, 12 years experience"},
-		{"English", "English Teacher", "B.A. English, 3 years experience"},
-		{"History", "History Teacher", "M.A. History, 8 years experience"},
-		{"Geography", "Geography Teacher", "B.Ed. Geography, 6 years experience"},
-		{"Physical Education", "PE Coordinator", "B.Ed. Physical Education, 10 years experience"},
-		{"Physical Education", "PE Teacher", "Sports Science Degree, 4 years experience"},
-		{"Art", "Art Teacher", "B.F.A., 5 years experience"},
-		{"Music", "Music Teacher", "B.Mus., 7 years experience"},
-		{"Computer Science", "IT Teacher", "B.Sc. Computer Science, 6 years experience"},
-		{"Languages", "Spanish Teacher", "B.A. Spanish, Native Speaker"},
-		{"Languages", "French Teacher", "M.A. French Literature, 9 years experience"},
-		{"Special Education", "Special Ed Coordinator", "M.Ed. Special Education, 11 years experience"},
-		{"Library", "Librarian", "M.L.S., 8 years experience"},
-		{"Counseling", "School Counselor", "M.Ed. Counseling, 13 years experience"},
-		{"Administration", "Vice Principal", "M.Ed. Administration, 15 years experience"},
-		{"Administration", "Principal", "Ph.D. Education, 20 years experience"},
+		{"Mathematik", "Lehrerin für Mathematik", "Master of Education Mathematik, 10 Jahre Erfahrung"},
+		{"Mathematik", "Mathematiklehrer", "Bachelor of Education Mathematik, 5 Jahre Erfahrung"},
+		{"Naturwissenschaften", "Fachbereichsleiter Naturwissenschaften", "Promotion in Physik, 15 Jahre Erfahrung"},
+		{"Naturwissenschaften", "Naturwissenschaftslehrerin", "Master Chemie, 7 Jahre Erfahrung"},
+		{"Deutsch", "Fachbereichsleiter Deutsch", "Master Deutsche Literatur, 12 Jahre Erfahrung"},
+		{"Deutsch", "Deutschlehrerin", "Bachelor Germanistik, 3 Jahre Erfahrung"},
+		{"Geschichte", "Geschichtslehrer", "Master Geschichte, 8 Jahre Erfahrung"},
+		{"Geografie", "Geografielehrerin", "Bachelor of Education Geografie, 6 Jahre Erfahrung"},
+		{"Sport", "Sportkoordinator", "Bachelor of Education Sport, 10 Jahre Erfahrung"},
+		{"Sport", "Sportlehrerin", "Sportwissenschaft, 4 Jahre Erfahrung"},
+		{"Kunst", "Kunstlehrer", "Bachelor Bildende Kunst, 5 Jahre Erfahrung"},
+		{"Musik", "Musiklehrerin", "Bachelor Musik, 7 Jahre Erfahrung"},
+		{"Informatik", "IT-Lehrer", "Bachelor Informatik, 6 Jahre Erfahrung"},
+		{"Fremdsprachen", "Spanischlehrerin", "Bachelor Spanisch, Muttersprachlerin"},
+		{"Fremdsprachen", "Französischlehrer", "Master Französische Literatur, 9 Jahre Erfahrung"},
+		{"Sonderpädagogik", "Sonderpädagogik-Koordinatorin", "Master Sonderpädagogik, 11 Jahre Erfahrung"},
+		{"Bibliothek", "Bibliothekarin", "Master Bibliothekswissenschaft, 8 Jahre Erfahrung"},
+		{"Beratung", "Schulberaterin", "Master Pädagogik, 13 Jahre Erfahrung"},
+		{"Verwaltung", "Stellvertretende Schulleiterin", "Master Schulmanagement, 15 Jahre Erfahrung"},
+		{"Verwaltung", "Schulleiter", "Promotion Pädagogik, 20 Jahre Erfahrung"},
 	}
 
 	teacherIDs := make([]int64, 0, len(staffIDs))
@@ -442,14 +521,14 @@ func seedTeachers(ctx context.Context, tx bun.Tx, staffIDs []int64) ([]int64, er
 }
 
 func seedStudents(ctx context.Context, tx bun.Tx, personIDs []int64, classGroupIDs []int64, rng *rand.Rand) ([]int64, error) {
-	// Guardian first names
+	// Vornamen der Erziehungsberechtigten
 	guardianFirstNames := []string{
-		"John", "Mary", "Robert", "Patricia", "James", "Jennifer", "Michael",
-		"Linda", "William", "Elizabeth", "David", "Barbara", "Richard", "Susan",
-		"Joseph", "Jessica", "Thomas", "Sarah", "Charles", "Karen",
+		"Andreas", "Sabine", "Michael", "Petra", "Thomas", "Andrea", "Stefan",
+		"Claudia", "Frank", "Monika", "Markus", "Birgit", "Christian", "Ute",
+		"Martin", "Karin", "Ralf", "Gabriele", "Jörg", "Susanne",
 	}
 
-	// Grades for school classes
+	// Klassen
 	grades := []string{"1A", "1B", "2A", "2B", "3A", "3B", "4A", "4B", "5A", "5B"}
 
 	studentIDs := make([]int64, 0, len(personIDs))
@@ -468,10 +547,12 @@ func seedStudents(ctx context.Context, tx bun.Tx, personIDs []int64, classGroupI
 		guardianName := fmt.Sprintf("%s %s", guardianFirstName, personLastName)
 
 		// Generate contact info
-		guardianPhone := fmt.Sprintf("+1 555-%03d-%04d", rng.Intn(1000), rng.Intn(10000))
-		guardianEmail := fmt.Sprintf("%s.%s@email.com",
-			strings.ToLower(guardianFirstName),
-			strings.ToLower(personLastName))
+		guardianPhone := fmt.Sprintf("+49 %d %d-%d", 30+rng.Intn(900), rng.Intn(900)+100, rng.Intn(9000)+1000)
+		
+		// Normalize German characters for email addresses
+		emailFirstName := normalizeForEmail(guardianFirstName)
+		emailLastName := normalizeForEmail(personLastName)
+		guardianEmail := fmt.Sprintf("%s.%s@gmx.de", emailFirstName, emailLastName)
 
 		// Randomly set initial location (most are "in house")
 		bus := false
@@ -498,4 +579,369 @@ func seedStudents(ctx context.Context, tx bun.Tx, personIDs []int64, classGroupI
 	}
 
 	return studentIDs, nil
+}
+
+// Helper function to normalize German characters for email addresses
+func normalizeForEmail(name string) string {
+	// Convert to lowercase first
+	name = strings.ToLower(name)
+	
+	// Replace German umlauts and special characters with ASCII equivalents
+	replacements := map[string]string{
+		"ä": "ae",
+		"ö": "oe", 
+		"ü": "ue",
+		"ß": "ss",
+		"é": "e",
+		"è": "e",
+		"ê": "e",
+		"à": "a",
+		"á": "a",
+		"ô": "o",
+		"û": "u",
+		"ç": "c",
+	}
+	
+	for german, ascii := range replacements {
+		name = strings.ReplaceAll(name, german, ascii)
+	}
+	
+	return name
+}
+
+func seedActivityCategories(ctx context.Context, tx bun.Tx) ([]int64, error) {
+	categoryData := []struct {
+		name        string
+		description string
+		color       string
+	}{
+		{"Sport", "Sportliche Aktivitäten für Kinder", "#7ED321"},
+		{"Kunst & Basteln", "Kreative Aktivitäten und Handwerken", "#F5A623"},
+		{"Musik", "Musikalische Aktivitäten und Gesang", "#BD10E0"},
+		{"Spiele", "Brett-, Karten- und Gruppenspiele", "#50E3C2"},
+		{"Lesen", "Leseförderung und Literatur", "#B8E986"},
+		{"Hausaufgabenhilfe", "Unterstützung bei den Hausaufgaben", "#4A90E2"},
+		{"Natur & Forschen", "Naturerkundung und einfache Experimente", "#7ED321"},
+		{"Computer", "Grundlagen im Umgang mit dem Computer", "#9013FE"},
+	}
+
+	categoryIDs := make([]int64, 0, len(categoryData))
+	for _, data := range categoryData {
+		var id int64
+		query := `INSERT INTO activities.categories (name, description, color, created_at, updated_at) 
+		          VALUES (?, ?, ?, ?, ?) RETURNING id`
+
+		err := tx.QueryRowContext(ctx, query,
+			data.name, data.description, data.color, time.Now(), time.Now()).Scan(&id)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to create activity category %s: %w", data.name, err)
+		}
+		categoryIDs = append(categoryIDs, id)
+	}
+
+	return categoryIDs, nil
+}
+
+func seedScheduleTimeframes(ctx context.Context, tx bun.Tx) ([]int64, error) {
+	// OGS timeframes for elementary school afternoon supervision
+	today := time.Now()
+	timeframeData := []struct {
+		description string
+		startHour   int
+		startMinute int
+		endHour     int
+		endMinute   int
+		isActive    bool
+	}{
+		{"Mittagessen", 12, 0, 13, 0, true},
+		{"Freispiel/Ruhephase", 13, 0, 14, 0, true},
+		{"1. AG-Block", 14, 0, 15, 0, true},
+		{"Pause", 15, 0, 15, 15, true},
+		{"2. AG-Block", 15, 15, 16, 15, true},
+		{"Freispiel/Abholzeit", 16, 15, 17, 0, true},
+	}
+
+	timeframeIDs := make([]int64, 0, len(timeframeData))
+	for _, data := range timeframeData {
+		startTime := time.Date(today.Year(), today.Month(), today.Day(), 
+			data.startHour, data.startMinute, 0, 0, today.Location())
+		endTime := time.Date(today.Year(), today.Month(), today.Day(), 
+			data.endHour, data.endMinute, 0, 0, today.Location())
+
+		var id int64
+		query := `INSERT INTO schedule.timeframes (start_time, end_time, is_active, description, created_at, updated_at) 
+		          VALUES (?, ?, ?, ?, ?, ?) RETURNING id`
+
+		err := tx.QueryRowContext(ctx, query,
+			startTime, endTime, data.isActive, data.description, time.Now(), time.Now()).Scan(&id)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to create timeframe %s: %w", data.description, err)
+		}
+		timeframeIDs = append(timeframeIDs, id)
+	}
+
+	return timeframeIDs, nil
+}
+
+func seedActivityGroups(ctx context.Context, tx bun.Tx, categoryIDs []int64, roomIDs []int64, rng *rand.Rand) ([]int64, error) {
+	activityData := []struct {
+		name           string
+		maxParticipants int
+		categoryIndex   int  // Index into categoryIDs
+		roomIndex       *int // Index into roomIDs, nil if no specific room
+	}{
+		// Sport (category 0)
+		{"Fußball-AG", 16, 0, intPtr(10)}, // Hauptsporthalle
+		{"Basketball für Anfänger", 12, 0, intPtr(11)}, // Kleine Sporthalle
+		{"Tanzen", 15, 0, intPtr(11)}, // Kleine Sporthalle
+		
+		// Kunst & Basteln (category 1)
+		{"Basteln und Malen", 12, 1, intPtr(12)}, // Kunstraum 1
+		{"Töpfern", 8, 1, intPtr(12)}, // Kunstraum 1
+		
+		// Musik (category 2)
+		{"Kinderchor", 20, 2, intPtr(13)}, // Musikraum
+		{"Rhythmus und Percussion", 10, 2, intPtr(13)}, // Musikraum
+		
+		// Spiele (category 3)
+		{"Schach für Anfänger", 12, 3, nil},
+		{"Brett- und Kartenspiele", 16, 3, nil},
+		{"Gesellschaftsspiele", 10, 3, nil},
+		
+		// Lesen (category 4)
+		{"Lese-AG", 15, 4, intPtr(16)}, // Hauptbibliothek
+		{"Geschichten erfinden", 10, 4, intPtr(17)}, // Lernraum 1
+		
+		// Hausaufgabenhilfe (category 5)
+		{"Hausaufgabenhilfe Klasse 1-2", 8, 5, intPtr(0)}, // Classroom 101
+		{"Hausaufgabenhilfe Klasse 3-4", 8, 5, intPtr(1)}, // Classroom 102
+		{"Mathematik-Hilfe", 6, 5, intPtr(2)}, // Classroom 103
+		
+		// Natur & Forschen (category 6)
+		{"Naturforschergruppe", 10, 6, intPtr(6)}, // Labor 1
+		{"Garten-AG", 12, 6, nil},
+		
+		// Computer (category 7)
+		{"Computer-Grundlagen", 10, 7, intPtr(14)}, // Computerraum 1
+		{"Erste Programmierung", 8, 7, intPtr(15)}, // Computerraum 2
+	}
+
+	activityGroupIDs := make([]int64, 0, len(activityData))
+	for _, data := range activityData {
+		var plannedRoomID *int64
+		if data.roomIndex != nil && *data.roomIndex < len(roomIDs) {
+			plannedRoomID = &roomIDs[*data.roomIndex]
+		}
+
+		var id int64
+		query := `INSERT INTO activities.groups (name, max_participants, is_open, category_id, planned_room_id, created_at, updated_at) 
+		          VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`
+
+		err := tx.QueryRowContext(ctx, query,
+			data.name, data.maxParticipants, true, categoryIDs[data.categoryIndex], plannedRoomID,
+			time.Now(), time.Now()).Scan(&id)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to create activity group %s: %w", data.name, err)
+		}
+		activityGroupIDs = append(activityGroupIDs, id)
+	}
+
+	return activityGroupIDs, nil
+}
+
+// Helper function to create int pointer
+func intPtr(i int) *int {
+	return &i
+}
+
+func seedActivitySchedules(ctx context.Context, tx bun.Tx, activityGroupIDs []int64, timeframeIDs []int64, rng *rand.Rand) ([]int64, error) {
+	weekdays := []int{1, 2, 3, 4, 5} // Monday to Friday (ISO 8601: 1=Monday, 5=Friday)
+	// Activity blocks are timeframes 2 and 4 (1. AG-Block and 2. AG-Block)
+	activityTimeframes := []int64{timeframeIDs[2], timeframeIDs[4]}
+
+	scheduleIDs := make([]int64, 0)
+	
+	// Assign each activity group to 1-3 random weekdays and time slots
+	for _, groupID := range activityGroupIDs {
+		// Each activity happens 1-3 times per week
+		sessionsPerWeek := rng.Intn(3) + 1
+		
+		// Pick random weekdays
+		shuffledWeekdays := make([]int, len(weekdays))
+		copy(shuffledWeekdays, weekdays)
+		for i := len(shuffledWeekdays) - 1; i > 0; i-- {
+			j := rng.Intn(i + 1)
+			shuffledWeekdays[i], shuffledWeekdays[j] = shuffledWeekdays[j], shuffledWeekdays[i]
+		}
+
+		for i := 0; i < sessionsPerWeek; i++ {
+			weekday := shuffledWeekdays[i]
+			timeframeID := activityTimeframes[rng.Intn(len(activityTimeframes))]
+
+			var id int64
+			query := `INSERT INTO activities.schedules (weekday, timeframe_id, activity_group_id, created_at, updated_at) 
+			          VALUES (?, ?, ?, ?, ?) RETURNING id`
+
+			err := tx.QueryRowContext(ctx, query,
+				weekday, timeframeID, groupID, time.Now(), time.Now()).Scan(&id)
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to create activity schedule for group %d: %w", groupID, err)
+			}
+			scheduleIDs = append(scheduleIDs, id)
+		}
+	}
+
+	return scheduleIDs, nil
+}
+
+func seedActivitySupervisors(ctx context.Context, tx bun.Tx, activityGroupIDs []int64, staffIDs []int64, rng *rand.Rand) ([]int64, error) {
+	supervisorIDs := make([]int64, 0)
+	
+	// Assign 1-2 supervisors per activity group
+	for i, groupID := range activityGroupIDs {
+		// Primary supervisor (cycle through staff)
+		primaryStaffID := staffIDs[i%len(staffIDs)]
+		
+		var id int64
+		query := `INSERT INTO activities.supervisors (staff_id, group_id, is_primary, created_at, updated_at) 
+		          VALUES (?, ?, ?, ?, ?) RETURNING id`
+
+		err := tx.QueryRowContext(ctx, query,
+			primaryStaffID, groupID, true, time.Now(), time.Now()).Scan(&id)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to create primary supervisor for group %d: %w", groupID, err)
+		}
+		supervisorIDs = append(supervisorIDs, id)
+
+		// 50% chance of additional supervisor
+		if rng.Float32() < 0.5 {
+			secondaryStaffID := staffIDs[(i+10)%len(staffIDs)] // Different staff member
+			if secondaryStaffID != primaryStaffID {
+				err := tx.QueryRowContext(ctx, query,
+					secondaryStaffID, groupID, false, time.Now(), time.Now()).Scan(&id)
+
+				if err != nil {
+					return nil, fmt.Errorf("failed to create secondary supervisor for group %d: %w", groupID, err)
+				}
+				supervisorIDs = append(supervisorIDs, id)
+			}
+		}
+	}
+
+	return supervisorIDs, nil
+}
+
+func seedStudentEnrollments(ctx context.Context, tx bun.Tx, activityGroupIDs []int64, studentIDs []int64, rng *rand.Rand) ([]int64, error) {
+	enrollmentIDs := make([]int64, 0)
+	attendanceStatuses := []string{"regelmäßig", "gelegentlich", "neu angemeldet"}
+
+	// Enroll each student in 1-3 random activities
+	for _, studentID := range studentIDs {
+		activitiesPerStudent := rng.Intn(3) + 1 // 1-3 activities per student
+		
+		// Shuffle activity groups
+		shuffledActivities := make([]int64, len(activityGroupIDs))
+		copy(shuffledActivities, activityGroupIDs)
+		for i := len(shuffledActivities) - 1; i > 0; i-- {
+			j := rng.Intn(i + 1)
+			shuffledActivities[i], shuffledActivities[j] = shuffledActivities[j], shuffledActivities[i]
+		}
+
+		for i := 0; i < activitiesPerStudent && i < len(shuffledActivities); i++ {
+			groupID := shuffledActivities[i]
+			status := attendanceStatuses[rng.Intn(len(attendanceStatuses))]
+			
+			// Random enrollment date in the last 30 days
+			enrollmentDate := time.Now().AddDate(0, 0, -rng.Intn(30))
+
+			var id int64
+			query := `INSERT INTO activities.student_enrollments (student_id, activity_group_id, enrollment_date, attendance_status, created_at, updated_at) 
+			          VALUES (?, ?, ?, ?, ?, ?) RETURNING id`
+
+			err := tx.QueryRowContext(ctx, query,
+				studentID, groupID, enrollmentDate, status, time.Now(), time.Now()).Scan(&id)
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to create enrollment for student %d: %w", studentID, err)
+			}
+			enrollmentIDs = append(enrollmentIDs, id)
+		}
+	}
+
+	return enrollmentIDs, nil
+}
+
+func seedIoTDevices(ctx context.Context, tx bun.Tx, registrarPersonIDs []int64, rng *rand.Rand) ([]int64, error) {
+	deviceData := []struct {
+		deviceID     string
+		deviceType   string
+		name         string
+		status       string
+	}{
+		{"RFID-MAIN-001", "rfid_reader", "Haupteingang-Scanner", "active"},
+		{"RFID-MENSA-001", "rfid_reader", "Mensa-Leser", "active"},
+		{"RFID-OGS-001", "rfid_reader", "OGS-Bereich-Scanner", "active"},
+		{"RFID-SPORT-001", "rfid_reader", "Sporthalle-Terminal", "active"},
+		{"RFID-LIB-001", "rfid_reader", "Bibliothek-Terminal", "active"},
+		{"TEMP-CLASS-001", "temperature_sensor", "Temperatursensor Klassenzimmer", "active"},
+		{"TEMP-MENSA-001", "temperature_sensor", "Temperatursensor Mensa", "active"},
+	}
+
+	deviceIDs := make([]int64, 0, len(deviceData))
+	for i, data := range deviceData {
+		registrarID := registrarPersonIDs[i%len(registrarPersonIDs)]
+		lastSeen := time.Now().Add(-time.Duration(rng.Intn(60)) * time.Minute) // Last seen within last hour
+
+		var id int64
+		query := `INSERT INTO iot.devices (device_id, device_type, name, status, last_seen, registered_by_id, created_at, updated_at) 
+		          VALUES (?, ?, ?, ?::device_status, ?, ?, ?, ?) RETURNING id`
+
+		err := tx.QueryRowContext(ctx, query,
+			data.deviceID, data.deviceType, data.name, data.status, lastSeen, registrarID,
+			time.Now(), time.Now()).Scan(&id)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to create IoT device %s: %w", data.name, err)
+		}
+		deviceIDs = append(deviceIDs, id)
+	}
+
+	return deviceIDs, nil
+}
+
+func seedPrivacyConsents(ctx context.Context, tx bun.Tx, studentIDs []int64, rng *rand.Rand) ([]int64, error) {
+	policyVersions := []string{"DSGVO-2023-v1.0", "DSGVO-2023-v1.1", "DSGVO-2024-v1.0"}
+	consentIDs := make([]int64, 0)
+
+	for _, studentID := range studentIDs {
+		// 90% of students have consents
+		if rng.Float32() < 0.9 {
+			policyVersion := policyVersions[rng.Intn(len(policyVersions))]
+			accepted := true
+			acceptedAt := time.Now().AddDate(0, 0, -rng.Intn(180)) // Accepted within last 6 months
+			durationDays := 365 // 1 year validity
+			expiresAt := acceptedAt.AddDate(1, 0, 0) // 1 year from acceptance
+			renewalRequired := expiresAt.Before(time.Now().AddDate(0, 1, 0)) // Renewal needed if expires within a month
+
+			var id int64
+			query := `INSERT INTO users.privacy_consents (student_id, policy_version, accepted, accepted_at, expires_at, duration_days, renewal_required, created_at, updated_at) 
+			          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`
+
+			err := tx.QueryRowContext(ctx, query,
+				studentID, policyVersion, accepted, acceptedAt, expiresAt, durationDays, renewalRequired,
+				time.Now(), time.Now()).Scan(&id)
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to create privacy consent for student %d: %w", studentID, err)
+			}
+			consentIDs = append(consentIDs, id)
+		}
+	}
+
+	return consentIDs, nil
 }

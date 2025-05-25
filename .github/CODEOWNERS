@@ -1,0 +1,6 @@
+# Code Owners for Project Phoenix
+# This file defines who is responsible for code reviews in this repository.
+# Each line is a file pattern followed by one or more owners.
+
+# Global owner for all files
+* @yungweng

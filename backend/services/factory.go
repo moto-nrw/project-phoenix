@@ -126,6 +126,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.Role,               // Add this
 		repos.RolePermission,     // Add this
 		repos.PasswordResetToken, // Add this
+		repos.Person,             // Add this for first name
 		db,
 	)
 	if err != nil {

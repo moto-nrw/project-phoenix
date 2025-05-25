@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import { userContextService } from "./usercontext-api";
 import type { EducationalGroup } from "./usercontext-helpers";
 
@@ -21,11 +22,12 @@ interface UserContextProviderProps {
 
 export function UserContextProvider({ children }: UserContextProviderProps) {
     const { data: session, status } = useSession();
+    const pathname = usePathname();
     const [educationalGroups, setEducationalGroups] = useState<EducationalGroup[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const fetchEducationalGroups = useCallback(async () => {
+    const fetchUserData = useCallback(async () => {
         // Only fetch if we have an authenticated session
         if (!session?.user?.token) {
             setEducationalGroups([]);
@@ -36,12 +38,15 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
         try {
             setIsLoading(true);
             setError(null);
+            
+            // Fetch educational groups
             const groups = await userContextService.getMyEducationalGroups();
+            
             setEducationalGroups(groups);
         } catch (err) {
-            console.error("Failed to fetch educational groups:", err);
-            setError(err instanceof Error ? err.message : "Failed to fetch educational groups");
-            // Set empty array on error so UI doesn't show OGS groups
+            console.error("Failed to fetch user data:", err);
+            setError(err instanceof Error ? err.message : "Failed to fetch user data");
+            // Set empty data on error
             setEducationalGroups([]);
         } finally {
             setIsLoading(false);
@@ -49,27 +54,26 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
     }, [session?.user?.token]);
 
     useEffect(() => {
-        // Only fetch when session status is "authenticated" and we have a token
-        if (status === "authenticated" && session?.user?.token) {
-            void fetchEducationalGroups();
-        } else if (status === "unauthenticated") {
-            // Clear data when unauthenticated
+        // Skip API calls on login/register pages
+        const isAuthPage = pathname === "/" || pathname === "/register";
+        
+        // Only fetch when session status is "authenticated" and we have a token and not on auth pages
+        if (status === "authenticated" && session?.user?.token && !isAuthPage) {
+            void fetchUserData();
+        } else if (status === "unauthenticated" || status === "loading" || isAuthPage) {
+            // Clear data when unauthenticated, loading, or on auth pages
             setEducationalGroups([]);
             setIsLoading(false);
             setError(null);
         }
-        // Set loading state when session is loading
-        else if (status === "loading") {
-            setIsLoading(true);
-        }
-    }, [status, session?.user?.token, fetchEducationalGroups]);
+    }, [status, session?.user?.token, pathname, fetchUserData]);
 
     const value: UserContextState = {
         educationalGroups,
         hasEducationalGroups: educationalGroups.length > 0,
         isLoading,
         error,
-        refetch: fetchEducationalGroups,
+        refetch: fetchUserData,
     };
 
     return (

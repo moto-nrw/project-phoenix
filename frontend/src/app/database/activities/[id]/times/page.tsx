@@ -18,7 +18,7 @@ export default function ActivityTimesPage() {
   const [error, setError] = useState<string | null>(null);
 
   // New time slot form
-  const [weekday, setWeekday] = useState("Monday");
+  const [weekday, setWeekday] = useState("1");
   const [selectedTimeframeId, setSelectedTimeframeId] = useState<string>("");
   const [addingTime, setAddingTime] = useState(false);
   
@@ -113,7 +113,7 @@ export default function ActivityTimesPage() {
 
       // Create a new schedule using the timeframe system
       const newSchedule = {
-        weekday: weekday.toLowerCase(),
+        weekday: weekday,
         timeframe_id: selectedTimeframeId,
       };
 
@@ -164,14 +164,27 @@ export default function ActivityTimesPage() {
   }
 
   const weekdays = [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
+    { value: "1", label: "Montag" },
+    { value: "2", label: "Dienstag" },
+    { value: "3", label: "Mittwoch" },
+    { value: "4", label: "Donnerstag" },
+    { value: "5", label: "Freitag" },
+    { value: "6", label: "Samstag" },
+    { value: "7", label: "Sonntag" },
   ];
+
+  const getWeekdayName = (weekday: string | number): string => {
+    const weekdayMap: Record<string, string> = {
+      "1": "Montag",
+      "2": "Dienstag",
+      "3": "Mittwoch",
+      "4": "Donnerstag",
+      "5": "Freitag",
+      "6": "Samstag",
+      "7": "Sonntag",
+    };
+    return weekdayMap[String(weekday)] ?? String(weekday);
+  };
 
   return (
     <div className="min-h-screen">
@@ -213,7 +226,7 @@ export default function ActivityTimesPage() {
                   className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4"
                 >
                   <div>
-                    <span className="font-medium">{time.weekday}</span>
+                    <span className="font-medium">{getWeekdayName(time.weekday)}</span>
                     {time.timeframe_id && (
                       <span className="ml-4">
                         {(() => {
@@ -253,8 +266,8 @@ export default function ActivityTimesPage() {
                 className="w-full rounded-lg border border-gray-300 px-4 py-2"
               >
                 {weekdays.map((day) => (
-                  <option key={day} value={day}>
-                    {day}
+                  <option key={day.value} value={day.value}>
+                    {day.label}
                   </option>
                 ))}
               </select>

@@ -3,13 +3,24 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { Header } from "~/components/dashboard/header";
-import { Sidebar } from "~/components/dashboard/sidebar";
+import { ResponsiveLayout } from "~/components/dashboard";
 import { Input } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
-import { BackgroundWrapper } from "~/components/background-wrapper";
 import { userContextService } from "~/lib/usercontext-api";
-import type { Student } from "~/lib/student-helpers";
+
+// Student type (should match the API response)
+interface Student {
+    id: string;
+    name?: string;
+    first_name?: string;
+    second_name?: string;
+    school_class?: string;
+    in_house: boolean;
+    wc: boolean;
+    school_yard: boolean;
+    bus: boolean;
+}
+
 
 // Define OGSGroup type based on EducationalGroup with additional fields
 interface OGSGroup {
@@ -165,7 +176,7 @@ export default function OGSGroupPage() {
 
         // Apply year filter
         if (selectedYear !== "all") {
-            const yearMatch = /^(\d)/.exec(student.school_class || '');
+            const yearMatch = /^(\d)/.exec(student.school_class ?? '');
             const studentYear = yearMatch ? yearMatch[1] : null;
             if (studentYear !== selectedYear) {
                 return false;
@@ -213,18 +224,8 @@ export default function OGSGroupPage() {
     }
 
     return (
-        <BackgroundWrapper>
-            <div className="min-h-screen">
-                {/* Header */}
-                <Header userName={session?.user?.name ?? "Benutzer"} />
-
-                <div className="flex">
-                    {/* Sidebar */}
-                    <Sidebar />
-
-                    {/* Main Content */}
-                    <main className="flex-1 p-8">
-                        <div className="mx-auto max-w-7xl">
+        <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+            <div className="max-w-7xl mx-auto">
                             {/* OGS Group Header with Gradient */}
                             <div className="mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-blue-600 to-teal-500 shadow-lg">
                                 <div className="px-8 py-6 text-white">
@@ -435,7 +436,7 @@ export default function OGSGroupPage() {
                                 <div className="space-y-2">
                                     {filteredStudents.length > 0 ? (
                                         filteredStudents.map((student) => {
-                                            const year = getSchoolYear(student.school_class);
+                                            const year = getSchoolYear(student.school_class ?? '');
                                             const yearColor = getYearColor(year);
 
                                             return (
@@ -529,10 +530,7 @@ export default function OGSGroupPage() {
                                     )}
                                 </div>
                             </div>
-                        </div>
-                    </main>
-                </div>
             </div>
-        </BackgroundWrapper>
+        </ResponsiveLayout>
     );
 }

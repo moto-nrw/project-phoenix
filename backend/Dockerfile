@@ -1,13 +1,19 @@
-FROM golang AS builder
+# syntax=docker/dockerfile:1
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /src
-# Download dependencies
-COPY go.mod go.sum /
-RUN go mod download
+
+# Download dependencies with cache mount (only for dependencies)
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 # Add source code
 COPY . .
-RUN CGO_ENABLED=0 go build -o main .
+
+# Build with module cache mount to avoid re-downloading
+RUN --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=0 go build -ldflags="-s -w" -o main .
 
 # Multi-Stage production build
 FROM alpine AS production

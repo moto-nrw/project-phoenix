@@ -576,3 +576,9 @@ Production includes:
 - PostgreSQL with `sslmode=verify-full`
 - Health checks and restart policies
 - Resource limits and persistent volumes
+
+## IMPORTANT: Pull Request Guidelines
+
+**DEFAULT PR TARGET BRANCH: development**
+
+NEVER create pull requests to the `main` branch unless EXPLICITLY instructed to do so. All pull requests should target the `development` branch by default. Only create PRs to `main` when the user specifically says "create a PR to main" or similar explicit instruction.

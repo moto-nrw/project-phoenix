@@ -7,7 +7,7 @@ import (
 func TestIsValidWeekday(t *testing.T) {
 	tests := []struct {
 		name    string
-		weekday string
+		weekday int
 		want    bool
 	}{
 		{
@@ -46,18 +46,18 @@ func TestIsValidWeekday(t *testing.T) {
 			want:    true,
 		},
 		{
-			name:    "Invalid weekday - empty string",
-			weekday: "",
+			name:    "Invalid weekday - zero",
+			weekday: 0,
 			want:    false,
 		},
 		{
-			name:    "Invalid weekday - lowercase",
-			weekday: "monday",
+			name:    "Invalid weekday - negative",
+			weekday: -1,
 			want:    false,
 		},
 		{
-			name:    "Invalid weekday - random string",
-			weekday: "RANDOMDAY",
+			name:    "Invalid weekday - too high",
+			weekday: 8,
 			want:    false,
 		},
 	}
@@ -97,7 +97,7 @@ func TestScheduleValidate(t *testing.T) {
 		{
 			name: "Invalid weekday",
 			schedule: &Schedule{
-				Weekday:         "INVALID",
+				Weekday:         99, // Invalid weekday value
 				ActivityGroupID: 1,
 			},
 			wantErr: true,
