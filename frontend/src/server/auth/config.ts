@@ -163,8 +163,8 @@ export const authConfig = {
         token.id = user.id;
         token.name = user.name;
         token.email = user.email;
-        token.token = user.token;
-        token.refreshToken = user.refreshToken;
+        token.token = user.token ?? "";
+        token.refreshToken = user.refreshToken ?? "";
         token.roles = user.roles;
         token.firstName = user.firstName;
         // Store token expiry (15 minutes from now)
