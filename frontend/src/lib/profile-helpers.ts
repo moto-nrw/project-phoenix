@@ -71,7 +71,7 @@ export function mapProfileResponse(data: BackendProfile): Profile {
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     lastLogin: data.last_login,
-    settings: data.settings as ProfileSettings,
+    settings: data.settings ? data.settings as ProfileSettings : undefined,
   };
 }
 
