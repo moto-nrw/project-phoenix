@@ -101,41 +101,37 @@ export async function fetchActivities(filters?: ActivityFilter): Promise<Activit
         url += `?${queryString}`;
     }
 
-    try {
-        if (useProxyApi) {
-            // Browser environment: use fetch with our Next.js API route
-            const session = await getSession();
-            const response = await fetch(url, {
-                method: "GET",
-                credentials: "include",
-                headers: session?.user?.token
-                    ? {
-                        Authorization: `Bearer ${session.user.token}`,
-                        "Content-Type": "application/json",
-                    }
-                    : undefined,
-            });
+    if (useProxyApi) {
+        // Browser environment: use fetch with our Next.js API route
+        const session = await getSession();
+        const response = await fetch(url, {
+            method: "GET",
+            credentials: "include",
+            headers: session?.user?.token
+                ? {
+                    Authorization: `Bearer ${session.user.token}`,
+                    "Content-Type": "application/json",
+                }
+                : undefined,
+        });
 
-            if (!response.ok) {
-                throw new Error(`API error: ${response.status}`);
-            }
-
-            const responseData = await response.json() as ApiResponse<Activity[]> | Activity[];
-            
-            // Extract the array from the response wrapper if needed
-            if (responseData && typeof responseData === 'object' && 'data' in responseData) {
-                return responseData.data;
-            }
-            return responseData;
-        } else {
-            // Server-side: use axios with the API URL directly
-            const response = await api.get<ApiResponse<BackendActivity[]>>(url);
-            return Array.isArray(response.data.data)
-                ? response.data.data.map(mapActivityResponse)
-                : [];
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
         }
-    } catch {
-        return [];
+
+        const responseData = await response.json() as ApiResponse<Activity[]> | Activity[];
+        
+        // Extract the array from the response wrapper if needed
+        if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+            return responseData.data;
+        }
+        return responseData;
+    } else {
+        // Server-side: use axios with the API URL directly
+        const response = await api.get<ApiResponse<BackendActivity[]>>(url);
+        return Array.isArray(response.data.data)
+            ? response.data.data.map(mapActivityResponse)
+            : [];
     }
 }
 
@@ -227,8 +223,8 @@ export async function getEnrolledStudents(activityId: string): Promise<ActivityS
                 ? response.data.data.map(mapActivityStudentResponse)
                 : [];
         }
-    } catch {
-        return [];
+    } catch (error) {
+        handleActivityApiError(error, "fetch enrolled students");
     }
 }
 
@@ -564,8 +560,8 @@ export async function getCategories(): Promise<ActivityCategory[]> {
                 ? response.data.data.map(mapActivityCategoryResponse)
                 : [];
         }
-    } catch {
-        return [];
+    } catch (error) {
+        handleActivityApiError(error, "fetch categories");
     }
 }
 
@@ -816,7 +812,7 @@ export async function getAvailableTimeSlots(activityId: string, date?: string): 
 }
 
 // Create a new schedule for an activity
-export async function createActivitySchedule(activityId: string, scheduleData: Partial<ActivitySchedule>): Promise<ActivitySchedule | null> {
+export async function createActivitySchedule(activityId: string, scheduleData: Partial<ActivitySchedule>): Promise<ActivitySchedule> {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? `/api/activities/${activityId}/schedules`
@@ -855,8 +851,8 @@ export async function createActivitySchedule(activityId: string, scheduleData: P
             const response = await api.post<ApiResponse<BackendActivitySchedule>>(url, backendData);
             return mapActivityScheduleResponse(response.data.data);
         }
-    } catch {
-        return null;
+    } catch (error) {
+        handleActivityApiError(error, "create activity schedule");
     }
 }
 
