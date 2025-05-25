@@ -323,11 +323,35 @@ func (rs *Resource) listActivities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build response
+	// Build response with supervisors
 	responses := make([]ActivityResponse, 0, len(groups))
 	for _, group := range groups {
 		count := enrollmentCounts[group.ID]
-		responses = append(responses, newActivityResponse(group, count))
+		activityResp := newActivityResponse(group, count)
+		
+		// Get supervisors for this group
+		supervisors, err := rs.ActivityService.GetGroupSupervisors(r.Context(), group.ID)
+		if err == nil && len(supervisors) > 0 {
+			supervisorResponses := make([]SupervisorResponse, 0, len(supervisors))
+			for _, supervisor := range supervisors {
+				supervisorResp := SupervisorResponse{
+					ID:        supervisor.ID,
+					StaffID:   supervisor.StaffID,
+					IsPrimary: supervisor.IsPrimary,
+				}
+				
+				// Add person details if available
+				if supervisor.Staff != nil && supervisor.Staff.Person != nil {
+					supervisorResp.FirstName = supervisor.Staff.Person.FirstName
+					supervisorResp.LastName = supervisor.Staff.Person.LastName
+				}
+				
+				supervisorResponses = append(supervisorResponses, supervisorResp)
+			}
+			activityResp.Supervisors = supervisorResponses
+		}
+		
+		responses = append(responses, activityResp)
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Activities retrieved successfully")

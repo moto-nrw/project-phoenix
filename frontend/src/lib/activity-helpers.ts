@@ -676,3 +676,21 @@ export function isSupervisorAvailable(
         schedule.timeframe_id === timeframeId
     );
 }
+
+// Get appropriate Tailwind gradient classes based on category name
+export function getActivityCategoryColor(categoryName?: string | null): string {
+    if (!categoryName) return "from-gray-500 to-gray-600";
+    
+    const categoryColors: Record<string, string> = {
+        "Sport": "from-blue-500 to-indigo-600",
+        "Kunst & Basteln": "from-purple-500 to-pink-600",
+        "Musik": "from-pink-500 to-rose-600",
+        "Spiele": "from-green-500 to-emerald-600",
+        "Lesen": "from-yellow-500 to-orange-600",
+        "Hausaufgabenhilfe": "from-red-500 to-pink-600",
+        "Natur & Forschen": "from-green-600 to-teal-600",
+        "Computer": "from-indigo-500 to-purple-600",
+    };
+    
+    return categoryColors[categoryName] ?? "from-gray-500 to-gray-600";
+}
