@@ -387,6 +387,9 @@ cython_debug/
 # Generated binary files
 **/project-phoenix
 backend/project-phoenix
+backend/test-build
+backend/test_build
+backend/test_compile
 # Do NOT exclude package.json files - they should be tracked
 !/frontend/package.json
 !/frontend/package-lock.json
