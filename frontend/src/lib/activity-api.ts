@@ -139,6 +139,11 @@ export async function fetchActivities(filters?: ActivityFilter): Promise<Activit
     }
 }
 
+// Fetch a single activity by ID (wrapper for consistency with other fetch functions)
+export async function fetchActivity(id: string): Promise<Activity> {
+    return getActivity(id);
+}
+
 // Get a single activity by ID
 export async function getActivity(id: string): Promise<Activity> {
     const useProxyApi = typeof window !== "undefined";
