@@ -91,7 +91,7 @@ const LogoutIcon = ({ className }: { className?: string }) => (
 
 
 
-export function Header({ userName = "Root" }: HeaderProps) {
+export function Header({ userName = "Benutzer" }: HeaderProps) {
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
     const [isMobileNotificationOpen, setIsMobileNotificationOpen] = useState(false);
