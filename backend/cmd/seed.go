@@ -840,23 +840,47 @@ func seedStudentEnrollments(ctx context.Context, tx bun.Tx, activityGroupIDs []i
 	enrollmentIDs := make([]int64, 0)
 	attendanceStatuses := []string{"regelmäßig", "gelegentlich", "neu angemeldet"}
 
-	// Enroll each student in 1-3 random activities
-	for _, studentID := range studentIDs {
-		activitiesPerStudent := rng.Intn(3) + 1 // 1-3 activities per student
-		
-		// Shuffle activity groups
-		shuffledActivities := make([]int64, len(activityGroupIDs))
-		copy(shuffledActivities, activityGroupIDs)
-		for i := len(shuffledActivities) - 1; i > 0; i-- {
-			j := rng.Intn(i + 1)
-			shuffledActivities[i], shuffledActivities[j] = shuffledActivities[j], shuffledActivities[i]
+	// Track enrollment counts for each activity group
+	enrollmentCounts := make(map[int64]int)
+	maxParticipants := make(map[int64]int)
+	targetFillRates := make(map[int64]float64)
+	
+	// Get max participants for each activity group and set target fill rates
+	for _, groupID := range activityGroupIDs {
+		var max int
+		err := tx.QueryRowContext(ctx, 
+			"SELECT max_participants FROM activities.groups WHERE id = ?", groupID).Scan(&max)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get max_participants for group %d: %w", groupID, err)
 		}
+		maxParticipants[groupID] = max
+		enrollmentCounts[groupID] = 0
+		// Random fill rate between 70-85%
+		targetFillRates[groupID] = 0.70 + (rng.Float64() * 0.15)
+	}
 
-		for i := 0; i < activitiesPerStudent && i < len(shuffledActivities); i++ {
-			groupID := shuffledActivities[i]
-			status := attendanceStatuses[rng.Intn(len(attendanceStatuses))]
+	// First pass: Ensure every student gets at least 1 activity
+	studentsWithActivities := make(map[int64]int) // Track how many activities each student has
+	activityIndex := 0 // For round-robin distribution
+	
+	fmt.Println("First pass: Ensuring every student gets at least one activity...")
+	for _, studentID := range studentIDs {
+		enrolled := false
+		attempts := 0
+		
+		// Try to enroll student in at least one activity
+		for !enrolled && attempts < len(activityGroupIDs) {
+			groupID := activityGroupIDs[activityIndex%len(activityGroupIDs)]
+			activityIndex++
+			attempts++
 			
-			// Random enrollment date in the last 30 days
+			// Check if activity has reached its target fill rate
+			currentFillRate := float64(enrollmentCounts[groupID]) / float64(maxParticipants[groupID])
+			if currentFillRate >= targetFillRates[groupID] {
+				continue
+			}
+			
+			status := attendanceStatuses[rng.Intn(len(attendanceStatuses))]
 			enrollmentDate := time.Now().AddDate(0, 0, -rng.Intn(30))
 
 			var id int64
@@ -870,6 +894,101 @@ func seedStudentEnrollments(ctx context.Context, tx bun.Tx, activityGroupIDs []i
 				return nil, fmt.Errorf("failed to create enrollment for student %d: %w", studentID, err)
 			}
 			enrollmentIDs = append(enrollmentIDs, id)
+			enrollmentCounts[groupID]++
+			studentsWithActivities[studentID] = 1
+			enrolled = true
+		}
+		
+		if !enrolled {
+			return nil, fmt.Errorf("could not enroll student %d in any activity - check capacity", studentID)
+		}
+	}
+	
+	// Second pass: Add additional activities to students (1-2 more each)
+	fmt.Println("Second pass: Adding additional activities to students...")
+	for _, studentID := range studentIDs {
+		// Each student gets 1-2 additional activities (total 2-3)
+		additionalActivities := rng.Intn(2) + 1
+		
+		// Shuffle activities for random assignment
+		shuffledActivities := make([]int64, len(activityGroupIDs))
+		copy(shuffledActivities, activityGroupIDs)
+		for i := len(shuffledActivities) - 1; i > 0; i-- {
+			j := rng.Intn(i + 1)
+			shuffledActivities[i], shuffledActivities[j] = shuffledActivities[j], shuffledActivities[i]
+		}
+
+		enrolledCount := 0
+		for i := 0; i < len(shuffledActivities) && enrolledCount < additionalActivities; i++ {
+			groupID := shuffledActivities[i]
+			
+			// Check if student is already enrolled in this activity
+			var exists bool
+			err := tx.QueryRowContext(ctx, 
+				"SELECT EXISTS(SELECT 1 FROM activities.student_enrollments WHERE student_id = ? AND activity_group_id = ?)",
+				studentID, groupID).Scan(&exists)
+			if err != nil {
+				return nil, fmt.Errorf("failed to check existing enrollment: %w", err)
+			}
+			if exists {
+				continue
+			}
+			
+			// Check if activity has reached its target fill rate
+			currentFillRate := float64(enrollmentCounts[groupID]) / float64(maxParticipants[groupID])
+			if currentFillRate >= targetFillRates[groupID] {
+				continue
+			}
+			
+			status := attendanceStatuses[rng.Intn(len(attendanceStatuses))]
+			enrollmentDate := time.Now().AddDate(0, 0, -rng.Intn(30))
+
+			var id int64
+			query := `INSERT INTO activities.student_enrollments (student_id, activity_group_id, enrollment_date, attendance_status, created_at, updated_at) 
+			          VALUES (?, ?, ?, ?, ?, ?) RETURNING id`
+
+			err = tx.QueryRowContext(ctx, query,
+				studentID, groupID, enrollmentDate, status, time.Now(), time.Now()).Scan(&id)
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to create additional enrollment for student %d: %w", studentID, err)
+			}
+			enrollmentIDs = append(enrollmentIDs, id)
+			enrollmentCounts[groupID]++
+			studentsWithActivities[studentID]++
+			enrolledCount++
+		}
+	}
+	
+	// Print statistics
+	fmt.Println("\nActivity enrollment statistics:")
+	totalEnrollments := 0
+	totalCapacity := 0
+	for groupID, count := range enrollmentCounts {
+		totalEnrollments += count
+		totalCapacity += maxParticipants[groupID]
+		fillRate := float64(count) / float64(maxParticipants[groupID]) * 100
+		if count > 0 {
+			fmt.Printf("  Activity Group %d: %d/%d enrolled (%.1f%% full, target: %.1f%%)\n", 
+				groupID, count, maxParticipants[groupID], fillRate, targetFillRates[groupID]*100)
+		}
+	}
+	
+	fmt.Printf("\nSummary:\n")
+	fmt.Printf("  Total enrollments: %d\n", totalEnrollments)
+	fmt.Printf("  Total capacity: %d\n", totalCapacity)
+	fmt.Printf("  Overall fill rate: %.1f%%\n", float64(totalEnrollments)/float64(totalCapacity)*100)
+	
+	// Student distribution statistics
+	activityCounts := make(map[int]int) // How many students have X activities
+	for _, count := range studentsWithActivities {
+		activityCounts[count]++
+	}
+	fmt.Printf("\nStudent activity distribution:\n")
+	for count := 1; count <= 3; count++ {
+		if num, ok := activityCounts[count]; ok {
+			fmt.Printf("  %d students have %d %s\n", num, count, 
+				func() string { if count == 1 { return "activity" } else { return "activities" } }())
 		}
 	}
 
