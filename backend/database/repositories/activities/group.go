@@ -275,7 +275,15 @@ func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOpti
 	var groups []*activities.Group
 	query := r.db.NewSelect().
 		Model(&groups).
-		ModelTableExpr(`activities.groups AS "group"`)
+		ModelTableExpr(`activities.groups AS "group"`).
+		ColumnExpr(`"group".*`).
+		ColumnExpr(`"category"."id" AS "category__id"`).
+		ColumnExpr(`"category"."created_at" AS "category__created_at"`).
+		ColumnExpr(`"category"."updated_at" AS "category__updated_at"`).
+		ColumnExpr(`"category"."name" AS "category__name"`).
+		ColumnExpr(`"category"."description" AS "category__description"`).
+		ColumnExpr(`"category"."color" AS "category__color"`).
+		Join(`LEFT JOIN activities.categories AS "category" ON "category"."id" = "group"."category_id"`)
 
 	// Apply query options
 	if options != nil {
