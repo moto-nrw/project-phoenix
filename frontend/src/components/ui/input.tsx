@@ -14,13 +14,13 @@ export function Input({
 }: InputProps) {
   return (
     <div>
-      <label htmlFor={name} className="block text-sm font-medium text-gray-700">
+      <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-2">
         {label}
       </label>
       <input
         id={name}
         name={name}
-        className={`mt-1 block w-full rounded-lg border-0 px-4 py-3 text-base shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-teal-500 focus:outline-none ${className}`}
+        className={`block w-full rounded-lg border-0 px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-inset ring-gray-200 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-gray-900 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200 transition-all duration-200 ${className}`}
         {...props}
       />
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
