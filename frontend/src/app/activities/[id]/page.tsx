@@ -29,6 +29,7 @@ function ActivityDetailContent() {
         // Load enrolled students separately
         try {
           const enrolledStudents = await getEnrolledStudents(activityId);
+          console.log("Enrolled students:", enrolledStudents);
           setStudents(enrolledStudents);
         } catch (studentErr) {
           console.error("Error fetching enrolled students:", studentErr);
@@ -343,20 +344,24 @@ function ActivityDetailContent() {
 
               {students.length > 0 ? (
                 <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-                  {students.map((student) => (
-                    <div
-                      key={student.id}
-                      className="rounded-lg bg-gray-50 p-3 transition-colors hover:bg-gray-100 cursor-pointer"
-                      onClick={() => router.push(`/database/students/${student.student_id}`)}
-                    >
-                      <div className="font-medium">{student.name}</div>
-                      {student.school_class && (
-                        <div className="text-sm text-gray-600">
-                          Klasse: {student.school_class}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                  {students.map((student) => {
+                    // Use the enrollment's student_id if available, otherwise try to extract from id
+                    const studentId = student.student_id || student.id;
+                    return (
+                      <div
+                        key={student.id}
+                        className="rounded-lg bg-gray-50 p-3 transition-colors hover:bg-gray-100 cursor-pointer"
+                        onClick={() => router.push(`/students/${studentId}?from=/activities/${activityId}`)}
+                      >
+                        <div className="font-medium">{student.name}</div>
+                        {student.school_class && (
+                          <div className="text-sm text-gray-600">
+                            Klasse: {student.school_class}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="rounded-lg bg-yellow-50 p-4 text-center text-yellow-800">
