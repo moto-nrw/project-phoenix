@@ -169,7 +169,7 @@ AUTH_JWT_EXPIRY=15m                   # Access token expiry
 AUTH_JWT_REFRESH_EXPIRY=1h            # Refresh token expiry
 
 # Admin Account (for initial setup)
-ADMIN_EMAIL=kontakt@moto.nrw
+ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=strong_password_here   # Change immediately!
 
 # Development

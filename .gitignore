@@ -397,6 +397,18 @@ backend/project-phoenix
 
 # CI/CD and production files
 ci-cd-best-practices-guide.md
+
+# Claude AI specific files
+.claude/
+*.local.md
+
+# Server logs and runtime files
+backend/*.log
+backend/server.log
+
+# IDE configurations
+.idea/
+.vscode/
 # Docker compose files should use templates
 docker-compose.yml
 docker-compose.prod.yml

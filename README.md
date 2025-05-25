@@ -431,7 +431,7 @@ We welcome contributions! Please follow these guidelines:
 
 ## Security
 
-- Report security vulnerabilities to kontakt@moto.nrw
+- Report security vulnerabilities through GitHub Issues or contact the maintainers
 - Use environment variables for sensitive data
 - Never commit secrets or SSL certificates to the repository
 - Follow OWASP security guidelines
@@ -446,7 +446,6 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 ## Contact
 
 - **Project Website**: [moto.nrw](https://moto.nrw)
-- **Email**: kontakt@moto.nrw
 - **GitHub**: [github.com/moto-nrw/project-phoenix](https://github.com/moto-nrw/project-phoenix)
 
 ---
