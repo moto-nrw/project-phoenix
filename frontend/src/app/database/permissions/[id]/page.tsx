@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { authService } from "@/lib/auth-service";
 import { PageHeader } from "@/components/dashboard";
 import { Button, Input, Card } from "@/components/ui";
 import type { Permission } from "@/lib/auth-helpers";
 
-export default function PermissionDetailsPage({ params }: { params: { id: string } }) {
+export default function PermissionDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  // Use React.use to unwrap the params promise
+  const resolvedParams = use(params);
   const router = useRouter();
   const [permission, setPermission] = useState<Permission | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -25,7 +27,7 @@ export default function PermissionDetailsPage({ params }: { params: { id: string
       setIsLoading(true);
       setError(null);
       
-      const permissionData = await authService.getPermission(params.id);
+      const permissionData = await authService.getPermission(resolvedParams.id);
       
       setPermission(permissionData);
       setFormData({
@@ -40,11 +42,11 @@ export default function PermissionDetailsPage({ params }: { params: { id: string
     } finally {
       setIsLoading(false);
     }
-  }, [params.id]);
+  }, [resolvedParams.id]);
 
   useEffect(() => {
     void loadPermissionData();
-  }, [params.id, loadPermissionData]);
+  }, [resolvedParams.id, loadPermissionData]);
 
   const handleSave = async () => {
     if (!permission) return;
