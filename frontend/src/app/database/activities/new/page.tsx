@@ -6,7 +6,8 @@ import { useState, useEffect } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
 import ActivityForm from "@/components/activities/activity-form";
 import type { Activity, ActivityCategory } from "@/lib/activity-api";
-import { activityService } from "@/lib/activity-api";
+import { activityService } from "@/lib/activity-service";
+import { teacherService } from "@/lib/teacher-api";
 // import Link from 'next/link';
 
 export default function NewActivityPage() {
@@ -60,28 +61,27 @@ export default function NewActivityPage() {
     try {
       setSupervisorsLoading(true);
 
-      // Fetch supervisors from our API
-      const response = await fetch("/api/users/supervisors");
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch supervisors: ${response.statusText}`);
-      }
-
-      const supervisorsData = (await response.json()) as Array<{
-        id: string;
-        name: string;
-      }>;
+      // Fetch supervisors from teacher service (same as groups/new)
+      const teachersData = await teacherService.getTeachers();
+      
+      // Convert teachers to supervisors format
+      const supervisorsData = teachersData.map(teacher => ({
+        id: teacher.id,
+        name: teacher.name
+      }));
+      
       setSupervisors(supervisorsData);
     } catch (err) {
       console.error("Error fetching supervisors:", err);
       // Don't set an error state that would block the UI, just log it
+      setSupervisors([]); // Set empty array to prevent UI issues
     } finally {
       setSupervisorsLoading(false);
     }
   };
 
   // Handle form submission
-  const handleSubmit = async (formData: Partial<Activity>) => {
+  const handleSubmit = async (formData: Partial<Activity> & { schedules?: Array<{ weekday: string; timeframe_id?: number }> }) => {
     try {
       setSaving(true);
 
@@ -112,8 +112,22 @@ export default function NewActivityPage() {
         activityData.times = formData.times;
       }
 
-      // Create the activity
-      const newActivity = await activityService.createActivity(activityData);
+      // Create the activity - convert from Activity type to CreateActivityRequest type
+      const createRequest = {
+        name: activityData.name,
+        max_participants: activityData.max_participant,
+        is_open: activityData.is_open_ags,
+        category_id: parseInt(activityData.ag_category_id, 10),
+        planned_room_id: formData.planned_room_id ? parseInt(formData.planned_room_id, 10) : undefined,
+        supervisor_ids: activityData.supervisor_id ? [parseInt(activityData.supervisor_id, 10)] : [],
+        // Include schedules from form data if present, converting weekday to number
+        schedules: formData.schedules?.map(schedule => ({
+          ...schedule,
+          weekday: parseInt(schedule.weekday, 10)
+        })) ?? []
+      };
+      
+      const newActivity = await activityService.createActivity(createRequest);
 
       // Redirect to the new activity
       router.push(`/database/activities/${newActivity.id}`);

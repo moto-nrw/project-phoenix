@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import type { Activity } from "@/lib/activity-api";
+import type { Activity } from "@/lib/activity-helpers";
 import {
   formatActivityTimes,
   formatParticipantStatus,

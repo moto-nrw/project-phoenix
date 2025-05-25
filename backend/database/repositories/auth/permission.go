@@ -29,6 +29,7 @@ func (r *PermissionRepository) FindByName(ctx context.Context, name string) (*au
 	permission := new(auth.Permission)
 	err := r.db.NewSelect().
 		Model(permission).
+		ModelTableExpr(`auth.permissions AS "permission"`).
 		Where("LOWER(name) = LOWER(?)", name).
 		Scan(ctx)
 
@@ -47,6 +48,7 @@ func (r *PermissionRepository) FindByResourceAction(ctx context.Context, resourc
 	permission := new(auth.Permission)
 	err := r.db.NewSelect().
 		Model(permission).
+		ModelTableExpr(`auth.permissions AS "permission"`).
 		Where("LOWER(resource) = LOWER(?) AND LOWER(action) = LOWER(?)", resource, action).
 		Scan(ctx)
 
@@ -67,6 +69,7 @@ func (r *PermissionRepository) FindByAccountID(ctx context.Context, accountID in
 	// This query combines permissions from direct assignments and role-based permissions
 	err := r.db.NewSelect().
 		Model(&permissions).
+		ModelTableExpr(`auth.permissions AS "permission"`).
 		Distinct().
 		With("account_permissions_direct", r.db.NewSelect().
 			Table("auth.account_permissions").
@@ -97,6 +100,7 @@ func (r *PermissionRepository) FindByRoleID(ctx context.Context, roleID int64) (
 	var permissions []*auth.Permission
 	err := r.db.NewSelect().
 		Model(&permissions).
+		ModelTableExpr(`auth.permissions AS "permission"`).
 		Join("JOIN auth.role_permissions rp ON rp.permission_id = permission.id").
 		Where("rp.role_id = ?", roleID).
 		Scan(ctx)
@@ -116,6 +120,7 @@ func (r *PermissionRepository) AssignPermissionToAccount(ctx context.Context, ac
 	// Check if the permission assignment already exists
 	exists, err := r.db.NewSelect().
 		Model((*auth.AccountPermission)(nil)).
+		ModelTableExpr(`auth.account_permissions AS "account_permission"`).
 		Where("account_id = ? AND permission_id = ?", accountID, permissionID).
 		Exists(ctx)
 
@@ -130,6 +135,7 @@ func (r *PermissionRepository) AssignPermissionToAccount(ctx context.Context, ac
 		// Update the existing assignment to ensure it's granted
 		_, err = r.db.NewUpdate().
 			Model((*auth.AccountPermission)(nil)).
+			ModelTableExpr(`auth.account_permissions AS "account_permission"`).
 			Set("granted = true").
 			Where("account_id = ? AND permission_id = ?", accountID, permissionID).
 			Exec(ctx)
@@ -151,6 +157,7 @@ func (r *PermissionRepository) AssignPermissionToAccount(ctx context.Context, ac
 			PermissionID: permissionID,
 			Granted:      true,
 		}).
+		ModelTableExpr(`auth.account_permissions AS "account_permission"`).
 		Exec(ctx)
 
 	if err != nil {
@@ -167,6 +174,7 @@ func (r *PermissionRepository) AssignPermissionToAccount(ctx context.Context, ac
 func (r *PermissionRepository) RemovePermissionFromAccount(ctx context.Context, accountID int64, permissionID int64) error {
 	_, err := r.db.NewDelete().
 		Model((*auth.AccountPermission)(nil)).
+		ModelTableExpr(`auth.account_permissions AS "account_permission"`).
 		Where("account_id = ? AND permission_id = ?", accountID, permissionID).
 		Exec(ctx)
 

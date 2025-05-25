@@ -8,21 +8,21 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Valid weekday values
+// Valid weekday values following ISO 8601 (Monday = 1, Sunday = 7)
 const (
-	WeekdayMonday    = "MONDAY"
-	WeekdayTuesday   = "TUESDAY"
-	WeekdayWednesday = "WEDNESDAY"
-	WeekdayThursday  = "THURSDAY"
-	WeekdayFriday    = "FRIDAY"
-	WeekdaySaturday  = "SATURDAY"
-	WeekdaySunday    = "SUNDAY"
+	WeekdayMonday    = 1
+	WeekdayTuesday   = 2
+	WeekdayWednesday = 3
+	WeekdayThursday  = 4
+	WeekdayFriday    = 5
+	WeekdaySaturday  = 6
+	WeekdaySunday    = 7
 )
 
 // Schedule represents a scheduled time for an activity group
 type Schedule struct {
 	base.Model      `bun:"schema:activities,table:schedules"`
-	Weekday         string `bun:"weekday,notnull" json:"weekday"`
+	Weekday         int    `bun:"weekday,notnull" json:"weekday"`
 	TimeframeID     *int64 `bun:"timeframe_id" json:"timeframe_id,omitempty"`
 	ActivityGroupID int64  `bun:"activity_group_id,notnull" json:"activity_group_id"`
 
@@ -67,18 +67,9 @@ func (s *Schedule) TableName() string {
 	return "activities.schedules"
 }
 
-// IsValidWeekday checks if the weekday is valid
-func IsValidWeekday(weekday string) bool {
-	validWeekdays := map[string]bool{
-		WeekdayMonday:    true,
-		WeekdayTuesday:   true,
-		WeekdayWednesday: true,
-		WeekdayThursday:  true,
-		WeekdayFriday:    true,
-		WeekdaySaturday:  true,
-		WeekdaySunday:    true,
-	}
-	return validWeekdays[weekday]
+// IsValidWeekday checks if the weekday is valid (ISO 8601: 1-7)
+func IsValidWeekday(weekday int) bool {
+	return weekday >= WeekdayMonday && weekday <= WeekdaySunday
 }
 
 // Validate ensures schedule data is valid

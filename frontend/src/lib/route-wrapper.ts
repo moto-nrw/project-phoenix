@@ -138,7 +138,13 @@ import type { NextRequest } from "next/server";
           safeParams[key] = value;
         });
 
-        const body = await request.json() as B;
+        let body: B;
+        try {
+          const text = await request.text();
+          body = text ? JSON.parse(text) as B : {} as B;
+        } catch {
+          body = {} as B;
+        }
         const data = await handler(request, body, session.user.token, safeParams);
 
         // Wrap the response in ApiResponse format if it's not already
@@ -211,7 +217,13 @@ import type { NextRequest } from "next/server";
           safeParams[key] = value;
         });
 
-        const body = await request.json() as B;
+        let body: B;
+        try {
+          const text = await request.text();
+          body = text ? JSON.parse(text) as B : {} as B;
+        } catch {
+          body = {} as B;
+        }
         const data = await handler(request, body, session.user.token, safeParams);
 
         // Wrap the response in ApiResponse format if it's not already

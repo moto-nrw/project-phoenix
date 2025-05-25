@@ -1,0 +1,96 @@
+services:
+  server:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - 8080:8080
+    develop:
+      watch:
+        - action: rebuild
+          path: ./backend
+          ignore:
+            - backend/bin/
+            - backend/*.log
+            - backend/tmp/
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      LOG_TEXTLOGGING: ${LOG_TEXTLOGGING:-"true"}
+      PORT: ${PORT:-8080}
+      DB_DSN: ${DB_DSN:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=require}
+      DB_DEBUG: ${DB_DEBUG:-"true"}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+      AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY:-15m}
+      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-1h}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-"no-reply@example.com"}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-"Project Phoenix"}
+      EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST}
+      EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT:-465}
+      EMAIL_SMTP_USER: ${EMAIL_SMTP_USER}
+      EMAIL_SMTP_PASSWORD: ${EMAIL_SMTP_PASSWORD}
+      ENABLE_CORS: ${ENABLE_CORS:-"true"}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-"false"}
+      RATE_LIMIT_REQUESTS_PER_MINUTE: ${RATE_LIMIT_REQUESTS_PER_MINUTE:-60}
+      RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:-10}
+      RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE: ${RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE:-5}
+      SECURITY_LOGGING_ENABLED: ${SECURITY_LOGGING_ENABLED:-"false"}
+    command: ["./main", "serve", "--db_debug"]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    ports:
+      - "3000:3000"
+    environment:
+      # API URL for both client and server-side calls
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-"http://server:8080"}
+      # NextAuth configuration
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-"http://localhost:3000"}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      # Skip env validation in Docker
+      SKIP_ENV_VALIDATION: ${SKIP_ENV_VALIDATION:-"true"}
+      NEXT_TELEMETRY_DISABLED: ${NEXT_TELEMETRY_DISABLED:-"1"}
+    depends_on:
+      - server
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ./config/ssl/postgres:/var/lib/postgresql/ssl:ro
+      - ./config/ssl/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./config/ssl/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    command: ["-c", "config_file=/etc/postgresql/postgresql.conf", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 1s
+      timeout: 1s
+      retries: 2
+volumes:
+  postgres:

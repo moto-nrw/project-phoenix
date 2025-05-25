@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react";
 import { redirect, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { PageHeader, SectionTitle } from "@/components/dashboard";
+import { ResponsiveLayout } from "@/components/dashboard";
 import type { Student } from "@/lib/api";
 import { studentService } from "@/lib/api";
 import { formatStudentName } from "@/lib/student-helpers";
@@ -30,7 +30,7 @@ export default function StudentsPage() {
   //   }
   // };
 
-  const { status } = useSession({
+  const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/");
@@ -90,9 +90,11 @@ export default function StudentsPage() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p>Loading...</p>
-      </div>
+      <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+        <div className="flex items-center justify-center py-12">
+          <p>Loading...</p>
+        </div>
+      </ResponsiveLayout>
     );
   }
 
@@ -150,18 +152,20 @@ export default function StudentsPage() {
   // Show error if loading failed
   if (error) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <div className="max-w-md rounded-lg bg-red-50 p-4 text-red-800">
-          <h2 className="mb-2 font-semibold">Fehler</h2>
-          <p>{error}</p>
-          <button
-            onClick={() => fetchStudents()}
-            className="mt-4 rounded bg-red-100 px-4 py-2 text-red-800 transition-colors hover:bg-red-200"
-          >
-            Erneut versuchen
-          </button>
+      <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+        <div className="flex flex-col items-center justify-center py-12">
+          <div className="max-w-md rounded-lg bg-red-50 p-4 text-red-800">
+            <h2 className="mb-2 font-semibold">Fehler</h2>
+            <p>{error}</p>
+            <button
+              onClick={() => fetchStudents()}
+              className="mt-4 rounded bg-red-100 px-4 py-2 text-red-800 transition-colors hover:bg-red-200"
+            >
+              Erneut versuchen
+            </button>
+          </div>
         </div>
-      </div>
+      </ResponsiveLayout>
     );
   }
 
@@ -180,12 +184,11 @@ export default function StudentsPage() {
   */
 
   return (
-    <div className="min-h-screen">
-      <PageHeader title="Schülerauswahl" backUrl="/database" />
-
-      <main className="mx-auto max-w-4xl p-4">
+    <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+      <div className="max-w-7xl mx-auto">
+        {/* Header Section */}
         <div className="mb-8">
-          <SectionTitle title="Schüler auswählen" />
+          <h1 className="text-2xl font-bold text-gray-900 lg:text-3xl">Schüler auswählen</h1>
         </div>
 
         {/* Search and Add Section with Filters */}
@@ -259,7 +262,6 @@ export default function StudentsPage() {
         <div className="w-full space-y-3">
           {students.length > 0 ? (
             students.map((student) => (
-
               <div
                 key={student.id}
                 className="group flex cursor-pointer items-center justify-between rounded-lg border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:translate-y-[-1px] hover:border-blue-200 hover:shadow-md"
@@ -278,7 +280,7 @@ export default function StudentsPage() {
             </div>
           )}
         </div>
-      </main>
-    </div>
+      </div>
+    </ResponsiveLayout>
   );
 }

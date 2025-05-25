@@ -1,6 +1,6 @@
 import "~/styles/globals.css";
 
-import { SessionProvider } from "~/components/session-provider";
+import { Providers } from "./providers";
 import { BackgroundWrapper } from "~/components/background-wrapper";
 import { Inter } from "next/font/google";
 
@@ -16,6 +16,13 @@ export const metadata = {
   manifest: "/site.webmanifest",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -24,9 +31,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`font-sans ${inter.className}`}>
-        <SessionProvider>
+        <Providers>
           <BackgroundWrapper>{children}</BackgroundWrapper>
-        </SessionProvider>
+        </Providers>
       </body>
     </html>
   );

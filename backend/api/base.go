@@ -2,6 +2,9 @@ package api
 
 import (
 	"net/http"
+	"os"
+	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -22,6 +25,7 @@ import (
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	"github.com/moto-nrw/project-phoenix/services"
 )
 
@@ -74,11 +78,26 @@ func New(enableCORS bool) (*API, error) {
 	api.Router.Use(middleware.RealIP)
 	api.Router.Use(middleware.Logger)
 	api.Router.Use(middleware.Recoverer)
+	
+	// Add security headers to all responses
+	api.Router.Use(customMiddleware.SecurityHeaders)
 
 	// Setup CORS if enabled
 	if enableCORS {
+		// Get allowed origins from environment variable
+		// Default to "*" for backwards compatibility if not specified
+		// This maintains current behavior while allowing restriction in production
+		allowedOrigins := []string{"*"}
+		if originsEnv := os.Getenv("CORS_ALLOWED_ORIGINS"); originsEnv != "" {
+			// Parse comma-separated origins
+			allowedOrigins = strings.Split(originsEnv, ",")
+			for i := range allowedOrigins {
+				allowedOrigins[i] = strings.TrimSpace(allowedOrigins[i])
+			}
+		}
+
 		api.Router.Use(cors.Handler(cors.Options{
-			AllowedOrigins:   []string{"*"},
+			AllowedOrigins:   allowedOrigins,
 			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 			ExposedHeaders:   []string{"Link"},
@@ -87,13 +106,45 @@ func New(enableCORS bool) (*API, error) {
 		}))
 	}
 
+	// Setup security logging if enabled
+	var securityLogger *customMiddleware.SecurityLogger
+	if securityLogging := os.Getenv("SECURITY_LOGGING_ENABLED"); securityLogging == "true" {
+		securityLogger = customMiddleware.NewSecurityLogger()
+		api.Router.Use(customMiddleware.SecurityLoggingMiddleware(securityLogger))
+	}
+
+	// Setup rate limiting if enabled
+	if rateLimitEnabled := os.Getenv("RATE_LIMIT_ENABLED"); rateLimitEnabled == "true" {
+		// Get rate limit configuration from environment
+		generalLimit := 60 // default: 60 requests per minute
+		if limit := os.Getenv("RATE_LIMIT_REQUESTS_PER_MINUTE"); limit != "" {
+			if parsed, err := strconv.Atoi(limit); err == nil && parsed > 0 {
+				generalLimit = parsed
+			}
+		}
+
+		generalBurst := 10 // default burst
+		if burst := os.Getenv("RATE_LIMIT_BURST"); burst != "" {
+			if parsed, err := strconv.Atoi(burst); err == nil && parsed > 0 {
+				generalBurst = parsed
+			}
+		}
+
+		// Create general rate limiter for all endpoints
+		generalRateLimiter := customMiddleware.NewRateLimiter(generalLimit, generalBurst)
+		if securityLogger != nil {
+			generalRateLimiter.SetLogger(securityLogger)
+		}
+		api.Router.Use(generalRateLimiter.Middleware())
+	}
+
 	// Initialize API resources
 	api.Auth = authAPI.NewResource(api.Services.Auth)
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities)
-	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student)
+	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student, api.Services.Education, api.Services.UserContext)
 	api.Groups = groupsAPI.NewResource(api.Services.Education)
-	api.Activities = activitiesAPI.NewResource(api.Services.Activities)
-	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education)
+	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users)
+	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth)
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
 	api.Config = configAPI.NewResource(api.Services.Config)
@@ -102,8 +153,8 @@ func New(enableCORS bool) (*API, error) {
 	api.Users = usersAPI.NewResource(api.Services.Users)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext)
 
-	// Register routes
-	api.registerRoutes()
+	// Register routes with rate limiting
+	api.registerRoutesWithRateLimiting()
 
 	return api, nil
 }
@@ -113,8 +164,32 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.Router.ServeHTTP(w, r)
 }
 
-// registerRoutes registers all API routes
-func (a *API) registerRoutes() {
+// registerRoutesWithRateLimiting registers all API routes with appropriate rate limiting
+func (a *API) registerRoutesWithRateLimiting() {
+	// Check if rate limiting is enabled
+	rateLimitEnabled := os.Getenv("RATE_LIMIT_ENABLED") == "true"
+	
+	// Get security logger if it exists
+	var securityLogger *customMiddleware.SecurityLogger
+	if securityLogging := os.Getenv("SECURITY_LOGGING_ENABLED"); securityLogging == "true" {
+		securityLogger = customMiddleware.NewSecurityLogger()
+	}
+	
+	// Configure auth-specific rate limiting if enabled
+	var authRateLimiter *customMiddleware.RateLimiter
+	if rateLimitEnabled {
+		// Stricter rate limit for auth endpoints
+		authLimit := 5 // default: 5 requests per minute for auth
+		if limit := os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE"); limit != "" {
+			if parsed, err := strconv.Atoi(limit); err == nil && parsed > 0 {
+				authLimit = parsed
+			}
+		}
+		authRateLimiter = customMiddleware.NewRateLimiter(authLimit, 2) // small burst for auth
+		if securityLogger != nil {
+			authRateLimiter.SetLogger(securityLogger)
+		}
+	}
 	a.Router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("MOTO API - Phoenix Project"))
 	})
@@ -125,7 +200,15 @@ func (a *API) registerRoutes() {
 
 	// Mount API resources
 	// Auth routes mounted at root level to match frontend expectations
-	a.Router.Mount("/auth", a.Auth.Router())
+	// Apply stricter rate limiting to auth endpoints if enabled
+	if rateLimitEnabled && authRateLimiter != nil {
+		a.Router.Route("/auth", func(r chi.Router) {
+			r.Use(authRateLimiter.Middleware())
+			r.Mount("/", a.Auth.Router())
+		})
+	} else {
+		a.Router.Mount("/auth", a.Auth.Router())
+	}
 
 	// Other API routes under /api prefix for organization
 	a.Router.Route("/api", func(r chi.Router) {

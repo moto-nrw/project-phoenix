@@ -15,8 +15,25 @@ export interface BackendStudent {
     guardian_email?: string;
     guardian_phone?: string;
     group_id?: number;
+    group_name?: string;
     created_at: string;
     updated_at: string;
+}
+
+// Supervisor contact information
+export interface SupervisorContact {
+    id: number;
+    first_name: string;
+    last_name: string;
+    email?: string;
+    phone?: string;
+    role: string;
+}
+
+// Detailed student response with access control
+export interface BackendStudentDetail extends BackendStudent {
+    has_full_access: boolean;
+    group_supervisors?: SupervisorContact[];
 }
 
 // Frontend types (mapped from backend)
@@ -37,6 +54,9 @@ export interface Student {
     name_lg?: string;
     contact_lg?: string;
     custom_users_id?: string;
+    // Additional fields for access control
+    has_full_access?: boolean;
+    group_supervisors?: SupervisorContact[];
 }
 
 // Mapping functions
@@ -54,7 +74,7 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student {
         school_class: backendStudent.school_class,
         grade: undefined, // Not provided by backend
         studentId: backendStudent.tag_id,
-        group_name: undefined, // Not provided by backend, needs separate lookup
+        group_name: backendStudent.group_name,
         group_id: backendStudent.group_id ? String(backendStudent.group_id) : undefined,
         in_house: backendStudent.location === "In House",
         wc: backendStudent.location === "WC",

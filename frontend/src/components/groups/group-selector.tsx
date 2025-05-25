@@ -4,6 +4,13 @@ import { useState, useEffect } from "react";
 // import { useRouter } from 'next/navigation';
 import type { Group } from "@/lib/api";
 
+// Type for the API response
+interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+}
+
 interface GroupSelectorProps {
   value: string;
   onChange: (groupId: string) => void;
@@ -31,15 +38,28 @@ export default function GroupSelector({
     const fetchGroups = async () => {
       try {
         setLoading(true);
-        // Fetch groups using the public API endpoint
-        const response = await fetch("/api/groups/public");
+        // Fetch groups using the list endpoint
+        const response = await fetch("/api/groups");
 
         if (!response.ok) {
           throw new Error(`Error: ${response.status}`);
         }
 
-        const data = (await response.json()) as Group[];
-        setGroups(data);
+        const result = await response.json() as ApiResponse<Group[]> | Group[];
+        
+        // Handle both wrapped and unwrapped responses
+        let groupData: Group[];
+        if (result && typeof result === 'object' && 'data' in result && !Array.isArray(result)) {
+          // Handle wrapped response from our API
+          groupData = result.data;
+        } else if (Array.isArray(result)) {
+          // Handle raw array response
+          groupData = result;
+        } else {
+          throw new Error('Unexpected response format');
+        }
+        
+        setGroups(groupData);
         setError(null);
       } catch (err) {
         console.error("Error fetching groups:", err);

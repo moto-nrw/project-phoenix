@@ -27,6 +27,9 @@ var (
 	// ErrAlreadyEnrolled returned when a student is already enrolled in a group
 	ErrAlreadyEnrolled = errors.New("student is already enrolled in this activity group")
 
+	// ErrStudentAlreadyEnrolled alias for ErrAlreadyEnrolled
+	ErrStudentAlreadyEnrolled = ErrAlreadyEnrolled
+
 	// ErrNotEnrolled returned when a student is not enrolled in a group
 	ErrNotEnrolled = errors.New("student is not enrolled in this activity group")
 
@@ -35,6 +38,9 @@ var (
 
 	// ErrGroupClosed returned when an activity group is not open for enrollment
 	ErrGroupClosed = errors.New("activity group is not open for enrollment")
+
+	// ErrCannotDeletePrimary returned when attempting to delete a primary supervisor
+	ErrCannotDeletePrimary = errors.New("cannot delete primary supervisor")
 )
 
 // ActivityError represents an activity-related error

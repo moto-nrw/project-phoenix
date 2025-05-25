@@ -6,10 +6,9 @@ import type { ApiResponse } from "./api-helpers";
 import {
   mapSingleStudentResponse,
   mapStudentsResponse,
-  mapStudentResponse,
   prepareStudentForBackend,
 } from "./student-helpers";
-import type { BackendStudent } from "./student-helpers";
+import type { BackendStudent, Student } from "./student-helpers";
 import {
   mapSingleGroupResponse,
   mapGroupResponse, // Used in exported function
@@ -129,27 +128,8 @@ api.interceptors.response.use(
   },
 );
 
-// API interfaces
-export interface Student {
-  id: string;
-  name: string; // Derived from CustomUser's FirstName + SecondName
-  first_name?: string; // FirstName in CustomUser record
-  second_name?: string; // SecondName in CustomUser record
-  school_class: string; // From backend's SchoolClass field
-  grade?: string; // For frontend display/form use
-  studentId?: string; // For frontend display/form use
-  group_name?: string; // From related Group
-  group_id?: string; // ID of the related Group
-  in_house: boolean; // Current location status
-  wc?: boolean; // Bathroom status
-  school_yard?: boolean; // School yard status
-  bus?: boolean; // Bus status
-  name_lg?: string; // Legal Guardian name
-  contact_lg?: string; // Legal Guardian contact
-  custom_users_id?: string; // ID of the related CustomUser
-}
-
-// Re-export the Group and CombinedGroup types from group-helpers.ts
+// Re-export types for external usage
+export type { Student } from "./student-helpers";
 export type Group = ImportedGroup;
 export type CombinedGroup = ImportedCombinedGroup;
 
@@ -327,8 +307,8 @@ export const studentService = {
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
                 const data: unknown = await retryResponse.json();
-                // The data is already the student object (not wrapped in a data property)
-                return mapStudentResponse(data as BackendStudent);
+                // Return as Student with additional fields - route handler already unwrapped it
+                return data as Student;
               }
             }
           }
@@ -337,43 +317,15 @@ export const studentService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json() as {
-          data?: unknown;
-          [key: string]: unknown;
-        };
+        const responseData = await response.json() as unknown;
         
-        // If response is wrapped (from our Next.js API route), extract the data
-        if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
-          const studentData = responseData.data;
-          
-          // If the extracted data is already mapped (has frontend structure)
-          if (typeof studentData === 'object' && studentData && 'name' in studentData && 'first_name' in studentData) {
-            return studentData as Student;
-          }
-          
-          // Otherwise map it
-          return mapStudentResponse(studentData as BackendStudent);
-        }
-        
-        // If response is already mapped (has the frontend structure)
-        const responseObj = responseData as unknown as {
-          name?: string;
-          first_name?: string;
-          [key: string]: unknown;
-        };
-        
-        if (responseObj && typeof responseObj === 'object' && 'name' in responseObj && 'first_name' in responseObj) {
-          return responseObj as unknown as Student;
-        }
-        
-        // Otherwise, assume it's backend format and map it
-        const mappedResponse = mapStudentResponse(responseObj as unknown as BackendStudent);
-        return mappedResponse;
+        // Return as Student with additional fields - route handler already unwrapped it
+        return responseData as Student;
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        // The response.data is already the student object
-        return mapStudentResponse(response.data as unknown as BackendStudent);
+        // Return as Student with additional fields
+        return response.data as Student;
       }
     } catch (error) {
       throw handleApiError(error, `Error fetching student ${id}`);
@@ -617,7 +569,12 @@ export const groupService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          // Don't log 403 errors as errors - they're expected for permission issues
+          if (response.status === 403) {
+            console.log(`Permission denied for groups endpoint (403)`);
+          } else {
+            console.error(`API error: ${response.status}`, errorText);
+          }
 
           // Try token refresh on 401 errors
           if (response.status === 401) {

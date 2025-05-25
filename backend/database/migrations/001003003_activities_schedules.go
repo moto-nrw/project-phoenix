@@ -1,10 +1,10 @@
 package migrations
 
 import (
-	"log"
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -52,7 +52,7 @@ func createActivitiesSchedulesTable(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS activities.schedules (
 			id BIGSERIAL PRIMARY KEY,
-			weekday TEXT NOT NULL,
+			weekday INTEGER NOT NULL CHECK (weekday >= 1 AND weekday <= 7),
 			timeframe_id BIGINT,
 			activity_group_id BIGINT NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -76,6 +76,14 @@ func createActivitiesSchedulesTable(ctx context.Context, db *bun.DB) error {
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating indexes for schedules table: %w", err)
+	}
+
+	// Add comment for weekday column documentation
+	_, err = tx.ExecContext(ctx, `
+		COMMENT ON COLUMN activities.schedules.weekday IS 'ISO 8601 weekday (1=Monday, 7=Sunday)';
+	`)
+	if err != nil {
+		return fmt.Errorf("error adding column comment: %w", err)
 	}
 
 	// Create trigger for updating updated_at column

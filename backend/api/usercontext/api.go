@@ -8,8 +8,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 )
@@ -27,7 +25,11 @@ func NewResource(service usercontext.UserContextService) *Resource {
 		router:  chi.NewRouter(),
 	}
 
-	// Setup routes
+	// Create JWT auth instance for middleware
+	tokenAuth, _ := jwt.NewTokenAuth()
+
+	// Setup routes with proper authentication chain
+	r.router.Use(tokenAuth.Verifier())
 	r.router.Use(jwt.Authenticator)
 
 	// User profile endpoints
@@ -36,9 +38,9 @@ func NewResource(service usercontext.UserContextService) *Resource {
 	r.router.Get("/staff", r.getCurrentStaff)
 	r.router.Get("/teacher", r.getCurrentTeacher)
 
-	// Group endpoints
+	// Group endpoints - authenticated users can access their own groups
 	r.router.Route("/groups", func(router chi.Router) {
-		router.Use(authorize.RequiresPermission(permissions.UsersRead))
+		// No additional permissions needed - users can always access their own data
 		router.Get("/", r.getMyGroups)
 		router.Get("/activity", r.getMyActivityGroups)
 		router.Get("/active", r.getMyActiveGroups)

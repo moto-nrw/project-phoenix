@@ -4,8 +4,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { Header } from "~/components/dashboard/header";
-import { Sidebar } from "~/components/dashboard/sidebar";
+import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 
 
@@ -166,18 +165,10 @@ export default function StatisticsPage() {
 
     if (status === "loading" || loading) {
         return (
-            <div className="min-h-screen">
-                <Header userName={session?.user?.name ?? "Benutzer"} />
-                <div className="flex">
-                    <Sidebar />
-                    <main className="flex-1 p-8">
-                        <div className="flex min-h-[80vh] items-center justify-center">
-                            <div className="flex flex-col items-center">
-                                <div className="h-12 w-12 rounded-full border-4 border-t-blue-500 border-b-blue-500 border-l-transparent border-r-transparent animate-spin"></div>
-                                <p className="mt-4 text-gray-600">Statistiken werden geladen...</p>
-                            </div>
-                        </div>
-                    </main>
+            <div className="flex min-h-screen items-center justify-center">
+                <div className="flex flex-col items-center">
+                    <div className="h-12 w-12 rounded-full border-4 border-t-blue-500 border-b-blue-500 border-l-transparent border-r-transparent animate-spin"></div>
+                    <p className="mt-4 text-gray-600">Statistiken werden geladen...</p>
                 </div>
             </div>
         );
@@ -185,34 +176,19 @@ export default function StatisticsPage() {
 
     if (error) {
         return (
-            <div className="min-h-screen">
-                <Header userName={session?.user?.name ?? "Benutzer"} />
-                <div className="flex">
-                    <Sidebar />
-                    <main className="flex-1 p-8">
-                        <div className="flex min-h-[80vh] flex-col items-center justify-center">
-                            <Alert type="error" message={error} />
-                        </div>
-                    </main>
+            <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+                <div className="flex min-h-[80vh] flex-col items-center justify-center">
+                    <Alert type="error" message={error} />
                 </div>
-            </div>
+            </ResponsiveLayout>
         );
     }
 
     return (
-        <div className="min-h-screen">
-            {/* Header */}
-            <Header userName={session?.user?.name ?? "Benutzer"} />
-
-            <div className="flex">
-                {/* Sidebar */}
-                <Sidebar />
-
-                {/* Main Content */}
-                <main className="flex-1 p-8">
-                    <div className="mx-auto max-w-7xl">
-                        {/* Page Title */}
-                        <h1 className="mb-8 text-4xl font-bold text-gray-900">Statistik & Auswertung</h1>
+        <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+            <div className="max-w-7xl mx-auto">
+                {/* Page Title */}
+                <h1 className="mb-8 text-4xl font-bold text-gray-900">Statistik & Auswertung</h1>
 
                         {/* Section 1: Aktuell */}
                         <section>
@@ -657,9 +633,7 @@ export default function StatisticsPage() {
                                 Als Excel exportieren
                             </button>
                         </div>
-                    </div>
-                </main>
             </div>
-        </div>
+        </ResponsiveLayout>
     );
 }

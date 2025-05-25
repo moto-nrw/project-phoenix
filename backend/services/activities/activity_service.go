@@ -2,8 +2,9 @@ package activities
 
 import (
 	"context"
+	"database/sql"
 	"errors"
-	"fmt"
+	"log"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -100,6 +101,14 @@ func (s *Service) CreateCategory(ctx context.Context, category *activities.Categ
 func (s *Service) GetCategory(ctx context.Context, id int64) (*activities.Category, error) {
 	category, err := s.categoryRepo.FindByID(ctx, id)
 	if err != nil {
+		// Check for "no rows" error and convert to our own error
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: "get category", Err: ErrCategoryNotFound}
+		}
+		// Check if the wrapped database error contains sql.ErrNoRows
+		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: "get category", Err: ErrCategoryNotFound}
+		}
 		return nil, &ActivityError{Op: "get category", Err: err}
 	}
 
@@ -156,6 +165,21 @@ func (s *Service) CreateGroup(ctx context.Context, group *activities.Group, supe
 		return nil, &ActivityError{Op: "validate group", Err: err}
 	}
 
+	// Verify category exists if provided
+	if group.CategoryID > 0 {
+		category, err := s.categoryRepo.FindByID(ctx, group.CategoryID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, &ActivityError{Op: "validate category", Err: ErrCategoryNotFound}
+			}
+			return nil, &ActivityError{Op: "validate category", Err: err}
+		}
+		// Set the category relation
+		group.Category = category
+	}
+
+	var result *activities.Group
+
 	// Execute in transaction
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		// Get transactional service
@@ -163,7 +187,7 @@ func (s *Service) CreateGroup(ctx context.Context, group *activities.Group, supe
 
 		// Create the group
 		if err := txService.(*Service).groupRepo.Create(ctx, group); err != nil {
-			return err
+			return &ActivityError{Op: "create group", Err: err}
 		}
 
 		// Create supervisors if provided
@@ -176,42 +200,60 @@ func (s *Service) CreateGroup(ctx context.Context, group *activities.Group, supe
 			}
 
 			if err := supervisor.Validate(); err != nil {
-				return fmt.Errorf("invalid supervisor (%d): %w", staffID, err)
+				return &ActivityError{Op: "validate supervisor", Err: err}
 			}
 
 			if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
-				return err
+				return &ActivityError{Op: "create supervisor", Err: err}
 			}
 		}
 
 		// Create schedules if provided
 		for _, schedule := range schedules {
+			// Set the group ID
 			schedule.ActivityGroupID = group.ID
-			if err := txService.(*Service).scheduleRepo.Create(ctx, schedule); err != nil {
-				return err
+
+			// Validate the schedule
+			if err := schedule.Validate(); err != nil {
+				return &ActivityError{Op: "validate schedule", Err: err}
 			}
+
+			if err := txService.(*Service).scheduleRepo.Create(ctx, schedule); err != nil {
+				return &ActivityError{Op: "create schedule", Err: err}
+			}
+		}
+
+		// Retrieve the created group with all relationships while still in transaction
+		// This ensures we get a consistent view of the newly created data
+		var err error
+		result, err = txService.(*Service).groupRepo.FindByID(ctx, group.ID)
+		if err != nil {
+			return &ActivityError{Op: "retrieve created group", Err: err}
 		}
 
 		return nil
 	})
 
 	if err != nil {
-		return nil, &ActivityError{Op: "create group transaction", Err: err}
+		return nil, &ActivityError{Op: "create group", Err: err}
 	}
 
-	// Retrieve the created group with all relations
-	createdGroup, err := s.groupRepo.FindByID(ctx, group.ID)
-	if err != nil {
-		return nil, &ActivityError{Op: "retrieve created group", Err: err}
-	}
-
-	return createdGroup, nil
+	// Return the group that was loaded inside the transaction
+	return result, nil
 }
 
 // GetGroup retrieves an activity group by ID
 func (s *Service) GetGroup(ctx context.Context, id int64) (*activities.Group, error) {
 	group, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
+		// Check for "no rows" error and convert to our own error
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: "get group", Err: ErrGroupNotFound}
+		}
+		// Check if the wrapped database error contains sql.ErrNoRows
+		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: "get group", Err: ErrGroupNotFound}
+		}
 		return nil, &ActivityError{Op: "get group", Err: err}
 	}
 
@@ -286,20 +328,31 @@ func (s *Service) DeleteGroup(ctx context.Context, id int64) error {
 }
 
 // ListGroups lists activity groups with optional filters
-func (s *Service) ListGroups(ctx context.Context, filters map[string]interface{}) ([]*activities.Group, error) {
-	// Create QueryOptions with filter
-	options := base.NewQueryOptions()
-
-	// Apply filters if provided
-	if len(filters) > 0 {
-		for key, value := range filters {
-			options.Filter.Equal(key, value)
-		}
-	}
-
-	groups, err := s.groupRepo.List(ctx, options)
+func (s *Service) ListGroups(ctx context.Context, queryOptions *base.QueryOptions) ([]*activities.Group, error) {
+	// Use the repository's List method instead since ListWithOptions is not defined
+	groups, err := s.groupRepo.List(ctx, queryOptions)
 	if err != nil {
 		return nil, &ActivityError{Op: "list groups", Err: err}
+	}
+
+	return groups, nil
+}
+
+// FindByCategory finds all activity groups in a specific category
+func (s *Service) FindByCategory(ctx context.Context, categoryID int64) ([]*activities.Group, error) {
+	// First verify the category exists
+	_, err := s.categoryRepo.FindByID(ctx, categoryID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: "find by category", Err: ErrCategoryNotFound}
+		}
+		return nil, &ActivityError{Op: "find by category", Err: err}
+	}
+
+	// Use the repository method
+	groups, err := s.groupRepo.FindByCategory(ctx, categoryID)
+	if err != nil {
+		return nil, &ActivityError{Op: "find by category", Err: err}
 	}
 
 	return groups, nil
@@ -310,19 +363,46 @@ func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activitie
 	// Get the group
 	group, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
+		// Check for "no rows" error and convert to our own error
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil, nil, &ActivityError{Op: "get group", Err: ErrGroupNotFound}
+		}
+		// Check if the wrapped database error contains sql.ErrNoRows
+		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+			return nil, nil, nil, &ActivityError{Op: "get group", Err: ErrGroupNotFound}
+		}
 		return nil, nil, nil, &ActivityError{Op: "get group", Err: err}
 	}
 
-	// Get supervisors
-	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, id)
-	if err != nil {
-		return nil, nil, nil, &ActivityError{Op: "get supervisors", Err: err}
+	// Load the category if not already loaded
+	if group.Category == nil && group.CategoryID > 0 {
+		category, err := s.categoryRepo.FindByID(ctx, group.CategoryID)
+		if err != nil {
+			log.Printf("Warning: Failed to load category for group ID %d: %v", id, err)
+		} else {
+			group.Category = category
+		}
+	}
+
+	// Get supervisors - handle errors gracefully
+	var supervisors []*activities.SupervisorPlanned
+	var supervisorErr error
+	supervisors, supervisorErr = s.supervisorRepo.FindByGroupID(ctx, id)
+	if supervisorErr != nil {
+		// Log the error but continue - we'll return an error at the end
+		// so the caller can decide whether to use the partial data
+		log.Printf("Warning: Failed to load supervisors for group ID %d: %v", id, supervisorErr)
 	}
 
 	// Get schedules
 	schedules, err := s.scheduleRepo.FindByGroupID(ctx, id)
 	if err != nil {
 		return nil, nil, nil, &ActivityError{Op: "get schedules", Err: err}
+	}
+
+	// If we had a supervisor error, return it after loading everything else
+	if supervisorErr != nil {
+		return group, nil, schedules, &ActivityError{Op: "get supervisors", Err: supervisorErr}
 	}
 
 	return group, supervisors, schedules, nil
@@ -364,6 +444,14 @@ func (s *Service) AddSchedule(ctx context.Context, groupID int64, schedule *acti
 func (s *Service) GetSchedule(ctx context.Context, id int64) (*activities.Schedule, error) {
 	schedule, err := s.scheduleRepo.FindByID(ctx, id)
 	if err != nil {
+		// Check for "no rows" error and convert to our own error
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: "get schedule", Err: ErrScheduleNotFound}
+		}
+		// Check if the wrapped database error contains sql.ErrNoRows
+		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: "get schedule", Err: ErrScheduleNotFound}
+		}
 		return nil, &ActivityError{Op: "get schedule", Err: err}
 	}
 
@@ -382,75 +470,177 @@ func (s *Service) GetGroupSchedules(ctx context.Context, groupID int64) ([]*acti
 
 // DeleteSchedule deletes a schedule
 func (s *Service) DeleteSchedule(ctx context.Context, id int64) error {
-	if err := s.scheduleRepo.Delete(ctx, id); err != nil {
+	// Execute in transaction for consistency
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(ActivityService)
+
+		// Check if schedule exists
+		_, err := txService.(*Service).scheduleRepo.FindByID(ctx, id)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrScheduleNotFound
+			}
+			return &ActivityError{Op: "find schedule", Err: err}
+		}
+
+		// Delete the schedule
+		if err := txService.(*Service).scheduleRepo.Delete(ctx, id); err != nil {
+			return &ActivityError{Op: "delete schedule", Err: err}
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		return &ActivityError{Op: "delete schedule", Err: err}
 	}
 
 	return nil
 }
 
+// UpdateSchedule updates an existing schedule
+func (s *Service) UpdateSchedule(ctx context.Context, schedule *activities.Schedule) (*activities.Schedule, error) {
+	// Execute in transaction for consistency
+	var result *activities.Schedule
+
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(ActivityService)
+
+		// Check if schedule exists
+		existingSchedule, err := txService.(*Service).scheduleRepo.FindByID(ctx, schedule.ID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrScheduleNotFound
+			}
+			return &ActivityError{Op: "find schedule", Err: err}
+		}
+
+		// Validate the schedule
+		if err := schedule.Validate(); err != nil {
+			return &ActivityError{Op: "validate schedule", Err: err}
+		}
+
+		// Make sure the relationship to group is preserved
+		if schedule.ActivityGroupID != existingSchedule.ActivityGroupID {
+			return &ActivityError{Op: "update schedule", Err: errors.New("cannot change activity group for a schedule")}
+		}
+
+		// Update the schedule
+		if err := txService.(*Service).scheduleRepo.Update(ctx, schedule); err != nil {
+			return &ActivityError{Op: "update schedule", Err: err}
+		}
+
+		// Get the updated schedule
+		updatedSchedule, err := txService.(*Service).scheduleRepo.FindByID(ctx, schedule.ID)
+		if err != nil {
+			return &ActivityError{Op: "retrieve updated schedule", Err: err}
+		}
+
+		// Store result for returning after transaction completes
+		result = updatedSchedule
+		return nil
+	})
+
+	if err != nil {
+		return nil, &ActivityError{Op: "update schedule", Err: err}
+	}
+
+	return result, nil
+}
+
 // ======== Supervisor Methods ========
 
 // AddSupervisor adds a supervisor to an activity group
 func (s *Service) AddSupervisor(ctx context.Context, groupID int64, staffID int64, isPrimary bool) (*activities.SupervisorPlanned, error) {
-	// Check if group exists
-	_, err := s.groupRepo.FindByID(ctx, groupID)
-	if err != nil {
-		return nil, &ActivityError{Op: "find group", Err: err}
-	}
+	// Execute everything in a transaction to ensure consistency
+	var result *activities.SupervisorPlanned
 
-	// Create supervisor record
-	supervisor := &activities.SupervisorPlanned{
-		GroupID:   groupID,
-		StaffID:   staffID,
-		IsPrimary: isPrimary,
-	}
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(ActivityService)
 
-	// Validate
-	if err := supervisor.Validate(); err != nil {
-		return nil, &ActivityError{Op: "validate supervisor", Err: err}
-	}
-
-	// Execute in transaction if this is the primary supervisor
-	if isPrimary {
-		err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-			// Get transactional service
-			txService := s.WithTx(tx).(ActivityService)
-
-			// If this is primary, unset primary flag for all other supervisors
-			existingSupervisors, err := txService.(*Service).supervisorRepo.FindByGroupID(ctx, groupID)
-			if err != nil {
-				return err
+		// Check if group exists
+		_, err := txService.(*Service).groupRepo.FindByID(ctx, groupID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrGroupNotFound
 			}
+			return &ActivityError{Op: "find group", Err: err}
+		}
 
+		// Check if supervisor already exists for this staff in this group
+		existingSupervisors, err := txService.(*Service).supervisorRepo.FindByGroupID(ctx, groupID)
+		if err != nil {
+			return &ActivityError{Op: "get existing supervisors", Err: err}
+		}
+
+		for _, existing := range existingSupervisors {
+			if existing.StaffID == staffID {
+				return &ActivityError{Op: "add supervisor", Err: errors.New("supervisor already assigned to this group")}
+			}
+		}
+
+		// Create supervisor record
+		supervisor := &activities.SupervisorPlanned{
+			GroupID:   groupID,
+			StaffID:   staffID,
+			IsPrimary: isPrimary,
+		}
+
+		// Validate
+		if err := supervisor.Validate(); err != nil {
+			return &ActivityError{Op: "validate supervisor", Err: err}
+		}
+
+		// If this is primary, unset primary flag for all other supervisors
+		if isPrimary {
 			for _, existing := range existingSupervisors {
 				if existing.IsPrimary {
 					existing.IsPrimary = false
 					if err := txService.(*Service).supervisorRepo.Update(ctx, existing); err != nil {
-						return err
+						return &ActivityError{Op: "update existing supervisor", Err: err}
 					}
 				}
 			}
+		}
 
-			// Create the new supervisor
-			return txService.(*Service).supervisorRepo.Create(ctx, supervisor)
-		})
-	} else {
-		// Not primary, just create it
-		err = s.supervisorRepo.Create(ctx, supervisor)
-	}
+		// Create the new supervisor
+		if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
+			return &ActivityError{Op: "create supervisor", Err: err}
+		}
+
+		// Retrieve the created supervisor from DB to get all fields
+		createdSupervisor, err := txService.(*Service).supervisorRepo.FindByID(ctx, supervisor.ID)
+		if err != nil {
+			return &ActivityError{Op: "retrieve created supervisor", Err: err}
+		}
+
+		// Store the result for returning after transaction completes
+		result = createdSupervisor
+		return nil
+	})
 
 	if err != nil {
 		return nil, &ActivityError{Op: "add supervisor", Err: err}
 	}
 
-	return supervisor, nil
+	return result, nil
 }
 
 // GetSupervisor retrieves a supervisor by ID
 func (s *Service) GetSupervisor(ctx context.Context, id int64) (*activities.SupervisorPlanned, error) {
 	supervisor, err := s.supervisorRepo.FindByID(ctx, id)
 	if err != nil {
+		// Check for "no rows" error and convert to our own error
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: "get supervisor", Err: ErrSupervisorNotFound}
+		}
+		// Check if the wrapped database error contains sql.ErrNoRows
+		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: "get supervisor", Err: ErrSupervisorNotFound}
+		}
 		return nil, &ActivityError{Op: "get supervisor", Err: err}
 	}
 
@@ -467,18 +657,116 @@ func (s *Service) GetGroupSupervisors(ctx context.Context, groupID int64) ([]*ac
 	return supervisors, nil
 }
 
+// UpdateSupervisor updates a supervisor's details
+func (s *Service) UpdateSupervisor(ctx context.Context, supervisor *activities.SupervisorPlanned) (*activities.SupervisorPlanned, error) {
+	// Execute in transaction for consistency
+	var result *activities.SupervisorPlanned
+
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(ActivityService)
+
+		// Check if supervisor exists
+		existingSupervisor, err := txService.(*Service).supervisorRepo.FindByID(ctx, supervisor.ID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrSupervisorNotFound
+			}
+			return &ActivityError{Op: "find supervisor", Err: err}
+		}
+
+		// Validate the supervisor
+		if err := supervisor.Validate(); err != nil {
+			return &ActivityError{Op: "validate supervisor", Err: err}
+		}
+
+		// If updating primary status
+		if existingSupervisor.IsPrimary != supervisor.IsPrimary {
+			if supervisor.IsPrimary {
+				// This supervisor is becoming primary, unset other primaries
+				otherSupervisors, err := txService.(*Service).supervisorRepo.FindByGroupID(ctx, supervisor.GroupID)
+				if err != nil {
+					return &ActivityError{Op: "find group supervisors", Err: err}
+				}
+
+				for _, other := range otherSupervisors {
+					if other.ID != supervisor.ID && other.IsPrimary {
+						other.IsPrimary = false
+						if err := txService.(*Service).supervisorRepo.Update(ctx, other); err != nil {
+							return &ActivityError{Op: "update other supervisor", Err: err}
+						}
+					}
+				}
+			} else {
+				// This supervisor is losing primary status, ensure there's another primary
+				return &ActivityError{Op: "update supervisor", Err: errors.New("at least one supervisor must remain primary")}
+			}
+		}
+
+		// Update the supervisor
+		if err := txService.(*Service).supervisorRepo.Update(ctx, supervisor); err != nil {
+			return &ActivityError{Op: "update supervisor", Err: err}
+		}
+
+		// Get the updated supervisor
+		updatedSupervisor, err := txService.(*Service).supervisorRepo.FindByID(ctx, supervisor.ID)
+		if err != nil {
+			return &ActivityError{Op: "retrieve updated supervisor", Err: err}
+		}
+
+		// Store result for returning after transaction completes
+		result = updatedSupervisor
+		return nil
+	})
+
+	if err != nil {
+		return nil, &ActivityError{Op: "update supervisor", Err: err}
+	}
+
+	return result, nil
+}
+
+// GetStaffAssignments gets all supervisor assignments for a staff member
+func (s *Service) GetStaffAssignments(ctx context.Context, staffID int64) ([]*activities.SupervisorPlanned, error) {
+	// Directly use the repository
+	assignments, err := s.supervisorRepo.FindByStaffID(ctx, staffID)
+	if err != nil {
+		return nil, &ActivityError{Op: "get staff assignments", Err: err}
+	}
+
+	return assignments, nil
+}
+
 // DeleteSupervisor deletes a supervisor
 func (s *Service) DeleteSupervisor(ctx context.Context, id int64) error {
-	supervisor, err := s.supervisorRepo.FindByID(ctx, id)
+	// Execute in transaction for consistency
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(ActivityService)
+
+		// Find the supervisor
+		supervisor, err := txService.(*Service).supervisorRepo.FindByID(ctx, id)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrSupervisorNotFound
+			}
+			return &ActivityError{Op: "find supervisor", Err: err}
+		}
+
+		// Cannot delete primary supervisor
+		if supervisor.IsPrimary {
+			return ErrCannotDeletePrimary
+		}
+
+		// Delete the supervisor
+		if err := txService.(*Service).supervisorRepo.Delete(ctx, id); err != nil {
+			return &ActivityError{Op: "delete supervisor record", Err: err}
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		return &ActivityError{Op: "find supervisor", Err: err}
-	}
-
-	if supervisor.IsPrimary {
-		return &ActivityError{Op: "delete supervisor", Err: errors.New("cannot delete primary supervisor")}
-	}
-
-	if err := s.supervisorRepo.Delete(ctx, id); err != nil {
 		return &ActivityError{Op: "delete supervisor", Err: err}
 	}
 
@@ -487,32 +775,43 @@ func (s *Service) DeleteSupervisor(ctx context.Context, id int64) error {
 
 // SetPrimarySupervisor sets a supervisor as primary and unsets others
 func (s *Service) SetPrimarySupervisor(ctx context.Context, id int64) error {
-	supervisor, err := s.supervisorRepo.FindByID(ctx, id)
-	if err != nil {
-		return &ActivityError{Op: "find supervisor", Err: err}
-	}
-
 	// Execute in transaction
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		// Get transactional service
 		txService := s.WithTx(tx).(ActivityService)
+
+		// Find the supervisor
+		supervisor, err := txService.(*Service).supervisorRepo.FindByID(ctx, id)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrSupervisorNotFound
+			}
+			return &ActivityError{Op: "find supervisor", Err: err}
+		}
 
 		// Find all supervisors for this group
 		supervisors, err := txService.(*Service).supervisorRepo.FindByGroupID(ctx, supervisor.GroupID)
 		if err != nil {
-			return err
+			return &ActivityError{Op: "find group supervisors", Err: err}
 		}
 
 		// Update all supervisors
 		for _, sup := range supervisors {
-			if sup.ID == id {
-				sup.IsPrimary = true
-			} else {
-				sup.IsPrimary = false
-			}
+			// Only update if primary status is changing
+			isPrimaryChanging := (sup.ID == id && !sup.IsPrimary) || (sup.ID != id && sup.IsPrimary)
 
-			if err := txService.(*Service).supervisorRepo.Update(ctx, sup); err != nil {
-				return err
+			if isPrimaryChanging {
+				// Set new primary status
+				if sup.ID == id {
+					sup.IsPrimary = true
+				} else {
+					sup.IsPrimary = false
+				}
+
+				// Update in database
+				if err := txService.(*Service).supervisorRepo.Update(ctx, sup); err != nil {
+					return &ActivityError{Op: "update supervisor primary status", Err: err}
+				}
 			}
 		}
 
@@ -530,33 +829,48 @@ func (s *Service) SetPrimarySupervisor(ctx context.Context, id int64) error {
 
 // EnrollStudent enrolls a student in an activity group
 func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) error {
-	// Check if group exists
-	_, err := s.groupRepo.FindByID(ctx, groupID)
-	if err != nil {
-		return &ActivityError{Op: "find group", Err: err}
-	}
+	// Execute in transaction to ensure consistency
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(ActivityService)
 
-	// Check if student is already enrolled
-	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
-	if err != nil {
-		return &ActivityError{Op: "check existing enrollment", Err: err}
-	}
-
-	// Check if student is already enrolled
-	for _, enrollment := range enrollments {
-		if enrollment.StudentID == studentID {
-			return &ActivityError{Op: "enroll student", Err: errors.New("student is already enrolled in this group")}
+		// Check if group exists
+		_, err := txService.(*Service).groupRepo.FindByID(ctx, groupID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrGroupNotFound
+			}
+			return &ActivityError{Op: "find group", Err: err}
 		}
-	}
 
-	// Create enrollment
-	enrollment := &activities.StudentEnrollment{
-		StudentID:       studentID,
-		ActivityGroupID: groupID,
-		EnrollmentDate:  time.Now(),
-	}
+		// Check if student is already enrolled
+		enrollments, err := txService.(*Service).enrollmentRepo.FindByGroupID(ctx, groupID)
+		if err != nil {
+			return &ActivityError{Op: "check existing enrollment", Err: err}
+		}
 
-	if err := s.enrollmentRepo.Create(ctx, enrollment); err != nil {
+		// Check if student is already enrolled
+		for _, enrollment := range enrollments {
+			if enrollment.StudentID == studentID {
+				return ErrStudentAlreadyEnrolled
+			}
+		}
+
+		// Create enrollment
+		enrollment := &activities.StudentEnrollment{
+			StudentID:       studentID,
+			ActivityGroupID: groupID,
+			EnrollmentDate:  time.Now(),
+		}
+
+		if err := txService.(*Service).enrollmentRepo.Create(ctx, enrollment); err != nil {
+			return &ActivityError{Op: "create enrollment", Err: err}
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		return &ActivityError{Op: "enroll student", Err: err}
 	}
 
@@ -565,26 +879,117 @@ func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) e
 
 // UnenrollStudent removes a student from an activity group
 func (s *Service) UnenrollStudent(ctx context.Context, groupID, studentID int64) error {
-	// Find the enrollment
-	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
-	if err != nil {
-		return &ActivityError{Op: "find enrollment", Err: err}
-	}
+	// Execute in transaction to ensure consistency
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(ActivityService)
 
-	// Look for the specific enrollment
-	var found bool
-	for _, enrollment := range enrollments {
-		if enrollment.StudentID == studentID {
-			if err := s.enrollmentRepo.Delete(ctx, enrollment.ID); err != nil {
-				return &ActivityError{Op: "unenroll student", Err: err}
+		// Verify group exists
+		_, err := txService.(*Service).groupRepo.FindByID(ctx, groupID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrGroupNotFound
 			}
-			found = true
-			break
+			return &ActivityError{Op: "find group", Err: err}
 		}
+
+		// Find the enrollment
+		enrollments, err := txService.(*Service).enrollmentRepo.FindByGroupID(ctx, groupID)
+		if err != nil {
+			return &ActivityError{Op: "find enrollments", Err: err}
+		}
+
+		// Look for the specific enrollment
+		var found bool
+		var enrollmentID int64
+		for _, enrollment := range enrollments {
+			if enrollment.StudentID == studentID {
+				enrollmentID = enrollment.ID
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return ErrNotEnrolled
+		}
+
+		// Delete the enrollment
+		if err := txService.(*Service).enrollmentRepo.Delete(ctx, enrollmentID); err != nil {
+			return &ActivityError{Op: "delete enrollment", Err: err}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return &ActivityError{Op: "unenroll student", Err: err}
 	}
 
-	if !found {
-		return &ActivityError{Op: "unenroll student", Err: errors.New("student is not enrolled in this group")}
+	return nil
+}
+
+// UpdateGroupEnrollments updates the student enrollments for a group
+// This follows the education.UpdateGroupTeachers pattern but for student enrollments
+func (s *Service) UpdateGroupEnrollments(ctx context.Context, groupID int64, studentIDs []int64) error {
+	// Verify group exists
+	_, err := s.groupRepo.FindByID(ctx, groupID)
+	if err != nil {
+		return &ActivityError{Op: "UpdateGroupEnrollments", Err: ErrGroupNotFound}
+	}
+
+	// Execute in transaction
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(ActivityService)
+
+		// Get current enrollments
+		enrollments, err := txService.(*Service).enrollmentRepo.FindByGroupID(ctx, groupID)
+		if err != nil {
+			return &ActivityError{Op: "get current enrollments", Err: err}
+		}
+
+		// Create maps for easier comparison
+		currentStudentIDs := make(map[int64]int64) // studentID -> enrollmentID
+		for _, enrollment := range enrollments {
+			currentStudentIDs[enrollment.StudentID] = enrollment.ID
+		}
+
+		newStudentIDs := make(map[int64]bool)
+		for _, studentID := range studentIDs {
+			newStudentIDs[studentID] = true
+		}
+
+		// Find students to remove (in current but not in new)
+		for studentID, enrollmentID := range currentStudentIDs {
+			if !newStudentIDs[studentID] {
+				if err := txService.(*Service).enrollmentRepo.Delete(ctx, enrollmentID); err != nil {
+					return &ActivityError{Op: "delete enrollment", Err: err}
+				}
+			}
+		}
+
+		// Find students to add (in new but not in current)
+		for _, studentID := range studentIDs {
+			if _, exists := currentStudentIDs[studentID]; !exists {
+				// Create the enrollment
+				enrollment := &activities.StudentEnrollment{
+					StudentID:       studentID,
+					ActivityGroupID: groupID,
+					EnrollmentDate:  time.Now(),
+				}
+
+				if err := txService.(*Service).enrollmentRepo.Create(ctx, enrollment); err != nil {
+					return &ActivityError{Op: "create enrollment", Err: err}
+				}
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return &ActivityError{Op: "update group enrollments", Err: err}
 	}
 
 	return nil
@@ -592,16 +997,80 @@ func (s *Service) UnenrollStudent(ctx context.Context, groupID, studentID int64)
 
 // GetEnrolledStudents retrieves all students enrolled in a group
 func (s *Service) GetEnrolledStudents(ctx context.Context, groupID int64) ([]*users.Student, error) {
-	// This might require custom implementation based on your specific enrollment repository
-	// For now, returning a placeholder error indicating this needs implementation
-	return nil, &ActivityError{Op: "get enrolled students", Err: errors.New("method needs implementation")}
+	// Get the enrollments for this group
+	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
+	if err != nil {
+		return nil, &ActivityError{Op: "get enrolled students", Err: err}
+	}
+
+	// Extract the Student objects from the enrollments
+	students := make([]*users.Student, 0, len(enrollments))
+	for _, enrollment := range enrollments {
+		// Check if the Student relation is loaded
+		if enrollment.Student != nil {
+			students = append(students, enrollment.Student)
+		}
+	}
+
+	return students, nil
 }
 
 // GetStudentEnrollments retrieves all groups a student is enrolled in
 func (s *Service) GetStudentEnrollments(ctx context.Context, studentID int64) ([]*activities.Group, error) {
-	// This might require custom implementation based on your specific enrollment repository
-	// For now, returning a placeholder error indicating this needs implementation
-	return nil, &ActivityError{Op: "get student enrollments", Err: errors.New("method needs implementation")}
+	var result []*activities.Group
+
+	// Use transaction to ensure consistent data
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(ActivityService)
+
+		// Get all enrollments for this student
+		enrollments, err := txService.(*Service).enrollmentRepo.FindByStudentID(ctx, studentID)
+		if err != nil {
+			return &ActivityError{Op: "find student enrollments", Err: err}
+		}
+
+		// Extract group IDs from enrollments
+		groupIDs := make([]int64, 0, len(enrollments))
+		for _, enrollment := range enrollments {
+			groupIDs = append(groupIDs, enrollment.ActivityGroupID)
+		}
+
+		// If no enrollments found, return empty slice
+		if len(groupIDs) == 0 {
+			result = []*activities.Group{}
+			return nil
+		}
+
+		// Create a filter to get groups by IDs
+		options := base.NewQueryOptions()
+		filter := base.NewFilter()
+
+		// Convert int64 slice to []interface{}
+		interfaceIDs := make([]interface{}, len(groupIDs))
+		for i, id := range groupIDs {
+			interfaceIDs[i] = id
+		}
+
+		filter.In("id", interfaceIDs...)
+		options.Filter = filter
+
+		// Get groups using List method
+		groups, err := txService.(*Service).groupRepo.List(ctx, options)
+		if err != nil {
+			return &ActivityError{Op: "get groups by ids", Err: err}
+		}
+
+		// Store result for returning after transaction completes
+		result = groups
+		return nil
+	})
+
+	if err != nil {
+		return nil, &ActivityError{Op: "get student enrollments", Err: err}
+	}
+
+	return result, nil
 }
 
 // GetAvailableGroups retrieves all groups a student can enroll in (not already enrolled)
@@ -637,7 +1106,73 @@ func (s *Service) GetAvailableGroups(ctx context.Context, studentID int64) ([]*a
 
 // UpdateAttendanceStatus updates the attendance status for an enrollment
 func (s *Service) UpdateAttendanceStatus(ctx context.Context, enrollmentID int64, status *string) error {
-	return s.enrollmentRepo.UpdateAttendanceStatus(ctx, enrollmentID, status)
+	// Execute in transaction for consistency
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(ActivityService)
+
+		// Check if enrollment exists
+		_, err := txService.(*Service).enrollmentRepo.FindByID(ctx, enrollmentID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrEnrollmentNotFound
+			}
+			return &ActivityError{Op: "find enrollment", Err: err}
+		}
+
+		// Update the status
+		if err := txService.(*Service).enrollmentRepo.UpdateAttendanceStatus(ctx, enrollmentID, status); err != nil {
+			return &ActivityError{Op: "update attendance status", Err: err}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return &ActivityError{Op: "update attendance status", Err: err}
+	}
+
+	return nil
+}
+
+// GetEnrollmentsByDate gets all enrollments for a specific date
+func (s *Service) GetEnrollmentsByDate(ctx context.Context, date time.Time) ([]*activities.StudentEnrollment, error) {
+	// NOTE: This is a placeholder implementation
+	// The actual implementation would likely query enrollments with schedules active on the given date
+	// and possibly filter for attendance status
+
+	// This would require a custom repository method with SQL join between enrollments and schedules
+	// For now, we just use the date range finder with the date as both start and end
+
+	// Using the repository's FindByEnrollmentDateRange method
+	enrollments, err := s.enrollmentRepo.FindByEnrollmentDateRange(ctx, date, date)
+	if err != nil {
+		return nil, &ActivityError{Op: "get enrollments by date", Err: err}
+	}
+
+	return enrollments, nil
+}
+
+// GetEnrollmentHistory gets a student's enrollment history within a date range
+func (s *Service) GetEnrollmentHistory(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*activities.StudentEnrollment, error) {
+	// NOTE: This is a placeholder implementation
+	// The actual implementation would query enrollments with schedules active in the given date range
+
+	// Get all enrollments for the student
+	enrollments, err := s.enrollmentRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return nil, &ActivityError{Op: "get enrollment history", Err: err}
+	}
+
+	// Filter by date range (simplified logic, actual implementation would be more complex)
+	var filteredEnrollments []*activities.StudentEnrollment
+	for _, enrollment := range enrollments {
+		if !enrollment.EnrollmentDate.Before(startDate) && !enrollment.EnrollmentDate.After(endDate) {
+			filteredEnrollments = append(filteredEnrollments, enrollment)
+		}
+	}
+
+	return filteredEnrollments, nil
 }
 
 // ======== Public Methods ========
@@ -679,4 +1214,15 @@ func (s *Service) GetPublicCategories(ctx context.Context) ([]*activities.Catego
 	}
 
 	return categories, nil
+}
+
+// GetOpenGroups retrieves activity groups that are open for enrollment
+func (s *Service) GetOpenGroups(ctx context.Context) ([]*activities.Group, error) {
+	// This is likely a wrapper around a repository method
+	groups, err := s.groupRepo.FindOpenGroups(ctx)
+	if err != nil {
+		return nil, &ActivityError{Op: "get open groups", Err: err}
+	}
+
+	return groups, nil
 }
