@@ -281,13 +281,21 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Assign teachers to the group if any were provided
+	if len(req.TeacherIDs) > 0 {
+		if err := rs.EducationService.UpdateGroupTeachers(r.Context(), group.ID, req.TeacherIDs); err != nil {
+			// Log the error but don't fail the entire operation
+			log.Printf("Failed to assign teachers to group %d: %v", group.ID, err)
+		}
+	}
+
 	// Get the created group with room details
 	createdGroup, err := rs.EducationService.FindGroupWithRoom(r.Context(), group.ID)
 	if err != nil {
 		createdGroup = group // Fallback to the original group without room details
 	}
 
-	// Get teachers for the group (should be empty for new groups)
+	// Get teachers for the group
 	teachers, _ := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
 
 	common.Respond(w, r, http.StatusCreated, newGroupResponse(createdGroup, teachers), "Group created successfully")

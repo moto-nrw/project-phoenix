@@ -107,6 +107,10 @@ interface BackendStudentRequest {
   guardian_contact: string;
   location?: string;
   notes?: string;
+  tag_id?: string;
+  guardian_email?: string;
+  guardian_phone?: string;
+  group_id?: number;
 }
 
 export const POST = createPostHandler<Student, BackendStudentRequest>(
@@ -147,7 +151,11 @@ export const POST = createPostHandler<Student, BackendStudentRequest>(
       guardian_name: guardianName,
       guardian_contact: guardianContact,
       location: body.location,
-      notes: body.notes
+      notes: body.notes,
+      tag_id: body.tag_id,
+      guardian_email: body.guardian_email,
+      guardian_phone: body.guardian_phone,
+      group_id: body.group_id
     };
     
     try {

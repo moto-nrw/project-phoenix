@@ -6,9 +6,10 @@ import type { ApiResponse } from "./api-helpers";
 import {
   mapSingleStudentResponse,
   mapStudentsResponse,
+  mapStudentDetailResponse,
   prepareStudentForBackend,
 } from "./student-helpers";
-import type { BackendStudent, Student } from "./student-helpers";
+import type { BackendStudent, BackendStudentDetail, Student } from "./student-helpers";
 import {
   mapSingleGroupResponse,
   mapGroupResponse, // Used in exported function
@@ -310,8 +311,18 @@ export const studentService = {
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
                 const data: unknown = await retryResponse.json();
-                // Return as Student with additional fields - route handler already unwrapped it
-                return data as Student;
+                // The route handler returns the raw backend data which needs mapping
+                if (data && typeof data === 'object') {
+                  // Check if it's wrapped in an ApiResponse
+                  if ('data' in data) {
+                    const wrapped = data as { data: BackendStudentDetail };
+                    return mapStudentDetailResponse(wrapped.data);
+                  } else {
+                    // Direct response
+                    return mapStudentDetailResponse(data as BackendStudentDetail);
+                  }
+                }
+                throw new Error('Invalid student response format');
               }
             }
           }
@@ -322,13 +333,25 @@ export const studentService = {
         // Type assertion to avoid unsafe assignment
         const responseData = await response.json() as unknown;
         
-        // Return as Student with additional fields - route handler already unwrapped it
-        return responseData as Student;
+        // The route handler returns the raw backend data which needs mapping
+        if (responseData && typeof responseData === 'object') {
+          // Check if it's wrapped in an ApiResponse
+          if ('data' in responseData) {
+            const wrapped = responseData as { data: BackendStudentDetail };
+            return mapStudentDetailResponse(wrapped.data);
+          } else {
+            // Direct response
+            return mapStudentDetailResponse(responseData as BackendStudentDetail);
+          }
+        }
+        
+        throw new Error('Invalid student response format');
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        // Return as Student with additional fields
-        return response.data as Student;
+        // Map the backend response properly
+        const backendData = response.data as { data: BackendStudentDetail };
+        return mapStudentDetailResponse(backendData.data);
       }
     } catch (error) {
       throw handleApiError(error, `Error fetching student ${id}`);
