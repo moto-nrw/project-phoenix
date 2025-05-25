@@ -29,12 +29,6 @@ export default function TeacherDetailsPage() {
 
     // Tab state
     const [activeTab, setActiveTab] = useState("details");
-    const tabs: Tab[] = [
-        { id: "details", label: "Lehrerdetails" },
-        { id: "account", label: "Benutzerkonto" },
-        { id: "roles", label: "Rollen" },
-        { id: "permissions", label: "Berechtigungen" },
-    ];
 
     // Account and auth state
     const [account, setAccount] = useState<Account | null>(null);
@@ -50,7 +44,7 @@ export default function TeacherDetailsPage() {
     const [loadingAllPermissions, setLoadingAllPermissions] = useState(false);
     const [showPermissionManagement, setShowPermissionManagement] = useState(false);
     
-    // User authorization state
+    // User authorization state - default to false for security
     const [hasAuthManagePermission, setHasAuthManagePermission] = useState(false);
     const [loadingUserPermissions, setLoadingUserPermissions] = useState(true);
 
@@ -634,33 +628,31 @@ export default function TeacherDetailsPage() {
                 return;
             }
             
-            // For simplicity, check for admin role first
-            // which will usually have auth management permissions
+            // Try to fetch user permissions by attempting to access a protected endpoint
+            // If it succeeds, user has permission; if it fails, they don't
             try {
-                const userRoles = await authService.getRoles();
-                // Check if user has admin or similar role
-                const adminRoles = userRoles.filter(role => 
-                    role?.name?.toLowerCase().includes('admin')
-                );
+                // Try to fetch all permissions - this requires permissions:read
+                await authService.getAvailablePermissions();
                 
-                if (adminRoles.length > 0) {
-                    // If user has admin role, grant permission
+                // If we got here, user has at least read permission
+                // Now check for management permissions by trying to fetch roles
+                try {
+                    await authService.getRoles();
+                    // Success means user has auth management permissions
                     setHasAuthManagePermission(true);
-                    return;
+                } catch {
+                    // User can read but not manage
+                    setHasAuthManagePermission(false);
                 }
-                
-                // If no admin role found, default to allowing all users for now
-                // In production, you would implement stricter checking here
-                setHasAuthManagePermission(true);
-            } catch (rolesErr) {
-                console.error("Error fetching roles:", rolesErr);
-                // Default to true for now to ensure functionality
-                setHasAuthManagePermission(true);
+            } catch {
+                // User doesn't have permission to read auth data
+                console.log("User does not have permission to access auth management");
+                setHasAuthManagePermission(false);
             }
         } catch (err) {
-            console.error("Error fetching user permissions:", err);
-            // Default to true for now to ensure functionality
-            setHasAuthManagePermission(true);
+            console.error("Error checking user permissions:", err);
+            // SECURITY: Always default to false - deny access unless explicitly allowed
+            setHasAuthManagePermission(false);
         } finally {
             setLoadingUserPermissions(false);
         }
@@ -668,10 +660,16 @@ export default function TeacherDetailsPage() {
 
     // Handle tab change with data loading
     const handleTabChange = useCallback((tabId: string) => {
+        // Security check: Don't allow switching to restricted tabs without permission
+        if ((tabId === "roles" || tabId === "permissions") && !hasAuthManagePermission) {
+            console.warn("Attempted to access restricted tab without permission");
+            return;
+        }
+        
         setActiveTab(tabId);
         
-        // Load data based on tab if account exists
-        if (account) {
+        // Load data based on tab if account exists and user has permission
+        if (account && hasAuthManagePermission) {
             if (tabId === "roles") {
                 // Only fetch roles if we haven't already
                 if (accountRoles.length === 0) {
@@ -698,7 +696,7 @@ export default function TeacherDetailsPage() {
                 }
             }
         }
-    }, [account, accountRoles, accountPermissions, rolePermissions, allRoles, allPermissions, fetchAccountRoles, fetchAccountPermissions, fetchAllRoles, fetchAllPermissions]);
+    }, [account, accountRoles, accountPermissions, rolePermissions, allRoles, allPermissions, hasAuthManagePermission, fetchAccountRoles, fetchAccountPermissions, fetchAllRoles, fetchAllPermissions]);
 
     // Initial data load
     useEffect(() => {
@@ -714,11 +712,13 @@ export default function TeacherDetailsPage() {
         }
     }, [teacher, fetchAccountInfo, account, loadingAccount]);
 
-    // Fetch all roles and permissions on component mount
+    // Only fetch all roles and permissions if user has permission
     useEffect(() => {
-        void fetchAllRoles();
-        void fetchAllPermissions();
-    }, [fetchAllRoles, fetchAllPermissions]);
+        if (hasAuthManagePermission && !loadingUserPermissions) {
+            void fetchAllRoles();
+            void fetchAllPermissions();
+        }
+    }, [hasAuthManagePermission, loadingUserPermissions, fetchAllRoles, fetchAllPermissions]);
 
     // Calculate effective permissions when either direct permissions or role permissions change
     useEffect(() => {
@@ -783,6 +783,17 @@ export default function TeacherDetailsPage() {
             </div>
         );
     }
+
+    // Dynamic tabs based on permissions
+    const tabs: Tab[] = [
+        { id: "details", label: "Lehrerdetails" },
+        { id: "account", label: "Benutzerkonto" },
+        // Only show roles and permissions tabs if user has auth management permission
+        ...(hasAuthManagePermission ? [
+            { id: "roles", label: "Rollen" },
+            { id: "permissions", label: "Berechtigungen" },
+        ] : []),
+    ];
 
     return (
         <div className="min-h-screen">
