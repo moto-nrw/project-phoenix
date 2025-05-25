@@ -32,7 +32,7 @@ export function AnimatedBackground() {
 
     // Initialize balls
     const initBalls = () => {
-      // Original vibrant colors
+      // Vibrant colors for dynamic animated background
       const colors = [
         "#FF8080", // red
         "#80D8FF", // blue
