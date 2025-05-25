@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/dashboard";
 import type { Activity, ActivityStudent } from "@/lib/activity-helpers";
-import { fetchActivity } from "@/lib/activity-api";
+import { fetchActivity, getEnrolledStudents } from "@/lib/activity-api";
 import { getActivityCategoryColor, getWeekdayFullName } from "@/lib/activity-helpers";
 
 function ActivityDetailContent() {
@@ -13,6 +13,7 @@ function ActivityDetailContent() {
   const activityId = params.id as string;
 
   const [activity, setActivity] = useState<Activity | null>(null);
+  const [students, setStudents] = useState<ActivityStudent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,13 +21,26 @@ function ActivityDetailContent() {
     const loadActivity = async () => {
       try {
         setLoading(true);
+        // Load activity details
         const data = await fetchActivity(activityId);
         setActivity(data);
+        
+        // Load enrolled students separately
+        try {
+          const enrolledStudents = await getEnrolledStudents(activityId);
+          setStudents(enrolledStudents);
+        } catch (studentErr) {
+          console.error("Error fetching enrolled students:", studentErr);
+          // Don't fail the whole page if students can't be loaded
+          setStudents([]);
+        }
+        
         setError(null);
       } catch (err) {
         console.error("Error fetching activity details:", err);
         setError("Fehler beim Laden der Aktivitätsdaten.");
         setActivity(null);
+        setStudents([]);
       } finally {
         setLoading(false);
       }
@@ -309,8 +323,8 @@ function ActivityDetailContent() {
 
                 <div className="flex items-center gap-4">
                   <div className="text-sm text-gray-500">
-                    {activity.participant_count 
-                      ? `${activity.participant_count} von ${activity.max_participant} Teilnehmer`
+                    {students.length > 0
+                      ? `${students.length} von ${activity.max_participant} Teilnehmer`
                       : "Keine Teilnehmer"}
                   </div>
 
@@ -339,13 +353,13 @@ function ActivityDetailContent() {
                 </div>
               </div>
 
-              {activity.students && activity.students.length > 0 ? (
+              {students.length > 0 ? (
                 <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-                  {activity.students.map((student: ActivityStudent) => (
+                  {students.map((student) => (
                     <div
                       key={student.id}
                       className="rounded-lg bg-gray-50 p-3 transition-colors hover:bg-gray-100 cursor-pointer"
-                      onClick={() => router.push(`/database/students/${student.id}`)}
+                      onClick={() => router.push(`/database/students/${student.student_id}`)}
                     >
                       <div className="font-medium">{student.name}</div>
                       {student.school_class && (
