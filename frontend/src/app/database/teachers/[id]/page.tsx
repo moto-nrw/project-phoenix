@@ -67,34 +67,16 @@ export default function TeacherDetailsPage() {
             try {
                 // Fetch teacher from API
                 const data = await teacherService.getTeacher(id as string);
-                console.log("Teacher data received:", data);
-                // Log the exact structure for debugging
-                console.log("Teacher structure debug:", {
-                    id: data.id,
-                    name: data.name,
-                    first_name: data.first_name,
-                    last_name: data.last_name,
-                    email: data.email,
-                    // Check if person exists and its structure
-                    hasPerson: data.person !== undefined,
-                    person: data.person,
-                    // Check for person_id
-                    person_id: data.person_id,
-                    // Check for account_id 
-                    account_id: data.account_id,
-                });
                 
                 setTeacher(data);
                 setError(null);
-            } catch (apiErr) {
-                console.error("API error when fetching teacher:", apiErr);
+            } catch {
                 setError(
                     "Fehler beim Laden der Lehrerdaten. Bitte versuchen Sie es später erneut.",
                 );
                 setTeacher(null);
             }
-        } catch (err) {
-            console.error("Error fetching teacher:", err);
+        } catch {
             setError(
                 "Fehler beim Laden der Lehrerdaten. Bitte versuchen Sie es später erneut.",
             );
@@ -108,26 +90,22 @@ export default function TeacherDetailsPage() {
     const fetchAccountRoles = useCallback(async (accountId: string) => {
         // Skip if accountId is undefined or invalid
         if (!accountId || accountId === "undefined") {
-            console.warn("Invalid accountId, skipping role fetch");
             setLoadingRoles(false);
             return;
         }
         
         try {
             setLoadingRoles(true);
-            console.log(`Fetching roles for account ID: ${accountId}`);
             
             // Get session for auth token
             const session = await getSession();
             if (!session?.user?.token) {
-                console.error("No authentication token available for role fetch");
                 setLoadingRoles(false);
                 return;
             }
             
             // Call the roles endpoint directly
             const rolesUrl = `/api/auth/accounts/${accountId}/roles`;
-            console.log(`Making request to: ${rolesUrl}`);
             
             try {
                 const rolesResponse = await fetch(rolesUrl, {
@@ -140,7 +118,6 @@ export default function TeacherDetailsPage() {
                 
                 if (rolesResponse.ok) {
                     const rolesData = await rolesResponse.json() as { data?: { data?: Role[] } | Role[] } | Role[];
-                    console.log("Raw roles response:", rolesData);
                     
                     // Extract roles from the response, handling different formats
                     let roles: Role[] = [];
@@ -149,30 +126,22 @@ export default function TeacherDetailsPage() {
                         if (typeof rolesData.data === 'object' && 'data' in rolesData.data && Array.isArray(rolesData.data.data)) {
                             // Double-nested: { data: { data: [] } }
                             roles = rolesData.data.data;
-                            console.log("Found roles in data.data array");
                         } else if (Array.isArray(rolesData.data)) {
                             // Single-nested: { data: [] }
                             roles = rolesData.data;
-                            console.log("Found roles in data array");
                         }
                     } else if (Array.isArray(rolesData)) {
                         // Direct array
                         roles = rolesData;
-                        console.log("Found roles in direct array");
-                    } else {
-                        console.warn("Unexpected roles response format:", rolesData);
                     }
                     
-                    console.log(`Found ${roles.length} roles for account:`, roles);
                     setAccountRoles(roles);
                     
                     // Calculate effective permissions from roles
-                    console.log("Fetching permissions for each role...");
                     const permissionsFromRoles: Permission[] = [];
                     
                     for (const role of roles) {
                         try {
-                            console.log(`Fetching permissions for role ${role.id} (${role.name})`);
                             const rolePermissionsUrl = `/api/auth/roles/${role.id}/permissions`;
                             
                             const rolePermissionsResponse = await fetch(rolePermissionsUrl, {
@@ -185,7 +154,6 @@ export default function TeacherDetailsPage() {
                             
                             if (rolePermissionsResponse.ok) {
                                 const rolePermissionsData = await rolePermissionsResponse.json() as { data?: { data?: Permission[] } | Permission[] } | Permission[];
-                                console.log(`Raw permissions for role ${role.id}:`, rolePermissionsData);
                                 
                                 // Extract permissions from the response, handling different formats
                                 let rolePermissions: Permission[] = [];
@@ -194,45 +162,32 @@ export default function TeacherDetailsPage() {
                                     if (typeof rolePermissionsData.data === 'object' && 'data' in rolePermissionsData.data && Array.isArray(rolePermissionsData.data.data)) {
                                         // Double-nested: { data: { data: [] } }
                                         rolePermissions = rolePermissionsData.data.data;
-                                        console.log(`Found permissions in data.data array for role ${role.id}`);
                                     } else if (Array.isArray(rolePermissionsData.data)) {
                                         // Single-nested: { data: [] }
                                         rolePermissions = rolePermissionsData.data;
-                                        console.log(`Found permissions in data array for role ${role.id}`);
                                     }
                                 } else if (Array.isArray(rolePermissionsData)) {
                                     // Direct array
                                     rolePermissions = rolePermissionsData;
-                                    console.log(`Found permissions in direct array for role ${role.id}`);
-                                } else {
-                                    console.warn(`Unexpected role permissions format for role ${role.id}:`, rolePermissionsData);
                                 }
                                 
-                                console.log(`Found ${rolePermissions.length} permissions for role ${role.id}`);
                                 permissionsFromRoles.push(...rolePermissions);
-                            } else {
-                                console.error(`Error fetching permissions for role ${role.id}:`, 
-                                    await rolePermissionsResponse.text());
                             }
-                        } catch (rolePermErr) {
-                            console.error(`Error fetching permissions for role ${role.id}:`, rolePermErr);
+                        } catch {
+                            // Skip this role's permissions on error
                         }
                     }
                     
                     // Store role permissions separately for effective permissions calculation
-                    console.log(`Found ${permissionsFromRoles.length} permissions from roles`);
                     setRolePermissions(permissionsFromRoles);
                 } else {
-                    console.error("Error response from roles endpoint:", await rolesResponse.text());
                     setAccountRoles([]);
                     setRolePermissions([]); // Clear role permissions if roles fetch fails
                 }
-            } catch (fetchError) {
-                console.error("Network or API error when fetching roles:", fetchError);
+            } catch {
                 setAccountRoles([]);
             }
-        } catch (err) {
-            console.error("Error in fetchAccountRoles:", err);
+        } catch {
             setAccountRoles([]);
             setRolePermissions([]); // Clear role permissions on error
         } finally {
@@ -244,26 +199,22 @@ export default function TeacherDetailsPage() {
     const fetchAccountPermissions = useCallback(async (accountId: string) => {
         // Skip if accountId is undefined or invalid
         if (!accountId || accountId === "undefined") {
-            console.warn("Invalid accountId, skipping permission fetch");
             setLoadingPermissions(false);
             return;
         }
         
         try {
             setLoadingPermissions(true);
-            console.log(`Fetching permissions for account ID: ${accountId}`);
             
             // Get session for auth token
             const session = await getSession();
             if (!session?.user?.token) {
-                console.error("No authentication token available for permission fetch");
                 setLoadingPermissions(false);
                 return;
             }
             
             // Call the direct permissions endpoint to get only direct permissions (not role-based)
             const permissionsUrl = `/api/auth/accounts/${accountId}/permissions/direct`;
-            console.log(`Making request to: ${permissionsUrl}`);
             
             try {
                 const permissionsResponse = await fetch(permissionsUrl, {
@@ -276,7 +227,6 @@ export default function TeacherDetailsPage() {
                 
                 if (permissionsResponse.ok) {
                     const permissionsData = await permissionsResponse.json() as { data?: { data?: Permission[] } | Permission[] } | Permission[];
-                    console.log("Raw permissions response:", permissionsData);
                     
                     // Extract permissions from the response, handling different formats
                     let permissions: Permission[] = [];
@@ -285,38 +235,29 @@ export default function TeacherDetailsPage() {
                         if (typeof permissionsData.data === 'object' && 'data' in permissionsData.data && Array.isArray(permissionsData.data.data)) {
                             // Double nested structure: { data: { data: [] } }
                             permissions = permissionsData.data.data;
-                            console.log("Found permissions in data.data array");
                         } else if (Array.isArray(permissionsData.data)) {
                             // Single nested structure: { data: [] }
                             permissions = permissionsData.data;
-                            console.log("Found permissions in data array");
                         }
                     } else if (Array.isArray(permissionsData)) {
                         // Direct array response
                         permissions = permissionsData;
-                        console.log("Found permissions in direct array");
-                    } else {
-                        console.warn("Unexpected permissions response format:", permissionsData);
                     }
                     
                     // Filter out invalid permissions (missing ID or essential fields)
                     const validPermissions = permissions.filter(p => p?.id);
                     
-                    console.log(`Found ${validPermissions.length} valid direct permissions for account from real data:`, validPermissions);
                     setAccountPermissions(validPermissions);
                     
                     // Note: effective permissions are calculated in fetchAccountRoles
                     // since we need both permissions and roles to calculate them
                 } else {
-                    console.error("Error response from permissions endpoint:", await permissionsResponse.text());
                     setAccountPermissions([]);
                 }
-            } catch (fetchError) {
-                console.error("Network or API error when fetching permissions:", fetchError);
+            } catch {
                 setAccountPermissions([]);
             }
-        } catch (err) {
-            console.error("Error in fetchAccountPermissions:", err);
+        } catch {
             setAccountPermissions([]);
         } finally {
             setLoadingPermissions(false);
@@ -428,18 +369,14 @@ export default function TeacherDetailsPage() {
     // Function to fetch all available roles - with direct API call and detailed logging
     const fetchAllRoles = useCallback(async () => {
         try {
-            console.log("Fetching all available roles");
-            
             // Get session for auth token
             const session = await getSession();
             if (!session?.user?.token) {
-                console.error("No authentication token available for roles fetch");
                 return;
             }
             
             // Call the roles endpoint directly
             const allRolesUrl = `/api/auth/roles`;
-            console.log(`Making request to: ${allRolesUrl}`);
             
             try {
                 const allRolesResponse = await fetch(allRolesUrl, {
@@ -452,7 +389,6 @@ export default function TeacherDetailsPage() {
                 
                 if (allRolesResponse.ok) {
                     const allRolesData = await allRolesResponse.json() as { data?: Role[] } | Role[];
-                    console.log("Raw all roles response:", allRolesData);
                     
                     // Extract roles from the response
                     let roles: Role[] = [];
@@ -460,26 +396,18 @@ export default function TeacherDetailsPage() {
                     // Handle different response formats
                     if (typeof allRolesData === 'object' && 'data' in allRolesData && Array.isArray(allRolesData.data)) {
                         roles = allRolesData.data;
-                        console.log("Found roles in data array");
                     } else if (Array.isArray(allRolesData)) {
                         roles = allRolesData;
-                        console.log("Found roles in direct array");
-                    } else {
-                        console.warn("Unexpected all roles response format:", allRolesData);
                     }
                     
-                    console.log(`Found ${roles.length} total roles:`, roles);
                     setAllRoles(roles);
                 } else {
-                    console.error("Error response from all roles endpoint:", await allRolesResponse.text());
                     setAllRoles([]);
                 }
-            } catch (fetchError) {
-                console.error("Network or API error when fetching all roles:", fetchError);
+            } catch {
                 setAllRoles([]);
             }
-        } catch (err) {
-            console.error("Error in fetchAllRoles:", err);
+        } catch {
             setAllRoles([]);
         }
     }, []);
@@ -488,13 +416,10 @@ export default function TeacherDetailsPage() {
     const fetchAllPermissions = useCallback(async () => {
         try {
             setLoadingAllPermissions(true);
-            console.log("Fetching all available permissions");
             
             const permissions = await authService.getAvailablePermissions();
-            console.log(`Found ${permissions.length} total permissions:`, permissions);
             setAllPermissions(permissions);
-        } catch (err) {
-            console.error("Error in fetchAllPermissions:", err);
+        } catch {
             setAllPermissions([]);
         } finally {
             setLoadingAllPermissions(false);
@@ -509,8 +434,7 @@ export default function TeacherDetailsPage() {
             setIsDeleting(true);
             await teacherService.deleteTeacher(id as string);
             router.push("/database/teachers");
-        } catch (err) {
-            console.error("Error deleting teacher:", err);
+        } catch {
             setError(
                 "Fehler beim Löschen des Lehrers. Bitte versuchen Sie es später erneut.",
             );
@@ -529,15 +453,8 @@ export default function TeacherDetailsPage() {
         try {
             await authService.assignRoleToAccount(account.id, roleId);
             await fetchAccountRoles(account.id);
-        } catch (err) {
-            console.error("Error assigning role:", err);
-            
-            // Look for the specific database schema error
-            if (err instanceof Error && err.message && err.message.includes('account_role') && err.message.includes('missing FROM-clause')) {
-                setError("Datenbankfehler: Das Datenbank-Schema in der Backend-Datenbank stimmt nicht. Bitte kontaktieren Sie den Administrator.");
-            } else {
-                setError("Fehler beim Zuweisen der Rolle.");
-            }
+        } catch {
+            setError("Fehler beim Zuweisen der Rolle.");
             
             // Still update the roles list to refresh state
             try {
@@ -555,15 +472,8 @@ export default function TeacherDetailsPage() {
         try {
             await authService.removeRoleFromAccount(account.id, roleId);
             await fetchAccountRoles(account.id);
-        } catch (err) {
-            console.error("Error removing role:", err);
-            
-            // Look for the specific database schema error
-            if (err instanceof Error && err.message && err.message.includes('account_role') && err.message.includes('missing FROM-clause')) {
-                setError("Datenbankfehler: Das Datenbank-Schema in der Backend-Datenbank stimmt nicht. Bitte kontaktieren Sie den Administrator.");
-            } else {
-                setError("Fehler beim Entfernen der Rolle.");
-            }
+        } catch {
+            setError("Fehler beim Entfernen der Rolle.");
             
             // Still update the roles list to refresh state
             try {
@@ -581,8 +491,7 @@ export default function TeacherDetailsPage() {
         try {
             await authService.grantPermissionToAccount(account.id, permissionId);
             await fetchAccountPermissions(account.id);
-        } catch (err) {
-            console.error("Error assigning permission:", err);
+        } catch {
             setError("Fehler beim Zuweisen der Berechtigung.");
             
             // Still update the permissions list to refresh state
@@ -601,8 +510,7 @@ export default function TeacherDetailsPage() {
         try {
             await authService.removePermissionFromAccount(account.id, permissionId);
             await fetchAccountPermissions(account.id);
-        } catch (err) {
-            console.error("Error removing permission:", err);
+        } catch {
             setError("Fehler beim Entfernen der Berechtigung.");
             
             // Still update the permissions list to refresh state
@@ -623,7 +531,6 @@ export default function TeacherDetailsPage() {
             const userAccount = await authService.getAccount();
             
             if (!userAccount?.id) {
-                console.error("Could not fetch user account or account has no ID");
                 setHasAuthManagePermission(false);
                 return;
             }
@@ -646,11 +553,9 @@ export default function TeacherDetailsPage() {
                 }
             } catch {
                 // User doesn't have permission to read auth data
-                console.log("User does not have permission to access auth management");
                 setHasAuthManagePermission(false);
             }
-        } catch (err) {
-            console.error("Error checking user permissions:", err);
+        } catch {
             // SECURITY: Always default to false - deny access unless explicitly allowed
             setHasAuthManagePermission(false);
         } finally {
@@ -662,7 +567,6 @@ export default function TeacherDetailsPage() {
     const handleTabChange = useCallback((tabId: string) => {
         // Security check: Don't allow switching to restricted tabs without permission
         if ((tabId === "roles" || tabId === "permissions") && !hasAuthManagePermission) {
-            console.warn("Attempted to access restricted tab without permission");
             return;
         }
         
@@ -722,13 +626,8 @@ export default function TeacherDetailsPage() {
 
     // Calculate effective permissions when either direct permissions or role permissions change
     useEffect(() => {
-        console.log("Recalculating effective permissions...");
-        console.log(`Direct permissions: ${accountPermissions.length}`);
-        console.log(`Role permissions: ${rolePermissions.length}`);
-        
         // Combine direct permissions and role permissions
         const allPermissions = [...accountPermissions, ...rolePermissions];
-        console.log(`Total permissions before deduplication: ${allPermissions.length}`);
         
         // Filter out any invalid permissions and deduplicate by ID
         const validPermissions = allPermissions.filter(p => p?.id);
@@ -736,7 +635,6 @@ export default function TeacherDetailsPage() {
             index === self.findIndex((p) => p.id === permission.id)
         );
         
-        console.log(`Total unique effective permissions: ${uniquePermissions.length}`);
         setEffectivePermissions(uniquePermissions);
     }, [accountPermissions, rolePermissions]);
 
@@ -988,8 +886,7 @@ export default function TeacherDetailsPage() {
                                                         await authService.activateAccount(account.id);
                                                     }
                                                     await fetchAccountInfo();
-                                                } catch (err) {
-                                                    console.error("Error toggling account status:", err);
+                                                } catch {
                                                     setError("Fehler beim Ändern des Kontostatus.");
                                                 }
                                             }}
