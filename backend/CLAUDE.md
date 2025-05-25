@@ -2,144 +2,98 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Build and Development Commands
+## Project Context
+
+Backend service for Project Phoenix - a RFID-based student attendance and room management system. Built with Go 1.21+ using Chi router, Bun ORM, and PostgreSQL with multi-schema architecture.
+
+## Development Commands
 
 ```bash
-# Start the backend server
-go run main.go serve            # Starts server on port 8080 (or PORT env var)
+# Environment Setup
+cp dev.env.example dev.env      # Create local config (edit DB_DSN and AUTH_JWT_SECRET)
 
-# Database operations
+# Server Operations
+go run main.go serve            # Start server (port 8080)
 go run main.go migrate          # Run database migrations
 go run main.go migrate status   # Show migration status
 go run main.go migrate validate # Validate migration dependencies
 go run main.go migrate reset    # WARNING: Reset database and run all migrations
-go run main.go seed             # Populate database with test data
-go run main.go seed --reset     # Clear and repopulate test data
 
-# Documentation generation
-go run main.go gendoc           # Generate both routes.md and OpenAPI spec
-go run main.go gendoc --routes  # Generate only routes documentation
-go run main.go gendoc --openapi # Generate only OpenAPI specification
+# Development Data
+go run main.go seed             # Populate database with test data
+go run main.go seed --reset     # Clear ALL test data and repopulate
+
+# Documentation
+go run main.go gendoc           # Generate routes.md and OpenAPI spec
 
 # Testing
 go test ./...                   # Run all tests
-go test -v ./...               # Run tests with verbose output
-go test -race ./...            # Run tests with race condition detection
+go test -v ./api/auth           # Run specific package with verbose output
+go test -race ./...             # Run tests with race detection
 go test ./api/auth -run TestLogin  # Run specific test
 
-# Linting
-golangci-lint run --timeout 10m  # Run linter (install: brew install golangci-lint)
-golangci-lint run --fix         # Auto-fix some linting issues
+# Code Quality (Run before committing!)
+golangci-lint run --timeout 10m # Run linter
+golangci-lint run --fix         # Auto-fix linting issues
 go fmt ./...                    # Format code
 /Users/yonnock/go/bin/goimports -w .  # Organize imports
-
-# Dependencies
 go mod tidy                     # Clean up dependencies
-go get -u ./...                # Update all dependencies
 ```
 
 ## Docker Development
 
 ```bash
-# Generate SSL certificates (required for database security)
-cd ../config/ssl/postgres
-chmod +x create-certs.sh
-./create-certs.sh
-cd ../../../backend
+# SSL Setup (Required - GDPR compliance)
+cd ../config/ssl/postgres && ./create-certs.sh && cd ../../../backend
 
-# Start PostgreSQL only
-docker compose up -d postgres
-
-# Run migrations in docker
-docker compose run server ./main migrate
-
-# Start all services
-docker compose up
-
-# View logs
-docker compose logs -f server
-docker compose logs postgres
+# Development with Docker
+docker compose up -d postgres   # Start only database
+docker compose run server ./main migrate  # Run migrations
+docker compose up               # Start all services
+docker compose logs -f server   # View server logs
 ```
 
-## Environment Setup
+## Architecture Patterns
 
-The backend uses `dev.env` file for local configuration. Copy `dev.env.example` to `dev.env` and configure:
-
-```bash
-cp dev.env.example dev.env
+### Domain-Driven Design Structure
+```
+api/{domain}/           # HTTP handlers (thin layer)
+services/{domain}/      # Business logic (orchestration)
+models/{domain}/        # Domain models and repository interfaces
+database/repositories/{domain}/  # Data access implementation
 ```
 
-Key environment variables:
-- `DB_DSN`: PostgreSQL connection string (use sslmode=require for GDPR compliance)
-- `AUTH_JWT_SECRET`: JWT secret key (change in production)
-- `ENABLE_CORS`: Set to `true` for cross-origin requests during development
-- `LOG_LEVEL`: Options: debug, info, warn, error
-- `DB_DEBUG`: Set to `true` to log SQL queries
+### Factory Pattern for Dependency Injection
+```go
+// Repository factory
+repoFactory := repositories.NewFactory(db)
+userRepo := repoFactory.NewUserRepository()
 
-## Architecture Overview
-
-The backend follows a layered architecture:
-
-```
-api/            # HTTP handlers and routing
-├── active/     # Active sessions management
-├── auth/       # Authentication endpoints
-├── users/      # User management
-└── ...
-
-services/       # Business logic layer
-├── auth/       # Authentication services
-├── active/     # Active session services
-└── ...
-
-models/         # Data models and interfaces
-├── base/       # Base model and repository interfaces
-├── auth/       # Authentication models
-└── ...
-
-database/
-├── migrations/ # Database migration files
-└── repositories/ # Data access layer
-
-auth/           # Authentication subsystem
-├── authorize/  # Authorization and permissions
-├── jwt/        # JWT token handling
-└── userpass/   # Username/password auth
+// Service factory
+serviceFactory := services.NewFactory(repoFactory, mailer)
+authService := serviceFactory.NewAuthService()
 ```
 
-### Key Patterns
-
-1. **Repository Pattern**: Each domain has a repository interface in `models/` and implementation in `database/repositories/`
-
-2. **Service Layer**: Business logic is in `services/`, keeping HTTP handlers thin
-
-3. **Factory Pattern**: Both services and repositories use factories for dependency injection
-
-4. **Migration System**: Numbered migrations with dependency tracking in `database/migrations/`
-
-5. **Error Handling**: Each package has its own `errors.go` with domain-specific errors
-
-6. **JWT Authentication**: Access tokens (15min) and refresh tokens (1hr) with role-based permissions
+### Authentication & Authorization
+- JWT tokens: Access (15m) + Refresh (1hr)
+- Role-based permissions via middleware
+- Permission constants in `auth/authorize/permissions/`
+- Authorization policies in `auth/authorize/policies/`
 
 ## Critical BUN ORM Patterns
 
-### Schema-Qualified Table Expressions
-
-CRITICAL: Always use quotes around table aliases in PostgreSQL schema-qualified queries:
-
+### Schema-Qualified Tables (MUST USE QUOTES!)
 ```go
-// CORRECT - Quotes around alias
+// CORRECT - Quotes around alias prevent "column not found" errors
 ModelTableExpr(`users.teachers AS "teacher"`)
 
-// WRONG - Will cause "TeacherResult does not have column 'id'" errors
+// WRONG - Missing quotes causes BUN mapping failures
 ModelTableExpr(`users.teachers AS teacher`)
 ```
 
 ### Loading Nested Relationships
-
-When loading nested relationships (e.g., Teacher → Staff → Person), use explicit JOINs with column aliasing:
-
 ```go
+// For Teacher → Staff → Person relationships
 type teacherResult struct {
     Teacher *users.Teacher `bun:"teacher"`
     Staff   *users.Staff   `bun:"staff"`
@@ -149,143 +103,139 @@ type teacherResult struct {
 err := r.db.NewSelect().
     Model(result).
     ModelTableExpr(`users.teachers AS "teacher"`).
-    // IMPORTANT: Explicit column mapping for each table
+    // Explicit column mapping required for each table
     ColumnExpr(`"teacher".id AS "teacher__id"`).
     ColumnExpr(`"staff".id AS "staff__id"`).
-    ColumnExpr(`"person".first_name AS "person__first_name"`).
+    ColumnExpr(`"person".* AS "person__*"`).
     Join(`INNER JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id`).
     Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
     Where(`"teacher".id = ?`, id).
     Scan(ctx)
 ```
 
-### Model BeforeAppendModel Hook
-
-Models should implement `BeforeAppendModel` when using schemas:
-
+### Repository Pattern with Transactions
 ```go
-func (g *Group) BeforeAppendModel(query any) error {
-    if q, ok := query.(*bun.SelectQuery); ok {
-        q.ModelTableExpr(`education.groups AS "group"`)
-    }
-    // Handle other query types...
-    return nil
-}
-```
-
-## Repository and Service Factories
-
-```go
-// Create repository factory
-repoFactory := repositories.NewFactory(db)
-userRepo := repoFactory.NewUserRepository()
-
-// Create service factory
-serviceFactory := services.NewFactory(repoFactory, mailer)
-authService := serviceFactory.NewAuthService()
-```
-
-## Transaction Context Pattern
-
-Pass transactions via context:
-
-```go
-// Start transaction and add to context
+// Pass transaction via context
 ctx = base.ContextWithTx(ctx, &tx)
 
-// Repositories check for transaction in context
+// Repository checks for transaction
 if tx, ok := base.TxFromContext(ctx); ok {
     // Use transaction
 }
 ```
 
-## QueryOptions Pattern
-
-Use the base QueryOptions for consistent query building:
-
+### QueryOptions for Filtering
 ```go
 options := base.NewQueryOptions()
 filter := base.NewFilter()
-filter.Equal("name", "value")
-filter.ILike("field", "%pattern%")
+filter.Equal("status", "active")
+filter.ILike("name", "%pattern%")
 filter.In("id", []int64{1, 2, 3})
 options.Filter = filter
 options.WithPagination(1, 50)
 ```
 
-## Testing
+## Database Schema Organization
+
+PostgreSQL schemas separate domain concerns:
+- `auth`: Authentication, tokens, permissions, roles
+- `users`: Persons, staff, students, teachers, guardians
+- `education`: Groups, substitutions, assignments
+- `facilities`: Rooms and locations
+- `activities`: Student activities and enrollments
+- `active`: Real-time visit and group tracking
+- `schedule`: Timeframes, dateframes, recurrence
+- `iot`: RFID devices
+- `feedback`: User feedback entries
+- `config`: System settings
+
+## Migration System
 
 ```go
-// Example test structure
-func TestUserLogin(t *testing.T) {
-    // Test setup uses test database
+// database/migrations/{number}_{name}.go
+var Dependencies = []string{
+    "001000001_auth_accounts",  // Required migrations
+}
+
+var Migration = `
+CREATE TABLE IF NOT EXISTS schema.table_name (...);
+`
+
+var Rollback = `DROP TABLE IF EXISTS schema.table_name CASCADE;`
+```
+
+## Testing Strategy
+
+```go
+func TestFeature(t *testing.T) {
+    // Setup test database
     db := setupTestDB(t)
     defer cleanupTestDB(db)
     
     // Create test data
     user := createTestUser(t, db)
     
-    // Test the functionality
-    result, err := authService.Login(ctx, user.Email, password)
+    // Test functionality
+    result, err := service.DoSomething(ctx, user.ID)
     require.NoError(t, err)
-    assert.NotEmpty(t, result.AccessToken)
+    assert.Equal(t, expected, result)
 }
 ```
 
-Test helpers are in `test/helpers.go`. Integration tests use a real test database.
+## Common Linting Fixes
 
-## Common Linting Issues
+```go
+// 1. Check errors (errcheck)
+if _, err := w.Write(data); err != nil {
+    log.Printf("write failed: %v", err)
+}
 
-1. **Unchecked errors** (errcheck):
-   ```go
-   // Fix by checking error returns
-   if _, err := w.Write(data); err != nil {
-       log.Printf("write failed: %v", err)
-   }
-   ```
+// 2. Context keys (staticcheck)
+type contextKey string
+const userContextKey = contextKey("user")
 
-2. **Context key type** (staticcheck):
-   ```go
-   // Define proper context keys
-   type contextKey string
-   const userContextKey = contextKey("user")
-   ```
+// 3. Remove unused assignments
+// 4. Implement or remove empty branches
+```
 
-3. **Ineffective assignments**: Remove unused variable assignments
+## API Error Response Pattern
 
-4. **Empty branches**: Add implementation or remove unnecessary conditions
+```go
+type ErrorResponse struct {
+    Status  string `json:"status"`   // "error"
+    Message string `json:"message"`  // Human-readable message
+    Code    string `json:"code,omitempty"`  // Machine-readable code
+}
+```
 
-## API Documentation
+## Environment Variables
 
-- Routes are documented in `routes.md` (generated)
-- OpenAPI spec in `docs/openapi.yaml` (generated)
-- Seed data documentation in `docs/seed-data.md`
+Key variables in `dev.env`:
+- `DB_DSN`: PostgreSQL connection (use `sslmode=require`)
+- `AUTH_JWT_SECRET`: JWT signing key
+- `DB_DEBUG=true`: Log SQL queries
+- `ENABLE_CORS=true`: For frontend development
+- `LOG_LEVEL=debug`: Logging verbosity
+
+## Seed Data
+
+Creates test data for development:
+- 24 rooms across different buildings
+- 25 groups (10 grade classes, 15 activities)
+- 150 persons (30 staff/teachers, 120 students)
+- Guardians, RFID cards, and relationships
 
 ## SSL Security
 
-Database connections use SSL encryption for GDPR compliance:
-- SSL certificates in `../config/ssl/postgres/certs/` (generated by create-certs.sh)
-- Connection string uses `sslmode=require` for development
-- Production should use `sslmode=verify-full` with proper CA certificates
-- Certificate files are excluded from git (.gitignore)
-
-## Database Schema
-
-The database uses multiple PostgreSQL schemas:
-- `auth`: Authentication and authorization
-- `users`: User profiles and identity
-- `education`: Groups and educational structures
-- `activities`: Student activities
-- `facilities`: Rooms and locations
-- `active`: Real-time session tracking
-- `schedule`: Scheduling system
-- `iot`: Device management
-- `feedback`: User feedback
-- `config`: System configuration
+GDPR-compliant database connections:
+- Certificates in `../config/ssl/postgres/certs/`
+- Development: `sslmode=require`
+- Production: `sslmode=verify-full`
+- Run `create-certs.sh` before first use
 
 ## RFID Integration
 
-The system integrates with RFID readers for tracking:
-- Device authentication via API endpoints
-- Real-time student location tracking
+- Device authentication endpoints
+- Real-time visit tracking
 - Room occupancy monitoring
+- Student check-in/check-out flows

@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Database: PostgreSQL (17+) with SSL encryption (GDPR compliance)
 - Authentication: JWT-based auth system with role-based access control
 - RFID Integration: Custom API endpoints for device communication
-- Deployment: Docker/Docker Compose with Caddy for production
+- Deployment: Docker/Docker Compose
 
 ## Architecture Overview
 
@@ -299,7 +299,7 @@ cd ../../..
 
 **Connection String SSL Modes:**
 - Development: `sslmode=require` (basic encryption)
-- Production: `sslmode=verify-full` (full certificate validation)
+- Deployment: Configure based on your security requirements
 
 **SSL Configuration:**
 - Minimum TLS 1.2 with strong ciphers
@@ -312,7 +312,6 @@ cd ../../..
 - **Database Connection**: Check `DB_DSN` in dev.env and ensure PostgreSQL is running
 - **SSL Certificate Issues**: Run `config/ssl/postgres/create-certs.sh` to generate certificates
 - **SSL Verification Issues**: Ensure certificate paths are correct and certificates are valid
-- **Certificate Expiration**: Check certificate expiration with `./check-cert-expiration.sh` 
 - **JWT Errors**: Verify `AUTH_JWT_SECRET` is set and consistent
 - **CORS Issues**: Ensure `ENABLE_CORS=true` for local development
 - **SQL Debugging**: Set `DB_DEBUG=true` to see queries
@@ -556,24 +555,10 @@ Backend sessions use JWT with separate access and refresh tokens:
 - Tokens stored in HTTP-only cookies
 - Frontend uses NextAuth to manage session state
 
-## Production Deployment
+## Deployment
 
-```bash
-# Use production Docker Compose configuration
-cp docker-compose.prod.example.yml docker-compose.prod.yml
-# Edit docker-compose.prod.yml with production values
-
-# Generate production SSL certificates (use CA-signed certs)
-cd deployment/production/ssl/postgres
-./create-certs.sh
-
-# Deploy with production config
-docker compose -f docker-compose.prod.yml up -d
-```
-
-Production includes:
-- Caddy for automatic HTTPS
-- PostgreSQL with `sslmode=verify-full`
+For deployment instructions, please refer to the deployment documentation specific to your infrastructure. The project supports Docker-based deployments with:
+- PostgreSQL with SSL encryption
 - Health checks and restart policies
 - Resource limits and persistent volumes
 

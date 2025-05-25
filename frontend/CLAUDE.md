@@ -343,3 +343,28 @@ The frontend proxies all API calls through Next.js route handlers to the Go back
 5. Build UI components
 6. Always run `npm run check` before committing
 7. Handle errors gracefully with user feedback
+
+## Testing
+
+Currently, the project does not have testing infrastructure set up. When adding tests:
+- Consider React Testing Library for component tests
+- Use MSW (Mock Service Worker) for API mocking
+- Add test scripts to package.json
+- Configure Jest or Vitest as test runner
+
+## Performance Considerations
+
+- Use React 19's built-in optimizations (automatic batching, transitions)
+- Implement proper loading states with Suspense
+- Lazy load heavy components with dynamic imports
+- Use proper cache headers for API responses
+- Implement pagination for large lists
+
+## Security Best Practices
+
+- Never expose JWT tokens in client-side code
+- Use HTTP-only cookies for auth tokens when possible
+- Validate all user inputs on both frontend and backend
+- Sanitize data before rendering to prevent XSS
+- Use environment variables for sensitive configuration
+- Never commit `.env.local` file
