@@ -62,6 +62,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listStaff)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}", rs.getStaff)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/groups", rs.getStaffGroups)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/substitutions", rs.getStaffSubstitutions)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/available", rs.getAvailableStaff)
 
 		// Write operations require users:create, users:update, or users:delete permission
@@ -648,6 +649,47 @@ func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Available staff members retrieved successfully")
+}
+
+// getStaffSubstitutions handles getting substitutions for a staff member
+func (rs *Resource) getStaffSubstitutions(w http.ResponseWriter, r *http.Request) {
+	// Parse ID from URL
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if staff exists
+	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if we have a reference to the Education service
+	if rs.EducationService == nil {
+		// If not, return an error
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("education service not available"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get substitutions where this staff member is the substitute
+	substitutions, err := rs.EducationService.GetStaffSubstitutions(r.Context(), staff.ID, false)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, substitutions, "Staff substitutions retrieved successfully")
 }
 
 // Helper function to check if a string contains another string, ignoring case
