@@ -4,8 +4,8 @@ import { useEffect, useState, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/dashboard";
 import type { Activity, ActivityStudent } from "@/lib/activity-helpers";
-import { fetchActivity, getEnrolledStudents } from "@/lib/activity-api";
-import { getActivityCategoryColor, getWeekdayFullName } from "@/lib/activity-helpers";
+import { fetchActivity, getEnrolledStudents, getTimeframes } from "@/lib/activity-api";
+import { getActivityCategoryColor, getWeekdayFullName, type Timeframe } from "@/lib/activity-helpers";
 
 function ActivityDetailContent() {
   const router = useRouter();
@@ -14,6 +14,7 @@ function ActivityDetailContent() {
 
   const [activity, setActivity] = useState<Activity | null>(null);
   const [students, setStudents] = useState<ActivityStudent[]>([]);
+  const [timeframes, setTimeframes] = useState<Timeframe[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,6 +36,16 @@ function ActivityDetailContent() {
           setStudents([]);
         }
         
+        // Load timeframes to map IDs to names
+        try {
+          const timeframeData = await getTimeframes();
+          setTimeframes(timeframeData);
+        } catch (timeframeErr) {
+          console.error("Error fetching timeframes:", timeframeErr);
+          // Don't fail the whole page if timeframes can't be loaded
+          setTimeframes([]);
+        }
+        
         setError(null);
       } catch (err) {
         console.error("Error fetching activity details:", err);
@@ -51,21 +62,6 @@ function ActivityDetailContent() {
     }
   }, [activityId]);
 
-  const handleDelete = async () => {
-    if (
-      window.confirm("Sind Sie sicher, dass Sie diese Aktivität löschen möchten?")
-    ) {
-      try {
-        // TODO: Implement delete when API is ready
-        console.log("Delete activity:", activityId);
-        // await deleteActivity(activityId);
-        // router.push("/activities");
-      } catch (err) {
-        console.error("Error deleting activity:", err);
-        setError("Fehler beim Löschen der Aktivität.");
-      }
-    }
-  };
 
   if (loading) {
     return (
@@ -183,24 +179,10 @@ function ActivityDetailContent() {
 
           {/* Content */}
           <div className="p-6">
-            <div className="mb-6 flex items-center justify-between">
+            <div className="mb-6">
               <h2 className="text-xl font-medium text-gray-700">
                 Aktivitätsdetails
               </h2>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => router.push(`/database/activities/${activityId}/edit`)}
-                  className="rounded-lg bg-blue-50 px-4 py-2 text-blue-600 shadow-sm transition-colors hover:bg-blue-100"
-                >
-                  Bearbeiten
-                </button>
-                <button
-                  onClick={handleDelete}
-                  className="rounded-lg bg-red-50 px-4 py-2 text-red-600 shadow-sm transition-colors hover:bg-red-100"
-                >
-                  Löschen
-                </button>
-              </div>
             </div>
 
             {/* Activity Information (Top Section) */}
@@ -289,21 +271,27 @@ function ActivityDetailContent() {
 
                   {activity.times && activity.times.length > 0 ? (
                     <div className="space-y-2">
-                      {activity.times.map((schedule) => (
-                        <div
-                          key={schedule.id}
-                          className="rounded-lg bg-orange-50 p-3"
-                        >
-                          <div className="text-sm">
-                            Wochentag: {getWeekdayFullName(schedule.weekday)}
-                          </div>
-                          {schedule.timeframe_id && (
-                            <div className="text-xs text-gray-600 mt-1">
-                              Zeitfenster ID: {schedule.timeframe_id}
+                      {activity.times.map((schedule) => {
+                        const timeframe = schedule.timeframe_id 
+                          ? timeframes.find(tf => tf.id === schedule.timeframe_id)
+                          : null;
+                          
+                        return (
+                          <div
+                            key={schedule.id}
+                            className="rounded-lg bg-orange-50 p-3"
+                          >
+                            <div className="text-sm font-medium">
+                              {getWeekdayFullName(schedule.weekday)}
                             </div>
-                          )}
-                        </div>
-                      ))}
+                            {timeframe && (
+                              <div className="text-xs text-gray-600 mt-1">
+                                {timeframe.display_name ?? timeframe.description ?? timeframe.name} ({timeframe.start_time.slice(11, 16)} - {timeframe.end_time.slice(11, 16)})
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-gray-500">
