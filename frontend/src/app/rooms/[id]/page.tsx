@@ -2,10 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Header } from "~/components/dashboard/header";
-import { Sidebar } from "~/components/dashboard/sidebar";
-import { BackgroundWrapper } from "~/components/background-wrapper";
-import { getSession } from "next-auth/react";
+import { ResponsiveLayout } from "@/components/dashboard";
+import { useSession } from "next-auth/react";
 
 // Room interface
 interface Room {
@@ -146,6 +144,7 @@ export default function RoomDetailPage() {
   const searchParams = useSearchParams();
   const roomId = params.id as string;
   const referrer = searchParams.get("from") ?? "/rooms";
+  const { data: session } = useSession();
 
   const [room, setRoom] = useState<Room | null>(null);
   const [roomHistory, setRoomHistory] = useState<RoomHistoryEntry[]>([]);
@@ -161,8 +160,6 @@ export default function RoomDetailPage() {
       setErrorStatus(null);
 
       try {
-        // Get user session
-        const session = await getSession();
         const authHeaders = session?.user?.token
           ? { Authorization: `Bearer ${session.user.token}` }
           : undefined;
@@ -245,7 +242,7 @@ export default function RoomDetailPage() {
     };
 
     void fetchRoomData();
-  }, [roomId]);
+  }, [roomId, session?.user?.token]);
 
   // Format date for display
   const formatDate = (dateString: string): string => {
@@ -383,22 +380,14 @@ export default function RoomDetailPage() {
   // Render loading state
   if (loading) {
     return (
-      <BackgroundWrapper>
-        <div className="min-h-screen">
-          <Header userName="Benutzer" />
-          <div className="flex">
-            <Sidebar />
-            <main className="flex-1 p-8">
-              <div className="flex min-h-[80vh] items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-                  <p className="text-gray-600">Daten werden geladen...</p>
-                </div>
-              </div>
-            </main>
+      <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+        <div className="flex min-h-[80vh] items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+            <p className="text-gray-600">Daten werden geladen...</p>
           </div>
         </div>
-      </BackgroundWrapper>
+      </ResponsiveLayout>
     );
   }
 
@@ -420,91 +409,73 @@ export default function RoomDetailPage() {
     }
 
     return (
-      <BackgroundWrapper>
-        <div className="min-h-screen">
-          <Header userName="Benutzer" />
-          <div className="flex">
-            <Sidebar />
-            <main className="flex-1 p-8">
-              <div className="flex min-h-[50vh] flex-col items-center justify-center">
-                <div className="w-full max-w-lg mx-auto p-6 bg-white rounded-lg shadow-sm">
-                  <div className="flex items-center justify-center mb-6">
-                    <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-6 w-6 text-red-600"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                  <h2 className="text-xl font-semibold text-center text-gray-800 mb-2">
-                    {errorTitle}
-                  </h2>
-                  <p className="text-center text-gray-600 mb-6">
-                    {errorMessage}
-                  </p>
-                  <div className="flex justify-center">
-                    <button
-                      onClick={() => router.push(referrer)}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors"
-                    >
-                      Zurück zur Raumübersicht
-                    </button>
-                  </div>
-                </div>
+      <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+        <div className="flex min-h-[50vh] flex-col items-center justify-center">
+          <div className="w-full max-w-lg mx-auto p-6 bg-white rounded-lg shadow-sm">
+            <div className="flex items-center justify-center mb-6">
+              <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6 text-red-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
               </div>
-            </main>
+            </div>
+            <h2 className="text-xl font-semibold text-center text-gray-800 mb-2">
+              {errorTitle}
+            </h2>
+            <p className="text-center text-gray-600 mb-6">
+              {errorMessage}
+            </p>
+            <div className="flex justify-center">
+              <button
+                onClick={() => router.push(referrer)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors"
+              >
+                Zurück zur Raumübersicht
+              </button>
+            </div>
           </div>
         </div>
-      </BackgroundWrapper>
+      </ResponsiveLayout>
     );
   }
 
   return (
-        <BackgroundWrapper>
-          <div className="min-h-screen">
-            {/* Header */}
-            <Header userName="Benutzer" />
-
-            <div className="flex">
-              {/* Sidebar */}
-              <Sidebar />
-
-              {/* Main Content */}
-              <main className="flex-1 p-8">
-                <div className="mx-auto max-w-7xl">
-                  {/* Back Button */}
-                  <div className="mb-6">
-                    <button
-                      onClick={() => router.push(referrer)}
-                      className="flex items-center text-gray-600 hover:text-blue-600 transition-colors"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5 mr-1"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                        />
-                      </svg>
-                      Zurück zur Raumübersicht
-                    </button>
-                  </div>
+    <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+      <div className="max-w-7xl mx-auto">
+        {/* Back Button */}
+        <div className="mb-6">
+          <button
+            onClick={() => router.push(referrer)}
+            className="flex items-center text-gray-600 hover:text-blue-600 transition-colors"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 mr-1"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              />
+            </svg>
+            Zurück zur Raumübersicht
+          </button>
+        </div>
 
                   {/* Room Header with Status - Using blue gradient style from student view */}
                   <div className="relative mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white shadow-md">
@@ -722,11 +693,8 @@ export default function RoomDetailPage() {
                         </div>
                       ))
                     )}
-                  </div>
-                </div>
-              </main>
-            </div>
-          </div>
-        </BackgroundWrapper>
+        </div>
+      </div>
+    </ResponsiveLayout>
   );
 }

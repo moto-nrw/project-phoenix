@@ -1,12 +1,15 @@
 "use client";
 
 import { SessionProvider } from "next-auth/react";
-import { UserContextProvider } from "~/lib/usercontext-context";
+import { ModalProvider } from "@/components/dashboard/modal-context";
+
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
-      <UserContextProvider>{children}</UserContextProvider>
+      <ModalProvider>
+        {children}
+      </ModalProvider>
     </SessionProvider>
   );
 }

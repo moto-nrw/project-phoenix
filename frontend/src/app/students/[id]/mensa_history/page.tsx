@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Header } from "~/components/dashboard/header";
-import { Sidebar } from "~/components/dashboard/sidebar";
+import { ResponsiveLayout } from "@/components/dashboard";
 import { Alert } from "~/components/ui/alert";
-import { BackgroundWrapper } from "~/components/background-wrapper";
+import { useSession } from "next-auth/react";
 
 // Student type (reused from student page)
 interface Student {
@@ -46,6 +45,7 @@ export default function StudentMensaHistoryPage() {
     const searchParams = useSearchParams();
     const studentId = params.id as string;
     const referrer = searchParams.get("from") ?? "/students/search";
+    const { data: session } = useSession();
 
     const [student, setStudent] = useState<Student | null>(null);
     const [mensaHistory, setMensaHistory] = useState<MensaEntry[]>([]);
@@ -291,65 +291,39 @@ export default function StudentMensaHistoryPage() {
 
     if (loading) {
         return (
-            <BackgroundWrapper>
-                <div className="min-h-screen">
-                    <Header userName="Benutzer" />
-                    <div className="flex">
-                        <Sidebar />
-                        <main className="flex-1 p-8">
-                            <div className="flex min-h-[80vh] items-center justify-center">
-                                <div className="flex flex-col items-center gap-4">
-                                    <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-                                    <p className="text-gray-600">Daten werden geladen...</p>
-                                </div>
-                            </div>
-                        </main>
+            <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+                <div className="flex min-h-[80vh] items-center justify-center">
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+                        <p className="text-gray-600">Daten werden geladen...</p>
                     </div>
                 </div>
-            </BackgroundWrapper>
+            </ResponsiveLayout>
         );
     }
 
     if (error || !student) {
         return (
-            <BackgroundWrapper>
-                <div className="min-h-screen">
-                    <Header userName="Benutzer" />
-                    <div className="flex">
-                        <Sidebar />
-                        <main className="flex-1 p-8">
-                            <div className="flex min-h-[80vh] flex-col items-center justify-center">
-                                <Alert
-                                    type="error"
-                                    message={error ?? "Schüler nicht gefunden"}
-                                />
-                                <button
-                                    onClick={() => router.push(referrer)}
-                                    className="mt-4 rounded bg-blue-100 px-4 py-2 text-blue-800 transition-colors hover:bg-blue-200"
-                                >
-                                    Zurück
-                                </button>
-                            </div>
-                        </main>
-                    </div>
+            <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+                <div className="flex min-h-[80vh] flex-col items-center justify-center">
+                    <Alert
+                        type="error"
+                        message={error ?? "Schüler nicht gefunden"}
+                    />
+                    <button
+                        onClick={() => router.push(referrer)}
+                        className="mt-4 rounded bg-blue-100 px-4 py-2 text-blue-800 transition-colors hover:bg-blue-200"
+                    >
+                        Zurück
+                    </button>
                 </div>
-            </BackgroundWrapper>
+            </ResponsiveLayout>
         );
     }
 
     return (
-        <BackgroundWrapper>
-            <div className="min-h-screen">
-                {/* Header */}
-                <Header userName="Benutzer" />
-
-                <div className="flex">
-                    {/* Sidebar */}
-                    <Sidebar />
-
-                    {/* Main Content */}
-                    <main className="flex-1 p-8">
-                        <div className="mx-auto max-w-7xl">
+        <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+            <div className="max-w-7xl mx-auto">
                             {/* Back Button */}
                             <div className="mb-6">
                                 <button
@@ -560,10 +534,7 @@ export default function StudentMensaHistoryPage() {
                                     </div>
                                 )}
                             </div>
-                        </div>
-                    </main>
-                </div>
             </div>
-        </BackgroundWrapper>
+        </ResponsiveLayout>
     );
 }
