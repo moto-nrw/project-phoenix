@@ -212,12 +212,17 @@ func (r *PermissionRepository) RemovePermissionFromAccount(ctx context.Context, 
 
 // AssignPermissionToRole assigns a permission to a role
 func (r *PermissionRepository) AssignPermissionToRole(ctx context.Context, roleID int64, permissionID int64) error {
+	// Get the database connection (or transaction if in context)
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
 	// Check if the permission assignment already exists
-	exists, err := r.db.NewSelect().
-		Model((*auth.RolePermission)(nil)).
-		ModelTableExpr(`auth.role_permissions AS "role_permission"`).
-		Where(`"role_permission".role_id = ? AND "role_permission".permission_id = ?`, roleID, permissionID).
-		Exists(ctx)
+	count, err := db.NewSelect().
+		Table("auth.role_permissions").
+		Where("role_id = ? AND permission_id = ?", roleID, permissionID).
+		Count(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -226,13 +231,13 @@ func (r *PermissionRepository) AssignPermissionToRole(ctx context.Context, roleI
 		}
 	}
 
-	if exists {
+	if count > 0 {
 		// Already assigned, nothing to do
 		return nil
 	}
 
 	// Create the permission assignment
-	_, err = r.db.NewInsert().
+	_, err = db.NewInsert().
 		Model(&auth.RolePermission{
 			RoleID:       roleID,
 			PermissionID: permissionID,
@@ -252,9 +257,14 @@ func (r *PermissionRepository) AssignPermissionToRole(ctx context.Context, roleI
 
 // RemovePermissionFromRole removes a permission assignment from a role
 func (r *PermissionRepository) RemovePermissionFromRole(ctx context.Context, roleID int64, permissionID int64) error {
-	_, err := r.db.NewDelete().
-		Model((*auth.RolePermission)(nil)).
-		ModelTableExpr("auth.role_permissions").
+	// Get the database connection (or transaction if in context)
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	_, err := db.NewDelete().
+		Table("auth.role_permissions").
 		Where("role_id = ? AND permission_id = ?", roleID, permissionID).
 		Exec(ctx)
 
