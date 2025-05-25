@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Project Name:** Project-Phoenix
 
-**Description:** A RFID-based student attendance and room management system for educational institutions. Tracks student presence, room occupancy, and provides comprehensive management tools.
+**Description:** A GDPR-compliant RFID-based student attendance and room management system for educational institutions. Implements strict privacy controls for student data access.
 
 **Key Technologies:**
 - Backend: Go (1.21+) with Chi router, Bun ORM for PostgreSQL
@@ -561,6 +561,48 @@ For deployment instructions, please refer to the deployment documentation specif
 - PostgreSQL with SSL encryption
 - Health checks and restart policies
 - Resource limits and persistent volumes
+
+## Privacy & GDPR Implementation
+
+### Core Privacy Principles
+
+1. **Data Access Restrictions**:
+   - Teachers/Staff can only see full data for students in their assigned groups
+   - Other staff see only student names and responsible person
+   - Admin accounts should not be used for day-to-day operations
+   - Admin access is reserved for GDPR compliance tasks (exports, deletions)
+
+2. **Privacy Consent System**:
+   - Database model supports versioned privacy policies
+   - Consent expiration and renewal tracking
+   - Frontend UI for consent management is **planned** (not yet implemented)
+
+3. **Data Retention Policy** (Planned):
+   - Attendance/location data: Maximum 30 days
+   - If no consent given: Delete same day
+   - Implementation of automated cleanup is **planned**
+
+4. **Audit Logging** (Planned):
+   - Comprehensive logging of who accesses student data
+   - Required for GDPR Article 30 compliance
+   - To be implemented in future release
+
+5. **Right to Erasure**:
+   - Hard delete all student data
+   - Cascade deletion through database constraints
+   - Students removed from groups/activities with history deleted
+
+6. **Data Portability**:
+   - Export functionality in long-term backlog
+   - Not currently prioritized
+
+### Privacy-Critical Code Locations
+
+- **Privacy Consent Model**: `backend/models/users/privacy_consent.go`
+- **Student Data Access**: `backend/services/usercontext/usercontext_service.go`
+- **Permission System**: `backend/auth/authorize/`
+- **Security Headers**: `backend/middleware/security_headers.go`
+- **SSL Configuration**: `config/ssl/postgres/`
 
 ## IMPORTANT: Pull Request Guidelines
 
