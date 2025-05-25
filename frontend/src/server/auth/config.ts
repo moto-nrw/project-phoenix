@@ -157,16 +157,55 @@ export const authConfig = {
      */
   ],
   callbacks: {
-    jwt: ({ token, user }) => {
+    jwt: async ({ token, user }) => {
+      // Initial sign in
       if (user) {
         token.id = user.id;
         token.name = user.name;
         token.email = user.email;
-        token.token = user.token;
-        token.refreshToken = user.refreshToken;
+        token.token = user.token ?? "";
+        token.refreshToken = user.refreshToken ?? "";
         token.roles = user.roles;
         token.firstName = user.firstName;
+        // Store token expiry (15 minutes from now)
+        token.tokenExpiry = Date.now() + 15 * 60 * 1000; // 15 minutes
       }
+
+      // Check if token needs refresh (with 1 minute buffer)
+      if (token.tokenExpiry && Date.now() > (token.tokenExpiry as number) - 60 * 1000) {
+        try {
+          // Attempt to refresh the token
+          const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              refresh_token: token.refreshToken,
+            }),
+          });
+
+          if (response.ok) {
+            const refreshData = (await response.json()) as {
+              access_token: string;
+              refresh_token: string;
+            };
+            
+            // Update tokens
+            token.token = refreshData.access_token;
+            token.refreshToken = refreshData.refresh_token;
+            token.tokenExpiry = Date.now() + 15 * 60 * 1000; // Reset expiry
+            
+            console.log("Token refreshed successfully");
+          } else {
+            console.error("Failed to refresh token:", response.status);
+            // Token refresh failed, user will need to re-login
+            return null;
+          }
+        } catch (error) {
+          console.error("Error refreshing token:", error);
+          return null;
+        }
+      }
+      
       return token;
     },
     session: ({ session, token }) => {
@@ -185,5 +224,9 @@ export const authConfig = {
   },
   pages: {
     signIn: "/",
+  },
+  session: {
+    strategy: "jwt",
+    maxAge: 60 * 60, // 1 hour
   },
 } satisfies NextAuthConfig;
