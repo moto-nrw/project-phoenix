@@ -93,7 +93,7 @@ export function createFileUploadHandler<T>(
       const formData = await request.formData();
       
       // Validate all files in the form data
-      for (const [_key, value] of formData.entries()) {
+      for (const [, value] of formData.entries()) {
         if (value instanceof File) {
           validateFile(value, options ?? {});
         }
