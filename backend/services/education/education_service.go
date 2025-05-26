@@ -621,7 +621,7 @@ func (s *service) DeleteSubstitution(ctx context.Context, id int64) error {
 
 // GetSubstitution retrieves a substitution by ID
 func (s *service) GetSubstitution(ctx context.Context, id int64) (*education.GroupSubstitution, error) {
-	substitution, err := s.substitutionRepo.FindByID(ctx, id)
+	substitution, err := s.substitutionRepo.FindByIDWithRelations(ctx, id)
 	if err != nil {
 		return nil, &EducationError{Op: "GetSubstitution", Err: ErrSubstitutionNotFound}
 	}
@@ -630,8 +630,8 @@ func (s *service) GetSubstitution(ctx context.Context, id int64) (*education.Gro
 
 // ListSubstitutions retrieves substitutions with optional filtering
 func (s *service) ListSubstitutions(ctx context.Context, options *base.QueryOptions) ([]*education.GroupSubstitution, error) {
-	// Now using the modern ListWithOptions method like ListGroups
-	substitutions, err := s.substitutionRepo.ListWithOptions(ctx, options)
+	// Now using the modern ListWithOptions method with relations loaded
+	substitutions, err := s.substitutionRepo.ListWithRelations(ctx, options)
 	if err != nil {
 		return nil, &EducationError{Op: "ListSubstitutions", Err: err}
 	}
@@ -640,7 +640,7 @@ func (s *service) ListSubstitutions(ctx context.Context, options *base.QueryOpti
 
 // GetActiveSubstitutions gets all active substitutions for a specific date
 func (s *service) GetActiveSubstitutions(ctx context.Context, date time.Time) ([]*education.GroupSubstitution, error) {
-	substitutions, err := s.substitutionRepo.FindActive(ctx, date)
+	substitutions, err := s.substitutionRepo.FindActiveWithRelations(ctx, date)
 	if err != nil {
 		return nil, &EducationError{Op: "GetActiveSubstitutions", Err: err}
 	}
@@ -655,7 +655,7 @@ func (s *service) GetActiveGroupSubstitutions(ctx context.Context, groupID int64
 		return nil, &EducationError{Op: "GetActiveGroupSubstitutions", Err: ErrGroupNotFound}
 	}
 
-	substitutions, err := s.substitutionRepo.FindActiveByGroup(ctx, groupID, date)
+	substitutions, err := s.substitutionRepo.FindActiveByGroupWithRelations(ctx, groupID, date)
 	if err != nil {
 		return nil, &EducationError{Op: "GetActiveGroupSubstitutions", Err: err}
 	}

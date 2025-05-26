@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -64,6 +65,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/groups", rs.getStaffGroups)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/substitutions", rs.getStaffSubstitutions)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/available", rs.getAvailableStaff)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/available-for-substitution", rs.getAvailableForSubstitution)
 
 		// Write operations require users:create, users:update, or users:delete permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createStaff)
@@ -690,6 +692,119 @@ func (rs *Resource) getStaffSubstitutions(w http.ResponseWriter, r *http.Request
 	}
 
 	common.Respond(w, r, http.StatusOK, substitutions, "Staff substitutions retrieved successfully")
+}
+
+// getAvailableForSubstitution handles getting staff available for substitution with their current status
+func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.Request) {
+	// Get query parameters
+	dateStr := r.URL.Query().Get("date")
+	searchTerm := r.URL.Query().Get("search")
+	
+	date := time.Now()
+	if dateStr != "" {
+		parsedDate, err := time.Parse("2006-01-02", dateStr)
+		if err == nil {
+			date = parsedDate
+		}
+	}
+	
+	// Get all staff with teacher role
+	staff, err := rs.StaffRepo.List(r.Context(), map[string]interface{}{
+		"is_teacher": true,
+	})
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+	
+	// Get active substitutions for the date
+	var activeSubstitutions []*education.GroupSubstitution
+	if rs.EducationService != nil {
+		activeSubstitutions, _ = rs.EducationService.GetActiveSubstitutions(r.Context(), date)
+	}
+	
+	// Create a map of staff IDs currently substituting
+	substitutingStaffMap := make(map[int64]*education.GroupSubstitution)
+	for _, sub := range activeSubstitutions {
+		substitutingStaffMap[sub.SubstituteStaffID] = sub
+	}
+	
+	// Get groups for teachers to find their regular group
+	type StaffWithSubstitutionStatus struct {
+		*StaffResponse
+		IsSubstituting bool                          `json:"is_substituting"`
+		CurrentGroup   *education.Group              `json:"current_group,omitempty"`
+		RegularGroup   *education.Group              `json:"regular_group,omitempty"`
+		Substitution   *education.GroupSubstitution  `json:"substitution,omitempty"`
+		// Teacher-specific fields
+		TeacherID      int64                         `json:"teacher_id,omitempty"`
+		Specialization string                        `json:"specialization,omitempty"`
+		Role           string                        `json:"role,omitempty"`
+		Qualifications string                        `json:"qualifications,omitempty"`
+	}
+	
+	var results []StaffWithSubstitutionStatus
+	
+	for _, s := range staff {
+		// Load person data if not already loaded
+		if s.Person == nil && s.PersonID > 0 {
+			person, err := rs.PersonService.Get(r.Context(), s.PersonID)
+			if err == nil {
+				s.Person = person
+			}
+		}
+		
+		// Apply search filter if provided
+		if searchTerm != "" && s.Person != nil {
+			// Check if search term matches first name or last name
+			if !containsIgnoreCase(s.Person.FirstName, searchTerm) && 
+			   !containsIgnoreCase(s.Person.LastName, searchTerm) {
+				continue // Skip this staff member
+			}
+		}
+		
+		// Create staff response
+		staffResp := newStaffResponse(s, false)
+		result := StaffWithSubstitutionStatus{
+			StaffResponse:  &staffResp,
+			IsSubstituting: false,
+		}
+		
+		// Check if this staff member is substituting
+		if sub, ok := substitutingStaffMap[s.ID]; ok {
+			result.IsSubstituting = true
+			result.Substitution = sub
+			if sub.Group != nil {
+				result.CurrentGroup = sub.Group
+			}
+		}
+		
+		// Find regular group for this teacher and populate teacher info
+		if rs.EducationService != nil {
+			// Try to find teacher record for this staff member
+			teacher, err := rs.TeacherRepo.FindByStaffID(r.Context(), s.ID)
+			if err == nil && teacher != nil {
+				// Populate teacher-specific fields
+				result.TeacherID = teacher.ID
+				result.Specialization = teacher.Specialization
+				result.Role = teacher.Role
+				result.Qualifications = teacher.Qualifications
+				
+				// Get groups for this teacher
+				groups, err := rs.EducationService.GetTeacherGroups(r.Context(), teacher.ID)
+				if err == nil && len(groups) > 0 {
+					// Assume first group is their regular group
+					result.RegularGroup = groups[0]
+				}
+			}
+		}
+		
+		results = append(results, result)
+	}
+	
+	common.Respond(w, r, http.StatusOK, results, "Available staff for substitution retrieved successfully")
 }
 
 // Helper function to check if a string contains another string, ignoring case

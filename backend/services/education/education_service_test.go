@@ -181,6 +181,38 @@ func (m *MockSubstitutionRepository) FindOverlapping(ctx context.Context, staffI
 	return nil, args.Error(1)
 }
 
+func (m *MockSubstitutionRepository) FindByIDWithRelations(ctx context.Context, id int64) (*educationModels.GroupSubstitution, error) {
+	args := m.Called(ctx, id)
+	if obj := args.Get(0); obj != nil {
+		return obj.(*educationModels.GroupSubstitution), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockSubstitutionRepository) ListWithRelations(ctx context.Context, options *base.QueryOptions) ([]*educationModels.GroupSubstitution, error) {
+	args := m.Called(ctx, options)
+	if obj := args.Get(0); obj != nil {
+		return obj.([]*educationModels.GroupSubstitution), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockSubstitutionRepository) FindActiveWithRelations(ctx context.Context, date time.Time) ([]*educationModels.GroupSubstitution, error) {
+	args := m.Called(ctx, date)
+	if obj := args.Get(0); obj != nil {
+		return obj.([]*educationModels.GroupSubstitution), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockSubstitutionRepository) FindActiveByGroupWithRelations(ctx context.Context, groupID int64, date time.Time) ([]*educationModels.GroupSubstitution, error) {
+	args := m.Called(ctx, groupID, date)
+	if obj := args.Get(0); obj != nil {
+		return obj.([]*educationModels.GroupSubstitution), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 // Mock TeacherRepository
 type MockTeacherRepository struct {
 	mock.Mock
@@ -428,7 +460,7 @@ func TestListSubstitutions_WithQueryOptions(t *testing.T) {
 		}
 
 		// Set up mock expectation
-		mockSubstitutionRepo.On("ListWithOptions", mock.Anything, options).Return(expectedSubstitutions, nil)
+		mockSubstitutionRepo.On("ListWithRelations", mock.Anything, options).Return(expectedSubstitutions, nil)
 
 		// Call the method
 		substitutions, err := service.ListSubstitutions(context.Background(), options)
