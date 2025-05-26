@@ -233,13 +233,21 @@ export default function TeachersPage() {
                                                 <div className="mt-1 flex flex-wrap gap-2">
                                                     {teacher.specialization && (
                                                         <span className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800">
-                              {teacher.specialization}
-                            </span>
+                                                            {teacher.specialization}
+                                                        </span>
                                                     )}
                                                     {teacher.role && (
                                                         <span className="inline-flex items-center rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
-                              {teacher.role}
-                            </span>
+                                                            {teacher.role}
+                                                        </span>
+                                                    )}
+                                                    {teacher.email && (
+                                                        <span className="inline-flex items-center rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                                                            <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+                                                            </svg>
+                                                            Konto
+                                                        </span>
                                                     )}
                                                 </div>
                                             </div>

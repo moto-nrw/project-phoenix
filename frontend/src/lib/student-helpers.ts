@@ -98,6 +98,18 @@ export function mapSingleStudentResponse(response: { data: BackendStudent }): St
     return mapStudentResponse(response.data);
 }
 
+// Map student detail response (includes access control info)
+export function mapStudentDetailResponse(backendStudent: BackendStudentDetail): Student {
+    // First map the basic student data
+    const student = mapStudentResponse(backendStudent);
+    
+    // Then add the additional fields
+    student.has_full_access = backendStudent.has_full_access;
+    student.group_supervisors = backendStudent.group_supervisors;
+    
+    return student;
+}
+
 // Prepare frontend student for backend
 export function prepareStudentForBackend(student: Partial<Student> & { 
     tag_id?: string;

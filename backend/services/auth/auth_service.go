@@ -35,6 +35,7 @@ type Service struct {
 	jwtExpiry              time.Duration
 	jwtRefreshExpiry       time.Duration
 	txHandler              *base.TxHandler
+	db                     *bun.DB // Add database connection
 }
 
 // Updated NewService constructor
@@ -73,6 +74,7 @@ func NewService(
 		jwtExpiry:              tokenAuth.JwtExpiry,
 		jwtRefreshExpiry:       tokenAuth.JwtRefreshExpiry,
 		txHandler:              base.NewTxHandler(db),
+		db:                     db, // Add database connection
 	}, nil
 }
 
@@ -139,6 +141,7 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 		jwtExpiry:              s.jwtExpiry,
 		jwtRefreshExpiry:       s.jwtRefreshExpiry,
 		txHandler:              s.txHandler.WithTx(tx),
+		db:                     s.db, // Add database connection
 	}
 }
 
@@ -813,7 +816,24 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 		return &AuthError{Op: "assign role", Err: errors.New("role not found")}
 	}
 
-	if err := s.roleRepo.AssignRoleToAccount(ctx, int64(accountID), int64(roleID)); err != nil {
+	// Check if role is already assigned using the repository
+	existingRole, err := s.accountRoleRepo.FindByAccountAndRole(ctx, int64(accountID), int64(roleID))
+	if err != nil && !strings.Contains(err.Error(), "no rows") {
+		return &AuthError{Op: "check role assignment", Err: err}
+	}
+
+	if existingRole != nil {
+		// Role already assigned, no action needed
+		return nil
+	}
+
+	// Create the role assignment using the repository
+	accountRole := &auth.AccountRole{
+		AccountID: int64(accountID),
+		RoleID:    int64(roleID),
+	}
+
+	if err := s.accountRoleRepo.Create(ctx, accountRole); err != nil {
 		return &AuthError{Op: "assign role to account", Err: err}
 	}
 
@@ -822,7 +842,8 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 
 // RemoveRoleFromAccount removes a role from an account
 func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int) error {
-	if err := s.roleRepo.RemoveRoleFromAccount(ctx, int64(accountID), int64(roleID)); err != nil {
+	// Use the repository to delete the role assignment
+	if err := s.accountRoleRepo.DeleteByAccountAndRole(ctx, int64(accountID), int64(roleID)); err != nil {
 		return &AuthError{Op: "remove role from account", Err: err}
 	}
 	return nil
@@ -971,6 +992,15 @@ func (s *Service) GetAccountPermissions(ctx context.Context, accountID int) ([]*
 	permissions, err := s.getAccountPermissions(ctx, int64(accountID))
 	if err != nil {
 		return nil, &AuthError{Op: "get account permissions", Err: err}
+	}
+	return permissions, nil
+}
+
+// GetAccountDirectPermissions retrieves only direct permissions for an account (not role-based)
+func (s *Service) GetAccountDirectPermissions(ctx context.Context, accountID int) ([]*auth.Permission, error) {
+	permissions, err := s.permissionRepo.FindDirectByAccountID(ctx, int64(accountID))
+	if err != nil {
+		return nil, &AuthError{Op: "get account direct permissions", Err: err}
 	}
 	return permissions, nil
 }

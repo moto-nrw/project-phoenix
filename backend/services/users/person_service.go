@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -96,6 +97,32 @@ func (s *personService) WithTx(tx bun.Tx) interface{} {
 
 // Get retrieves a person by their ID
 func (s *personService) Get(ctx context.Context, id interface{}) (*userModels.Person, error) {
+	// Try to use FindWithAccount if repository supports it
+	if repo, ok := s.personRepo.(interface {
+		FindWithAccount(context.Context, int64) (*userModels.Person, error)
+	}); ok {
+		// Convert id to int64
+		var personID int64
+		switch v := id.(type) {
+		case int:
+			personID = int64(v)
+		case int64:
+			personID = v
+		default:
+			return nil, &UsersError{Op: "get person", Err: fmt.Errorf("invalid ID type")}
+		}
+
+		person, err := repo.FindWithAccount(ctx, personID)
+		if err != nil {
+			return nil, &UsersError{Op: "get person", Err: err}
+		}
+		if person == nil {
+			return nil, &UsersError{Op: "get person", Err: ErrPersonNotFound}
+		}
+		return person, nil
+	}
+
+	// Fallback to regular FindByID
 	person, err := s.personRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, &UsersError{Op: "get person", Err: err}
