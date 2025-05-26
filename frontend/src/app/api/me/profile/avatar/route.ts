@@ -30,7 +30,7 @@ export const POST = async (request: Request) => {
       );
     }
 
-    const data = await response.json();
+    const data = await response.json() as unknown;
     return NextResponse.json(data);
   } catch (error) {
     console.error("Avatar upload error:", error);
@@ -66,7 +66,7 @@ export const DELETE = async () => {
       );
     }
 
-    const data = await response.json();
+    const data = await response.json() as unknown;
     return NextResponse.json(data);
   } catch (error) {
     console.error("Avatar delete error:", error);

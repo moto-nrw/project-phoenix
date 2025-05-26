@@ -72,7 +72,10 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatar, firstName, lastName
           className="hidden"
         />
       </div>
-      <button className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium">
+      <button 
+        onClick={() => document.getElementById('avatar-upload')?.click()}
+        className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium"
+      >
         Foto ändern
       </button>
     </div>

@@ -34,7 +34,7 @@ export const GET = async (
     }
 
     // Get the image data and content type
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    const contentType = response.headers.get('content-type') ?? 'image/jpeg';
     const buffer = await response.arrayBuffer();
 
     // Return the image with proper headers

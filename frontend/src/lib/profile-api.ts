@@ -111,8 +111,8 @@ export async function uploadAvatar(file: File): Promise<Profile> {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      const errorData = await response.json().catch(() => ({})) as { error?: string };
+      throw new Error(errorData.error ?? `HTTP error! status: ${response.status}`);
     }
 
     const result = await response.json() as { data?: BackendProfile } | BackendProfile;

@@ -74,7 +74,7 @@ export function mapProfileResponse(data: BackendProfile): Profile {
 
   // Convert avatar path to authenticated API URL
   let avatarUrl = data.avatar;
-  if (avatarUrl && avatarUrl.startsWith('/uploads/')) {
+  if (avatarUrl?.startsWith('/uploads/')) {
     // Extract filename from path
     const filename = avatarUrl.split('/').pop();
     if (filename) {
