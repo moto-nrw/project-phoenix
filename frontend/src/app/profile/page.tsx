@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Input } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
-import { fetchProfile, updateProfile } from "~/lib/profile-api";
+import { fetchProfile, updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { Profile, ProfileUpdateRequest } from "~/lib/profile-helpers";
 
 // Info Card Component
@@ -197,8 +197,20 @@ function ProfilePageContent() {
   };
 
   const handleAvatarChange = async (file: File) => {
-    // TODO: Implement avatar upload
-    console.log("Avatar upload not yet implemented", file);
+    setIsSaving(true);
+    setError(null);
+    
+    try {
+      const updatedProfile = await uploadAvatar(file);
+      setProfile(updatedProfile);
+      setSuccessMessage("Profilbild erfolgreich aktualisiert");
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error("Error uploading avatar:", err);
+      setError(err instanceof Error ? err.message : "Fehler beim Hochladen des Profilbilds");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (status === "loading" || isLoading) {

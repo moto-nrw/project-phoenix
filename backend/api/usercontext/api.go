@@ -1,9 +1,16 @@
 package usercontext
 
 import (
+	"crypto/rand"
+	"errors"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -50,6 +57,8 @@ func NewResource(service usercontext.UserContextService) *Resource {
 	r.router.Get("/", r.getCurrentUser)
 	r.router.Get("/profile", r.getCurrentProfile)
 	r.router.Put("/profile", r.updateCurrentProfile)
+	r.router.Post("/profile/avatar", r.uploadAvatar)
+	r.router.Delete("/profile/avatar", r.deleteAvatar)
 	r.router.Get("/staff", r.getCurrentStaff)
 	r.router.Get("/teacher", r.getCurrentTeacher)
 
@@ -281,4 +290,201 @@ func (res *Resource) getGroupVisits(w http.ResponseWriter, r *http.Request) {
 	if err := render.Render(w, r, common.NewResponse(visits, "Group visits retrieved successfully")); err != nil {
 		log.Printf("Error rendering error response: %v", err)
 	}
+}
+
+// Avatar upload constants
+const (
+	maxUploadSize = 5 * 1024 * 1024 // 5MB
+	avatarDir     = "public/uploads/avatars"
+)
+
+// Allowed image types
+var allowedImageTypes = map[string]bool{
+	"image/jpeg": true,
+	"image/jpg":  true,
+	"image/png":  true,
+	"image/webp": true,
+}
+
+// uploadAvatar handles avatar image upload
+func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
+	// Limit upload size
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
+	
+	// Parse multipart form
+	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+		render.Status(r, http.StatusBadRequest)
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("File too large"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get the file from the request
+	file, header, err := r.FormFile("avatar")
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("No file uploaded"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+	defer file.Close()
+
+	// Check file type
+	buffer := make([]byte, 512)
+	_, err = file.Read(buffer)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("Cannot read file"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+	contentType := http.DetectContentType(buffer)
+	
+	if !allowedImageTypes[contentType] {
+		render.Status(r, http.StatusBadRequest)
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("Invalid file type. Only JPEG, PNG, and WebP images are allowed"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Reset file reader
+	file.Seek(0, 0)
+
+	// Get current user to generate unique filename
+	user, err := res.service.GetCurrentUser(r.Context())
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Generate unique filename with user ID
+	fileExt := filepath.Ext(header.Filename)
+	if fileExt == "" {
+		switch contentType {
+		case "image/jpeg", "image/jpg":
+			fileExt = ".jpg"
+		case "image/png":
+			fileExt = ".png"
+		case "image/webp":
+			fileExt = ".webp"
+		}
+	}
+	filename := fmt.Sprintf("%d_%s%s", user.ID, generateRandomString(8), fileExt)
+	filePath := filepath.Join(avatarDir, filename)
+
+	// Create avatar directory if it doesn't exist
+	if err := os.MkdirAll(avatarDir, 0755); err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("Failed to create upload directory"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Create destination file
+	dst, err := os.Create(filePath)
+	if err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("Failed to save file"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+	defer dst.Close()
+
+	// Copy file contents
+	if _, err := io.Copy(dst, file); err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("Failed to save file"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Update user profile with avatar URL
+	avatarURL := fmt.Sprintf("/uploads/avatars/%s", filename)
+	updatedProfile, err := res.service.UpdateAvatar(r.Context(), avatarURL)
+	if err != nil {
+		// Clean up uploaded file on error
+		os.Remove(filePath)
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	if err := render.Render(w, r, common.NewResponse(updatedProfile, "Avatar uploaded successfully")); err != nil {
+		log.Printf("Error rendering response: %v", err)
+	}
+}
+
+// deleteAvatar removes the current user's avatar
+func (res *Resource) deleteAvatar(w http.ResponseWriter, r *http.Request) {
+	// Get current profile to get avatar path
+	profile, err := res.service.GetCurrentProfile(r.Context())
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if avatar exists
+	avatarPath, ok := profile["avatar"].(string)
+	if !ok || avatarPath == "" {
+		render.Status(r, http.StatusBadRequest)
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("No avatar to delete"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Delete avatar from profile
+	updatedProfile, err := res.service.UpdateAvatar(r.Context(), "")
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Delete file from filesystem
+	if strings.HasPrefix(avatarPath, "/uploads/avatars/") {
+		filePath := filepath.Join("public", avatarPath)
+		if err := os.Remove(filePath); err != nil {
+			// Log error but don't fail the request
+			log.Printf("Failed to delete avatar file: %v", err)
+		}
+	}
+
+	render.Status(r, http.StatusOK)
+	if err := render.Render(w, r, common.NewResponse(updatedProfile, "Avatar deleted successfully")); err != nil {
+		log.Printf("Error rendering response: %v", err)
+	}
+}
+
+// generateRandomString generates a random string of specified length
+func generateRandomString(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, length)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback to less random but functional method
+		for i := range b {
+			b[i] = charset[i%len(charset)]
+		}
+		return string(b)
+	}
+	
+	// Map random bytes to charset
+	for i := range b {
+		b[i] = charset[b[i]%byte(len(charset))]
+	}
+	return string(b)
 }

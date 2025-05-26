@@ -198,6 +198,10 @@ func (a *API) registerRoutesWithRateLimiting() {
 		_, _ = w.Write([]byte("OK"))
 	})
 
+	// Serve static files from uploads directory
+	fileServer := http.FileServer(http.Dir("./public"))
+	a.Router.Handle("/uploads/*", http.StripPrefix("/uploads", fileServer))
+
 	// Mount API resources
 	// Auth routes mounted at root level to match frontend expectations
 	// Apply stricter rate limiting to auth endpoints if enabled

@@ -88,7 +88,7 @@ export async function updateProfile(data: ProfileUpdateRequest): Promise<Profile
 /**
  * Upload a new avatar image
  */
-export async function uploadAvatar(file: File): Promise<string> {
+export async function uploadAvatar(file: File): Promise<Profile> {
   const session = await getSession();
   const token = session?.user?.token;
 
@@ -111,14 +111,19 @@ export async function uploadAvatar(file: File): Promise<string> {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json() as { url: string };
-    return data.url;
+    const result = await response.json() as { data?: BackendProfile } | BackendProfile;
+    
+    // Check if response has data wrapper
+    const data = 'data' in result && result.data ? result.data : result as BackendProfile;
+    
+    return mapProfileResponse(data);
   } catch (error) {
     console.error("Error uploading avatar:", error);
-    throw new Error("Failed to upload avatar");
+    throw new Error(error instanceof Error ? error.message : "Failed to upload avatar");
   }
 }
 

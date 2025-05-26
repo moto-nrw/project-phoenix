@@ -50,4 +50,7 @@ type UserContextService interface {
 
 	// UpdateCurrentProfile updates the current user's profile with the provided data
 	UpdateCurrentProfile(ctx context.Context, updates map[string]interface{}) (map[string]interface{}, error)
+
+	// UpdateAvatar updates the current user's avatar
+	UpdateAvatar(ctx context.Context, avatarURL string) (map[string]interface{}, error)
 }

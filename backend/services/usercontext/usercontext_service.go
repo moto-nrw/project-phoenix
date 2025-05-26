@@ -3,6 +3,10 @@ package usercontext
 import (
 	"context"
 	"errors"
+	"log"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -186,6 +190,10 @@ func (s *userContextService) GetCurrentStaff(ctx context.Context) (*users.Staff,
 
 	staff, err := s.staffRepo.FindByPersonID(ctx, person.ID)
 	if err != nil {
+		// Check if it's a "no rows" error
+		if err.Error() == "sql: no rows in result set" || strings.Contains(err.Error(), "no rows in result set") {
+			return nil, &UserContextError{Op: "get current staff", Err: ErrUserNotLinkedToStaff}
+		}
 		return nil, &UserContextError{Op: "get current staff", Err: err}
 	}
 	if staff == nil {
@@ -676,6 +684,56 @@ func (s *userContextService) UpdateCurrentProfile(ctx context.Context, updates m
 
 	if err != nil {
 		return nil, &UserContextError{Op: "update current profile", Err: err}
+	}
+
+	// Return updated profile
+	return s.GetCurrentProfile(ctx)
+}
+
+// UpdateAvatar updates the current user's avatar
+func (s *userContextService) UpdateAvatar(ctx context.Context, avatarURL string) (map[string]interface{}, error) {
+	// Get current account
+	account, err := s.GetCurrentUser(ctx)
+	if err != nil {
+		return nil, &UserContextError{Op: "update avatar", Err: err}
+	}
+
+	// Start transaction
+	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+		// Get or create profile
+		profile, _ := s.profileRepo.FindByAccountID(txCtx, account.ID)
+		if profile == nil {
+			// Create new profile with avatar
+			profile = &users.Profile{
+				AccountID: account.ID,
+				Avatar:    avatarURL,
+				Settings:  "{}", // Initialize with empty JSON object
+			}
+			if err := s.profileRepo.Create(txCtx, profile); err != nil {
+				return err
+			}
+		} else {
+			// Delete old avatar file if exists and is local
+			if profile.Avatar != "" && strings.HasPrefix(profile.Avatar, "/uploads/avatars/") {
+				oldFilePath := filepath.Join("public", profile.Avatar)
+				if err := os.Remove(oldFilePath); err != nil {
+					// Log error but don't fail the transaction
+					log.Printf("Failed to delete old avatar file: %v", err)
+				}
+			}
+
+			// Update existing profile
+			profile.Avatar = avatarURL
+			if err := s.profileRepo.Update(txCtx, profile); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, &UserContextError{Op: "update avatar", Err: err}
 	}
 
 	// Return updated profile
