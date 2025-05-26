@@ -657,6 +657,7 @@ func (s *userContextService) UpdateCurrentProfile(ctx context.Context, updates m
 				profile = &users.Profile{
 					AccountID: account.ID,
 					Bio:       bio,
+					Settings:  "{}", // Initialize with empty JSON object
 				}
 				if err := s.profileRepo.Create(txCtx, profile); err != nil {
 					return err
