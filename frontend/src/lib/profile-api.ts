@@ -1,11 +1,10 @@
 import { getSession } from "next-auth/react";
 import { 
-  // Commented out until we use real API
-  // mapProfileResponse, 
-  // mapProfileUpdateRequest,
+  mapProfileResponse, 
+  mapProfileUpdateRequest,
   type Profile, 
   type ProfileUpdateRequest,
-  // type BackendProfile 
+  type BackendProfile 
 } from "./profile-helpers";
 
 /**
@@ -19,42 +18,7 @@ export async function fetchProfile(): Promise<Profile> {
     throw new Error("No authentication token available");
   }
 
-  // MOCK DATA - Remove this block when backend is ready
-  const mockProfile: Profile = {
-    id: "1",
-    firstName: "Max",
-    lastName: "Mustermann",
-    email: session.user.email ?? "admin@moto.nrw",
-    username: "mmustermann",
-    avatar: null, // Try changing to a URL like "https://via.placeholder.com/150" to test avatar
-    bio: "Ich bin der Administrator dieser Schule und kümmere mich um die technischen Belange des OGS-Systems.",
-    rfidCard: "RFID-12345",
-    createdAt: "2024-01-15T10:00:00Z",
-    updatedAt: "2024-05-25T09:00:00Z",
-    lastLogin: "2024-05-25T09:00:00Z",
-    settings: {
-      theme: 'light',
-      language: 'de',
-      notifications: {
-        email: true,
-        push: false,
-        activities: true,
-        roomChanges: true,
-      },
-      privacy: {
-        showEmail: false,
-        showProfile: true,
-      }
-    }
-  };
-  
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  return mockProfile;
-  
-  /* REAL API CALL - Uncomment when backend is ready
-  const url = `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'}/api/me/profile`;
+  const url = `/api/me/profile`;
   
   try {
     const response = await fetch(url, {
@@ -69,13 +33,16 @@ export async function fetchProfile(): Promise<Profile> {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json() as BackendProfile;
+    const result = await response.json() as { data?: BackendProfile } | BackendProfile;
+    
+    // Check if response has data wrapper (common API pattern)
+    const data = 'data' in result && result.data ? result.data : result as BackendProfile;
+    
     return mapProfileResponse(data);
   } catch (error) {
     console.error("Error fetching profile:", error);
     throw new Error("Failed to fetch profile");
   }
-  */
 }
 
 /**
@@ -89,24 +56,7 @@ export async function updateProfile(data: ProfileUpdateRequest): Promise<Profile
     throw new Error("No authentication token available");
   }
 
-  // MOCK UPDATE - Remove this block when backend is ready
-  console.log("Mock update with data:", data);
-  
-  // Get current profile and merge with updates
-  const currentProfile = await fetchProfile();
-  const updatedProfile: Profile = {
-    ...currentProfile,
-    ...data,
-    updatedAt: new Date().toISOString(),
-  };
-  
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 800));
-  
-  return updatedProfile;
-  
-  /* REAL API CALL - Uncomment when backend is ready
-  const url = `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'}/api/me/profile`;
+  const url = `/api/me/profile`;
   
   try {
     const payload = mapProfileUpdateRequest(data);
@@ -123,13 +73,16 @@ export async function updateProfile(data: ProfileUpdateRequest): Promise<Profile
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const responseData = await response.json() as BackendProfile;
+    const result = await response.json() as { data?: BackendProfile } | BackendProfile;
+    
+    // Check if response has data wrapper (common API pattern)
+    const responseData = 'data' in result && result.data ? result.data : result as BackendProfile;
+    
     return mapProfileResponse(responseData);
   } catch (error) {
     console.error("Error updating profile:", error);
     throw new Error("Failed to update profile");
   }
-  */
 }
 
 /**
@@ -143,7 +96,7 @@ export async function uploadAvatar(file: File): Promise<string> {
     throw new Error("No authentication token available");
   }
 
-  const url = `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'}/api/me/profile/avatar`;
+  const url = `/api/me/profile/avatar`;
   
   try {
     const formData = new FormData();
@@ -180,7 +133,7 @@ export async function deleteAvatar(): Promise<void> {
     throw new Error("No authentication token available");
   }
 
-  const url = `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'}/api/me/profile/avatar`;
+  const url = `/api/me/profile/avatar`;
   
   try {
     const response = await fetch(url, {

@@ -44,21 +44,34 @@ export interface ProfileUpdateRequest {
 // Backend response mapping
 export interface BackendProfile {
   id: number;
-  account_id: number;
   first_name: string;
   last_name: string;
   email: string;
   username?: string;
   avatar?: string;
   bio?: string;
-  tag_id?: string;
-  settings?: Record<string, unknown>;
+  rfid_card?: string;
+  settings?: string | Record<string, unknown>;
   created_at: string;
   updated_at: string;
   last_login?: string;
 }
 
 export function mapProfileResponse(data: BackendProfile): Profile {
+  // Parse settings if it's a string
+  let settings: ProfileSettings | undefined;
+  if (data.settings) {
+    if (typeof data.settings === 'string') {
+      try {
+        settings = JSON.parse(data.settings) as ProfileSettings;
+      } catch {
+        settings = undefined;
+      }
+    } else {
+      settings = data.settings as ProfileSettings;
+    }
+  }
+
   return {
     id: data.id.toString(),
     firstName: data.first_name,
@@ -67,21 +80,38 @@ export function mapProfileResponse(data: BackendProfile): Profile {
     username: data.username,
     avatar: data.avatar,
     bio: data.bio,
-    rfidCard: data.tag_id,
+    rfidCard: data.rfid_card,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     lastLogin: data.last_login,
-    settings: data.settings ? data.settings as ProfileSettings : undefined,
+    settings,
   };
 }
 
 export function mapProfileUpdateRequest(request: ProfileUpdateRequest): Record<string, unknown> {
-  return {
-    first_name: request.firstName,
-    last_name: request.lastName,
-    username: request.username,
-    bio: request.bio,
-    avatar: request.avatar,
-    settings: request.settings,
-  };
+  const mapped: Record<string, unknown> = {};
+  
+  if (request.firstName !== undefined) {
+    mapped.first_name = request.firstName;
+  }
+  if (request.lastName !== undefined) {
+    mapped.last_name = request.lastName;
+  }
+  if (request.username !== undefined) {
+    mapped.username = request.username;
+  }
+  if (request.bio !== undefined) {
+    mapped.bio = request.bio;
+  }
+  if (request.avatar !== undefined) {
+    mapped.avatar = request.avatar;
+  }
+  if (request.settings !== undefined) {
+    // Convert settings to JSON string if needed
+    mapped.settings = typeof request.settings === 'object' 
+      ? JSON.stringify(request.settings) 
+      : request.settings;
+  }
+  
+  return mapped;
 }

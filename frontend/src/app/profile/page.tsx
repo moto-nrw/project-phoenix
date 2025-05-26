@@ -32,7 +32,12 @@ interface AvatarUploadProps {
 }
 
 const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatar, firstName, lastName, onAvatarChange }) => {
-  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  const getInitials = () => {
+    const first = firstName?.charAt(0) || '';
+    const last = lastName?.charAt(0) || '';
+    return (first + last).toUpperCase() || '?';
+  };
+  const initials = getInitials();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -114,8 +119,8 @@ function ProfilePageContent() {
       const data = await fetchProfile();
       setProfile(data);
       setFormData({
-        firstName: data.firstName,
-        lastName: data.lastName,
+        firstName: data.firstName || "",
+        lastName: data.lastName || "",
         bio: data.bio ?? "",
         email: data.email,
         username: data.username ?? "",
@@ -150,6 +155,14 @@ function ProfilePageContent() {
       setIsSaving(true);
       setError(null);
       setSuccessMessage(null);
+
+      // If no profile exists yet, firstName and lastName are required
+      if ((!profile?.firstName || !profile?.lastName) && 
+          (!formData.firstName || !formData.lastName)) {
+        setError("Vorname und Nachname sind erforderlich, um Ihr Profil zu erstellen.");
+        setIsSaving(false);
+        return;
+      }
 
       const updateData: ProfileUpdateRequest = {
         firstName: formData.firstName,
@@ -324,6 +337,13 @@ function ProfilePageContent() {
                 )}
               </div>
             }>
+              {(!profile.firstName || !profile.lastName) && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <span className="font-medium">Profil unvollständig:</span> Bitte vervollständigen Sie Ihren Vor- und Nachnamen.
+                  </p>
+                </div>
+              )}
               <form className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input

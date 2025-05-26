@@ -12,6 +12,20 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 )
 
+// ProfileUpdateRequest represents a profile update request
+type ProfileUpdateRequest struct {
+	FirstName *string `json:"first_name,omitempty"`
+	LastName  *string `json:"last_name,omitempty"`
+	Username  *string `json:"username,omitempty"`
+	Bio       *string `json:"bio,omitempty"`
+}
+
+// Bind validates the profile update request
+func (req *ProfileUpdateRequest) Bind(r *http.Request) error {
+	// No required fields for updates - all are optional
+	return nil
+}
+
 // Resource handles the user context-related endpoints
 type Resource struct {
 	service usercontext.UserContextService
@@ -34,7 +48,8 @@ func NewResource(service usercontext.UserContextService) *Resource {
 
 	// User profile endpoints
 	r.router.Get("/", r.getCurrentUser)
-	r.router.Get("/profile", r.getCurrentPerson)
+	r.router.Get("/profile", r.getCurrentProfile)
+	r.router.Put("/profile", r.updateCurrentProfile)
 	r.router.Get("/staff", r.getCurrentStaff)
 	r.router.Get("/teacher", r.getCurrentTeacher)
 
@@ -76,9 +91,9 @@ func (res *Resource) getCurrentUser(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// getCurrentPerson returns the current user's person profile
-func (res *Resource) getCurrentPerson(w http.ResponseWriter, r *http.Request) {
-	person, err := res.service.GetCurrentPerson(r.Context())
+// getCurrentProfile returns the current user's full profile
+func (res *Resource) getCurrentProfile(w http.ResponseWriter, r *http.Request) {
+	profile, err := res.service.GetCurrentProfile(r.Context())
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -86,7 +101,48 @@ func (res *Resource) getCurrentPerson(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render.Status(r, http.StatusOK)
-	if err := render.Render(w, r, common.NewResponse(person, "Current profile retrieved successfully")); err != nil {
+	if err := render.Render(w, r, common.NewResponse(profile, "Current profile retrieved successfully")); err != nil {
+		log.Printf("Error rendering response: %v", err)
+	}
+}
+
+// updateCurrentProfile updates the current user's profile
+func (res *Resource) updateCurrentProfile(w http.ResponseWriter, r *http.Request) {
+	// Parse request
+	req := &ProfileUpdateRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Convert request to map for service
+	updates := make(map[string]interface{})
+	if req.FirstName != nil {
+		updates["first_name"] = *req.FirstName
+	}
+	if req.LastName != nil {
+		updates["last_name"] = *req.LastName
+	}
+	if req.Username != nil {
+		updates["username"] = *req.Username
+	}
+	if req.Bio != nil {
+		updates["bio"] = *req.Bio
+	}
+
+	// Update profile
+	profile, err := res.service.UpdateCurrentProfile(r.Context(), updates)
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	render.Status(r, http.StatusOK)
+	if err := render.Render(w, r, common.NewResponse(profile, "Profile updated successfully")); err != nil {
 		log.Printf("Error rendering response: %v", err)
 	}
 }
