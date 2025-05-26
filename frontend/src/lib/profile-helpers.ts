@@ -72,13 +72,24 @@ export function mapProfileResponse(data: BackendProfile): Profile {
     }
   }
 
+  // Convert relative avatar URL to absolute URL
+  let avatarUrl = data.avatar;
+  if (avatarUrl && avatarUrl.startsWith('/uploads/')) {
+    // In browser context, always use localhost
+    // process.env.NEXT_PUBLIC_API_URL might be "http://server:8080" which won't work in browser
+    const backendUrl = typeof window !== 'undefined' 
+      ? 'http://localhost:8080'  // Browser context - use localhost
+      : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'); // Server context
+    avatarUrl = `${backendUrl}${avatarUrl}`;
+  }
+
   return {
     id: data.id.toString(),
     firstName: data.first_name,
     lastName: data.last_name,
     email: data.email,
     username: data.username,
-    avatar: data.avatar,
+    avatar: avatarUrl,
     bio: data.bio,
     rfidCard: data.rfid_card,
     createdAt: data.created_at,

@@ -199,7 +199,7 @@ func (a *API) registerRoutesWithRateLimiting() {
 	})
 
 	// Serve static files from uploads directory
-	fileServer := http.FileServer(http.Dir("./public"))
+	fileServer := http.FileServer(http.Dir("./public/uploads"))
 	a.Router.Handle("/uploads/*", http.StripPrefix("/uploads", fileServer))
 
 	// Mount API resources

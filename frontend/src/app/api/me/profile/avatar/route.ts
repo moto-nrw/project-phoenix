@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "~/server/auth/config";
+import { auth } from "~/server/auth";
 
 export const POST = async (request: Request) => {
   try {
     // Get session
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user?.token) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -45,7 +44,7 @@ export const POST = async (request: Request) => {
 export const DELETE = async () => {
   try {
     // Get session
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user?.token) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

@@ -46,6 +46,11 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatar, firstName, lastName
     }
   };
 
+  // Debug avatar URL
+  if (avatar) {
+    console.log('Avatar URL:', avatar);
+  }
+
   return (
     <div className="flex flex-col items-center">
       <div className="relative group">
