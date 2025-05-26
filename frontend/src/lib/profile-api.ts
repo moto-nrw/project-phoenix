@@ -33,12 +33,13 @@ export async function fetchProfile(): Promise<Profile> {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const result = await response.json() as { data?: BackendProfile } | BackendProfile;
+    const result = await response.json() as { success: boolean; message: string; data: BackendProfile };
     
-    // Check if response has data wrapper (common API pattern)
-    const data = 'data' in result && result.data ? result.data : result as BackendProfile;
+    if (!result.success) {
+      throw new Error(result.message || "Failed to fetch profile");
+    }
     
-    return mapProfileResponse(data);
+    return mapProfileResponse(result.data);
   } catch (error) {
     console.error("Error fetching profile:", error);
     throw new Error("Failed to fetch profile");
@@ -73,12 +74,13 @@ export async function updateProfile(data: ProfileUpdateRequest): Promise<Profile
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const result = await response.json() as { data?: BackendProfile } | BackendProfile;
+    const result = await response.json() as { success: boolean; message: string; data: BackendProfile };
     
-    // Check if response has data wrapper (common API pattern)
-    const responseData = 'data' in result && result.data ? result.data : result as BackendProfile;
+    if (!result.success) {
+      throw new Error(result.message || "Failed to update profile");
+    }
     
-    return mapProfileResponse(responseData);
+    return mapProfileResponse(result.data);
   } catch (error) {
     console.error("Error updating profile:", error);
     throw new Error("Failed to update profile");
@@ -115,12 +117,13 @@ export async function uploadAvatar(file: File): Promise<Profile> {
       throw new Error(errorData.error ?? `HTTP error! status: ${response.status}`);
     }
 
-    const result = await response.json() as { data?: BackendProfile } | BackendProfile;
+    const result = await response.json() as { success: boolean; message: string; data: BackendProfile };
     
-    // Check if response has data wrapper
-    const data = 'data' in result && result.data ? result.data : result as BackendProfile;
+    if (!result.success) {
+      throw new Error(result.message || "Failed to upload avatar");
+    }
     
-    return mapProfileResponse(data);
+    return mapProfileResponse(result.data);
   } catch (error) {
     console.error("Error uploading avatar:", error);
     throw new Error(error instanceof Error ? error.message : "Failed to upload avatar");
@@ -130,7 +133,7 @@ export async function uploadAvatar(file: File): Promise<Profile> {
 /**
  * Delete the user's avatar
  */
-export async function deleteAvatar(): Promise<void> {
+export async function deleteAvatar(): Promise<Profile> {
   const session = await getSession();
   const token = session?.user?.token;
 
@@ -152,6 +155,14 @@ export async function deleteAvatar(): Promise<void> {
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
+
+    const result = await response.json() as { success: boolean; message: string; data: BackendProfile };
+    
+    if (!result.success) {
+      throw new Error(result.message || "Failed to delete avatar");
+    }
+    
+    return mapProfileResponse(result.data);
   } catch (error) {
     console.error("Error deleting avatar:", error);
     throw new Error("Failed to delete avatar");

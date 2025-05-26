@@ -1,21 +1,40 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { handleApiError } from "~/lib/api-helpers";
 
 // GET handler for fetching avatar images
+// Note: This doesn't use createGetHandler because we need to return raw image data
 export const GET = async (
-  request: Request,
-  { params }: { params: Promise<{ filename: string }> }
-) => {
+  request: NextRequest,
+  context: { params: Promise<Record<string, string | string[] | undefined>> }
+): Promise<NextResponse> => {
   try {
     const session = await auth();
+    
     if (!session?.user?.token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Unauthorized", success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
-    // Await params as required by Next.js 15
-    const { filename } = await params;
+    const params = await context.params;
+    const filename = params.filename as string;
+    
     if (!filename) {
-      return NextResponse.json({ error: "Filename required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Filename is required", success: false, message: "Filename is required" },
+        { status: 400 }
+      );
+    }
+
+    // Validate filename to prevent path traversal attacks
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return NextResponse.json(
+        { error: "Invalid filename", success: false, message: "Invalid filename" },
+        { status: 400 }
+      );
     }
 
     // Fetch from backend
@@ -27,8 +46,13 @@ export const GET = async (
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
       return NextResponse.json(
-        { error: `Failed to fetch avatar: ${response.status}` },
+        { 
+          error: errorText || `Failed to fetch avatar: ${response.status}`,
+          success: false,
+          message: errorText || `Failed to fetch avatar: ${response.status}`
+        },
         { status: response.status }
       );
     }
@@ -37,7 +61,7 @@ export const GET = async (
     const contentType = response.headers.get('content-type') ?? 'image/jpeg';
     const buffer = await response.arrayBuffer();
 
-    // Return the image with proper headers
+    // Return raw image data with proper headers
     return new NextResponse(buffer, {
       headers: {
         'Content-Type': contentType,
@@ -45,10 +69,6 @@ export const GET = async (
       },
     });
   } catch (error) {
-    console.error("Avatar fetch error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch avatar" },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 };
