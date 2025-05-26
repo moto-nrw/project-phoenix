@@ -698,6 +698,9 @@ func (s *userContextService) UpdateAvatar(ctx context.Context, avatarURL string)
 		return nil, &UserContextError{Op: "update avatar", Err: err}
 	}
 
+	// Track old avatar path for cleanup after successful transaction
+	var oldAvatarPath string
+
 	// Start transaction
 	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
 		// Get or create profile
@@ -713,13 +716,9 @@ func (s *userContextService) UpdateAvatar(ctx context.Context, avatarURL string)
 				return err
 			}
 		} else {
-			// Delete old avatar file if exists and is local
+			// Store old avatar path for deletion after successful commit
 			if profile.Avatar != "" && strings.HasPrefix(profile.Avatar, "/uploads/avatars/") {
-				oldFilePath := filepath.Join("public", profile.Avatar)
-				if err := os.Remove(oldFilePath); err != nil {
-					// Log error but don't fail the transaction
-					log.Printf("Failed to delete old avatar file: %v", err)
-				}
+				oldAvatarPath = filepath.Join("public", profile.Avatar)
 			}
 
 			// Update existing profile
@@ -734,6 +733,14 @@ func (s *userContextService) UpdateAvatar(ctx context.Context, avatarURL string)
 
 	if err != nil {
 		return nil, &UserContextError{Op: "update avatar", Err: err}
+	}
+
+	// Delete old avatar file only after successful transaction commit
+	if oldAvatarPath != "" {
+		if err := os.Remove(oldAvatarPath); err != nil {
+			// Log error but don't fail the operation since DB update succeeded
+			log.Printf("Failed to delete old avatar file: %v", err)
+		}
 	}
 
 	// Return updated profile

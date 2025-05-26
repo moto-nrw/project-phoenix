@@ -386,7 +386,15 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 			fileExt = ".webp"
 		}
 	}
-	filename := fmt.Sprintf("%d_%s%s", user.ID, generateRandomString(8), fileExt)
+	randomStr, err := generateRandomString(8)
+	if err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to generate filename"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+	filename := fmt.Sprintf("%d_%s%s", user.ID, randomStr, fileExt)
 	filePath := filepath.Join(avatarDir, filename)
 
 	// Create avatar directory if it doesn't exist
@@ -613,21 +621,17 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	http.ServeContent(w, r, filename, fileInfo.ModTime(), file)
 }
 
-// generateRandomString generates a random string of specified length
-func generateRandomString(length int) string {
+// generateRandomString generates a cryptographically secure random string of specified length
+func generateRandomString(length int) (string, error) {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, length)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback to less random but functional method
-		for i := range b {
-			b[i] = charset[i%len(charset)]
-		}
-		return string(b)
+		return "", err
 	}
 	
 	// Map random bytes to charset
 	for i := range b {
 		b[i] = charset[b[i]%byte(len(charset))]
 	}
-	return string(b)
+	return string(b), nil
 }
