@@ -315,7 +315,7 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	// Parse multipart form
 	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
 		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("File too large"))); err != nil {
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("file too large"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -325,19 +325,23 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	file, header, err := r.FormFile("avatar")
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("No file uploaded"))); err != nil {
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("no file uploaded"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Error closing file: %v", err)
+		}
+	}()
 
 	// Check file type
 	buffer := make([]byte, 512)
 	_, err = file.Read(buffer)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("Cannot read file"))); err != nil {
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("cannot read file"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -346,14 +350,20 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	
 	if !allowedImageTypes[contentType] {
 		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("Invalid file type. Only JPEG, PNG, and WebP images are allowed"))); err != nil {
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid file type. Only JPEG, PNG, and WebP images are allowed"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
 	}
 
 	// Reset file reader
-	file.Seek(0, 0)
+	if _, err := file.Seek(0, 0); err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to process file"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
 
 	// Get current user to generate unique filename
 	user, err := res.service.GetCurrentUser(r.Context())
@@ -382,7 +392,7 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	// Create avatar directory if it doesn't exist
 	if err := os.MkdirAll(avatarDir, 0755); err != nil {
 		render.Status(r, http.StatusInternalServerError)
-		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("Failed to create upload directory"))); err != nil {
+		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to create upload directory"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -392,17 +402,21 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	dst, err := os.Create(filePath)
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
-		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("Failed to save file"))); err != nil {
+		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to save file"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
 	}
-	defer dst.Close()
+	defer func() {
+		if err := dst.Close(); err != nil {
+			log.Printf("Error closing destination file: %v", err)
+		}
+	}()
 
 	// Copy file contents
 	if _, err := io.Copy(dst, file); err != nil {
 		render.Status(r, http.StatusInternalServerError)
-		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("Failed to save file"))); err != nil {
+		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to save file"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -413,7 +427,9 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	updatedProfile, err := res.service.UpdateAvatar(r.Context(), avatarURL)
 	if err != nil {
 		// Clean up uploaded file on error
-		os.Remove(filePath)
+		if err := os.Remove(filePath); err != nil {
+			log.Printf("Error removing uploaded file: %v", err)
+		}
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -441,7 +457,7 @@ func (res *Resource) deleteAvatar(w http.ResponseWriter, r *http.Request) {
 	avatarPath, ok := profile["avatar"].(string)
 	if !ok || avatarPath == "" {
 		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("No avatar to delete"))); err != nil {
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("no avatar to delete"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -477,7 +493,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	filename := chi.URLParam(r, "filename")
 	if filename == "" {
 		render.Status(r, http.StatusBadRequest)
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("Filename required"))); err != nil {
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("filename required"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -496,7 +512,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	avatarPath, ok := profile["avatar"].(string)
 	if !ok || avatarPath == "" {
 		render.Status(r, http.StatusNotFound)
-		if err := render.Render(w, r, common.ErrorNotFound(errors.New("No avatar found"))); err != nil {
+		if err := render.Render(w, r, common.ErrorNotFound(errors.New("no avatar found"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -508,7 +524,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	
 	if userAvatarFilename != filename {
 		render.Status(r, http.StatusForbidden)
-		if err := render.Render(w, r, common.ErrorForbidden(errors.New("Access denied"))); err != nil {
+		if err := render.Render(w, r, common.ErrorForbidden(errors.New("access denied"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -521,7 +537,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	absPath, err := filepath.Abs(filePath)
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
-		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("Failed to process path"))); err != nil {
+		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to process path"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -531,7 +547,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	absAvatarDir, err := filepath.Abs(avatarDir)
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
-		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("Failed to process avatar directory"))); err != nil {
+		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to process avatar directory"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -539,7 +555,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	
 	if !strings.HasPrefix(absPath, absAvatarDir) {
 		render.Status(r, http.StatusForbidden)
-		if err := render.Render(w, r, common.ErrorForbidden(errors.New("Invalid path"))); err != nil {
+		if err := render.Render(w, r, common.ErrorForbidden(errors.New("invalid path"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -550,24 +566,28 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			render.Status(r, http.StatusNotFound)
-			if err := render.Render(w, r, common.ErrorNotFound(errors.New("Avatar not found"))); err != nil {
+			if err := render.Render(w, r, common.ErrorNotFound(errors.New("avatar not found"))); err != nil {
 				log.Printf("Error rendering error response: %v", err)
 			}
 		} else {
 			render.Status(r, http.StatusInternalServerError)
-			if err := render.Render(w, r, common.ErrorInternalServer(errors.New("Failed to read avatar"))); err != nil {
+			if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to read avatar"))); err != nil {
 				log.Printf("Error rendering error response: %v", err)
 			}
 		}
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Error closing file: %v", err)
+		}
+	}()
 
 	// Get file info for content length
 	fileInfo, err := file.Stat()
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
-		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("Failed to read avatar info"))); err != nil {
+		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("failed to read avatar info"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -579,7 +599,10 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	contentType := http.DetectContentType(buffer[:n])
 	
 	// Reset file position
-	file.Seek(0, 0)
+	if _, err := file.Seek(0, 0); err != nil {
+		http.Error(w, "Failed to read file", http.StatusInternalServerError)
+		return
+	}
 
 	// Set headers
 	w.Header().Set("Content-Type", contentType)
