@@ -12,43 +12,42 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/services/education"
-	modelEducation "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	modelEducation "github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/services/education"
 )
 
 type Resource struct {
 	Service education.Service
 }
 
-func NewResource(factory *services.Factory) *Resource {
+func NewResource(educationService education.Service) *Resource {
 	return &Resource{
-		Service: factory.Education,
+		Service: educationService,
 	}
 }
 
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
-	
+
 	// Create JWT auth instance for middleware
 	tokenAuth, _ := jwt.NewTokenAuth()
-	
+
 	// Protected routes that require authentication and permissions
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 
-		// Read operations only require groups:read permission
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.list)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/active", rs.listActive)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.get)
-		
-		// Write operations require groups:create/update/delete permissions
-		r.With(authorize.RequiresPermission(permissions.GroupsCreate)).Post("/", rs.create)
-		r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.update)
-		r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.delete)
+		// Read operations require substitutions:read permission
+		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead)).Get("/", rs.list)
+		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead)).Get("/active", rs.listActive)
+		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead)).Get("/{id}", rs.get)
+
+		// Write operations require substitutions:create/update/delete permissions
+		r.With(authorize.RequiresPermission(permissions.SubstitutionsCreate)).Post("/", rs.create)
+		r.With(authorize.RequiresPermission(permissions.SubstitutionsUpdate)).Put("/{id}", rs.update)
+		r.With(authorize.RequiresPermission(permissions.SubstitutionsDelete)).Delete("/{id}", rs.delete)
 	})
 
 	return r
@@ -57,23 +56,23 @@ func (rs *Resource) Router() chi.Router {
 // list handles GET /api/substitutions
 func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 	options := base.NewQueryOptions()
-	
+
 	// Apply pagination
 	page := 1
 	pageSize := 50
-	
+
 	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
 		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
 			page = p
 		}
 	}
-	
+
 	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
 		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
 			pageSize = ps
 		}
 	}
-	
+
 	options.WithPagination(page, pageSize)
 
 	substitutions, err := rs.Service.ListSubstitutions(r.Context(), options)
@@ -113,7 +112,7 @@ func (rs *Resource) listActive(w http.ResponseWriter, r *http.Request) {
 // create handles POST /api/substitutions
 func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	var substitution modelEducation.GroupSubstitution
-	
+
 	if err := json.NewDecoder(r.Body).Decode(&substitution); err != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
 		return
@@ -133,16 +132,16 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 
 	// Check for conflicts
 	conflicts, err := rs.Service.CheckSubstitutionConflicts(
-		r.Context(), 
-		substitution.SubstituteStaffID, 
-		substitution.StartDate, 
+		r.Context(),
+		substitution.SubstituteStaffID,
+		substitution.StartDate,
 		substitution.EndDate,
 	)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
-	
+
 	if len(conflicts) > 0 {
 		common.RespondWithError(w, r, http.StatusConflict, ErrStaffAlreadySubstituting.Error())
 		return
@@ -150,15 +149,15 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 
 	// Check if group already has a substitute for this period
 	activeSubstitutions, err := rs.Service.GetActiveGroupSubstitutions(
-		r.Context(), 
-		substitution.GroupID, 
+		r.Context(),
+		substitution.GroupID,
 		substitution.StartDate,
 	)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
-	
+
 	if len(activeSubstitutions) > 0 {
 		common.RespondWithError(w, r, http.StatusConflict, ErrGroupAlreadyHasSubstitute.Error())
 		return
@@ -232,16 +231,16 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 
 	if existing.SubstituteStaffID != substitution.SubstituteStaffID {
 		conflicts, err := rs.Service.CheckSubstitutionConflicts(
-			r.Context(), 
-			substitution.SubstituteStaffID, 
-			substitution.StartDate, 
+			r.Context(),
+			substitution.SubstituteStaffID,
+			substitution.StartDate,
 			substitution.EndDate,
 		)
 		if err != nil {
 			common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
-		
+
 		// Filter out the current substitution from conflicts
 		var realConflicts []*modelEducation.GroupSubstitution
 		for _, conflict := range conflicts {
@@ -249,7 +248,7 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 				realConflicts = append(realConflicts, conflict)
 			}
 		}
-		
+
 		if len(realConflicts) > 0 {
 			common.RespondWithError(w, r, http.StatusConflict, ErrStaffAlreadySubstituting.Error())
 			return

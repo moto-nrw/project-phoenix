@@ -31,6 +31,7 @@ func (r *GroupSubstitutionRepository) FindByGroup(ctx context.Context, groupID i
 	var substitutions []*education.GroupSubstitution
 	err := r.db.NewSelect().
 		Model(&substitutions).
+		ModelTableExpr(`education.group_substitution AS "substitution"`).
 		Where("group_id = ?", groupID).
 		Scan(ctx)
 
@@ -49,6 +50,7 @@ func (r *GroupSubstitutionRepository) FindByRegularStaff(ctx context.Context, st
 	var substitutions []*education.GroupSubstitution
 	err := r.db.NewSelect().
 		Model(&substitutions).
+		ModelTableExpr(`education.group_substitution AS "substitution"`).
 		Where("regular_staff_id = ?", staffID).
 		Scan(ctx)
 
@@ -67,6 +69,7 @@ func (r *GroupSubstitutionRepository) FindBySubstituteStaff(ctx context.Context,
 	var substitutions []*education.GroupSubstitution
 	err := r.db.NewSelect().
 		Model(&substitutions).
+		ModelTableExpr(`education.group_substitution AS "substitution"`).
 		Where("substitute_staff_id = ?", staffID).
 		Scan(ctx)
 
@@ -85,6 +88,7 @@ func (r *GroupSubstitutionRepository) FindActive(ctx context.Context, date time.
 	var substitutions []*education.GroupSubstitution
 	err := r.db.NewSelect().
 		Model(&substitutions).
+		ModelTableExpr(`education.group_substitution AS "substitution"`).
 		Where("start_date <= ? AND end_date >= ?", date, date).
 		Scan(ctx)
 
@@ -103,6 +107,7 @@ func (r *GroupSubstitutionRepository) FindActiveByGroup(ctx context.Context, gro
 	var substitutions []*education.GroupSubstitution
 	err := r.db.NewSelect().
 		Model(&substitutions).
+		ModelTableExpr(`education.group_substitution AS "substitution"`).
 		Where("group_id = ? AND start_date <= ? AND end_date >= ?", groupID, date, date).
 		Scan(ctx)
 
@@ -121,6 +126,7 @@ func (r *GroupSubstitutionRepository) FindOverlapping(ctx context.Context, staff
 	var substitutions []*education.GroupSubstitution
 	err := r.db.NewSelect().
 		Model(&substitutions).
+		ModelTableExpr(`education.group_substitution AS "substitution"`).
 		Where("(regular_staff_id = ? OR substitute_staff_id = ?)", staffID, staffID).
 		Where("start_date <= ? AND end_date >= ?", endDate, startDate).
 		Scan(ctx)
@@ -202,7 +208,9 @@ func (r *GroupSubstitutionRepository) List(ctx context.Context, filters map[stri
 // ListWithOptions provides a type-safe way to list group substitutions with query options
 func (r *GroupSubstitutionRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
-	query := r.db.NewSelect().Model(&substitutions)
+	query := r.db.NewSelect().
+		Model(&substitutions).
+		ModelTableExpr(`education.group_substitution AS "substitution"`)
 
 	// Apply query options
 	if options != nil {

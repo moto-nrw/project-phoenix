@@ -80,7 +80,7 @@ func New(enableCORS bool) (*API, error) {
 	api.Router.Use(middleware.RealIP)
 	api.Router.Use(middleware.Logger)
 	api.Router.Use(middleware.Recoverer)
-	
+
 	// Add security headers to all responses
 	api.Router.Use(customMiddleware.SecurityHeaders)
 
@@ -154,7 +154,7 @@ func New(enableCORS bool) (*API, error) {
 	api.IoT = iotAPI.NewResource(api.Services.IoT)
 	api.Users = usersAPI.NewResource(api.Services.Users)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext)
-	api.Substitutions = substitutionsAPI.NewResource(api.Services)
+	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
 
 	// Register routes with rate limiting
 	api.registerRoutesWithRateLimiting()
@@ -171,13 +171,13 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (a *API) registerRoutesWithRateLimiting() {
 	// Check if rate limiting is enabled
 	rateLimitEnabled := os.Getenv("RATE_LIMIT_ENABLED") == "true"
-	
+
 	// Get security logger if it exists
 	var securityLogger *customMiddleware.SecurityLogger
 	if securityLogging := os.Getenv("SECURITY_LOGGING_ENABLED"); securityLogging == "true" {
 		securityLogger = customMiddleware.NewSecurityLogger()
 	}
-	
+
 	// Configure auth-specific rate limiting if enabled
 	var authRateLimiter *customMiddleware.RateLimiter
 	if rateLimitEnabled {
