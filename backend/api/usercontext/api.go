@@ -59,6 +59,7 @@ func NewResource(service usercontext.UserContextService) *Resource {
 	r.router.Put("/profile", r.updateCurrentProfile)
 	r.router.Post("/profile/avatar", r.uploadAvatar)
 	r.router.Delete("/profile/avatar", r.deleteAvatar)
+	r.router.Get("/profile/avatar/{filename}", r.serveAvatar)
 	r.router.Get("/staff", r.getCurrentStaff)
 	r.router.Get("/teacher", r.getCurrentTeacher)
 
@@ -468,6 +469,125 @@ func (res *Resource) deleteAvatar(w http.ResponseWriter, r *http.Request) {
 	if err := render.Render(w, r, common.NewResponse(updatedProfile, "Avatar deleted successfully")); err != nil {
 		log.Printf("Error rendering response: %v", err)
 	}
+}
+
+// serveAvatar serves avatar images with authentication
+func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
+	// Get filename from URL
+	filename := chi.URLParam(r, "filename")
+	if filename == "" {
+		render.Status(r, http.StatusBadRequest)
+		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("Filename required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get current user's profile
+	profile, err := res.service.GetCurrentProfile(r.Context())
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if the requested avatar belongs to the current user
+	avatarPath, ok := profile["avatar"].(string)
+	if !ok || avatarPath == "" {
+		render.Status(r, http.StatusNotFound)
+		if err := render.Render(w, r, common.ErrorNotFound(errors.New("No avatar found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Extract filename from the user's avatar path
+	// Handle both "/uploads/avatars/filename.png" and "filename.png" formats
+	userAvatarFilename := filepath.Base(avatarPath)
+	
+	if userAvatarFilename != filename {
+		render.Status(r, http.StatusForbidden)
+		if err := render.Render(w, r, common.ErrorForbidden(errors.New("Access denied"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Construct the file path
+	filePath := filepath.Join(avatarDir, filename)
+
+	// Security check: ensure the path doesn't escape the avatar directory
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("Failed to process path"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+	
+	// Get absolute path of avatar directory for comparison
+	absAvatarDir, err := filepath.Abs(avatarDir)
+	if err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("Failed to process avatar directory"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+	
+	if !strings.HasPrefix(absPath, absAvatarDir) {
+		render.Status(r, http.StatusForbidden)
+		if err := render.Render(w, r, common.ErrorForbidden(errors.New("Invalid path"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Open the file
+	file, err := os.Open(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			render.Status(r, http.StatusNotFound)
+			if err := render.Render(w, r, common.ErrorNotFound(errors.New("Avatar not found"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+		} else {
+			render.Status(r, http.StatusInternalServerError)
+			if err := render.Render(w, r, common.ErrorInternalServer(errors.New("Failed to read avatar"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+		}
+		return
+	}
+	defer file.Close()
+
+	// Get file info for content length
+	fileInfo, err := file.Stat()
+	if err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		if err := render.Render(w, r, common.ErrorInternalServer(errors.New("Failed to read avatar info"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Detect content type
+	buffer := make([]byte, 512)
+	n, _ := file.Read(buffer[:])
+	contentType := http.DetectContentType(buffer[:n])
+	
+	// Reset file position
+	file.Seek(0, 0)
+
+	// Set headers
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Length", strconv.FormatInt(fileInfo.Size(), 10))
+	w.Header().Set("Cache-Control", "private, max-age=86400") // Cache for 1 day
+
+	// Serve the file
+	http.ServeContent(w, r, filename, fileInfo.ModTime(), file)
 }
 
 // generateRandomString generates a random string of specified length

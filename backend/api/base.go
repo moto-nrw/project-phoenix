@@ -198,9 +198,8 @@ func (a *API) registerRoutesWithRateLimiting() {
 		_, _ = w.Write([]byte("OK"))
 	})
 
-	// Serve static files from uploads directory
-	fileServer := http.FileServer(http.Dir("./public/uploads"))
-	a.Router.Handle("/uploads/*", http.StripPrefix("/uploads", fileServer))
+	// Note: Avatar files are served through authenticated endpoints, not as static files
+	// This prevents unauthorized access to user avatars
 
 	// Mount API resources
 	// Auth routes mounted at root level to match frontend expectations

@@ -72,15 +72,15 @@ export function mapProfileResponse(data: BackendProfile): Profile {
     }
   }
 
-  // Convert relative avatar URL to absolute URL
+  // Convert avatar path to authenticated API URL
   let avatarUrl = data.avatar;
   if (avatarUrl && avatarUrl.startsWith('/uploads/')) {
-    // In browser context, always use localhost
-    // process.env.NEXT_PUBLIC_API_URL might be "http://server:8080" which won't work in browser
-    const backendUrl = typeof window !== 'undefined' 
-      ? 'http://localhost:8080'  // Browser context - use localhost
-      : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'); // Server context
-    avatarUrl = `${backendUrl}${avatarUrl}`;
+    // Extract filename from path
+    const filename = avatarUrl.split('/').pop();
+    if (filename) {
+      // Use authenticated API route that goes through Next.js
+      avatarUrl = `/api/me/profile/avatar/${filename}`;
+    }
   }
 
   return {
