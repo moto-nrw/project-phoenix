@@ -199,9 +199,17 @@ func newStudentResponse(student *users.Student, person *users.Person, group *edu
 		UpdatedAt:       student.UpdatedAt,
 	}
 
-	// Include location only if authorized
-	if includeLocation {
-		response.Location = student.GetLocation()
+	// Always show if student is at home or at OGS for all staff
+	if student.InHouse || student.WC || student.SchoolYard {
+		// Student is at OGS
+		if includeLocation {
+			response.Location = student.GetLocation() // Full location details for authorized
+		} else {
+			response.Location = "In House" // Generic "in house" for all staff
+		}
+	} else {
+		// If none of the OGS location flags are set, student is at home
+		response.Location = "Home"
 	}
 
 	if person != nil {

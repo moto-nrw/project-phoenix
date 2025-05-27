@@ -79,7 +79,7 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student {
         in_house: backendStudent.location === "In House",
         wc: backendStudent.location === "WC",
         school_yard: backendStudent.location === "School Yard",
-        bus: backendStudent.location === "Bus",
+        bus: backendStudent.location === "Home", // Map "Home" to bus for backward compatibility
         name_lg: backendStudent.guardian_name,
         contact_lg: backendStudent.guardian_contact,
         custom_users_id: undefined, // Not provided by backend
