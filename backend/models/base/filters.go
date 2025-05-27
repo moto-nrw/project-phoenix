@@ -190,14 +190,49 @@ func (f *Filter) ToMap() map[string]interface{} {
 func (f *Filter) ApplyToQuery(query *bun.SelectQuery) *bun.SelectQuery {
 	// Apply basic conditions
 	for _, condition := range f.conditions {
-		// Prepare the field identifier with table alias if set
-		var fieldIdent interface{}
+		// When we have a table alias, we need to use quoted column references
+		// like "alias"."column" instead of bun.Ident
 		if f.tableAlias != "" {
-			fieldIdent = bun.Ident(f.tableAlias + "." + condition.Field)
-		} else {
-			fieldIdent = bun.Ident(condition.Field)
+			columnRef := fmt.Sprintf(`"%s"."%s"`, f.tableAlias, condition.Field)
+			switch condition.Operator {
+			case OpEqual:
+				query = query.Where(columnRef+" = ?", condition.Value)
+		case OpNotEqual:
+			query = query.Where(columnRef+" != ?", condition.Value)
+		case OpGreaterThan:
+			query = query.Where(columnRef+" > ?", condition.Value)
+		case OpGreaterThanOrEqual:
+			query = query.Where(columnRef+" >= ?", condition.Value)
+		case OpLessThan:
+			query = query.Where(columnRef+" < ?", condition.Value)
+		case OpLessThanOrEqual:
+			query = query.Where(columnRef+" <= ?", condition.Value)
+		case OpLike:
+			query = query.Where(columnRef+" LIKE ?", condition.Value)
+		case OpILike:
+			query = query.Where(columnRef+" ILIKE ?", condition.Value)
+		case OpIsNull:
+			query = query.Where(columnRef+" IS NULL")
+		case OpIsNotNull:
+			query = query.Where(columnRef+" IS NOT NULL")
+		case OpIn:
+			if values, ok := condition.Value.([]interface{}); ok {
+				query = query.Where(columnRef+" IN (?)", bun.In(values))
+			}
+		case OpNotIn:
+			if values, ok := condition.Value.([]interface{}); ok {
+				query = query.Where(columnRef+" NOT IN (?)", bun.In(values))
+			}
+		case OpContains:
+			query = query.Where(columnRef+" @> ?", condition.Value)
+		case OpContainedBy:
+			query = query.Where(columnRef+" <@ ?", condition.Value)
+		case OpHasKey:
+			query = query.Where(columnRef+" ? ?", condition.Value)
 		}
-
+	} else {
+		// Original behavior for queries without table alias
+		fieldIdent := bun.Ident(condition.Field)
 		switch condition.Operator {
 		case OpEqual:
 			query = query.Where("? = ?", fieldIdent, condition.Value)
@@ -234,6 +269,7 @@ func (f *Filter) ApplyToQuery(query *bun.SelectQuery) *bun.SelectQuery {
 		case OpHasKey:
 			query = query.Where("? ? ?", fieldIdent, condition.Value)
 		}
+	}
 	}
 
 	// Apply OR conditions

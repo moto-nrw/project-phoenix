@@ -19,6 +19,7 @@ var (
 	ErrInvalidDateRange        = errors.New("invalid date range")
 	ErrDatabaseOperation       = errors.New("database operation failed")
 	ErrInvalidData             = errors.New("invalid data provided")
+	ErrSubstitutionBackdated   = errors.New("substitutions cannot be created or updated for past dates")
 )
 
 // EducationError represents an error that occurred in the education service
