@@ -72,9 +72,11 @@ export const GET = createGetHandler(async (request: NextRequest, token: string):
         return [];
       }
       
+      
       // Map the backend response format to the frontend format using the consistent mapping function
       const mappedStudents = response.data.map((student: StudentResponseFromBackend) => {
-        return mapStudentResponse(student);
+        const mapped = mapStudentResponse(student);
+        return mapped;
       });
       
       return mappedStudents;
