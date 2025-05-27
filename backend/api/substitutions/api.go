@@ -248,6 +248,13 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate no backdating - start date must be today or in the future
+	today := time.Now().Truncate(24 * time.Hour)
+	if startDate.Before(today) {
+		common.RespondWithError(w, r, http.StatusBadRequest, ErrSubstitutionBackdated.Error())
+		return
+	}
+
 	// Create domain model
 	substitution := &modelEducation.GroupSubstitution{
 		GroupID:           req.GroupID,
@@ -347,6 +354,13 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 	// Validate date range
 	if substitution.StartDate.After(substitution.EndDate) {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrSubstitutionDateRange.Error())
+		return
+	}
+
+	// Validate no backdating - start date must be today or in the future
+	today := time.Now().Truncate(24 * time.Hour)
+	if substitution.StartDate.Before(today) {
+		common.RespondWithError(w, r, http.StatusBadRequest, ErrSubstitutionBackdated.Error())
 		return
 	}
 

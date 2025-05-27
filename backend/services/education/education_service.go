@@ -520,6 +520,12 @@ func (s *service) CreateSubstitution(ctx context.Context, substitution *educatio
 		return &EducationError{Op: "CreateSubstitution", Err: err}
 	}
 
+	// Validate no backdating - start date must be today or in the future
+	today := time.Now().Truncate(24 * time.Hour)
+	if substitution.StartDate.Before(today) {
+		return &EducationError{Op: "CreateSubstitution", Err: ErrSubstitutionBackdated}
+	}
+
 	// Verify group exists
 	_, err := s.groupRepo.FindByID(ctx, substitution.GroupID)
 	if err != nil {
@@ -560,6 +566,12 @@ func (s *service) UpdateSubstitution(ctx context.Context, substitution *educatio
 	// Validate substitution data
 	if err := substitution.Validate(); err != nil {
 		return &EducationError{Op: "UpdateSubstitution", Err: err}
+	}
+
+	// Validate no backdating - start date must be today or in the future
+	today := time.Now().Truncate(24 * time.Hour)
+	if substitution.StartDate.Before(today) {
+		return &EducationError{Op: "UpdateSubstitution", Err: ErrSubstitutionBackdated}
 	}
 
 	// Verify substitution exists

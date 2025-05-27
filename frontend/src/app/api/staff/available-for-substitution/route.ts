@@ -25,11 +25,8 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
   const endpoint = `/api/staff/available-for-substitution${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
   
   // Fetch available staff from the API
-  const response = await apiGet<BackendStaffWithSubstitutionStatus[]>(endpoint, token);
+  const response = await apiGet<{ status: string; data: BackendStaffWithSubstitutionStatus[]; message: string }>(endpoint, token);
   
-  // Log for debugging
-  console.log('Available staff API Response:', response);
-  
-  // Return the response directly as it's already an array
-  return response ?? [];
+  // Extract the data array from the response
+  return response.data ?? [];
 });

@@ -20,11 +20,8 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
   const endpoint = `/api/substitutions/active${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
   
   // Fetch active substitutions from the API
-  const response = await apiGet<BackendSubstitution[]>(endpoint, token);
+  const response = await apiGet<{ status: string; data: BackendSubstitution[]; message: string }>(endpoint, token);
   
-  // Log for debugging
-  console.log('Active substitutions API Response:', response);
-  
-  // Return the response directly as it's already an array
-  return response ?? [];
+  // Extract the data array from the response
+  return response.data ?? [];
 });
