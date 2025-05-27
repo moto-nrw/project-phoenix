@@ -64,7 +64,10 @@ export function mapProfileResponse(data: BackendProfile): Profile {
     if (typeof data.settings === 'string') {
       try {
         settings = JSON.parse(data.settings) as ProfileSettings;
-      } catch {
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Failed to parse profile settings JSON:', data.settings, error);
+        }
         settings = undefined;
       }
     } else {
