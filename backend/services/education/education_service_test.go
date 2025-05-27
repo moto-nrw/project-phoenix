@@ -13,6 +13,11 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+// Helper function to create int64 pointer
+func ptr(i int64) *int64 {
+	return &i
+}
+
 // Mock repositories
 type MockGroupRepository struct {
 	mock.Mock
@@ -452,7 +457,7 @@ func TestListSubstitutions_WithQueryOptions(t *testing.T) {
 			{
 				Model:             base.Model{ID: 1},
 				GroupID:           1,
-				RegularStaffID:    10,
+				RegularStaffID:    ptr(10),
 				SubstituteStaffID: 20,
 				StartDate:         now.AddDate(0, 0, -1),
 				EndDate:           now.AddDate(0, 0, 1),

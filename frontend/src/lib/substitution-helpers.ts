@@ -27,6 +27,8 @@ export interface BackendSubstitution {
     id: number;
     group_id: number;
     group?: BackendGroup;
+    regular_staff_id?: number;  // Now optional
+    regular_staff?: BackendStaff;
     substitute_staff_id: number;
     substitute_staff?: BackendStaff;
     start_date: string;
@@ -131,6 +133,7 @@ export function mapTeacherAvailabilityResponses(backendStaff: BackendStaffWithSu
 // Prepare frontend types for backend
 export interface CreateSubstitutionRequest {
     group_id: number;
+    regular_staff_id?: number;  // Now optional - only needed for specific replacements
     substitute_staff_id: number;
     start_date: string;
     end_date: string;
@@ -140,6 +143,7 @@ export interface CreateSubstitutionRequest {
 
 export function prepareSubstitutionForBackend(
     groupId: string,
+    regularStaffId: string | null,  // Now optional
     substituteStaffId: string,
     startDate: Date,
     endDate: Date,
@@ -151,6 +155,7 @@ export function prepareSubstitutionForBackend(
     
     return {
         group_id: parseInt(groupId, 10),
+        regular_staff_id: regularStaffId ? parseInt(regularStaffId, 10) : undefined,
         substitute_staff_id: parseInt(substituteStaffId, 10),
         start_date: startDateParts[0] ?? '', // YYYY-MM-DD format
         end_date: endDateParts[0] ?? '',

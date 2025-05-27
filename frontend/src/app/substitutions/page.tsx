@@ -133,12 +133,16 @@ export default function SubstitutionPage() {
             setIsLoading(true);
             setError(null);
 
-            // Find the selected group to get its ID
+            // Find the selected group to get its ID and representative
             const group = groups.find(g => g.name === selectedGroup);
             if (!group) {
                 setError("Gruppe nicht gefunden.");
                 return;
             }
+
+            // For general group coverage, we don't need to specify who is being replaced
+            // Pass null for regularStaffId to indicate this is general coverage, not a specific replacement
+            const regularStaffId = null;
 
             // Calculate end date based on substitution days
             const startDate = new Date();
@@ -148,6 +152,7 @@ export default function SubstitutionPage() {
             // Create the substitution
             await substitutionService.createSubstitution(
                 group.id,
+                regularStaffId,
                 selectedTeacher.id,
                 startDate,
                 endDate,

@@ -32,7 +32,7 @@ type SubstitutionResponse struct {
 	ID                int64         `json:"id"`
 	GroupID           int64         `json:"group_id"`
 	Group             *GroupInfo    `json:"group,omitempty"`
-	RegularStaffID    int64         `json:"regular_staff_id"`
+	RegularStaffID    *int64        `json:"regular_staff_id,omitempty"`
 	RegularStaff      *StaffInfo    `json:"regular_staff,omitempty"`
 	SubstituteStaffID int64         `json:"substitute_staff_id"`
 	SubstituteStaff   *StaffInfo    `json:"substitute_staff,omitempty"`
@@ -83,8 +83,8 @@ func newSubstitutionResponse(sub *modelEducation.GroupSubstitution) Substitution
 		}
 	}
 
-	// Add regular staff details if available
-	if sub.RegularStaff != nil {
+	// Add regular staff details if available (only if RegularStaffID is set)
+	if sub.RegularStaffID != nil && sub.RegularStaff != nil {
 		response.RegularStaff = &StaffInfo{
 			ID: sub.RegularStaff.ID,
 		}

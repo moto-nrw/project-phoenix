@@ -156,6 +156,7 @@ class SubstitutionService {
     // Create a new substitution
     async createSubstitution(
         groupId: string,
+        regularStaffId: string | null,  // Now optional - null for general coverage
         substituteStaffId: string,
         startDate: Date,
         endDate: Date,
@@ -165,6 +166,7 @@ class SubstitutionService {
         try {
             const requestData = prepareSubstitutionForBackend(
                 groupId,
+                regularStaffId,
                 substituteStaffId,
                 startDate,
                 endDate,

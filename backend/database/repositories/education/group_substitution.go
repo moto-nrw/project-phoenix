@@ -260,7 +260,7 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 	}
 	
 	// Load regular staff with person
-	if substitution.RegularStaffID > 0 {
+	if substitution.RegularStaffID != nil && *substitution.RegularStaffID > 0 {
 		type staffWithPerson struct {
 			Staff  *users.Staff  `bun:"staff"`
 			Person *users.Person `bun:"person"`
@@ -324,8 +324,8 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 		if sub.GroupID > 0 {
 			groupIDs[sub.GroupID] = true
 		}
-		if sub.RegularStaffID > 0 {
-			staffIDs[sub.RegularStaffID] = true
+		if sub.RegularStaffID != nil && *sub.RegularStaffID > 0 {
+			staffIDs[*sub.RegularStaffID] = true
 		}
 		if sub.SubstituteStaffID > 0 {
 			staffIDs[sub.SubstituteStaffID] = true
@@ -396,8 +396,10 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 		if group, ok := groupMap[sub.GroupID]; ok {
 			sub.Group = group
 		}
-		if staff, ok := staffMap[sub.RegularStaffID]; ok {
-			sub.RegularStaff = staff
+		if sub.RegularStaffID != nil {
+			if staff, ok := staffMap[*sub.RegularStaffID]; ok {
+				sub.RegularStaff = staff
+			}
 		}
 		if staff, ok := staffMap[sub.SubstituteStaffID]; ok {
 			sub.SubstituteStaff = staff
