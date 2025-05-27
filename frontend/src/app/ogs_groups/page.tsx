@@ -52,6 +52,13 @@ export default function OGSGroupPage() {
     const [attendanceFilter, setAttendanceFilter] = useState<string>("all");
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [roomStatus, setRoomStatus] = useState<Record<string, { 
+        in_group_room: boolean; 
+        current_room_id?: number;
+        first_name?: string;
+        last_name?: string;
+        reason?: string;
+    }>>({})
 
     // Statistics
     const [stats, setStats] = useState({
@@ -146,6 +153,52 @@ export default function OGSGroupPage() {
                 // Update group with actual student count
                 setOGSGroup(prev => prev ? { ...prev, student_count: validStudents.length } : null);
 
+                // Fetch room status for all students in the group
+                try {
+                    console.log('Fetching room status for group:', educationalGroup.id);
+                    const roomStatusResponse = await fetch(`/api/groups/${educationalGroup.id}/students/room-status`, {
+                        headers: {
+                            'Authorization': `Bearer ${session?.user?.token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    console.log('Room status response status:', roomStatusResponse.status);
+                    if (roomStatusResponse.ok) {
+                        const response = await roomStatusResponse.json() as {
+                            success: boolean;
+                            message: string;
+                            data: {
+                                group_has_room: boolean;
+                                group_room_id?: number;
+                                student_room_status: Record<string, { 
+                                    in_group_room: boolean; 
+                                    current_room_id?: number;
+                                    first_name?: string;
+                                    last_name?: string;
+                                    reason?: string;
+                                }>;
+                            };
+                        };
+                        
+                        console.log('Full room status response:', response);
+                        
+                        if (response.data?.student_room_status) {
+                            console.log('Room status data received:', response.data.student_room_status);
+                            console.log('Room status keys:', Object.keys(response.data.student_room_status));
+                            setRoomStatus(response.data.student_room_status);
+                            
+                            // Update presentStudents count based on actual room status
+                            const inRoomCount = Object.values(response.data.student_room_status).filter(s => s.in_group_room).length;
+                            console.log('Students in room count:', inRoomCount);
+                            setStats(prev => ({ ...prev, presentStudents: inRoomCount }));
+                        }
+                    }
+                } catch (roomStatusErr) {
+                    console.error("Failed to fetch room status:", roomStatusErr);
+                    // Don't fail the whole page if room status fails
+                }
+
                 setError(null);
             } catch (err) {
                 if (err instanceof Error && err.message.includes("403")) {
@@ -177,8 +230,14 @@ export default function OGSGroupPage() {
         if (attendanceFilter === "wc" && !student.wc) return false;
         if (attendanceFilter === "school_yard" && !student.school_yard) return false;
         if (attendanceFilter === "at_home" && (student.in_house || student.wc || student.school_yard)) return false;
-        // Note: "Im Gruppenraum" filter would require checking actual room visits - for now it shows no results
-        if (attendanceFilter === "in_room") return false; // TODO: Implement when room visit data is available
+        
+        // Check room status for "Im Gruppenraum" filter
+        if (attendanceFilter === "in_room") {
+            const studentRoomStatus = roomStatus[student.id.toString()];
+            if (!studentRoomStatus?.in_group_room) {
+                return false;
+            }
+        }
 
         // Apply year filter
         if (selectedYear !== "all") {
@@ -264,7 +323,6 @@ export default function OGSGroupPage() {
                                         <div>
                                             <p className="text-sm font-medium text-gray-600">Im Gruppenraum</p>
                                             <p className="text-2xl font-bold text-gray-900">{stats.presentStudents}</p>
-                                            {stats.presentStudents === 0 && <p className="text-xs text-gray-500">TODO: Raumbesuch</p>}
                                         </div>
                                     </div>
                                 </div>
@@ -476,31 +534,53 @@ export default function OGSGroupPage() {
                                                         <div className="flex items-center space-x-4">
                                                             {/* Status indicators - Shows current location */}
                                                             <div className="flex space-x-2">
-                                                                {student.in_house && (
-                                                                    <div className="flex h-7 items-center rounded-full bg-purple-100 px-2 text-xs font-medium text-purple-600" title="Im Haus">
-                                                                        <span className="mr-1 h-2 w-2 rounded-full bg-purple-600"></span>
-                                                                        <span>Im Haus</span>
-                                                                    </div>
-                                                                )}
-                                                                {student.wc && (
-                                                                    <div className="flex h-7 items-center rounded-full bg-yellow-100 px-2 text-xs font-medium text-yellow-600" title="Toilette">
-                                                                        <span className="mr-1 h-2 w-2 rounded-full bg-yellow-600"></span>
-                                                                        <span>WC</span>
-                                                                    </div>
-                                                                )}
-                                                                {student.school_yard && (
-                                                                    <div className="flex h-7 items-center rounded-full bg-blue-100 px-2 text-xs font-medium text-blue-600" title="Schulhof">
-                                                                        <span className="mr-1 h-2 w-2 rounded-full bg-blue-600"></span>
-                                                                        <span>Schulhof</span>
-                                                                    </div>
-                                                                )}
-                                                                {/* Note: "Im Gruppenraum" status would require checking actual room visits */}
-                                                                {!student.in_house && !student.wc && !student.school_yard && (
-                                                                    <div className="flex h-7 items-center rounded-full bg-red-100 px-2 text-xs font-medium text-red-600" title="Zuhause">
-                                                                        <span className="mr-1 h-2 w-2 rounded-full bg-red-600"></span>
-                                                                        <span>Zuhause</span>
-                                                                    </div>
-                                                                )}
+                                                                {(() => {
+                                                                    const studentIdStr = student.id.toString();
+                                                                    const studentRoomStatus = roomStatus[studentIdStr];
+                                                                    const isInGroupRoom = studentRoomStatus?.in_group_room;
+                                                                    console.log(`Student ${student.id} (as string: "${studentIdStr}") room status:`, studentRoomStatus, 'isInGroupRoom:', isInGroupRoom);
+                                                                    console.log('Available roomStatus keys:', Object.keys(roomStatus));
+                                                                    
+                                                                    // Show "Im Gruppenraum" if student is in their group's room
+                                                                    if (isInGroupRoom) {
+                                                                        return (
+                                                                            <div className="flex h-7 items-center rounded-full bg-green-100 px-2 text-xs font-medium text-green-600" title="Im Gruppenraum">
+                                                                                <span className="mr-1 h-2 w-2 rounded-full bg-green-600"></span>
+                                                                                <span>Im Gruppenraum</span>
+                                                                            </div>
+                                                                        );
+                                                                    }
+                                                                    
+                                                                    // Otherwise show location based on flags
+                                                                    return (
+                                                                        <>
+                                                                            {student.in_house && (
+                                                                                <div className="flex h-7 items-center rounded-full bg-purple-100 px-2 text-xs font-medium text-purple-600" title="Im Haus">
+                                                                                    <span className="mr-1 h-2 w-2 rounded-full bg-purple-600"></span>
+                                                                                    <span>Im Haus</span>
+                                                                                </div>
+                                                                            )}
+                                                                            {student.wc && (
+                                                                                <div className="flex h-7 items-center rounded-full bg-yellow-100 px-2 text-xs font-medium text-yellow-600" title="Toilette">
+                                                                                    <span className="mr-1 h-2 w-2 rounded-full bg-yellow-600"></span>
+                                                                                    <span>WC</span>
+                                                                                </div>
+                                                                            )}
+                                                                            {student.school_yard && (
+                                                                                <div className="flex h-7 items-center rounded-full bg-blue-100 px-2 text-xs font-medium text-blue-600" title="Schulhof">
+                                                                                    <span className="mr-1 h-2 w-2 rounded-full bg-blue-600"></span>
+                                                                                    <span>Schulhof</span>
+                                                                                </div>
+                                                                            )}
+                                                                            {!student.in_house && !student.wc && !student.school_yard && (
+                                                                                <div className="flex h-7 items-center rounded-full bg-red-100 px-2 text-xs font-medium text-red-600" title="Zuhause">
+                                                                                    <span className="mr-1 h-2 w-2 rounded-full bg-red-600"></span>
+                                                                                    <span>Zuhause</span>
+                                                                                </div>
+                                                                            )}
+                                                                        </>
+                                                                    );
+                                                                })()}
                                                                 {/* Transportation info - shown separately */}
                                                                 {student.bus && (
                                                                     <div className="flex h-7 items-center rounded-full bg-gray-100 px-2 text-xs font-medium text-gray-600" title="Fährt mit Bus">

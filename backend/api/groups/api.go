@@ -16,18 +16,29 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
+	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
+	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // Resource defines the group API resource
 type Resource struct {
-	EducationService educationSvc.Service
+	EducationService   educationSvc.Service
+	ActiveService      activeService.Service
+	UserService        userService.PersonService
+	UserContextService userContextService.UserContextService
+	StudentRepo        users.StudentRepository
 }
 
 // NewResource creates a new groups resource
-func NewResource(educationService educationSvc.Service) *Resource {
+func NewResource(educationService educationSvc.Service, activeService activeService.Service, userService userService.PersonService, userContextService userContextService.UserContextService, studentRepo users.StudentRepository) *Resource {
 	return &Resource{
-		EducationService: educationService,
+		EducationService:   educationService,
+		ActiveService:      activeService,
+		UserService:        userService,
+		UserContextService: userContextService,
+		StudentRepo:        studentRepo,
 	}
 }
 
@@ -49,6 +60,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getGroup)
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/students", rs.getGroupStudents)
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/supervisors", rs.getGroupSupervisors)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/students/room-status", rs.getGroupStudentsRoomStatus)
 
 		// Write operations require groups:create, groups:update, or groups:delete permission
 		r.With(authorize.RequiresPermission(permissions.GroupsCreate)).Post("/", rs.createGroup)
@@ -467,4 +479,132 @@ func (rs *Resource) getGroupSupervisors(w http.ResponseWriter, r *http.Request) 
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Group supervisors retrieved successfully")
+}
+
+// getGroupStudentsRoomStatus handles getting room status for all students in a group
+func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Request) {
+	// Parse ID from URL
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get the educational group
+	group, err := rs.EducationService.GetGroup(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("group not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check authorization - only group supervisors and admins can see this information
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	isAdmin := hasAdminPermissions(userPermissions)
+	
+	if !isAdmin {
+		// Check if user supervises this educational group
+		hasAccess := false
+		educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
+		if err == nil {
+			for _, supervGroup := range educationGroups {
+				if supervGroup.ID == id {
+					hasAccess = true
+					break
+				}
+			}
+		}
+
+		if !hasAccess {
+			if err := render.Render(w, r, ErrorForbidden(errors.New("you do not supervise this group"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+	}
+
+	// Get all students in the group
+	students, err := rs.StudentRepo.FindByGroupID(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get group students"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if the educational group has a room assigned
+	if group.RoomID == nil {
+		// No room assigned, all students are not in group room
+		result := make(map[string]interface{})
+		result["group_has_room"] = false
+		result["student_room_status"] = make(map[string]interface{})
+		
+		for _, student := range students {
+			studentStatus := map[string]interface{}{
+				"in_group_room": false,
+				"reason":        "group_no_room",
+			}
+			result["student_room_status"].(map[string]interface{})[strconv.FormatInt(student.ID, 10)] = studentStatus
+		}
+		
+		common.Respond(w, r, http.StatusOK, result, "Group has no assigned room")
+		return
+	}
+
+	// Group has a room, check each student's status
+	result := make(map[string]interface{})
+	result["group_has_room"] = true
+	result["group_room_id"] = *group.RoomID
+	studentStatuses := make(map[string]interface{})
+
+	for _, student := range students {
+		studentStatus := map[string]interface{}{
+			"in_group_room": false,
+			"reason":        "no_active_visit",
+		}
+
+		// Get the student's current active visit
+		visit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID)
+		if err == nil && visit != nil {
+			// Student has an active visit, check the room
+			activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), visit.ActiveGroupID)
+			if err == nil && activeGroup != nil {
+				// Check if the active group's room matches the educational group's room
+				inGroupRoom := activeGroup.RoomID == *group.RoomID
+				studentStatus["in_group_room"] = inGroupRoom
+				studentStatus["current_room_id"] = activeGroup.RoomID
+				
+				if inGroupRoom {
+					delete(studentStatus, "reason")
+				} else {
+					studentStatus["reason"] = "in_different_room"
+				}
+			}
+		}
+
+		// Get student's person data for display
+		person, err := rs.UserService.Get(r.Context(), student.PersonID)
+		if err == nil && person != nil {
+			studentStatus["first_name"] = person.FirstName
+			studentStatus["last_name"] = person.LastName
+		}
+
+		studentStatuses[strconv.FormatInt(student.ID, 10)] = studentStatus
+	}
+
+	result["student_room_status"] = studentStatuses
+	common.Respond(w, r, http.StatusOK, result, "Student room status retrieved successfully")
+}
+
+// Helper function to check if user has admin permissions
+func hasAdminPermissions(permissions []string) bool {
+	for _, perm := range permissions {
+		if perm == "admin:*" || perm == "*:*" {
+			return true
+		}
+	}
+	return false
 }

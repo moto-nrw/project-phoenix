@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -28,15 +29,17 @@ type Resource struct {
 	StudentRepo        users.StudentRepository
 	EducationService   educationService.Service
 	UserContextService userContextService.UserContextService
+	ActiveService      activeService.Service
 }
 
 // NewResource creates a new students resource
-func NewResource(personService userService.PersonService, studentRepo users.StudentRepository, educationService educationService.Service, userContextService userContextService.UserContextService) *Resource {
+func NewResource(personService userService.PersonService, studentRepo users.StudentRepository, educationService educationService.Service, userContextService userContextService.UserContextService, activeService activeService.Service) *Resource {
 	return &Resource{
 		PersonService:      personService,
 		StudentRepo:        studentRepo,
 		EducationService:   educationService,
 		UserContextService: userContextService,
+		ActiveService:      activeService,
 	}
 }
 
@@ -56,6 +59,7 @@ func (rs *Resource) Router() chi.Router {
 		// Routes requiring users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listStudents)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}", rs.getStudent)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/in-group-room", rs.getStudentInGroupRoom)
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createStudent)
@@ -713,6 +717,125 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Student deleted successfully")
+}
+
+// getStudentInGroupRoom checks if a student is in their educational group's room
+func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request) {
+	// Parse ID from URL
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get student
+	student, err := rs.StudentRepo.FindByID(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if student has an educational group
+	if student.GroupID == nil {
+		common.Respond(w, r, http.StatusOK, map[string]interface{}{
+			"in_group_room": false,
+			"reason":        "no_group",
+		}, "Student has no educational group")
+		return
+	}
+
+	// Get the educational group
+	group, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get student's group"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check authorization - only group supervisors can see this information
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	isAdmin := hasAdminPermissions(userPermissions)
+	
+	if !isAdmin {
+		// Check if user supervises this educational group
+		staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
+		if err != nil || staff == nil {
+			if err := render.Render(w, r, ErrorForbidden(errors.New("unauthorized to view student room status"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+
+		// Check if staff supervises this group
+		hasAccess := false
+		educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
+		if err == nil {
+			for _, supervGroup := range educationGroups {
+				if supervGroup.ID == *student.GroupID {
+					hasAccess = true
+					break
+				}
+			}
+		}
+
+		if !hasAccess {
+			if err := render.Render(w, r, ErrorForbidden(errors.New("you do not supervise this student's group"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+	}
+
+	// Check if the educational group has a room assigned
+	if group.RoomID == nil {
+		common.Respond(w, r, http.StatusOK, map[string]interface{}{
+			"in_group_room": false,
+			"reason":        "group_no_room",
+		}, "Educational group has no assigned room")
+		return
+	}
+
+	// Get the student's current active visit
+	visit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID)
+	if err != nil {
+		// No active visit means student is not in any room
+		common.Respond(w, r, http.StatusOK, map[string]interface{}{
+			"in_group_room": false,
+			"reason":        "no_active_visit",
+		}, "Student has no active visit")
+		return
+	}
+
+	// Get the active group to check its room
+	activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), visit.ActiveGroupID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get active group"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if the active group's room matches the educational group's room
+	inGroupRoom := activeGroup.RoomID == *group.RoomID
+
+	// Prepare response
+	response := map[string]interface{}{
+		"in_group_room": inGroupRoom,
+		"group_room_id": *group.RoomID,
+		"current_room_id": activeGroup.RoomID,
+	}
+
+	// Add room names if available
+	if group.Room != nil {
+		response["group_room_name"] = group.Room.Name
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Student room status retrieved successfully")
 }
 
 // Helper function to check if a string contains another string, ignoring case
