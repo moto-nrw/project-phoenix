@@ -3,6 +3,7 @@ export { default as theme } from "./theme";
 export * from "./auth-api";
 export * from "./auth-service";
 export * from "./auth-helpers";
+export * from "./file-upload-wrapper";
 
 // Export active module without conflicting types
 export {

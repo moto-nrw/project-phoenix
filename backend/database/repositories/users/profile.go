@@ -29,7 +29,8 @@ func (r *ProfileRepository) FindByAccountID(ctx context.Context, accountID int64
 	profile := new(users.Profile)
 	err := r.db.NewSelect().
 		Model(profile).
-		Where("account_id = ?", accountID).
+		ModelTableExpr(`users.profiles AS "profile"`).
+		Where(`"profile".account_id = ?`, accountID).
 		Scan(ctx)
 
 	if err != nil {
@@ -46,8 +47,9 @@ func (r *ProfileRepository) FindByAccountID(ctx context.Context, accountID int64
 func (r *ProfileRepository) UpdateAvatar(ctx context.Context, id int64, avatar string) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.Profile)(nil)).
+		ModelTableExpr(`users.profiles AS "profile"`).
 		Set("avatar = ?", avatar).
-		Where("id = ?", id).
+		Where(`"profile".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -64,8 +66,9 @@ func (r *ProfileRepository) UpdateAvatar(ctx context.Context, id int64, avatar s
 func (r *ProfileRepository) UpdateBio(ctx context.Context, id int64, bio string) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.Profile)(nil)).
+		ModelTableExpr(`users.profiles AS "profile"`).
 		Set("bio = ?", bio).
-		Where("id = ?", id).
+		Where(`"profile".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -82,8 +85,9 @@ func (r *ProfileRepository) UpdateBio(ctx context.Context, id int64, bio string)
 func (r *ProfileRepository) UpdateSettings(ctx context.Context, id int64, settings string) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.Profile)(nil)).
+		ModelTableExpr(`users.profiles AS "profile"`).
 		Set("settings = ?", settings).
-		Where("id = ?", id).
+		Where(`"profile".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -134,29 +138,31 @@ func (r *ProfileRepository) Delete(ctx context.Context, id interface{}) error {
 // List retrieves profiles matching the provided filters
 func (r *ProfileRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.Profile, error) {
 	var profiles []*users.Profile
-	query := r.db.NewSelect().Model(&profiles)
+	query := r.db.NewSelect().
+		Model(&profiles).
+		ModelTableExpr(`users.profiles AS "profile"`)
 
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
 			switch field {
 			case "account_id":
-				query = query.Where("account_id = ?", value)
+				query = query.Where(`"profile".account_id = ?`, value)
 			case "has_avatar":
 				if boolValue, ok := value.(bool); ok && boolValue {
-					query = query.Where("avatar IS NOT NULL AND avatar != ''")
+					query = query.Where(`"profile".avatar IS NOT NULL AND "profile".avatar != ''`)
 				} else if boolValue, ok := value.(bool); ok && !boolValue {
-					query = query.Where("avatar IS NULL OR avatar = ''")
+					query = query.Where(`"profile".avatar IS NULL OR "profile".avatar = ''`)
 				}
 			case "has_bio":
 				if boolValue, ok := value.(bool); ok && boolValue {
-					query = query.Where("bio IS NOT NULL AND bio != ''")
+					query = query.Where(`"profile".bio IS NOT NULL AND "profile".bio != ''`)
 				} else if boolValue, ok := value.(bool); ok && !boolValue {
-					query = query.Where("bio IS NULL OR bio = ''")
+					query = query.Where(`"profile".bio IS NULL OR "profile".bio = ''`)
 				}
 			case "bio_like":
 				if strValue, ok := value.(string); ok {
-					query = query.Where("bio ILIKE ?", "%"+strValue+"%")
+					query = query.Where(`"profile".bio ILIKE ?`, "%"+strValue+"%")
 				}
 			default:
 				// Default to exact match for other fields

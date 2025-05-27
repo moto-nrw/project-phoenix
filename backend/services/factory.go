@@ -165,6 +165,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.ActiveGroup,
 		repos.ActiveVisit,
 		repos.GroupSupervisor,
+		repos.Profile,
 		db,
 	)
 
