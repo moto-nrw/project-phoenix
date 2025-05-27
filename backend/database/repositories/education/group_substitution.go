@@ -272,6 +272,8 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 		err = r.db.NewSelect().
 			Model(&result).
 			ModelTableExpr(`users.staff AS "staff"`).
+			ColumnExpr(`"staff".id AS "staff__id"`).
+			ColumnExpr(`"staff".person_id AS "staff__person_id"`).
 			ColumnExpr(`"staff".* AS "staff__*"`).
 			ColumnExpr(`"person".* AS "person__*"`).
 			Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
@@ -297,6 +299,8 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 		err = r.db.NewSelect().
 			Model(&result).
 			ModelTableExpr(`users.staff AS "staff"`).
+			ColumnExpr(`"staff".id AS "staff__id"`).
+			ColumnExpr(`"staff".person_id AS "staff__person_id"`).
 			ColumnExpr(`"staff".* AS "staff__*"`).
 			ColumnExpr(`"person".* AS "person__*"`).
 			Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
