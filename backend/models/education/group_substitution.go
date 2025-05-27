@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
 )
 
 // GroupSubstitution represents a temporary substitution of a staff member for another in a group
@@ -25,21 +24,6 @@ type GroupSubstitution struct {
 	SubstituteStaff *users.Staff `bun:"-" json:"substitute_staff,omitempty"`
 }
 
-func (gs *GroupSubstitution) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("education.group_substitution")
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("education.group_substitution")
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("education.group_substitution")
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("education.group_substitution")
-	}
-	return nil
-}
 
 // TableName returns the database table name
 func (gs *GroupSubstitution) TableName() string {

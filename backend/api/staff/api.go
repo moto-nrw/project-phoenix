@@ -708,10 +708,8 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 		}
 	}
 	
-	// Get all staff with teacher role
-	staff, err := rs.StaffRepo.List(r.Context(), map[string]interface{}{
-		"is_teacher": true,
-	})
+	// Get all staff members
+	staff, err := rs.StaffRepo.List(r.Context(), nil)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -748,6 +746,13 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 	var results []StaffWithSubstitutionStatus
 	
 	for _, s := range staff {
+		// Check if this staff member is a teacher first
+		teacher, err := rs.TeacherRepo.FindByStaffID(r.Context(), s.ID)
+		if err != nil || teacher == nil {
+			// Skip non-teachers
+			continue
+		}
+		
 		// Load person data if not already loaded
 		if s.Person == nil && s.PersonID > 0 {
 			person, err := rs.PersonService.Get(r.Context(), s.PersonID)
@@ -781,23 +786,19 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 			}
 		}
 		
-		// Find regular group for this teacher and populate teacher info
+		// Populate teacher info (we already have the teacher record from above)
+		result.TeacherID = teacher.ID
+		result.Specialization = teacher.Specialization
+		result.Role = teacher.Role
+		result.Qualifications = teacher.Qualifications
+		
+		// Find regular group for this teacher
 		if rs.EducationService != nil {
-			// Try to find teacher record for this staff member
-			teacher, err := rs.TeacherRepo.FindByStaffID(r.Context(), s.ID)
-			if err == nil && teacher != nil {
-				// Populate teacher-specific fields
-				result.TeacherID = teacher.ID
-				result.Specialization = teacher.Specialization
-				result.Role = teacher.Role
-				result.Qualifications = teacher.Qualifications
-				
-				// Get groups for this teacher
-				groups, err := rs.EducationService.GetTeacherGroups(r.Context(), teacher.ID)
-				if err == nil && len(groups) > 0 {
-					// Assume first group is their regular group
-					result.RegularGroup = groups[0]
-				}
+			// Get groups for this teacher
+			groups, err := rs.EducationService.GetTeacherGroups(r.Context(), teacher.ID)
+			if err == nil && len(groups) > 0 {
+				// Assume first group is their regular group
+				result.RegularGroup = groups[0]
 			}
 		}
 		
