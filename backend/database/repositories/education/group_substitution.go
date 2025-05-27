@@ -262,8 +262,10 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 	// Load regular staff with person
 	if substitution.RegularStaffID != nil && *substitution.RegularStaffID > 0 {
 		type staffWithPerson struct {
-			Staff  *users.Staff  `bun:"staff"`
-			Person *users.Person `bun:"person"`
+			ID       int64         `bun:"staff__id"`
+			PersonID int64         `bun:"staff__person_id"`
+			Staff    *users.Staff  `bun:"staff"`
+			Person   *users.Person `bun:"person"`
 		}
 		var result staffWithPerson
 		
@@ -285,8 +287,10 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 	// Load substitute staff with person
 	if substitution.SubstituteStaffID > 0 {
 		type staffWithPerson struct {
-			Staff  *users.Staff  `bun:"staff"`
-			Person *users.Person `bun:"person"`
+			ID       int64         `bun:"staff__id"`
+			PersonID int64         `bun:"staff__person_id"`
+			Staff    *users.Staff  `bun:"staff"`
+			Person   *users.Person `bun:"person"`
 		}
 		var result staffWithPerson
 		
