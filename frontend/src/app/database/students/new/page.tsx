@@ -74,6 +74,7 @@ function StudentPageContent() {
         guardian_phone: guardianPhone,
         
         // Location fields (defaults)
+        current_location: "Home" as const,
         in_house: false,
         wc: false,
         school_yard: false,

@@ -45,7 +45,7 @@ function SearchPageContent() {
       });
 
       setStudents(fetchedStudents);
-    } catch (error) {
+    } catch {
       // Error fetching students - handle gracefully
       setError("Fehler beim Laden der Schülerdaten.");
     } finally {
@@ -171,7 +171,11 @@ function SearchPageContent() {
     if (student.in_house === true) return { label: "Im Haus", color: "bg-green-500 text-green-50" };
     if (student.wc === true) return { label: "Toilette", color: "bg-blue-500 text-blue-50" };
     if (student.school_yard === true) return { label: "Schulhof", color: "bg-yellow-500 text-yellow-50" };
-    if (student.bus === true) return { label: "Zuhause", color: "bg-orange-500 text-orange-50" };
+    // Student is at home when current_location is "Home" or all location flags are false
+    if (student.current_location === "Home" || (!student.in_house && !student.wc && !student.school_yard)) {
+      return { label: "Zuhause", color: "bg-orange-500 text-orange-50" };
+    }
+    if (student.current_location === "Bus") return { label: "Unterwegs", color: "bg-purple-500 text-purple-50" };
     return { label: "Unbekannt", color: "bg-gray-500 text-gray-50" };
   };
 

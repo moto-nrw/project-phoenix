@@ -68,7 +68,8 @@ export default function ActivityStudentsPage() {
             // Include other Student properties with defaults
             first_name: s.name?.split(' ')[0] ?? '',
             second_name: s.name?.split(' ')[1] ?? '',
-            // Other optional properties can be undefined
+            // Location fields
+            current_location: s.in_house ? "In House" as const : "Home" as const,
             wc: false,
             school_yard: false,
             bus: false

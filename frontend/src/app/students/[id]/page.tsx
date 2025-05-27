@@ -7,7 +7,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { useSession } from "next-auth/react";
 import { studentService } from "~/lib/api";
-import type { Student, SupervisorContact } from "~/lib/student-helpers";
+import type { Student, SupervisorContact, StudentLocation } from "~/lib/student-helpers";
 
 
 // Extended Student type for this page
@@ -102,6 +102,7 @@ export default function StudentDetailPage() {
                     school_class: detailedResponse.school_class ?? "",
                     group_id: String(detailedResponse.group_id ?? ""),
                     group_name: detailedResponse.group_name ?? "",
+                    current_location: (detailedResponse.location as StudentLocation) ?? "Unknown",
                     in_house: detailedResponse.location === "In House",
                     wc: detailedResponse.location === "WC",
                     school_yard: detailedResponse.location === "School Yard",
@@ -138,8 +139,10 @@ export default function StudentDetailPage() {
             return { label: "Toilette", bgColor: "bg-blue-500", textColor: "text-blue-800", bgLight: "bg-blue-100" };
         } else if (student?.school_yard) {
             return { label: "Schulhof", bgColor: "bg-yellow-500", textColor: "text-yellow-800", bgLight: "bg-yellow-100" };
-        } else if (student?.bus) {
-            return { label: "Zuhause/Bus", bgColor: "bg-orange-500", textColor: "text-orange-800", bgLight: "bg-orange-100" };
+        } else if (student?.current_location === "Home" || (!student?.in_house && !student?.wc && !student?.school_yard)) {
+            return { label: "Zuhause", bgColor: "bg-orange-500", textColor: "text-orange-800", bgLight: "bg-orange-100" };
+        } else if (student?.current_location === "Bus") {
+            return { label: "Unterwegs", bgColor: "bg-purple-500", textColor: "text-purple-800", bgLight: "bg-purple-100" };
         }
         return { label: "Unbekannt", bgColor: "bg-gray-500", textColor: "text-gray-800", bgLight: "bg-gray-100" };
     };
