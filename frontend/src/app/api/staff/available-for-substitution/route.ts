@@ -30,6 +30,6 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
   // Log for debugging
   console.log('Available staff API Response:', response);
   
-  // Extract data array from response
-  return response?.data || [];
+  // Return the response directly as it's already an array
+  return response ?? [];
 });
