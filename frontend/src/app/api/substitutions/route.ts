@@ -48,6 +48,9 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
 export const POST = createPostHandler(async (req: NextRequest, body: CreateSubstitutionRequest, token: string) => {
   const endpoint = `/api/substitutions`;
   
+  // Log the request payload for debugging
+  console.log('Creating substitution with payload:', JSON.stringify(body, null, 2));
+  
   // Create substitution via the API
   return await apiPost<BackendSubstitution>(endpoint, token, body);
 });

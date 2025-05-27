@@ -526,10 +526,12 @@ func (s *service) CreateSubstitution(ctx context.Context, substitution *educatio
 		return &EducationError{Op: "CreateSubstitution", Err: ErrGroupNotFound}
 	}
 
-	// Verify regular staff exists
-	_, err = s.staffRepo.FindByID(ctx, substitution.RegularStaffID)
-	if err != nil {
-		return &EducationError{Op: "CreateSubstitution", Err: ErrTeacherNotFound}
+	// Verify regular staff exists - only if RegularStaffID is provided
+	if substitution.RegularStaffID != nil {
+		_, err = s.staffRepo.FindByID(ctx, *substitution.RegularStaffID)
+		if err != nil {
+			return &EducationError{Op: "CreateSubstitution", Err: ErrTeacherNotFound}
+		}
 	}
 
 	// Verify substitute staff exists
