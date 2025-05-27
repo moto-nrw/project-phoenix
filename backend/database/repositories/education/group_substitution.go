@@ -270,8 +270,8 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 		err = r.db.NewSelect().
 			Model(&result).
 			ModelTableExpr(`users.staff AS "staff"`).
-			ColumnExpr(`"staff".*`).
-			ColumnExpr(`"person".*`).
+			ColumnExpr(`"staff".* AS "staff__*"`).
+			ColumnExpr(`"person".* AS "person__*"`).
 			Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
 			Where(`"staff".id = ?`, substitution.RegularStaffID).
 			Scan(ctx)
@@ -293,8 +293,8 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 		err = r.db.NewSelect().
 			Model(&result).
 			ModelTableExpr(`users.staff AS "staff"`).
-			ColumnExpr(`"staff".*`).
-			ColumnExpr(`"person".*`).
+			ColumnExpr(`"staff".* AS "staff__*"`).
+			ColumnExpr(`"person".* AS "person__*"`).
 			Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
 			Where(`"staff".id = ?`, substitution.SubstituteStaffID).
 			Scan(ctx)
@@ -375,8 +375,8 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 			ModelTableExpr(`users.staff AS "staff"`).
 			ColumnExpr(`"staff".id AS "staff__id"`).
 			ColumnExpr(`"staff".person_id AS "staff__person_id"`).
-			ColumnExpr(`"staff".*`).
-			ColumnExpr(`"person".*`).
+			ColumnExpr(`"staff".* AS "staff__*"`).
+			ColumnExpr(`"person".* AS "person__*"`).
 			Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
 			Where(`"staff".id IN (?)`, bun.In(staffIDSlice)).
 			Scan(ctx)
