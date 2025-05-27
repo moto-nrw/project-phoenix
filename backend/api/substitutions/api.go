@@ -36,8 +36,8 @@ type SubstitutionResponse struct {
 	RegularStaff      *StaffInfo    `json:"regular_staff,omitempty"`
 	SubstituteStaffID int64         `json:"substitute_staff_id"`
 	SubstituteStaff   *StaffInfo    `json:"substitute_staff,omitempty"`
-	StartDate         time.Time     `json:"start_date"`
-	EndDate           time.Time     `json:"end_date"`
+	StartDate         string        `json:"start_date"`     // YYYY-MM-DD format
+	EndDate           string        `json:"end_date"`       // YYYY-MM-DD format
 	Reason            string        `json:"reason,omitempty"`
 	Duration          int           `json:"duration_days"`
 	IsActive          bool          `json:"is_active"`
@@ -66,8 +66,8 @@ func newSubstitutionResponse(sub *modelEducation.GroupSubstitution) Substitution
 		GroupID:           sub.GroupID,
 		RegularStaffID:    sub.RegularStaffID,
 		SubstituteStaffID: sub.SubstituteStaffID,
-		StartDate:         sub.StartDate,
-		EndDate:           sub.EndDate,
+		StartDate:         sub.StartDate.Format("2006-01-02"),
+		EndDate:           sub.EndDate.Format("2006-01-02"),
 		Reason:            sub.Reason,
 		Duration:          sub.Duration(),
 		IsActive:          sub.IsCurrentlyActive(),
@@ -108,6 +108,16 @@ func newSubstitutionResponse(sub *modelEducation.GroupSubstitution) Substitution
 	}
 
 	return response
+}
+
+// createSubstitutionRequest represents a request to create a substitution
+type createSubstitutionRequest struct {
+	GroupID           int64  `json:"group_id"`
+	RegularStaffID    *int64 `json:"regular_staff_id,omitempty"`
+	SubstituteStaffID int64  `json:"substitute_staff_id"`
+	StartDate         string `json:"start_date"`  // YYYY-MM-DD format
+	EndDate           string `json:"end_date"`    // YYYY-MM-DD format
+	Reason            string `json:"reason,omitempty"`
 }
 
 func (rs *Resource) Router() chi.Router {
@@ -206,23 +216,46 @@ func (rs *Resource) listActive(w http.ResponseWriter, r *http.Request) {
 
 // create handles POST /api/substitutions
 func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
-	var substitution modelEducation.GroupSubstitution
+	var req createSubstitutionRequest
 
-	if err := json.NewDecoder(r.Body).Decode(&substitution); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
 		return
 	}
 
 	// Validate required fields
-	if substitution.GroupID == 0 || substitution.SubstituteStaffID == 0 {
+	if req.GroupID == 0 || req.SubstituteStaffID == 0 {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
 		return
 	}
 
+	// Parse dates
+	startDate, err := time.Parse("2006-01-02", req.StartDate)
+	if err != nil {
+		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid start date format. Expected YYYY-MM-DD")
+		return
+	}
+
+	endDate, err := time.Parse("2006-01-02", req.EndDate)
+	if err != nil {
+		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid end date format. Expected YYYY-MM-DD")
+		return
+	}
+
 	// Validate date range
-	if substitution.StartDate.After(substitution.EndDate) {
+	if startDate.After(endDate) {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrSubstitutionDateRange.Error())
 		return
+	}
+
+	// Create domain model
+	substitution := &modelEducation.GroupSubstitution{
+		GroupID:           req.GroupID,
+		RegularStaffID:    req.RegularStaffID,
+		SubstituteStaffID: req.SubstituteStaffID,
+		StartDate:         startDate,
+		EndDate:           endDate,
+		Reason:            req.Reason,
 	}
 
 	// Check for conflicts
@@ -259,13 +292,13 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create the substitution
-	if err := rs.Service.CreateSubstitution(r.Context(), &substitution); err != nil {
+	if err := rs.Service.CreateSubstitution(r.Context(), substitution); err != nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	// Convert to response DTO
-	response := newSubstitutionResponse(&substitution)
+	response := newSubstitutionResponse(substitution)
 	common.Respond(w, r, http.StatusCreated, response, "Substitution created successfully")
 }
 
