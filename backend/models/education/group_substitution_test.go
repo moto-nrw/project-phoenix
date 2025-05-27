@@ -53,7 +53,7 @@ func TestGroupSubstitution_Validate(t *testing.T) {
 				StartDate:         currentTime,
 				EndDate:           tomorrow,
 			},
-			wantErr:      false, // This is now valid
+			wantErr: false, // This is now valid
 		},
 		{
 			name: "Invalid regular staff ID when provided",

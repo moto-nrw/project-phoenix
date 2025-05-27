@@ -197,79 +197,79 @@ func (f *Filter) ApplyToQuery(query *bun.SelectQuery) *bun.SelectQuery {
 			switch condition.Operator {
 			case OpEqual:
 				query = query.Where(columnRef+" = ?", condition.Value)
-		case OpNotEqual:
-			query = query.Where(columnRef+" != ?", condition.Value)
-		case OpGreaterThan:
-			query = query.Where(columnRef+" > ?", condition.Value)
-		case OpGreaterThanOrEqual:
-			query = query.Where(columnRef+" >= ?", condition.Value)
-		case OpLessThan:
-			query = query.Where(columnRef+" < ?", condition.Value)
-		case OpLessThanOrEqual:
-			query = query.Where(columnRef+" <= ?", condition.Value)
-		case OpLike:
-			query = query.Where(columnRef+" LIKE ?", condition.Value)
-		case OpILike:
-			query = query.Where(columnRef+" ILIKE ?", condition.Value)
-		case OpIsNull:
-			query = query.Where(columnRef+" IS NULL")
-		case OpIsNotNull:
-			query = query.Where(columnRef+" IS NOT NULL")
-		case OpIn:
-			if values, ok := condition.Value.([]interface{}); ok {
-				query = query.Where(columnRef+" IN (?)", bun.In(values))
+			case OpNotEqual:
+				query = query.Where(columnRef+" != ?", condition.Value)
+			case OpGreaterThan:
+				query = query.Where(columnRef+" > ?", condition.Value)
+			case OpGreaterThanOrEqual:
+				query = query.Where(columnRef+" >= ?", condition.Value)
+			case OpLessThan:
+				query = query.Where(columnRef+" < ?", condition.Value)
+			case OpLessThanOrEqual:
+				query = query.Where(columnRef+" <= ?", condition.Value)
+			case OpLike:
+				query = query.Where(columnRef+" LIKE ?", condition.Value)
+			case OpILike:
+				query = query.Where(columnRef+" ILIKE ?", condition.Value)
+			case OpIsNull:
+				query = query.Where(columnRef + " IS NULL")
+			case OpIsNotNull:
+				query = query.Where(columnRef + " IS NOT NULL")
+			case OpIn:
+				if values, ok := condition.Value.([]interface{}); ok {
+					query = query.Where(columnRef+" IN (?)", bun.In(values))
+				}
+			case OpNotIn:
+				if values, ok := condition.Value.([]interface{}); ok {
+					query = query.Where(columnRef+" NOT IN (?)", bun.In(values))
+				}
+			case OpContains:
+				query = query.Where(columnRef+" @> ?", condition.Value)
+			case OpContainedBy:
+				query = query.Where(columnRef+" <@ ?", condition.Value)
+			case OpHasKey:
+				query = query.Where(columnRef+" ? ?", condition.Value)
 			}
-		case OpNotIn:
-			if values, ok := condition.Value.([]interface{}); ok {
-				query = query.Where(columnRef+" NOT IN (?)", bun.In(values))
+		} else {
+			// Original behavior for queries without table alias
+			fieldIdent := bun.Ident(condition.Field)
+			switch condition.Operator {
+			case OpEqual:
+				query = query.Where("? = ?", fieldIdent, condition.Value)
+			case OpNotEqual:
+				query = query.Where("? != ?", fieldIdent, condition.Value)
+			case OpGreaterThan:
+				query = query.Where("? > ?", fieldIdent, condition.Value)
+			case OpGreaterThanOrEqual:
+				query = query.Where("? >= ?", fieldIdent, condition.Value)
+			case OpLessThan:
+				query = query.Where("? < ?", fieldIdent, condition.Value)
+			case OpLessThanOrEqual:
+				query = query.Where("? <= ?", fieldIdent, condition.Value)
+			case OpLike:
+				query = query.Where("? LIKE ?", fieldIdent, condition.Value)
+			case OpILike:
+				query = query.Where("? ILIKE ?", fieldIdent, condition.Value)
+			case OpIsNull:
+				query = query.Where("? IS NULL", fieldIdent)
+			case OpIsNotNull:
+				query = query.Where("? IS NOT NULL", fieldIdent)
+			case OpIn:
+				if values, ok := condition.Value.([]interface{}); ok {
+					query = query.Where("? IN (?)", fieldIdent, bun.In(values))
+				}
+			case OpNotIn:
+				if values, ok := condition.Value.([]interface{}); ok {
+					query = query.Where("? NOT IN (?)", fieldIdent, bun.In(values))
+				}
+			case OpContains:
+				query = query.Where("? @> ?", fieldIdent, condition.Value)
+			case OpContainedBy:
+				query = query.Where("? <@ ?", fieldIdent, condition.Value)
+			case OpHasKey:
+				query = query.Where("? ? ?", fieldIdent, condition.Value)
 			}
-		case OpContains:
-			query = query.Where(columnRef+" @> ?", condition.Value)
-		case OpContainedBy:
-			query = query.Where(columnRef+" <@ ?", condition.Value)
-		case OpHasKey:
-			query = query.Where(columnRef+" ? ?", condition.Value)
 		}
-	} else {
-		// Original behavior for queries without table alias
-		fieldIdent := bun.Ident(condition.Field)
-		switch condition.Operator {
-		case OpEqual:
-			query = query.Where("? = ?", fieldIdent, condition.Value)
-		case OpNotEqual:
-			query = query.Where("? != ?", fieldIdent, condition.Value)
-		case OpGreaterThan:
-			query = query.Where("? > ?", fieldIdent, condition.Value)
-		case OpGreaterThanOrEqual:
-			query = query.Where("? >= ?", fieldIdent, condition.Value)
-		case OpLessThan:
-			query = query.Where("? < ?", fieldIdent, condition.Value)
-		case OpLessThanOrEqual:
-			query = query.Where("? <= ?", fieldIdent, condition.Value)
-		case OpLike:
-			query = query.Where("? LIKE ?", fieldIdent, condition.Value)
-		case OpILike:
-			query = query.Where("? ILIKE ?", fieldIdent, condition.Value)
-		case OpIsNull:
-			query = query.Where("? IS NULL", fieldIdent)
-		case OpIsNotNull:
-			query = query.Where("? IS NOT NULL", fieldIdent)
-		case OpIn:
-			if values, ok := condition.Value.([]interface{}); ok {
-				query = query.Where("? IN (?)", fieldIdent, bun.In(values))
-			}
-		case OpNotIn:
-			if values, ok := condition.Value.([]interface{}); ok {
-				query = query.Where("? NOT IN (?)", fieldIdent, bun.In(values))
-			}
-		case OpContains:
-			query = query.Where("? @> ?", fieldIdent, condition.Value)
-		case OpContainedBy:
-			query = query.Where("? <@ ?", fieldIdent, condition.Value)
-		case OpHasKey:
-			query = query.Where("? ? ?", fieldIdent, condition.Value)
-		}
-	}
 	}
 
 	// Apply OR conditions

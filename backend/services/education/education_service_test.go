@@ -753,7 +753,7 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 		// Create substitution with future date
 		tomorrow := time.Now().AddDate(0, 0, 1).Truncate(24 * time.Hour)
 		nextWeek := tomorrow.AddDate(0, 0, 7)
-		
+
 		substitution := &educationModels.GroupSubstitution{
 			GroupID:           1,
 			RegularStaffID:    ptr(10),
@@ -806,7 +806,7 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 		// Create substitution with past date
 		yesterday := time.Now().AddDate(0, 0, -1).Truncate(24 * time.Hour)
 		today := time.Now().Truncate(24 * time.Hour)
-		
+
 		substitution := &educationModels.GroupSubstitution{
 			GroupID:           1,
 			RegularStaffID:    ptr(10),
@@ -833,7 +833,7 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 		// Create substitution starting today
 		today := time.Now().Truncate(24 * time.Hour)
 		nextWeek := today.AddDate(0, 0, 7)
-		
+
 		substitution := &educationModels.GroupSubstitution{
 			GroupID:           1,
 			RegularStaffID:    ptr(10),
@@ -907,7 +907,7 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 		// Create existing substitution
 		tomorrow := time.Now().AddDate(0, 0, 1).Truncate(24 * time.Hour)
 		nextWeek := tomorrow.AddDate(0, 0, 7)
-		
+
 		existingSubstitution := &educationModels.GroupSubstitution{
 			Model:             base.Model{ID: substitutionID},
 			GroupID:           1,
@@ -920,7 +920,7 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 
 		// Mock finding existing substitution
 		mockSubstitutionRepo.On("FindByID", ctx, substitutionID).Return(existingSubstitution, nil)
-		
+
 		// Mock group exists
 		mockGroupRepo.On("FindByID", ctx, int64(1)).Return(&educationModels.Group{
 			Model: base.Model{ID: 1},
@@ -976,7 +976,7 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 		// Create existing substitution (future dated)
 		tomorrow := time.Now().AddDate(0, 0, 1).Truncate(24 * time.Hour)
 		nextWeek := tomorrow.AddDate(0, 0, 7)
-		
+
 		existingSubstitution := &educationModels.GroupSubstitution{
 			Model:             base.Model{ID: substitutionID},
 			GroupID:           1,
@@ -1019,7 +1019,7 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 		// Create existing substitution starting today
 		today := time.Now().Truncate(24 * time.Hour)
 		nextWeek := today.AddDate(0, 0, 7)
-		
+
 		existingSubstitution := &educationModels.GroupSubstitution{
 			Model:             base.Model{ID: substitutionID},
 			GroupID:           1,
@@ -1043,7 +1043,7 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 			EndDate:           nextWeek,
 			Reason:            "Updated emergency coverage",
 		}
-		
+
 		// Mock group exists
 		mockGroupRepo.On("FindByID", ctx, int64(1)).Return(&educationModels.Group{
 			Model: base.Model{ID: 1},

@@ -232,20 +232,20 @@ func (r *GroupSubstitutionRepository) ListWithOptions(ctx context.Context, optio
 // FindByIDWithRelations retrieves a substitution by ID with all related data loaded
 func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context, id int64) (*education.GroupSubstitution, error) {
 	var substitution education.GroupSubstitution
-	
+
 	err := r.db.NewSelect().
 		Model(&substitution).
 		ModelTableExpr("education.group_substitution").
 		Where("id = ?", id).
 		Scan(ctx)
-	
+
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by id with relations",
 			Err: err,
 		}
 	}
-	
+
 	// Load group
 	if substitution.GroupID > 0 {
 		var group education.Group
@@ -258,7 +258,7 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 			substitution.Group = &group
 		}
 	}
-	
+
 	// Load regular staff with person
 	if substitution.RegularStaffID != nil && *substitution.RegularStaffID > 0 {
 		type staffWithPerson struct {
@@ -268,7 +268,7 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 			Person   *users.Person `bun:"person"`
 		}
 		var result staffWithPerson
-		
+
 		err = r.db.NewSelect().
 			Model(&result).
 			ModelTableExpr(`users.staff AS "staff"`).
@@ -279,13 +279,13 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 			Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
 			Where(`"staff".id = ?`, substitution.RegularStaffID).
 			Scan(ctx)
-		
+
 		if err == nil && result.Staff != nil {
 			result.Staff.Person = result.Person
 			substitution.RegularStaff = result.Staff
 		}
 	}
-	
+
 	// Load substitute staff with person
 	if substitution.SubstituteStaffID > 0 {
 		type staffWithPerson struct {
@@ -295,7 +295,7 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 			Person   *users.Person `bun:"person"`
 		}
 		var result staffWithPerson
-		
+
 		err = r.db.NewSelect().
 			Model(&result).
 			ModelTableExpr(`users.staff AS "staff"`).
@@ -306,13 +306,13 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 			Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
 			Where(`"staff".id = ?`, substitution.SubstituteStaffID).
 			Scan(ctx)
-		
+
 		if err == nil && result.Staff != nil {
 			result.Staff.Person = result.Person
 			substitution.SubstituteStaff = result.Staff
 		}
 	}
-	
+
 	return &substitution, nil
 }
 
@@ -323,11 +323,11 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Collect unique IDs
 	groupIDs := make(map[int64]bool)
 	staffIDs := make(map[int64]bool)
-	
+
 	for _, sub := range substitutions {
 		if sub.GroupID > 0 {
 			groupIDs[sub.GroupID] = true
@@ -339,7 +339,7 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 			staffIDs[sub.SubstituteStaffID] = true
 		}
 	}
-	
+
 	// Load all groups at once
 	groupMap := make(map[int64]*education.Group)
 	if len(groupIDs) > 0 {
@@ -348,20 +348,20 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 		for id := range groupIDs {
 			groupIDSlice = append(groupIDSlice, id)
 		}
-		
+
 		err = r.db.NewSelect().
 			Model(&groups).
 			ModelTableExpr(`education.groups AS "group"`).
 			Where(`"group".id IN (?)`, bun.In(groupIDSlice)).
 			Scan(ctx)
-		
+
 		if err == nil {
 			for _, group := range groups {
 				groupMap[group.ID] = group
 			}
 		}
 	}
-	
+
 	// Load all staff with persons at once
 	staffMap := make(map[int64]*users.Staff)
 	if len(staffIDs) > 0 {
@@ -371,13 +371,13 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 			Staff    *users.Staff  `bun:"staff"`
 			Person   *users.Person `bun:"person"`
 		}
-		
+
 		var results []staffWithPerson
 		staffIDSlice := make([]int64, 0, len(staffIDs))
 		for id := range staffIDs {
 			staffIDSlice = append(staffIDSlice, id)
 		}
-		
+
 		err = r.db.NewSelect().
 			Model(&results).
 			ModelTableExpr(`users.staff AS "staff"`).
@@ -388,7 +388,7 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 			Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
 			Where(`"staff".id IN (?)`, bun.In(staffIDSlice)).
 			Scan(ctx)
-		
+
 		if err == nil {
 			for _, result := range results {
 				if result.Staff != nil {
@@ -398,7 +398,7 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 			}
 		}
 	}
-	
+
 	// Assign loaded data to substitutions
 	for _, sub := range substitutions {
 		if group, ok := groupMap[sub.GroupID]; ok {
@@ -413,7 +413,7 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 			sub.SubstituteStaff = staff
 		}
 	}
-	
+
 	return substitutions, nil
 }
 
@@ -423,7 +423,7 @@ func (r *GroupSubstitutionRepository) FindActiveWithRelations(ctx context.Contex
 	filter := modelBase.NewFilter()
 	filter.DateBetween("start_date", "end_date", date)
 	options.Filter = filter
-	
+
 	return r.ListWithRelations(ctx, options)
 }
 
@@ -434,6 +434,6 @@ func (r *GroupSubstitutionRepository) FindActiveByGroupWithRelations(ctx context
 	filter.Equal("group_id", groupID)
 	filter.DateBetween("start_date", "end_date", date)
 	options.Filter = filter
-	
+
 	return r.ListWithRelations(ctx, options)
 }

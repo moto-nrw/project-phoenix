@@ -699,7 +699,7 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 	// Get query parameters
 	dateStr := r.URL.Query().Get("date")
 	searchTerm := r.URL.Query().Get("search")
-	
+
 	date := time.Now()
 	if dateStr != "" {
 		parsedDate, err := time.Parse("2006-01-02", dateStr)
@@ -707,7 +707,7 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 			date = parsedDate
 		}
 	}
-	
+
 	// Get all staff members
 	staff, err := rs.StaffRepo.List(r.Context(), nil)
 	if err != nil {
@@ -716,35 +716,35 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 		}
 		return
 	}
-	
+
 	// Get active substitutions for the date
 	var activeSubstitutions []*education.GroupSubstitution
 	if rs.EducationService != nil {
 		activeSubstitutions, _ = rs.EducationService.GetActiveSubstitutions(r.Context(), date)
 	}
-	
+
 	// Create a map of staff IDs currently substituting
 	substitutingStaffMap := make(map[int64]*education.GroupSubstitution)
 	for _, sub := range activeSubstitutions {
 		substitutingStaffMap[sub.SubstituteStaffID] = sub
 	}
-	
+
 	// Get groups for teachers to find their regular group
 	type StaffWithSubstitutionStatus struct {
 		*StaffResponse
-		IsSubstituting bool                          `json:"is_substituting"`
-		CurrentGroup   *education.Group              `json:"current_group,omitempty"`
-		RegularGroup   *education.Group              `json:"regular_group,omitempty"`
-		Substitution   *education.GroupSubstitution  `json:"substitution,omitempty"`
+		IsSubstituting bool                         `json:"is_substituting"`
+		CurrentGroup   *education.Group             `json:"current_group,omitempty"`
+		RegularGroup   *education.Group             `json:"regular_group,omitempty"`
+		Substitution   *education.GroupSubstitution `json:"substitution,omitempty"`
 		// Teacher-specific fields
-		TeacherID      int64                         `json:"teacher_id,omitempty"`
-		Specialization string                        `json:"specialization,omitempty"`
-		Role           string                        `json:"role,omitempty"`
-		Qualifications string                        `json:"qualifications,omitempty"`
+		TeacherID      int64  `json:"teacher_id,omitempty"`
+		Specialization string `json:"specialization,omitempty"`
+		Role           string `json:"role,omitempty"`
+		Qualifications string `json:"qualifications,omitempty"`
 	}
-	
+
 	var results []StaffWithSubstitutionStatus
-	
+
 	for _, s := range staff {
 		// Check if this staff member is a teacher first
 		teacher, err := rs.TeacherRepo.FindByStaffID(r.Context(), s.ID)
@@ -752,7 +752,7 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 			// Skip non-teachers
 			continue
 		}
-		
+
 		// Load person data if not already loaded
 		if s.Person == nil && s.PersonID > 0 {
 			person, err := rs.PersonService.Get(r.Context(), s.PersonID)
@@ -760,23 +760,23 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 				s.Person = person
 			}
 		}
-		
+
 		// Apply search filter if provided
 		if searchTerm != "" && s.Person != nil {
 			// Check if search term matches first name or last name
-			if !containsIgnoreCase(s.Person.FirstName, searchTerm) && 
-			   !containsIgnoreCase(s.Person.LastName, searchTerm) {
+			if !containsIgnoreCase(s.Person.FirstName, searchTerm) &&
+				!containsIgnoreCase(s.Person.LastName, searchTerm) {
 				continue // Skip this staff member
 			}
 		}
-		
+
 		// Create staff response
 		staffResp := newStaffResponse(s, false)
 		result := StaffWithSubstitutionStatus{
 			StaffResponse:  &staffResp,
 			IsSubstituting: false,
 		}
-		
+
 		// Check if this staff member is substituting
 		if sub, ok := substitutingStaffMap[s.ID]; ok {
 			result.IsSubstituting = true
@@ -785,13 +785,13 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 				result.CurrentGroup = sub.Group
 			}
 		}
-		
+
 		// Populate teacher info (we already have the teacher record from above)
 		result.TeacherID = teacher.ID
 		result.Specialization = teacher.Specialization
 		result.Role = teacher.Role
 		result.Qualifications = teacher.Qualifications
-		
+
 		// Find regular group for this teacher
 		if rs.EducationService != nil {
 			// Get groups for this teacher
@@ -801,10 +801,10 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 				result.RegularGroup = groups[0]
 			}
 		}
-		
+
 		results = append(results, result)
 	}
-	
+
 	common.Respond(w, r, http.StatusOK, results, "Available staff for substitution retrieved successfully")
 }
 

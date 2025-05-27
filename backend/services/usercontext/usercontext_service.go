@@ -537,7 +537,7 @@ func (s *userContextService) GetCurrentProfile(ctx context.Context) (map[string]
 
 	// Try to get current person (might not exist)
 	person, err := s.GetCurrentPerson(ctx)
-	
+
 	// Build response starting with account data
 	response := map[string]interface{}{
 		"email":      account.Email,
@@ -552,7 +552,7 @@ func (s *userContextService) GetCurrentProfile(ctx context.Context) (map[string]
 		response["last_name"] = person.LastName
 		response["created_at"] = person.CreatedAt
 		response["updated_at"] = person.UpdatedAt
-		
+
 		// Add RFID card if present
 		if person.TagID != nil {
 			response["rfid_card"] = *person.TagID
@@ -570,7 +570,7 @@ func (s *userContextService) GetCurrentProfile(ctx context.Context) (map[string]
 	// Try to get profile (might not exist)
 	if account.ID > 0 {
 		profile, _ := s.profileRepo.FindByAccountID(ctx, account.ID)
-		
+
 		// Add profile data if exists
 		if profile != nil {
 			if profile.Avatar != "" {
@@ -598,16 +598,16 @@ func (s *userContextService) UpdateCurrentProfile(ctx context.Context, updates m
 
 	// Try to get current person (might not exist)
 	person, personErr := s.GetCurrentPerson(ctx)
-	
+
 	// Start transaction
 	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
 		// Handle person data updates
 		needsPersonUpdate := false
-		
+
 		// Check if we need to create or update person
 		firstName, hasFirstName := updates["first_name"].(string)
 		lastName, hasLastName := updates["last_name"].(string)
-		
+
 		if hasFirstName || hasLastName {
 			if personErr != nil || person == nil {
 				// Create new person record
@@ -616,12 +616,12 @@ func (s *userContextService) UpdateCurrentProfile(ctx context.Context, updates m
 					FirstName: firstName,
 					LastName:  lastName,
 				}
-				
+
 				// Validate person data
 				if person.FirstName == "" || person.LastName == "" {
 					return errors.New("first name and last name are required to create profile")
 				}
-				
+
 				if err := s.personRepo.Create(txCtx, person); err != nil {
 					return err
 				}
@@ -635,7 +635,7 @@ func (s *userContextService) UpdateCurrentProfile(ctx context.Context, updates m
 					person.LastName = lastName
 					needsPersonUpdate = true
 				}
-				
+
 				if needsPersonUpdate {
 					if err := s.personRepo.Update(txCtx, person); err != nil {
 						return err
