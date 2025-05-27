@@ -28,7 +28,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     // Return the room status data
     return typedResponse.data;
   } catch (error) {
-    console.error("Error fetching group students room status:", error);
+    // Error fetching group students room status
     throw error;
   }
 });

@@ -46,7 +46,7 @@ function SearchPageContent() {
 
       setStudents(fetchedStudents);
     } catch (error) {
-      console.error("Error fetching students:", error);
+      // Error fetching students - handle gracefully
       setError("Fehler beim Laden der Schülerdaten.");
     } finally {
       setIsSearching(false);
