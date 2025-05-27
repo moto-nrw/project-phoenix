@@ -60,7 +60,7 @@ export default function OGSGroupPage() {
         absentStudents: 0,
         schoolyard: 0,
         bathroom: 0,
-        bus: 0,
+        inHouse: 0,
     });
 
     // Check access and fetch OGS group data
@@ -125,18 +125,22 @@ export default function OGSGroupPage() {
 
                 // Calculate statistics from real data (only if we have valid array data)
                 const validStudents = Array.isArray(studentsData) ? studentsData : [];
-                const presentCount = validStudents.filter(s => s.in_house).length;
+                const inHouseCount = validStudents.filter(s => s.in_house).length;
                 const schoolyardCount = validStudents.filter(s => s.school_yard).length;
                 const bathroomCount = validStudents.filter(s => s.wc).length;
-                const busCount = validStudents.filter(s => s.bus).length;
+                // Note: "Im Gruppenraum" would require checking actual room visits - not implemented yet
+                const presentInRoomCount = 0; // TODO: Implement room visit checking
+                
+                // Students are "at home" if no location flags are set
+                const atHomeCount = validStudents.filter(s => !s.in_house && !s.school_yard && !s.wc).length;
 
                 setStats({
                     totalStudents: validStudents.length,
-                    presentStudents: presentCount,
-                    absentStudents: validStudents.length - presentCount - schoolyardCount - bathroomCount - busCount,
+                    presentStudents: presentInRoomCount,
+                    absentStudents: atHomeCount,
                     schoolyard: schoolyardCount,
                     bathroom: bathroomCount,
-                    bus: busCount
+                    inHouse: inHouseCount
                 });
 
                 // Update group with actual student count
@@ -172,7 +176,9 @@ export default function OGSGroupPage() {
         if (attendanceFilter === "in_house" && !student.in_house) return false;
         if (attendanceFilter === "wc" && !student.wc) return false;
         if (attendanceFilter === "school_yard" && !student.school_yard) return false;
-        if (attendanceFilter === "bus" && !student.bus) return false;
+        if (attendanceFilter === "at_home" && (student.in_house || student.wc || student.school_yard)) return false;
+        // Note: "Im Gruppenraum" filter would require checking actual room visits - for now it shows no results
+        if (attendanceFilter === "in_room") return false; // TODO: Implement when room visit data is available
 
         // Apply year filter
         if (selectedYear !== "all") {
@@ -258,6 +264,7 @@ export default function OGSGroupPage() {
                                         <div>
                                             <p className="text-sm font-medium text-gray-600">Im Gruppenraum</p>
                                             <p className="text-2xl font-bold text-gray-900">{stats.presentStudents}</p>
+                                            {stats.presentStudents === 0 && <p className="text-xs text-gray-500">TODO: Raumbesuch</p>}
                                         </div>
                                     </div>
                                 </div>
@@ -292,17 +299,17 @@ export default function OGSGroupPage() {
                                     </div>
                                 </div>
 
-                                {/* Bus Card - Updated with arrow/exit icon */}
+                                {/* Im Haus Card - Students who are checked in */}
                                 <div className="overflow-hidden rounded-lg bg-white p-4 shadow-sm transition-all duration-200 hover:shadow-md">
                                     <div className="flex items-center">
                                         <div className="mr-4 rounded-full bg-purple-100 p-3">
                                             <svg className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                                             </svg>
                                         </div>
                                         <div>
-                                            <p className="text-sm font-medium text-gray-600">Unterwegs</p>
-                                            <p className="text-2xl font-bold text-gray-900">{stats.bus}</p>
+                                            <p className="text-sm font-medium text-gray-600">Im Haus</p>
+                                            <p className="text-2xl font-bold text-gray-900">{stats.inHouse}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -372,10 +379,11 @@ export default function OGSGroupPage() {
                                             className={dropdownClass}
                                         >
                                             <option value="all">Alle</option>
-                                            <option value="in_house">Im Gruppenraum</option>
+                                            <option value="in_house">Im Haus</option>
+                                            <option value="in_room">Im Gruppenraum</option>
                                             <option value="wc">Toilette</option>
                                             <option value="school_yard">Schulhof</option>
-                                            <option value="bus">Unterwegs</option>
+                                            <option value="at_home">Zuhause</option>
                                         </select>
                                         <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
                                             <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -466,12 +474,12 @@ export default function OGSGroupPage() {
                                                         </div>
 
                                                         <div className="flex items-center space-x-4">
-                                                            {/* Status indicators - UPDATED TO MATCH CARD COLORS */}
+                                                            {/* Status indicators - Shows current location */}
                                                             <div className="flex space-x-2">
                                                                 {student.in_house && (
-                                                                    <div className="flex h-7 items-center rounded-full bg-green-100 px-2 text-xs font-medium text-green-600" title="Im Gruppenraum">
-                                                                        <span className="mr-1 h-2 w-2 rounded-full bg-green-600"></span>
-                                                                        <span>Im Gruppenraum</span>
+                                                                    <div className="flex h-7 items-center rounded-full bg-purple-100 px-2 text-xs font-medium text-purple-600" title="Im Haus">
+                                                                        <span className="mr-1 h-2 w-2 rounded-full bg-purple-600"></span>
+                                                                        <span>Im Haus</span>
                                                                     </div>
                                                                 )}
                                                                 {student.wc && (
@@ -486,16 +494,20 @@ export default function OGSGroupPage() {
                                                                         <span>Schulhof</span>
                                                                     </div>
                                                                 )}
-                                                                {student.bus && (
-                                                                    <div className="flex h-7 items-center rounded-full bg-purple-100 px-2 text-xs font-medium text-purple-600" title="Unterwegs">
-                                                                        <span className="mr-1 h-2 w-2 rounded-full bg-purple-600"></span>
-                                                                        <span>Unterwegs</span>
+                                                                {/* Note: "Im Gruppenraum" status would require checking actual room visits */}
+                                                                {!student.in_house && !student.wc && !student.school_yard && (
+                                                                    <div className="flex h-7 items-center rounded-full bg-red-100 px-2 text-xs font-medium text-red-600" title="Zuhause">
+                                                                        <span className="mr-1 h-2 w-2 rounded-full bg-red-600"></span>
+                                                                        <span>Zuhause</span>
                                                                     </div>
                                                                 )}
-                                                                {!student.in_house && !student.wc && !student.school_yard && !student.bus && (
-                                                                    <div className="flex h-7 items-center rounded-full bg-red-100 px-2 text-xs font-medium text-red-600" title="Nicht anwesend">
-                                                                        <span className="mr-1 h-2 w-2 rounded-full bg-red-600"></span>
-                                                                        <span>Abwesend</span>
+                                                                {/* Transportation info - shown separately */}
+                                                                {student.bus && (
+                                                                    <div className="flex h-7 items-center rounded-full bg-gray-100 px-2 text-xs font-medium text-gray-600" title="Fährt mit Bus">
+                                                                        <svg className="mr-1 h-3 w-3 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                                                                        </svg>
+                                                                        <span>Bus</span>
                                                                     </div>
                                                                 )}
                                                             </div>
