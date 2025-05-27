@@ -61,6 +61,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/students", rs.getGroupStudents)
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/supervisors", rs.getGroupSupervisors)
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/students/room-status", rs.getGroupStudentsRoomStatus)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/substitutions", rs.getGroupSubstitutions)
 
 		// Write operations require groups:create, groups:update, or groups:delete permission
 		r.With(authorize.RequiresPermission(permissions.GroupsCreate)).Post("/", rs.createGroup)
@@ -597,6 +598,46 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 
 	result["student_room_status"] = studentStatuses
 	common.Respond(w, r, http.StatusOK, result, "Student room status retrieved successfully")
+}
+
+// getGroupSubstitutions gets active substitutions for a specific group
+func (rs *Resource) getGroupSubstitutions(w http.ResponseWriter, r *http.Request) {
+	// Parse ID from URL
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if group exists
+	_, err = rs.EducationService.GetGroup(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("group not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get active substitutions for this group
+	date := time.Now()
+	if dateStr := r.URL.Query().Get("date"); dateStr != "" {
+		parsedDate, err := time.Parse("2006-01-02", dateStr)
+		if err == nil {
+			date = parsedDate
+		}
+	}
+
+	substitutions, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), id, date)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, substitutions, "Group substitutions retrieved successfully")
 }
 
 // Helper function to check if user has admin permissions
