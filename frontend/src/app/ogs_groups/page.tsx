@@ -155,7 +155,6 @@ export default function OGSGroupPage() {
 
                 // Fetch room status for all students in the group
                 try {
-                    console.log('Fetching room status for group:', educationalGroup.id);
                     const roomStatusResponse = await fetch(`/api/groups/${educationalGroup.id}/students/room-status`, {
                         headers: {
                             'Authorization': `Bearer ${session?.user?.token}`,
@@ -163,7 +162,6 @@ export default function OGSGroupPage() {
                         }
                     });
 
-                    console.log('Room status response status:', roomStatusResponse.status);
                     if (roomStatusResponse.ok) {
                         const response = await roomStatusResponse.json() as {
                             success: boolean;
@@ -181,16 +179,11 @@ export default function OGSGroupPage() {
                             };
                         };
                         
-                        console.log('Full room status response:', response);
-                        
                         if (response.data?.student_room_status) {
-                            console.log('Room status data received:', response.data.student_room_status);
-                            console.log('Room status keys:', Object.keys(response.data.student_room_status));
                             setRoomStatus(response.data.student_room_status);
                             
                             // Update presentStudents count based on actual room status
                             const inRoomCount = Object.values(response.data.student_room_status).filter(s => s.in_group_room).length;
-                            console.log('Students in room count:', inRoomCount);
                             setStats(prev => ({ ...prev, presentStudents: inRoomCount }));
                         }
                     }
@@ -535,11 +528,8 @@ export default function OGSGroupPage() {
                                                             {/* Status indicators - Shows current location */}
                                                             <div className="flex space-x-2">
                                                                 {(() => {
-                                                                    const studentIdStr = student.id.toString();
-                                                                    const studentRoomStatus = roomStatus[studentIdStr];
+                                                                    const studentRoomStatus = roomStatus[student.id.toString()];
                                                                     const isInGroupRoom = studentRoomStatus?.in_group_room;
-                                                                    console.log(`Student ${student.id} (as string: "${studentIdStr}") room status:`, studentRoomStatus, 'isInGroupRoom:', isInGroupRoom);
-                                                                    console.log('Available roomStatus keys:', Object.keys(roomStatus));
                                                                     
                                                                     // Show "Im Gruppenraum" if student is in their group's room
                                                                     if (isInGroupRoom) {
