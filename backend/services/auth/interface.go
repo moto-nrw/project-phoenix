@@ -43,6 +43,7 @@ type AuthService interface {
 	DenyPermissionToAccount(ctx context.Context, accountID, permissionID int) error
 	RemovePermissionFromAccount(ctx context.Context, accountID, permissionID int) error
 	GetAccountPermissions(ctx context.Context, accountID int) ([]*auth.Permission, error)
+	GetAccountDirectPermissions(ctx context.Context, accountID int) ([]*auth.Permission, error)
 	AssignPermissionToRole(ctx context.Context, roleID, permissionID int) error
 	RemovePermissionFromRole(ctx context.Context, roleID, permissionID int) error
 	GetRolePermissions(ctx context.Context, roleID int) ([]*auth.Permission, error)

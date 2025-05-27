@@ -29,6 +29,7 @@ func (r *RolePermissionRepository) FindByRoleID(ctx context.Context, roleID int6
 	var rolePermissions []*auth.RolePermission
 	err := r.db.NewSelect().
 		Model(&rolePermissions).
+		ModelTableExpr("auth.role_permissions").
 		Where("role_id = ?", roleID).
 		Scan(ctx)
 
@@ -47,6 +48,7 @@ func (r *RolePermissionRepository) FindByPermissionID(ctx context.Context, permi
 	var rolePermissions []*auth.RolePermission
 	err := r.db.NewSelect().
 		Model(&rolePermissions).
+		ModelTableExpr("auth.role_permissions").
 		Where("permission_id = ?", permissionID).
 		Scan(ctx)
 
@@ -65,6 +67,7 @@ func (r *RolePermissionRepository) FindByRoleAndPermission(ctx context.Context, 
 	rolePermission := new(auth.RolePermission)
 	err := r.db.NewSelect().
 		Model(rolePermission).
+		ModelTableExpr("auth.role_permissions").
 		Where("role_id = ? AND permission_id = ?", roleID, permissionID).
 		Scan(ctx)
 
@@ -135,6 +138,7 @@ func (r *RolePermissionRepository) Update(ctx context.Context, rolePermission *a
 func (r *RolePermissionRepository) DeleteByRoleAndPermission(ctx context.Context, roleID, permissionID int64) error {
 	_, err := r.db.NewDelete().
 		Model((*auth.RolePermission)(nil)).
+		ModelTableExpr("auth.role_permissions").
 		Where("role_id = ? AND permission_id = ?", roleID, permissionID).
 		Exec(ctx)
 
@@ -152,6 +156,7 @@ func (r *RolePermissionRepository) DeleteByRoleAndPermission(ctx context.Context
 func (r *RolePermissionRepository) DeleteByRoleID(ctx context.Context, roleID int64) error {
 	_, err := r.db.NewDelete().
 		Model((*auth.RolePermission)(nil)).
+		ModelTableExpr("auth.role_permissions").
 		Where("role_id = ?", roleID).
 		Exec(ctx)
 
@@ -168,7 +173,9 @@ func (r *RolePermissionRepository) DeleteByRoleID(ctx context.Context, roleID in
 // List retrieves role-permission mappings matching the provided filters
 func (r *RolePermissionRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.RolePermission, error) {
 	var rolePermissions []*auth.RolePermission
-	query := r.db.NewSelect().Model(&rolePermissions)
+	query := r.db.NewSelect().
+		Model(&rolePermissions).
+		ModelTableExpr("auth.role_permissions")
 
 	// Apply filters
 	for field, value := range filters {
@@ -193,13 +200,14 @@ func (r *RolePermissionRepository) FindRolePermissionsWithDetails(ctx context.Co
 	var rolePermissions []*auth.RolePermission
 	query := r.db.NewSelect().
 		Model(&rolePermissions).
+		ModelTableExpr(`auth.role_permissions AS "role_permission"`).
 		Relation("Role").
 		Relation("Permission")
 
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			query = query.Where("role_permission.? = ?", bun.Ident(field), value)
+			query = query.Where(`"role_permission".? = ?`, bun.Ident(field), value)
 		}
 	}
 
