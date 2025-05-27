@@ -12,15 +12,16 @@ const (
 
 // Resource types
 const (
-	ResourceUsers      = "users"
-	ResourceActivities = "activities"
-	ResourceRooms      = "rooms"
-	ResourceGroups     = "groups"
-	ResourceFeedback   = "feedback"
-	ResourceConfig     = "config"
-	ResourceAuth       = "auth"
-	ResourceIOT        = "iot"
-	ResourceSchedules  = "schedules"
+	ResourceUsers        = "users"
+	ResourceActivities   = "activities"
+	ResourceRooms        = "rooms"
+	ResourceGroups       = "groups"
+	ResourceSubstitutions = "substitutions"
+	ResourceFeedback     = "feedback"
+	ResourceConfig       = "config"
+	ResourceAuth         = "auth"
+	ResourceIOT          = "iot"
+	ResourceSchedules    = "schedules"
 )
 
 // Admin permissions
@@ -111,6 +112,16 @@ const (
 	SchedulesDelete = ResourceSchedules + ":" + ActionDelete
 	SchedulesList   = ResourceSchedules + ":" + ActionList
 	SchedulesManage = ResourceSchedules + ":" + ActionManage
+)
+
+// Substitution permissions
+const (
+	SubstitutionsCreate = ResourceSubstitutions + ":" + ActionCreate
+	SubstitutionsRead   = ResourceSubstitutions + ":" + ActionRead
+	SubstitutionsUpdate = ResourceSubstitutions + ":" + ActionUpdate
+	SubstitutionsDelete = ResourceSubstitutions + ":" + ActionDelete
+	SubstitutionsList   = ResourceSubstitutions + ":" + ActionList
+	SubstitutionsManage = ResourceSubstitutions + ":" + ActionManage
 )
 
 // Visit permissions

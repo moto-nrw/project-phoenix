@@ -53,7 +53,7 @@ func createEducationGroupSubstitutionTable(ctx context.Context, db *bun.DB) erro
 		CREATE TABLE IF NOT EXISTS education.group_substitution (
 			id BIGSERIAL PRIMARY KEY,
 			group_id BIGINT NOT NULL,
-			regular_staff_id BIGINT NOT NULL,
+			regular_staff_id BIGINT, -- Nullable: NULL for general group coverage
 			substitute_staff_id BIGINT NOT NULL,
 			start_date DATE NOT NULL,
 			end_date DATE NOT NULL,

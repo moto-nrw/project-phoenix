@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+// Helper function to create int64 pointer
+func ptr(i int64) *int64 {
+	return &i
+}
+
 func TestGroupSubstitution_Validate(t *testing.T) {
 	currentTime := time.Now()
 	tomorrow := currentTime.AddDate(0, 0, 1)
@@ -19,7 +24,7 @@ func TestGroupSubstitution_Validate(t *testing.T) {
 			name: "Valid substitution",
 			substitution: GroupSubstitution{
 				GroupID:           1,
-				RegularStaffID:    1,
+				RegularStaffID:    ptr(1),
 				SubstituteStaffID: 2,
 				StartDate:         currentTime,
 				EndDate:           tomorrow,
@@ -31,7 +36,7 @@ func TestGroupSubstitution_Validate(t *testing.T) {
 			name: "Missing group ID",
 			substitution: GroupSubstitution{
 				GroupID:           0, // Invalid
-				RegularStaffID:    1,
+				RegularStaffID:    ptr(1),
 				SubstituteStaffID: 2,
 				StartDate:         currentTime,
 				EndDate:           tomorrow,
@@ -40,22 +45,33 @@ func TestGroupSubstitution_Validate(t *testing.T) {
 			errorMessage: "group ID is required",
 		},
 		{
-			name: "Missing regular staff ID",
+			name: "Valid substitution without regular staff (general coverage)",
 			substitution: GroupSubstitution{
 				GroupID:           1,
-				RegularStaffID:    0, // Invalid
+				RegularStaffID:    nil, // Optional - general coverage
+				SubstituteStaffID: 2,
+				StartDate:         currentTime,
+				EndDate:           tomorrow,
+			},
+			wantErr:      false, // This is now valid
+		},
+		{
+			name: "Invalid regular staff ID when provided",
+			substitution: GroupSubstitution{
+				GroupID:           1,
+				RegularStaffID:    ptr(0), // Invalid when provided
 				SubstituteStaffID: 2,
 				StartDate:         currentTime,
 				EndDate:           tomorrow,
 			},
 			wantErr:      true,
-			errorMessage: "regular staff ID is required",
+			errorMessage: "regular staff ID must be positive if provided",
 		},
 		{
 			name: "Missing substitute staff ID",
 			substitution: GroupSubstitution{
 				GroupID:           1,
-				RegularStaffID:    1,
+				RegularStaffID:    ptr(1),
 				SubstituteStaffID: 0, // Invalid
 				StartDate:         currentTime,
 				EndDate:           tomorrow,
@@ -67,7 +83,7 @@ func TestGroupSubstitution_Validate(t *testing.T) {
 			name: "Missing start date",
 			substitution: GroupSubstitution{
 				GroupID:           1,
-				RegularStaffID:    1,
+				RegularStaffID:    ptr(1),
 				SubstituteStaffID: 2,
 				StartDate:         time.Time{}, // Zero time
 				EndDate:           tomorrow,
@@ -79,7 +95,7 @@ func TestGroupSubstitution_Validate(t *testing.T) {
 			name: "Missing end date",
 			substitution: GroupSubstitution{
 				GroupID:           1,
-				RegularStaffID:    1,
+				RegularStaffID:    ptr(1),
 				SubstituteStaffID: 2,
 				StartDate:         currentTime,
 				EndDate:           time.Time{}, // Zero time
@@ -91,7 +107,7 @@ func TestGroupSubstitution_Validate(t *testing.T) {
 			name: "End date before start date",
 			substitution: GroupSubstitution{
 				GroupID:           1,
-				RegularStaffID:    1,
+				RegularStaffID:    ptr(1),
 				SubstituteStaffID: 2,
 				StartDate:         tomorrow,
 				EndDate:           currentTime, // Before start date
@@ -103,7 +119,7 @@ func TestGroupSubstitution_Validate(t *testing.T) {
 			name: "Same regular and substitute staff",
 			substitution: GroupSubstitution{
 				GroupID:           1,
-				RegularStaffID:    1,
+				RegularStaffID:    ptr(1),
 				SubstituteStaffID: 1, // Same as regular staff
 				StartDate:         currentTime,
 				EndDate:           tomorrow,

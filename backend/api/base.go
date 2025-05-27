@@ -21,6 +21,7 @@ import (
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
+	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	"github.com/moto-nrw/project-phoenix/database"
@@ -35,19 +36,20 @@ type API struct {
 	Router   chi.Router
 
 	// API Resources
-	Auth        *authAPI.Resource
-	Rooms       *roomsAPI.Resource
-	Students    *studentsAPI.Resource
-	Groups      *groupsAPI.Resource
-	Activities  *activitiesAPI.Resource
-	Staff       *staffAPI.Resource
-	Feedback    *feedbackAPI.Resource
-	Schedules   *schedulesAPI.Resource
-	Config      *configAPI.Resource
-	Active      *activeAPI.Resource
-	IoT         *iotAPI.Resource
-	Users       *usersAPI.Resource
-	UserContext *usercontextAPI.Resource
+	Auth          *authAPI.Resource
+	Rooms         *roomsAPI.Resource
+	Students      *studentsAPI.Resource
+	Groups        *groupsAPI.Resource
+	Activities    *activitiesAPI.Resource
+	Staff         *staffAPI.Resource
+	Feedback      *feedbackAPI.Resource
+	Schedules     *schedulesAPI.Resource
+	Config        *configAPI.Resource
+	Active        *activeAPI.Resource
+	IoT           *iotAPI.Resource
+	Users         *usersAPI.Resource
+	UserContext   *usercontextAPI.Resource
+	Substitutions *substitutionsAPI.Resource
 }
 
 // New creates a new API instance
@@ -78,7 +80,7 @@ func New(enableCORS bool) (*API, error) {
 	api.Router.Use(middleware.RealIP)
 	api.Router.Use(middleware.Logger)
 	api.Router.Use(middleware.Recoverer)
-	
+
 	// Add security headers to all responses
 	api.Router.Use(customMiddleware.SecurityHeaders)
 
@@ -152,6 +154,7 @@ func New(enableCORS bool) (*API, error) {
 	api.IoT = iotAPI.NewResource(api.Services.IoT)
 	api.Users = usersAPI.NewResource(api.Services.Users)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext)
+	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
 
 	// Register routes with rate limiting
 	api.registerRoutesWithRateLimiting()
@@ -168,13 +171,13 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (a *API) registerRoutesWithRateLimiting() {
 	// Check if rate limiting is enabled
 	rateLimitEnabled := os.Getenv("RATE_LIMIT_ENABLED") == "true"
-	
+
 	// Get security logger if it exists
 	var securityLogger *customMiddleware.SecurityLogger
 	if securityLogging := os.Getenv("SECURITY_LOGGING_ENABLED"); securityLogging == "true" {
 		securityLogger = customMiddleware.NewSecurityLogger()
 	}
-	
+
 	// Configure auth-specific rate limiting if enabled
 	var authRateLimiter *customMiddleware.RateLimiter
 	if rateLimitEnabled {
@@ -197,6 +200,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 	a.Router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("OK"))
 	})
+
+	// Note: Avatar files are served through authenticated endpoints, not as static files
+	// This prevents unauthorized access to user avatars
 
 	// Mount API resources
 	// Auth routes mounted at root level to match frontend expectations
@@ -247,6 +253,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount user context resources
 		r.Mount("/me", a.UserContext.Router())
+
+		// Mount substitutions resources
+		r.Mount("/substitutions", a.Substitutions.Router())
 
 		// Add other resource routes here as they are implemented
 	})

@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -62,7 +63,9 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listStaff)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}", rs.getStaff)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/groups", rs.getStaffGroups)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/substitutions", rs.getStaffSubstitutions)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/available", rs.getAvailableStaff)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/available-for-substitution", rs.getAvailableForSubstitution)
 
 		// Write operations require users:create, users:update, or users:delete permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createStaff)
@@ -648,6 +651,161 @@ func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Available staff members retrieved successfully")
+}
+
+// getStaffSubstitutions handles getting substitutions for a staff member
+func (rs *Resource) getStaffSubstitutions(w http.ResponseWriter, r *http.Request) {
+	// Parse ID from URL
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if staff exists
+	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if we have a reference to the Education service
+	if rs.EducationService == nil {
+		// If not, return an error
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("education service not available"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get substitutions where this staff member is the substitute
+	substitutions, err := rs.EducationService.GetStaffSubstitutions(r.Context(), staff.ID, false)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, substitutions, "Staff substitutions retrieved successfully")
+}
+
+// getAvailableForSubstitution handles getting staff available for substitution with their current status
+func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.Request) {
+	// Get query parameters
+	dateStr := r.URL.Query().Get("date")
+	searchTerm := r.URL.Query().Get("search")
+	
+	date := time.Now()
+	if dateStr != "" {
+		parsedDate, err := time.Parse("2006-01-02", dateStr)
+		if err == nil {
+			date = parsedDate
+		}
+	}
+	
+	// Get all staff members
+	staff, err := rs.StaffRepo.List(r.Context(), nil)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+	
+	// Get active substitutions for the date
+	var activeSubstitutions []*education.GroupSubstitution
+	if rs.EducationService != nil {
+		activeSubstitutions, _ = rs.EducationService.GetActiveSubstitutions(r.Context(), date)
+	}
+	
+	// Create a map of staff IDs currently substituting
+	substitutingStaffMap := make(map[int64]*education.GroupSubstitution)
+	for _, sub := range activeSubstitutions {
+		substitutingStaffMap[sub.SubstituteStaffID] = sub
+	}
+	
+	// Get groups for teachers to find their regular group
+	type StaffWithSubstitutionStatus struct {
+		*StaffResponse
+		IsSubstituting bool                          `json:"is_substituting"`
+		CurrentGroup   *education.Group              `json:"current_group,omitempty"`
+		RegularGroup   *education.Group              `json:"regular_group,omitempty"`
+		Substitution   *education.GroupSubstitution  `json:"substitution,omitempty"`
+		// Teacher-specific fields
+		TeacherID      int64                         `json:"teacher_id,omitempty"`
+		Specialization string                        `json:"specialization,omitempty"`
+		Role           string                        `json:"role,omitempty"`
+		Qualifications string                        `json:"qualifications,omitempty"`
+	}
+	
+	var results []StaffWithSubstitutionStatus
+	
+	for _, s := range staff {
+		// Check if this staff member is a teacher first
+		teacher, err := rs.TeacherRepo.FindByStaffID(r.Context(), s.ID)
+		if err != nil || teacher == nil {
+			// Skip non-teachers
+			continue
+		}
+		
+		// Load person data if not already loaded
+		if s.Person == nil && s.PersonID > 0 {
+			person, err := rs.PersonService.Get(r.Context(), s.PersonID)
+			if err == nil {
+				s.Person = person
+			}
+		}
+		
+		// Apply search filter if provided
+		if searchTerm != "" && s.Person != nil {
+			// Check if search term matches first name or last name
+			if !containsIgnoreCase(s.Person.FirstName, searchTerm) && 
+			   !containsIgnoreCase(s.Person.LastName, searchTerm) {
+				continue // Skip this staff member
+			}
+		}
+		
+		// Create staff response
+		staffResp := newStaffResponse(s, false)
+		result := StaffWithSubstitutionStatus{
+			StaffResponse:  &staffResp,
+			IsSubstituting: false,
+		}
+		
+		// Check if this staff member is substituting
+		if sub, ok := substitutingStaffMap[s.ID]; ok {
+			result.IsSubstituting = true
+			result.Substitution = sub
+			if sub.Group != nil {
+				result.CurrentGroup = sub.Group
+			}
+		}
+		
+		// Populate teacher info (we already have the teacher record from above)
+		result.TeacherID = teacher.ID
+		result.Specialization = teacher.Specialization
+		result.Role = teacher.Role
+		result.Qualifications = teacher.Qualifications
+		
+		// Find regular group for this teacher
+		if rs.EducationService != nil {
+			// Get groups for this teacher
+			groups, err := rs.EducationService.GetTeacherGroups(r.Context(), teacher.ID)
+			if err == nil && len(groups) > 0 {
+				// Assume first group is their regular group
+				result.RegularGroup = groups[0]
+			}
+		}
+		
+		results = append(results, result)
+	}
+	
+	common.Respond(w, r, http.StatusOK, results, "Available staff for substitution retrieved successfully")
 }
 
 // Helper function to check if a string contains another string, ignoring case

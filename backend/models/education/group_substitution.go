@@ -6,14 +6,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
 )
 
 // GroupSubstitution represents a temporary substitution of a staff member for another in a group
 type GroupSubstitution struct {
 	base.Model        `bun:"schema:education,table:group_substitution"`
 	GroupID           int64     `bun:"group_id,notnull" json:"group_id"`
-	RegularStaffID    int64     `bun:"regular_staff_id,notnull" json:"regular_staff_id"`
+	RegularStaffID    *int64    `bun:"regular_staff_id" json:"regular_staff_id,omitempty"`
 	SubstituteStaffID int64     `bun:"substitute_staff_id,notnull" json:"substitute_staff_id"`
 	StartDate         time.Time `bun:"start_date,notnull" json:"start_date"`
 	EndDate           time.Time `bun:"end_date,notnull" json:"end_date"`
@@ -25,21 +24,6 @@ type GroupSubstitution struct {
 	SubstituteStaff *users.Staff `bun:"-" json:"substitute_staff,omitempty"`
 }
 
-func (gs *GroupSubstitution) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("education.group_substitution")
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("education.group_substitution")
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("education.group_substitution")
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("education.group_substitution")
-	}
-	return nil
-}
 
 // TableName returns the database table name
 func (gs *GroupSubstitution) TableName() string {
@@ -52,8 +36,9 @@ func (gs *GroupSubstitution) Validate() error {
 		return errors.New("group ID is required")
 	}
 
-	if gs.RegularStaffID <= 0 {
-		return errors.New("regular staff ID is required")
+	// RegularStaffID is now optional - only validate if provided
+	if gs.RegularStaffID != nil && *gs.RegularStaffID <= 0 {
+		return errors.New("regular staff ID must be positive if provided")
 	}
 
 	if gs.SubstituteStaffID <= 0 {
@@ -72,8 +57,8 @@ func (gs *GroupSubstitution) Validate() error {
 		return errors.New("end date cannot be before start date")
 	}
 
-	// Check that regular and substitute staff are not the same
-	if gs.RegularStaffID == gs.SubstituteStaffID {
+	// Check that regular and substitute staff are not the same (only if regular staff is specified)
+	if gs.RegularStaffID != nil && *gs.RegularStaffID == gs.SubstituteStaffID {
 		return errors.New("regular staff and substitute staff cannot be the same")
 	}
 
@@ -107,7 +92,10 @@ func (gs *GroupSubstitution) SetGroup(group *Group) {
 func (gs *GroupSubstitution) SetRegularStaff(staff *users.Staff) {
 	gs.RegularStaff = staff
 	if staff != nil {
-		gs.RegularStaffID = staff.ID
+		staffID := staff.ID
+		gs.RegularStaffID = &staffID
+	} else {
+		gs.RegularStaffID = nil
 	}
 }
 
