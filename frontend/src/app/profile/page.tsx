@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Input } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
-import { fetchProfile, updateProfile } from "~/lib/profile-api";
+import { fetchProfile, updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { Profile, ProfileUpdateRequest } from "~/lib/profile-helpers";
 
 // Info Card Component
@@ -32,7 +32,12 @@ interface AvatarUploadProps {
 }
 
 const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatar, firstName, lastName, onAvatarChange }) => {
-  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  const getInitials = () => {
+    const first = firstName?.charAt(0) || '';
+    const last = lastName?.charAt(0) || '';
+    return (first + last).toUpperCase() || '?';
+  };
+  const initials = getInitials();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -40,6 +45,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatar, firstName, lastName
       onAvatarChange(file);
     }
   };
+
 
   return (
     <div className="flex flex-col items-center">
@@ -66,7 +72,11 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatar, firstName, lastName
           className="hidden"
         />
       </div>
-      <button className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium">
+      <button 
+        type="button"
+        onClick={() => document.getElementById('avatar-upload')?.click()}
+        className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium"
+      >
         Foto ändern
       </button>
     </div>
@@ -114,8 +124,8 @@ function ProfilePageContent() {
       const data = await fetchProfile();
       setProfile(data);
       setFormData({
-        firstName: data.firstName,
-        lastName: data.lastName,
+        firstName: data.firstName || "",
+        lastName: data.lastName || "",
         bio: data.bio ?? "",
         email: data.email,
         username: data.username ?? "",
@@ -151,6 +161,14 @@ function ProfilePageContent() {
       setError(null);
       setSuccessMessage(null);
 
+      // If no profile exists yet, firstName and lastName are required
+      if ((!profile?.firstName || !profile?.lastName) && 
+          (!formData.firstName || !formData.lastName)) {
+        setError("Vorname und Nachname sind erforderlich, um Ihr Profil zu erstellen.");
+        setIsSaving(false);
+        return;
+      }
+
       const updateData: ProfileUpdateRequest = {
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -184,8 +202,20 @@ function ProfilePageContent() {
   };
 
   const handleAvatarChange = async (file: File) => {
-    // TODO: Implement avatar upload
-    console.log("Avatar upload not yet implemented", file);
+    setIsSaving(true);
+    setError(null);
+    
+    try {
+      const updatedProfile = await uploadAvatar(file);
+      setProfile(updatedProfile);
+      setSuccessMessage("Profilbild erfolgreich aktualisiert");
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error("Error uploading avatar:", err);
+      setError(err instanceof Error ? err.message : "Fehler beim Hochladen des Profilbilds");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (status === "loading" || isLoading) {
@@ -324,6 +354,13 @@ function ProfilePageContent() {
                 )}
               </div>
             }>
+              {(!profile.firstName || !profile.lastName) && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <span className="font-medium">Profil unvollständig:</span> Bitte vervollständigen Sie Ihren Vor- und Nachnamen.
+                  </p>
+                </div>
+              )}
               <form className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input

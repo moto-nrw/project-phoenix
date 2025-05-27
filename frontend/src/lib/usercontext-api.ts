@@ -160,9 +160,17 @@ export const userContextService = {
                 }
 
                 const responseData = await response.json() as ApiResponse<BackendEducationalGroup[]>;
+                // Handle empty or missing data
+                if (!responseData.data || !Array.isArray(responseData.data)) {
+                    return [];
+                }
                 return responseData.data.map(mapEducationalGroupResponse);
             } else {
                 const response = await api.get<ApiResponse<BackendEducationalGroup[]>>(url);
+                // Handle empty or missing data
+                if (!response.data.data || !Array.isArray(response.data.data)) {
+                    return [];
+                }
                 return response.data.data.map(mapEducationalGroupResponse);
             }
         } catch (error) {

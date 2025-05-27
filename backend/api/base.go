@@ -201,6 +201,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 		_, _ = w.Write([]byte("OK"))
 	})
 
+	// Note: Avatar files are served through authenticated endpoints, not as static files
+	// This prevents unauthorized access to user avatars
+
 	// Mount API resources
 	// Auth routes mounted at root level to match frontend expectations
 	// Apply stricter rate limiting to auth endpoints if enabled
