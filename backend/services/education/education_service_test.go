@@ -723,3 +723,358 @@ func (m *MockStaffRepository) UpdateNotes(ctx context.Context, id int64, notes s
 	args := m.Called(ctx, id, notes)
 	return args.Error(0)
 }
+
+// Tests for Substitution Validation
+func TestCreateSubstitution_DateValidation(t *testing.T) {
+	// Create mock repositories
+	mockGroupRepo := new(MockGroupRepository)
+	mockSubstitutionRepo := new(MockSubstitutionRepository)
+	mockStaffRepo := new(MockStaffRepository)
+
+	// Create service with mocks
+	service := NewService(
+		mockGroupRepo,
+		nil, // group teacher repo
+		mockSubstitutionRepo,
+		nil, // room repo
+		nil, // teacher repo
+		mockStaffRepo,
+		nil, // db
+	)
+
+	ctx := context.Background()
+
+	t.Run("accepts future date", func(t *testing.T) {
+		// Reset mocks
+		mockGroupRepo.ExpectedCalls = nil
+		mockSubstitutionRepo.ExpectedCalls = nil
+		mockStaffRepo.ExpectedCalls = nil
+
+		// Create substitution with future date
+		tomorrow := time.Now().AddDate(0, 0, 1).Truncate(24 * time.Hour)
+		nextWeek := tomorrow.AddDate(0, 0, 7)
+		
+		substitution := &educationModels.GroupSubstitution{
+			GroupID:           1,
+			RegularStaffID:    ptr(10),
+			SubstituteStaffID: 20,
+			StartDate:         tomorrow,
+			EndDate:           nextWeek,
+			Reason:            "Medical leave",
+		}
+
+		// Mock group exists
+		mockGroupRepo.On("FindByID", ctx, int64(1)).Return(&educationModels.Group{
+			Model: base.Model{ID: 1},
+			Name:  "Test Group",
+		}, nil)
+
+		// Mock regular staff exists
+		mockStaffRepo.On("FindByID", ctx, int64(10)).Return(&userModels.Staff{
+			Model:    base.Model{ID: 10},
+			PersonID: 100,
+		}, nil)
+
+		// Mock substitute staff exists
+		mockStaffRepo.On("FindByID", ctx, int64(20)).Return(&userModels.Staff{
+			Model:    base.Model{ID: 20},
+			PersonID: 200,
+		}, nil)
+
+		// Mock no overlapping substitutions
+		mockSubstitutionRepo.On("FindOverlapping", ctx, int64(20), tomorrow, nextWeek).Return([]*educationModels.GroupSubstitution{}, nil)
+
+		// Mock successful creation
+		mockSubstitutionRepo.On("Create", ctx, substitution).Return(nil)
+
+		// Call the method
+		err := service.CreateSubstitution(ctx, substitution)
+
+		// Assertions
+		assert.NoError(t, err)
+		mockGroupRepo.AssertExpectations(t)
+		mockSubstitutionRepo.AssertExpectations(t)
+		mockStaffRepo.AssertExpectations(t)
+	})
+
+	t.Run("rejects past date", func(t *testing.T) {
+		// Reset mocks
+		mockGroupRepo.ExpectedCalls = nil
+		mockSubstitutionRepo.ExpectedCalls = nil
+		mockStaffRepo.ExpectedCalls = nil
+
+		// Create substitution with past date
+		yesterday := time.Now().AddDate(0, 0, -1).Truncate(24 * time.Hour)
+		today := time.Now().Truncate(24 * time.Hour)
+		
+		substitution := &educationModels.GroupSubstitution{
+			GroupID:           1,
+			RegularStaffID:    ptr(10),
+			SubstituteStaffID: 20,
+			StartDate:         yesterday,
+			EndDate:           today,
+			Reason:            "Medical leave",
+		}
+
+		// Call the method
+		err := service.CreateSubstitution(ctx, substitution)
+
+		// Assertions
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "substitutions cannot be created or updated for past dates")
+	})
+
+	t.Run("accepts today's date", func(t *testing.T) {
+		// Reset mocks
+		mockGroupRepo.ExpectedCalls = nil
+		mockSubstitutionRepo.ExpectedCalls = nil
+		mockStaffRepo.ExpectedCalls = nil
+
+		// Create substitution starting today
+		today := time.Now().Truncate(24 * time.Hour)
+		nextWeek := today.AddDate(0, 0, 7)
+		
+		substitution := &educationModels.GroupSubstitution{
+			GroupID:           1,
+			RegularStaffID:    ptr(10),
+			SubstituteStaffID: 20,
+			StartDate:         today,
+			EndDate:           nextWeek,
+			Reason:            "Emergency coverage",
+		}
+
+		// Mock group exists
+		mockGroupRepo.On("FindByID", ctx, int64(1)).Return(&educationModels.Group{
+			Model: base.Model{ID: 1},
+			Name:  "Test Group",
+		}, nil)
+
+		// Mock regular staff exists
+		mockStaffRepo.On("FindByID", ctx, int64(10)).Return(&userModels.Staff{
+			Model:    base.Model{ID: 10},
+			PersonID: 100,
+		}, nil)
+
+		// Mock substitute staff exists
+		mockStaffRepo.On("FindByID", ctx, int64(20)).Return(&userModels.Staff{
+			Model:    base.Model{ID: 20},
+			PersonID: 200,
+		}, nil)
+
+		// Mock no overlapping substitutions
+		mockSubstitutionRepo.On("FindOverlapping", ctx, int64(20), today, nextWeek).Return([]*educationModels.GroupSubstitution{}, nil)
+
+		// Mock successful creation
+		mockSubstitutionRepo.On("Create", ctx, substitution).Return(nil)
+
+		// Call the method
+		err := service.CreateSubstitution(ctx, substitution)
+
+		// Assertions
+		assert.NoError(t, err)
+		mockGroupRepo.AssertExpectations(t)
+		mockSubstitutionRepo.AssertExpectations(t)
+		mockStaffRepo.AssertExpectations(t)
+	})
+}
+
+func TestUpdateSubstitution_DateValidation(t *testing.T) {
+	// Create mock repositories
+	mockGroupRepo := new(MockGroupRepository)
+	mockSubstitutionRepo := new(MockSubstitutionRepository)
+	mockStaffRepo := new(MockStaffRepository)
+
+	// Create service with mocks
+	service := NewService(
+		mockGroupRepo,
+		nil, // group teacher repo
+		mockSubstitutionRepo,
+		nil, // room repo
+		nil, // teacher repo
+		mockStaffRepo,
+		nil, // db
+	)
+
+	ctx := context.Background()
+	substitutionID := int64(1)
+
+	t.Run("accepts future date update", func(t *testing.T) {
+		// Reset mocks
+		mockGroupRepo.ExpectedCalls = nil
+		mockSubstitutionRepo.ExpectedCalls = nil
+		mockStaffRepo.ExpectedCalls = nil
+
+		// Create existing substitution
+		tomorrow := time.Now().AddDate(0, 0, 1).Truncate(24 * time.Hour)
+		nextWeek := tomorrow.AddDate(0, 0, 7)
+		
+		existingSubstitution := &educationModels.GroupSubstitution{
+			Model:             base.Model{ID: substitutionID},
+			GroupID:           1,
+			RegularStaffID:    ptr(10),
+			SubstituteStaffID: 20,
+			StartDate:         tomorrow,
+			EndDate:           nextWeek,
+			Reason:            "Medical leave",
+		}
+
+		// Mock finding existing substitution
+		mockSubstitutionRepo.On("FindByID", ctx, substitutionID).Return(existingSubstitution, nil)
+		
+		// Mock group exists
+		mockGroupRepo.On("FindByID", ctx, int64(1)).Return(&educationModels.Group{
+			Model: base.Model{ID: 1},
+			Name:  "Test Group",
+		}, nil)
+
+		// Update to extend the end date
+		updatedNextWeek := nextWeek.AddDate(0, 0, 7)
+		updatedSubstitution := &educationModels.GroupSubstitution{
+			Model:             base.Model{ID: substitutionID},
+			GroupID:           1,
+			RegularStaffID:    ptr(10),
+			SubstituteStaffID: 20,
+			StartDate:         tomorrow,
+			EndDate:           updatedNextWeek,
+			Reason:            "Extended medical leave",
+		}
+
+		// Mock regular staff exists
+		mockStaffRepo.On("FindByID", ctx, int64(10)).Return(&userModels.Staff{
+			Model:    base.Model{ID: 10},
+			PersonID: 100,
+		}, nil)
+
+		// Mock substitute staff exists
+		mockStaffRepo.On("FindByID", ctx, int64(20)).Return(&userModels.Staff{
+			Model:    base.Model{ID: 20},
+			PersonID: 200,
+		}, nil)
+
+		// Mock no overlapping substitutions (excluding current one)
+		mockSubstitutionRepo.On("FindOverlapping", ctx, int64(20), tomorrow, updatedNextWeek).Return(
+			[]*educationModels.GroupSubstitution{existingSubstitution}, nil)
+
+		// Mock successful update
+		mockSubstitutionRepo.On("Update", ctx, updatedSubstitution).Return(nil)
+
+		// Call the method
+		err := service.UpdateSubstitution(ctx, updatedSubstitution)
+
+		// Assertions
+		assert.NoError(t, err)
+		mockSubstitutionRepo.AssertExpectations(t)
+		mockStaffRepo.AssertExpectations(t)
+	})
+
+	t.Run("rejects backdated update", func(t *testing.T) {
+		// Reset mocks
+		mockGroupRepo.ExpectedCalls = nil
+		mockSubstitutionRepo.ExpectedCalls = nil
+		mockStaffRepo.ExpectedCalls = nil
+
+		// Create existing substitution (future dated)
+		tomorrow := time.Now().AddDate(0, 0, 1).Truncate(24 * time.Hour)
+		nextWeek := tomorrow.AddDate(0, 0, 7)
+		
+		existingSubstitution := &educationModels.GroupSubstitution{
+			Model:             base.Model{ID: substitutionID},
+			GroupID:           1,
+			RegularStaffID:    ptr(10),
+			SubstituteStaffID: 20,
+			StartDate:         tomorrow,
+			EndDate:           nextWeek,
+			Reason:            "Medical leave",
+		}
+
+		// Mock finding existing substitution
+		mockSubstitutionRepo.On("FindByID", ctx, substitutionID).Return(existingSubstitution, nil)
+
+		// Try to update with past start date
+		yesterday := time.Now().AddDate(0, 0, -1).Truncate(24 * time.Hour)
+		updatedSubstitution := &educationModels.GroupSubstitution{
+			Model:             base.Model{ID: substitutionID},
+			GroupID:           1,
+			RegularStaffID:    ptr(10),
+			SubstituteStaffID: 20,
+			StartDate:         yesterday, // Past date!
+			EndDate:           nextWeek,
+			Reason:            "Trying to backdate",
+		}
+
+		// Call the method
+		err := service.UpdateSubstitution(ctx, updatedSubstitution)
+
+		// Assertions
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "substitutions cannot be created or updated for past dates")
+	})
+
+	t.Run("accepts today's date for update", func(t *testing.T) {
+		// Reset mocks
+		mockGroupRepo.ExpectedCalls = nil
+		mockSubstitutionRepo.ExpectedCalls = nil
+		mockStaffRepo.ExpectedCalls = nil
+
+		// Create existing substitution starting today
+		today := time.Now().Truncate(24 * time.Hour)
+		nextWeek := today.AddDate(0, 0, 7)
+		
+		existingSubstitution := &educationModels.GroupSubstitution{
+			Model:             base.Model{ID: substitutionID},
+			GroupID:           1,
+			RegularStaffID:    ptr(10),
+			SubstituteStaffID: 20,
+			StartDate:         today,
+			EndDate:           nextWeek,
+			Reason:            "Emergency coverage",
+		}
+
+		// Mock finding existing substitution
+		mockSubstitutionRepo.On("FindByID", ctx, substitutionID).Return(existingSubstitution, nil)
+
+		// Update reason but keep dates
+		updatedSubstitution := &educationModels.GroupSubstitution{
+			Model:             base.Model{ID: substitutionID},
+			GroupID:           1,
+			RegularStaffID:    ptr(10),
+			SubstituteStaffID: 20,
+			StartDate:         today,
+			EndDate:           nextWeek,
+			Reason:            "Updated emergency coverage",
+		}
+		
+		// Mock group exists
+		mockGroupRepo.On("FindByID", ctx, int64(1)).Return(&educationModels.Group{
+			Model: base.Model{ID: 1},
+			Name:  "Test Group",
+		}, nil)
+
+		// Mock regular staff exists
+		mockStaffRepo.On("FindByID", ctx, int64(10)).Return(&userModels.Staff{
+			Model:    base.Model{ID: 10},
+			PersonID: 100,
+		}, nil)
+
+		// Mock substitute staff exists
+		mockStaffRepo.On("FindByID", ctx, int64(20)).Return(&userModels.Staff{
+			Model:    base.Model{ID: 20},
+			PersonID: 200,
+		}, nil)
+
+		// Mock no overlapping substitutions (excluding current one)
+		mockSubstitutionRepo.On("FindOverlapping", ctx, int64(20), today, nextWeek).Return(
+			[]*educationModels.GroupSubstitution{existingSubstitution}, nil)
+
+		// Mock successful update
+		mockSubstitutionRepo.On("Update", ctx, updatedSubstitution).Return(nil)
+
+		// Call the method
+		err := service.UpdateSubstitution(ctx, updatedSubstitution)
+
+		// Assertions
+		assert.NoError(t, err)
+		mockSubstitutionRepo.AssertExpectations(t)
+		mockStaffRepo.AssertExpectations(t)
+	})
+}
