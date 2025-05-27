@@ -22,7 +22,7 @@ type GroupSubstitutionRepository struct {
 // NewGroupSubstitutionRepository creates a new GroupSubstitutionRepository
 func NewGroupSubstitutionRepository(db *bun.DB) education.GroupSubstitutionRepository {
 	return &GroupSubstitutionRepository{
-		Repository: base.NewRepository[*education.GroupSubstitution](db, "education.group_substitution", "GroupSubstitution"),
+		Repository: base.NewRepository[*education.GroupSubstitution](db, "education.group_substitution", "group_substitution"),
 		db:         db,
 	}
 }
