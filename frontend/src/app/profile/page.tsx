@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
-import { Input } from "~/components/ui";
+import { Input, PasswordChangeModal } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
 import { fetchProfile, updateProfile } from "~/lib/profile-api";
 import type { Profile, ProfileUpdateRequest } from "~/lib/profile-helpers";
@@ -88,6 +88,7 @@ function ProfilePageContent() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [hasLoadedProfile, setHasLoadedProfile] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -352,7 +353,6 @@ function ProfilePageContent() {
                     value={formData.email}
                     disabled
                   />
-                  <p className="mt-1 text-xs text-gray-500">E-Mail kann in den Einstellungen geändert werden</p>
                 </div>
 
                 <Input
@@ -422,27 +422,58 @@ function ProfilePageContent() {
               </form>
             </InfoCard>
 
-            {/* Account Security Info */}
-            <InfoCard title="Kontosicherheit" className="mt-6">
-              <div className="flex items-center justify-between py-3">
-                <div>
-                  <p className="font-medium">Passwort</p>
-                  <p className="text-sm text-gray-500">Zuletzt geändert vor 30 Tagen</p>
-                </div>
+            {/* System Settings Link */}
+            <InfoCard title="Weitere Einstellungen" className="mt-6">
+              <div className="space-y-3">
+                <button
+                  onClick={() => setShowPasswordModal(true)}
+                  className="w-full flex items-center justify-between rounded-lg border border-gray-200 p-4 transition-colors hover:bg-gray-50"
+                >
+                  <div className="flex items-center space-x-3">
+                    <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                    <div className="text-left">
+                      <h4 className="font-medium text-gray-900">Passwort ändern</h4>
+                      <p className="text-sm text-gray-600">Aktualisieren Sie Ihr Konto-Passwort</p>
+                    </div>
+                  </div>
+                  <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                </button>
                 <a
                   href="/settings"
-                  className="text-sm font-medium text-gray-900 hover:text-gray-700 flex items-center gap-1 transition-colors"
+                  className="block w-full text-center py-2 px-4 bg-gray-100 text-gray-900 rounded-lg hover:bg-gray-200 transition-colors font-medium text-sm group"
                 >
-                  Ändern
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Systemeinstellungen öffnen
+                    <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </span>
                 </a>
+                <p className="text-xs text-gray-500 text-center">
+                  Benachrichtigungen, Design, Datenschutz und mehr
+                </p>
               </div>
             </InfoCard>
           </div>
         </div>
       </div>
+
+      {/* Password Change Modal */}
+      <PasswordChangeModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        onSuccess={() => {
+          setSuccessMessage("Passwort erfolgreich geändert!");
+          setTimeout(() => setSuccessMessage(null), 3000);
+        }}
+      />
     </ResponsiveLayout>
   );
 }
