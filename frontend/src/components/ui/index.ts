@@ -6,3 +6,4 @@ export * from "./link";
 export * from "./example-themed-component";
 export * from "./modal";
 export * from "./help_button";
+export * from "./password-change-modal";

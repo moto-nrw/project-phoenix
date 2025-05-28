@@ -3,7 +3,7 @@
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
     isLoading?: boolean;
     loadingText?: string;
-    variant?: "primary" | "secondary" | "outline" | "outline_danger" | "danger";  // Added danger variant
+    variant?: "primary" | "secondary" | "outline" | "outline_danger" | "danger" | "success";
     size?: "sm" | "base" | "lg" | "xl";
 }
 
@@ -26,7 +26,7 @@ export function Button({
 
     // Base styles ohne text-sm
     const baseStyles =
-        "flex w-full justify-center rounded-lg px-5 py-3 font-medium shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 transition-all duration-200";
+        "inline-flex items-center justify-center rounded-lg px-5 py-3 font-medium shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 transition-all duration-200";
 
     // Variant-specific styles
     const variantStyles = {
@@ -40,6 +40,8 @@ export function Button({
             "bg-red-50 text-[#FF3130] ring-1 ring-[#FF3130] hover:bg-red-100 hover:scale-[1.02] hover:shadow-sm focus:ring-[#FF3130]",
         danger:
             "bg-gradient-to-r from-[#FF3130] to-[#FF5050] text-white hover:from-[#FF1515] hover:to-[#FF3535] hover:scale-[1.02] hover:shadow-lg focus:ring-red-500",
+        success:
+            "bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white hover:shadow-lg hover:shadow-[#83CD2D]/25 transform transition-all duration-200 active:scale-95 focus:ring-[#83CD2D] relative overflow-hidden group",
     };
 
     return (
