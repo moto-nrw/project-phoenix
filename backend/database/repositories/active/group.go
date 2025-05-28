@@ -116,10 +116,15 @@ func (r *GroupRepository) Create(ctx context.Context, group *active.Group) error
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.Group, error) {
 	var groups []*active.Group
-	query := r.db.NewSelect().Model(&groups)
+	query := r.db.NewSelect().
+		Model(&groups).
+		ModelTableExpr(`active.groups AS "group"`)
 
-	// Apply query options
+	// Apply query options with table alias
 	if options != nil {
+		if options.Filter != nil {
+			options.Filter.WithTableAlias("group")
+		}
 		query = options.ApplyToQuery(query)
 	}
 

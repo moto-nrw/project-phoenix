@@ -124,6 +124,7 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/counts", rs.getCounts)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/room/{roomId}/utilization", rs.getRoomUtilization)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}/attendance", rs.getStudentAttendance)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/dashboard", rs.getDashboardAnalytics)
 		})
 	})
 
@@ -226,6 +227,67 @@ type AnalyticsResponse struct {
 	ActiveVisitsCount int     `json:"active_visits_count,omitempty"`
 	RoomUtilization   float64 `json:"room_utilization,omitempty"`
 	AttendanceRate    float64 `json:"attendance_rate,omitempty"`
+}
+
+// DashboardAnalyticsResponse represents dashboard analytics API response
+type DashboardAnalyticsResponse struct {
+	// Student Overview
+	StudentsPresent      int `json:"students_present"`
+	StudentsEnrolled     int `json:"students_enrolled"`
+	StudentsOnPlayground int `json:"students_on_playground"`
+	StudentsInTransit    int `json:"students_in_transit"`
+
+	// Activities & Rooms
+	ActiveActivities    int     `json:"active_activities"`
+	FreeRooms          int     `json:"free_rooms"`
+	TotalRooms         int     `json:"total_rooms"`
+	CapacityUtilization float64 `json:"capacity_utilization"`
+	ActivityCategories  int     `json:"activity_categories"`
+
+	// OGS Groups
+	ActiveOGSGroups      int `json:"active_ogs_groups"`
+	StudentsInGroupRooms int `json:"students_in_group_rooms"`
+	SupervisorsToday     int `json:"supervisors_today"`
+	StudentsInHomeRoom   int `json:"students_in_home_room"`
+
+	// Recent Activity (Privacy-compliant)
+	RecentActivity []RecentActivityItem `json:"recent_activity"`
+
+	// Current Activities (No personal data)
+	CurrentActivities []CurrentActivityItem `json:"current_activities"`
+
+	// Active Groups Summary
+	ActiveGroupsSummary []ActiveGroupSummary `json:"active_groups_summary"`
+
+	// Timestamp
+	LastUpdated time.Time `json:"last_updated"`
+}
+
+// RecentActivityItem represents a recent activity without personal data
+type RecentActivityItem struct {
+	Type      string    `json:"type"`
+	GroupName string    `json:"group_name"`
+	RoomName  string    `json:"room_name"`
+	Count     int       `json:"count"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// CurrentActivityItem represents current activity status
+type CurrentActivityItem struct {
+	Name         string `json:"name"`
+	Category     string `json:"category"`
+	Participants int    `json:"participants"`
+	MaxCapacity  int    `json:"max_capacity"`
+	Status       string `json:"status"`
+}
+
+// ActiveGroupSummary represents active group summary
+type ActiveGroupSummary struct {
+	Name         string `json:"name"`
+	Type         string `json:"type"`
+	StudentCount int    `json:"student_count"`
+	Location     string `json:"location"`
+	Status       string `json:"status"`
 }
 
 // ===== Request Types =====
@@ -1866,4 +1928,72 @@ func (rs *Resource) getStudentAttendance(w http.ResponseWriter, r *http.Request)
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Student attendance rate retrieved successfully")
+}
+
+// getDashboardAnalytics handles getting dashboard analytics data
+func (rs *Resource) getDashboardAnalytics(w http.ResponseWriter, r *http.Request) {
+	// Get dashboard analytics
+	analytics, err := rs.ActiveService.GetDashboardAnalytics(r.Context())
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Build response
+	response := DashboardAnalyticsResponse{
+		StudentsPresent:      analytics.StudentsPresent,
+		StudentsEnrolled:     analytics.StudentsEnrolled,
+		StudentsOnPlayground: analytics.StudentsOnPlayground,
+		StudentsInTransit:    analytics.StudentsInTransit,
+		ActiveActivities:     analytics.ActiveActivities,
+		FreeRooms:           analytics.FreeRooms,
+		TotalRooms:          analytics.TotalRooms,
+		CapacityUtilization: analytics.CapacityUtilization,
+		ActivityCategories:   analytics.ActivityCategories,
+		ActiveOGSGroups:      analytics.ActiveOGSGroups,
+		StudentsInGroupRooms: analytics.StudentsInGroupRooms,
+		SupervisorsToday:     analytics.SupervisorsToday,
+		StudentsInHomeRoom:   analytics.StudentsInHomeRoom,
+		RecentActivity:      make([]RecentActivityItem, 0),
+		CurrentActivities:   make([]CurrentActivityItem, 0),
+		ActiveGroupsSummary: make([]ActiveGroupSummary, 0),
+		LastUpdated:         time.Now(),
+	}
+
+	// Map recent activity
+	for _, activity := range analytics.RecentActivity {
+		response.RecentActivity = append(response.RecentActivity, RecentActivityItem{
+			Type:      activity.Type,
+			GroupName: activity.GroupName,
+			RoomName:  activity.RoomName,
+			Count:     activity.Count,
+			Timestamp: activity.Timestamp,
+		})
+	}
+
+	// Map current activities
+	for _, activity := range analytics.CurrentActivities {
+		response.CurrentActivities = append(response.CurrentActivities, CurrentActivityItem{
+			Name:         activity.Name,
+			Category:     activity.Category,
+			Participants: activity.Participants,
+			MaxCapacity:  activity.MaxCapacity,
+			Status:       activity.Status,
+		})
+	}
+
+	// Map active groups summary
+	for _, group := range analytics.ActiveGroupsSummary {
+		response.ActiveGroupsSummary = append(response.ActiveGroupsSummary, ActiveGroupSummary{
+			Name:         group.Name,
+			Type:         group.Type,
+			StudentCount: group.StudentCount,
+			Location:     group.Location,
+			Status:       group.Status,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Dashboard analytics retrieved successfully")
 }

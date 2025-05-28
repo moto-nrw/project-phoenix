@@ -3,8 +3,11 @@
 
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
+import { useEffect, useState } from "react";
 import { ResponsiveLayout } from "~/components/dashboard";
 import Link from "next/link";
+import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
+import { formatRecentActivityTime, getActivityStatusColor, getGroupStatusColor } from "~/lib/dashboard-helpers";
 
 // Info Card Component with proper TypeScript types and responsive design
 interface InfoCardProps {
@@ -37,149 +40,179 @@ const InfoCard: React.FC<InfoCardProps> = ({ title, children, href, className })
 );
 
 // Student Stats Component
-const StudentStats = () => (
+interface StudentStatsProps {
+    data: DashboardAnalytics | null;
+    isLoading: boolean;
+}
+
+const StudentStats: React.FC<StudentStatsProps> = ({ data, isLoading }) => (
     <InfoCard title="Schülerübersicht" href="/students/search">
         <div className="grid grid-cols-2 gap-2 md:gap-4">
             <div className="rounded-lg bg-blue-50 p-2 md:p-3">
                 <p className="text-xs md:text-sm text-blue-800">Anwesend heute</p>
-                <p className="text-xl md:text-2xl font-bold text-blue-900">127</p>
+                <p className="text-xl md:text-2xl font-bold text-blue-900">
+                    {isLoading ? "..." : data?.studentsPresent ?? 0}
+                </p>
             </div>
             <div className="rounded-lg bg-green-50 p-2 md:p-3">
                 <p className="text-xs md:text-sm text-green-800">Gesamt eingeschrieben</p>
-                <p className="text-xl md:text-2xl font-bold text-green-900">150</p>
+                <p className="text-xl md:text-2xl font-bold text-green-900">
+                    {isLoading ? "..." : data?.studentsEnrolled ?? 0}
+                </p>
             </div>
             <div className="rounded-lg bg-amber-50 p-2 md:p-3">
                 <p className="text-xs md:text-sm text-amber-800">Schulhof</p>
-                <p className="text-xl md:text-2xl font-bold text-amber-900">32</p>
+                <p className="text-xl md:text-2xl font-bold text-amber-900">
+                    {isLoading ? "..." : data?.studentsOnPlayground ?? 0}
+                </p>
             </div>
             <div className="rounded-lg bg-purple-50 p-2 md:p-3">
                 <p className="text-xs md:text-sm text-purple-800">Unterwegs</p>
-                <p className="text-xl md:text-2xl font-bold text-purple-900">8</p>
+                <p className="text-xl md:text-2xl font-bold text-purple-900">
+                    {isLoading ? "..." : data?.studentsInTransit ?? 0}
+                </p>
             </div>
         </div>
-        <div className="mt-3 md:mt-4">
-            <h4 className="mb-2 text-xs md:text-sm font-medium text-gray-700">
-                Zuletzt eingecheckt
-            </h4>
-            <ul className="divide-y divide-gray-200">
-                <li className="py-1.5 md:py-2">
-                    <div className="flex justify-between items-center">
-                        <span className="text-xs md:text-sm text-gray-900 truncate pr-2">Max Mustermann (4a)</span>
-                        <span className="text-xs text-gray-500 flex-shrink-0">vor 5 min</span>
-                    </div>
-                </li>
-                <li className="py-1.5 md:py-2">
-                    <div className="flex justify-between items-center">
-                        <span className="text-xs md:text-sm text-gray-900 truncate pr-2">Emma Schmidt (3b)</span>
-                        <span className="text-xs text-gray-500 flex-shrink-0">vor 12 min</span>
-                    </div>
-                </li>
-                <li className="py-1.5 md:py-2">
-                    <div className="flex justify-between items-center">
-                        <span className="text-xs md:text-sm text-gray-900 truncate pr-2">Leon Wagner (5c)</span>
-                        <span className="text-xs text-gray-500 flex-shrink-0">vor 18 min</span>
-                    </div>
-                </li>
-            </ul>
-        </div>
+        {data?.recentActivity && data.recentActivity.length > 0 && (
+            <div className="mt-3 md:mt-4">
+                <h4 className="mb-2 text-xs md:text-sm font-medium text-gray-700">
+                    Letzte Aktivitäten
+                </h4>
+                <ul className="divide-y divide-gray-200">
+                    {data.recentActivity.slice(0, 3).map((activity, index) => (
+                        <li key={index} className="py-1.5 md:py-2">
+                            <div className="flex justify-between items-center">
+                                <span className="text-xs md:text-sm text-gray-900 truncate pr-2">
+                                    {activity.groupName} → {activity.roomName}
+                                    {activity.count > 1 && ` (${activity.count} Schüler)`}
+                                </span>
+                                <span className="text-xs text-gray-500 flex-shrink-0">
+                                    {formatRecentActivityTime(activity.timestamp)}
+                                </span>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        )}
     </InfoCard>
 );
 
 // Activity Stats Component
-const ActivityStats = () => (
+interface ActivityStatsProps {
+    data: DashboardAnalytics | null;
+    isLoading: boolean;
+}
+
+const ActivityStats: React.FC<ActivityStatsProps> = ({ data, isLoading }) => (
     <InfoCard title="Aktivitäten und Räume" href="/database/activities">
         <div className="grid grid-cols-2 gap-2 md:gap-4">
             <div className="rounded-lg bg-purple-50 p-2 md:p-3">
                 <p className="text-xs md:text-sm text-purple-800">Aktuelle Aktivitäten</p>
-                <p className="text-xl md:text-2xl font-bold text-purple-900">15</p>
+                <p className="text-xl md:text-2xl font-bold text-purple-900">
+                    {isLoading ? "..." : data?.activeActivities ?? 0}
+                </p>
             </div>
             <div className="rounded-lg bg-green-50 p-2 md:p-3">
                 <p className="text-xs md:text-sm text-green-800">Freie Räume</p>
-                <p className="text-xl md:text-2xl font-bold text-green-900">8</p>
+                <p className="text-xl md:text-2xl font-bold text-green-900">
+                    {isLoading ? "..." : data?.freeRooms ?? 0}
+                </p>
             </div>
             <div className="rounded-lg bg-blue-50 p-2 md:p-3">
                 <p className="text-xs md:text-sm text-blue-800">Kapazität genutzt</p>
-                <p className="text-xl md:text-2xl font-bold text-blue-900">73%</p>
+                <p className="text-xl md:text-2xl font-bold text-blue-900">
+                    {isLoading ? "..." : data ? `${Math.round(data.capacityUtilization * 100)}%` : "0%"}
+                </p>
             </div>
             <div className="rounded-lg bg-amber-50 p-2 md:p-3">
                 <p className="text-xs md:text-sm text-amber-800">Kategorien</p>
-                <p className="text-xl md:text-2xl font-bold text-amber-900">6</p>
+                <p className="text-xl md:text-2xl font-bold text-amber-900">
+                    {isLoading ? "..." : data?.activityCategories ?? 0}
+                </p>
             </div>
         </div>
-        <div className="mt-3 md:mt-4">
-            <h4 className="mb-2 text-xs md:text-sm font-medium text-gray-700">
-                Aktuelle Aktivitäten
-            </h4>
-            <ul className="divide-y divide-gray-200">
-                <li className="py-1.5 md:py-2">
-                    <div className="flex justify-between items-center">
-                        <div className="min-w-0 flex-1 pr-2">
-                            <p className="text-xs md:text-sm font-medium text-gray-900 truncate">Fußball AG</p>
-                            <p className="text-xs text-gray-500 truncate">Sport • 12/15 Teilnehmer</p>
-                        </div>
-                        <div className="h-2 w-2 flex-shrink-0 rounded-full bg-green-500"></div>
-                    </div>
-                </li>
-                <li className="py-1.5 md:py-2">
-                    <div className="flex justify-between items-center">
-                        <div className="min-w-0 flex-1 pr-2">
-                            <p className="text-xs md:text-sm font-medium text-gray-900 truncate">Coding Club</p>
-                            <p className="text-xs text-gray-500 truncate">Technik • 8/10 Teilnehmer</p>
-                        </div>
-                        <div className="h-2 w-2 flex-shrink-0 rounded-full bg-green-500"></div>
-                    </div>
-                </li>
-            </ul>
-        </div>
+        {data?.currentActivities && data.currentActivities.length > 0 && (
+            <div className="mt-3 md:mt-4">
+                <h4 className="mb-2 text-xs md:text-sm font-medium text-gray-700">
+                    Aktuelle Aktivitäten
+                </h4>
+                <ul className="divide-y divide-gray-200">
+                    {data.currentActivities.slice(0, 2).map((activity, index) => (
+                        <li key={index} className="py-1.5 md:py-2">
+                            <div className="flex justify-between items-center">
+                                <div className="min-w-0 flex-1 pr-2">
+                                    <p className="text-xs md:text-sm font-medium text-gray-900 truncate">{activity.name}</p>
+                                    <p className="text-xs text-gray-500 truncate">
+                                        {activity.category} • {activity.participants}/{activity.maxCapacity} Teilnehmer
+                                    </p>
+                                </div>
+                                <div className={`h-2 w-2 flex-shrink-0 rounded-full ${getActivityStatusColor(activity.status)}`}></div>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        )}
     </InfoCard>
 );
 
 // OGS Groups Stats Component
-const OGSGroupsStats = () => (
+interface OGSGroupsStatsProps {
+    data: DashboardAnalytics | null;
+    isLoading: boolean;
+}
+
+const OGSGroupsStats: React.FC<OGSGroupsStatsProps> = ({ data, isLoading }) => (
     <InfoCard title="OGS-Gruppen Übersicht" href="/ogs_groups">
         <div className="grid grid-cols-2 gap-2 md:gap-4">
             <div className="rounded-lg bg-amber-50 p-2 md:p-3">
                 <p className="text-xs md:text-sm text-amber-800">Aktive Gruppen</p>
-                <p className="text-xl md:text-2xl font-bold text-amber-900">8</p>
+                <p className="text-xl md:text-2xl font-bold text-amber-900">
+                    {isLoading ? "..." : data?.activeOGSGroups ?? 0}
+                </p>
             </div>
             <div className="rounded-lg bg-purple-50 p-2 md:p-3">
                 <p className="text-xs md:text-sm text-purple-800">In Gruppenräumen</p>
-                <p className="text-xl md:text-2xl font-bold text-purple-900">35</p>
+                <p className="text-xl md:text-2xl font-bold text-purple-900">
+                    {isLoading ? "..." : data?.studentsInGroupRooms ?? 0}
+                </p>
             </div>
             <div className="rounded-lg bg-blue-50 p-2 md:p-3">
                 <p className="text-xs md:text-sm text-blue-800">Betreuer heute</p>
-                <p className="text-xl md:text-2xl font-bold text-blue-900">14</p>
+                <p className="text-xl md:text-2xl font-bold text-blue-900">
+                    {isLoading ? "..." : data?.supervisorsToday ?? 0}
+                </p>
             </div>
             <div className="rounded-lg bg-green-50 p-2 md:p-3">
                 <p className="text-xs md:text-sm text-green-800">In Heimatraum</p>
-                <p className="text-xl md:text-2xl font-bold text-green-900">19</p>
+                <p className="text-xl md:text-2xl font-bold text-green-900">
+                    {isLoading ? "..." : data?.studentsInHomeRoom ?? 0}
+                </p>
             </div>
         </div>
-        <div className="mt-3 md:mt-4">
-            <h4 className="mb-2 text-xs md:text-sm font-medium text-gray-700">
-                Letzte Gruppenaktivitäten
-            </h4>
-            <ul className="divide-y divide-gray-200">
-                <li className="py-1.5 md:py-2">
-                    <div className="flex justify-between items-center">
-                        <div className="min-w-0 flex-1 pr-2">
-                            <p className="text-xs md:text-sm font-medium text-gray-900 truncate">Sonnenschein</p>
-                            <p className="text-xs text-gray-500 truncate">Klasse 1-2 • 24 Kinder</p>
-                        </div>
-                        <div className="h-2 w-2 flex-shrink-0 rounded-full bg-green-500"></div>
-                    </div>
-                </li>
-                <li className="py-1.5 md:py-2">
-                    <div className="flex justify-between items-center">
-                        <div className="min-w-0 flex-1 pr-2">
-                            <p className="text-xs md:text-sm font-medium text-gray-900 truncate">Regenbogen</p>
-                            <p className="text-xs text-gray-500 truncate">Klasse 2-3 • 22 Kinder</p>
-                        </div>
-                        <div className="h-2 w-2 flex-shrink-0 rounded-full bg-green-500"></div>
-                    </div>
-                </li>
-            </ul>
-        </div>
+        {data?.activeGroupsSummary && data.activeGroupsSummary.length > 0 && (
+            <div className="mt-3 md:mt-4">
+                <h4 className="mb-2 text-xs md:text-sm font-medium text-gray-700">
+                    Letzte Gruppenaktivitäten
+                </h4>
+                <ul className="divide-y divide-gray-200">
+                    {data.activeGroupsSummary.slice(0, 2).map((group, index) => (
+                        <li key={index} className="py-1.5 md:py-2">
+                            <div className="flex justify-between items-center">
+                                <div className="min-w-0 flex-1 pr-2">
+                                    <p className="text-xs md:text-sm font-medium text-gray-900 truncate">{group.name}</p>
+                                    <p className="text-xs text-gray-500 truncate">
+                                        {group.location} • {group.studentCount} Kinder
+                                    </p>
+                                </div>
+                                <div className={`h-2 w-2 flex-shrink-0 rounded-full ${getGroupStatusColor(group.status)}`}></div>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        )}
     </InfoCard>
 );
 
@@ -278,6 +311,44 @@ export default function DashboardPage() {
         },
     });
 
+    const [dashboardData, setDashboardData] = useState<DashboardAnalytics | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchDashboardData = async () => {
+            try {
+                setIsLoading(true);
+                const response = await fetch("/api/dashboard/analytics");
+                
+                if (!response.ok) {
+                    throw new Error("Failed to fetch dashboard data");
+                }
+
+                const data = await response.json() as { data: DashboardAnalytics };
+                setDashboardData(data.data);
+                setError(null);
+            } catch (err) {
+                console.error("Error fetching dashboard data:", err);
+                setError("Fehler beim Laden der Dashboard-Daten");
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        // Only fetch if session is loaded
+        if (status === "authenticated") {
+            void fetchDashboardData();
+
+            // Refresh data every 5 minutes
+            const interval = setInterval(() => {
+                void fetchDashboardData();
+            }, 5 * 60 * 1000);
+
+            return () => clearInterval(interval);
+        }
+    }, [status]);
+
     if (status === "loading") {
         return (
             <div className="flex min-h-screen items-center justify-center">
@@ -286,11 +357,9 @@ export default function DashboardPage() {
         );
     }
 
-
     const firstName = session?.user?.name?.split(' ')[0] ?? "Root";
     const greeting = getTimeBasedGreeting();
     const currentDate = getCurrentDate();
-
 
     return (
         <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
@@ -313,15 +382,22 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
+                {/* Error Message */}
+                {error && (
+                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
+                        {error}
+                    </div>
+                )}
+
                 {/* Stats Grid - Mobile Responsive with Equal Heights */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-6 md:mb-8">
                     <div className="flex flex-col gap-4 md:gap-6">
                         <QuickActions />
-                        <StudentStats />
+                        <StudentStats data={dashboardData} isLoading={isLoading} />
                     </div>
                     <div className="flex flex-col gap-4 md:gap-6">
-                        <OGSGroupsStats />
-                        <ActivityStats />
+                        <OGSGroupsStats data={dashboardData} isLoading={isLoading} />
+                        <ActivityStats data={dashboardData} isLoading={isLoading} />
                     </div>
                 </div>
             </div>

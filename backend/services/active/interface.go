@@ -71,4 +71,66 @@ type Service interface {
 	GetActiveVisitsCount(ctx context.Context) (int, error)
 	GetRoomUtilization(ctx context.Context, roomID int64) (float64, error)
 	GetStudentAttendanceRate(ctx context.Context, studentID int64) (float64, error)
+	GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytics, error)
+}
+
+// DashboardAnalytics represents aggregated analytics for dashboard
+type DashboardAnalytics struct {
+	// Student Overview
+	StudentsPresent      int
+	StudentsEnrolled     int
+	StudentsOnPlayground int
+	StudentsInTransit    int
+
+	// Activities & Rooms
+	ActiveActivities    int
+	FreeRooms          int
+	TotalRooms         int
+	CapacityUtilization float64
+	ActivityCategories  int
+
+	// OGS Groups
+	ActiveOGSGroups      int
+	StudentsInGroupRooms int
+	SupervisorsToday     int
+	StudentsInHomeRoom   int
+
+	// Recent Activity (Privacy-compliant)
+	RecentActivity []RecentActivity
+
+	// Current Activities (No personal data)
+	CurrentActivities []CurrentActivity
+
+	// Active Groups Summary
+	ActiveGroupsSummary []ActiveGroupInfo
+
+	// Timestamp
+	LastUpdated time.Time
+}
+
+// RecentActivity represents a recent activity without personal data
+type RecentActivity struct {
+	Type      string
+	GroupName string
+	RoomName  string
+	Count     int
+	Timestamp time.Time
+}
+
+// CurrentActivity represents current activity status
+type CurrentActivity struct {
+	Name         string
+	Category     string
+	Participants int
+	MaxCapacity  int
+	Status       string
+}
+
+// ActiveGroupInfo represents active group summary
+type ActiveGroupInfo struct {
+	Name         string
+	Type         string
+	StudentCount int
+	Location     string
+	Status       string
 }
