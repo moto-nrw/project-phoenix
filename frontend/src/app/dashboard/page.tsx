@@ -8,6 +8,7 @@ import { ResponsiveLayout } from "~/components/dashboard";
 import Link from "next/link";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import { formatRecentActivityTime, getActivityStatusColor, getGroupStatusColor } from "~/lib/dashboard-helpers";
+import { UserContextProvider, useHasEducationalGroups } from "~/lib/usercontext-context";
 
 // Info Card Component with proper TypeScript types and responsive design
 interface InfoCardProps {
@@ -217,7 +218,11 @@ const OGSGroupsStats: React.FC<OGSGroupsStatsProps> = ({ data, isLoading }) => (
 );
 
 // Quick Actions Component
-const QuickActions = () => (
+interface QuickActionsProps {
+    showOGSGroups: boolean;
+}
+
+const QuickActions: React.FC<QuickActionsProps> = ({ showOGSGroups }) => (
     <InfoCard title="Schnellzugriff">
         <div className="grid grid-cols-1 gap-2 md:gap-3">
             <Link
@@ -235,20 +240,22 @@ const QuickActions = () => (
                 </div>
             </Link>
 
-            <Link
-                href="/ogs_groups"
-                className="flex items-center rounded-lg border border-gray-200 p-2 md:p-3 transition-all hover:border-green-500 hover:bg-green-50 active:bg-green-100"
-            >
-                <div className="mr-2 md:mr-3 p-1.5 md:p-2 rounded-lg bg-green-100">
-                    <svg className="h-4 w-4 md:h-5 md:w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                </div>
-                <div className="min-w-0 flex-1">
-                    <h4 className="text-sm md:text-base font-medium text-gray-900">OGS Gruppe</h4>
-                    <p className="text-xs text-gray-500 truncate">Informationen meiner Gruppe</p>
-                </div>
-            </Link>
+            {showOGSGroups && (
+                <Link
+                    href="/ogs_groups"
+                    className="flex items-center rounded-lg border border-gray-200 p-2 md:p-3 transition-all hover:border-green-500 hover:bg-green-50 active:bg-green-100"
+                >
+                    <div className="mr-2 md:mr-3 p-1.5 md:p-2 rounded-lg bg-green-100">
+                        <svg className="h-4 w-4 md:h-5 md:w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <h4 className="text-sm md:text-base font-medium text-gray-900">OGS Gruppe</h4>
+                        <p className="text-xs text-gray-500 truncate">Informationen meiner Gruppe</p>
+                    </div>
+                </Link>
+            )}
 
             <Link
                 href="/statistics"
@@ -303,7 +310,8 @@ function getCurrentDate(): string {
     return today.toLocaleDateString('de-DE', options);
 }
 
-export default function DashboardPage() {
+// Dashboard Content Component that uses the context
+function DashboardContent() {
     const { data: session, status } = useSession({
         required: true,
         onUnauthenticated() {
@@ -314,6 +322,9 @@ export default function DashboardPage() {
     const [dashboardData, setDashboardData] = useState<DashboardAnalytics | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // Check if user has educational groups
+    const { hasEducationalGroups, isLoading: groupsLoading } = useHasEducationalGroups();
 
     useEffect(() => {
         const fetchDashboardData = async () => {
@@ -392,7 +403,7 @@ export default function DashboardPage() {
                 {/* Stats Grid - Mobile Responsive with Equal Heights */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-6 md:mb-8">
                     <div className="flex flex-col gap-4 md:gap-6">
-                        <QuickActions />
+                        <QuickActions showOGSGroups={!groupsLoading && hasEducationalGroups} />
                         <StudentStats data={dashboardData} isLoading={isLoading} />
                     </div>
                     <div className="flex flex-col gap-4 md:gap-6">
@@ -402,5 +413,14 @@ export default function DashboardPage() {
                 </div>
             </div>
         </ResponsiveLayout>
+    );
+}
+
+// Main Dashboard Page Component
+export default function DashboardPage() {
+    return (
+        <UserContextProvider>
+            <DashboardContent />
+        </UserContextProvider>
     );
 }
