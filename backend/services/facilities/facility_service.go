@@ -294,7 +294,7 @@ func (s *service) GetRoomHistory(ctx context.Context, roomID int64, startTime, e
 
 	// Query active_visits table for room history
 	var history []RoomHistoryEntry
-	
+
 	// Build the query
 	err = s.db.NewSelect().
 		TableExpr("active.visits AS v").

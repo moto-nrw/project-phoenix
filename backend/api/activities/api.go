@@ -328,7 +328,7 @@ func (rs *Resource) listActivities(w http.ResponseWriter, r *http.Request) {
 	for _, group := range groups {
 		count := enrollmentCounts[group.ID]
 		activityResp := newActivityResponse(group, count)
-		
+
 		// Get supervisors for this group
 		supervisors, err := rs.ActivityService.GetGroupSupervisors(r.Context(), group.ID)
 		if err == nil && len(supervisors) > 0 {
@@ -339,18 +339,18 @@ func (rs *Resource) listActivities(w http.ResponseWriter, r *http.Request) {
 					StaffID:   supervisor.StaffID,
 					IsPrimary: supervisor.IsPrimary,
 				}
-				
+
 				// Add person details if available
 				if supervisor.Staff != nil && supervisor.Staff.Person != nil {
 					supervisorResp.FirstName = supervisor.Staff.Person.FirstName
 					supervisorResp.LastName = supervisor.Staff.Person.LastName
 				}
-				
+
 				supervisorResponses = append(supervisorResponses, supervisorResp)
 			}
 			activityResp.Supervisors = supervisorResponses
 		}
-		
+
 		responses = append(responses, activityResp)
 	}
 

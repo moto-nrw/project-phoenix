@@ -12,16 +12,16 @@ const (
 
 // Resource types
 const (
-	ResourceUsers        = "users"
-	ResourceActivities   = "activities"
-	ResourceRooms        = "rooms"
-	ResourceGroups       = "groups"
+	ResourceUsers         = "users"
+	ResourceActivities    = "activities"
+	ResourceRooms         = "rooms"
+	ResourceGroups        = "groups"
 	ResourceSubstitutions = "substitutions"
-	ResourceFeedback     = "feedback"
-	ResourceConfig       = "config"
-	ResourceAuth         = "auth"
-	ResourceIOT          = "iot"
-	ResourceSchedules    = "schedules"
+	ResourceFeedback      = "feedback"
+	ResourceConfig        = "config"
+	ResourceAuth          = "auth"
+	ResourceIOT           = "iot"
+	ResourceSchedules     = "schedules"
 )
 
 // Admin permissions

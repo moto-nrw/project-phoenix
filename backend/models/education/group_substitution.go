@@ -24,7 +24,6 @@ type GroupSubstitution struct {
 	SubstituteStaff *users.Staff `bun:"-" json:"substitute_staff,omitempty"`
 }
 
-
 // TableName returns the database table name
 func (gs *GroupSubstitution) TableName() string {
 	return "education.group_substitution"

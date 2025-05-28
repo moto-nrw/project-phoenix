@@ -206,7 +206,7 @@ func (r *PersonRepository) ListWithOptions(ctx context.Context, options *modelBa
 func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*users.Person, error) {
 	// Use a more explicit approach with result struct to avoid table name conflicts
 	type personAccountResult struct {
-		Person  *users.Person     `bun:"person"`
+		Person  *users.Person      `bun:"person"`
 		Account *modelAuth.Account `bun:"account"`
 	}
 
@@ -250,7 +250,7 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 func (r *PersonRepository) FindWithRFIDCard(ctx context.Context, id int64) (*users.Person, error) {
 	// Use a more explicit approach with result struct to avoid table name conflicts
 	type personRFIDResult struct {
-		Person   *users.Person  `bun:"person"`
+		Person   *users.Person   `bun:"person"`
 		RFIDCard *users.RFIDCard `bun:"rfid_card"`
 	}
 

@@ -311,7 +311,7 @@ var allowedImageTypes = map[string]bool{
 func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	// Limit upload size
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
-	
+
 	// Parse multipart form
 	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
 		render.Status(r, http.StatusBadRequest)
@@ -347,7 +347,7 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	contentType := http.DetectContentType(buffer)
-	
+
 	if !allowedImageTypes[contentType] {
 		render.Status(r, http.StatusBadRequest)
 		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid file type. Only JPEG, PNG, and WebP images are allowed"))); err != nil {
@@ -529,7 +529,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	// Extract filename from the user's avatar path
 	// Handle both "/uploads/avatars/filename.png" and "filename.png" formats
 	userAvatarFilename := filepath.Base(avatarPath)
-	
+
 	if userAvatarFilename != filename {
 		render.Status(r, http.StatusForbidden)
 		if err := render.Render(w, r, common.ErrorForbidden(errors.New("access denied"))); err != nil {
@@ -550,7 +550,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	
+
 	// Get absolute path of avatar directory for comparison
 	absAvatarDir, err := filepath.Abs(avatarDir)
 	if err != nil {
@@ -560,7 +560,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	
+
 	if !strings.HasPrefix(absPath, absAvatarDir) {
 		render.Status(r, http.StatusForbidden)
 		if err := render.Render(w, r, common.ErrorForbidden(errors.New("invalid path"))); err != nil {
@@ -605,7 +605,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	buffer := make([]byte, 512)
 	n, _ := file.Read(buffer[:])
 	contentType := http.DetectContentType(buffer[:n])
-	
+
 	// Reset file position
 	if _, err := file.Seek(0, 0); err != nil {
 		http.Error(w, "Failed to read file", http.StatusInternalServerError)
@@ -628,7 +628,7 @@ func generateRandomString(length int) (string, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
-	
+
 	// Map random bytes to charset
 	for i := range b {
 		b[i] = charset[b[i]%byte(len(charset))]

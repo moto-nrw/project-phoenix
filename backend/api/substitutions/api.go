@@ -29,20 +29,20 @@ func NewResource(educationService education.Service) *Resource {
 
 // SubstitutionResponse represents a substitution in API responses
 type SubstitutionResponse struct {
-	ID                int64         `json:"id"`
-	GroupID           int64         `json:"group_id"`
-	Group             *GroupInfo    `json:"group,omitempty"`
-	RegularStaffID    *int64        `json:"regular_staff_id,omitempty"`
-	RegularStaff      *StaffInfo    `json:"regular_staff,omitempty"`
-	SubstituteStaffID int64         `json:"substitute_staff_id"`
-	SubstituteStaff   *StaffInfo    `json:"substitute_staff,omitempty"`
-	StartDate         string        `json:"start_date"`     // YYYY-MM-DD format
-	EndDate           string        `json:"end_date"`       // YYYY-MM-DD format
-	Reason            string        `json:"reason,omitempty"`
-	Duration          int           `json:"duration_days"`
-	IsActive          bool          `json:"is_active"`
-	CreatedAt         time.Time     `json:"created_at"`
-	UpdatedAt         time.Time     `json:"updated_at"`
+	ID                int64      `json:"id"`
+	GroupID           int64      `json:"group_id"`
+	Group             *GroupInfo `json:"group,omitempty"`
+	RegularStaffID    *int64     `json:"regular_staff_id,omitempty"`
+	RegularStaff      *StaffInfo `json:"regular_staff,omitempty"`
+	SubstituteStaffID int64      `json:"substitute_staff_id"`
+	SubstituteStaff   *StaffInfo `json:"substitute_staff,omitempty"`
+	StartDate         string     `json:"start_date"` // YYYY-MM-DD format
+	EndDate           string     `json:"end_date"`   // YYYY-MM-DD format
+	Reason            string     `json:"reason,omitempty"`
+	Duration          int        `json:"duration_days"`
+	IsActive          bool       `json:"is_active"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
 // GroupInfo represents basic group information in substitution responses
@@ -115,8 +115,8 @@ type createSubstitutionRequest struct {
 	GroupID           int64  `json:"group_id"`
 	RegularStaffID    *int64 `json:"regular_staff_id,omitempty"`
 	SubstituteStaffID int64  `json:"substitute_staff_id"`
-	StartDate         string `json:"start_date"`  // YYYY-MM-DD format
-	EndDate           string `json:"end_date"`    // YYYY-MM-DD format
+	StartDate         string `json:"start_date"` // YYYY-MM-DD format
+	EndDate           string `json:"end_date"`   // YYYY-MM-DD format
 	Reason            string `json:"reason,omitempty"`
 }
 
