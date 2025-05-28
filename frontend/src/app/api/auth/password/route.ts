@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
-import { apiPut } from "~/lib/api-helpers";
+import { apiPost } from "~/lib/api-helpers";
 import { isAxiosError } from "axios";
 
 interface ErrorResponse {
@@ -8,7 +8,7 @@ interface ErrorResponse {
   error?: string;
 }
 
-export async function PUT(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const session = await auth();
     
@@ -19,23 +19,31 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const body = await request.json() as { currentPassword?: string; newPassword?: string };
-    const { currentPassword, newPassword } = body;
+    const body = await request.json() as { currentPassword?: string; newPassword?: string; confirmPassword?: string };
+    const { currentPassword, newPassword, confirmPassword } = body;
 
-    if (!currentPassword || !newPassword) {
+    if (!currentPassword || !newPassword || !confirmPassword) {
       return NextResponse.json(
-        { error: "Aktuelles und neues Passwort sind erforderlich" },
+        { error: "Alle Passwortfelder sind erforderlich" },
+        { status: 400 }
+      );
+    }
+
+    if (newPassword !== confirmPassword) {
+      return NextResponse.json(
+        { error: "Die neuen Passwörter stimmen nicht überein" },
         { status: 400 }
       );
     }
 
     // Call backend API to change password
-    await apiPut(
+    await apiPost(
       "/api/auth/password",
       session.user.token,
       {
         current_password: currentPassword,
         new_password: newPassword,
+        confirm_password: confirmPassword,
       }
     );
 
