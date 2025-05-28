@@ -132,7 +132,7 @@ function SearchPageContent() {
       return false;
     } else if (attendanceFilter === "school_yard" && student.school_yard !== true) {
       return false;
-    } else if (attendanceFilter === "bus" && student.bus !== true) {
+    } else if (attendanceFilter === "bus" && student.current_location !== "Home" && (student.in_house || student.wc || student.school_yard)) {
       return false;
     }
 
