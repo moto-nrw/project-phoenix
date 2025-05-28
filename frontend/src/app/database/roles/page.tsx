@@ -38,8 +38,7 @@ export default function RolesPage() {
         updatedAt?: unknown;
         permissions?: unknown[];
       }>;
-      console.log("API response:", data);
-      console.log("Raw roles:", rawRoles);
+      // Processing API response and raw roles
       
       // Process and validate roles
       const processedRoles = rawRoles.map((role, index: number) => ({

@@ -36,6 +36,9 @@ export interface BackendStudentDetail extends BackendStudent {
     group_supervisors?: SupervisorContact[];
 }
 
+// Student location enum
+export type StudentLocation = "Home" | "In House" | "WC" | "School Yard" | "Bus" | "Unknown";
+
 // Frontend types (mapped from backend)
 export interface Student {
     id: string;
@@ -47,10 +50,15 @@ export interface Student {
     studentId?: string;
     group_name?: string;
     group_id?: string;
+    // Current location of student
+    current_location: StudentLocation;
+    // Transportation method (separate from location)
+    takes_bus?: boolean;
+    // Legacy boolean fields for backward compatibility (derived from current_location)
     in_house: boolean;
     wc?: boolean;
     school_yard?: boolean;
-    bus?: boolean;
+    bus?: boolean; // This will be deprecated in favor of takes_bus
     name_lg?: string;
     contact_lg?: string;
     custom_users_id?: string;
@@ -66,6 +74,10 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student {
     const lastName = backendStudent.last_name || '';
     const name = `${firstName} ${lastName}`.trim();
     
+    // Map backend location to our enum, with fallback for unknown values
+    const current_location: StudentLocation = 
+        (backendStudent.location as StudentLocation) || "Unknown";
+    
     const mapped = {
         id: String(backendStudent.id),
         name: name,
@@ -76,10 +88,14 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student {
         studentId: backendStudent.tag_id,
         group_name: backendStudent.group_name,
         group_id: backendStudent.group_id ? String(backendStudent.group_id) : undefined,
-        in_house: backendStudent.location === "In House",
-        wc: backendStudent.location === "WC",
-        school_yard: backendStudent.location === "School Yard",
-        bus: backendStudent.location === "Bus",
+        // New location system
+        current_location: current_location,
+        takes_bus: undefined, // TODO: Map from backend when available
+        // Legacy boolean fields for backward compatibility (derived from current_location)
+        in_house: current_location === "In House",
+        wc: current_location === "WC",
+        school_yard: current_location === "School Yard",
+        bus: current_location === "Bus", // Keep for backward compatibility
         name_lg: backendStudent.guardian_name,
         contact_lg: backendStudent.guardian_contact,
         custom_users_id: undefined, // Not provided by backend

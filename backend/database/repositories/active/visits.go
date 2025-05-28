@@ -31,7 +31,8 @@ func (r *VisitRepository) FindActiveByStudentID(ctx context.Context, studentID i
 	var visits []*active.Visit
 	err := r.db.NewSelect().
 		Model(&visits).
-		Where("student_id = ? AND exit_time IS NULL", studentID).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Where(`"visit".student_id = ? AND "visit".exit_time IS NULL`, studentID).
 		Scan(ctx)
 
 	if err != nil {
@@ -49,7 +50,8 @@ func (r *VisitRepository) FindByActiveGroupID(ctx context.Context, activeGroupID
 	var visits []*active.Visit
 	err := r.db.NewSelect().
 		Model(&visits).
-		Where("active_group_id = ?", activeGroupID).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Where(`"visit".active_group_id = ?`, activeGroupID).
 		Scan(ctx)
 
 	if err != nil {
@@ -67,7 +69,8 @@ func (r *VisitRepository) FindByTimeRange(ctx context.Context, start, end time.T
 	var visits []*active.Visit
 	err := r.db.NewSelect().
 		Model(&visits).
-		Where("entry_time <= ? AND (exit_time IS NULL OR exit_time >= ?)", end, start).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Where(`"visit".entry_time <= ? AND ("visit".exit_time IS NULL OR "visit".exit_time >= ?)`, end, start).
 		Scan(ctx)
 
 	if err != nil {
@@ -84,8 +87,9 @@ func (r *VisitRepository) FindByTimeRange(ctx context.Context, start, end time.T
 func (r *VisitRepository) EndVisit(ctx context.Context, id int64) error {
 	_, err := r.db.NewUpdate().
 		Model((*active.Visit)(nil)).
-		Set("exit_time = ?", time.Now()).
-		Where("id = ? AND exit_time IS NULL", id).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Set(`"visit".exit_time = ?`, time.Now()).
+		Where(`"visit".id = ? AND "visit".exit_time IS NULL`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -116,7 +120,9 @@ func (r *VisitRepository) Create(ctx context.Context, visit *active.Visit) error
 // List overrides the base List method to accept the new QueryOptions type
 func (r *VisitRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.Visit, error) {
 	var visits []*active.Visit
-	query := r.db.NewSelect().Model(&visits)
+	query := r.db.NewSelect().
+		Model(&visits).
+		ModelTableExpr(`active.visits AS "visit"`)
 
 	// Apply query options
 	if options != nil {
@@ -139,8 +145,9 @@ func (r *VisitRepository) FindWithStudent(ctx context.Context, id int64) (*activ
 	visit := new(active.Visit)
 	err := r.db.NewSelect().
 		Model(visit).
+		ModelTableExpr(`active.visits AS "visit"`).
 		Relation("Student").
-		Where("id = ?", id).
+		Where(`"visit".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -158,8 +165,9 @@ func (r *VisitRepository) FindWithActiveGroup(ctx context.Context, id int64) (*a
 	visit := new(active.Visit)
 	err := r.db.NewSelect().
 		Model(visit).
+		ModelTableExpr(`active.visits AS "visit"`).
 		Relation("ActiveGroup").
-		Where("id = ?", id).
+		Where(`"visit".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {

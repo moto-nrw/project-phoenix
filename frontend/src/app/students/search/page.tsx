@@ -6,126 +6,9 @@ import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Input } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
+import { studentService, groupService } from "~/lib/api";
+import type { Student, Group } from "~/lib/api";
 
-// Student type based on what's seen in the code
-interface Student {
-  id: string;
-  first_name: string;
-  second_name: string;
-  name?: string;
-  school_class: string;
-  group_id: string;
-  group_name?: string;
-  in_house: boolean;
-  wc: boolean;
-  school_yard: boolean;
-  bus: boolean;
-}
-
-interface Group {
-  id: string;
-  name: string;
-}
-
-// Demo data for students - defined outside component to avoid dependency issues
-const exampleStudents: Student[] = [
-  {
-    id: "1",
-    first_name: "Emma",
-    second_name: "Müller",
-    school_class: "1a",
-    group_id: "g1",
-    group_name: "Bären",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "2",
-    first_name: "Max",
-    second_name: "Schmidt",
-    school_class: "1b",
-    group_id: "g1",
-    group_name: "Bären",
-    in_house: false,
-    wc: true,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "3",
-    first_name: "Sophie",
-    second_name: "Wagner",
-    school_class: "2a",
-    group_id: "g2",
-    group_name: "Füchse",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "4",
-    first_name: "Leon",
-    second_name: "Fischer",
-    school_class: "2b",
-    group_id: "g2",
-    group_name: "Füchse",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "5",
-    first_name: "Mia",
-    second_name: "Weber",
-    school_class: "3a",
-    group_id: "g3",
-    group_name: "Eulen",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "6",
-    first_name: "Noah",
-    second_name: "Becker",
-    school_class: "3b",
-    group_id: "g3",
-    group_name: "Eulen",
-    in_house: false,
-    wc: false,
-    school_yard: true,
-    bus: false
-  },
-  {
-    id: "7",
-    first_name: "Lina",
-    second_name: "Hoffmann",
-    school_class: "4a",
-    group_id: "g4",
-    group_name: "Drachen",
-    in_house: false,
-    wc: false,
-    school_yard: false,
-    bus: true
-  },
-  {
-    id: "8",
-    first_name: "Paul",
-    second_name: "Richter",
-    school_class: "4b",
-    group_id: "g4",
-    group_name: "Drachen",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  }
-];
 
 function SearchPageContent() {
   const { data: session, status } = useSession();
@@ -147,7 +30,7 @@ function SearchPageContent() {
   // Mobile-specific state
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
-  const fetchStudents = useCallback(async (filters?: {
+  const fetchStudentsData = useCallback(async (filters?: {
     search?: string;
     groupId?: string;
   }) => {
@@ -155,47 +38,39 @@ function SearchPageContent() {
       setIsSearching(true);
       setError(null);
 
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Fetch students from API
+      const fetchedStudents = await studentService.getStudents({
+        search: filters?.search ?? searchTerm,
+        groupId: filters?.groupId ?? selectedGroup
+      });
 
-      // For demo, just filter the example students
-      let filtered = [...exampleStudents];
-
-      const searchQuery = filters?.search ?? searchTerm;
-      if (searchQuery) {
-        filtered = filtered.filter(student =>
-          student.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          student.second_name.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-      }
-
-      const groupFilter = filters?.groupId ?? selectedGroup;
-      if (groupFilter) {
-        filtered = filtered.filter(student => student.group_id === groupFilter);
-      }
-
-      setStudents(filtered);
-    } catch (error) {
-      console.error("Error fetching students:", error);
+      setStudents(fetchedStudents);
+    } catch {
+      // Error fetching students - handle gracefully
       setError("Fehler beim Laden der Schülerdaten.");
     } finally {
       setIsSearching(false);
     }
   }, [searchTerm, selectedGroup]);
 
-  // Load demo data and groups on mount
+  // Load groups on mount
   useEffect(() => {
-    // Set demo students
-    setStudents(exampleStudents);
+    const loadGroups = async () => {
+      try {
+        const fetchedGroups = await groupService.getGroups();
+        setGroups(fetchedGroups);
+      } catch (error) {
+        console.error("Error loading groups:", error);
+      }
+    };
 
-    // Extract unique groups from demo data
-    const uniqueGroups = Array.from(
-      new Set(exampleStudents.map(s => s.group_name).filter(Boolean))
-    ).map((name, index) => ({
-      id: `g${index + 1}`,
-      name: name!
-    }));
-    setGroups(uniqueGroups);
+    void loadGroups();
+  }, []);
+
+  // Load initial students on mount
+  useEffect(() => {
+    void fetchStudentsData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Debounced search effect
@@ -206,7 +81,7 @@ function SearchPageContent() {
 
     searchTimeoutRef.current = setTimeout(() => {
       if (searchTerm.length >= 2 || searchTerm.length === 0) {
-        void fetchStudents();
+        void fetchStudentsData();
       }
     }, 300);
 
@@ -215,7 +90,13 @@ function SearchPageContent() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchTerm, fetchStudents]);
+  }, [searchTerm, fetchStudentsData]);
+
+  // Re-fetch when group filter changes
+  useEffect(() => {
+    void fetchStudentsData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGroup]);
 
   const handleSearch = () => {
     const filters = {
@@ -223,7 +104,7 @@ function SearchPageContent() {
       groupId: selectedGroup,
     };
 
-    void fetchStudents(filters);
+    void fetchStudentsData(filters);
   };
 
   const handleFilterReset = () => {
@@ -237,7 +118,7 @@ function SearchPageContent() {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
-    void fetchStudents();
+    void fetchStudentsData();
   };
 
   // Apply additional client-side filtering for attendance statuses and year
@@ -247,11 +128,11 @@ function SearchPageContent() {
       // No attendance filtering
     } else if (attendanceFilter === "in_house" && !student.in_house) {
       return false;
-    } else if (attendanceFilter === "wc" && !student.wc) {
+    } else if (attendanceFilter === "wc" && student.wc !== true) {
       return false;
-    } else if (attendanceFilter === "school_yard" && !student.school_yard) {
+    } else if (attendanceFilter === "school_yard" && student.school_yard !== true) {
       return false;
-    } else if (attendanceFilter === "bus" && !student.bus) {
+    } else if (attendanceFilter === "bus" && student.current_location !== "Home" && (student.in_house || student.wc || student.school_yard)) {
       return false;
     }
 
@@ -266,6 +147,7 @@ function SearchPageContent() {
 
     return true;
   });
+  
 
   // Helper function to determine the school year
   const getSchoolYear = (schoolClass: string): number => {
@@ -286,10 +168,14 @@ function SearchPageContent() {
 
   // Helper function to get location status
   const getLocationStatus = (student: Student) => {
-    if (student.in_house) return { label: "Im Haus", color: "bg-green-500 text-green-50" };
-    if (student.wc) return { label: "Toilette", color: "bg-blue-500 text-blue-50" };
-    if (student.school_yard) return { label: "Schulhof", color: "bg-yellow-500 text-yellow-50" };
-    if (student.bus) return { label: "Zuhause", color: "bg-orange-500 text-orange-50" };
+    if (student.in_house === true) return { label: "Im Haus", color: "bg-green-500 text-green-50" };
+    if (student.wc === true) return { label: "Toilette", color: "bg-blue-500 text-blue-50" };
+    if (student.school_yard === true) return { label: "Schulhof", color: "bg-yellow-500 text-yellow-50" };
+    // Student is at home when current_location is "Home" or all location flags are false
+    if (student.current_location === "Home" || (!student.in_house && !student.wc && !student.school_yard)) {
+      return { label: "Zuhause", color: "bg-orange-500 text-orange-50" };
+    }
+    if (student.current_location === "Bus") return { label: "Unterwegs", color: "bg-purple-500 text-purple-50" };
     return { label: "Unbekannt", color: "bg-gray-500 text-gray-50" };
   };
 

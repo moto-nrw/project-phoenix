@@ -15,7 +15,7 @@ export const GET = createGetHandler(async (request, token, params) => {
     }
     
     const accountId = params.accountId as string;
-    console.log("Fetching direct permissions for account:", accountId);
+    // Fetching direct permissions for account
     
     // Make the API call to get only direct permissions (not role-based)
     const response = await apiGet<PermissionsResponse>(`/auth/accounts/${accountId}/permissions/direct`, token);

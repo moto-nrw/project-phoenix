@@ -103,7 +103,7 @@ class TeacherService {
             }
 
             const data = await response.json() as Teacher | { data: Teacher };
-            console.log("Raw teacher API response:", data);
+            // Processing teacher API response
             
             // Handle wrapped response from route handler
             if (data && typeof data === 'object' && 'data' in data) {

@@ -97,11 +97,8 @@ func (s *Student) Validate() error {
 		}
 	}
 
-	// Ensure only one loc ation is active at a time
+	// Ensure only one location is active at a time (bus is not a location)
 	locationCount := 0
-	if s.Bus {
-		locationCount++
-	}
 	if s.InHouse {
 		locationCount++
 	}
@@ -134,9 +131,6 @@ func (s *Student) SetGroupID(groupID *int64) {
 
 // GetLocation returns the current location of the student
 func (s *Student) GetLocation() string {
-	if s.Bus {
-		return "Bus"
-	}
 	if s.InHouse {
 		return "In House"
 	}
@@ -146,31 +140,29 @@ func (s *Student) GetLocation() string {
 	if s.SchoolYard {
 		return "School Yard"
 	}
-	return "Unknown"
+	// If none of the location flags are set, student is at home
+	return "Home"
 }
 
 // SetLocation sets the student's location, ensuring only one is active
 func (s *Student) SetLocation(location string) error {
-	// Reset all locations
-	s.Bus = false
+	// Reset all location flags (but not bus, which is transportation info)
 	s.InHouse = false
 	s.WC = false
 	s.SchoolYard = false
 
 	// Set the specified location
 	switch strings.ToLower(location) {
-	case "bus":
-		s.Bus = true
 	case "in house", "house":
 		s.InHouse = true
 	case "wc", "bathroom":
 		s.WC = true
 	case "school yard", "yard":
 		s.SchoolYard = true
-	case "unknown", "none", "":
-		// All locations remain false
+	case "home", "none", "":
+		// All locations remain false (student is at home)
 	default:
-		return errors.New("invalid location: must be Bus, In House, WC, School Yard, or empty")
+		return errors.New("invalid location: must be In House, WC, School Yard, Home, or empty")
 	}
 
 	return nil

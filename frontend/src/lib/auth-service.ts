@@ -442,7 +442,7 @@ export const authService = {
                 }
 
                 const responseData = await response.json() as { data?: { data?: BackendRole } | BackendRole };
-                console.log("Get role response:", responseData);
+                // Processing role response
                 
                 // Handle nested response structure
                 let roleData: BackendRole;
@@ -480,7 +480,7 @@ export const authService = {
                     } | BackendRole;
                 }
                 const response = await api.get<RoleApiResponse>(url);
-                console.log("Get role non-proxy response:", response.data);
+                // Processing non-proxy role response
                 
                 // Handle nested response structure
                 let roleData: BackendRole;
@@ -620,7 +620,7 @@ export const authService = {
                 }
 
                 const responseData = await response.json() as { data?: { data?: BackendPermission[] } | BackendPermission[] };
-                console.log("Permissions API response:", responseData);
+                // Processing permissions API response
                 
                 // Handle nested response structure
                 let permissionsData: BackendPermission[] = [];
@@ -1222,7 +1222,7 @@ export const authService = {
                 }
 
                 const responseData = await response.json() as { data?: { data?: BackendPermission[] } | BackendPermission[] };
-                console.log("Permissions API response:", responseData);
+                // Processing permissions API response
                 
                 // Handle nested response structure
                 let permissionsData: BackendPermission[] = [];
