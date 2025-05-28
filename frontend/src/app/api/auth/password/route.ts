@@ -44,11 +44,10 @@ export async function PUT(request: NextRequest) {
     console.error("Password change error:", error);
     
     // Handle specific error messages from backend
-    if (error && typeof error === 'object' && 'response' in error) {
-      const axiosError = error as AxiosError<ErrorResponse>;
-      if (axiosError.response?.data) {
-        const errorMessage = axiosError.response.data.message ?? axiosError.response.data.error;
-        const statusCode = axiosError.response.status ?? 400;
+    if (isAxiosError<ErrorResponse>(error)) {
+      if (error.response?.data) {
+        const errorMessage = error.response.data.message ?? error.response.data.error;
+        const statusCode = error.response.status ?? 400;
         
         return NextResponse.json(
           { error: errorMessage ?? "Passwortänderung fehlgeschlagen" },
