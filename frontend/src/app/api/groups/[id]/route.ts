@@ -9,8 +9,9 @@ import type { BackendGroup } from "~/lib/group-helpers";
 interface GroupUpdateRequest {
   name?: string;
   description?: string;
-  room_id?: string;
-  representative_id?: string;
+  room_id?: number;
+  representative_id?: number;
+  teacher_ids?: number[];
 }
 
 /**

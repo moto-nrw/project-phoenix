@@ -3,8 +3,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      args:
-        BUILDKIT_INLINE_CACHE: 1
+      cache_from:
+        - project-phoenix-server:latest
     depends_on:
       postgres:
         condition: service_healthy
@@ -48,6 +48,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: development
       args:
         BUILDKIT_INLINE_CACHE: 1
     ports:
@@ -64,8 +65,18 @@ services:
     depends_on:
       - server
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      # Mount only source directories for hot reload
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      # Mount config files that might change
+      - ./frontend/package.json:/app/package.json
+      - ./frontend/package-lock.json:/app/package-lock.json
+      - ./frontend/next.config.js:/app/next.config.js
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./frontend/postcss.config.js:/app/postcss.config.js
+      # Use named volume for node_modules to avoid conflicts
+      - frontend_node_modules:/app/node_modules
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
@@ -86,7 +97,13 @@ services:
       - ./config/ssl/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    command: ["-c", "config_file=/etc/postgresql/postgresql.conf", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
+    command:
+      [
+        "-c",
+        "config_file=/etc/postgresql/postgresql.conf",
+        "-c",
+        "hba_file=/etc/postgresql/pg_hba.conf",
+      ]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 1s
@@ -94,3 +111,4 @@ services:
       retries: 2
 volumes:
   postgres:
+  frontend_node_modules:

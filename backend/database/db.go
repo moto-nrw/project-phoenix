@@ -34,7 +34,6 @@ func DBConn() (*bun.DB, error) {
 		return nil, err
 	}
 
-
 	if viper.GetBool("db_debug") {
 		db.AddQueryHook(bundebug.NewQueryHook(bundebug.WithVerbose(true)))
 	}

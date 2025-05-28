@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -64,61 +65,25 @@ func (r *RoleRepository) FindByAccountID(ctx context.Context, accountID int64) (
 }
 
 // AssignRoleToAccount assigns a role to an account
+// DEPRECATED: Use AccountRoleRepository.Create instead
 func (r *RoleRepository) AssignRoleToAccount(ctx context.Context, accountID int64, roleID int64) error {
-	// Check if the role assignment already exists
-	exists, err := r.db.NewSelect().
-		Model((*auth.AccountRole)(nil)).
-		ModelTableExpr("auth.account_roles").
-		Where("account_id = ? AND role_id = ?", accountID, roleID).
-		Exists(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "check role assignment",
-			Err: err,
-		}
+	// This method should not be used directly
+	// Use the AccountRoleRepository instead for proper ORM-based operations
+	return &modelBase.DatabaseError{
+		Op:  "assign role to account",
+		Err: errors.New("deprecated: use AccountRoleRepository.Create instead"),
 	}
-
-	if exists {
-		// Role already assigned, no action needed
-		return nil
-	}
-
-	// Create the role assignment
-	_, err = r.db.NewInsert().
-		Model(&auth.AccountRole{
-			AccountID: accountID,
-			RoleID:    roleID,
-		}).
-		ModelTableExpr("auth.account_roles").
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "assign role to account",
-			Err: err,
-		}
-	}
-
-	return nil
 }
 
 // RemoveRoleFromAccount removes a role assignment from an account
+// DEPRECATED: Use AccountRoleRepository.DeleteByAccountAndRole instead
 func (r *RoleRepository) RemoveRoleFromAccount(ctx context.Context, accountID int64, roleID int64) error {
-	_, err := r.db.NewDelete().
-		Model((*auth.AccountRole)(nil)).
-		ModelTableExpr("auth.account_roles").
-		Where("account_id = ? AND role_id = ?", accountID, roleID).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "remove role from account",
-			Err: err,
-		}
+	// This method should not be used directly
+	// Use the AccountRoleRepository instead for proper ORM-based operations
+	return &modelBase.DatabaseError{
+		Op:  "remove role from account",
+		Err: errors.New("deprecated: use AccountRoleRepository.DeleteByAccountAndRole instead"),
 	}
-
-	return nil
 }
 
 // GetRoleWithPermissions retrieves a role with its associated permissions

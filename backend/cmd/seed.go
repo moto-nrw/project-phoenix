@@ -548,7 +548,7 @@ func seedStudents(ctx context.Context, tx bun.Tx, personIDs []int64, classGroupI
 
 		// Generate contact info
 		guardianPhone := fmt.Sprintf("+49 %d %d-%d", 30+rng.Intn(900), rng.Intn(900)+100, rng.Intn(9000)+1000)
-		
+
 		// Normalize German characters for email addresses
 		emailFirstName := normalizeForEmail(guardianFirstName)
 		emailLastName := normalizeForEmail(personLastName)
@@ -585,11 +585,11 @@ func seedStudents(ctx context.Context, tx bun.Tx, personIDs []int64, classGroupI
 func normalizeForEmail(name string) string {
 	// Convert to lowercase first
 	name = strings.ToLower(name)
-	
+
 	// Replace German umlauts and special characters with ASCII equivalents
 	replacements := map[string]string{
 		"ä": "ae",
-		"ö": "oe", 
+		"ö": "oe",
 		"ü": "ue",
 		"ß": "ss",
 		"é": "e",
@@ -601,11 +601,11 @@ func normalizeForEmail(name string) string {
 		"û": "u",
 		"ç": "c",
 	}
-	
+
 	for german, ascii := range replacements {
 		name = strings.ReplaceAll(name, german, ascii)
 	}
-	
+
 	return name
 }
 
@@ -664,9 +664,9 @@ func seedScheduleTimeframes(ctx context.Context, tx bun.Tx) ([]int64, error) {
 
 	timeframeIDs := make([]int64, 0, len(timeframeData))
 	for _, data := range timeframeData {
-		startTime := time.Date(today.Year(), today.Month(), today.Day(), 
+		startTime := time.Date(today.Year(), today.Month(), today.Day(),
 			data.startHour, data.startMinute, 0, 0, today.Location())
-		endTime := time.Date(today.Year(), today.Month(), today.Day(), 
+		endTime := time.Date(today.Year(), today.Month(), today.Day(),
 			data.endHour, data.endMinute, 0, 0, today.Location())
 
 		var id int64
@@ -687,42 +687,42 @@ func seedScheduleTimeframes(ctx context.Context, tx bun.Tx) ([]int64, error) {
 
 func seedActivityGroups(ctx context.Context, tx bun.Tx, categoryIDs []int64, roomIDs []int64, rng *rand.Rand) ([]int64, error) {
 	activityData := []struct {
-		name           string
+		name            string
 		maxParticipants int
 		categoryIndex   int  // Index into categoryIDs
 		roomIndex       *int // Index into roomIDs, nil if no specific room
 	}{
 		// Sport (category 0)
-		{"Fußball-AG", 16, 0, intPtr(10)}, // Hauptsporthalle
+		{"Fußball-AG", 16, 0, intPtr(10)},              // Hauptsporthalle
 		{"Basketball für Anfänger", 12, 0, intPtr(11)}, // Kleine Sporthalle
-		{"Tanzen", 15, 0, intPtr(11)}, // Kleine Sporthalle
-		
+		{"Tanzen", 15, 0, intPtr(11)},                  // Kleine Sporthalle
+
 		// Kunst & Basteln (category 1)
 		{"Basteln und Malen", 12, 1, intPtr(12)}, // Kunstraum 1
-		{"Töpfern", 8, 1, intPtr(12)}, // Kunstraum 1
-		
+		{"Töpfern", 8, 1, intPtr(12)},            // Kunstraum 1
+
 		// Musik (category 2)
-		{"Kinderchor", 20, 2, intPtr(13)}, // Musikraum
+		{"Kinderchor", 20, 2, intPtr(13)},              // Musikraum
 		{"Rhythmus und Percussion", 10, 2, intPtr(13)}, // Musikraum
-		
+
 		// Spiele (category 3)
 		{"Schach für Anfänger", 12, 3, nil},
 		{"Brett- und Kartenspiele", 16, 3, nil},
 		{"Gesellschaftsspiele", 10, 3, nil},
-		
+
 		// Lesen (category 4)
-		{"Lese-AG", 15, 4, intPtr(16)}, // Hauptbibliothek
+		{"Lese-AG", 15, 4, intPtr(16)},              // Hauptbibliothek
 		{"Geschichten erfinden", 10, 4, intPtr(17)}, // Lernraum 1
-		
+
 		// Hausaufgabenhilfe (category 5)
 		{"Hausaufgabenhilfe Klasse 1-2", 8, 5, intPtr(0)}, // Classroom 101
 		{"Hausaufgabenhilfe Klasse 3-4", 8, 5, intPtr(1)}, // Classroom 102
-		{"Mathematik-Hilfe", 6, 5, intPtr(2)}, // Classroom 103
-		
+		{"Mathematik-Hilfe", 6, 5, intPtr(2)},             // Classroom 103
+
 		// Natur & Forschen (category 6)
 		{"Naturforschergruppe", 10, 6, intPtr(6)}, // Labor 1
 		{"Garten-AG", 12, 6, nil},
-		
+
 		// Computer (category 7)
 		{"Computer-Grundlagen", 10, 7, intPtr(14)}, // Computerraum 1
 		{"Erste Programmierung", 8, 7, intPtr(15)}, // Computerraum 2
@@ -763,12 +763,12 @@ func seedActivitySchedules(ctx context.Context, tx bun.Tx, activityGroupIDs []in
 	activityTimeframes := []int64{timeframeIDs[2], timeframeIDs[4]}
 
 	scheduleIDs := make([]int64, 0)
-	
+
 	// Assign each activity group to 1-3 random weekdays and time slots
 	for _, groupID := range activityGroupIDs {
 		// Each activity happens 1-3 times per week
 		sessionsPerWeek := rng.Intn(3) + 1
-		
+
 		// Pick random weekdays
 		shuffledWeekdays := make([]int, len(weekdays))
 		copy(shuffledWeekdays, weekdays)
@@ -800,12 +800,12 @@ func seedActivitySchedules(ctx context.Context, tx bun.Tx, activityGroupIDs []in
 
 func seedActivitySupervisors(ctx context.Context, tx bun.Tx, activityGroupIDs []int64, staffIDs []int64, rng *rand.Rand) ([]int64, error) {
 	supervisorIDs := make([]int64, 0)
-	
+
 	// Assign 1-2 supervisors per activity group
 	for i, groupID := range activityGroupIDs {
 		// Primary supervisor (cycle through staff)
 		primaryStaffID := staffIDs[i%len(staffIDs)]
-		
+
 		var id int64
 		query := `INSERT INTO activities.supervisors (staff_id, group_id, is_primary, created_at, updated_at) 
 		          VALUES (?, ?, ?, ?, ?) RETURNING id`
@@ -837,14 +837,85 @@ func seedActivitySupervisors(ctx context.Context, tx bun.Tx, activityGroupIDs []
 }
 
 func seedStudentEnrollments(ctx context.Context, tx bun.Tx, activityGroupIDs []int64, studentIDs []int64, rng *rand.Rand) ([]int64, error) {
+	// Constants for enrollment generation
+	const (
+		minFillRate           = 0.70
+		fillRateRange         = 0.15
+		enrollmentInsertQuery = `INSERT INTO activities.student_enrollments (student_id, activity_group_id, enrollment_date, attendance_status, created_at, updated_at) 
+		                        VALUES (?, ?, ?, ?, ?, ?) RETURNING id`
+	)
+
 	enrollmentIDs := make([]int64, 0)
 	attendanceStatuses := []string{"regelmäßig", "gelegentlich", "neu angemeldet"}
 
-	// Enroll each student in 1-3 random activities
+	// Track enrollment counts for each activity group
+	enrollmentCounts := make(map[int64]int)
+	maxParticipants := make(map[int64]int)
+	targetFillRates := make(map[int64]float64)
+
+	// Get max participants for each activity group and set target fill rates
+	for _, groupID := range activityGroupIDs {
+		var max int
+		err := tx.QueryRowContext(ctx,
+			"SELECT max_participants FROM activities.groups WHERE id = ?", groupID).Scan(&max)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get max_participants for group %d: %w", groupID, err)
+		}
+		maxParticipants[groupID] = max
+		enrollmentCounts[groupID] = 0
+		// Random fill rate between 70-85%
+		targetFillRates[groupID] = minFillRate + (rng.Float64() * fillRateRange)
+	}
+
+	// First pass: Ensure every student gets at least 1 activity
+	studentsWithActivities := make(map[int64]int) // Track how many activities each student has
+	activityIndex := 0                            // For round-robin distribution
+
+	fmt.Println("First pass: Ensuring every student gets at least one activity...")
 	for _, studentID := range studentIDs {
-		activitiesPerStudent := rng.Intn(3) + 1 // 1-3 activities per student
-		
-		// Shuffle activity groups
+		enrolled := false
+		attempts := 0
+
+		// Try to enroll student in at least one activity
+		for !enrolled && attempts < len(activityGroupIDs) {
+			groupID := activityGroupIDs[activityIndex%len(activityGroupIDs)]
+			activityIndex++
+			attempts++
+
+			// Check if activity has reached its target fill rate
+			currentFillRate := float64(enrollmentCounts[groupID]) / float64(maxParticipants[groupID])
+			if currentFillRate >= targetFillRates[groupID] {
+				continue
+			}
+
+			status := attendanceStatuses[rng.Intn(len(attendanceStatuses))]
+			enrollmentDate := time.Now().AddDate(0, 0, -rng.Intn(30))
+
+			var id int64
+			err := tx.QueryRowContext(ctx, enrollmentInsertQuery,
+				studentID, groupID, enrollmentDate, status, time.Now(), time.Now()).Scan(&id)
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to create enrollment for student %d: %w", studentID, err)
+			}
+			enrollmentIDs = append(enrollmentIDs, id)
+			enrollmentCounts[groupID]++
+			studentsWithActivities[studentID] = 1
+			enrolled = true
+		}
+
+		if !enrolled {
+			return nil, fmt.Errorf("could not enroll student %d in any activity - check capacity", studentID)
+		}
+	}
+
+	// Second pass: Add additional activities to students (1-2 more each)
+	fmt.Println("Second pass: Adding additional activities to students...")
+	for _, studentID := range studentIDs {
+		// Each student gets 1-2 additional activities (total 2-3)
+		additionalActivities := rng.Intn(2) + 1
+
+		// Shuffle activities for random assignment
 		shuffledActivities := make([]int64, len(activityGroupIDs))
 		copy(shuffledActivities, activityGroupIDs)
 		for i := len(shuffledActivities) - 1; i > 0; i-- {
@@ -852,24 +923,80 @@ func seedStudentEnrollments(ctx context.Context, tx bun.Tx, activityGroupIDs []i
 			shuffledActivities[i], shuffledActivities[j] = shuffledActivities[j], shuffledActivities[i]
 		}
 
-		for i := 0; i < activitiesPerStudent && i < len(shuffledActivities); i++ {
+		enrolledCount := 0
+		for i := 0; i < len(shuffledActivities) && enrolledCount < additionalActivities; i++ {
 			groupID := shuffledActivities[i]
+
+			// Check if student is already enrolled in this activity
+			var exists bool
+			err := tx.QueryRowContext(ctx,
+				"SELECT EXISTS(SELECT 1 FROM activities.student_enrollments WHERE student_id = ? AND activity_group_id = ?)",
+				studentID, groupID).Scan(&exists)
+			if err != nil {
+				return nil, fmt.Errorf("failed to check existing enrollment: %w", err)
+			}
+			if exists {
+				continue
+			}
+
+			// Check if activity has reached its target fill rate
+			currentFillRate := float64(enrollmentCounts[groupID]) / float64(maxParticipants[groupID])
+			if currentFillRate >= targetFillRates[groupID] {
+				continue
+			}
+
 			status := attendanceStatuses[rng.Intn(len(attendanceStatuses))]
-			
-			// Random enrollment date in the last 30 days
 			enrollmentDate := time.Now().AddDate(0, 0, -rng.Intn(30))
 
 			var id int64
-			query := `INSERT INTO activities.student_enrollments (student_id, activity_group_id, enrollment_date, attendance_status, created_at, updated_at) 
-			          VALUES (?, ?, ?, ?, ?, ?) RETURNING id`
-
-			err := tx.QueryRowContext(ctx, query,
+			err = tx.QueryRowContext(ctx, enrollmentInsertQuery,
 				studentID, groupID, enrollmentDate, status, time.Now(), time.Now()).Scan(&id)
 
 			if err != nil {
-				return nil, fmt.Errorf("failed to create enrollment for student %d: %w", studentID, err)
+				return nil, fmt.Errorf("failed to create additional enrollment for student %d: %w", studentID, err)
 			}
 			enrollmentIDs = append(enrollmentIDs, id)
+			enrollmentCounts[groupID]++
+			studentsWithActivities[studentID]++
+			enrolledCount++
+		}
+	}
+
+	// Print statistics
+	fmt.Println("\nActivity enrollment statistics:")
+	totalEnrollments := 0
+	totalCapacity := 0
+	for groupID, count := range enrollmentCounts {
+		totalEnrollments += count
+		totalCapacity += maxParticipants[groupID]
+		fillRate := float64(count) / float64(maxParticipants[groupID]) * 100
+		if count > 0 {
+			fmt.Printf("  Activity Group %d: %d/%d enrolled (%.1f%% full, target: %.1f%%)\n",
+				groupID, count, maxParticipants[groupID], fillRate, targetFillRates[groupID]*100)
+		}
+	}
+
+	fmt.Printf("\nSummary:\n")
+	fmt.Printf("  Total enrollments: %d\n", totalEnrollments)
+	fmt.Printf("  Total capacity: %d\n", totalCapacity)
+	fmt.Printf("  Overall fill rate: %.1f%%\n", float64(totalEnrollments)/float64(totalCapacity)*100)
+
+	// Student distribution statistics
+	activityCounts := make(map[int]int) // How many students have X activities
+	for _, count := range studentsWithActivities {
+		activityCounts[count]++
+	}
+	fmt.Printf("\nStudent activity distribution:\n")
+	for count := 1; count <= 3; count++ {
+		if num, ok := activityCounts[count]; ok {
+			fmt.Printf("  %d students have %d %s\n", num, count,
+				func() string {
+					if count == 1 {
+						return "activity"
+					} else {
+						return "activities"
+					}
+				}())
 		}
 	}
 
@@ -878,10 +1005,10 @@ func seedStudentEnrollments(ctx context.Context, tx bun.Tx, activityGroupIDs []i
 
 func seedIoTDevices(ctx context.Context, tx bun.Tx, registrarPersonIDs []int64, rng *rand.Rand) ([]int64, error) {
 	deviceData := []struct {
-		deviceID     string
-		deviceType   string
-		name         string
-		status       string
+		deviceID   string
+		deviceType string
+		name       string
+		status     string
 	}{
 		{"RFID-MAIN-001", "rfid_reader", "Haupteingang-Scanner", "active"},
 		{"RFID-MENSA-001", "rfid_reader", "Mensa-Leser", "active"},
@@ -923,9 +1050,9 @@ func seedPrivacyConsents(ctx context.Context, tx bun.Tx, studentIDs []int64, rng
 		if rng.Float32() < 0.9 {
 			policyVersion := policyVersions[rng.Intn(len(policyVersions))]
 			accepted := true
-			acceptedAt := time.Now().AddDate(0, 0, -rng.Intn(180)) // Accepted within last 6 months
-			durationDays := 365 // 1 year validity
-			expiresAt := acceptedAt.AddDate(1, 0, 0) // 1 year from acceptance
+			acceptedAt := time.Now().AddDate(0, 0, -rng.Intn(180))           // Accepted within last 6 months
+			durationDays := 365                                              // 1 year validity
+			expiresAt := acceptedAt.AddDate(1, 0, 0)                         // 1 year from acceptance
 			renewalRequired := expiresAt.Before(time.Now().AddDate(0, 1, 0)) // Renewal needed if expires within a month
 
 			var id int64

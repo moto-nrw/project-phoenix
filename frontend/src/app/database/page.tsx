@@ -173,6 +173,7 @@ function DatabaseContent() {
         })}
       </div>
 
+
       {/* Info Section */}
       <div className="mt-8 rounded-lg border border-blue-200 bg-blue-50 p-4">
         <div className="flex">
@@ -188,6 +189,7 @@ function DatabaseContent() {
               <p>Änderungen an den Daten werden sofort wirksam. Bitte gehen Sie sorgfältig vor und überprüfen Sie Ihre Eingaben.</p>
             </div>
           </div>
+
         </div>
       </div>
     </>

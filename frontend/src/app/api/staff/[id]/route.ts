@@ -77,6 +77,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       name: staff.person ? `${staff.person.first_name} ${staff.person.last_name}` : "",
       first_name: staff.person?.first_name ?? "",
       last_name: staff.person?.last_name ?? "",
+      email: staff.person?.email ?? undefined,  // Include email from person object
       specialization: staff.specialization ?? "",
       role: staff.role ?? null,
       qualifications: staff.qualifications ?? null,
@@ -99,6 +100,7 @@ interface TeacherResponse {
   name: string;
   first_name: string;
   last_name: string;
+  email?: string;
   specialization: string;
   role: string | null;
   qualifications: string | null;
@@ -136,6 +138,7 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
         name: response.person ? `${response.person.first_name} ${response.person.last_name}` : "",
         first_name: response.person?.first_name ?? "",
         last_name: response.person?.last_name ?? "",
+        email: response.person?.email ?? undefined,  // Include email from person object
         specialization: response.specialization ?? "",
         role: response.role ?? null,
         qualifications: response.qualifications ?? null,

@@ -49,6 +49,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getGroup)
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/students", rs.getGroupStudents)
 		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/supervisors", rs.getGroupSupervisors)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/substitutions", rs.getGroupSubstitutions)
 
 		// Write operations require groups:create, groups:update, or groups:delete permission
 		r.With(authorize.RequiresPermission(permissions.GroupsCreate)).Post("/", rs.createGroup)
@@ -281,13 +282,21 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Assign teachers to the group if any were provided
+	if len(req.TeacherIDs) > 0 {
+		if err := rs.EducationService.UpdateGroupTeachers(r.Context(), group.ID, req.TeacherIDs); err != nil {
+			// Log the error but don't fail the entire operation
+			log.Printf("Failed to assign teachers to group %d: %v", group.ID, err)
+		}
+	}
+
 	// Get the created group with room details
 	createdGroup, err := rs.EducationService.FindGroupWithRoom(r.Context(), group.ID)
 	if err != nil {
 		createdGroup = group // Fallback to the original group without room details
 	}
 
-	// Get teachers for the group (should be empty for new groups)
+	// Get teachers for the group
 	teachers, _ := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
 
 	common.Respond(w, r, http.StatusCreated, newGroupResponse(createdGroup, teachers), "Group created successfully")
@@ -459,4 +468,44 @@ func (rs *Resource) getGroupSupervisors(w http.ResponseWriter, r *http.Request) 
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Group supervisors retrieved successfully")
+}
+
+// getGroupSubstitutions gets active substitutions for a specific group
+func (rs *Resource) getGroupSubstitutions(w http.ResponseWriter, r *http.Request) {
+	// Parse ID from URL
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid group ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if group exists
+	_, err = rs.EducationService.GetGroup(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("group not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get active substitutions for this group
+	date := time.Now()
+	if dateStr := r.URL.Query().Get("date"); dateStr != "" {
+		parsedDate, err := time.Parse("2006-01-02", dateStr)
+		if err == nil {
+			date = parsedDate
+		}
+	}
+
+	substitutions, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), id, date)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, substitutions, "Group substitutions retrieved successfully")
 }

@@ -65,6 +65,9 @@ type PersonRepository interface {
 
 	// UnlinkFromRFIDCard removes RFID card association from a person
 	UnlinkFromRFIDCard(ctx context.Context, personID int64) error
+
+	// FindWithAccount retrieves a person with their associated account
+	FindWithAccount(ctx context.Context, id int64) (*Person, error)
 }
 
 // StudentRepository defines operations for managing students

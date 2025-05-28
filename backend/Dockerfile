@@ -5,14 +5,14 @@ WORKDIR /src
 
 # Download dependencies with cache mount (only for dependencies)
 COPY go.mod go.sum ./
-RUN --mount=type=cache,target=/go/pkg/mod \
+RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
     go mod download
 
 # Add source code
 COPY . .
 
 # Build with module cache mount to avoid re-downloading
-RUN --mount=type=cache,target=/go/pkg/mod \
+RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o main .
 
 # Multi-Stage production build
