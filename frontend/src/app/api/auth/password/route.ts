@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { apiPut } from "~/lib/api-helpers";
-import type { AxiosError } from "axios";
+import { isAxiosError } from "axios";
 
 interface ErrorResponse {
   message?: string;
