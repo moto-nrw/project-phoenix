@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     // Call backend API to change password
     await apiPost(
-      "/api/auth/password",
+      "/auth/password",
       session.user.token,
       {
         current_password: currentPassword,
