@@ -62,9 +62,9 @@ func (rs *Resource) Router() chi.Router {
 
 		// Current user routes
 		r.Get("/account", rs.getAccount)
-
-		// Password change requires auth:update permission
-		r.With(authorize.RequiresPermission(permissions.AuthManage)).Post("/password", rs.changePassword)
+		
+		// Password change - users can change their own password without special permissions
+		r.Post("/password", rs.changePassword)
 
 		// Admin routes - require admin role or specific permissions
 		r.Group(func(r chi.Router) {
