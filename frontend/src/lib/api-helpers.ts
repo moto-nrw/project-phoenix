@@ -63,6 +63,11 @@ export async function apiGet<T>(
     throw new Error(`API error (${response.status}): ${errorText}`);
   }
 
+  // Handle 204 No Content responses
+  if (response.status === 204) {
+    return {} as T;
+  }
+
   return (await response.json()) as T;
 }
 
@@ -95,6 +100,11 @@ export async function apiPost<T, B = unknown>(
     throw new Error(`API error (${response.status}): ${errorText}`);
   }
 
+  // Handle 204 No Content responses
+  if (response.status === 204) {
+    return {} as T;
+  }
+
   return (await response.json()) as T;
 }
 
@@ -125,6 +135,11 @@ export async function apiPut<T, B = unknown>(
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`API error (${response.status}): ${errorText}`);
+  }
+
+  // Handle 204 No Content responses
+  if (response.status === 204) {
+    return {} as T;
   }
 
   return (await response.json()) as T;

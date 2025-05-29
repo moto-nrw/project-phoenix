@@ -70,11 +70,12 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
 
     try {
       const response = await fetch("/api/auth/password", {
-        method: "PUT",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           currentPassword,
           newPassword,
+          confirmPassword,
         }),
       });
 

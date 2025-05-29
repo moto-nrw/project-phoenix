@@ -16,7 +16,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
@@ -62,9 +61,9 @@ func (rs *Resource) Router() chi.Router {
 
 		// Current user routes
 		r.Get("/account", rs.getAccount)
-
-		// Password change requires auth:update permission
-		r.With(authorize.RequiresPermission(permissions.AuthManage)).Post("/password", rs.changePassword)
+		
+		// Password change - users can change their own password without special permissions
+		r.Post("/password", rs.changePassword)
 
 		// Admin routes - require admin role or specific permissions
 		r.Group(func(r chi.Router) {
