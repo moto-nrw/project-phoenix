@@ -97,5 +97,27 @@ func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) 
 		}
 	}
 	
+	// Check and get role count - using AuthManage permission since there's no specific roles permission
+	if hasPermission(permissions.AuthManage) {
+		response.Permissions.CanViewRoles = true
+		roles, err := s.repos.Role.List(ctx, nil)
+		if err != nil {
+			log.Printf("Error counting roles: %v", err)
+		} else {
+			response.Roles = len(roles)
+		}
+	}
+	
+	// Check and get permission count - using AuthManage permission
+	if hasPermission(permissions.AuthManage) {
+		response.Permissions.CanViewPermissions = true
+		perms, err := s.repos.Permission.List(ctx, nil)
+		if err != nil {
+			log.Printf("Error counting permissions: %v", err)
+		} else {
+			response.PermissionCount = len(perms)
+		}
+	}
+	
 	return response, nil
 }

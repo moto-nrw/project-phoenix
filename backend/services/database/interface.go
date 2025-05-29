@@ -11,6 +11,8 @@ type StatsResponse struct {
 	Rooms    int `json:"rooms"`
 	Activities int `json:"activities"`
 	Groups   int `json:"groups"`
+	Roles    int `json:"roles"`
+	PermissionCount int `json:"permissionCount"`
 	
 	// Permissions indicate which counts the user is allowed to see
 	Permissions StatsPermissions `json:"permissions"`
@@ -23,6 +25,8 @@ type StatsPermissions struct {
 	CanViewRooms      bool `json:"canViewRooms"`
 	CanViewActivities bool `json:"canViewActivities"`
 	CanViewGroups     bool `json:"canViewGroups"`
+	CanViewRoles      bool `json:"canViewRoles"`
+	CanViewPermissions bool `json:"canViewPermissions"`
 }
 
 // DatabaseService defines operations for database statistics and management

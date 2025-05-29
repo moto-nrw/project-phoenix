@@ -61,6 +61,22 @@ const baseDataSections = [
     icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
     color: "from-purple-500 to-purple-600",
   },
+  {
+    id: "roles",
+    title: "Rollen",
+    description: "Benutzerrollen und Berechtigungen verwalten",
+    href: "/database/roles",
+    icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
+    color: "from-[#9333ea] to-[#7c3aed]",
+  },
+  {
+    id: "permissions",
+    title: "Berechtigungen",
+    description: "Systemberechtigungen verwalten",
+    href: "/database/permissions",
+    icon: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z",
+    color: "from-[#ec4899] to-[#db2777]",
+  },
 ];
 
 function DatabaseContent() {
@@ -71,12 +87,16 @@ function DatabaseContent() {
     rooms: number;
     activities: number;
     groups: number;
+    roles: number;
+    permissionCount: number;
   }>({
     students: 0,
     teachers: 0,
     rooms: 0,
     activities: 0,
     groups: 0,
+    roles: 0,
+    permissionCount: 0,
   });
   const [permissions, setPermissions] = useState<{
     canViewStudents: boolean;
@@ -84,20 +104,21 @@ function DatabaseContent() {
     canViewRooms: boolean;
     canViewActivities: boolean;
     canViewGroups: boolean;
+    canViewRoles: boolean;
+    canViewPermissions: boolean;
   }>({
     canViewStudents: false,
     canViewTeachers: false,
     canViewRooms: false,
     canViewActivities: false,
     canViewGroups: false,
+    canViewRoles: false,
+    canViewPermissions: false,
   });
   const [countsLoading, setCountsLoading] = useState(true);
 
   // Fetch real counts from the database
   useEffect(() => {
-    // Only fetch if we haven't loaded yet
-    if (countsLoading === false) return;
-    
     const fetchCounts = async () => {
       try {
         const response = await fetch("/api/database/counts");
@@ -111,12 +132,16 @@ function DatabaseContent() {
               rooms: number;
               activities: number;
               groups: number;
+              roles: number;
+              permissionCount: number;
               permissions: {
                 canViewStudents: boolean;
                 canViewTeachers: boolean;
                 canViewRooms: boolean;
                 canViewActivities: boolean;
                 canViewGroups: boolean;
+                canViewRoles: boolean;
+                canViewPermissions: boolean;
               };
             };
           };
@@ -128,6 +153,8 @@ function DatabaseContent() {
             rooms: data.rooms,
             activities: data.activities,
             groups: data.groups,
+            roles: data.roles,
+            permissionCount: data.permissionCount,
           });
           setPermissions(data.permissions || {
             canViewStudents: false,
@@ -135,6 +162,8 @@ function DatabaseContent() {
             canViewRooms: false,
             canViewActivities: false,
             canViewGroups: false,
+            canViewRoles: false,
+            canViewPermissions: false,
           });
           console.log("Permissions set to:", data.permissions);
         } else {
@@ -182,12 +211,13 @@ function DatabaseContent() {
         {baseDataSections.map((section) => {
           // Check permissions for this section
           const permissionKey = `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}` as keyof typeof permissions;
-          if (!permissions || !permissions[permissionKey]) {
+          if (!permissions?.[permissionKey]) {
             return null; // Don't render sections user doesn't have permission for
           }
           
-          // Get the count for this section
-          const count = counts[section.id as keyof typeof counts] ?? 0;
+          // Get the count for this section (special case for permissions)
+          const countKey = section.id === 'permissions' ? 'permissionCount' : section.id;
+          const count = counts[countKey as keyof typeof counts] ?? 0;
           const countText = countsLoading ? "Lade..." : `${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
           
           return (
