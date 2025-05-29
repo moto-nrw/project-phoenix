@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/uptrace/bun"
@@ -186,6 +187,14 @@ func (m *SimpleMockActiveService) GetVisit(ctx context.Context, visitID int64) (
 func (m *SimpleMockActiveService) WithTx(tx bun.Tx) interface{} {
 	// Required by base.TransactionalService
 	return m
+}
+
+func (m *SimpleMockActiveService) GetDashboardAnalytics(ctx context.Context) (*activeSvc.DashboardAnalytics, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*activeSvc.DashboardAnalytics), args.Error(1)
 }
 
 // Simplified mock repositories
