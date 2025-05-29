@@ -84,8 +84,8 @@ type DashboardAnalytics struct {
 
 	// Activities & Rooms
 	ActiveActivities    int
-	FreeRooms          int
-	TotalRooms         int
+	FreeRooms           int
+	TotalRooms          int
 	CapacityUtilization float64
 	ActivityCategories  int
 

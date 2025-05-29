@@ -239,8 +239,8 @@ type DashboardAnalyticsResponse struct {
 
 	// Activities & Rooms
 	ActiveActivities    int     `json:"active_activities"`
-	FreeRooms          int     `json:"free_rooms"`
-	TotalRooms         int     `json:"total_rooms"`
+	FreeRooms           int     `json:"free_rooms"`
+	TotalRooms          int     `json:"total_rooms"`
 	CapacityUtilization float64 `json:"capacity_utilization"`
 	ActivityCategories  int     `json:"activity_categories"`
 
@@ -1948,18 +1948,18 @@ func (rs *Resource) getDashboardAnalytics(w http.ResponseWriter, r *http.Request
 		StudentsOnPlayground: analytics.StudentsOnPlayground,
 		StudentsInTransit:    analytics.StudentsInTransit,
 		ActiveActivities:     analytics.ActiveActivities,
-		FreeRooms:           analytics.FreeRooms,
-		TotalRooms:          analytics.TotalRooms,
-		CapacityUtilization: analytics.CapacityUtilization,
+		FreeRooms:            analytics.FreeRooms,
+		TotalRooms:           analytics.TotalRooms,
+		CapacityUtilization:  analytics.CapacityUtilization,
 		ActivityCategories:   analytics.ActivityCategories,
 		ActiveOGSGroups:      analytics.ActiveOGSGroups,
 		StudentsInGroupRooms: analytics.StudentsInGroupRooms,
 		SupervisorsToday:     analytics.SupervisorsToday,
 		StudentsInHomeRoom:   analytics.StudentsInHomeRoom,
-		RecentActivity:      make([]RecentActivityItem, 0),
-		CurrentActivities:   make([]CurrentActivityItem, 0),
-		ActiveGroupsSummary: make([]ActiveGroupSummary, 0),
-		LastUpdated:         time.Now(),
+		RecentActivity:       make([]RecentActivityItem, 0),
+		CurrentActivities:    make([]CurrentActivityItem, 0),
+		ActiveGroupsSummary:  make([]ActiveGroupSummary, 0),
+		LastUpdated:          time.Now(),
 	}
 
 	// Map recent activity

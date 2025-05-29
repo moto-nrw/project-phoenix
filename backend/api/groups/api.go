@@ -505,7 +505,7 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 	// Check authorization - only group supervisors and admins can see this information
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	isAdmin := hasAdminPermissions(userPermissions)
-	
+
 	if !isAdmin {
 		// Check if user supervises this educational group
 		hasAccess := false
@@ -542,7 +542,7 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 		result := make(map[string]interface{})
 		result["group_has_room"] = false
 		result["student_room_status"] = make(map[string]interface{})
-		
+
 		for _, student := range students {
 			studentStatus := map[string]interface{}{
 				"in_group_room": false,
@@ -550,7 +550,7 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 			}
 			result["student_room_status"].(map[string]interface{})[strconv.FormatInt(student.ID, 10)] = studentStatus
 		}
-		
+
 		common.Respond(w, r, http.StatusOK, result, "Group has no assigned room")
 		return
 	}
@@ -577,7 +577,7 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 				inGroupRoom := activeGroup.RoomID == *group.RoomID
 				studentStatus["in_group_room"] = inGroupRoom
 				studentStatus["current_room_id"] = activeGroup.RoomID
-				
+
 				if inGroupRoom {
 					delete(studentStatus, "reason")
 				} else {

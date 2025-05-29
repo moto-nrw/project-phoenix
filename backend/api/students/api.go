@@ -760,7 +760,7 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 	// Check authorization - only group supervisors can see this information
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	isAdmin := hasAdminPermissions(userPermissions)
-	
+
 	if !isAdmin {
 		// Check if user supervises this educational group
 		staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
@@ -825,8 +825,8 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 
 	// Prepare response
 	response := map[string]interface{}{
-		"in_group_room": inGroupRoom,
-		"group_room_id": *group.RoomID,
+		"in_group_room":   inGroupRoom,
+		"group_room_id":   *group.RoomID,
 		"current_room_id": activeGroup.RoomID,
 	}
 

@@ -3,6 +3,7 @@ package active
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -712,31 +713,31 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 
 	// Placeholder values for other metrics
 	// In a real implementation, these would be calculated from actual data
-	analytics.StudentsEnrolled = 150 // Would come from student repository
+	analytics.StudentsEnrolled = 150    // Would come from student repository
 	analytics.StudentsOnPlayground = 32 // Would be calculated based on room types
-	analytics.StudentsInTransit = 8 // Would be calculated from recent check-ins/outs
+	analytics.StudentsInTransit = 8     // Would be calculated from recent check-ins/outs
 	analytics.ActiveActivities = activeGroupsCount
-	analytics.FreeRooms = 8 // Would be calculated from total rooms - occupied rooms
-	analytics.TotalRooms = 24 // Would come from room repository
+	analytics.FreeRooms = 8              // Would be calculated from total rooms - occupied rooms
+	analytics.TotalRooms = 24            // Would come from room repository
 	analytics.CapacityUtilization = 0.73 // Would be calculated from room capacities
-	analytics.ActivityCategories = 6 // Would come from activity repository
-	analytics.StudentsInGroupRooms = 35 // Would be calculated from visits in group rooms
-	analytics.StudentsInHomeRoom = 19 // Would be calculated from students in their assigned rooms
+	analytics.ActivityCategories = 6     // Would come from activity repository
+	analytics.StudentsInGroupRooms = 35  // Would be calculated from visits in group rooms
+	analytics.StudentsInHomeRoom = 19    // Would be calculated from students in their assigned rooms
 
 	// Recent activity (privacy-compliant - no individual student data)
 	recentActivity := []RecentActivity{}
-	
+
 	// Get recent group starts/ends
 	for i, group := range activeGroups {
 		if i >= 3 { // Limit to 3 recent activities
 			break
 		}
-		
+
 		if time.Since(group.StartTime) < 30*time.Minute {
 			activity := RecentActivity{
 				Type:      "group_start",
-				GroupName: "Group " + string(rune(group.GroupID)), // Placeholder - would get actual group name
-				RoomName:  "Room " + string(rune(group.RoomID)), // Placeholder - would get actual room name
+				GroupName: fmt.Sprintf("Group %d", group.GroupID), // Placeholder - would get actual group name
+				RoomName:  fmt.Sprintf("Room %d", group.RoomID),   // Placeholder - would get actual room name
 				Count:     len(group.Visits),
 				Timestamp: group.StartTime,
 			}
@@ -751,19 +752,19 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		if i >= 2 || !group.IsActive() { // Limit to 2 current activities
 			break
 		}
-		
+
 		activity := CurrentActivity{
-			Name:         "Activity " + string(rune(group.GroupID)), // Placeholder
-			Category:     "Sport", // Placeholder - would get from activity data
+			Name:         fmt.Sprintf("Activity %d", group.GroupID), // Placeholder
+			Category:     "Sport",                                   // Placeholder - would get from activity data
 			Participants: len(group.Visits),
 			MaxCapacity:  15, // Placeholder - would get from activity data
 			Status:       "active",
 		}
-		
+
 		if activity.Participants >= activity.MaxCapacity {
 			activity.Status = "full"
 		}
-		
+
 		currentActivities = append(currentActivities, activity)
 	}
 	analytics.CurrentActivities = currentActivities
@@ -774,15 +775,15 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		if i >= 2 || !group.IsActive() { // Limit to 2 groups
 			break
 		}
-		
+
 		groupInfo := ActiveGroupInfo{
-			Name:         "Group " + string(rune(group.GroupID)), // Placeholder
+			Name:         fmt.Sprintf("Group %d", group.GroupID), // Placeholder
 			Type:         "ogs_group",
 			StudentCount: len(group.Visits),
-			Location:     "Room " + string(rune(group.RoomID)), // Placeholder
+			Location:     fmt.Sprintf("Room %d", group.RoomID), // Placeholder
 			Status:       "active",
 		}
-		
+
 		activeGroupsSummary = append(activeGroupsSummary, groupInfo)
 	}
 	analytics.ActiveGroupsSummary = activeGroupsSummary
