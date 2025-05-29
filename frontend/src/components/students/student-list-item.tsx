@@ -29,6 +29,7 @@ export function StudentListItem({ student, onClick }: StudentListItemProps) {
         key="group"
         groupName={student.group_name} 
         groupId={student.group_id}
+        asLink={false} // Prevent nested links
       />
     );
   }
@@ -36,7 +37,6 @@ export function StudentListItem({ student, onClick }: StudentListItemProps) {
   return (
     <DatabaseListItem
       id={student.id}
-      href={`/database/students/${student.id}`}
       onClick={() => onClick(student)}
       title={formatStudentName(student)}
       badges={badges}

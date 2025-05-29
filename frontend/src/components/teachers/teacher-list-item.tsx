@@ -48,7 +48,6 @@ export function TeacherListItem({ teacher, onClick }: TeacherListItemProps) {
   return (
     <DatabaseListItem
       id={teacher.id}
-      href={`/database/teachers/${teacher.id}`}
       onClick={() => onClick(teacher)}
       title={teacher.name}
       badges={badges}
