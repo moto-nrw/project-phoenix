@@ -78,32 +78,71 @@ function DatabaseContent() {
     activities: 0,
     groups: 0,
   });
+  const [permissions, setPermissions] = useState<{
+    canViewStudents: boolean;
+    canViewTeachers: boolean;
+    canViewRooms: boolean;
+    canViewActivities: boolean;
+    canViewGroups: boolean;
+  }>({
+    canViewStudents: false,
+    canViewTeachers: false,
+    canViewRooms: false,
+    canViewActivities: false,
+    canViewGroups: false,
+  });
   const [countsLoading, setCountsLoading] = useState(true);
 
   // Fetch real counts from the database
   useEffect(() => {
+    // Only fetch if we haven't loaded yet
+    if (countsLoading === false) return;
+    
     const fetchCounts = async () => {
       try {
-        // TODO: Implement /api/database/counts endpoint
-        // const response = await fetch("/api/database/counts");
-        // if (response.ok) {
-        //   const data = await response.json() as typeof counts;
-        //   setCounts(data);
-        // }
-        
-        // Mock data for now
-        setTimeout(() => {
+        const response = await fetch("/api/database/counts");
+        if (response.ok) {
+          const result = await response.json() as {
+            success: boolean;
+            message: string;
+            data: {
+              students: number;
+              teachers: number;
+              rooms: number;
+              activities: number;
+              groups: number;
+              permissions: {
+                canViewStudents: boolean;
+                canViewTeachers: boolean;
+                canViewRooms: boolean;
+                canViewActivities: boolean;
+                canViewGroups: boolean;
+              };
+            };
+          };
+          console.log("Database counts response:", result);
+          const data = result.data;
           setCounts({
-            students: 150,
-            teachers: 25,
-            rooms: 30,
-            activities: 18,
-            groups: 12,
+            students: data.students,
+            teachers: data.teachers,
+            rooms: data.rooms,
+            activities: data.activities,
+            groups: data.groups,
           });
-          setCountsLoading(false);
-        }, 500);
+          setPermissions(data.permissions || {
+            canViewStudents: false,
+            canViewTeachers: false,
+            canViewRooms: false,
+            canViewActivities: false,
+            canViewGroups: false,
+          });
+          console.log("Permissions set to:", data.permissions);
+        } else {
+          console.error("Failed to fetch counts:", response.status);
+        }
       } catch (error) {
         console.error("Error fetching counts:", error);
+      } finally {
         setCountsLoading(false);
       }
     };
@@ -141,6 +180,12 @@ function DatabaseContent() {
       {/* Data Section Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {baseDataSections.map((section) => {
+          // Check permissions for this section
+          const permissionKey = `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}` as keyof typeof permissions;
+          if (!permissions || !permissions[permissionKey]) {
+            return null; // Don't render sections user doesn't have permission for
+          }
+          
           // Get the count for this section
           const count = counts[section.id as keyof typeof counts] ?? 0;
           const countText = countsLoading ? "Lade..." : `${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;

@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/database"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/feedback"
@@ -32,6 +33,7 @@ type Factory struct {
 	Schedule    schedule.Service
 	Users       users.PersonService
 	UserContext usercontext.UserContextService
+	Database    database.DatabaseService
 }
 
 // NewFactory creates a new services factory
@@ -169,6 +171,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
+	// Initialize database stats service
+	databaseService := database.NewService(repos)
+
 	return &Factory{
 		Auth:        authService,
 		Active:      activeService,
@@ -181,5 +186,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		Schedule:    scheduleService,
 		Users:       usersService,
 		UserContext: userContextService,
+		Database:    databaseService,
 	}, nil
 }
