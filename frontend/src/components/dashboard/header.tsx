@@ -136,8 +136,8 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
                 <div className="flex items-center h-16 w-full">
                     {/* Left section: Logo + Brand + Context */}
                     <div className="flex items-center space-x-4 flex-shrink-0">
-                        <div className="flex items-center space-x-3">
-                            <div className="relative">
+                        <Link href="/dashboard" className="flex items-center space-x-3 group">
+                            <div className="relative transition-transform duration-200 group-hover:scale-110">
                                 <Image
                                     src="/images/moto_transparent.png"
                                     alt="moto"
@@ -151,7 +151,7 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
                             
                             <div className="flex items-center space-x-3">
                                 <span
-                                    className="text-xl font-bold tracking-tight"
+                                    className="text-xl font-bold tracking-tight transition-all duration-200 group-hover:scale-105"
                                     style={{
                                         background: 'linear-gradient(135deg, #5080d8, #83cd2d)',
                                         WebkitBackgroundClip: 'text',
@@ -161,16 +161,16 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
                                 >
                                     moto
                                 </span>
-                                
-                                {/* Breadcrumb separator */}
-                                <div className="hidden md:block w-px h-5 bg-gray-300"></div>
-                                
-                                {/* Context indicator */}
-                                <span className="hidden md:inline text-sm font-medium text-gray-600">
-                                    {pageTitle}
-                                </span>
                             </div>
-                        </div>
+                        </Link>
+                        
+                        {/* Breadcrumb separator */}
+                        <div className="hidden md:block w-px h-5 bg-gray-300"></div>
+                        
+                        {/* Context indicator */}
+                        <span className="hidden md:inline text-sm font-medium text-gray-600">
+                            {pageTitle}
+                        </span>
                     </div>
 
                     {/* Search bar centered horizontally */}
