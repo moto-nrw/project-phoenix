@@ -206,6 +206,24 @@ function DatabaseContent() {
         </p>
       </div>
 
+      {/* Info Section */}
+      <div className="mb-6 md:mb-8 rounded-lg border border-blue-200 bg-blue-50 p-3 md:p-4">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <Icon 
+              path="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
+              className="h-4 w-4 md:h-5 md:w-5 text-blue-600" 
+            />
+          </div>
+          <div className="ml-2 md:ml-3 flex-1">
+            <h3 className="text-xs md:text-sm font-medium text-blue-800">Hinweis zur Datenverwaltung</h3>
+            <div className="mt-0.5 md:mt-1 text-xs md:text-sm text-blue-700">
+              <p>Änderungen an den Daten werden sofort wirksam. Bitte gehen Sie sorgfältig vor und überprüfen Sie Ihre Eingaben.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Data Section Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {baseDataSections.map((section) => {
@@ -265,25 +283,6 @@ function DatabaseContent() {
             </Link>
           );
         })}
-      </div>
-
-
-      {/* Info Section */}
-      <div className="mt-6 md:mt-8 rounded-lg border border-blue-200 bg-blue-50 p-3 md:p-4">
-        <div className="flex">
-          <div className="flex-shrink-0">
-            <Icon 
-              path="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
-              className="h-4 w-4 md:h-5 md:w-5 text-blue-600" 
-            />
-          </div>
-          <div className="ml-2 md:ml-3 flex-1">
-            <h3 className="text-xs md:text-sm font-medium text-blue-800">Hinweis zur Datenverwaltung</h3>
-            <div className="mt-0.5 md:mt-1 text-xs md:text-sm text-blue-700">
-              <p>Änderungen an den Daten werden sofort wirksam. Bitte gehen Sie sorgfältig vor und überprüfen Sie Ihre Eingaben.</p>
-            </div>
-          </div>
-        </div>
       </div>
     </>
   );
