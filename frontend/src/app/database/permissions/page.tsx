@@ -1,19 +1,34 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PageHeader } from "@/components/dashboard";
+import { useSession } from "next-auth/react";
+import { redirect } from "next/navigation";
+import { ResponsiveLayout } from "@/components/dashboard";
+import { DatabasePageHeader, SearchFilter, DatabaseListSection } from "@/components/ui";
+import { SelectFilter } from "@/components/ui";
+import { PermissionListItem } from "@/components/auth";
 import { authService } from "@/lib/auth-service";
 import type { Permission } from "@/lib/auth-helpers";
 
 export default function PermissionsPage() {
   const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchFilter, setSearchFilter] = useState("");
+  const [resourceFilter, setResourceFilter] = useState<string | null>(null);
+  const [actionFilter, setActionFilter] = useState<string | null>(null);
 
-  const loadPermissions = async () => {
+  const { status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      redirect("/");
+    },
+  });
+
+  // Function to fetch permissions
+  const fetchPermissions = async () => {
     try {
-      setIsLoading(true);
+      setLoading(true);
       setError(null);
       const data = await authService.getPermissions();
       
@@ -27,15 +42,36 @@ export default function PermissionsPage() {
       setError("Fehler beim Laden der Berechtigungen");
       console.error(err);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
+  // Initial data load
   useEffect(() => {
-    void loadPermissions();
+    void fetchPermissions();
   }, []);
 
-  // Filter permissions based on search term
+  if (status === "loading") {
+    return <div />;
+  }
+
+  // Get unique resources from loaded permissions
+  const resourceOptions = Array.from(
+    new Set(permissions.map(p => p.resource))
+  ).sort().map(resource => ({
+    value: resource,
+    label: resource
+  }));
+
+  // Get unique actions from loaded permissions
+  const actionOptions = Array.from(
+    new Set(permissions.map(p => p.action))
+  ).sort().map(action => ({
+    value: action,
+    label: action
+  }));
+
+  // Filter permissions based on search term and filters
   const filteredPermissions = permissions.filter((permission) => {
     // Safety check for permission structure
     if (!permission || typeof permission !== 'object') {
@@ -47,22 +83,112 @@ export default function PermissionsPage() {
       return false;
     }
     
-    return (
-      permission.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      permission.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      permission.resource.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      permission.action.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Apply filters
+    if (resourceFilter && permission.resource !== resourceFilter) return false;
+    if (actionFilter && permission.action !== actionFilter) return false;
+    
+    // Apply search
+    if (searchFilter) {
+      const searchLower = searchFilter.toLowerCase();
+      return (
+        permission.name.toLowerCase().includes(searchLower) ||
+        permission.description.toLowerCase().includes(searchLower) ||
+        permission.resource.toLowerCase().includes(searchLower) ||
+        permission.action.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    return true;
   });
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <PageHeader
-        title="System-Berechtigungen"
-        backUrl="/dashboard"
-      />
+  // Group permissions by resource for display
+  const groupedPermissions = filteredPermissions.reduce((acc, permission) => {
+    const resource = permission.resource;
+    acc[resource] ??= [];
+    acc[resource].push(permission);
+    return acc;
+  }, {} as Record<string, Permission[]>);
 
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+  // Sort grouped permissions
+  const sortedGroups = Object.entries(groupedPermissions)
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  // Render filters
+  const renderFilters = () => (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:gap-4">
+      <SelectFilter
+        id="resourceFilter"
+        label="Resource"
+        value={resourceFilter}
+        onChange={setResourceFilter}
+        options={resourceOptions}
+        placeholder="Alle Resources"
+      />
+      <SelectFilter
+        id="actionFilter"
+        label="Action"
+        value={actionFilter}
+        onChange={setActionFilter}
+        options={actionOptions}
+        placeholder="Alle Actions"
+      />
+    </div>
+  );
+
+  // Loading state
+  if (loading) {
+    return (
+      <ResponsiveLayout>
+        <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 pb-24 lg:pb-8">
+          <div className="flex flex-col items-center justify-center py-12 md:py-16">
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-10 w-10 md:h-12 md:w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+              <p className="text-sm md:text-base text-gray-600">Daten werden geladen...</p>
+            </div>
+          </div>
+        </div>
+      </ResponsiveLayout>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <ResponsiveLayout>
+        <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 pb-24 lg:pb-8">
+          <div className="flex flex-col items-center justify-center py-8 md:py-12">
+            <div className="max-w-md w-full rounded-lg bg-red-50 p-4 md:p-6 text-red-800 shadow-md">
+              <h2 className="mb-2 text-lg md:text-xl font-semibold">Fehler</h2>
+              <p className="text-sm md:text-base">{error}</p>
+              <button
+                onClick={fetchPermissions}
+                className="mt-4 w-full md:w-auto rounded-lg bg-red-100 px-4 py-2 text-sm md:text-base text-red-800 transition-colors hover:bg-red-200 active:scale-[0.98]"
+              >
+                Erneut versuchen
+              </button>
+            </div>
+          </div>
+        </div>
+      </ResponsiveLayout>
+    );
+  }
+
+  return (
+    <ResponsiveLayout>
+      <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 pb-24 lg:pb-8">
+        <DatabasePageHeader 
+          title="System-Berechtigungen" 
+          description="Übersicht aller Systemberechtigungen"
+        />
+        
+        <SearchFilter
+          searchPlaceholder="Berechtigungen suchen..."
+          searchValue={searchFilter}
+          onSearchChange={setSearchFilter}
+          filters={renderFilters()}
+          addButton={undefined}
+        />
+
         {/* Introduction */}
         <div className="mb-8 rounded-lg bg-blue-50 border border-blue-200 p-6">
           <h2 className="text-lg font-semibold text-blue-900 mb-2">
@@ -74,101 +200,52 @@ export default function PermissionsPage() {
             die wiederum Benutzern zugeordnet werden können.
           </p>
         </div>
-
-        {/* Search Bar */}
-        <div className="mb-6">
-          <input
-            type="text"
-            placeholder="Berechtigungen suchen..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full max-w-md rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:outline-none"
-          />
-        </div>
-
-        {/* Loading State */}
-        {isLoading && (
-          <div className="text-center py-12">
-            <span className="text-gray-500">Lade Berechtigungen...</span>
-          </div>
-        )}
-
-        {/* Error State */}
-        {error && (
-          <div className="mb-6 rounded-lg bg-red-50 border border-red-200 p-4">
-            <p className="text-red-800">{error}</p>
-          </div>
-        )}
-
-        {/* Permissions Grid */}
-        {!isLoading && !error && (
-          <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-            <div className="px-4 py-5 sm:px-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">
-                Verfügbare Berechtigungen ({filteredPermissions.length})
-              </h3>
+        
+        <DatabaseListSection 
+          title={`Berechtigungen (${filteredPermissions.length} von ${permissions.length})`}
+          itemCount={filteredPermissions.length}
+          itemLabel={{ singular: "Berechtigung", plural: "Berechtigungen" }}
+        >
+          {sortedGroups.length > 0 ? (
+            <div className="space-y-8">
+              {sortedGroups.map(([resource, perms]) => (
+                <div key={resource}>
+                  <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">
+                    {resource} ({perms.length})
+                  </h4>
+                  <div className="space-y-3">
+                    {perms.sort((a, b) => a.name.localeCompare(b.name)).map((permission) => (
+                      <PermissionListItem key={permission.id} permission={permission} />
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="border-t border-gray-200">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Beschreibung
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Resource
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Action
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredPermissions.map((permission) => (
-                    <tr key={permission.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="font-mono text-sm text-gray-900">
-                          {permission.name}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm text-gray-600">
-                          {permission.description}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                          {permission.resource}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                          {permission.action}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              
-              {filteredPermissions.length === 0 && (
-                <div className="text-center py-12">
-                  <p className="text-gray-500">
-                    {searchTerm
-                      ? "Keine Berechtigungen gefunden, die Ihrer Suche entsprechen."
-                      : "Keine Berechtigungen vorhanden."}
+          ) : (
+            <div className="py-8 md:py-12 text-center">
+              <div className="flex flex-col items-center gap-4">
+                <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                <div>
+                  <h3 className="text-base md:text-lg font-medium text-gray-900 mb-1">
+                    {searchFilter || resourceFilter || actionFilter
+                      ? "Keine Ergebnisse gefunden"
+                      : "Keine Berechtigungen vorhanden"}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {searchFilter || resourceFilter || actionFilter
+                      ? "Versuchen Sie einen anderen Suchbegriff."
+                      : "Es sind keine Berechtigungen definiert."}
                   </p>
                 </div>
-              )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </DatabaseListSection>
 
         {/* Permission Groups Explanation */}
-        <div className="mt-8 grid gap-6 md:grid-cols-2">
+        <div className="mt-12 grid gap-6 md:grid-cols-2">
           <div className="bg-white overflow-hidden shadow rounded-lg">
             <div className="px-6 py-4 bg-green-50">
               <h3 className="text-lg font-medium text-green-900">Resources</h3>
@@ -269,7 +346,7 @@ export default function PermissionsPage() {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </ResponsiveLayout>
   );
 }
