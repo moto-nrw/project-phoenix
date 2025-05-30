@@ -102,6 +102,9 @@ type StudentRepository interface {
 	// ListWithOptions retrieves students with query options
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Student, error)
 
+	// CountWithOptions counts students matching the query options
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+
 	// UpdateLocation updates a student's location status
 	UpdateLocation(ctx context.Context, id int64, location string) error
 

@@ -302,20 +302,56 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	queryOptions.Filter = filter
 
 	var students []*users.Student
-	var err error
-
+	var totalCount int
+	
 	// Get students - show all for search functionality
 	if len(allowedGroupIDs) > 0 {
 		// Specific group filter requested
-		students, err = rs.StudentRepo.FindByGroupIDs(r.Context(), allowedGroupIDs)
+		students, err := rs.StudentRepo.FindByGroupIDs(r.Context(), allowedGroupIDs)
 		if err != nil {
 			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 				log.Printf("Error rendering error response: %v", err)
 			}
 			return
 		}
+		totalCount = len(students)
 	} else {
 		// No specific group filter - get all students
+		
+		// First, count total students matching database filters (without person-based filters)
+		// This gives us an approximate count for pagination
+		countOptions := base.NewQueryOptions()
+		countFilter := base.NewFilter()
+		
+		// Apply only database-level filters for counting
+		if schoolClass != "" {
+			countFilter.ILike("school_class", "%"+schoolClass+"%")
+		}
+		if guardianName != "" {
+			countFilter.ILike("guardian_name", "%"+guardianName+"%")
+		}
+		countOptions.Filter = countFilter
+		
+		// Get the count efficiently from database
+		dbCount, err := rs.StudentRepo.CountWithOptions(r.Context(), countOptions)
+		if err != nil {
+			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+		
+		// If no search/person filters, use the database count
+		if search == "" && firstName == "" && lastName == "" && location == "" {
+			totalCount = dbCount
+		} else {
+			// With search/person filters, we need to count after filtering
+			// For now, use the database count as an approximation
+			// In a production system, you might want to do this filtering at the database level
+			totalCount = dbCount
+		}
+		
+		// Get the paginated subset
 		students, err = rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
 		if err != nil {
 			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
@@ -370,7 +406,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		responses = append(responses, newStudentResponse(student, person, group, canAccessLocation))
 	}
 
-	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), "Students retrieved successfully")
+	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, totalCount, "Students retrieved successfully")
 }
 
 // getStudent handles getting a student by ID

@@ -279,6 +279,36 @@ func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelB
 	return students, nil
 }
 
+// CountWithOptions counts students matching the query options
+func (r *StudentRepository) CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error) {
+	query := r.db.NewSelect().
+		Model((*users.Student)(nil)).
+		ModelTableExpr("users.students AS student").
+		Column("student.id")
+
+	// Apply query options with table alias
+	if options != nil {
+		if options.Filter != nil {
+			options.Filter.WithTableAlias("student")
+			query = options.Filter.ApplyToQuery(query)
+		}
+		// Apply sorting if needed (but not pagination for counting)
+		if options.Sorting != nil {
+			query = options.Sorting.ApplyToQuery(query)
+		}
+	}
+
+	count, err := query.Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "count with options",
+			Err: err,
+		}
+	}
+
+	return count, nil
+}
+
 // FindWithPerson retrieves a student with their associated person data
 func (r *StudentRepository) FindWithPerson(ctx context.Context, id int64) (*users.Student, error) {
 	student := new(users.Student)
