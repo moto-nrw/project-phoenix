@@ -18,3 +18,4 @@ export * from "./database-page-header";
 export * from "./database-list-section";
 export * from "./database-list-page";
 export * from "./database-form-page";
+export * from "./form-modal";

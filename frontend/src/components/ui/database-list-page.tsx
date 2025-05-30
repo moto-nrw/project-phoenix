@@ -26,7 +26,8 @@ export interface DatabaseListPageProps<T = unknown> {
   // Add button
   addButton: {
     label: string;
-    href: string;
+    href?: string;
+    onClick?: () => void;
   };
   
   // Data and state

@@ -4,9 +4,9 @@ import { useSession } from "next-auth/react";
 import { redirect, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import type { Student } from "@/lib/api";
-import { studentService } from "@/lib/api";
-import { DatabaseListPage, SelectFilter } from "@/components/ui";
-import { StudentListItem } from "@/components/students";
+import { studentService, groupService } from "@/lib/api";
+import { DatabaseListPage, SelectFilter, CreateFormModal } from "@/components/ui";
+import { StudentListItem, StudentForm } from "@/components/students";
 
 // Student list will be loaded from API
 
@@ -24,6 +24,11 @@ export default function StudentsPage() {
     total_pages: number;
     total_records: number;
   } | null>(null);
+  
+  // Modal states
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   // const handleSearchInput = (value: string) => {
   //   setSearchFilter(value);
@@ -112,6 +117,73 @@ export default function StudentsPage() {
     router.push(`/database/students/${student.id}`);
   };
 
+  // Handle student creation
+  const handleCreateStudent = async (studentData: Partial<Student>) => {
+    try {
+      setCreateLoading(true);
+      setCreateError(null);
+
+      // Prepare guardian contact fields
+      let guardianEmail: string | undefined;
+      let guardianPhone: string | undefined;
+      
+      // Parse guardian contact - check if it's an email or phone
+      if (studentData.contact_lg) {
+        if (studentData.contact_lg.includes('@')) {
+          guardianEmail = studentData.contact_lg;
+        } else {
+          guardianPhone = studentData.contact_lg;
+        }
+      }
+
+      // Prepare student data for the backend
+      const newStudent: Omit<Student, "id"> & { 
+        guardian_email?: string;
+        guardian_phone?: string;
+      } = {
+        // Basic info (all required)
+        first_name: studentData.first_name ?? '',
+        second_name: studentData.second_name ?? '',
+        name: `${studentData.first_name} ${studentData.second_name}`,
+        
+        // School info (required)
+        school_class: studentData.school_class ?? '',
+        group_id: studentData.group_id,
+        
+        // Guardian info (all required)
+        name_lg: studentData.name_lg ?? '',
+        contact_lg: studentData.contact_lg ?? '',
+        guardian_email: guardianEmail,
+        guardian_phone: guardianPhone,
+        
+        // Location fields (defaults)
+        current_location: "Home" as const,
+        in_house: false,
+        wc: false,
+        school_yard: false,
+        bus: studentData.bus ?? false,
+        
+        // Optional fields
+        studentId: undefined, // Tag ID is optional, backend handles it
+      };
+
+      // Create the student
+      await studentService.createStudent(newStudent);
+      
+      // Close modal and refresh list
+      setShowCreateModal(false);
+      await fetchStudents(searchFilter, groupFilter, currentPage);
+    } catch (err) {
+      console.error("Error creating student:", err);
+      setCreateError(
+        "Fehler beim Erstellen des Schülers. Bitte versuchen Sie es später erneut."
+      );
+      throw err; // Re-throw for form to handle
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
   // Get unique groups from loaded students
   const groupOptions = Array.isArray(students) 
     ? Array.from(
@@ -124,44 +196,77 @@ export default function StudentsPage() {
     : [];
 
   return (
-    <DatabaseListPage
-      userName={session?.user?.name ?? "Benutzer"}
-      title="Schüler auswählen"
-      description="Verwalte Schülerdaten und Gruppenzuweisungen"
-      listTitle="Schülerliste"
-      searchPlaceholder="Schüler suchen..."
-      searchValue={searchFilter}
-      onSearchChange={setSearchFilter}
-      filters={
-        <div className="md:max-w-xs">
-          <SelectFilter
-            id="groupFilter"
-            label="Gruppe"
-            value={groupFilter}
-            onChange={setGroupFilter}
-            options={groupOptions}
-            placeholder="Alle Gruppen"
+    <>
+      <DatabaseListPage
+        userName={session?.user?.name ?? "Benutzer"}
+        title="Schüler auswählen"
+        description="Verwalte Schülerdaten und Gruppenzuweisungen"
+        listTitle="Schülerliste"
+        searchPlaceholder="Schüler suchen..."
+        searchValue={searchFilter}
+        onSearchChange={setSearchFilter}
+        filters={
+          <div className="md:max-w-xs">
+            <SelectFilter
+              id="groupFilter"
+              label="Gruppe"
+              value={groupFilter}
+              onChange={setGroupFilter}
+              options={groupOptions}
+              placeholder="Alle Gruppen"
+            />
+          </div>
+        }
+        addButton={{
+          label: "Neuen Schüler erstellen",
+          onClick: () => setShowCreateModal(true)
+        }}
+        items={students}
+        loading={loading}
+        error={error}
+        onRetry={() => fetchStudents(searchFilter, groupFilter, currentPage)}
+        itemLabel={{ singular: "Schüler", plural: "Schüler" }}
+        renderItem={(student: Student) => (
+          <StudentListItem
+            key={student.id}
+            student={student}
+            onClick={handleSelectStudent}
           />
-        </div>
-      }
-      addButton={{
-        label: "Neuen Schüler erstellen",
-        href: "/database/students/new"
+        )}
+        pagination={pagination}
+        onPageChange={setCurrentPage}
+      />
+
+      {/* Create Student Modal */}
+      <CreateFormModal
+      isOpen={showCreateModal}
+      onClose={() => {
+        setShowCreateModal(false);
+        setCreateError(null);
       }}
-      items={students}
-      loading={loading}
-      error={error}
-      onRetry={() => fetchStudents(searchFilter, groupFilter, currentPage)}
-      itemLabel={{ singular: "Schüler", plural: "Schüler" }}
-      renderItem={(student: Student) => (
-        <StudentListItem
-          key={student.id}
-          student={student}
-          onClick={handleSelectStudent}
-        />
+      title="Neuer Schüler"
+      size="lg"
+    >
+      {createError && (
+        <div className="mb-4 rounded-lg bg-red-50 p-4 text-red-800">
+          <p>{createError}</p>
+        </div>
       )}
-      pagination={pagination}
-      onPageChange={setCurrentPage}
-    />
+      
+      <StudentForm
+        initialData={{
+          in_house: false,
+          wc: false,
+          school_yard: false,
+          bus: false,
+        }}
+        onSubmitAction={handleCreateStudent}
+        onCancelAction={() => setShowCreateModal(false)}
+        isLoading={createLoading}
+        formTitle=""
+        submitLabel="Erstellen"
+      />
+    </CreateFormModal>
+    </>
   );
 }
