@@ -1,21 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { DataListPage } from "@/components/dashboard";
+import { useSession } from "next-auth/react";
+import { redirect, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import type { Role, Permission } from "@/lib/auth-helpers";
-import { Button } from "@/components/ui";
-import { useRouter } from "next/navigation";
+import { DatabaseListPage } from "@/components/ui";
+import { RoleListItem } from "@/components/auth";
 
 export default function RolesPage() {
   const router = useRouter();
   const [roles, setRoles] = useState<Role[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchFilter, setSearchFilter] = useState("");
 
-  const loadRoles = async () => {
+  const { data: session, status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      redirect("/");
+    },
+  });
+
+  const fetchRoles = async () => {
     try {
-      setIsLoading(true);
+      setLoading(true);
       setError(null);
       
       // Fetch roles from the API
@@ -85,133 +93,64 @@ export default function RolesPage() {
       console.log("Using fallback sample roles:", sampleRoles);
       setRoles(sampleRoles);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    void loadRoles();
+    void fetchRoles();
   }, []);
 
-  // We don't need the modal implementation anymore
-  // We'll use the new implementation below
+  if (status === "loading") {
+    return <div />; // Let DatabaseListPage handle the loading state
+  }
 
   const handleSelectRole = (role: Role) => {
     router.push(`/database/roles/${role.id}`);
   };
 
-  // Create a simple list item component for roles
-  const RoleListItem = ({ role }: { role: Role }) => (
-    <div className="group flex cursor-pointer items-center justify-between rounded-lg border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:translate-y-[-1px] hover:border-blue-200 hover:shadow-md">
-      <div className="flex flex-col">
-        <span className="font-medium">{role.name}</span>
-        {role.description && (
-          <span className="text-sm text-gray-500">{role.description}</span>
-        )}
-      </div>
-      <div className="flex gap-2 opacity-0 transition-opacity group-hover:opacity-100">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            router.push(`/database/roles/${role.id}`);
-          }}
-        >
-          Details
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-red-600 hover:bg-red-50 hover:text-red-700 border-red-200"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleDeleteClick(role);
-          }}
-        >
-          Löschen
-        </Button>
-      </div>
-    </div>
-  );
-
-  // Show loading state
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p>Loading...</p>
-      </div>
-    );
-  }
-
-  // Show error if loading failed
-  if (error) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <div className="max-w-md rounded-lg bg-red-50 p-4 text-red-800">
-          <h2 className="mb-2 font-semibold">Fehler</h2>
-          <p>{error}</p>
-          <button
-            onClick={() => loadRoles()}
-            className="mt-4 rounded bg-red-100 px-4 py-2 text-red-800 transition-colors hover:bg-red-200"
-          >
-            Erneut versuchen
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Custom role rendering function with proper key handling
-  const renderRole = (role: Role) => (
-    <RoleListItem key={`role-${role.id}`} role={role} />
-  );
-
-  // Simplified delete confirmation for immediate use
-  const handleDeleteClick = (role: Role) => {
-    if (confirm(`Rolle "${role.name}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) {
-      void (async () => {
-        try {
-          console.log("Attempting to delete role with ID:", role.id);
-          
-          // Call the API to delete the role
-          const response = await fetch(`/api/auth/roles/${role.id}`, {
-            method: 'DELETE',
-          });
-          
-          if (!response.ok) {
-            const errorData = await response.text();
-            console.error("Delete role failed:", response.status, errorData);
-            throw new Error(`Failed to delete role: ${response.status} ${errorData}`);
-          }
-          
-          console.log("Role deleted successfully");
-          
-          // Update the local state to remove the role
-          setRoles(roles.filter((r) => r.id !== role.id));
-          
-          // Reload all roles to ensure consistency with the server
-          await loadRoles();
-        } catch (err) {
-          setError("Fehler beim Löschen der Rolle");
-          console.error("Error deleting role:", err);
-        }
-      })();
+  // Apply search filter
+  const filteredRoles = roles.filter((role) => {
+    if (searchFilter) {
+      const searchLower = searchFilter.toLowerCase();
+      return (
+        role.name.toLowerCase().includes(searchLower) ||
+        role.description.toLowerCase().includes(searchLower)
+      );
     }
-  };
+    return true;
+  });
 
   return (
-    <DataListPage
+    <DatabaseListPage
+      userName={session?.user?.name ?? "Root"}
       title="Rollen verwalten"
-      sectionTitle="Rollen verwalten"
-      backUrl="/database"
-      newEntityLabel="Neue Rolle erstellen"
-      newEntityUrl="/database/roles/new"
-      data={roles}
-      onSelectEntityAction={handleSelectRole}
-      renderEntity={renderRole}
-      searchTerm={searchTerm}
-      onSearchChange={setSearchTerm}
+      description="Verwalten Sie Systemrollen und Berechtigungen"
+      listTitle="Rollenliste"
+      searchPlaceholder="Rolle suchen..."
+      searchValue={searchFilter}
+      onSearchChange={setSearchFilter}
+      addButton={{
+        label: "Neue Rolle erstellen",
+        href: "/database/roles/new"
+      }}
+      items={filteredRoles}
+      loading={loading}
+      error={error}
+      onRetry={() => fetchRoles()}
+      itemLabel={{ singular: "Rolle", plural: "Rollen" }}
+      emptyIcon={
+        <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        </svg>
+      }
+      renderItem={(role: Role) => (
+        <RoleListItem
+          key={role.id}
+          role={role}
+          onClick={() => handleSelectRole(role)}
+        />
+      )}
     />
   );
 }
