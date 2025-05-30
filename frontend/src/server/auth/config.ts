@@ -18,6 +18,8 @@ declare module "next-auth" {
       roles?: string[];
       firstName?: string;
     } & DefaultSession["user"];
+    error?: "RefreshTokenExpired" | "RefreshTokenError";
+    needsRefresh?: boolean;
   }
 
   interface User {
@@ -25,6 +27,18 @@ declare module "next-auth" {
     refreshToken?: string;
     roles?: string[];
     firstName?: string;
+  }
+  
+  interface JWT {
+    id?: string;
+    token?: string;
+    refreshToken?: string;
+    roles?: string[];
+    firstName?: string;
+    tokenExpiry?: number;
+    refreshTokenExpiry?: number;
+    error?: "RefreshTokenExpired" | "RefreshTokenError";
+    needsRefresh?: boolean;
   }
 }
 
@@ -169,10 +183,26 @@ export const authConfig = {
         token.firstName = user.firstName;
         // Store token expiry (15 minutes from now)
         token.tokenExpiry = Date.now() + 15 * 60 * 1000; // 15 minutes
+        // Store refresh token expiry (1 hour from now)
+        token.refreshTokenExpiry = Date.now() + 60 * 60 * 1000; // 1 hour
+        // Clear any previous error states
+        token.error = undefined;
+        token.needsRefresh = undefined;
       }
 
-      // Check if token needs refresh (with 1 minute buffer)
+      // Check if refresh token is expired
+      if (token.refreshTokenExpiry && Date.now() > (token.refreshTokenExpiry as number)) {
+        console.warn("Refresh token has expired, user needs to re-login");
+        token.error = "RefreshTokenExpired";
+        token.needsRefresh = true;
+        // Keep user data for graceful degradation
+        return token;
+      }
+
+      // Check if access token needs refresh (with 1 minute buffer)
       if (token.tokenExpiry && Date.now() > (token.tokenExpiry as number) - 60 * 1000) {
+        console.log("Access token expiring soon, attempting refresh...");
+        
         try {
           // Attempt to refresh the token
           const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/refresh`, {
@@ -192,17 +222,41 @@ export const authConfig = {
             // Update tokens
             token.token = refreshData.access_token;
             token.refreshToken = refreshData.refresh_token;
-            token.tokenExpiry = Date.now() + 15 * 60 * 1000; // Reset expiry
+            token.tokenExpiry = Date.now() + 15 * 60 * 1000; // Reset access token expiry
+            token.refreshTokenExpiry = Date.now() + 60 * 60 * 1000; // Reset refresh token expiry
+            
+            // Clear error states on successful refresh
+            token.error = undefined;
+            token.needsRefresh = undefined;
             
             console.log("Token refreshed successfully");
           } else {
-            console.error("Failed to refresh token:", response.status);
-            // Token refresh failed, user will need to re-login
-            return null;
+            console.error(`Failed to refresh token: ${response.status}`);
+            
+            // Distinguish between different error types
+            if (response.status === 401 || response.status === 403) {
+              // Refresh token is invalid or expired
+              console.error("Refresh token is invalid or expired");
+              token.error = "RefreshTokenExpired";
+              token.needsRefresh = true;
+            } else {
+              // Other API errors (500, network issues, etc.)
+              console.error("API error during refresh, keeping session but marking as needs refresh");
+              token.error = "RefreshTokenError";
+              token.needsRefresh = true;
+            }
+            
+            // Keep existing user data for graceful degradation
+            return token;
           }
         } catch (error) {
-          console.error("Error refreshing token:", error);
-          return null;
+          // Network errors or other exceptions
+          console.error("Network error refreshing token:", error);
+          token.error = "RefreshTokenError";
+          token.needsRefresh = true;
+          
+          // Keep existing user data for graceful degradation
+          return token;
         }
       }
       
@@ -219,6 +273,8 @@ export const authConfig = {
           roles: token.roles as string[],
           firstName: token.firstName as string,
         },
+        error: token.error,
+        needsRefresh: token.needsRefresh,
       };
     },
   },
