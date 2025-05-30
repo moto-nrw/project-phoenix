@@ -22,7 +22,7 @@ export function ActivityListItem({ activity, onClick }: ActivityListItemProps) {
         {/* Mobile/Desktop: Activity Info */}
         <div className="flex items-start gap-3 md:items-center">
           {/* Activity Icon */}
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-purple-400 to-pink-500 font-medium text-white">
+          <div className="flex h-10 w-10 md:h-12 md:w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-purple-400 to-pink-500 font-medium text-white text-sm md:text-base">
             {activity.name.slice(0, 1).toUpperCase()}
           </div>
           

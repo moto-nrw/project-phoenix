@@ -18,7 +18,7 @@ export function RoleListItem({ role, onClick }: RoleListItemProps) {
         {/* Mobile/Desktop: Role Info */}
         <div className="flex items-start gap-3 md:items-center">
           {/* Role Icon */}
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 font-medium text-white">
+          <div className="flex h-10 w-10 md:h-12 md:w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 font-medium text-white text-sm md:text-base">
             {role.name.slice(0, 1).toUpperCase()}
           </div>
           
