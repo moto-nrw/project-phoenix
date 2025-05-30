@@ -4,7 +4,6 @@ import { useEffect, useCallback, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useModal } from "../dashboard/modal-context";
-import { Button } from "./button";
 
 interface FormModalProps {
   isOpen: boolean;
@@ -199,6 +198,61 @@ export function CreateFormModal({
       size={size}
     >
       {children}
+    </FormModal>
+  );
+}
+
+interface DetailFormModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: ReactNode;
+  size?: "sm" | "md" | "lg" | "xl";
+  loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
+}
+
+export function DetailFormModal({
+  isOpen,
+  onClose,
+  title,
+  children,
+  size = "xl",
+  loading = false,
+  error = null,
+  onRetry
+}: DetailFormModalProps) {
+  return (
+    <FormModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
+      size={size}
+    >
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-12">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+            <p className="text-sm text-gray-600">Daten werden geladen...</p>
+          </div>
+        </div>
+      ) : error ? (
+        <div className="rounded-lg bg-red-50 p-4 text-red-800">
+          <h3 className="mb-2 font-semibold">Fehler</h3>
+          <p className="mb-4">{error}</p>
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              className="rounded-lg bg-red-100 px-4 py-2 text-red-800 transition-colors hover:bg-red-200"
+            >
+              Erneut versuchen
+            </button>
+          )}
+        </div>
+      ) : (
+        children
+      )}
     </FormModal>
   );
 }

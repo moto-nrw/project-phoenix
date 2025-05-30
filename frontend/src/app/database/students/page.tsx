@@ -1,17 +1,16 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { redirect, useRouter } from "next/navigation";
+import { redirect } from "next/navigation";
 import { useState, useEffect } from "react";
 import type { Student } from "@/lib/api";
-import { studentService, groupService } from "@/lib/api";
-import { DatabaseListPage, SelectFilter, CreateFormModal } from "@/components/ui";
-import { StudentListItem, StudentForm } from "@/components/students";
+import { studentService } from "@/lib/api";
+import { DatabaseListPage, SelectFilter, CreateFormModal, DetailFormModal } from "@/components/ui";
+import { StudentListItem, StudentForm, StudentDetailView } from "@/components/students";
 
 // Student list will be loaded from API
 
 export default function StudentsPage() {
-  const router = useRouter();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,10 +24,17 @@ export default function StudentsPage() {
     total_records: number;
   } | null>(null);
   
-  // Modal states
+  // Create Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+
+  // Detail Modal states
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   // const handleSearchInput = (value: string) => {
   //   setSearchFilter(value);
@@ -113,8 +119,22 @@ export default function StudentsPage() {
     return <div />; // Let DatabaseListPage handle the loading state
   }
 
-  const handleSelectStudent = (student: Student) => {
-    router.push(`/database/students/${student.id}`);
+  const handleSelectStudent = async (student: Student) => {
+    setSelectedStudent(student);
+    setShowDetailModal(true);
+    setDetailError(null);
+    
+    // Fetch fresh data for the selected student
+    try {
+      setDetailLoading(true);
+      const freshData = await studentService.getStudent(student.id);
+      setSelectedStudent(freshData);
+    } catch (err) {
+      console.error("Error fetching student details:", err);
+      setDetailError("Fehler beim Laden der Schülerdaten.");
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
   // Handle student creation
@@ -181,6 +201,62 @@ export default function StudentsPage() {
       throw err; // Re-throw for form to handle
     } finally {
       setCreateLoading(false);
+    }
+  };
+
+  // Handle student update
+  const handleUpdateStudent = async (studentData: Partial<Student>) => {
+    if (!selectedStudent) return;
+    
+    try {
+      setDetailLoading(true);
+      setDetailError(null);
+
+      // Update student
+      await studentService.updateStudent(
+        selectedStudent.id,
+        studentData
+      );
+      
+      // Refresh the selected student data
+      const refreshedStudent = await studentService.getStudent(selectedStudent.id);
+      setSelectedStudent(refreshedStudent);
+      setIsEditing(false);
+      
+      // Refresh the list
+      await fetchStudents(searchFilter, groupFilter, currentPage);
+    } catch (err) {
+      console.error("Error updating student:", err);
+      setDetailError(
+        "Fehler beim Aktualisieren des Schülers. Bitte versuchen Sie es später erneut."
+      );
+      throw err;
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  // Handle student deletion
+  const handleDeleteStudent = async () => {
+    if (!selectedStudent) return;
+    
+    if (window.confirm("Sind Sie sicher, dass Sie diesen Schüler löschen möchten?")) {
+      try {
+        setDetailLoading(true);
+        await studentService.deleteStudent(selectedStudent.id);
+        
+        // Close modal and refresh list
+        setShowDetailModal(false);
+        setSelectedStudent(null);
+        await fetchStudents(searchFilter, groupFilter, currentPage);
+      } catch (err) {
+        console.error("Error deleting student:", err);
+        setDetailError(
+          "Fehler beim Löschen des Schülers. Bitte versuchen Sie es später erneut."
+        );
+      } finally {
+        setDetailLoading(false);
+      }
     }
   };
 
@@ -267,6 +343,41 @@ export default function StudentsPage() {
         submitLabel="Erstellen"
       />
     </CreateFormModal>
+
+      {/* Detail/Edit Student Modal */}
+      <DetailFormModal
+        isOpen={showDetailModal}
+        onClose={() => {
+          setShowDetailModal(false);
+          setSelectedStudent(null);
+          setIsEditing(false);
+          setDetailError(null);
+        }}
+        title={isEditing ? "Schüler bearbeiten" : "Schülerdetails"}
+        size="xl"
+        loading={detailLoading}
+        error={detailError}
+        onRetry={() => selectedStudent && handleSelectStudent(selectedStudent)}
+      >
+        {selectedStudent && !isEditing && (
+          <StudentDetailView
+            student={selectedStudent}
+            onEdit={() => setIsEditing(true)}
+            onDelete={handleDeleteStudent}
+          />
+        )}
+        
+        {selectedStudent && isEditing && (
+          <StudentForm
+            initialData={selectedStudent}
+            onSubmitAction={handleUpdateStudent}
+            onCancelAction={() => setIsEditing(false)}
+            isLoading={detailLoading}
+            formTitle=""
+            submitLabel="Speichern"
+          />
+        )}
+      </DetailFormModal>
     </>
   );
 }
