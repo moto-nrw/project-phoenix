@@ -173,8 +173,8 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
                         </div>
                     </div>
 
-                    {/* Search bar aligned with sidebar end - positioned to start exactly where sidebar ends */}
-                    <div className="hidden lg:block absolute left-64 pl-6">
+                    {/* Search bar centered horizontally */}
+                    <div className="hidden lg:flex absolute left-1/2 transform -translate-x-1/2">
                         <GlobalSearch className="w-80" />
                     </div>
 
