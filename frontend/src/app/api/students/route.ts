@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { apiGet, apiPost } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 import type { Student } from "~/lib/student-helpers";
-import { mapStudentResponse } from "~/lib/student-helpers";
+import { mapStudentResponse, prepareStudentForBackend } from "~/lib/student-helpers";
 
 /**
  * Type definition for student response from backend
@@ -141,15 +141,30 @@ interface BackendStudentRequest {
   group_id?: number;
 }
 
-export const POST = createPostHandler<Student, BackendStudentRequest>(
-  async (_request: NextRequest, body: BackendStudentRequest, token: string) => {
-    // Body is already in backend format from prepareStudentForBackend
-    // Validate required fields using backend field names
-    const firstName = body.first_name.trim();
-    const lastName = body.last_name.trim();
-    const schoolClass = body.school_class.trim();
-    const guardianName = body.guardian_name.trim();
-    const guardianContact = body.guardian_contact.trim();
+export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; }>(
+  async (_request: NextRequest, body: Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; }, token: string) => {
+    // Transform frontend format to backend format
+    const backendData = prepareStudentForBackend(body);
+    
+    // Extract guardian email/phone from contact_lg if not provided separately
+    let guardianEmail = body.guardian_email;
+    let guardianPhone = body.guardian_phone;
+    
+    if (!guardianEmail && !guardianPhone && body.contact_lg) {
+      // Parse guardian contact - check if it's an email or phone
+      if (body.contact_lg.includes('@')) {
+        guardianEmail = body.contact_lg;
+      } else {
+        guardianPhone = body.contact_lg;
+      }
+    }
+    
+    // Validate required fields using frontend field names
+    const firstName = body.first_name?.trim();
+    const lastName = body.second_name?.trim();
+    const schoolClass = body.school_class?.trim();
+    const guardianName = body.name_lg?.trim();
+    const guardianContact = body.contact_lg?.trim();
     
     if (!firstName) {
       throw new Error('First name is required');
@@ -171,19 +186,19 @@ export const POST = createPostHandler<Student, BackendStudentRequest>(
       throw new Error('Guardian contact is required');
     }
     
-    // Create a properly typed request object
+    // Create a properly typed request object using the transformed data
     const backendRequest: BackendStudentRequest = {
       first_name: firstName,
       last_name: lastName,
       school_class: schoolClass,
       guardian_name: guardianName,
       guardian_contact: guardianContact,
-      location: body.location,
-      notes: body.notes,
-      tag_id: body.tag_id,
-      guardian_email: body.guardian_email,
-      guardian_phone: body.guardian_phone,
-      group_id: body.group_id
+      location: backendData.location ?? "Unknown",
+      notes: undefined, // Not in frontend model
+      tag_id: backendData.tag_id,
+      guardian_email: guardianEmail ?? backendData.guardian_email,
+      guardian_phone: guardianPhone ?? backendData.guardian_phone,
+      group_id: backendData.group_id
     };
     
     try {

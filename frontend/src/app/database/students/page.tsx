@@ -143,24 +143,8 @@ export default function StudentsPage() {
       setCreateLoading(true);
       setCreateError(null);
 
-      // Prepare guardian contact fields
-      let guardianEmail: string | undefined;
-      let guardianPhone: string | undefined;
-      
-      // Parse guardian contact - check if it's an email or phone
-      if (studentData.contact_lg) {
-        if (studentData.contact_lg.includes('@')) {
-          guardianEmail = studentData.contact_lg;
-        } else {
-          guardianPhone = studentData.contact_lg;
-        }
-      }
-
-      // Prepare student data for the backend
-      const newStudent: Omit<Student, "id"> & { 
-        guardian_email?: string;
-        guardian_phone?: string;
-      } = {
+      // Prepare student data - the API route will handle guardian email/phone parsing
+      const newStudent: Omit<Student, "id"> = {
         // Basic info (all required)
         first_name: studentData.first_name ?? '',
         second_name: studentData.second_name ?? '',
@@ -173,8 +157,6 @@ export default function StudentsPage() {
         // Guardian info (all required)
         name_lg: studentData.name_lg ?? '',
         contact_lg: studentData.contact_lg ?? '',
-        guardian_email: guardianEmail,
-        guardian_phone: guardianPhone,
         
         // Location fields (defaults)
         current_location: "Home" as const,

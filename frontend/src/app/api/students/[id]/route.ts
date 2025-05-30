@@ -2,8 +2,8 @@
 import type { NextRequest } from "next/server";
 import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers";
 import { createGetHandler, createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
-import type { BackendStudent, Student, UpdateStudentRequest } from "~/lib/student-helpers";
-import { mapStudentResponse, mapUpdateRequestToBackend } from "~/lib/student-helpers";
+import type { BackendStudent, Student } from "~/lib/student-helpers";
+import { mapStudentResponse, prepareStudentForBackend } from "~/lib/student-helpers";
 
 /**
  * Type definition for API response format
@@ -71,8 +71,8 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
  * Handler for PUT /api/students/[id]
  * Updates an existing student
  */
-export const PUT = createPutHandler<Student, UpdateStudentRequest>(
-  async (_request: NextRequest, body: UpdateStudentRequest, token: string, params: Record<string, unknown>) => {
+export const PUT = createPutHandler<Student, Partial<Student>>(
+  async (_request: NextRequest, body: Partial<Student>, token: string, params: Record<string, unknown>) => {
     const id = params.id as string;
     
     if (!id) {
@@ -80,8 +80,8 @@ export const PUT = createPutHandler<Student, UpdateStudentRequest>(
     }
     
     try {
-      // Map frontend format to backend format
-      const backendData = mapUpdateRequestToBackend(body);
+      // Transform frontend format to backend format
+      const backendData = prepareStudentForBackend(body);
       
       // Call backend API to update student
       const response = await apiPut<ApiStudentResponse>(
