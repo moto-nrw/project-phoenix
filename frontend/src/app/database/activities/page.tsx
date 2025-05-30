@@ -99,7 +99,7 @@ export default function ActivitiesPage() {
       activities
         .filter(activity => activity.ag_category_id && activity.category_name)
         .map(activity => [
-          activity.ag_category_id, 
+          activity.ag_category_id,
           { value: activity.ag_category_id, label: activity.category_name! }
         ])
     ).values()
@@ -141,7 +141,7 @@ export default function ActivitiesPage() {
 
   return (
     <DatabaseListPage
-      userName={session?.user?.name ?? "Root"}
+      userName={session?.user?.name ?? "Benutzer"}
       title="Aktivitäten auswählen"
       description="Verwalten Sie Aktivitäten und Anmeldungen"
       listTitle="Aktivitätenliste"

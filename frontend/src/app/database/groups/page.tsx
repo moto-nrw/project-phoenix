@@ -45,7 +45,7 @@ export default function GroupsPage() {
         setError(null);
       } catch (apiErr) {
         console.error("API error when fetching groups:", apiErr);
-        
+
         // Check if it's a 403 Forbidden error
         const errorMessage = apiErr instanceof Error ? apiErr.message : String(apiErr);
         if (errorMessage.includes("403")) {
@@ -95,7 +95,7 @@ export default function GroupsPage() {
 
   return (
     <DatabaseListPage
-      userName={session?.user?.name ?? "Root"}
+      userName={session?.user?.name ?? "Benutzer"}
       title="Gruppen auswählen"
       description="Verwalten Sie Gruppen und Raumzuweisungen"
       listTitle="Gruppenliste"

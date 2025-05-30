@@ -84,7 +84,7 @@ export default function StudentsPage() {
 
     return () => clearTimeout(timer);
   }, [searchFilter, groupFilter]);
-  
+
 
   if (status === "loading") {
     return <div />; // Let DatabaseListPage handle the loading state
@@ -105,7 +105,7 @@ export default function StudentsPage() {
 
   return (
     <DatabaseListPage
-      userName={session?.user?.name ?? "Root"}
+      userName={session?.user?.name ?? "Benutzer"}
       title="Schüler auswählen"
       description="Verwalte Schülerdaten und Gruppenzuweisungen"
       listTitle="Schülerliste"

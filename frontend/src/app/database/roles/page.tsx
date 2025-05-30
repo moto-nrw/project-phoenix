@@ -25,16 +25,16 @@ export default function RolesPage() {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Fetch roles from the API
       const response = await fetch('/api/auth/roles');
-      
+
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
       }
-      
+
       const data = await response.json() as { roles?: unknown[]; data?: unknown[] };
-      
+
       // Handle different response structures
       const rawRoles = (data.roles ?? data.data ?? []) as Array<{
         id?: unknown;
@@ -47,7 +47,7 @@ export default function RolesPage() {
         permissions?: unknown[];
       }>;
       // Processing API response and raw roles
-      
+
       // Process and validate roles
       const processedRoles = rawRoles.map((role, index: number) => ({
         id: (role.id !== undefined && role.id !== null && (typeof role.id === 'string' || typeof role.id === 'number')) ? String(role.id) : `role-${index}`, // Ensure ID is a string and always present
@@ -57,14 +57,14 @@ export default function RolesPage() {
         updatedAt: (role.updated_at as string) ?? (role.updatedAt as string) ?? new Date().toISOString(),
         permissions: (role.permissions as Permission[]) ?? []
       }));
-      
+
       console.log("Processed roles:", processedRoles);
       setRoles(processedRoles);
-      
+
     } catch (err) {
       console.error("Error loading roles:", err);
       setError("Fehler beim Laden der Rollen");
-      
+
       // Fallback to sample data if API fails
       const sampleRoles = [
         {
@@ -89,7 +89,7 @@ export default function RolesPage() {
           updatedAt: new Date().toISOString(),
         },
       ];
-      
+
       console.log("Using fallback sample roles:", sampleRoles);
       setRoles(sampleRoles);
     } finally {
@@ -123,7 +123,7 @@ export default function RolesPage() {
 
   return (
     <DatabaseListPage
-      userName={session?.user?.name ?? "Root"}
+      userName={session?.user?.name ?? "Benutzer"}
       title="Rollen verwalten"
       description="Verwalten Sie Systemrollen und Berechtigungen"
       listTitle="Rollenliste"

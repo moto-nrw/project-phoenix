@@ -39,7 +39,7 @@ export default function RoomsPage() {
       try {
         // Fetch from the real API using our room service
         const data = await roomService.getRooms(filters);
-        
+
         if (data.length === 0 && !search) {
           console.log("No rooms returned from API, checking connection");
         }
@@ -100,11 +100,11 @@ export default function RoomsPage() {
   const categoryOptions = [...new Set(rooms.map((room) => room.category))]
     .sort()
     .map(cat => ({ value: cat, label: cat }));
-  
+
   const buildingOptions = [...new Set(rooms.map((room) => room.building).filter((b): b is string => Boolean(b)))]
     .sort()
     .map(building => ({ value: building, label: building }));
-  
+
   const floorOptions = [...new Set(rooms.map((room) => room.floor))]
     .sort((a, b) => a - b)
     .map(floor => ({ value: floor.toString(), label: `Etage ${floor}` }));
@@ -160,7 +160,7 @@ export default function RoomsPage() {
 
   return (
     <DatabaseListPage
-      userName={session?.user?.name ?? "Root"}
+      userName={session?.user?.name ?? "Benutzer"}
       title="Räume auswählen"
       description="Verwalten Sie Räume und Belegungen"
       listTitle="Raumliste"
