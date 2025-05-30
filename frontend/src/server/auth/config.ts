@@ -263,6 +263,12 @@ export const authConfig = {
       return token;
     },
     session: ({ session, token }) => {
+      // Force sign out when refresh token is expired
+      if (token.error === "RefreshTokenExpired") {
+        // Return null to trigger NextAuth to redirect to signIn page
+        return null;
+      }
+      
       return {
         ...session,
         user: {
