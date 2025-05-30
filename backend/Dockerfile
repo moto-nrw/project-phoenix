@@ -8,6 +8,9 @@ COPY go.mod go.sum ./
 RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
     go mod download
 
+# Add cache-busting argument
+ARG CACHE_BUST=1
+
 # Add source code
 COPY . .
 
