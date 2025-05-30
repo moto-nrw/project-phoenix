@@ -5,7 +5,7 @@ import { redirect, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import type { Room } from "@/lib/api";
 import { roomService } from "@/lib/api";
-import { DatabaseListPage } from "@/components/ui";
+import { DatabaseListPage, SelectFilter } from "@/components/ui";
 import { RoomListItem } from "@/components/rooms";
 
 export default function RoomsPage() {
@@ -97,88 +97,64 @@ export default function RoomsPage() {
   });
 
   // Get unique values for filters
-  const categories = [...new Set(rooms.map((room) => room.category))];
-  const buildings = [...new Set(rooms.map((room) => room.building).filter(Boolean))];
-  const floors = [...new Set(rooms.map((room) => room.floor))];
+  const categoryOptions = [...new Set(rooms.map((room) => room.category))]
+    .sort()
+    .map(cat => ({ value: cat, label: cat }));
+  
+  const buildingOptions = [...new Set(rooms.map((room) => room.building).filter(Boolean))]
+    .sort()
+    .map(building => ({ value: building, label: building }));
+  
+  const floorOptions = [...new Set(rooms.map((room) => room.floor))]
+    .sort((a, b) => a - b)
+    .map(floor => ({ value: floor.toString(), label: `Etage ${floor}` }));
+
+  const statusOptions = [
+    { value: "true", label: "Belegt" },
+    { value: "false", label: "Frei" }
+  ];
 
   // Render filters
   const renderFilters = () => (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-      <div>
-        <label htmlFor="categoryFilter" className="mb-1 block text-xs md:text-sm font-medium text-gray-700">
-          Kategorie
-        </label>
-        <select
-          id="categoryFilter"
-          className="w-full rounded border border-gray-300 p-2 text-xs md:text-sm"
-          value={categoryFilter ?? ""}
-          onChange={(e) => setCategoryFilter(e.target.value || null)}
-        >
-          <option value="">Alle Kategorien</option>
-          {categories.map((category) => (
-            <option key={category} value={category}>
-              {category}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SelectFilter
+        id="categoryFilter"
+        label="Kategorie"
+        value={categoryFilter}
+        onChange={setCategoryFilter}
+        options={categoryOptions}
+        placeholder="Alle Kategorien"
+      />
 
-      <div>
-        <label htmlFor="buildingFilter" className="mb-1 block text-xs md:text-sm font-medium text-gray-700">
-          Gebäude
-        </label>
-        <select
-          id="buildingFilter"
-          className="w-full rounded border border-gray-300 p-2 text-xs md:text-sm"
-          value={buildingFilter ?? ""}
-          onChange={(e) => setBuildingFilter(e.target.value || null)}
-        >
-          <option value="">Alle Gebäude</option>
-          {buildings.map((building) => (
-            <option key={building} value={building}>
-              {building}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SelectFilter
+        id="buildingFilter"
+        label="Gebäude"
+        value={buildingFilter}
+        onChange={setBuildingFilter}
+        options={buildingOptions}
+        placeholder="Alle Gebäude"
+      />
 
-      <div>
-        <label htmlFor="floorFilter" className="mb-1 block text-xs md:text-sm font-medium text-gray-700">
-          Etage
-        </label>
-        <select
-          id="floorFilter"
-          className="w-full rounded border border-gray-300 p-2 text-xs md:text-sm"
-          value={floorFilter?.toString() ?? ""}
-          onChange={(e) => setFloorFilter(e.target.value ? parseInt(e.target.value) : null)}
-        >
-          <option value="">Alle Etagen</option>
-          {floors.map((floor) => (
-            <option key={floor} value={floor}>
-              {floor}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SelectFilter
+        id="floorFilter"
+        label="Etage"
+        value={floorFilter?.toString() ?? null}
+        onChange={(value) => setFloorFilter(value ? parseInt(value) : null)}
+        options={floorOptions}
+        placeholder="Alle Etagen"
+      />
 
-      <div>
-        <label htmlFor="occupiedFilter" className="mb-1 block text-xs md:text-sm font-medium text-gray-700">
-          Status
-        </label>
-        <select
-          id="occupiedFilter"
-          className="w-full rounded border border-gray-300 p-2 text-xs md:text-sm"
-          value={occupiedFilter === null ? "" : occupiedFilter ? "true" : "false"}
-          onChange={(e) => {
-            if (e.target.value === "") setOccupiedFilter(null);
-            else setOccupiedFilter(e.target.value === "true");
-          }}
-        >
-          <option value="">Alle Räume</option>
-          <option value="true">Belegt</option>
-          <option value="false">Frei</option>
-        </select>
-      </div>
+      <SelectFilter
+        id="occupiedFilter"
+        label="Status"
+        value={occupiedFilter === null ? null : occupiedFilter.toString()}
+        onChange={(value) => {
+          if (value === null) setOccupiedFilter(null);
+          else setOccupiedFilter(value === "true");
+        }}
+        options={statusOptions}
+        placeholder="Alle Räume"
+      />
     </div>
   );
 

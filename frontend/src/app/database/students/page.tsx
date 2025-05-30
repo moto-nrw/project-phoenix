@@ -5,8 +5,7 @@ import { redirect, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import type { Student } from "@/lib/api";
 import { studentService } from "@/lib/api";
-import { GroupSelector } from "@/components/groups";
-import { DatabaseListPage } from "@/components/ui";
+import { DatabaseListPage, SelectFilter } from "@/components/ui";
 import { StudentListItem } from "@/components/students";
 
 // Student list will be loaded from API
@@ -95,6 +94,15 @@ export default function StudentsPage() {
     router.push(`/database/students/${student.id}`);
   };
 
+  // Get unique groups from loaded students
+  const groupOptions = Array.from(
+    new Map(
+      students
+        .filter(student => student.group_id && student.group_name)
+        .map(student => [student.group_id, { value: student.group_id!, label: student.group_name! }])
+    ).values()
+  ).sort((a, b) => a.label.localeCompare(b.label));
+
   return (
     <DatabaseListPage
       userName={session?.user?.name ?? "Root"}
@@ -106,14 +114,13 @@ export default function StudentsPage() {
       onSearchChange={setSearchFilter}
       filters={
         <div className="md:max-w-xs">
-          <GroupSelector
-            value={groupFilter ?? ""}
-            onChange={(value) =>
-              setGroupFilter(value === "" ? null : value)
-            }
-            includeEmpty={true}
-            emptyLabel="Alle Gruppen"
-            label=""
+          <SelectFilter
+            id="groupFilter"
+            label="Gruppe"
+            value={groupFilter}
+            onChange={setGroupFilter}
+            options={groupOptions}
+            placeholder="Alle Gruppen"
           />
         </div>
       }

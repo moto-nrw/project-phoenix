@@ -8,6 +8,7 @@ export * from "./modal";
 export * from "./help_button";
 export * from "./password-change-modal";
 export * from "./search-filter";
+export * from "./select-filter";
 export * from "./badge";
 export * from "./class-badge";
 export * from "./group-badge";
