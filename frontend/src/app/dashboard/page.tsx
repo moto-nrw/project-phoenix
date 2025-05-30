@@ -293,7 +293,7 @@ export default function DashboardPage() {
 
 
     return (
-        <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+        <ResponsiveLayout>
             <div className="max-w-7xl mx-auto">
                 {/* Welcome Header with Time Context - Mobile Responsive */}
                 <div className="mb-6 md:mb-8">

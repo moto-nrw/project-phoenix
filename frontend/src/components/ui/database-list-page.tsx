@@ -73,7 +73,7 @@ export function DatabaseListPage<T = unknown>({
   // Loading state
   if (loading) {
     return (
-      <ResponsiveLayout userName={userName}>
+      <ResponsiveLayout>
         <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 pb-24 lg:pb-8">
           <div className="flex flex-col items-center justify-center py-12 md:py-16">
             <div className="flex flex-col items-center gap-4">
@@ -89,7 +89,7 @@ export function DatabaseListPage<T = unknown>({
   // Error state
   if (error) {
     return (
-      <ResponsiveLayout userName={userName}>
+      <ResponsiveLayout>
         <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 pb-24 lg:pb-8">
           <div className="flex flex-col items-center justify-center py-8 md:py-12">
             <div className="max-w-md w-full rounded-lg bg-red-50 p-4 md:p-6 text-red-800 shadow-md">
@@ -121,7 +121,7 @@ export function DatabaseListPage<T = unknown>({
 
   // Main content
   return (
-    <ResponsiveLayout userName={userName}>
+    <ResponsiveLayout>
       <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 pb-24 lg:pb-8">
         <DatabasePageHeader title={title} description={description} />
         

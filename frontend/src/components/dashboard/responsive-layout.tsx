@@ -1,16 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { Header } from './header';
 import { Sidebar } from './sidebar';
 import { MobileBottomNav } from './mobile-bottom-nav';
 
 interface ResponsiveLayoutProps {
   children: React.ReactNode;
-  userName: string;
 }
 
-export default function ResponsiveLayout({ children, userName }: ResponsiveLayoutProps) {
+export default function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
+  const { data: session } = useSession();
+  const userName = session?.user?.name ?? 'Root';
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
 
   // Listen for modal state changes via custom events

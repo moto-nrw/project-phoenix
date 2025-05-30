@@ -110,7 +110,7 @@ export default function ActivitiesPage() {
 
     if (loading) {
         return (
-            <ResponsiveLayout userName="Benutzer">
+            <ResponsiveLayout>
                 <div className="flex min-h-screen items-center justify-center">
                     <div className="flex flex-col items-center gap-4">
                         <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
@@ -125,7 +125,7 @@ export default function ActivitiesPage() {
     const dropdownClass = "mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8";
 
     return (
-        <ResponsiveLayout userName="Benutzer">
+        <ResponsiveLayout>
             <div className="mx-auto max-w-7xl">
                 <h1 className="mb-8 text-4xl font-bold text-gray-900">Aktivitätenübersicht</h1>
 

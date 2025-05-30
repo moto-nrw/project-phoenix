@@ -291,7 +291,7 @@ export default function StudentMensaHistoryPage() {
 
     if (loading) {
         return (
-            <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+            <ResponsiveLayout>
                 <div className="flex min-h-[80vh] items-center justify-center">
                     <div className="flex flex-col items-center gap-4">
                         <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
@@ -304,7 +304,7 @@ export default function StudentMensaHistoryPage() {
 
     if (error || !student) {
         return (
-            <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+            <ResponsiveLayout>
                 <div className="flex min-h-[80vh] flex-col items-center justify-center">
                     <Alert
                         type="error"
@@ -322,7 +322,7 @@ export default function StudentMensaHistoryPage() {
     }
 
     return (
-        <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+        <ResponsiveLayout>
             <div className="max-w-7xl mx-auto">
                             {/* Back Button */}
                             <div className="mb-6">

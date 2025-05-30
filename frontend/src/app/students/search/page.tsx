@@ -191,7 +191,7 @@ function SearchPageContent() {
   }
 
   return (
-    <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+    <ResponsiveLayout>
       <div className="max-w-7xl mx-auto">
         {/* Mobile-optimized Header */}
         <div className="mb-4 md:mb-8">

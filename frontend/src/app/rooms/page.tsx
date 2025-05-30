@@ -197,7 +197,7 @@ export default function RoomsPage() {
     const dropdownClass = "mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8";
 
     return (
-        <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+        <ResponsiveLayout>
             <div className="max-w-7xl mx-auto">
                 <h1 className="mb-8 text-4xl font-bold text-gray-900">Raumübersicht</h1>
 

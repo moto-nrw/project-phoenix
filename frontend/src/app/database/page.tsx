@@ -290,7 +290,7 @@ function DatabaseContent() {
 
 export default function DatabasePage() {
   return (
-    <ResponsiveLayout userName="User">
+    <ResponsiveLayout>
       <Suspense
         fallback={
           <div className="flex min-h-[50vh] items-center justify-center">
