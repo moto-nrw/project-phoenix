@@ -3,10 +3,10 @@
 import { useSession } from "next-auth/react";
 import { redirect, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { DataListPage } from "@/components/dashboard";
-import { GroupListItem } from "@/components/groups";
 import type { Group } from "@/lib/api";
 import { groupService } from "@/lib/api";
+import { DatabaseListPage } from "@/components/ui";
+import { GroupListItem } from "@/components/groups";
 
 export default function GroupsPage() {
   const router = useRouter();
@@ -21,17 +21,6 @@ export default function GroupsPage() {
       redirect("/");
     },
   });
-
-  // Log user roles for debugging
-  useEffect(() => {
-    if (session?.user) {
-      console.log("Current user session:", {
-        id: session.user.id,
-        email: session.user.email,
-        roles: session.user.roles,
-      });
-    }
-  }, [session]);
 
   // Function to fetch groups with optional filters
   const fetchGroups = async (search?: string) => {
@@ -96,63 +85,44 @@ export default function GroupsPage() {
     return () => clearTimeout(timer);
   }, [searchFilter]);
 
-  // We use the API-based search, so we pass an empty search to the DataListPage
-  // to avoid duplicate client-side filtering
-
-  if (status === "loading" || loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p>Loading...</p>
-      </div>
-    );
+  if (status === "loading") {
+    return <div />; // Let DatabaseListPage handle the loading state
   }
 
   const handleSelectGroup = (group: Group) => {
     router.push(`/database/groups/${group.id}`);
   };
 
-  const renderGroup = (group: Group) => (
-    <GroupListItem group={group} onClick={() => handleSelectGroup(group)} />
-  );
-
-  // Show error if loading failed
-  if (error) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <div className="max-w-md rounded-lg bg-red-50 p-4 text-red-800">
-          <h2 className="mb-2 font-semibold">Fehler</h2>
-          <p>{error}</p>
-          <button
-            onClick={() => fetchGroups()}
-            className="mt-4 rounded bg-red-100 px-4 py-2 text-red-800 transition-colors hover:bg-red-200"
-          >
-            Erneut versuchen
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Create a handler for the search input in DataListPage
-  const handleSearchChange = (searchTerm: string) => {
-    setSearchFilter(searchTerm);
-  };
-
-  console.log("Groups state before rendering:", groups);
-  console.log("Search filter:", searchFilter);
-
   return (
-    <DataListPage
-      title="Gruppenauswahl"
-      sectionTitle="Gruppe auswählen"
-      backUrl="/database"
-      newEntityLabel="Neue Gruppe erstellen"
-      newEntityUrl="/database/groups/new"
-      data={groups}
-      onSelectEntityAction={handleSelectGroup}
-      renderEntity={renderGroup}
-      searchTerm={searchFilter}
-      onSearchChange={handleSearchChange}
+    <DatabaseListPage
+      userName={session?.user?.name ?? "Root"}
+      title="Gruppen auswählen"
+      description="Verwalten Sie Gruppen und Raumzuweisungen"
+      listTitle="Gruppenliste"
+      searchPlaceholder="Gruppe suchen..."
+      searchValue={searchFilter}
+      onSearchChange={setSearchFilter}
+      addButton={{
+        label: "Neue Gruppe erstellen",
+        href: "/database/groups/new"
+      }}
+      items={groups}
+      loading={loading}
+      error={error}
+      onRetry={() => fetchGroups()}
+      itemLabel={{ singular: "Gruppe", plural: "Gruppen" }}
+      emptyIcon={
+        <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      }
+      renderItem={(group: Group) => (
+        <GroupListItem
+          key={group.id}
+          group={group}
+          onClick={() => handleSelectGroup(group)}
+        />
+      )}
     />
   );
 }
