@@ -87,14 +87,14 @@ export default function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
   }, []);
 
   return (
-    <div className="min-h-screen">
-      {/* Header with conditional blur */}
-      <div className={`transition-all duration-300 ${isMobileModalOpen ? 'blur-md lg:blur-none' : ''}`}>
+    <div className="min-h-screen flex flex-col">
+      {/* Header with conditional blur - sticky positioning */}
+      <div className={`sticky top-0 z-40 transition-all duration-300 ${isMobileModalOpen ? 'blur-md lg:blur-none' : ''}`}>
         <Header userName={userName} />
       </div>
       
       {/* Main content with conditional blur */}
-      <div className={`flex transition-all duration-300 ${isMobileModalOpen ? 'blur-md lg:blur-none' : ''}`}>
+      <div className={`flex flex-1 transition-all duration-300 ${isMobileModalOpen ? 'blur-md lg:blur-none' : ''}`}>
         {/* Desktop sidebar - only visible on md+ screens */}
         <Sidebar className="hidden lg:block" />
         
