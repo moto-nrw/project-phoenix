@@ -15,17 +15,17 @@ export function StudentDetailView({
   return (
     <div className="space-y-6">
       {/* Header with gradient and student info */}
-      <div className="relative -mx-6 -mt-6 bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white">
+      <div className="relative -mx-4 md:-mx-6 -mt-4 md:-mt-6 bg-gradient-to-r from-teal-500 to-blue-600 p-4 md:p-6 text-white">
         <div className="flex items-center">
-          <div className="mr-5 flex h-20 w-20 items-center justify-center rounded-full bg-white/30 text-3xl font-bold">
+          <div className="mr-3 md:mr-5 flex h-16 w-16 md:h-20 md:w-20 items-center justify-center rounded-full bg-white/30 text-2xl md:text-3xl font-bold">
             {student.first_name?.[0] ?? ""}
             {student.second_name?.[0] ?? ""}
           </div>
           <div>
-            <h2 className="text-2xl font-bold">{formatStudentName(student)}</h2>
-            <p className="opacity-90">{student.school_class}</p>
+            <h2 className="text-xl md:text-2xl font-bold">{formatStudentName(student)}</h2>
+            <p className="text-sm md:text-base opacity-90">{student.school_class}</p>
             {student.group_name && (
-              <p className="text-sm opacity-75">
+              <p className="text-xs md:text-sm opacity-75">
                 Gruppe: {student.group_name}
               </p>
             )}
@@ -33,7 +33,7 @@ export function StudentDetailView({
         </div>
 
         {/* Status badges */}
-        <div className="absolute top-6 right-6 flex flex-col space-y-2">
+        <div className="absolute top-4 md:top-6 right-4 md:right-6 flex flex-col space-y-2">
           {student.in_house && (
             <span className="rounded-full bg-green-400/80 px-2 py-1 text-xs text-white">
               Im Haus
@@ -58,16 +58,16 @@ export function StudentDetailView({
       </div>
 
       {/* Action buttons */}
-      <div className="flex justify-end space-x-2">
+      <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
         <button
           onClick={onEdit}
-          className="rounded-lg bg-blue-50 px-4 py-2 text-blue-600 shadow-sm transition-colors hover:bg-blue-100"
+          className="min-h-[44px] rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:from-blue-600 hover:to-blue-700 hover:shadow-md active:scale-[0.98]"
         >
           Bearbeiten
         </button>
         <button
           onClick={onDelete}
-          className="rounded-lg bg-red-50 px-4 py-2 text-red-600 shadow-sm transition-colors hover:bg-red-100"
+          className="min-h-[44px] rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-600 shadow-sm transition-all duration-200 hover:bg-red-50 active:scale-[0.98]"
         >
           Löschen
         </button>
@@ -77,7 +77,7 @@ export function StudentDetailView({
       <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
         {/* Personal Information */}
         <div className="space-y-4">
-          <h3 className="border-b border-blue-200 pb-2 text-lg font-medium text-blue-800">
+          <h3 className="border-b border-blue-200 pb-2 text-base md:text-lg font-medium text-blue-800">
             Persönliche Daten
           </h3>
 
@@ -120,7 +120,7 @@ export function StudentDetailView({
         {/* Guardian Information and Status */}
         <div className="space-y-8">
           <div className="space-y-4">
-            <h3 className="border-b border-purple-200 pb-2 text-lg font-medium text-purple-800">
+            <h3 className="border-b border-purple-200 pb-2 text-base md:text-lg font-medium text-purple-800">
               Erziehungsberechtigte
             </h3>
 
@@ -140,52 +140,52 @@ export function StudentDetailView({
           </div>
 
           <div className="space-y-4">
-            <h3 className="border-b border-green-200 pb-2 text-lg font-medium text-green-800">
+            <h3 className="border-b border-green-200 pb-2 text-base md:text-lg font-medium text-green-800">
               Status
             </h3>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-2 md:gap-4">
               <div
-                className={`rounded-lg p-3 ${student.in_house ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-500"}`}
+                className={`rounded-lg p-2 md:p-3 text-sm ${student.in_house ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-500"}`}
               >
                 <span className="flex items-center">
                   <span
-                    className={`mr-2 inline-block h-3 w-3 rounded-full ${student.in_house ? "bg-green-500" : "bg-gray-300"}`}
+                    className={`mr-2 inline-block h-3 w-3 rounded-full flex-shrink-0 ${student.in_house ? "bg-green-500" : "bg-gray-300"}`}
                   ></span>
-                  Im Haus
+                  <span className="truncate">Im Haus</span>
                 </span>
               </div>
 
               <div
-                className={`rounded-lg p-3 ${student.wc ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-500"}`}
+                className={`rounded-lg p-2 md:p-3 text-sm ${student.wc ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-500"}`}
               >
                 <span className="flex items-center">
                   <span
-                    className={`mr-2 inline-block h-3 w-3 rounded-full ${student.wc ? "bg-blue-500" : "bg-gray-300"}`}
+                    className={`mr-2 inline-block h-3 w-3 rounded-full flex-shrink-0 ${student.wc ? "bg-blue-500" : "bg-gray-300"}`}
                   ></span>
-                  Toilette
+                  <span className="truncate">Toilette</span>
                 </span>
               </div>
 
               <div
-                className={`rounded-lg p-3 ${student.school_yard ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-gray-500"}`}
+                className={`rounded-lg p-2 md:p-3 text-sm ${student.school_yard ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-gray-500"}`}
               >
                 <span className="flex items-center">
                   <span
-                    className={`mr-2 inline-block h-3 w-3 rounded-full ${student.school_yard ? "bg-yellow-500" : "bg-gray-300"}`}
+                    className={`mr-2 inline-block h-3 w-3 rounded-full flex-shrink-0 ${student.school_yard ? "bg-yellow-500" : "bg-gray-300"}`}
                   ></span>
-                  Schulhof
+                  <span className="truncate">Schulhof</span>
                 </span>
               </div>
 
               <div
-                className={`rounded-lg p-3 ${student.bus ? "bg-orange-100 text-orange-800" : "bg-gray-100 text-gray-500"}`}
+                className={`rounded-lg p-2 md:p-3 text-sm ${student.bus ? "bg-orange-100 text-orange-800" : "bg-gray-100 text-gray-500"}`}
               >
                 <span className="flex items-center">
                   <span
-                    className={`mr-2 inline-block h-3 w-3 rounded-full ${student.bus ? "bg-orange-500" : "bg-gray-300"}`}
+                    className={`mr-2 inline-block h-3 w-3 rounded-full flex-shrink-0 ${student.bus ? "bg-orange-500" : "bg-gray-300"}`}
                   ></span>
-                  Bus
+                  <span className="truncate">Bus</span>
                 </span>
               </div>
             </div>

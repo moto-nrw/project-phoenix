@@ -88,45 +88,31 @@ export function FormModal({
 
   const modalContent = (
     <div
-      className={`fixed inset-0 z-[9999] flex items-center justify-center transition-all duration-400 ease-out ${
+      className={`fixed inset-0 z-[9999] flex items-end md:items-center justify-center md:p-6 transition-all duration-200 ${
         isAnimating && !isExiting 
           ? 'bg-black/40' 
           : 'bg-black/0'
       }`}
       onClick={handleBackdropClick}
-      style={{ 
-        position: 'fixed', 
-        top: 0, 
-        left: 0, 
-        right: 0, 
-        bottom: 0,
-        animation: isAnimating && !isExiting ? 'backdropEnter 400ms ease-out' : undefined
-      }}
     >
       <div
-        className={`relative w-[calc(100%-2rem)] ${sizeClasses[size]} mx-4 rounded-2xl shadow-2xl border border-gray-200/50 overflow-hidden transform ${
+        className={`relative w-full ${sizeClasses[size]} h-full md:h-auto max-h-[90vh] md:max-h-[85vh] rounded-t-2xl md:rounded-xl shadow-lg md:shadow-xl border border-gray-200 bg-white overflow-hidden transform transition-all duration-200 ${
           isAnimating && !isExiting
-            ? 'animate-modalEnter' 
+            ? 'translate-y-0 md:scale-100 md:opacity-100' 
             : isExiting
-            ? 'animate-modalExit'
-            : 'scale-75 opacity-0 translate-y-8 -rotate-1'
+            ? 'translate-y-full md:translate-y-0 md:scale-95 md:opacity-0'
+            : 'translate-y-full md:translate-y-0 md:scale-95 md:opacity-0'
         }`}
         onClick={(e) => e.stopPropagation()}
-        style={{
-          background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)',
-          backdropFilter: 'blur(20px)',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 8px 16px -8px rgba(80, 128, 216, 0.15)',
-          animationFillMode: 'both'
-        }}
       >
         {/* Header with close button */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+        <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-100">
           {title && (
-            <h3 className="text-xl font-semibold text-gray-900 pr-4">{title}</h3>
+            <h3 className="text-lg md:text-xl font-semibold text-gray-900 pr-4">{title}</h3>
           )}
           <button
             onClick={handleClose}
-            className="group relative flex-shrink-0 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95"
+            className="group relative flex-shrink-0 min-h-[44px] min-w-[44px] p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-all duration-200 hover:scale-105 active:scale-[0.98]"
             aria-label="Modal schließen"
           >
             <svg 
@@ -138,28 +124,21 @@ export function FormModal({
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
-            
-            <div 
-              className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-              style={{
-                boxShadow: '0 0 12px rgba(80,128,216,0.3)'
-              }}
-            />
           </button>
         </div>
 
         {/* Content area */}
-        <div className="max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-          <div className={`p-6 text-gray-700 leading-relaxed ${
-            isAnimating && !isExiting ? 'animate-contentReveal' : 'opacity-0'
-          }`}>
+        <div className="max-h-[60vh] md:max-h-[70vh] overflow-y-auto">
+          <div className={`p-4 md:p-6 text-gray-700 ${
+            isAnimating && !isExiting ? 'opacity-100' : 'opacity-0'
+          } transition-opacity duration-200`}>
             {children}
           </div>
         </div>
 
         {/* Footer if provided */}
         {footer && (
-          <div className="flex justify-end gap-3 p-6 border-t border-gray-100 bg-gray-50/50">
+          <div className="flex justify-end gap-3 p-4 md:p-6 border-t border-gray-100 bg-gray-50">
             {footer}
           </div>
         )}
@@ -231,20 +210,20 @@ export function DetailFormModal({
       size={size}
     >
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-12">
+        <div className="flex flex-col items-center justify-center py-8 md:py-12">
           <div className="flex flex-col items-center gap-4">
-            <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-            <p className="text-sm text-gray-600">Daten werden geladen...</p>
+            <div className="h-10 w-10 md:h-12 md:w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+            <p className="text-sm md:text-base text-gray-600">Daten werden geladen...</p>
           </div>
         </div>
       ) : error ? (
-        <div className="rounded-lg bg-red-50 p-4 text-red-800">
-          <h3 className="mb-2 font-semibold">Fehler</h3>
-          <p className="mb-4">{error}</p>
+        <div className="rounded-lg bg-red-50 p-4 md:p-6 text-red-800 shadow-sm">
+          <h3 className="mb-2 text-base md:text-lg font-semibold">Fehler</h3>
+          <p className="mb-4 text-sm md:text-base">{error}</p>
           {onRetry && (
             <button
               onClick={onRetry}
-              className="rounded-lg bg-red-100 px-4 py-2 text-red-800 transition-colors hover:bg-red-200"
+              className="min-h-[44px] rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-600 shadow-sm transition-all duration-200 hover:bg-red-50 active:scale-[0.98]"
             >
               Erneut versuchen
             </button>
