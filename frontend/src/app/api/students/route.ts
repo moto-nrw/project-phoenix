@@ -41,10 +41,23 @@ interface ApiStudentsResponse {
 }
 
 /**
- * Handler for GET /api/students
- * Returns a list of students, optionally filtered by query parameters
+ * Type definition for paginated response
  */
-export const GET = createGetHandler(async (request: NextRequest, token: string): Promise<Student[]> => {
+interface PaginatedStudentsResponse {
+  data: Student[];
+  pagination: {
+    current_page: number;
+    page_size: number;
+    total_pages: number;
+    total_records: number;
+  };
+}
+
+/**
+ * Handler for GET /api/students
+ * Returns a paginated list of students, optionally filtered by query parameters
+ */
+export const GET = createGetHandler(async (request: NextRequest, token: string): Promise<PaginatedStudentsResponse> => {
   // Build URL with any query parameters
   const queryParams = new URLSearchParams();
   request.nextUrl.searchParams.forEach((value, key) => {
@@ -61,30 +74,43 @@ export const GET = createGetHandler(async (request: NextRequest, token: string):
     // Handle null or undefined response
     if (!response) {
       console.warn("API returned null response for students");
-      return [];
+      return {
+        data: [],
+        pagination: {
+          current_page: 1,
+          page_size: 50,
+          total_pages: 0,
+          total_records: 0
+        }
+      };
     }
     
     
     // Check for the paginated response structure from backend
     if ('data' in response && Array.isArray(response.data)) {
-      // If data is empty, return empty array
-      if (response.data.length === 0) {
-        return [];
-      }
-      
-      
       // Map the backend response format to the frontend format using the consistent mapping function
       const mappedStudents = response.data.map((student: StudentResponseFromBackend) => {
         const mapped = mapStudentResponse(student);
         return mapped;
       });
       
-      return mappedStudents;
+      return {
+        data: mappedStudents,
+        pagination: response.pagination
+      };
     }
     
-    // If the response doesn't have the expected structure, return an empty array
+    // If the response doesn't have the expected structure, return empty paginated response
     console.warn("API response does not have the expected structure:", response);
-    return [];
+    return {
+      data: [],
+      pagination: {
+        current_page: 1,
+        page_size: 50,
+        total_pages: 0,
+        total_records: 0
+      }
+    };
   } catch (error) {
     console.error("Error fetching students:", error);
     // Log the specific error for debugging

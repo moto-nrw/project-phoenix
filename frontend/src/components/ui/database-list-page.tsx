@@ -48,10 +48,19 @@ export interface DatabaseListPageProps<T = unknown> {
     singular: string;
     plural: string;
   };
+  
+  // Pagination
+  pagination?: {
+    current_page: number;
+    page_size: number;
+    total_pages: number;
+    total_records: number;
+  } | null;
+  onPageChange?: (page: number) => void;
 }
 
 export function DatabaseListPage<T = unknown>({
-  userName,
+  userName: _userName,
   title,
   description,
   listTitle,
@@ -69,6 +78,8 @@ export function DatabaseListPage<T = unknown>({
   emptyMessage,
   renderItem,
   itemLabel,
+  pagination,
+  onPageChange,
 }: DatabaseListPageProps<T>) {
   // Loading state
   if (loading) {
@@ -135,7 +146,7 @@ export function DatabaseListPage<T = unknown>({
         
         <DatabaseListSection 
           title={listTitle} 
-          itemCount={items.length}
+          itemCount={pagination ? pagination.total_records : items.length}
           itemLabel={itemLabel}
         >
           {items.length > 0 ? (
@@ -160,6 +171,92 @@ export function DatabaseListPage<T = unknown>({
             </div>
           )}
         </DatabaseListSection>
+        
+        {/* Pagination controls - show if we have pagination data OR if we have exactly pageSize items (might be more pages) */}
+        {pagination && pagination.total_pages > 1 && onPageChange && (
+          <div className="mt-6 flex items-center justify-between px-4 py-3 sm:px-6">
+            <div className="flex flex-1 justify-between sm:hidden">
+              <button
+                onClick={() => onPageChange(Math.max(1, pagination.current_page - 1))}
+                disabled={pagination.current_page === 1}
+                className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Zurück
+              </button>
+              <button
+                onClick={() => onPageChange(Math.min(pagination.total_pages, pagination.current_page + 1))}
+                disabled={pagination.current_page === pagination.total_pages}
+                className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Weiter
+              </button>
+            </div>
+            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700">
+                  Zeige{' '}
+                  <span className="font-medium">
+                    {(pagination.current_page - 1) * pagination.page_size + 1}
+                  </span>{' '}
+                  bis{' '}
+                  <span className="font-medium">
+                    {Math.min(pagination.current_page * pagination.page_size, pagination.total_records)}
+                  </span>{' '}
+                  von{' '}
+                  <span className="font-medium">{pagination.total_records}</span>{' '}
+                  Ergebnissen
+                </p>
+              </div>
+              <div>
+                <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                  <button
+                    onClick={() => onPageChange(Math.max(1, pagination.current_page - 1))}
+                    disabled={pagination.current_page === 1}
+                    className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">Vorherige</span>
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  
+                  {/* Page numbers */}
+                  {Array.from({ length: Math.min(7, pagination.total_pages) }, (_, i) => {
+                    const startPage = Math.max(1, Math.min(pagination.current_page - 3, pagination.total_pages - 6));
+                    const displayPage = startPage + i;
+                    
+                    if (displayPage > pagination.total_pages) return null;
+                    
+                    return (
+                      <button
+                        key={displayPage}
+                        onClick={() => onPageChange(displayPage)}
+                        className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
+                          displayPage === pagination.current_page
+                            ? 'z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600'
+                            : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
+                        }`}
+                      >
+                        {displayPage}
+                      </button>
+                    );
+                  })}
+                  
+                  <button
+                    onClick={() => onPageChange(Math.min(pagination.total_pages, pagination.current_page + 1))}
+                    disabled={pagination.current_page === pagination.total_pages}
+                    className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">Nächste</span>
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </nav>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </ResponsiveLayout>
   );

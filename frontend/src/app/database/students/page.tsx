@@ -17,6 +17,13 @@ export default function StudentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState("");
   const [groupFilter, setGroupFilter] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState<{
+    current_page: number;
+    page_size: number;
+    total_pages: number;
+    total_records: number;
+  } | null>(null);
 
   // const handleSearchInput = (value: string) => {
   //   setSearchFilter(value);
@@ -36,7 +43,7 @@ export default function StudentsPage() {
   });
 
   // Function to fetch students with optional filters
-  const fetchStudents = async (search?: string, groupId?: string | null) => {
+  const fetchStudents = async (search?: string, groupId?: string | null, page = 1) => {
     try {
       setLoading(true);
 
@@ -44,13 +51,20 @@ export default function StudentsPage() {
       const filters = {
         search: search ?? undefined,
         groupId: groupId ?? undefined,
+        page: page,
+        pageSize: 50
       };
 
       try {
         // Fetch from the real API using our student service
         const data = await studentService.getStudents(filters);
         console.log("Received data from studentService:", data);
-        setStudents(data);
+        console.log("Pagination details:", data.pagination);
+        
+        // Ensure students is always an array
+        const studentsArray = Array.isArray(data.students) ? data.students : [];
+        setStudents(studentsArray);
+        setPagination(data.pagination ?? null);
         setError(null);
       } catch (apiErr) {
         console.error("API error when fetching students:", apiErr);
@@ -58,6 +72,7 @@ export default function StudentsPage() {
           "Fehler beim Laden der Schülerdaten. Bitte versuchen Sie es später erneut.",
         );
         setStudents([]);
+        setPagination(null);
       }
     } catch (err) {
       console.error("Error fetching students:", err);
@@ -65,6 +80,7 @@ export default function StudentsPage() {
         "Fehler beim Laden der Schülerdaten. Bitte versuchen Sie es später erneut.",
       );
       setStudents([]);
+      setPagination(null);
     } finally {
       setLoading(false);
     }
@@ -72,14 +88,16 @@ export default function StudentsPage() {
 
   // Initial data load
   useEffect(() => {
-    void fetchStudents();
-  }, []);
+    void fetchStudents(undefined, undefined, currentPage);
+  }, [currentPage]);
 
   // Handle search and group filter changes
   useEffect(() => {
+    // Reset to first page when filters change
+    setCurrentPage(1);
     // Debounce search to avoid too many API calls
     const timer = setTimeout(() => {
-      void fetchStudents(searchFilter, groupFilter);
+      void fetchStudents(searchFilter, groupFilter, 1);
     }, 300);
 
     return () => clearTimeout(timer);
@@ -95,13 +113,15 @@ export default function StudentsPage() {
   };
 
   // Get unique groups from loaded students
-  const groupOptions = Array.from(
-    new Map(
-      students
-        .filter(student => student.group_id && student.group_name)
-        .map(student => [student.group_id, { value: student.group_id!, label: student.group_name! }])
-    ).values()
-  ).sort((a, b) => a.label.localeCompare(b.label));
+  const groupOptions = Array.isArray(students) 
+    ? Array.from(
+        new Map(
+          students
+            .filter(student => student.group_id && student.group_name)
+            .map(student => [student.group_id, { value: student.group_id!, label: student.group_name! }])
+        ).values()
+      ).sort((a, b) => a.label.localeCompare(b.label))
+    : [];
 
   return (
     <DatabaseListPage
@@ -131,7 +151,7 @@ export default function StudentsPage() {
       items={students}
       loading={loading}
       error={error}
-      onRetry={() => fetchStudents()}
+      onRetry={() => fetchStudents(searchFilter, groupFilter, currentPage)}
       itemLabel={{ singular: "Schüler", plural: "Schüler" }}
       renderItem={(student: Student) => (
         <StudentListItem
@@ -140,6 +160,8 @@ export default function StudentsPage() {
           onClick={handleSelectStudent}
         />
       )}
+      pagination={pagination}
+      onPageChange={setCurrentPage}
     />
   );
 }

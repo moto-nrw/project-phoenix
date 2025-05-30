@@ -163,13 +163,25 @@ export const studentService = {
     search?: string;
     inHouse?: boolean;
     groupId?: string;
-  }): Promise<Student[]> => {
+    page?: number;
+    pageSize?: number;
+  }): Promise<{
+    students: Student[];
+    pagination?: {
+      current_page: number;
+      page_size: number;
+      total_pages: number;
+      total_records: number;
+    };
+  }> => {
     // Build query parameters
     const params = new URLSearchParams();
     if (filters?.search) params.append("search", filters.search);
     if (filters?.inHouse !== undefined)
       params.append("in_house", filters.inHouse.toString());
     if (filters?.groupId) params.append("group_id", filters.groupId);
+    if (filters?.page) params.append("page", filters.page.toString());
+    if (filters?.pageSize) params.append("page_size", filters.pageSize.toString());
 
     // Use the nextjs api route which handles auth token properly
     // Use relative URL in browser environment
@@ -221,19 +233,32 @@ export const studentService = {
 
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
-                const responseData = await retryResponse.json() as {
-                  data?: Student[];
-                  [key: string]: unknown;
-                };
+                const responseData = await retryResponse.json() as any;
                 
-                // The Next.js API route uses route wrapper which may wrap the response
-                if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
-                  // If wrapped, extract the data
-                  return responseData.data;
+                // Handle wrapped ApiResponse format from route wrapper
+                if (responseData && typeof responseData === 'object' && 'success' in responseData && 'data' in responseData) {
+                  // Response is wrapped: { success: true, message: "...", data: { data: [...], pagination: {...} } }
+                  const innerData = responseData.data;
+                  if (innerData && typeof innerData === 'object' && 'data' in innerData) {
+                    return {
+                      students: Array.isArray(innerData.data) ? innerData.data : [],
+                      pagination: innerData.pagination
+                    };
+                  }
                 }
                 
-                // Otherwise, treat as direct array
-                return responseData as unknown as Student[];
+                // Handle direct paginated response format
+                if (responseData && typeof responseData === 'object' && 'data' in responseData && Array.isArray(responseData.data)) {
+                  return {
+                    students: responseData.data,
+                    pagination: responseData.pagination
+                  };
+                }
+                
+                // Fallback for old format
+                return {
+                  students: Array.isArray(responseData) ? responseData : []
+                };
               }
             }
           }
@@ -242,23 +267,40 @@ export const studentService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json() as {
-          data?: Student[];
-          [key: string]: unknown;
-        };
+        const responseData = await response.json() as any;
         
-        // The Next.js API route uses route wrapper which may wrap the response
-        if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
-          // If wrapped, extract the data
-          return responseData.data;
+        // Handle wrapped ApiResponse format from route wrapper
+        if (responseData && typeof responseData === 'object' && 'success' in responseData && 'data' in responseData) {
+          // Response is wrapped: { success: true, message: "...", data: { data: [...], pagination: {...} } }
+          const innerData = responseData.data;
+          if (innerData && typeof innerData === 'object' && 'data' in innerData) {
+            return {
+              students: Array.isArray(innerData.data) ? innerData.data : [],
+              pagination: innerData.pagination
+            };
+          }
         }
         
-        // Otherwise, treat as direct array
-        return responseData as unknown as Student[];
+        // Handle direct paginated response format
+        if (responseData && typeof responseData === 'object' && 'data' in responseData && Array.isArray(responseData.data)) {
+          return {
+            students: responseData.data,
+            pagination: responseData.pagination
+          };
+        }
+        
+        // Fallback for old format
+        return {
+          students: Array.isArray(responseData) ? responseData : []
+        };
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
-        return mapStudentsResponse((response as { data: unknown }).data as BackendStudent[]);
+        const paginatedResponse = response.data as PaginatedResponse<BackendStudent>;
+        return {
+          students: mapStudentsResponse(paginatedResponse.data),
+          pagination: paginatedResponse.pagination
+        };
       }
     } catch (error) {
       throw handleApiError(error, "Error fetching students");

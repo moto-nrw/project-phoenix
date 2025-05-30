@@ -59,7 +59,7 @@ export default function AddStudentsToActivityPage() {
           );
 
           // Available students are those not already enrolled
-          const available = allStudents.filter(
+          const available = allStudents.students.filter(
             (student) => !enrolledStudentIds.has(student.id),
           );
           setAvailableStudents(available);

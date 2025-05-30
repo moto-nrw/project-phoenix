@@ -44,7 +44,7 @@ function SearchPageContent() {
         groupId: filters?.groupId ?? selectedGroup
       });
 
-      setStudents(fetchedStudents);
+      setStudents(fetchedStudents.students);
     } catch {
       // Error fetching students - handle gracefully
       setError("Fehler beim Laden der Schülerdaten.");
