@@ -18,8 +18,6 @@ declare module "next-auth" {
       roles?: string[];
       firstName?: string;
     } & DefaultSession["user"];
-    error?: "RefreshTokenExpired" | "RefreshTokenError";
-    needsRefresh?: boolean;
   }
 
   interface User {
@@ -263,10 +261,22 @@ export const authConfig = {
       return token;
     },
     session: ({ session, token }) => {
-      // Force sign out when refresh token is expired
-      if (token.error === "RefreshTokenExpired") {
-        // Return null to trigger NextAuth to redirect to signIn page
-        return null;
+      // Check for token errors
+      if (token.error === "RefreshTokenExpired" || 
+          token.error === "RefreshTokenError" ||
+          !token.token) {
+        // Return a minimal session that will trigger auth checks to fail
+        return {
+          ...session,
+          user: {
+            ...session.user,
+            id: token.id as string || "",
+            token: "", // Empty token will cause API calls to fail with 401
+            refreshToken: "",
+            roles: [],
+            firstName: token.firstName as string || "",
+          },
+        };
       }
       
       return {
@@ -279,8 +289,6 @@ export const authConfig = {
           roles: token.roles as string[],
           firstName: token.firstName as string,
         },
-        error: token.error,
-        needsRefresh: token.needsRefresh,
       };
     },
   },
