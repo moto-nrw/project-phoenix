@@ -12,6 +12,7 @@ import { GlobalSearch } from "./global-search";
 import { MobileSearchModal } from "./mobile-search-modal";
 import { NotificationCenter } from "./notification-center";
 import { MobileNotificationModal } from "./mobile-notification-modal";
+import { useSession } from "next-auth/react";
 
 // Function to get page title based on pathname
 function getPageTitle(pathname: string): string {
@@ -98,6 +99,7 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
     const pathname = usePathname();
     const helpContent = getHelpContent(pathname);
     const pageTitle = getPageTitle(pathname);
+    const { data: session } = useSession();
 
     // Mock notification state for mobile button
     const [hasUnreadNotifications] = useState(true); // This would come from global state
@@ -173,9 +175,30 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
                         </span>
                     </div>
 
-                    {/* Search bar centered horizontally */}
+                    {/* Search bar centered horizontally - or session expiry warning */}
                     <div className="hidden lg:flex absolute left-1/2 transform -translate-x-1/2">
-                        <GlobalSearch className="w-80" />
+                        {session?.error === "RefreshTokenExpired" ? (
+                            <div className="flex items-center space-x-2 px-4 py-2 bg-red-50 border border-red-200 rounded-lg">
+                                <svg 
+                                    className="w-5 h-5 text-red-600 flex-shrink-0" 
+                                    fill="none" 
+                                    viewBox="0 0 24 24" 
+                                    stroke="currentColor"
+                                >
+                                    <path 
+                                        strokeLinecap="round" 
+                                        strokeLinejoin="round" 
+                                        strokeWidth={2} 
+                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                                    />
+                                </svg>
+                                <span className="text-sm font-medium text-red-800">
+                                    Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.
+                                </span>
+                            </div>
+                        ) : (
+                            <GlobalSearch className="w-80" />
+                        )}
                     </div>
 
                     {/* Right section: Actions + Profile */}
@@ -195,6 +218,25 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
 
                         {/* Mobile action buttons */}
                         <div className="lg:hidden flex items-center space-x-2">
+                            {/* Session expiry warning for mobile */}
+                            {session?.error === "RefreshTokenExpired" && (
+                                <div className="p-2 text-red-600">
+                                    <svg 
+                                        className="w-5 h-5" 
+                                        fill="none" 
+                                        viewBox="0 0 24 24" 
+                                        stroke="currentColor"
+                                    >
+                                        <path 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round" 
+                                            strokeWidth={2} 
+                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                                        />
+                                    </svg>
+                                </div>
+                            )}
+                            
                             {/* Mobile notifications button */}
                             <button 
                                 onClick={openMobileNotification}
@@ -210,16 +252,18 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
                                 )}
                             </button>
 
-                            {/* Mobile search button */}
-                            <button 
-                                onClick={openMobileSearch}
-                                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors duration-200 active:bg-gray-200"
-                                aria-label="Suche öffnen"
-                            >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
-                            </button>
+                            {/* Mobile search button - hide when session expired */}
+                            {session?.error !== "RefreshTokenExpired" && (
+                                <button 
+                                    onClick={openMobileSearch}
+                                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors duration-200 active:bg-gray-200"
+                                    aria-label="Suche öffnen"
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </button>
+                            )}
                         </div>
 
                         {/* User menu */}
