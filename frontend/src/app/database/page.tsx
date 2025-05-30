@@ -72,7 +72,7 @@ const baseDataSections = [
   {
     id: "permissions",
     title: "Berechtigungen",
-    description: "Systemberechtigungen verwalten",
+    description: "Systemberechtigungen ansehen",
     href: "/database/permissions",
     icon: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z",
     color: "from-[#ec4899] to-[#db2777]",
@@ -210,9 +210,9 @@ function DatabaseContent() {
       <div className="mb-6 md:mb-8 rounded-lg border border-blue-200 bg-blue-50 p-3 md:p-4">
         <div className="flex">
           <div className="flex-shrink-0">
-            <Icon 
-              path="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
-              className="h-4 w-4 md:h-5 md:w-5 text-blue-600" 
+            <Icon
+              path="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              className="h-4 w-4 md:h-5 md:w-5 text-blue-600"
             />
           </div>
           <div className="ml-2 md:ml-3 flex-1">
@@ -232,12 +232,12 @@ function DatabaseContent() {
           if (!permissions?.[permissionKey]) {
             return null; // Don't render sections user doesn't have permission for
           }
-          
+
           // Get the count for this section (special case for permissions)
           const countKey = section.id === 'permissions' ? 'permissionCount' : section.id;
           const count = counts[countKey as keyof typeof counts] ?? 0;
           const countText = countsLoading ? "Lade..." : `${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
-          
+
           return (
             <Link
               key={section.id}
@@ -246,7 +246,7 @@ function DatabaseContent() {
             >
               {/* Background gradient on hover */}
               <div className={`absolute inset-0 bg-gradient-to-br ${section.color} opacity-0 group-hover:opacity-5 transition-opacity duration-200`} />
-              
+
               {/* Content */}
               <div className="relative">
                 {/* Icon and Count */}
@@ -254,15 +254,14 @@ function DatabaseContent() {
                   <div className={`rounded-lg bg-gradient-to-br ${section.color} p-2.5 md:p-3 text-white shadow-md group-hover:shadow-lg transition-all duration-200`}>
                     <Icon path={section.icon} className="h-5 w-5 md:h-6 md:w-6" />
                   </div>
-                  <span className={`text-xs font-medium px-2 py-1 rounded-full transition-all duration-200 ${
-                    countsLoading 
-                      ? "bg-gray-200 text-gray-400 animate-pulse" 
+                  <span className={`text-xs font-medium px-2 py-1 rounded-full transition-all duration-200 ${countsLoading
+                      ? "bg-gray-200 text-gray-400 animate-pulse"
                       : "bg-gray-100 text-gray-500"
-                  }`}>
+                    }`}>
                     {countText}
                   </span>
                 </div>
-                
+
                 {/* Title and Description */}
                 <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-1 group-hover:text-gray-800">
                   {section.title}
@@ -270,13 +269,13 @@ function DatabaseContent() {
                 <p className="text-xs md:text-sm text-gray-600 line-clamp-2">
                   {section.description}
                 </p>
-                
+
                 {/* Arrow indicator */}
                 <div className="mt-3 md:mt-4 flex items-center text-gray-400 group-hover:text-gray-600 transition-colors">
                   <span className="text-xs md:text-sm font-medium">Verwalten</span>
-                  <Icon 
-                    path="M9 5l7 7-7 7" 
-                    className="ml-2 h-3.5 w-3.5 md:h-4 md:w-4 transition-transform duration-200 group-hover:translate-x-1" 
+                  <Icon
+                    path="M9 5l7 7-7 7"
+                    className="ml-2 h-3.5 w-3.5 md:h-4 md:w-4 transition-transform duration-200 group-hover:translate-x-1"
                   />
                 </div>
               </div>
