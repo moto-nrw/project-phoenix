@@ -3,22 +3,21 @@
 import { useSession } from "next-auth/react";
 import { redirect, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { PageHeader, SectionTitle } from "@/components/dashboard";
-import ActivityList from "@/components/activities/activity-list";
-import type { Activity, ActivityCategory } from "@/lib/activity-helpers";
+import type { Activity } from "@/lib/activity-helpers";
 import { activityService } from "@/lib/activity-service";
-import Link from "next/link";
+import { DatabaseListPage, SelectFilter } from "@/components/ui";
+import { ActivityListItem } from "@/components/activities";
 
 export default function ActivitiesPage() {
   const router = useRouter();
   const [activities, setActivities] = useState<Activity[]>([]);
-  const [, setCategories] = useState<ActivityCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState("");
-  const [categoryFilter] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [supervisorFilter, setSupervisorFilter] = useState<string | null>(null);
 
-  const { status } = useSession({
+  const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/");
@@ -64,20 +63,9 @@ export default function ActivitiesPage() {
     }
   };
 
-  // Function to fetch categories
-  const fetchCategories = async () => {
-    try {
-      const categoriesData = await activityService.getCategories();
-      setCategories(categoriesData);
-    } catch (err) {
-      console.error("Error fetching categories:", err);
-    }
-  };
-
   // Initial data load
   useEffect(() => {
     void fetchActivities();
-    void fetchCategories();
   }, []);
 
   // Handle search and category filter changes
@@ -90,108 +78,98 @@ export default function ActivitiesPage() {
     return () => clearTimeout(timer);
   }, [searchFilter, categoryFilter]);
 
-  if (status === "loading" || loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p>Loading...</p>
-      </div>
-    );
+  if (status === "loading") {
+    return <div />; // Let DatabaseListPage handle the loading state
   }
 
   const handleSelectActivity = (activity: Activity) => {
     router.push(`/database/activities/${activity.id}`);
   };
 
-  // Show error if loading failed
-  if (error) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <div className="max-w-md rounded-lg bg-red-50 p-4 text-red-800">
-          <h2 className="mb-2 font-semibold">Fehler</h2>
-          <p>{error}</p>
-          <button
-            onClick={() => fetchActivities()}
-            className="mt-4 rounded bg-red-100 px-4 py-2 text-red-800 transition-colors hover:bg-red-200"
-          >
-            Erneut versuchen
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // Apply client-side filters
+  const filteredActivities = activities.filter((activity) => {
+    if (categoryFilter && activity.ag_category_id !== categoryFilter) return false;
+    if (supervisorFilter && activity.supervisor_id !== supervisorFilter) return false;
+    return true;
+  });
+
+  // Get unique categories from loaded activities
+  const categoryOptions = Array.from(
+    new Map(
+      activities
+        .filter(activity => activity.ag_category_id && activity.category_name)
+        .map(activity => [
+          activity.ag_category_id, 
+          { value: activity.ag_category_id, label: activity.category_name! }
+        ])
+    ).values()
+  ).sort((a, b) => a.label.localeCompare(b.label));
+
+  // Get unique supervisors from loaded activities
+  const supervisorOptions = Array.from(
+    new Map(
+      activities
+        .filter(activity => activity.supervisor_id && activity.supervisor_name)
+        .map(activity => [
+          activity.supervisor_id,
+          { value: activity.supervisor_id, label: activity.supervisor_name! }
+        ])
+    ).values()
+  ).sort((a, b) => a.label.localeCompare(b.label));
+
+  // Render filters
+  const renderFilters = () => (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:gap-4">
+      <SelectFilter
+        id="categoryFilter"
+        label="Kategorie"
+        value={categoryFilter}
+        onChange={setCategoryFilter}
+        options={categoryOptions}
+        placeholder="Alle Kategorien"
+      />
+      <SelectFilter
+        id="supervisorFilter"
+        label="Leitung"
+        value={supervisorFilter}
+        onChange={setSupervisorFilter}
+        options={supervisorOptions}
+        placeholder="Alle Leitungen"
+      />
+    </div>
+  );
 
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <PageHeader title="Aktivitätenauswahl" backUrl="/database" />
-
-      {/* Main Content */}
-      <main className="mx-auto max-w-4xl p-4">
-        {/* Title Section */}
-        <div className="mb-8">
-          <SectionTitle title="Aktivität auswählen" />
-        </div>
-
-        {/* Search and Add Section */}
-        <div className="mb-8 flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <div className="relative w-full sm:max-w-md">
-            <input
-              type="text"
-              placeholder="Suchen..."
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 pl-10 transition-all duration-200 hover:border-gray-400 focus:shadow-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            />
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-            </div>
-          </div>
-
-          <Link href="/database/activities/new" className="w-full sm:w-auto">
-            <button className="group flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-teal-500 to-blue-600 px-4 py-3 text-white transition-all duration-200 hover:scale-[1.02] hover:from-teal-600 hover:to-blue-700 hover:shadow-lg sm:w-auto sm:justify-start">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-              <span>Neue Aktivität erstellen</span>
-            </button>
-          </Link>
-        </div>
-
-        {/* Activity List */}
-        <ActivityList
-          activities={activities}
-          onActivityClick={handleSelectActivity}
-          emptyMessage={
-            searchFilter
-              ? `Keine Ergebnisse für "${searchFilter}"`
-              : "Keine Aktivitäten vorhanden."
-          }
+    <DatabaseListPage
+      userName={session?.user?.name ?? "Root"}
+      title="Aktivitäten auswählen"
+      description="Verwalten Sie Aktivitäten und Anmeldungen"
+      listTitle="Aktivitätenliste"
+      searchPlaceholder="Aktivität suchen..."
+      searchValue={searchFilter}
+      onSearchChange={setSearchFilter}
+      filters={renderFilters()}
+      addButton={{
+        label: "Neue Aktivität erstellen",
+        href: "/database/activities/new"
+      }}
+      items={filteredActivities}
+      loading={loading}
+      error={error}
+      onRetry={() => fetchActivities()}
+      itemLabel={{ singular: "Aktivität", plural: "Aktivitäten" }}
+      emptyIcon={
+        <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+      }
+      renderItem={(activity: Activity) => (
+        <ActivityListItem
+          key={activity.id}
+          activity={activity}
+          onClick={() => handleSelectActivity(activity)}
         />
-      </main>
-    </div>
+      )}
+    />
   );
 }

@@ -101,7 +101,7 @@ export default function RoomsPage() {
     .sort()
     .map(cat => ({ value: cat, label: cat }));
   
-  const buildingOptions = [...new Set(rooms.map((room) => room.building).filter(Boolean))]
+  const buildingOptions = [...new Set(rooms.map((room) => room.building).filter((b): b is string => Boolean(b)))]
     .sort()
     .map(building => ({ value: building, label: building }));
   
