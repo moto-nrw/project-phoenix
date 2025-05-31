@@ -274,8 +274,13 @@ class TeacherService {
             }
             
             // Add the temporary credentials to the response
+            // Also preserve the original name data since the staff response might not include it
             return {
                 ...staffData,
+                first_name: teacherData.first_name,
+                last_name: teacherData.last_name,
+                name: `${teacherData.first_name} ${teacherData.last_name}`,
+                email: email,
                 temporaryCredentials: {
                     email: email,
                     password: password,
@@ -290,13 +295,52 @@ class TeacherService {
     // Update an existing teacher
     async updateTeacher(id: string, teacherData: Partial<Teacher>): Promise<Teacher> {
         try {
-            // For staff API, we need to include is_teacher flag
-            const staffData = {
-                ...teacherData,
-                is_teacher: true,
-            };
-
             const session = await getSession();
+            
+            // First, get the current teacher data to get person_id
+            const currentTeacher = await this.getTeacher(id);
+            
+            // If name fields are included, update the person record first
+            if (teacherData.first_name || teacherData.last_name || teacherData.tag_id !== undefined) {
+                if (!currentTeacher.person_id) {
+                    throw new Error("Cannot update person fields - person_id not found");
+                }
+                
+                const personData: { first_name?: string; last_name?: string; tag_id?: string | null } = {};
+                if (teacherData.first_name !== undefined) personData.first_name = teacherData.first_name;
+                if (teacherData.last_name !== undefined) personData.last_name = teacherData.last_name;
+                if (teacherData.tag_id !== undefined) personData.tag_id = teacherData.tag_id;
+                
+                const personResponse = await fetch(`/api/users/${currentTeacher.person_id}`, {
+                    method: "PUT",
+                    credentials: "include",
+                    headers: session?.user?.token
+                        ? {
+                            Authorization: `Bearer ${session.user.token}`,
+                            "Content-Type": "application/json",
+                        }
+                        : {
+                            "Content-Type": "application/json",
+                        },
+                    body: JSON.stringify(personData),
+                });
+                
+                if (!personResponse.ok) {
+                    const errorText = await personResponse.text();
+                    throw new Error(`Failed to update person: ${errorText}`);
+                }
+            }
+            
+            // Then update the staff record with staff-specific fields
+            const staffData = {
+                person_id: currentTeacher.person_id, // Include person_id as required by backend
+                is_teacher: true,
+                specialization: teacherData.specialization,
+                role: teacherData.role,
+                qualifications: teacherData.qualifications,
+                staff_notes: teacherData.staff_notes,
+            };
+            
             const response = await fetch(`/api/staff/${id}`, {
                 method: "PUT",
                 credentials: "include",

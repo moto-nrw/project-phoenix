@@ -73,7 +73,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     
     // Map the response data to match the Teacher interface from teacher-api.ts
     return {
-      id: String(staff.id),
+      id: String(staff.id), // This should be the staff ID since that's what we use for the API
       name: staff.person ? `${staff.person.first_name} ${staff.person.last_name}` : "",
       first_name: staff.person?.first_name ?? "",
       last_name: staff.person?.last_name ?? "",
@@ -87,6 +87,9 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       updated_at: staff.updated_at,
       // Include person_id for updates
       person_id: staff.person_id,
+      // Include both IDs for debugging
+      staff_id: String(staff.id),
+      teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
     };
   } catch (error) {
     console.error("Error fetching staff member:", error);

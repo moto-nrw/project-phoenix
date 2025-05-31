@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Teacher } from "@/lib/teacher-api";
 
 interface TeacherFormProps {
@@ -11,7 +11,7 @@ interface TeacherFormProps {
     rfidCards?: Array<{ id: string; label: string }>;
 }
 
-export default function TeacherForm({
+export function TeacherForm({
                                         initialData,
                                         onSubmitAction,
                                         onCancelAction,
@@ -20,7 +20,6 @@ export default function TeacherForm({
                                         submitLabel = "Speichern",
                                         rfidCards = [],
                                     }: TeacherFormProps) {
-    console.log("TeacherForm - rfidCards prop:", rfidCards, "type:", typeof rfidCards, "isArray:", Array.isArray(rfidCards));
     // Form state
     const [firstName, setFirstName] = useState(initialData.first_name ?? "");
     const [lastName, setLastName] = useState(initialData.last_name ?? "");
@@ -41,9 +40,16 @@ export default function TeacherForm({
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [submitError, setSubmitError] = useState<string | null>(null);
 
-    // Update form when initialData changes
+    // Store a reference to track when we need to reset the form
+    const prevIdRef = useRef(initialData?.id);
+    
+    // Reset form when the teacher being edited changes
     useEffect(() => {
-        if (initialData) {
+        const currentId = initialData?.id;
+        
+        // Only reset if we're switching to a different teacher or creating new
+        if (prevIdRef.current !== currentId) {
+            // Reset all form fields
             setFirstName(initialData.first_name ?? "");
             setLastName(initialData.last_name ?? "");
             setEmail(initialData.email ?? "");
@@ -52,6 +58,14 @@ export default function TeacherForm({
             setQualifications(initialData.qualifications ?? "");
             setTagId(initialData.tag_id ?? "");
             setStaffNotes(initialData.staff_notes ?? "");
+            // Reset password fields
+            setPassword("");
+            setConfirmPassword("");
+            // Reset errors
+            setErrors({});
+            setSubmitError(null);
+            
+            prevIdRef.current = currentId;
         }
     }, [initialData]);
 
@@ -123,7 +137,7 @@ export default function TeacherForm({
                 specialization: specialization.trim(),
                 role: role.trim() || null,
                 qualifications: qualifications.trim() || null,  
-                tag_id: tagId || null,
+                tag_id: tagId || null, // Use the TagID directly
                 staff_notes: staffNotes.trim() || null,
                 // Preserve existing IDs when editing
                 ...(initialData.id && { id: initialData.id }),
@@ -132,8 +146,7 @@ export default function TeacherForm({
                 is_teacher: true,
             };
             
-            console.log("TeacherForm - submitting formData:", formData);
-            console.log("TeacherForm - initialData:", initialData);
+            // Submit the form data
 
             // Include password for new teachers (it's always required now)
             if (!initialData.id) {
@@ -176,12 +189,14 @@ export default function TeacherForm({
                             <input
                                 type="text"
                                 id="firstName"
+                                name="firstName"
                                 value={firstName}
                                 onChange={(e) => setFirstName(e.target.value)}
                                 className={`w-full rounded-lg border ${
                                     errors.firstName ? "border-red-300" : "border-gray-300"
                                 } px-4 py-2 transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none`}
                                 disabled={isLoading}
+                                autoComplete="given-name"
                             />
                             {errors.firstName && (
                                 <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>
@@ -199,12 +214,14 @@ export default function TeacherForm({
                             <input
                                 type="text"
                                 id="lastName"
+                                name="lastName"
                                 value={lastName}
                                 onChange={(e) => setLastName(e.target.value)}
                                 className={`w-full rounded-lg border ${
                                     errors.lastName ? "border-red-300" : "border-gray-300"
                                 } px-4 py-2 transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none`}
                                 disabled={isLoading}
+                                autoComplete="family-name"
                             />
                             {errors.lastName && (
                                 <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>
@@ -251,12 +268,12 @@ export default function TeacherForm({
                                 className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none"
                                 disabled={isLoading}
                             >
-                                <option value="">Keine RFID-Karte</option>
-                                {Array.isArray(rfidCards) ? rfidCards.map((card) => (
+                                <option key="no-card" value="">Keine RFID-Karte</option>
+                                {Array.isArray(rfidCards) && rfidCards.map((card) => (
                                     <option key={card.id} value={card.id}>
                                         {card.label}
                                     </option>
-                                )) : null}
+                                ))}
                             </select>
                         </div>
 
