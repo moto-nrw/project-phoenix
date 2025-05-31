@@ -233,7 +233,7 @@ export const studentService = {
 
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
-                const responseData = await retryResponse.json() as any;
+                const responseData = await retryResponse.json();
                 
                 // Handle wrapped ApiResponse format from route wrapper
                 if (responseData && typeof responseData === 'object' && 'success' in responseData && 'data' in responseData) {
@@ -267,7 +267,7 @@ export const studentService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json() as any;
+        const responseData = await response.json();
         
         // Handle wrapped ApiResponse format from route wrapper
         if (responseData && typeof responseData === 'object' && 'success' in responseData && 'data' in responseData) {
