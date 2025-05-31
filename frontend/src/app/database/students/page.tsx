@@ -5,12 +5,14 @@ import { redirect } from "next/navigation";
 import { useState, useEffect } from "react";
 import type { Student } from "@/lib/api";
 import { studentService } from "@/lib/api";
-import { DatabaseListPage, SelectFilter, CreateFormModal, DetailFormModal } from "@/components/ui";
+import { DatabaseListPage, SelectFilter, CreateFormModal, DetailFormModal, Notification } from "@/components/ui";
 import { StudentListItem, StudentForm, StudentDetailView } from "@/components/students";
+import { useNotification, getDbOperationMessage } from "@/lib/use-notification";
 
 // Student list will be loaded from API
 
 export default function StudentsPage() {
+  const { notification, showSuccess, showError } = useNotification();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -172,6 +174,9 @@ export default function StudentsPage() {
       // Create the student
       await studentService.createStudent(newStudent);
       
+      // Show success notification
+      showSuccess(getDbOperationMessage('create', 'Schüler', `${newStudent.first_name} ${newStudent.second_name}`));
+      
       // Close modal and refresh list
       setShowCreateModal(false);
       await fetchStudents(searchFilter, groupFilter, currentPage);
@@ -200,6 +205,9 @@ export default function StudentsPage() {
         studentData
       );
       
+      // Show success notification
+      showSuccess(getDbOperationMessage('update', 'Schüler', selectedStudent.name));
+      
       // Refresh the selected student data
       const refreshedStudent = await studentService.getStudent(selectedStudent.id);
       setSelectedStudent(refreshedStudent);
@@ -226,6 +234,9 @@ export default function StudentsPage() {
       try {
         setDetailLoading(true);
         await studentService.deleteStudent(selectedStudent.id);
+        
+        // Show success notification
+        showSuccess(getDbOperationMessage('delete', 'Schüler', selectedStudent.name));
         
         // Close modal and refresh list
         setShowDetailModal(false);
@@ -255,6 +266,9 @@ export default function StudentsPage() {
 
   return (
     <>
+      {/* Notification for success/error messages */}
+      <Notification notification={notification} className="fixed top-4 right-4 z-50 max-w-sm" />
+      
       <DatabaseListPage
         userName={session?.user?.name ?? "Benutzer"}
         title="Schüler auswählen"
