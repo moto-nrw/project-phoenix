@@ -115,14 +115,15 @@ export function mapAccountResponse(backendAccount: BackendAccount): Account {
     };
 }
 
-export function mapRoleResponse(backendRole: BackendRole): Role {
+export function mapRoleResponse(backendRole: BackendRole | any): Role {
+    // Handle both uppercase (BackendRole) and lowercase (from API) field names
     return {
-        id: String(backendRole.ID),
-        name: backendRole.Name,
-        description: backendRole.Description,
-        createdAt: backendRole.CreatedAt,
-        updatedAt: backendRole.UpdatedAt,
-        permissions: backendRole.Permissions?.map(mapPermissionResponse),
+        id: String(backendRole.ID ?? backendRole.id),
+        name: backendRole.Name ?? backendRole.name,
+        description: backendRole.Description ?? backendRole.description,
+        createdAt: backendRole.CreatedAt ?? backendRole.created_at,
+        updatedAt: backendRole.UpdatedAt ?? backendRole.updated_at,
+        permissions: (backendRole.Permissions ?? backendRole.permissions)?.map(mapPermissionResponse),
     };
 }
 
