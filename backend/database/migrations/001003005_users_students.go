@@ -99,9 +99,9 @@ func usersStudentsUp(ctx context.Context, db *bun.DB) error {
 			CONSTRAINT chk_valid_guardian_phone CHECK (
 				guardian_phone IS NULL OR is_valid_phone(guardian_phone)
 			),
-			-- Ensure only one location is set at a time
+			-- Ensure only one location is set at a time (bus is not a location, it's a transportation attribute)
 			CONSTRAINT chk_one_location_only CHECK (
-				(bus::int + in_house::int + wc::int + school_yard::int) <= 1
+				(in_house::int + wc::int + school_yard::int) <= 1
 			)
 		)
 	`)

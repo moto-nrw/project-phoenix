@@ -83,6 +83,7 @@ type StudentResponse struct {
 	TagID           string    `json:"tag_id,omitempty"`
 	SchoolClass     string    `json:"school_class"`
 	Location        string    `json:"location"`
+	Bus             bool      `json:"bus"`
 	GuardianName    string    `json:"guardian_name"`
 	GuardianContact string    `json:"guardian_contact"`
 	GuardianEmail   string    `json:"guardian_email,omitempty"`
@@ -126,6 +127,7 @@ type StudentRequest struct {
 	GuardianEmail string `json:"guardian_email,omitempty"`
 	GuardianPhone string `json:"guardian_phone,omitempty"`
 	GroupID       *int64 `json:"group_id,omitempty"`
+	Bus           *bool  `json:"bus,omitempty"` // Whether student takes the bus
 }
 
 // UpdateStudentRequest represents a student update request
@@ -142,6 +144,7 @@ type UpdateStudentRequest struct {
 	GuardianEmail   *string `json:"guardian_email,omitempty"`
 	GuardianPhone   *string `json:"guardian_phone,omitempty"`
 	GroupID         *int64  `json:"group_id,omitempty"`
+	Bus             *bool   `json:"bus,omitempty"` // Whether student takes the bus
 }
 
 // Bind validates the student request
@@ -197,6 +200,7 @@ func newStudentResponse(student *users.Student, person *users.Person, group *edu
 		ID:              student.ID,
 		PersonID:        student.PersonID,
 		SchoolClass:     student.SchoolClass,
+		Bus:             student.Bus,
 		GuardianName:    student.GuardianName,
 		GuardianContact: student.GuardianContact,
 		CreatedAt:       student.CreatedAt,
@@ -566,6 +570,10 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		student.GroupID = req.GroupID
 	}
 
+	if req.Bus != nil {
+		student.Bus = *req.Bus
+	}
+
 	// Create student
 	if err := rs.StudentRepo.Create(r.Context(), student); err != nil {
 		// Clean up person if student creation fails
@@ -682,6 +690,9 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.GroupID != nil {
 		student.GroupID = req.GroupID
+	}
+	if req.Bus != nil {
+		student.Bus = *req.Bus
 	}
 
 	// Update student

@@ -198,7 +198,8 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
       tag_id: backendData.tag_id,
       guardian_email: guardianEmail ?? backendData.guardian_email,
       guardian_phone: guardianPhone ?? backendData.guardian_phone,
-      group_id: backendData.group_id
+      group_id: backendData.group_id,
+      bus: backendData.bus
     };
     
     try {
