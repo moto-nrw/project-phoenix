@@ -7,11 +7,10 @@ import { getThemeClassNames } from "./themes";
 export interface FormField {
   name: string;
   label: string;
-  type: 'text' | 'email' | 'select' | 'textarea' | 'password' | 'checkbox' | 'custom';
+  type: 'text' | 'email' | 'select' | 'textarea' | 'password' | 'checkbox' | 'custom' | 'number';
   required?: boolean;
   placeholder?: string;
-  options?: Array<{ value: string; label: string }>;
-  loadOptions?: () => Promise<Array<{ value: string; label: string }>>;
+  options?: Array<{ value: string; label: string }> | (() => Promise<Array<{ value: string; label: string }>>);
   validation?: (value: unknown) => string | null;
   component?: React.ComponentType<{
     value: unknown;
@@ -24,6 +23,8 @@ export interface FormField {
   helperText?: string;
   autoComplete?: string;
   colSpan?: 1 | 2;
+  min?: number;
+  max?: number;
 }
 
 export interface FormSection {
@@ -95,10 +96,10 @@ export function DatabaseForm<T = Record<string, unknown>>({
     const loadAsyncOptions = async () => {
       for (const section of sections) {
         for (const field of section.fields) {
-          if (field.type === 'select' && field.loadOptions) {
+          if (field.type === 'select' && typeof field.options === 'function') {
             setLoadingOptions(prev => ({ ...prev, [field.name]: true }));
             try {
-              const options = await field.loadOptions();
+              const options = await field.options();
               setAsyncOptions(prev => ({ ...prev, [field.name]: options }));
             } catch (error) {
               console.error(`Error loading options for ${field.name}:`, error);
@@ -250,6 +251,10 @@ export function DatabaseForm<T = Record<string, unknown>>({
         );
 
       case 'select':
+        const selectOptions = Array.isArray(field.options) 
+          ? field.options 
+          : (asyncOptions[field.name] ?? []);
+        
         return (
           <div>
             <label
@@ -272,12 +277,39 @@ export function DatabaseForm<T = Record<string, unknown>>({
                   ? 'Optionen werden geladen...' 
                   : (field.placeholder ?? 'Bitte wählen')}
               </option>
-              {(field.options ?? asyncOptions[field.name] ?? []).map(option => (
+              {selectOptions.map(option => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
             </select>
+            {field.helperText && (
+              <p className="mt-1 text-xs md:text-sm text-gray-500">{field.helperText}</p>
+            )}
+          </div>
+        );
+
+      case 'number':
+        return (
+          <div>
+            <label
+              htmlFor={field.name}
+              className="mb-1 block text-xs md:text-sm font-medium text-gray-700"
+            >
+              {field.label}{field.required && '*'}
+            </label>
+            <input
+              type="number"
+              id={field.name}
+              name={field.name}
+              value={(formData[field.name] as number) ?? ''}
+              onChange={handleChange}
+              required={field.required}
+              placeholder={field.placeholder}
+              min={field.min}
+              max={field.max}
+              className={baseInputClasses}
+            />
             {field.helperText && (
               <p className="mt-1 text-xs md:text-sm text-gray-500">{field.helperText}</p>
             )}
