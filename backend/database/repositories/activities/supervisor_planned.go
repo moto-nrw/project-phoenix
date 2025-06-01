@@ -22,7 +22,7 @@ type SupervisorPlannedRepository struct {
 // NewSupervisorPlannedRepository creates a new SupervisorPlannedRepository
 func NewSupervisorPlannedRepository(db *bun.DB) activities.SupervisorPlannedRepository {
 	return &SupervisorPlannedRepository{
-		Repository: base.NewRepository[*activities.SupervisorPlanned](db, "activities.supervisors", "SupervisorPlanned"),
+		Repository: base.NewRepository[*activities.SupervisorPlanned](db, "activities.supervisors", "supervisor_planned"),
 		db:         db,
 	}
 }
@@ -40,11 +40,11 @@ func (r *SupervisorPlannedRepository) FindByID(ctx context.Context, id interface
 		query = r.db.NewSelect()
 	}
 	
-	// Use the same alias as base repository: "supervisorplanned" (lowercase)
+	// Use the same alias as base repository: "supervisor_planned"
 	err := query.
 		Model(&supervisor).
-		ModelTableExpr(`activities.supervisors AS "supervisorplanned"`).
-		Where(`"supervisorplanned".id = ?`, id).
+		ModelTableExpr(`activities.supervisors AS "supervisor_planned"`).
+		Where(`"supervisor_planned".id = ?`, id).
 		Scan(ctx)
 	
 	if err != nil {
@@ -285,11 +285,11 @@ func (r *SupervisorPlannedRepository) Delete(ctx context.Context, id interface{}
 		query = r.db.NewDelete()
 	}
 
-	// Use the same alias as base repository: "supervisorplanned" (lowercase)
+	// Use the same alias as base repository: "supervisor_planned"
 	_, err := query.
 		Model((*activities.SupervisorPlanned)(nil)).
-		ModelTableExpr(`activities.supervisors AS "supervisorplanned"`).
-		Where(`"supervisorplanned".id = ?`, id).
+		ModelTableExpr(`activities.supervisors AS "supervisor_planned"`).
+		Where(`"supervisor_planned".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {

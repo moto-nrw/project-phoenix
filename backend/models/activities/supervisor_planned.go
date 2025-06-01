@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
 )
 
 // SupervisorPlanned represents a staff member assigned to supervise an activity group
@@ -19,22 +18,6 @@ type SupervisorPlanned struct {
 	// Relations - these would be populated when using the ORM's relations
 	Staff *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`
 	Group *Group       `bun:"rel:belongs-to,join:group_id=id" json:"group,omitempty"`
-}
-
-func (sp *SupervisorPlanned) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("activities.supervisors")
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("activities.supervisors")
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("activities.supervisors")
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("activities.supervisors")
-	}
-	return nil
 }
 
 // GetID returns the entity's ID
