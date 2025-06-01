@@ -1280,6 +1280,11 @@ export async function getStudentEnrollments(studentId: string): Promise<Activity
     }
 }
 
+// Alias for getTimeframes to match modal expectations
+export async function getAvailableTimeframes(): Promise<Timeframe[]> {
+    return getTimeframes();
+}
+
 // Batch update student enrollments (add or remove multiple students at once)
 export async function updateGroupEnrollments(activityId: string, data: { student_ids: string[] }): Promise<boolean> {
     const useProxyApi = typeof window !== "undefined";
