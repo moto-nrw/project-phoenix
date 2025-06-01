@@ -167,28 +167,7 @@ export const roomsConfig = defineEntityConfig<Room>({
     description: 'Verwalte Räume und deren Eigenschaften',
     searchPlaceholder: 'Raum suchen...',
     
-    filters: [
-      {
-        id: 'category',
-        label: 'Kategorie',
-        type: 'select',
-        options: [
-          { value: 'Klassenzimmer', label: 'Klassenzimmer' },
-          { value: 'Labor', label: 'Labor' },
-          { value: 'Sport', label: 'Sport' },
-          { value: 'Kunst', label: 'Kunst' },
-          { value: 'Musik', label: 'Musik' },
-          { value: 'Computer', label: 'Computer' },
-          { value: 'Bibliothek', label: 'Bibliothek' },
-          { value: 'Lernraum', label: 'Lernraum' },
-          { value: 'Speiseraum', label: 'Speiseraum' },
-          { value: 'Versammlung', label: 'Versammlung' },
-          { value: 'Medizin', label: 'Medizin' },
-          { value: 'Büro', label: 'Büro' },
-          { value: 'Besprechung', label: 'Besprechung' },
-        ],
-      },
-    ],
+    // No filters needed for ~20 rooms - search is sufficient
     
     item: {
       title: (room) => room.name,
