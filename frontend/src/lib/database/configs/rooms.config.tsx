@@ -37,7 +37,7 @@ export const roomsConfig = defineEntityConfig<Room>({
             type: 'select',
             required: true,
             options: [
-              // German values (preferred)
+              // Only German values for new rooms
               { value: 'Klassenzimmer', label: 'Klassenzimmer' },
               { value: 'Labor', label: 'Labor' },
               { value: 'Sport', label: 'Sport' },
@@ -51,11 +51,6 @@ export const roomsConfig = defineEntityConfig<Room>({
               { value: 'Medizin', label: 'Medizin' },
               { value: 'Büro', label: 'Büro' },
               { value: 'Besprechung', label: 'Besprechung' },
-              // English values (for backward compatibility)
-              { value: 'classroom', label: 'Klassenzimmer (alt)' },
-              { value: 'grouproom', label: 'Gruppenraum (alt)' },
-              { value: 'specialroom', label: 'Fachraum (alt)' },
-              { value: 'other', label: 'Sonstiges (alt)' },
             ],
           },
           {
