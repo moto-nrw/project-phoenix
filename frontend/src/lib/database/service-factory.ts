@@ -109,6 +109,7 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       try {
         // Check if there's a custom create method
         if (service?.create) {
+          const token = await getToken();
           const result = await service.create(data, token);
           
           // Apply after hook

@@ -29,7 +29,7 @@ function mapTeacherResponse(data: any): Teacher {
 }
 
 // Prepare teacher data for backend
-function prepareTeacherForBackend(data: Partial<Teacher>): any {
+function prepareTeacherForBackend(data: Partial<Teacher> & { password?: string }): any {
   return {
     first_name: data.first_name,
     last_name: data.last_name,
@@ -39,6 +39,8 @@ function prepareTeacherForBackend(data: Partial<Teacher>): any {
     qualifications: data.qualifications,
     tag_id: data.tag_id,
     staff_notes: data.staff_notes,
+    // Include password if present (for creation)
+    ...(data.password && { password: data.password }),
   };
 }
 
@@ -303,6 +305,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
     create: async (data) => {
       // Teacher creation requires multiple API calls (account, person, staff)
       // Use the teacher service which handles this complex flow
+      console.log('Creating teacher with data:', data);
       const teacherData = data as Partial<Teacher> & { password?: string };
       const result = await teacherService.createTeacher(teacherData as any);
       return result;
