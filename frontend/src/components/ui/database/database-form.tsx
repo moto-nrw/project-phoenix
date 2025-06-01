@@ -11,6 +11,7 @@ export interface FormField {
   required?: boolean;
   placeholder?: string;
   options?: Array<{ value: string; label: string }>;
+  loadOptions?: () => Promise<Array<{ value: string; label: string }>>;
   validation?: (value: unknown) => string | null;
   component?: React.ComponentType<{
     value: unknown;
@@ -58,6 +59,8 @@ export function DatabaseForm<T = Record<string, unknown>>({
 }: DatabaseFormProps<T>) {
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [error, setError] = useState<string | null>(null);
+  const [asyncOptions, setAsyncOptions] = useState<Record<string, Array<{ value: string; label: string }>>>({});
+  const [loadingOptions, setLoadingOptions] = useState<Record<string, boolean>>({});
   const themeClasses = getThemeClassNames(theme);
 
   // Initialize form data from sections
@@ -86,6 +89,30 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
     setFormData(initialFormData);
   }, [initialData, sections]);
+
+  // Load async options for select fields
+  useEffect(() => {
+    const loadAsyncOptions = async () => {
+      for (const section of sections) {
+        for (const field of section.fields) {
+          if (field.type === 'select' && field.loadOptions) {
+            setLoadingOptions(prev => ({ ...prev, [field.name]: true }));
+            try {
+              const options = await field.loadOptions();
+              setAsyncOptions(prev => ({ ...prev, [field.name]: options }));
+            } catch (error) {
+              console.error(`Error loading options for ${field.name}:`, error);
+              setAsyncOptions(prev => ({ ...prev, [field.name]: [] }));
+            } finally {
+              setLoadingOptions(prev => ({ ...prev, [field.name]: false }));
+            }
+          }
+        }
+      }
+    };
+    
+    void loadAsyncOptions();
+  }, [sections]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -238,9 +265,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
               onChange={handleChange}
               required={field.required}
               className={baseInputClasses}
+              disabled={loadingOptions[field.name]}
             >
-              <option value="">{field.placeholder ?? 'Bitte wählen'}</option>
-              {field.options?.map(option => (
+              <option value="">
+                {loadingOptions[field.name] 
+                  ? 'Optionen werden geladen...' 
+                  : (field.placeholder ?? 'Bitte wählen')}
+              </option>
+              {(field.options ?? asyncOptions[field.name] ?? []).map(option => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>

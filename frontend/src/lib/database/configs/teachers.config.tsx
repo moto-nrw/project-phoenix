@@ -87,7 +87,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
             label: 'RFID-Karte',
             type: 'select',
             placeholder: 'RFID-Karte auswählen',
-            options: async () => {
+            loadOptions: async () => {
               try {
                 const response = await fetch('/api/users/rfid-cards/available');
                 if (response.ok) {
