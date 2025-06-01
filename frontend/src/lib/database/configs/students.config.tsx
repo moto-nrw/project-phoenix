@@ -302,12 +302,22 @@ export const studentsConfig = defineEntityConfig<Student>({
     
     item: {
       title: (student) => `${student.first_name} ${student.second_name}`,
-      subtitle: (student) => student.school_class,
-      description: (student) => student.group_name,
+      subtitle: (student) => student.name_lg || 'Kein Erziehungsberechtigter',
+      description: (student) => student.contact_lg,
       avatar: {
         text: (student) => `${student.first_name?.[0] ?? ''}${student.second_name?.[0] ?? ''}`,
       },
       badges: [
+        {
+          label: (student) => student.school_class || 'Keine Klasse',
+          color: 'bg-blue-100 text-blue-700',
+          showWhen: (student) => !!student.school_class,
+        },
+        {
+          label: (student) => student.group_name || 'Keine Gruppe',
+          color: 'bg-purple-100 text-purple-700',
+          showWhen: (student) => !!student.group_name,
+        },
         {
           field: 'bus',
           label: 'Bus',
