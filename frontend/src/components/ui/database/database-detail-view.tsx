@@ -92,7 +92,7 @@ export function DatabaseDetailView({
           {header.badges && header.badges.length > 0 && (
             <div className="absolute top-3 md:top-4 lg:top-6 right-3 md:right-4 lg:right-6 flex flex-col space-y-1 md:space-y-2">
               {header.badges.map((badge, index) => (
-                <span key={index} className={`rounded-full ${badge.color} px-2 py-1 text-xs text-white`}>
+                <span key={index} className={`rounded-full ${badge.color} px-3 py-1.5 text-sm font-medium shadow-sm`}>
                   {badge.label}
                 </span>
               ))}
