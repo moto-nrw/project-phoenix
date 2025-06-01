@@ -3,6 +3,7 @@
 import { defineEntityConfig } from '../types';
 import { databaseThemes } from '@/components/ui/database/themes';
 import type { Teacher } from '@/lib/teacher-api';
+import { teacherService } from '@/lib/teacher-api';
 
 // Map teacher response from backend to frontend format
 function mapTeacherResponse(data: any): Teacher {
@@ -138,6 +139,20 @@ export const teachersConfig = defineEntityConfig<Teacher>({
             type: 'textarea',
             placeholder: 'Notizen nur für Verwaltung sichtbar',
             colSpan: 2,
+          },
+        ],
+      },
+      {
+        title: 'Zugangsdaten',
+        backgroundColor: 'bg-green-50',
+        fields: [
+          {
+            name: 'password',
+            label: 'Temporäres Passwort',
+            type: 'password' as const,
+            required: true,
+            placeholder: 'Starkes Passwort erstellen',
+            description: 'Der Lehrer sollte das Passwort bei der ersten Anmeldung ändern.',
           },
         ],
       },
@@ -285,26 +300,12 @@ export const teachersConfig = defineEntityConfig<Teacher>({
     mapRequest: prepareTeacherForBackend,
     
     // Custom create handler for teacher-specific flow
-    create: async (data, token) => {
+    create: async (data) => {
       // Teacher creation requires multiple API calls (account, person, staff)
-      // This is handled by the teacher service, so we'll use the regular API
-      const response = await fetch('/api/staff', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-        body: JSON.stringify({
-          ...data,
-          is_teacher: true,
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to create teacher: ${response.statusText}`);
-      }
-      
-      return response.json();
+      // Use the teacher service which handles this complex flow
+      const teacherData = data as Partial<Teacher> & { password?: string };
+      const result = await teacherService.createTeacher(teacherData as any);
+      return result;
     },
   },
   

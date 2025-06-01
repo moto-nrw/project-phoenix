@@ -491,7 +491,10 @@ export function DatabasePage<T extends { id: string }>({
         
         {selectedItem && isEditing && (
           <DatabaseForm
-            sections={config.form.sections}
+            sections={config.form.sections.filter(section => 
+              // Filter out password section when editing teachers
+              !(section.title === 'Zugangsdaten' && config.name.singular === 'Lehrer')
+            )}
             initialData={selectedItem}
             onSubmit={handleUpdateItem}
             onCancel={() => setIsEditing(false)}
