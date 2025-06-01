@@ -604,14 +604,19 @@ export default function ActivityForm({
     }
   };
 
-  const prepareDataForSubmission = (): Partial<Activity> & { schedules?: Array<{
-    id?: number;
-    weekday: number;
-    timeframe_id: number | null;
-  }> } => {
+  const prepareDataForSubmission = (): Partial<Activity> & { 
+    max_participants?: number;
+    schedules?: Array<{
+      id?: number;
+      weekday: number;
+      timeframe_id: number | null;
+    }> 
+  } => {
     // Convert form data to what the backend API expects
     const submissionData = {
       ...formData,
+      // Convert max_participant to max_participants for backend
+      max_participants: formData.max_participant,
       // Add schedules for backend - handle both temp and real IDs
       schedules: timeSlots.map(slot => ({
         id: slot.id && !slot.id.startsWith('temp') ? parseInt(slot.id, 10) : undefined,

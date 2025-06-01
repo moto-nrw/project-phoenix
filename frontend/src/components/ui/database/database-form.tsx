@@ -76,6 +76,8 @@ export function DatabaseForm<T = Record<string, unknown>>({
           initialFormData[field.name] = false;
         } else if (field.type === 'multiselect') {
           initialFormData[field.name] = [];
+        } else if (field.type === 'number') {
+          initialFormData[field.name] = 0;
         } else {
           initialFormData[field.name] = '';
         }
@@ -86,7 +88,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
     if (initialData) {
       Object.keys(initialData).forEach(key => {
         if (initialData[key as keyof T] !== undefined) {
-          initialFormData[key] = initialData[key as keyof T];
+          const value = initialData[key as keyof T];
+          // Ensure numbers are properly typed
+          const field = sections.flatMap(s => s.fields).find(f => f.name === key);
+          if (field?.type === 'number' && typeof value === 'string') {
+            initialFormData[key] = parseInt(value as unknown as string, 10) || 0;
+          } else {
+            initialFormData[key] = value;
+          }
         }
       });
     }
@@ -134,6 +143,13 @@ export function DatabaseForm<T = Record<string, unknown>>({
       setFormData(prev => ({
         ...prev,
         [name]: checked,
+      }));
+    } else if (type === 'number') {
+      // Convert to number for number inputs
+      const numValue = value === '' ? 0 : parseInt(value, 10);
+      setFormData(prev => ({
+        ...prev,
+        [name]: isNaN(numValue) ? 0 : numValue,
       }));
     } else {
       setFormData(prev => ({
