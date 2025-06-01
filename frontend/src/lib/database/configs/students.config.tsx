@@ -299,6 +299,21 @@ export const studentsConfig = defineEntityConfig<Student>({
         type: 'select',
         options: 'dynamic', // Will extract from data
       },
+      {
+        id: 'school_class',
+        label: 'Klasse',
+        type: 'select',
+        options: 'dynamic', // Will extract from data
+      },
+      {
+        id: 'bus',
+        label: 'Bus',
+        type: 'select',
+        options: [
+          { value: 'true', label: 'Ja' },
+          { value: 'false', label: 'Nein' },
+        ],
+      },
     ],
     
     item: {

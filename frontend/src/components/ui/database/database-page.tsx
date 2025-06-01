@@ -134,8 +134,22 @@ export function DatabasePage<T extends { id: string }>({
     Object.entries(activeFilters).forEach(([filterId, filterValue]) => {
       if (filterValue) {
         filteredItems = filteredItems.filter(item => {
-          const itemValue = (item as any)[filterId];
-          return itemValue === filterValue;
+          // Map filter IDs to actual field names
+          let fieldName = filterId;
+          if (filterId === 'groupId') {
+            fieldName = 'group_id';
+          }
+          
+          const itemValue = (item as any)[fieldName];
+          
+          // Special handling for boolean fields
+          if (filterId === 'bus') {
+            const boolValue = filterValue === 'true';
+            return itemValue === boolValue;
+          }
+          
+          // Compare as strings for other fields
+          return String(itemValue) === filterValue;
         });
       }
     });
@@ -304,7 +318,27 @@ export function DatabasePage<T extends { id: string }>({
   // Process dynamic filters
   const processedFilters = config.list.filters?.map(filter => {
     if (filter.options === 'dynamic') {
-      // Extract unique values from items for this filter field
+      // Special handling for groupId filter to use group_name as label
+      if (filter.id === 'groupId') {
+        const groupMap = new Map<string, string>();
+        
+        allItems.forEach(item => {
+          const groupId = (item as any).group_id;
+          const groupName = (item as any).group_name;
+          if (groupId && groupName) {
+            groupMap.set(String(groupId), groupName);
+          }
+        });
+        
+        return {
+          ...filter,
+          options: Array.from(groupMap.entries())
+            .sort((a, b) => a[1].localeCompare(b[1]))
+            .map(([value, label]) => ({ value, label }))
+        };
+      }
+      
+      // Default behavior for other dynamic filters
       const uniqueValues = Array.from(
         new Set(
           allItems
