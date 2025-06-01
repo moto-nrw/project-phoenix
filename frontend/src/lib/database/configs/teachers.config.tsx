@@ -141,21 +141,6 @@ export const teachersConfig = defineEntityConfig<Teacher>({
           },
         ],
       },
-      {
-        title: 'Zugangsdaten',
-        backgroundColor: 'bg-green-50',
-        showWhen: (data) => !data.id, // Only show for new teachers
-        fields: [
-          {
-            name: 'password',
-            label: 'Temporäres Passwort',
-            type: 'password',
-            required: true,
-            placeholder: 'Starkes Passwort erstellen',
-            description: 'Der Lehrer sollte das Passwort bei der ersten Anmeldung ändern',
-          },
-        ],
-      },
     ],
     
     defaultValues: {
