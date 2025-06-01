@@ -193,7 +193,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
             value: (activity) => {
               const primary = activity.supervisors?.find(s => s.is_primary);
               return primary 
-                ? `${primary.first_name} ${primary.second_name}`
+                ? `${primary.first_name} ${primary.last_name}`
                 : 'Kein Hauptbetreuer zugewiesen';
             },
           },
@@ -202,7 +202,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
             value: (activity) => {
               const secondary = activity.supervisors?.filter(s => !s.is_primary) || [];
               return secondary.length > 0
-                ? secondary.map(s => `${s.first_name} ${s.second_name}`).join(', ')
+                ? secondary.map(s => `${s.first_name} ${s.last_name}`).join(', ')
                 : 'Keine weiteren Betreuer';
             },
           },
@@ -275,7 +275,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       description: (activity) => {
         const primary = activity.supervisors?.find(s => s.is_primary);
         return primary 
-          ? `Betreuer: ${primary.first_name} ${primary.second_name}`
+          ? `Betreuer: ${primary.first_name} ${primary.last_name}`
           : 'Kein Hauptbetreuer';
       },
       avatar: {
