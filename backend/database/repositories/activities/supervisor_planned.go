@@ -31,14 +31,17 @@ func NewSupervisorPlannedRepository(db *bun.DB) activities.SupervisorPlannedRepo
 func (r *SupervisorPlannedRepository) FindByID(ctx context.Context, id interface{}) (*activities.SupervisorPlanned, error) {
 	var supervisor activities.SupervisorPlanned
 	
+	var query *bun.SelectQuery
+	
 	// Extract transaction from context if it exists
-	db := r.db
 	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = *tx
+		query = (*tx).NewSelect()
+	} else {
+		query = r.db.NewSelect()
 	}
 	
 	// Use the same alias as base repository: "supervisorplanned" (lowercase)
-	err := db.NewSelect().
+	err := query.
 		Model(&supervisor).
 		ModelTableExpr(`activities.supervisors AS "supervisorplanned"`).
 		Where(`"supervisorplanned".id = ?`, id).
@@ -244,14 +247,17 @@ func (r *SupervisorPlannedRepository) Update(ctx context.Context, supervisor *ac
 		return err
 	}
 
+	var query *bun.UpdateQuery
+	
 	// Extract transaction from context if it exists
-	db := r.db
 	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = *tx
+		query = (*tx).NewUpdate()
+	} else {
+		query = r.db.NewUpdate()
 	}
 
-	// Get the query builder
-	query := db.NewUpdate().
+	// Configure the query
+	query = query.
 		Model(supervisor).
 		Where("id = ?", supervisor.ID).
 		ModelTableExpr("activities.supervisors")
@@ -270,14 +276,17 @@ func (r *SupervisorPlannedRepository) Update(ctx context.Context, supervisor *ac
 
 // Delete overrides the base Delete method to handle transactions
 func (r *SupervisorPlannedRepository) Delete(ctx context.Context, id interface{}) error {
+	var query *bun.DeleteQuery
+	
 	// Extract transaction from context if it exists
-	db := r.db
 	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = *tx
+		query = (*tx).NewDelete()
+	} else {
+		query = r.db.NewDelete()
 	}
 
 	// Use the same alias as base repository: "supervisorplanned" (lowercase)
-	_, err := db.NewDelete().
+	_, err := query.
 		Model((*activities.SupervisorPlanned)(nil)).
 		ModelTableExpr(`activities.supervisors AS "supervisorplanned"`).
 		Where(`"supervisorplanned".id = ?`, id).
