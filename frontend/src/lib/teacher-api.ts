@@ -299,6 +299,8 @@ class TeacherService {
             
             // First, get the current teacher data to get person_id
             const currentTeacher = await this.getTeacher(id);
+            console.log('Current teacher data:', currentTeacher);
+            console.log('Update data:', teacherData);
             
             // If name fields are included, update the person record first
             if (teacherData.first_name || teacherData.last_name || teacherData.tag_id !== undefined) {
@@ -306,12 +308,42 @@ class TeacherService {
                     throw new Error("Cannot update person fields - person_id not found");
                 }
                 
-                const personData: { first_name?: string; last_name?: string; tag_id?: string | null } = {};
+                // First, we need to get the person data to find the account_id
+                const personResponse = await fetch(`/api/users/${currentTeacher.person_id}`, {
+                    method: "GET",
+                    credentials: "include",
+                    headers: session?.user?.token
+                        ? {
+                            Authorization: `Bearer ${session.user.token}`,
+                            "Content-Type": "application/json",
+                        }
+                        : undefined,
+                });
+                
+                if (!personResponse.ok) {
+                    throw new Error("Failed to fetch person data");
+                }
+                
+                const personInfo = await personResponse.json() as { data?: { account_id?: number }, account_id?: number };
+                
+                const personData: { first_name?: string; last_name?: string; tag_id?: string | null; account_id?: number } = {};
                 if (teacherData.first_name !== undefined) personData.first_name = teacherData.first_name;
                 if (teacherData.last_name !== undefined) personData.last_name = teacherData.last_name;
-                if (teacherData.tag_id !== undefined) personData.tag_id = teacherData.tag_id;
+                if (teacherData.tag_id !== undefined) {
+                    // Convert empty string to null for backend
+                    personData.tag_id = teacherData.tag_id || null;
+                }
+                // Always include account_id from the fetched person data
+                const accountId = personInfo.data?.account_id || personInfo.account_id;
+                if (accountId) {
+                    personData.account_id = accountId;
+                }
                 
-                const personResponse = await fetch(`/api/users/${currentTeacher.person_id}`, {
+                console.log('Person update data:', personData);
+                console.log('Person ID:', currentTeacher.person_id);
+                console.log('Person info fetched:', personInfo);
+                
+                const personUpdateResponse = await fetch(`/api/users/${currentTeacher.person_id}`, {
                     method: "PUT",
                     credentials: "include",
                     headers: session?.user?.token
@@ -325,8 +357,8 @@ class TeacherService {
                     body: JSON.stringify(personData),
                 });
                 
-                if (!personResponse.ok) {
-                    const errorText = await personResponse.text();
+                if (!personUpdateResponse.ok) {
+                    const errorText = await personUpdateResponse.text();
                     throw new Error(`Failed to update person: ${errorText}`);
                 }
             }

@@ -150,6 +150,19 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
     
     async update(id: string, data: Partial<T>): Promise<T> {
       try {
+        // Check if there's a custom update method
+        if (service?.update) {
+          const token = await getToken();
+          const result = await service.update(id, data, token);
+          
+          // Apply after hook
+          if (config.hooks?.afterUpdate) {
+            await config.hooks.afterUpdate(result);
+          }
+          
+          return result;
+        }
+        
         // Apply hooks
         if (config.hooks?.beforeUpdate) {
           data = await config.hooks.beforeUpdate(id, data);

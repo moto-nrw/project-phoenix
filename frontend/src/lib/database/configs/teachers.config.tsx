@@ -310,6 +310,13 @@ export const teachersConfig = defineEntityConfig<Teacher>({
       const result = await teacherService.createTeacher(teacherData as any);
       return result;
     },
+    
+    // Custom update handler for teacher-specific flow
+    update: async (id, data) => {
+      // Teacher update requires updating both person and staff records
+      const result = await teacherService.updateTeacher(id, data as Partial<Teacher>);
+      return result;
+    },
   },
   
   labels: {
