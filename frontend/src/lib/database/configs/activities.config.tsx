@@ -80,8 +80,9 @@ export const activitiesConfig = defineEntityConfig<Activity>({
         fields: [
           {
             name: 'supervisor_id',
-            label: 'Leitung',
+            label: 'Hauptbetreuer',
             type: 'select',
+            required: true,
             options: async () => {
               // Fetch supervisors from API
               const session = await getSession();
@@ -472,14 +473,45 @@ export const activitiesConfig = defineEntityConfig<Activity>({
   service: {
     mapRequest: (data: Partial<Activity>) => {
       // Convert frontend Activity to backend format
-      return {
+      interface BackendRequest {
+        name?: string;
+        max_participants?: number;
+        is_open?: boolean;
+        category_id?: number;
+        planned_room_id?: number;
+        supervisor_ids?: number[];
+      }
+      
+      const request: BackendRequest = {
         name: data.name,
         max_participants: data.max_participant,
         is_open: data.is_open_ags,
         category_id: data.ag_category_id ? parseInt(data.ag_category_id) : undefined,
         planned_room_id: data.planned_room_id ? parseInt(data.planned_room_id) : undefined,
-        supervisor_ids: data.supervisor_id ? [parseInt(data.supervisor_id)] : undefined,
       };
+      
+      // Always include supervisor_ids if we have a supervisor_id
+      // The backend will treat the first supervisor as primary
+      if (data.supervisor_id) {
+        request.supervisor_ids = [parseInt(data.supervisor_id)];
+      }
+      
+      return request;
+    },
+    
+    mapResponse: (responseData: unknown) => {
+      // When loading an activity for editing, ensure supervisor_id is set to the primary supervisor
+      const activity = responseData as Activity;
+      
+      // Find the primary supervisor if we have supervisors
+      if (activity.supervisors && activity.supervisors.length > 0) {
+        const primarySupervisor = activity.supervisors.find(s => s.is_primary);
+        if (primarySupervisor) {
+          activity.supervisor_id = primarySupervisor.staff_id;
+        }
+      }
+      
+      return activity;
     },
   },
   
