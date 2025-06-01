@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { DatabaseTheme } from "./themes";
 import { getThemeClassNames } from "./themes";
 
@@ -62,6 +62,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
   const [error, setError] = useState<string | null>(null);
   const [asyncOptions, setAsyncOptions] = useState<Record<string, Array<{ value: string; label: string }>>>({});
   const [loadingOptions, setLoadingOptions] = useState<Record<string, boolean>>({});
+  const loadedFieldsRef = useRef<Set<string>>(new Set());
   const themeClasses = getThemeClassNames(theme);
 
   // Initialize form data from sections
@@ -97,6 +98,12 @@ export function DatabaseForm<T = Record<string, unknown>>({
       for (const section of sections) {
         for (const field of section.fields) {
           if (field.type === 'select' && typeof field.options === 'function') {
+            // Skip if already loaded
+            if (loadedFieldsRef.current.has(field.name)) {
+              continue;
+            }
+            
+            loadedFieldsRef.current.add(field.name);
             setLoadingOptions(prev => ({ ...prev, [field.name]: true }));
             try {
               const options = await field.options();

@@ -60,11 +60,91 @@ export const activitiesConfig = defineEntityConfig<Activity>({
             placeholder: '20',
           },
           {
+            name: 'is_open_ags',
+            label: 'Offen für Anmeldungen',
+            type: 'checkbox',
+          },
+          {
             name: 'description',
             label: 'Beschreibung',
             type: 'textarea',
             colSpan: 2,
             placeholder: 'Beschreiben Sie die Aktivität...',
+          },
+        ],
+      },
+      {
+        title: 'Organisation',
+        backgroundColor: 'bg-blue-50',
+        columns: 2,
+        fields: [
+          {
+            name: 'supervisor_id',
+            label: 'Leitung',
+            type: 'select',
+            options: async () => {
+              // Fetch supervisors from API
+              const session = await getSession();
+              const response = await fetch('/api/activities/supervisors', {
+                headers: {
+                  'Authorization': `Bearer ${session?.user?.token}`,
+                },
+              });
+              
+              if (!response.ok) {
+                console.error('Failed to fetch supervisors:', response.status);
+                return [];
+              }
+              
+              const result = await response.json();
+              
+              // Handle wrapped response from route wrapper
+              let supervisors: Array<{ id: string; name: string }> = [];
+              if (result && typeof result === 'object' && 'data' in result) {
+                supervisors = result.data as Array<{ id: string; name: string }>;
+              } else if (Array.isArray(result)) {
+                supervisors = result;
+              }
+              
+              return supervisors.map((sup) => ({
+                value: sup.id,
+                label: sup.name,
+              }));
+            },
+          },
+          {
+            name: 'planned_room_id',
+            label: 'Raum',
+            type: 'select',
+            options: async () => {
+              // Fetch rooms from API
+              const session = await getSession();
+              const response = await fetch('/api/rooms', {
+                headers: {
+                  'Authorization': `Bearer ${session?.user?.token}`,
+                },
+              });
+              
+              if (!response.ok) {
+                console.error('Failed to fetch rooms:', response.status);
+                return [];
+              }
+              
+              const result = await response.json();
+              
+              // Handle wrapped response
+              let rooms: Array<{ id: string | number; name: string }> = [];
+              if (result && typeof result === 'object' && 'data' in result) {
+                rooms = result.data as Array<{ id: string | number; name: string }>;
+              } else if (Array.isArray(result)) {
+                rooms = result;
+              }
+              
+              return rooms.map((room) => ({
+                value: room.id.toString(),
+                label: room.name,
+              }));
+            },
           },
         ],
       },
@@ -76,9 +156,17 @@ export const activitiesConfig = defineEntityConfig<Activity>({
     },
     
     transformBeforeSubmit: (data) => {
+      // Ensure max_participant is a valid number
+      const maxParticipant = data.max_participant ? 
+        (typeof data.max_participant === 'string' ? parseInt(data.max_participant) : data.max_participant) : 
+        20; // Default to 20 if not provided
+      
       return {
         ...data,
+        max_participant: maxParticipant,
         ag_category_id: data.ag_category_id ? parseInt(data.ag_category_id) : undefined,
+        supervisor_id: data.supervisor_id ? parseInt(data.supervisor_id) : undefined,
+        planned_room_id: data.planned_room_id ? parseInt(data.planned_room_id) : undefined,
       };
     },
   },
@@ -382,8 +470,17 @@ export const activitiesConfig = defineEntityConfig<Activity>({
   },
   
   service: {
-    // No custom mapping needed - the API routes already handle the mapping
-    // using mapActivityResponse and prepareActivityForBackend
+    mapRequest: (data: Partial<Activity>) => {
+      // Convert frontend Activity to backend format
+      return {
+        name: data.name,
+        max_participants: data.max_participant,
+        is_open: data.is_open_ags,
+        category_id: data.ag_category_id ? parseInt(data.ag_category_id) : undefined,
+        planned_room_id: data.planned_room_id ? parseInt(data.planned_room_id) : undefined,
+        supervisor_ids: data.supervisor_id ? [parseInt(data.supervisor_id)] : undefined,
+      };
+    },
   },
   
   labels: {
