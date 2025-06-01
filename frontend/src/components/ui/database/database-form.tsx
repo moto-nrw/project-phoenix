@@ -7,7 +7,7 @@ import { getThemeClassNames } from "./themes";
 export interface FormField {
   name: string;
   label: string;
-  type: 'text' | 'email' | 'select' | 'textarea' | 'password' | 'checkbox' | 'custom' | 'number';
+  type: 'text' | 'email' | 'select' | 'multiselect' | 'textarea' | 'password' | 'checkbox' | 'custom' | 'number';
   required?: boolean;
   placeholder?: string;
   options?: Array<{ value: string; label: string }> | (() => Promise<Array<{ value: string; label: string }>>);
@@ -74,6 +74,8 @@ export function DatabaseForm<T = Record<string, unknown>>({
       section.fields.forEach(field => {
         if (field.type === 'checkbox') {
           initialFormData[field.name] = false;
+        } else if (field.type === 'multiselect') {
+          initialFormData[field.name] = [];
         } else {
           initialFormData[field.name] = '';
         }
@@ -97,7 +99,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
     const loadAsyncOptions = async () => {
       for (const section of sections) {
         for (const field of section.fields) {
-          if (field.type === 'select' && typeof field.options === 'function') {
+          if ((field.type === 'select' || field.type === 'multiselect') && typeof field.options === 'function') {
             // Skip if already loaded
             if (loadedFieldsRef.current.has(field.name)) {
               continue;
@@ -290,6 +292,91 @@ export function DatabaseForm<T = Record<string, unknown>>({
                 </option>
               ))}
             </select>
+            {field.helperText && (
+              <p className="mt-1 text-xs md:text-sm text-gray-500">{field.helperText}</p>
+            )}
+          </div>
+        );
+
+      case 'multiselect':
+        const multiselectOptions = Array.isArray(field.options) 
+          ? field.options 
+          : (asyncOptions[field.name] ?? []);
+        const selectedValues = Array.isArray(formData[field.name]) 
+          ? formData[field.name] as string[]
+          : [];
+          
+        return (
+          <div>
+            <label
+              htmlFor={field.name}
+              className="mb-2 block text-xs md:text-sm font-medium text-gray-700"
+            >
+              {field.label}{field.required && '*'}
+            </label>
+            
+            {/* Selected items as tags */}
+            {selectedValues.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {selectedValues.map(value => {
+                  const option = multiselectOptions.find(opt => opt.value === value);
+                  if (!option) return null;
+                  
+                  return (
+                    <span
+                      key={value}
+                      className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800"
+                    >
+                      {option.label}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormData(prev => ({
+                            ...prev,
+                            [field.name]: selectedValues.filter(v => v !== value),
+                          }));
+                        }}
+                        className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-200 text-blue-600 hover:bg-blue-300 hover:text-blue-700"
+                        aria-label={`Remove ${option.label}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            
+            {/* Dropdown for adding new selections */}
+            <select
+              id={field.name}
+              value=""
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value && !selectedValues.includes(value)) {
+                  setFormData(prev => ({
+                    ...prev,
+                    [field.name]: [...selectedValues, value],
+                  }));
+                }
+              }}
+              className={baseInputClasses}
+              disabled={loadingOptions[field.name]}
+            >
+              <option value="">
+                {loadingOptions[field.name] 
+                  ? 'Optionen werden geladen...' 
+                  : 'Weitere hinzufügen...'}
+              </option>
+              {multiselectOptions
+                .filter(option => !selectedValues.includes(option.value))
+                .map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+            </select>
+            
             {field.helperText && (
               <p className="mt-1 text-xs md:text-sm text-gray-500">{field.helperText}</p>
             )}

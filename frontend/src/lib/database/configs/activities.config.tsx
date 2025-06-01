@@ -2,7 +2,7 @@
 
 import { defineEntityConfig } from '../types';
 import { databaseThemes } from '@/components/ui/database/themes';
-import type { Activity } from '@/lib/api';
+import type { Activity, ActivitySupervisor } from '@/lib/activity-helpers';
 import { getSession } from 'next-auth/react';
 
 export const activitiesConfig = defineEntityConfig<Activity>({
@@ -114,6 +114,42 @@ export const activitiesConfig = defineEntityConfig<Activity>({
             },
           },
           {
+            name: 'additional_supervisor_ids',
+            label: 'Weitere Betreuer',
+            type: 'multiselect',
+            helperText: 'Wählen Sie aus der Dropdown-Liste aus, um Betreuer hinzuzufügen. Klicken Sie auf × um sie zu entfernen.',
+            options: async () => {
+              // Fetch supervisors from API
+              const session = await getSession();
+              const response = await fetch('/api/activities/supervisors', {
+                headers: {
+                  'Authorization': `Bearer ${session?.user?.token}`,
+                },
+              });
+              
+              if (!response.ok) {
+                console.error('Failed to fetch supervisors:', response.status);
+                return [];
+              }
+              
+              const result = await response.json();
+              
+              // Handle wrapped response from route wrapper
+              let supervisors: Array<{ id: string; name: string }> = [];
+              if (result && typeof result === 'object' && 'data' in result) {
+                supervisors = result.data as Array<{ id: string; name: string }>;
+              } else if (Array.isArray(result)) {
+                supervisors = result;
+              }
+              
+              return supervisors.map((sup) => ({
+                value: sup.id,
+                label: sup.name,
+              }));
+            },
+            colSpan: 2,
+          },
+          {
             name: 'planned_room_id',
             label: 'Raum',
             type: 'select',
@@ -156,19 +192,9 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       is_open_ags: true,
     },
     
-    transformBeforeSubmit: (data) => {
-      // Ensure max_participant is a valid number
-      const maxParticipant = data.max_participant ? 
-        (typeof data.max_participant === 'string' ? parseInt(data.max_participant) : data.max_participant) : 
-        20; // Default to 20 if not provided
-      
-      return {
-        ...data,
-        max_participant: maxParticipant,
-        ag_category_id: data.ag_category_id ? parseInt(data.ag_category_id) : undefined,
-        supervisor_id: data.supervisor_id ? parseInt(data.supervisor_id) : undefined,
-        planned_room_id: data.planned_room_id ? parseInt(data.planned_room_id) : undefined,
-      };
+    transformBeforeSubmit: (data: Partial<Activity & { additional_supervisor_ids?: string[] }>) => {
+      // Return the data as is - the service.mapRequest will handle the transformation
+      return data;
     },
   },
   
@@ -452,7 +478,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       },
       badges: [
         {
-          label: (activity) => activity.category_name ?? 'Keine Kategorie',
+          label: (activity: Activity) => activity.category_name ?? 'Keine Kategorie',
           color: 'bg-purple-100 text-purple-700',
           showWhen: () => true,
         },
@@ -471,7 +497,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
   },
   
   service: {
-    mapRequest: (data: Partial<Activity>) => {
+    mapRequest: (data: Partial<Activity & { additional_supervisor_ids?: string[] }>) => {
       // Convert frontend Activity to backend format
       interface BackendRequest {
         name?: string;
@@ -490,24 +516,47 @@ export const activitiesConfig = defineEntityConfig<Activity>({
         planned_room_id: data.planned_room_id ? parseInt(data.planned_room_id) : undefined,
       };
       
-      // Always include supervisor_ids if we have a supervisor_id
-      // The backend will treat the first supervisor as primary
+      // Build supervisor_ids array with primary supervisor first
+      const supervisorIds: number[] = [];
+      
+      // Add primary supervisor first
       if (data.supervisor_id) {
-        request.supervisor_ids = [parseInt(data.supervisor_id)];
+        supervisorIds.push(parseInt(data.supervisor_id));
+      }
+      
+      // Add additional supervisors
+      if (data.additional_supervisor_ids && Array.isArray(data.additional_supervisor_ids)) {
+        data.additional_supervisor_ids.forEach(id => {
+          const parsedId = parseInt(id);
+          // Don't add the same supervisor twice
+          if (!supervisorIds.includes(parsedId)) {
+            supervisorIds.push(parsedId);
+          }
+        });
+      }
+      
+      if (supervisorIds.length > 0) {
+        request.supervisor_ids = supervisorIds;
       }
       
       return request;
     },
     
     mapResponse: (responseData: unknown) => {
-      // When loading an activity for editing, ensure supervisor_id is set to the primary supervisor
-      const activity = responseData as Activity;
+      // When loading an activity for editing, ensure supervisor fields are properly populated
+      const activity = responseData as Activity & { additional_supervisor_ids?: string[] };
       
-      // Find the primary supervisor if we have supervisors
+      // Find the primary supervisor and additional supervisors
       if (activity.supervisors && activity.supervisors.length > 0) {
         const primarySupervisor = activity.supervisors.find(s => s.is_primary);
+        const additionalSupervisors = activity.supervisors.filter(s => !s.is_primary);
+        
         if (primarySupervisor) {
           activity.supervisor_id = primarySupervisor.staff_id;
+        }
+        
+        if (additionalSupervisors.length > 0) {
+          activity.additional_supervisor_ids = additionalSupervisors.map(s => s.staff_id);
         }
       }
       

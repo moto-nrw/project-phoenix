@@ -10,8 +10,10 @@ export type FieldType =
   | 'password' 
   | 'textarea' 
   | 'select' 
+  | 'multiselect'
   | 'checkbox' 
-  | 'custom';
+  | 'custom'
+  | 'number';
 
 // Base field configuration
 export interface FieldConfig {
@@ -22,14 +24,16 @@ export interface FieldConfig {
   placeholder?: string;
   helperText?: string;
   validation?: (value: any) => string | null;
-  // For select fields
-  options?: Array<{ value: string; label: string }>;
-  loadOptions?: () => Promise<Array<{ value: string; label: string }>>;
+  // For select/multiselect fields - supports both sync and async options
+  options?: Array<{ value: string; label: string }> | (() => Promise<Array<{ value: string; label: string }>>);
   // For custom fields
   component?: React.ComponentType<any>;
   // Grid layout
   colSpan?: 1 | 2;
   autoComplete?: string;
+  // For number fields
+  min?: number;
+  max?: number;
 }
 
 // Section configuration for forms

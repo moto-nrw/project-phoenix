@@ -314,7 +314,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
     // Custom update handler for teacher-specific flow
     update: async (id, data) => {
       // Teacher update requires updating both person and staff records
-      const result = await teacherService.updateTeacher(id, data as Partial<Teacher>);
+      const result = await teacherService.updateTeacher(id, data);
       return result;
     },
   },
