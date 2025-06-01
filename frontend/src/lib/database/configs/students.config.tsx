@@ -329,12 +329,7 @@ export const studentsConfig = defineEntityConfig<Student>({
   },
   
   service: {
-    mapResponse: (data: any): Student => ({
-      ...data,
-      id: data.id.toString(),
-      group_id: data.group_id?.toString(),
-      custom_users_id: data.custom_users_id?.toString(),
-    }),
+    // mapResponse handled by API route already - no double mapping needed
     
     mapRequest: (data: Partial<Student>) => ({
       ...data,

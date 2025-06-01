@@ -59,8 +59,9 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     
     const typedResponse = response as { data: unknown };
     
-    // Return the raw data to preserve has_full_access and group_supervisors fields
-    return typedResponse.data;
+    // Map the backend response to frontend format
+    const studentData = typedResponse.data as BackendStudent;
+    return mapStudentResponse(studentData);
   } catch (error) {
     console.error("Error fetching student:", error);
     throw error;
