@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FormModal } from "~/components/ui";
+import { FormModal, Notification } from "~/components/ui";
 import { useNotification } from "~/lib/use-notification";
 import * as activityService from "~/lib/activity-api";
 import type { Activity, ActivityStudent } from "~/lib/activity-helpers";
@@ -26,7 +26,7 @@ export function StudentEnrollmentModal({
   activity,
   onUpdate,
 }: StudentEnrollmentModalProps) {
-  const { showSuccess, showError, showWarning } = useNotification();
+  const { notification, showSuccess, showError, showWarning } = useNotification();
   const [enrolledStudents, setEnrolledStudents] = useState<ActivityStudent[]>([]);
   const [availableStudents, setAvailableStudents] = useState<AvailableStudent[]>([]);
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
@@ -157,13 +157,17 @@ export function StudentEnrollmentModal({
   );
 
   return (
-    <FormModal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={`Schüler verwalten - ${activity.name}`}
-      size="xl"
-      footer={footer}
-    >
+    <>
+      {/* Notification for success/error messages */}
+      <Notification notification={notification} className="fixed top-4 right-4 z-[10000] max-w-sm" />
+      
+      <FormModal
+        isOpen={isOpen}
+        onClose={onClose}
+        title={`Schüler verwalten - ${activity.name}`}
+        size="xl"
+        footer={footer}
+      >
       <div className="space-y-4">
         {/* Stats */}
         <div className="rounded-lg bg-gray-50 p-4">
@@ -285,6 +289,7 @@ export function StudentEnrollmentModal({
           </>
         )}
       </div>
-    </FormModal>
+      </FormModal>
+    </>
   );
 }
