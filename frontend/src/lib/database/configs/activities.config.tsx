@@ -271,12 +271,17 @@ export const activitiesConfig = defineEntityConfig<Activity>({
     
     item: {
       title: (activity) => activity.name,
-      subtitle: (activity) => activity.category_name ?? 'Keine Kategorie',
-      description: (activity) => {
+      subtitle: (activity) => {
         const primary = activity.supervisors?.find(s => s.is_primary);
         return primary 
-          ? `Betreuer: ${primary.first_name} ${primary.last_name}`
+          ? `${primary.first_name} ${primary.last_name}`
           : 'Kein Hauptbetreuer';
+      },
+      description: (activity) => {
+        if (activity.is_open_ags) {
+          return 'Anmeldung offen';
+        }
+        return 'Anmeldung geschlossen';
       },
       avatar: {
         text: (activity) => {
@@ -334,6 +339,11 @@ export const activitiesConfig = defineEntityConfig<Activity>({
         },
       },
       badges: [
+        {
+          label: (activity) => activity.category_name ?? 'Keine Kategorie',
+          color: 'bg-purple-100 text-purple-700',
+          showWhen: () => true,
+        },
         {
           label: (activity) => `${activity.current_participants || 0}/${activity.max_participant}`,
           color: 'bg-blue-100 text-blue-700',
