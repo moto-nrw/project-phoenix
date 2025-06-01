@@ -254,17 +254,40 @@ export const activitiesConfig = defineEntityConfig<Activity>({
         label: 'Betreuer',
         type: 'select',
         options: async () => {
-          // Fetch supervisors from API
-          const response = await fetch('/api/activities/supervisors', {
-            headers: {
-              'Authorization': `Bearer ${(await getSession())?.user?.token}`,
-            },
-          });
-          const data = await response.json() as Array<{ id: string; name: string }>;
-          return data.map((sup) => ({
-            value: sup.id,
-            label: sup.name,
-          }));
+          try {
+            // Fetch supervisors from API
+            const session = await getSession();
+            const response = await fetch('/api/activities/supervisors', {
+              headers: {
+                'Authorization': `Bearer ${session?.user?.token}`,
+              },
+            });
+            
+            if (!response.ok) {
+              console.error('Failed to fetch supervisors:', response.status);
+              return [];
+            }
+            
+            const result = await response.json();
+            
+            // Handle wrapped response from route wrapper
+            let supervisors: Array<{ id: string; name: string }> = [];
+            if (result && typeof result === 'object' && 'data' in result) {
+              // Response is wrapped in ApiResponse format
+              supervisors = result.data as Array<{ id: string; name: string }>;
+            } else if (Array.isArray(result)) {
+              // Direct array response
+              supervisors = result;
+            }
+            
+            return supervisors.map((sup) => ({
+              value: sup.id,
+              label: sup.name,
+            }));
+          } catch (error) {
+            console.error('Error loading supervisors:', error);
+            return [];
+          }
         },
       },
     ],
