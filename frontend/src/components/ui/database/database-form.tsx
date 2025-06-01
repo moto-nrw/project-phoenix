@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { ReactNode } from "react";
 import type { DatabaseTheme } from "./themes";
 import { getThemeClassNames } from "./themes";
 
@@ -13,9 +12,17 @@ export interface FormField {
   placeholder?: string;
   options?: Array<{ value: string; label: string }>;
   validation?: (value: unknown) => string | null;
-  customComponent?: ReactNode;
+  component?: React.ComponentType<{
+    value: unknown;
+    onChange: (value: unknown) => void;
+    label: string;
+    required?: boolean;
+    includeEmpty?: boolean;
+    emptyLabel?: string;
+  }>;
   helperText?: string;
   autoComplete?: string;
+  colSpan?: 1 | 2;
 }
 
 export interface FormSection {
@@ -34,7 +41,6 @@ export interface DatabaseFormProps<T = Record<string, unknown>> {
   initialData?: Partial<T>;
   isLoading?: boolean;
   error?: string | null;
-  formTitle: string;
   submitLabel: string;
   submitButtonGradient?: string; // Override default gradient
 }
@@ -47,7 +53,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
   initialData,
   isLoading,
   error: externalError,
-  formTitle,
   submitLabel,
   submitButtonGradient,
 }: DatabaseFormProps<T>) {
@@ -149,7 +154,23 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
     switch (field.type) {
       case 'custom':
-        return field.customComponent;
+        if (!field.component) return null;
+        const Component = field.component;
+        return (
+          <Component
+            value={formData[field.name]}
+            onChange={(value: unknown) => {
+              setFormData(prev => ({
+                ...prev,
+                [field.name]: value,
+              }));
+            }}
+            label={field.label}
+            required={field.required}
+            includeEmpty={true}
+            emptyLabel={field.placeholder}
+          />
+        );
 
       case 'checkbox':
         return (
@@ -268,8 +289,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
   return (
     <div className="overflow-hidden rounded-lg bg-white shadow-md">
       <div className="p-4 md:p-6">
-        <h2 className="mb-4 md:mb-6 text-lg md:text-xl font-bold text-gray-800">{formTitle}</h2>
-
         {(error ?? externalError) && (
           <div className="mb-4 md:mb-6 rounded-lg bg-red-50 p-3 md:p-4 text-sm md:text-base text-red-800">
             <p>{error ?? externalError}</p>
@@ -292,7 +311,10 @@ export function DatabaseForm<T = Record<string, unknown>>({
                 )}
                 <div className={`grid grid-cols-1 gap-4 ${section.columns === 2 ? 'md:grid-cols-2' : ''}`}>
                   {section.fields.map((field) => (
-                    <div key={field.name}>
+                    <div 
+                      key={field.name}
+                      className={field.colSpan === 2 && section.columns === 2 ? 'md:col-span-2' : ''}
+                    >
                       {renderField(field, bgClass)}
                     </div>
                   ))}

@@ -3,6 +3,7 @@ export * from './themes';
 export * from './database-form';
 export * from './database-detail-view';
 export * from './database-select';
+export * from './database-page';
 
 // Re-export existing database components from parent directory
 export { DatabaseListPage } from '../database-list-page';

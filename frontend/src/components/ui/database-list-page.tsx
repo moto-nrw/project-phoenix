@@ -151,7 +151,15 @@ export function DatabaseListPage<T = unknown>({
           itemLabel={itemLabel}
         >
           {items.length > 0 ? (
-            items.map((item, index) => renderItem(item, index))
+            items.map((item, index) => {
+              // Try to use id if available, otherwise fall back to index
+              const key = (item as any).id ? `item-${(item as any).id}` : `item-${index}`;
+              return (
+                <div key={key}>
+                  {renderItem(item, index)}
+                </div>
+              );
+            })
           ) : (
             <div className="py-8 md:py-12 text-center">
               <div className="flex flex-col items-center gap-4">
