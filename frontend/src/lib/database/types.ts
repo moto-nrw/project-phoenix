@@ -90,7 +90,7 @@ export interface FilterConfig {
   id: string;
   label: string;
   type: 'select' | 'text' | 'date';
-  options?: Array<{ value: string; label: string }>;
+  options?: Array<{ value: string; label: string }> | 'dynamic';
   loadOptions?: () => Promise<Array<{ value: string; label: string }>>;
 }
 

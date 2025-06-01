@@ -1,0 +1,353 @@
+// Teacher Entity Configuration
+
+import { defineEntityConfig } from '../types';
+import { databaseThemes } from '@/components/ui/database/themes';
+import type { Teacher } from '@/lib/teacher-api';
+
+// Map teacher response from backend to frontend format
+function mapTeacherResponse(data: any): Teacher {
+  return {
+    id: data.id?.toString() || '',
+    name: data.name || `${data.first_name} ${data.last_name}`,
+    first_name: data.first_name || '',
+    last_name: data.last_name || '',
+    email: data.email,
+    specialization: data.specialization || '',
+    role: data.role,
+    qualifications: data.qualifications,
+    tag_id: data.tag_id,
+    staff_notes: data.staff_notes,
+    created_at: data.created_at,
+    updated_at: data.updated_at,
+    person_id: data.person_id,
+    account_id: data.account_id,
+    is_teacher: data.is_teacher,
+    staff_id: data.staff_id,
+    teacher_id: data.teacher_id,
+  };
+}
+
+// Prepare teacher data for backend
+function prepareTeacherForBackend(data: Partial<Teacher>): any {
+  return {
+    first_name: data.first_name,
+    last_name: data.last_name,
+    email: data.email,
+    specialization: data.specialization,
+    role: data.role,
+    qualifications: data.qualifications,
+    tag_id: data.tag_id,
+    staff_notes: data.staff_notes,
+  };
+}
+
+export const teachersConfig = defineEntityConfig<Teacher>({
+  name: {
+    singular: 'Lehrer',
+    plural: 'Lehrer'
+  },
+  
+  theme: databaseThemes.teachers,
+  
+  api: {
+    basePath: '/api/staff',
+    listParams: { teachers_only: 'true' },
+  },
+  
+  form: {
+    sections: [
+      {
+        title: 'Persönliche Daten',
+        backgroundColor: 'bg-blue-50',
+        columns: 2,
+        fields: [
+          {
+            name: 'first_name',
+            label: 'Vorname',
+            type: 'text',
+            required: true,
+            placeholder: 'z.B. Max',
+          },
+          {
+            name: 'last_name',
+            label: 'Nachname',
+            type: 'text',
+            required: true,
+            placeholder: 'z.B. Mustermann',
+          },
+          {
+            name: 'email',
+            label: 'E-Mail',
+            type: 'email',
+            placeholder: 'lehrer@schule.de',
+            description: 'Wird für die Anmeldung verwendet',
+          },
+          {
+            name: 'tag_id',
+            label: 'RFID-Karte',
+            type: 'select',
+            placeholder: 'RFID-Karte auswählen',
+            options: async () => {
+              try {
+                const response = await fetch('/api/users/rfid-cards/available');
+                if (response.ok) {
+                  const data = await response.json();
+                  const cards = Array.isArray(data) ? data : data.data || [];
+                  return cards.map((card: any) => ({
+                    value: card.tag_id,
+                    label: `RFID: ${card.tag_id}`
+                  }));
+                }
+                return [];
+              } catch (error) {
+                console.error('Error fetching RFID cards:', error);
+                return [];
+              }
+            },
+          },
+        ],
+      },
+      {
+        title: 'Berufliche Informationen',
+        backgroundColor: 'bg-indigo-50',
+        columns: 2,
+        fields: [
+          {
+            name: 'specialization',
+            label: 'Fachgebiet',
+            type: 'text',
+            required: true,
+            placeholder: 'z.B. Mathematik, Deutsch',
+          },
+          {
+            name: 'role',
+            label: 'Rolle',
+            type: 'text',
+            placeholder: 'z.B. Klassenlehrer, Fachlehrer',
+          },
+          {
+            name: 'qualifications',
+            label: 'Qualifikationen',
+            type: 'textarea',
+            placeholder: 'Zusätzliche Qualifikationen und Zertifikate',
+            colSpan: 2,
+          },
+          {
+            name: 'staff_notes',
+            label: 'Interne Notizen',
+            type: 'textarea',
+            placeholder: 'Notizen nur für Verwaltung sichtbar',
+            colSpan: 2,
+          },
+        ],
+      },
+      {
+        title: 'Zugangsdaten',
+        backgroundColor: 'bg-green-50',
+        showWhen: (data) => !data.id, // Only show for new teachers
+        fields: [
+          {
+            name: 'password',
+            label: 'Temporäres Passwort',
+            type: 'password',
+            required: true,
+            placeholder: 'Starkes Passwort erstellen',
+            description: 'Der Lehrer sollte das Passwort bei der ersten Anmeldung ändern',
+          },
+        ],
+      },
+    ],
+    
+    defaultValues: {
+      specialization: '',
+      role: '',
+    },
+    
+    validation: (data) => {
+      const errors: Record<string, string> = {};
+      
+      if (!data.first_name) {
+        errors.first_name = 'Vorname ist erforderlich';
+      }
+      if (!data.last_name) {
+        errors.last_name = 'Nachname ist erforderlich';
+      }
+      if (!data.specialization) {
+        errors.specialization = 'Fachgebiet ist erforderlich';
+      }
+      if (!data.id && !data.password) {
+        errors.password = 'Passwort ist erforderlich für neue Lehrer';
+      }
+      
+      return Object.keys(errors).length > 0 ? errors : null;
+    },
+    
+    transformBeforeSubmit: prepareTeacherForBackend,
+  },
+  
+  detail: {
+    header: {
+      title: (teacher) => teacher.name || `${teacher.first_name} ${teacher.last_name}`,
+      subtitle: (teacher) => {
+        const parts = [];
+        if (teacher.specialization) parts.push(teacher.specialization);
+        if (teacher.role) parts.push(teacher.role);
+        return parts.join(' • ') || 'Lehrer';
+      },
+      avatar: {
+        text: (teacher) => {
+          const initials = `${teacher.first_name?.[0] || ''}${teacher.last_name?.[0] || ''}`.toUpperCase();
+          return initials || 'L';
+        },
+        size: 'lg',
+      },
+    },
+    
+    sections: [
+      {
+        title: 'Persönliche Daten',
+        titleColor: 'text-blue-800',
+        items: [
+          {
+            label: 'Name',
+            value: (teacher) => `${teacher.first_name} ${teacher.last_name}`,
+          },
+          {
+            label: 'E-Mail',
+            value: (teacher) => teacher.email || 'Nicht angegeben',
+          },
+          {
+            label: 'RFID-Karte',
+            value: (teacher) => teacher.tag_id ? `RFID: ${teacher.tag_id}` : 'Keine Karte zugewiesen',
+          },
+        ],
+      },
+      {
+        title: 'Berufliche Informationen',
+        titleColor: 'text-indigo-800',
+        items: [
+          {
+            label: 'Fachgebiet',
+            value: (teacher) => teacher.specialization || 'Nicht angegeben',
+          },
+          {
+            label: 'Rolle',
+            value: (teacher) => teacher.role || 'Nicht angegeben',
+          },
+          {
+            label: 'Qualifikationen',
+            value: (teacher) => teacher.qualifications || 'Keine angegeben',
+            colSpan: 2,
+          },
+          {
+            label: 'Interne Notizen',
+            value: (teacher) => teacher.staff_notes || 'Keine Notizen',
+            colSpan: 2,
+          },
+        ],
+      },
+    ],
+  },
+  
+  list: {
+    title: 'Lehrer auswählen',
+    description: 'Verwalten Sie Lehrerprofile und Zuordnungen',
+    searchPlaceholder: 'Lehrer suchen...',
+    
+    // Frontend search for small dataset
+    searchStrategy: 'frontend',
+    searchableFields: ['name', 'first_name', 'last_name', 'email', 'specialization', 'role'],
+    minSearchLength: 0,
+    
+    filters: [
+      {
+        id: 'role',
+        label: 'Rolle',
+        type: 'select',
+        placeholder: 'Alle Rollen',
+        options: 'dynamic', // Will extract from data
+      },
+    ],
+    
+    item: {
+      title: (teacher) => teacher.name || `${teacher.first_name} ${teacher.last_name}`,
+      subtitle: (teacher) => teacher.specialization || 'Lehrer',
+      description: (teacher) => {
+        const parts = [];
+        if (teacher.role) parts.push(teacher.role);
+        if (teacher.email) parts.push(teacher.email);
+        return parts.join(' • ');
+      },
+      avatar: {
+        text: (teacher) => {
+          const initials = `${teacher.first_name?.[0] || ''}${teacher.last_name?.[0] || ''}`.toUpperCase();
+          return initials || 'L';
+        },
+        backgroundColor: databaseThemes.teachers.primary,
+      },
+      badges: [
+        {
+          label: (teacher) => teacher.role || '',
+          color: 'bg-purple-100 text-purple-800',
+          showWhen: (teacher) => !!teacher.role,
+        },
+      ],
+    },
+  },
+  
+  service: {
+    mapResponse: mapTeacherResponse,
+    mapRequest: prepareTeacherForBackend,
+    
+    // Custom create handler for teacher-specific flow
+    create: async (data, token) => {
+      // Teacher creation requires multiple API calls (account, person, staff)
+      // This is handled by the teacher service, so we'll use the regular API
+      const response = await fetch('/api/staff', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: JSON.stringify({
+          ...data,
+          is_teacher: true,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to create teacher: ${response.statusText}`);
+      }
+      
+      return response.json();
+    },
+  },
+  
+  labels: {
+    createButton: 'Neuen Lehrer erstellen',
+    createModalTitle: 'Neuer Lehrer',
+    editModalTitle: 'Lehrer bearbeiten',
+    detailModalTitle: 'Lehrerdetails',
+    deleteConfirmation: 'Sind Sie sicher, dass Sie diesen Lehrer löschen möchten?',
+    empty: {
+      title: 'Keine Lehrer gefunden',
+      description: 'Beginnen Sie mit dem Erstellen eines neuen Lehrers.',
+    },
+  },
+  
+  // Custom credential display after creation
+  onCreateSuccess: (result: any) => {
+    if (result.temporaryCredentials) {
+      return {
+        type: 'credentials',
+        title: 'Lehrer erfolgreich erstellt!',
+        message: 'Bitte notieren Sie sich die folgenden temporären Zugangsdaten:',
+        credentials: {
+          email: result.temporaryCredentials.email,
+          password: result.temporaryCredentials.password,
+        },
+        note: 'Der Lehrer sollte das Passwort bei der ersten Anmeldung ändern.',
+      };
+    }
+  },
+});

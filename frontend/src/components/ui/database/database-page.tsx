@@ -126,14 +126,27 @@ export function DatabasePage<T extends { id: string }>({
     }
   };
 
-  // Helper function for frontend search
-  const performFrontendSearch = (searchTerm: string, itemsToSearch: T[]) => {
+  // Helper function for frontend search and filtering
+  const performFrontendSearch = (searchTerm: string, itemsToSearch: T[], activeFilters: Record<string, string | null>) => {
+    let filteredItems = itemsToSearch;
+    
+    // Apply filters first
+    Object.entries(activeFilters).forEach(([filterId, filterValue]) => {
+      if (filterValue) {
+        filteredItems = filteredItems.filter(item => {
+          const itemValue = (item as any)[filterId];
+          return itemValue === filterValue;
+        });
+      }
+    });
+    
+    // Then apply search
     if (!searchTerm || searchTerm.length < minSearchLength) {
-      return itemsToSearch;
+      return filteredItems;
     }
     
     const lowercaseSearch = searchTerm.toLowerCase();
-    return itemsToSearch.filter(item => {
+    return filteredItems.filter(item => {
       // Search in all specified fields
       return searchableFields.some(field => {
         const value = (item as any)[field];
@@ -154,7 +167,7 @@ export function DatabasePage<T extends { id: string }>({
   useEffect(() => {
     if (searchStrategy === 'frontend') {
       // For frontend search, filter locally without API call
-      const filteredItems = performFrontendSearch(searchFilter, allItems);
+      const filteredItems = performFrontendSearch(searchFilter, allItems, filters);
       setItems(filteredItems);
     } else {
       // For backend search, debounce and call API
@@ -165,17 +178,7 @@ export function DatabasePage<T extends { id: string }>({
 
       return () => clearTimeout(timer);
     }
-  }, [searchFilter, searchStrategy]);
-  
-  // Handle filter changes (always requires API call)
-  useEffect(() => {
-    setCurrentPage(1);
-    const timer = setTimeout(() => {
-      void fetchItems(searchStrategy === 'frontend' ? undefined : searchFilter, filters, 1);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [filters]);
+  }, [searchFilter, filters, searchStrategy, allItems]);
 
   if (status === "loading") {
     return <div />; // Let DatabaseListPage handle the loading state
@@ -298,15 +301,38 @@ export function DatabasePage<T extends { id: string }>({
     }
   };
 
+  // Process dynamic filters
+  const processedFilters = config.list.filters?.map(filter => {
+    if (filter.options === 'dynamic') {
+      // Extract unique values from items for this filter field
+      const uniqueValues = Array.from(
+        new Set(
+          allItems
+            .filter(item => (item as any)[filter.id])
+            .map(item => (item as any)[filter.id])
+        )
+      ).sort();
+      
+      return {
+        ...filter,
+        options: uniqueValues.map(value => ({
+          value: value as string,
+          label: value as string
+        }))
+      };
+    }
+    return filter;
+  });
+
   // Render filters
   const renderFilters = () => {
-    if (!config.list.filters || config.list.filters.length === 0) {
+    if (!processedFilters || processedFilters.length === 0) {
       return null;
     }
 
     return (
       <div className="flex flex-wrap gap-4">
-        {config.list.filters.map(filter => {
+        {processedFilters.map(filter => {
           if (filter.type === 'select') {
             return (
               <div key={filter.id} className="md:max-w-xs">
