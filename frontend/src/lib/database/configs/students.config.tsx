@@ -287,9 +287,10 @@ export const studentsConfig = defineEntityConfig<Student>({
     description: 'Verwalte Schülerdaten und Gruppenzuweisungen',
     searchPlaceholder: 'Schüler suchen...',
     
-    // Backend search configuration (for 150+ students)
-    searchStrategy: 'backend',
-    minSearchLength: 3, // Start searching after 3 characters
+    // Frontend search configuration (loads all data at once)
+    searchStrategy: 'frontend',
+    searchableFields: ['first_name', 'second_name', 'school_class', 'group_name', 'name_lg'],
+    minSearchLength: 0, // Start searching immediately
     
     filters: [
       {

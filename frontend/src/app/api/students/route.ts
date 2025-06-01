@@ -65,6 +65,9 @@ export const GET = createGetHandler(async (request: NextRequest, token: string):
     queryParams.append(key, value);
   });
   
+  // Override page_size to load all students at once
+  queryParams.set('page_size', '1000');
+  
   const endpoint = `/api/students${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
   
   
