@@ -88,7 +88,59 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       title: (activity) => activity.name,
       subtitle: (activity) => activity.category_name ?? 'Keine Kategorie',
       avatar: {
-        text: (activity) => activity.name.substring(0, 2).toUpperCase(),
+        text: (activity) => {
+          // Use emoji based on category or activity name
+          const name = activity.name?.toLowerCase();
+          const category = activity.category_name?.toLowerCase();
+          
+          // Sports activities
+          if (name?.includes('fußball') || name?.includes('fussball')) return '⚽';
+          if (name?.includes('basketball')) return '🏀';
+          if (name?.includes('volleyball')) return '🏐';
+          if (name?.includes('tennis')) return '🎾';
+          if (name?.includes('schwimm')) return '🏊';
+          if (name?.includes('lauf') || name?.includes('athletik')) return '🏃';
+          if (name?.includes('turnen') || name?.includes('gym')) return '🤸';
+          if (name?.includes('sport') || category?.includes('sport')) return '🏃';
+          
+          // Creative activities
+          if (name?.includes('kunst') || name?.includes('mal') || name?.includes('zeich')) return '🎨';
+          if (name?.includes('musik') || name?.includes('chor') || name?.includes('band')) return '🎵';
+          if (name?.includes('theater') || name?.includes('drama')) return '🎭';
+          if (name?.includes('tanz') || name?.includes('dance')) return '💃';
+          if (name?.includes('foto') || name?.includes('photo')) return '📸';
+          if (name?.includes('film') || name?.includes('video')) return '🎬';
+          
+          // Academic activities
+          if (name?.includes('mathematik') || name?.includes('mathe')) return '🔢';
+          if (name?.includes('physik') || name?.includes('chemie') || name?.includes('labor')) return '🔬';
+          if (name?.includes('biologie') || name?.includes('natur')) return '🌿';
+          if (name?.includes('computer') || name?.includes('informatik') || name?.includes('coding')) return '💻';
+          if (name?.includes('robotik') || name?.includes('technik')) return '🤖';
+          if (name?.includes('sprach') || name?.includes('english') || name?.includes('französisch')) return '🗣️';
+          if (name?.includes('lesen') || name?.includes('buch') || name?.includes('literatur')) return '📚';
+          if (name?.includes('schreib') || name?.includes('journal')) return '✍️';
+          
+          // Practical activities
+          if (name?.includes('koch') || name?.includes('küche') || name?.includes('back')) return '🍳';
+          if (name?.includes('garten') || name?.includes('pflanzen')) return '🌱';
+          if (name?.includes('werk') || name?.includes('holz') || name?.includes('handwerk')) return '🔨';
+          if (name?.includes('näh') || name?.includes('textil') || name?.includes('schneid')) return '🧵';
+          
+          // Games and fun
+          if (name?.includes('schach')) return '♟️';
+          if (name?.includes('spiel') || name?.includes('game')) return '🎲';
+          if (name?.includes('puzzle') || name?.includes('rätsel')) return '🧩';
+          
+          // Other activities
+          if (name?.includes('meditation') || name?.includes('yoga') || name?.includes('entspann')) return '🧘';
+          if (name?.includes('erste hilfe') || name?.includes('sanitäter')) return '🚑';
+          if (name?.includes('umwelt') || name?.includes('recycl') || name?.includes('nachhaltig')) return '♻️';
+          if (name?.includes('feuer') || name?.includes('pfadfinder')) return '🔥';
+          
+          // Default fallback to first two letters
+          return activity.name ? activity.name.substring(0, 2).toUpperCase() : 'AG';
+        },
         size: 'lg',
       },
       badges: [
@@ -227,7 +279,59 @@ export const activitiesConfig = defineEntityConfig<Activity>({
           : 'Kein Hauptbetreuer';
       },
       avatar: {
-        text: (activity) => activity.name.substring(0, 2).toUpperCase(),
+        text: (activity) => {
+          // Use emoji based on category or activity name
+          const name = activity.name?.toLowerCase();
+          const category = activity.category_name?.toLowerCase();
+          
+          // Sports activities
+          if (name?.includes('fußball') || name?.includes('fussball')) return '⚽';
+          if (name?.includes('basketball')) return '🏀';
+          if (name?.includes('volleyball')) return '🏐';
+          if (name?.includes('tennis')) return '🎾';
+          if (name?.includes('schwimm')) return '🏊';
+          if (name?.includes('lauf') || name?.includes('athletik')) return '🏃';
+          if (name?.includes('turnen') || name?.includes('gym')) return '🤸';
+          if (name?.includes('sport') || category?.includes('sport')) return '🏃';
+          
+          // Creative activities
+          if (name?.includes('kunst') || name?.includes('mal') || name?.includes('zeich')) return '🎨';
+          if (name?.includes('musik') || name?.includes('chor') || name?.includes('band')) return '🎵';
+          if (name?.includes('theater') || name?.includes('drama')) return '🎭';
+          if (name?.includes('tanz') || name?.includes('dance')) return '💃';
+          if (name?.includes('foto') || name?.includes('photo')) return '📸';
+          if (name?.includes('film') || name?.includes('video')) return '🎬';
+          
+          // Academic activities
+          if (name?.includes('mathematik') || name?.includes('mathe')) return '🔢';
+          if (name?.includes('physik') || name?.includes('chemie') || name?.includes('labor')) return '🔬';
+          if (name?.includes('biologie') || name?.includes('natur')) return '🌿';
+          if (name?.includes('computer') || name?.includes('informatik') || name?.includes('coding')) return '💻';
+          if (name?.includes('robotik') || name?.includes('technik')) return '🤖';
+          if (name?.includes('sprach') || name?.includes('english') || name?.includes('französisch')) return '🗣️';
+          if (name?.includes('lesen') || name?.includes('buch') || name?.includes('literatur')) return '📚';
+          if (name?.includes('schreib') || name?.includes('journal')) return '✍️';
+          
+          // Practical activities
+          if (name?.includes('koch') || name?.includes('küche') || name?.includes('back')) return '🍳';
+          if (name?.includes('garten') || name?.includes('pflanzen')) return '🌱';
+          if (name?.includes('werk') || name?.includes('holz') || name?.includes('handwerk')) return '🔨';
+          if (name?.includes('näh') || name?.includes('textil') || name?.includes('schneid')) return '🧵';
+          
+          // Games and fun
+          if (name?.includes('schach')) return '♟️';
+          if (name?.includes('spiel') || name?.includes('game')) return '🎲';
+          if (name?.includes('puzzle') || name?.includes('rätsel')) return '🧩';
+          
+          // Other activities
+          if (name?.includes('meditation') || name?.includes('yoga') || name?.includes('entspann')) return '🧘';
+          if (name?.includes('erste hilfe') || name?.includes('sanitäter')) return '🚑';
+          if (name?.includes('umwelt') || name?.includes('recycl') || name?.includes('nachhaltig')) return '♻️';
+          if (name?.includes('feuer') || name?.includes('pfadfinder')) return '🔥';
+          
+          // Default fallback to first two letters
+          return activity.name ? activity.name.substring(0, 2).toUpperCase() : 'AG';
+        },
       },
       badges: [
         {

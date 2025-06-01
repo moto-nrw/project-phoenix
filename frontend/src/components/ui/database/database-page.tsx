@@ -521,7 +521,7 @@ export function DatabasePage<T extends { id: string }>({
               badges: config.detail.header.badges?.filter(badge => 
                 badge.showWhen(selectedItem)
               ).map(badge => ({
-                label: badge.label,
+                label: badge.label(selectedItem),
                 color: badge.color
               }))
             } : undefined}
