@@ -145,14 +145,14 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       },
       badges: [
         {
-          label: (activity) => `${activity.current_participants || 0}/${activity.max_participant}`,
+          label: (activity) => `${activity.participant_count || 0}/${activity.max_participant}`,
           color: 'bg-blue-100 text-blue-700',
           showWhen: () => true,
         },
         {
           label: 'Voll',
           color: 'bg-red-100 text-red-700',
-          showWhen: (activity) => (activity.current_participants || 0) >= activity.max_participant,
+          showWhen: (activity) => (activity.participant_count || 0) >= activity.max_participant,
         },
       ],
     },
@@ -180,7 +180,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
           },
           {
             label: 'Aktuelle Teilnehmer',
-            value: (activity) => (activity.current_participants || 0).toString(),
+            value: (activity) => (activity.participant_count || 0).toString(),
           },
         ],
       },
@@ -345,14 +345,14 @@ export const activitiesConfig = defineEntityConfig<Activity>({
           showWhen: () => true,
         },
         {
-          label: (activity) => `${activity.current_participants || 0}/${activity.max_participant}`,
+          label: (activity) => `${activity.participant_count || 0}/${activity.max_participant}`,
           color: 'bg-blue-100 text-blue-700',
           showWhen: () => true,
         },
         {
           label: 'Voll',
           color: 'bg-red-100 text-red-700',
-          showWhen: (activity) => (activity.current_participants || 0) >= activity.max_participant,
+          showWhen: (activity) => (activity.participant_count || 0) >= activity.max_participant,
         },
       ],
     },
