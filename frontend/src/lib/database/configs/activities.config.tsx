@@ -86,7 +86,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
   detail: {
     header: {
       title: (activity) => activity.name,
-      subtitle: (activity) => activity.ag_category_name || 'Keine Kategorie',
+      subtitle: (activity) => activity.category_name ?? 'Keine Kategorie',
       avatar: {
         text: (activity) => activity.name.substring(0, 2).toUpperCase(),
         size: 'lg',
@@ -116,7 +116,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
           },
           {
             label: 'Kategorie',
-            value: (activity) => activity.ag_category_name || 'Keine Kategorie',
+            value: (activity) => activity.category_name ?? 'Keine Kategorie',
           },
           {
             label: 'Beschreibung',
@@ -187,7 +187,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
     
     // Frontend search for better UX
     searchStrategy: 'frontend',
-    searchableFields: ['name', 'ag_category_name', 'description'],
+    searchableFields: ['name', 'category_name', 'description'],
     minSearchLength: 0,
     
     filters: [
@@ -219,7 +219,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
     
     item: {
       title: (activity) => activity.name,
-      subtitle: (activity) => activity.ag_category_name || 'Keine Kategorie',
+      subtitle: (activity) => activity.category_name ?? 'Keine Kategorie',
       description: (activity) => {
         const primary = activity.supervisors?.find(s => s.is_primary);
         return primary 

@@ -338,6 +338,26 @@ export function DatabasePage<T extends { id: string }>({
         };
       }
       
+      // Special handling for ag_category_id filter to use category_name as label
+      if (filter.id === 'ag_category_id') {
+        const categoryMap = new Map<string, string>();
+        
+        allItems.forEach(item => {
+          const categoryId = (item as any).ag_category_id;
+          const categoryName = (item as any).category_name;
+          if (categoryId && categoryName) {
+            categoryMap.set(String(categoryId), categoryName);
+          }
+        });
+        
+        return {
+          ...filter,
+          options: Array.from(categoryMap.entries())
+            .sort((a, b) => a[1].localeCompare(b[1]))
+            .map(([value, label]) => ({ value, label }))
+        };
+      }
+      
       // Default behavior for other dynamic filters
       const uniqueValues = Array.from(
         new Set(
