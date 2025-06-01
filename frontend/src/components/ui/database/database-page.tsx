@@ -341,7 +341,7 @@ export function DatabasePage<T extends { id: string }>({
                   label={filter.label}
                   value={filters[filter.id] ?? null}
                   onChange={(value) => setFilters(prev => ({ ...prev, [filter.id]: value }))}
-                  options={filter.options ?? []}
+                  options={Array.isArray(filter.options) ? filter.options : []}
                   placeholder={`Alle ${filter.label}`}
                 />
               </div>

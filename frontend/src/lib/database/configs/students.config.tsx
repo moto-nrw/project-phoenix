@@ -15,6 +15,7 @@ export const studentsConfig = defineEntityConfig<Student>({
   
   api: {
     basePath: '/api/students',
+    // No listParams needed - the API route handles pagination internally
   },
   
   form: {
@@ -295,7 +296,7 @@ export const studentsConfig = defineEntityConfig<Student>({
         id: 'groupId',
         label: 'Gruppe',
         type: 'select',
-        // Options will be loaded dynamically from the data
+        options: 'dynamic', // Will extract from data
       },
     ],
     

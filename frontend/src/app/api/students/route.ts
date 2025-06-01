@@ -16,6 +16,7 @@ interface StudentResponseFromBackend {
   tag_id?: string;
   school_class: string;
   location: string;
+  bus: boolean;
   guardian_name: string;
   guardian_contact: string;
   guardian_email?: string;
@@ -139,6 +140,7 @@ interface BackendStudentRequest {
   guardian_email?: string;
   guardian_phone?: string;
   group_id?: number;
+  bus?: boolean;
 }
 
 export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; }>(

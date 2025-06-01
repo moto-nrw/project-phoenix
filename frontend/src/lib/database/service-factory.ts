@@ -77,15 +77,104 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
         const url = `${endpoints.list}${params.toString() ? `?${params.toString()}` : ''}`;
         const response = await fetchWithAuth(url);
         
-        // Handle response mapping
-        if (service?.mapResponse && response.data) {
+        // Handle different response structures
+        
+        // Handle API wrapper with success/message/data structure
+        if (response && typeof response === 'object' && 'success' in response && 'data' in response) {
+          const innerData = response.data;
+          
+          // Check if inner data is a paginated response
+          if (innerData && typeof innerData === 'object' && 'data' in innerData && 'pagination' in innerData) {
+            // Handle response mapping for paginated data
+            if (service?.mapResponse && Array.isArray(innerData.data)) {
+              return {
+                ...innerData,
+                data: innerData.data.map(service.mapResponse),
+              };
+            }
+            return innerData;
+          }
+          
+          // If inner data is an array
+          if (Array.isArray(innerData)) {
+            const mappedData = service?.mapResponse ? innerData.map(service.mapResponse) : innerData;
+            return {
+              data: mappedData,
+              pagination: {
+                current_page: 1,
+                page_size: mappedData.length,
+                total_pages: 1,
+                total_records: mappedData.length
+              }
+            };
+          }
+          
+          // If inner data is an object with data array
+          if (innerData && typeof innerData === 'object' && 'data' in innerData && Array.isArray(innerData.data)) {
+            const mappedData = service?.mapResponse ? innerData.data.map(service.mapResponse) : innerData.data;
+            return {
+              data: mappedData,
+              pagination: innerData.pagination || {
+                current_page: 1,
+                page_size: mappedData.length,
+                total_pages: 1,
+                total_records: mappedData.length
+              }
+            };
+          }
+        }
+        
+        // Check if it's already a paginated response (without wrapper)
+        if (response && typeof response === 'object' && 'data' in response && 'pagination' in response) {
+          // Handle response mapping for paginated data
+          if (service?.mapResponse && Array.isArray(response.data)) {
+            return {
+              ...response,
+              data: response.data.map(service.mapResponse),
+            };
+          }
+          return response;
+        }
+        
+        // If it's a direct array response (backward compatibility)
+        if (Array.isArray(response)) {
+          const mappedData = service?.mapResponse ? response.map(service.mapResponse) : response;
           return {
-            ...response,
-            data: response.data.map(service.mapResponse),
+            data: mappedData,
+            pagination: {
+              current_page: 1,
+              page_size: mappedData.length,
+              total_pages: 1,
+              total_records: mappedData.length
+            }
           };
         }
         
-        return response;
+        // Handle wrapped response (e.g., { data: [...] })
+        if (response && typeof response === 'object' && 'data' in response && Array.isArray(response.data)) {
+          const mappedData = service?.mapResponse ? response.data.map(service.mapResponse) : response.data;
+          return {
+            data: mappedData,
+            pagination: response.pagination || {
+              current_page: 1,
+              page_size: mappedData.length,
+              total_pages: 1,
+              total_records: mappedData.length
+            }
+          };
+        }
+        
+        // Fallback - return empty paginated response
+        console.warn('Unexpected response structure:', response);
+        return {
+          data: [],
+          pagination: {
+            current_page: 1,
+            page_size: 50,
+            total_pages: 0,
+            total_records: 0
+          }
+        };
       } catch (error) {
         console.error(`Error fetching ${config.name.plural}:`, error);
         throw error;
