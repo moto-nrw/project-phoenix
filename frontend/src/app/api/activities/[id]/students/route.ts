@@ -3,9 +3,7 @@ import type { NextRequest } from "next/server";
 import { apiGet, apiPut } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler, createPutHandler } from "~/lib/route-wrapper";
 import { 
-  getEnrolledStudents,
   updateGroupEnrollments,
-  getAvailableStudents,
   enrollStudent
 } from "~/lib/activity-api";
 import type { BackendStudentEnrollment } from "~/lib/activity-helpers";
@@ -26,13 +24,34 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
     const search = request.nextUrl.searchParams.get("search") ?? undefined;
     const groupId = request.nextUrl.searchParams.get("group_id") ?? undefined;
     
-    // Get students available for enrollment
-    const availableStudents = await getAvailableStudents(id, { 
-      search, 
-      group_id: groupId 
-    });
-    
-    return availableStudents;
+    // Get available students by fetching all students and filtering out enrolled ones
+    try {
+      // First, get enrolled students in this activity
+      const enrolledResponse = await apiGet<{ data: BackendStudentEnrollment[] }>(`/api/activities/${id}/students`, token);
+      const enrolledStudentIds = new Set((enrolledResponse.data ?? []).map(e => e.id));
+      
+      // Then, get all students
+      const allStudentsParams = new URLSearchParams();
+      if (search) allStudentsParams.append("search", search);
+      if (groupId) allStudentsParams.append("group_id", groupId);
+      
+      const allStudentsUrl = `/api/students?${allStudentsParams.toString()}`;
+      const allStudentsResponse = await apiGet<{ data: Array<{ id: number; first_name: string; last_name: string; school_class?: string }> }>(allStudentsUrl, token);
+      
+      // Filter out enrolled students and format for frontend
+      const availableStudents = (allStudentsResponse.data ?? [])
+        .filter(student => !enrolledStudentIds.has(student.id))
+        .map(student => ({
+          id: String(student.id),
+          name: `${student.first_name} ${student.last_name}`.trim(),
+          school_class: student.school_class ?? ''
+        }));
+      
+      return availableStudents;
+    } catch (error) {
+      console.error("Error fetching available students:", error);
+      return []; // Return empty array on error
+    }
   }
   
   // Otherwise return enrolled students - call backend directly
@@ -67,9 +86,11 @@ export const POST = createPostHandler(
         });
         
         if (success) {
-          // Return updated enrolled students
-          const students = await getEnrolledStudents(id);
-          return students;
+          // Return updated enrolled students - call backend directly with token
+          const endpoint = `/api/activities/${id}/students`;
+          const response = await apiGet<{ data: BackendStudentEnrollment[] }>(endpoint, token);
+          const enrollments = response.data ?? [];
+          return mapStudentEnrollmentsResponse(enrollments);
         } else {
           throw new Error("Failed to update enrollments");
         }
@@ -85,9 +106,11 @@ export const POST = createPostHandler(
         const result = await enrollStudent(id, { studentId });
         
         if (result.success) {
-          // Return updated enrolled students
-          const students = await getEnrolledStudents(id);
-          return students; 
+          // Return updated enrolled students - call backend directly with token
+          const endpoint = `/api/activities/${id}/students`;
+          const response = await apiGet<{ data: BackendStudentEnrollment[] }>(endpoint, token);
+          const enrollments = response.data ?? [];
+          return mapStudentEnrollmentsResponse(enrollments);
         } else {
           throw new Error("Failed to enroll student");
         }
@@ -121,9 +144,11 @@ export const PUT = createPutHandler(
       const endpoint = `/api/activities/${id}/students`;
       await apiPut(endpoint, token, { student_ids: studentIds });
       
-      // Return updated enrolled students
-      const students = await getEnrolledStudents(id);
-      return students;
+      // Return updated enrolled students - call backend directly with token
+      const response = await apiGet<{ data: BackendStudentEnrollment[] }>(endpoint, token);
+      const enrollments = response.data ?? [];
+      // Map the backend enrollment structure to frontend format
+      return mapStudentEnrollmentsResponse(enrollments);
     } catch (error) {
       throw error;
     }
