@@ -31,10 +31,17 @@ func NewSupervisorPlannedRepository(db *bun.DB) activities.SupervisorPlannedRepo
 func (r *SupervisorPlannedRepository) FindByID(ctx context.Context, id interface{}) (*activities.SupervisorPlanned, error) {
 	var supervisor activities.SupervisorPlanned
 	
-	err := r.db.NewSelect().
+	// Extract transaction from context if it exists
+	db := r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = *tx
+	}
+	
+	// Use the same alias as base repository: "supervisorplanned" (lowercase)
+	err := db.NewSelect().
 		Model(&supervisor).
-		ModelTableExpr(`activities.supervisors AS "supervisor"`).
-		Where(`"supervisor".id = ?`, id).
+		ModelTableExpr(`activities.supervisors AS "supervisorplanned"`).
+		Where(`"supervisorplanned".id = ?`, id).
 		Scan(ctx)
 	
 	if err != nil {
@@ -237,26 +244,48 @@ func (r *SupervisorPlannedRepository) Update(ctx context.Context, supervisor *ac
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewUpdate().
+	// Extract transaction from context if it exists
+	db := r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = *tx
+	}
+
+	// Get the query builder
+	query := db.NewUpdate().
 		Model(supervisor).
 		Where("id = ?", supervisor.ID).
 		ModelTableExpr("activities.supervisors")
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewUpdate().
-			Model(supervisor).
-			Where("id = ?", supervisor.ID).
-			ModelTableExpr("activities.supervisors")
-	}
 
 	// Execute the query
 	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+// Delete overrides the base Delete method to handle transactions
+func (r *SupervisorPlannedRepository) Delete(ctx context.Context, id interface{}) error {
+	// Extract transaction from context if it exists
+	db := r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = *tx
+	}
+
+	// Use the same alias as base repository: "supervisorplanned" (lowercase)
+	_, err := db.NewDelete().
+		Model((*activities.SupervisorPlanned)(nil)).
+		ModelTableExpr(`activities.supervisors AS "supervisorplanned"`).
+		Where(`"supervisorplanned".id = ?`, id).
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "delete",
 			Err: err,
 		}
 	}
