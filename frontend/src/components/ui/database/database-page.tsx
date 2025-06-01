@@ -8,15 +8,14 @@ import {
   SelectFilter, 
   CreateFormModal, 
   DetailFormModal, 
-  Notification,
-  SearchFilter 
+  Notification
 } from "@/components/ui";
 import { DatabaseForm } from "./database-form";
 import { DatabaseDetailView } from "./database-detail-view";
 import { DatabaseListItem } from "../database-list-item";
 import { useNotification, getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
-import type { EntityConfig, FilterConfig } from "@/lib/database/types";
+import type { EntityConfig } from "@/lib/database/types";
 
 interface DatabasePageProps<T> {
   config: EntityConfig<T>;
@@ -27,8 +26,9 @@ export function DatabasePage<T extends { id: string }>({
   config,
   customListItem: CustomListItem
 }: DatabasePageProps<T>) {
-  const { notification, showSuccess, showError } = useNotification();
+  const { notification, showSuccess } = useNotification();
   const [items, setItems] = useState<T[]>([]);
+  const [allItems, setAllItems] = useState<T[]>([]); // For frontend search
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState("");
@@ -40,6 +40,11 @@ export function DatabasePage<T extends { id: string }>({
     total_pages: number;
     total_records: number;
   } | null>(null);
+  
+  // Determine search strategy (default to frontend)
+  const searchStrategy = config.list.searchStrategy ?? 'frontend';
+  const searchableFields = config.list.searchableFields ?? ['name', 'title'];
+  const minSearchLength = config.list.minSearchLength ?? 0;
   
   // Create Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -69,21 +74,34 @@ export function DatabasePage<T extends { id: string }>({
       setLoading(true);
 
       // Prepare filters for API call
-      const apiFilters = {
-        search: search ?? undefined,
+      const apiFilters: Record<string, any> = {
         ...Object.fromEntries(
           Object.entries(customFilters ?? filters).filter(([_, v]) => v !== null)
         ),
         page: page,
         pageSize: 50
       };
+      
+      // Only include search in API call for backend strategy
+      if (searchStrategy === 'backend' && search && search.length >= minSearchLength) {
+        apiFilters.search = search;
+      }
 
       try {
         const data = await service.getList(apiFilters);
         
         // Ensure items is always an array
         const itemsArray = Array.isArray(data.data) ? data.data : [];
-        setItems(itemsArray);
+        
+        if (searchStrategy === 'frontend') {
+          // For frontend search, store all items and filter locally
+          setAllItems(itemsArray);
+          setItems(itemsArray); // Initially show all items
+        } else {
+          // For backend search, just set the returned items
+          setItems(itemsArray);
+        }
+        
         setPagination(data.pagination ?? null);
         setError(null);
       } catch (apiErr) {
@@ -92,6 +110,7 @@ export function DatabasePage<T extends { id: string }>({
           `Fehler beim Laden der ${config.name.plural}. Bitte versuchen Sie es später erneut.`
         );
         setItems([]);
+        setAllItems([]);
         setPagination(null);
       }
     } catch (err) {
@@ -100,10 +119,30 @@ export function DatabasePage<T extends { id: string }>({
         `Fehler beim Laden der ${config.name.plural}. Bitte versuchen Sie es später erneut.`
       );
       setItems([]);
+      setAllItems([]);
       setPagination(null);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper function for frontend search
+  const performFrontendSearch = (searchTerm: string, itemsToSearch: T[]) => {
+    if (!searchTerm || searchTerm.length < minSearchLength) {
+      return itemsToSearch;
+    }
+    
+    const lowercaseSearch = searchTerm.toLowerCase();
+    return itemsToSearch.filter(item => {
+      // Search in all specified fields
+      return searchableFields.some(field => {
+        const value = (item as any)[field];
+        if (typeof value === 'string') {
+          return value.toLowerCase().includes(lowercaseSearch);
+        }
+        return false;
+      });
+    });
   };
 
   // Initial data load
@@ -113,15 +152,30 @@ export function DatabasePage<T extends { id: string }>({
 
   // Handle search and filter changes
   useEffect(() => {
-    // Reset to first page when filters change
+    if (searchStrategy === 'frontend') {
+      // For frontend search, filter locally without API call
+      const filteredItems = performFrontendSearch(searchFilter, allItems);
+      setItems(filteredItems);
+    } else {
+      // For backend search, debounce and call API
+      setCurrentPage(1);
+      const timer = setTimeout(() => {
+        void fetchItems(searchFilter, filters, 1);
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }
+  }, [searchFilter, searchStrategy]);
+  
+  // Handle filter changes (always requires API call)
+  useEffect(() => {
     setCurrentPage(1);
-    // Debounce search to avoid too many API calls
     const timer = setTimeout(() => {
-      void fetchItems(searchFilter, filters, 1);
+      void fetchItems(searchStrategy === 'frontend' ? undefined : searchFilter, filters, 1);
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchFilter, filters]);
+  }, [filters]);
 
   if (status === "loading") {
     return <div />; // Let DatabaseListPage handle the loading state

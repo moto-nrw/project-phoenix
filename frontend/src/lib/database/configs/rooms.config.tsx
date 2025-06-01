@@ -114,7 +114,7 @@ export const roomsConfig = defineEntityConfig<Room>({
       title: (room) => room.name,
       subtitle: (room) => room.building ? `${room.building}, Etage ${room.floor}` : `Etage ${room.floor}`,
       avatar: {
-        text: (room) => room.name ? room.name[0] : 'R',
+        text: (room) => room.name?.[0] ?? 'R',
         size: 'md',
       },
     },
@@ -168,6 +168,11 @@ export const roomsConfig = defineEntityConfig<Room>({
     searchPlaceholder: 'Raum suchen...',
     
     // No filters needed for ~20 rooms - search is sufficient
+    
+    // Frontend search configuration
+    searchStrategy: 'frontend',
+    searchableFields: ['name', 'category', 'building'],
+    minSearchLength: 0,
     
     item: {
       title: (room) => room.name,

@@ -19,9 +19,9 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
   // Helper to make fetch requests with auth
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     const token = await getToken();
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...(options.headers ?? {}),
+      ...(options.headers as Record<string, string> ?? {}),
     };
     
     if (token) {
@@ -197,7 +197,7 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
 // Export helper to create services with custom methods
 export function createExtendedService<T>(
   config: EntityConfig<T>
-): CrudService<T> & Record<string, (...args: unknown[]) => unknown> {
+): CrudService<T> {
   const baseService = createCrudService(config);
   
   // Add custom methods if defined
@@ -205,7 +205,7 @@ export function createExtendedService<T>(
     return {
       ...baseService,
       ...config.service.customMethods,
-    };
+    } as CrudService<T>;
   }
   
   return baseService;

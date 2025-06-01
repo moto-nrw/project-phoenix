@@ -158,6 +158,10 @@ export interface EntityConfig<T = any> {
       pagination?: boolean;
       filters?: boolean;
     };
+    // Search configuration
+    searchStrategy?: 'frontend' | 'backend'; // Default: 'frontend'
+    searchableFields?: string[]; // Fields to search in frontend mode
+    minSearchLength?: number; // Minimum characters before searching (default: 0)
   };
   
   // Service configuration
