@@ -623,27 +623,11 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 
 	// Handle supervisor updates - always process since frontend always sends this field
 	if true { // Always process supervisor updates
-
-		// First, remove all existing supervisors for this group
-		existingSupervisors, err := rs.ActivityService.GetGroupSupervisors(r.Context(), updatedGroup.ID)
+		// Use the new UpdateGroupSupervisors method that handles this atomically
+		err = rs.ActivityService.UpdateGroupSupervisors(r.Context(), updatedGroup.ID, req.SupervisorIDs)
 		if err != nil {
-			log.Printf("Warning: Failed to get existing supervisors: %v", err)
-		} else {
-			for _, supervisor := range existingSupervisors {
-				err = rs.ActivityService.DeleteSupervisor(r.Context(), supervisor.ID)
-				if err != nil {
-					log.Printf("Warning: Failed to delete supervisor with ID %d: %v", supervisor.ID, err)
-				}
-			}
-		}
-
-		// Then add the new supervisors
-		for i, staffID := range req.SupervisorIDs {
-			isPrimary := i == 0 // First supervisor is primary
-			_, err = rs.ActivityService.AddSupervisor(r.Context(), updatedGroup.ID, staffID, isPrimary)
-			if err != nil {
-				log.Printf("Warning: Failed to add supervisor %d to activity %d: %v", staffID, updatedGroup.ID, err)
-			}
+			log.Printf("Warning: Failed to update supervisors for activity %d: %v", updatedGroup.ID, err)
+			// Don't fail the whole update, just log the warning
 		}
 	}
 
