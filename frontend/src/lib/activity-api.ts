@@ -2,6 +2,7 @@
 import { getSession } from "next-auth/react";
 import { env } from "~/env";
 import api from "./api";
+import { handleAuthFailure } from "./auth-api";
 
 // Standardized error handling function for activities API
 function handleActivityApiError(error: unknown, context: string): never {
@@ -94,7 +95,7 @@ export async function fetchActivities(filters?: ActivityFilter): Promise<Activit
     const useProxyApi = typeof window !== "undefined";
     let url = useProxyApi
         ? "/api/activities"
-        : `${env.NEXT_PUBLIC_API_URL}/activities`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities`;
 
     const queryString = params.toString();
     if (queryString) {
@@ -145,7 +146,7 @@ export async function getActivity(id: string): Promise<Activity> {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? `/api/activities/${id}`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${id}`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${id}`;
 
     try {
         if (useProxyApi) {
@@ -186,7 +187,7 @@ export async function getEnrolledStudents(activityId: string): Promise<ActivityS
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? `/api/activities/${activityId}/students`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/students`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/students`;
 
     try {
         if (useProxyApi) {
@@ -234,7 +235,7 @@ export async function enrollStudent(activityId: string, studentData: { studentId
     // Update URL to match backend endpoint structure which expects the studentId in the URL path
     const url = useProxyApi
         ? `/api/activities/${activityId}/enroll/${studentData.studentId}`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/enroll/${studentData.studentId}`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/enroll/${studentData.studentId}`;
     
     // No request body needed since backend extracts IDs from URL path
 
@@ -273,7 +274,7 @@ export async function unenrollStudent(activityId: string, studentId: string): Pr
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? `/api/activities/${activityId}/students/${studentId}`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/students/${studentId}`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/students/${studentId}`;
 
     try {
         if (useProxyApi) {
@@ -305,7 +306,7 @@ export async function createActivity(data: CreateActivityRequest): Promise<Activ
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? "/api/activities"
-        : `${env.NEXT_PUBLIC_API_URL}/activities`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities`;
 
     // No need to prepare for backend - data already in correct format
     
@@ -439,7 +440,7 @@ export async function updateActivity(id: string, data: UpdateActivityRequest): P
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? `/api/activities/${id}`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${id}`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${id}`;
 
     // Convert UpdateActivityRequest to a format compatible with prepareActivityForBackend
     const activityData: Partial<Activity> = {
@@ -495,7 +496,7 @@ export async function deleteActivity(id: string): Promise<void> {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? `/api/activities/${id}`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${id}`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${id}`;
 
     try {
         if (useProxyApi) {
@@ -527,7 +528,7 @@ export async function getCategories(): Promise<ActivityCategory[]> {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? "/api/activities/categories"
-        : `${env.NEXT_PUBLIC_API_URL}/activities/categories`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/categories`;
 
     try {
         if (useProxyApi) {
@@ -570,7 +571,7 @@ export async function getSupervisors(): Promise<Array<{ id: string; name: string
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? "/api/activities/supervisors"
-        : `${env.NEXT_PUBLIC_API_URL}/activities/supervisors`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/supervisors`;
 
     try {
         if (useProxyApi) {
@@ -613,7 +614,7 @@ export async function getActivitySchedules(activityId: string): Promise<Activity
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? `/api/activities/${activityId}/schedules`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/schedules`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules`;
 
     try {
         if (useProxyApi) {
@@ -660,7 +661,7 @@ export async function getActivitySchedule(activityId: string, scheduleId: string
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? `/api/activities/${activityId}/schedules/${scheduleId}`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/schedules/${scheduleId}`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules/${scheduleId}`;
 
     try {
         if (useProxyApi) {
@@ -701,7 +702,7 @@ export async function getTimeframes(): Promise<Timeframe[]> {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? "/api/schedules/timeframes"
-        : `${env.NEXT_PUBLIC_API_URL}/schedules/timeframes`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/schedules/timeframes`;
 
     try {
         if (useProxyApi) {
@@ -770,7 +771,7 @@ export async function getAvailableTimeSlots(activityId: string, date?: string): 
     const useProxyApi = typeof window !== "undefined";
     let url = useProxyApi
         ? `/api/activities/${activityId}/schedules/available`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/schedules/available`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules/available`;
     
     // Add date parameter if provided
     if (date) {
@@ -816,7 +817,7 @@ export async function createActivitySchedule(activityId: string, scheduleData: P
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? `/api/activities/${activityId}/schedules`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/schedules`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules`;
 
     // Prepare backend data
     const backendData = prepareActivityScheduleForBackend(scheduleData);
@@ -861,7 +862,7 @@ export async function updateActivitySchedule(activityId: string, scheduleId: str
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? `/api/activities/${activityId}/schedules/${scheduleId}`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/schedules/${scheduleId}`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules/${scheduleId}`;
 
     // Prepare backend data
     const backendData = prepareActivityScheduleForBackend(scheduleData);
@@ -906,7 +907,7 @@ export async function deleteActivitySchedule(activityId: string, scheduleId: str
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? `/api/activities/${activityId}/schedules/${scheduleId}`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/schedules/${scheduleId}`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/schedules/${scheduleId}`;
 
     try {
         if (useProxyApi) {
@@ -941,7 +942,7 @@ export async function getActivitySupervisors(activityId: string): Promise<Array<
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? `/api/activities/${activityId}/supervisors`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/supervisors`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/supervisors`;
 
     try {
         if (useProxyApi) {
@@ -1003,7 +1004,7 @@ export async function getAvailableSupervisors(activityId: string): Promise<Array
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? `/api/activities/${activityId}/supervisors/available`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/supervisors/available`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/supervisors/available`;
 
     try {
         if (useProxyApi) {
@@ -1050,7 +1051,7 @@ export async function assignSupervisor(activityId: string, supervisorData: { sta
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? `/api/activities/${activityId}/supervisors`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/supervisors`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/supervisors`;
 
     // Convert staff_id to number for backend and set is_primary if defined
     const backendData = {
@@ -1092,7 +1093,7 @@ export async function updateSupervisorRole(activityId: string, supervisorId: str
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? `/api/activities/${activityId}/supervisors/${supervisorId}`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/supervisors/${supervisorId}`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/supervisors/${supervisorId}`;
 
     try {
         if (useProxyApi) {
@@ -1128,7 +1129,7 @@ export async function removeSupervisor(activityId: string, supervisorId: string)
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? `/api/activities/${activityId}/supervisors/${supervisorId}`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/supervisors/${supervisorId}`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/supervisors/${supervisorId}`;
 
     try {
         if (useProxyApi) {
@@ -1162,19 +1163,22 @@ export async function removeSupervisor(activityId: string, supervisorId: string)
 export async function getAvailableStudents(activityId: string, filters?: { search?: string; group_id?: string }): Promise<Array<{ id: string; name: string; school_class: string }>> {
     const useProxyApi = typeof window !== "undefined";
     let url = useProxyApi
-        ? `/api/activities/${activityId}/students/available`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/students/available`;
+        ? `/api/activities/${activityId}/students`
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/students`;
     
-    // Add query parameters if provided
+    // Build query parameters - always include available=true
+    const params = new URLSearchParams();
+    params.append("available", "true");
+    
+    // Add additional filters if provided
     if (filters) {
-        const params = new URLSearchParams();
         if (filters.search) params.append("search", filters.search);
         if (filters.group_id) params.append("group_id", filters.group_id);
-        
-        const queryString = params.toString();
-        if (queryString) {
-            url += `?${queryString}`;
-        }
+    }
+    
+    const queryString = params.toString();
+    if (queryString) {
+        url += `?${queryString}`;
     }
 
     try {
@@ -1234,7 +1238,7 @@ export async function getStudentEnrollments(studentId: string): Promise<Activity
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
         ? `/api/students/${studentId}/activities`
-        : `${env.NEXT_PUBLIC_API_URL}/students/${studentId}/activities`;
+        : `${env.NEXT_PUBLIC_API_URL}/api/students/${studentId}/activities`;
 
     try {
         if (useProxyApi) {
@@ -1280,39 +1284,75 @@ export async function getStudentEnrollments(studentId: string): Promise<Activity
 export async function updateGroupEnrollments(activityId: string, data: { student_ids: string[] }): Promise<boolean> {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
-        ? `/api/activities/${activityId}/students/batch`
-        : `${env.NEXT_PUBLIC_API_URL}/activities/${activityId}/students/batch`;
+        ? `/api/activities/${activityId}/students`
+        : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/students`;
 
-    // Convert string IDs to numbers for backend
-    const backendData = {
+    // The API expects student_ids as an array of strings when using proxy API
+    const requestData = useProxyApi ? data : {
         student_ids: data.student_ids.map(id => parseInt(id, 10))
     };
 
     try {
         if (useProxyApi) {
-            const session = await getSession();
-            const response = await fetch(url, {
-                method: "POST",
+            let session = await getSession();
+            
+            // Check if we have a valid session
+            if (!session?.user?.token) {
+                throw new Error("No authentication token available. Please log in again.");
+            }
+            
+            let response = await fetch(url, {
+                method: "PUT",
                 credentials: "include",
                 headers: {
                     "Content-Type": "application/json",
-                    ...(session?.user?.token && {
-                        Authorization: `Bearer ${session.user.token}`,
-                    }),
+                    Authorization: `Bearer ${session.user.token}`,
                 },
-                body: JSON.stringify(backendData),
+                body: JSON.stringify(requestData),
             });
 
+            // Handle 401 by trying to refresh token
+            if (response.status === 401) {
+                console.log("Token expired, attempting to refresh...");
+                const refreshSuccessful = await handleAuthFailure();
+                
+                if (refreshSuccessful) {
+                    // Get the new session with updated token
+                    session = await getSession();
+                    
+                    if (session?.user?.token) {
+                        // Retry the request with new token
+                        response = await fetch(url, {
+                            method: "PUT",
+                            credentials: "include",
+                            headers: {
+                                "Content-Type": "application/json",
+                                Authorization: `Bearer ${session.user.token}`,
+                            },
+                            body: JSON.stringify(requestData),
+                        });
+                    }
+                }
+            }
+
             if (!response.ok) {
-                throw new Error(`API error: ${response.status}`);
+                // Provide more specific error messages
+                if (response.status === 401) {
+                    throw new Error("Authentication expired. Please log in again.");
+                } else if (response.status === 403) {
+                    throw new Error("You don't have permission to modify enrollments.");
+                } else {
+                    throw new Error(`API error: ${response.status}`);
+                }
             }
             
             return true;
         } else {
-            await api.post(url, backendData);
+            await api.put(url, requestData);
             return true;
         }
-    } catch {
-        return false;
+    } catch (error) {
+        console.error('Error updating group enrollments:', error);
+        throw error; // Re-throw to let caller handle it
     }
 }

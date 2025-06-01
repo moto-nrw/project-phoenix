@@ -1,7 +1,7 @@
 // app/api/activities/[id]/students/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet } from "~/lib/api-helpers";
-import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
+import { apiGet, apiPut } from "~/lib/api-helpers";
+import { createGetHandler, createPostHandler, createPutHandler } from "~/lib/route-wrapper";
 import { 
   getEnrolledStudents,
   updateGroupEnrollments,
@@ -42,7 +42,8 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
     const enrollments = response.data ?? [];
     // Map the backend enrollment structure to frontend format
     return mapStudentEnrollmentsResponse(enrollments);
-  } catch {
+  } catch (error) {
+    console.error("Error fetching enrolled students:", error);
     return []; // Return empty array on error
   }
 });
@@ -96,6 +97,35 @@ export const POST = createPostHandler(
     }
     else {
       throw new Error("Invalid request: must provide student_id or student_ids");
+    }
+  }
+);
+
+/**
+ * Handler for PUT /api/activities/[id]/students
+ * Updates the complete list of enrolled students (replaces existing enrollments)
+ */
+export const PUT = createPutHandler(
+  async (_request: NextRequest, body: { student_ids: string[] }, token: string, params: Record<string, unknown>) => {
+    const id = params.id as string;
+    
+    if (!body.student_ids || !Array.isArray(body.student_ids)) {
+      throw new Error("student_ids array is required");
+    }
+    
+    try {
+      // Convert string IDs to numbers for backend
+      const studentIds = body.student_ids.map(id => parseInt(id, 10));
+      
+      // Call backend to update enrollments
+      const endpoint = `/api/activities/${id}/students`;
+      await apiPut(endpoint, token, { student_ids: studentIds });
+      
+      // Return updated enrolled students
+      const students = await getEnrolledStudents(id);
+      return students;
+    } catch (error) {
+      throw error;
     }
   }
 );
