@@ -57,6 +57,9 @@ export function DatabasePage<T extends { id: string }>({
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  
+  // State for async filter options
+  const [asyncFilterOptions, setAsyncFilterOptions] = useState<Record<string, { value: string; label: string }[]>>({});
 
   const { data: session, status } = useSession({
     required: true,
@@ -148,6 +151,15 @@ export function DatabasePage<T extends { id: string }>({
             return itemValue === boolValue;
           }
           
+          // Special handling for supervisor_id filter
+          if (filterId === 'supervisor_id') {
+            const supervisors = (item as any).supervisors;
+            if (Array.isArray(supervisors)) {
+              return supervisors.some(sup => String(sup.staff_id) === filterValue || String(sup.id) === filterValue);
+            }
+            return false;
+          }
+          
           // Compare as strings for other fields
           return String(itemValue) === filterValue;
         });
@@ -176,6 +188,29 @@ export function DatabasePage<T extends { id: string }>({
   useEffect(() => {
     void fetchItems(undefined, undefined, currentPage);
   }, [currentPage]);
+  
+  // Load async filter options
+  useEffect(() => {
+    const loadAsyncFilters = async () => {
+      if (!config.list.filters) return;
+      
+      for (const filter of config.list.filters) {
+        if (typeof filter.options === 'function') {
+          try {
+            const options = await filter.options();
+            setAsyncFilterOptions(prev => ({
+              ...prev,
+              [filter.id]: options
+            }));
+          } catch (error) {
+            console.error(`Failed to load options for filter ${filter.id}:`, error);
+          }
+        }
+      }
+    };
+    
+    void loadAsyncFilters();
+  }, [config.list.filters]);
 
   // Handle search and filter changes
   useEffect(() => {
@@ -317,6 +352,14 @@ export function DatabasePage<T extends { id: string }>({
 
   // Process dynamic filters
   const processedFilters = config.list.filters?.map(filter => {
+    // Check for async options first
+    if (asyncFilterOptions[filter.id]) {
+      return {
+        ...filter,
+        options: asyncFilterOptions[filter.id]
+      };
+    }
+    
     if (filter.options === 'dynamic') {
       // Special handling for groupId filter to use group_name as label
       if (filter.id === 'groupId') {
