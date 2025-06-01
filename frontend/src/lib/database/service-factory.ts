@@ -107,6 +107,18 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
     
     async create(data: Partial<T>): Promise<T> {
       try {
+        // Check if there's a custom create method
+        if (service?.create) {
+          const result = await service.create(data, token);
+          
+          // Apply after hook
+          if (config.hooks?.afterCreate) {
+            await config.hooks.afterCreate(result);
+          }
+          
+          return result;
+        }
+        
         // Apply hooks
         if (config.hooks?.beforeCreate) {
           data = await config.hooks.beforeCreate(data);

@@ -170,6 +170,10 @@ export interface EntityConfig<T = any> {
     mapResponse?: (data: any) => T;
     // Map frontend models to API requests
     mapRequest?: (data: Partial<T>) => any;
+    // Custom CRUD methods
+    create?: (data: Partial<T>, token?: string) => Promise<T>;
+    update?: (id: string, data: Partial<T>, token?: string) => Promise<T>;
+    delete?: (id: string, token?: string) => Promise<void>;
     // Custom service methods
     customMethods?: Record<string, (id?: string, data?: any) => Promise<any>>;
   };
