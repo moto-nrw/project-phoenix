@@ -27,6 +27,26 @@ func NewSupervisorPlannedRepository(db *bun.DB) activities.SupervisorPlannedRepo
 	}
 }
 
+// FindByID overrides the base repository method to fix the alias issue
+func (r *SupervisorPlannedRepository) FindByID(ctx context.Context, id interface{}) (*activities.SupervisorPlanned, error) {
+	var supervisor activities.SupervisorPlanned
+	
+	err := r.db.NewSelect().
+		Model(&supervisor).
+		ModelTableExpr(`activities.supervisors AS "supervisor"`).
+		Where(`"supervisor".id = ?`, id).
+		Scan(ctx)
+	
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by id",
+			Err: err,
+		}
+	}
+	
+	return &supervisor, nil
+}
+
 // FindByStaffID finds all supervisions for a specific staff member
 func (r *SupervisorPlannedRepository) FindByStaffID(ctx context.Context, staffID int64) ([]*activities.SupervisorPlanned, error) {
 	var supervisors []*activities.SupervisorPlanned
