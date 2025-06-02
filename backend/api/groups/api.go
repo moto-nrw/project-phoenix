@@ -232,8 +232,16 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 				group = groupWithRoom
 			}
 		}
-		// For list operations, don't include teachers for performance
-		responses = append(responses, newGroupResponse(group, nil))
+		
+		// Get teachers for this group to show representative in list
+		teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
+		if err != nil {
+			// Log error but continue without teachers
+			log.Printf("Failed to get teachers for group %d: %v", group.ID, err)
+			teachers = []*users.Teacher{}
+		}
+		
+		responses = append(responses, newGroupResponse(group, teachers))
 	}
 
 	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), "Groups retrieved successfully")
