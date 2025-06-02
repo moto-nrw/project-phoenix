@@ -119,12 +119,12 @@ export const groupsConfig = defineEntityConfig<Group>({
           showWhen: () => true,
         },
         {
-          label: () => 'Raum zugewiesen',
+          label: 'Raum zugewiesen',
           color: 'bg-blue-400/80',
           showWhen: (group: Group) => !!group.room_name,
         },
         {
-          label: () => 'Leitung zugewiesen',
+          label: 'Leitung zugewiesen',
           color: 'bg-purple-400/80',
           showWhen: (group: Group) => !!group.representative_name,
         },
@@ -218,11 +218,6 @@ export const groupsConfig = defineEntityConfig<Group>({
           label: (group: Group) => `${group.student_count ?? 0} Schüler`,
           color: 'bg-green-100 text-green-700',
           showWhen: () => true,
-        },
-        {
-          label: (group: Group) => group.representative_name ?? 'Keine Leitung',
-          color: 'bg-purple-100 text-purple-700',
-          showWhen: (group: Group) => !!group.representative_name,
         },
       ],
     },

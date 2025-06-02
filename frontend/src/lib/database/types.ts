@@ -131,7 +131,7 @@ export interface EntityConfig<T = any> {
         size?: 'sm' | 'md' | 'lg';
       };
       badges?: Array<{
-        label: string;
+        label: string | ((entity: T) => string);
         color: string;
         showWhen: (entity: T) => boolean;
       }>;
