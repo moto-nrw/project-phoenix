@@ -166,6 +166,12 @@ export interface EntityConfig<T = any> {
     searchStrategy?: 'frontend' | 'backend'; // Default: 'frontend'
     searchableFields?: string[]; // Fields to search in frontend mode
     minSearchLength?: number; // Minimum characters before searching (default: 0)
+    // Optional info section to display before the list
+    infoSection?: {
+      title: string;
+      content: string;
+      icon?: ReactNode;
+    };
   };
   
   // Service configuration

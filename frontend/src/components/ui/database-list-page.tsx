@@ -24,10 +24,17 @@ export interface DatabaseListPageProps<T = unknown> {
   filters?: ReactNode;
   
   // Add button
-  addButton: {
+  addButton?: {
     label: string;
     href?: string;
     onClick?: () => void;
+  };
+  
+  // Info section
+  infoSection?: {
+    title: string;
+    content: string;
+    icon?: ReactNode;
   };
   
   // Data and state
@@ -70,6 +77,7 @@ export function DatabaseListPage<T = unknown>({
   onSearchChange,
   filters,
   addButton,
+  infoSection,
   items,
   loading,
   error,
@@ -144,6 +152,25 @@ export function DatabaseListPage<T = unknown>({
           filters={filters}
           addButton={addButton}
         />
+        
+        {/* Info Section */}
+        {infoSection && (
+          <div className="mb-6 md:mb-8 rounded-lg border border-blue-200 bg-blue-50 p-3 md:p-4">
+            <div className="flex">
+              {infoSection.icon && (
+                <div className="flex-shrink-0">
+                  {infoSection.icon}
+                </div>
+              )}
+              <div className={infoSection.icon ? "ml-2 md:ml-3 flex-1" : "flex-1"}>
+                <h3 className="text-xs md:text-sm font-medium text-blue-800">{infoSection.title}</h3>
+                <div className="mt-0.5 md:mt-1 text-xs md:text-sm text-blue-700">
+                  <p>{infoSection.content}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         
         <DatabaseListSection 
           title={listTitle} 

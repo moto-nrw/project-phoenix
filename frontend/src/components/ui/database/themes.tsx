@@ -182,6 +182,7 @@ export function getThemeClassNames(theme: DatabaseTheme) {
       'from-orange-500 to-red-600': theme.primary === 'orange-500' && theme.secondary === 'red-600',
       'from-indigo-500 to-purple-600': theme.primary === 'indigo-500' && theme.secondary === 'purple-600',
       'from-gray-500 to-slate-600': theme.primary === 'gray-500' && theme.secondary === 'slate-600',
+      'from-amber-500 to-orange-600': theme.primary === 'amber-500' && theme.secondary === 'orange-600',
     },
     
     // Background classes
@@ -192,6 +193,7 @@ export function getThemeClassNames(theme: DatabaseTheme) {
       'bg-orange-50': theme.background === 'orange-50',
       'bg-indigo-50': theme.background === 'indigo-50',
       'bg-gray-50': theme.background === 'gray-50',
+      'bg-amber-50': theme.background === 'amber-50',
     },
     
     // Border classes
@@ -202,6 +204,7 @@ export function getThemeClassNames(theme: DatabaseTheme) {
       'border-orange-200': theme.border === 'orange-200',
       'border-indigo-200': theme.border === 'indigo-200',
       'border-gray-200': theme.border === 'gray-200',
+      'border-amber-200': theme.border === 'amber-200',
     },
     
     // Text classes
@@ -212,6 +215,7 @@ export function getThemeClassNames(theme: DatabaseTheme) {
       'text-orange-800': theme.textAccent === 'orange-800',
       'text-indigo-800': theme.textAccent === 'indigo-800',
       'text-gray-800': theme.textAccent === 'gray-800',
+      'text-amber-800': theme.textAccent === 'amber-800',
     }
   };
   

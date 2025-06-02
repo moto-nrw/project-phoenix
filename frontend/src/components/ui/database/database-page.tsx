@@ -465,10 +465,11 @@ export function DatabasePage<T extends { id: string }>({
         searchValue={searchFilter}
         onSearchChange={setSearchFilter}
         filters={renderFilters()}
-        addButton={{
+        addButton={config.list.features?.create !== false ? {
           label: config.labels?.createButton ?? `Neuen ${config.name.singular} erstellen`,
           onClick: () => setShowCreateModal(true)
-        }}
+        } : undefined}
+        infoSection={config.list.infoSection}
         items={items}
         loading={loading}
         error={error}

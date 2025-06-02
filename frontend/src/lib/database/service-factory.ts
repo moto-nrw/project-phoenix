@@ -183,6 +183,11 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
     
     async getOne(id: string): Promise<T> {
       try {
+        // Check if there's a custom getOne method
+        if (service?.customMethods?.getOne) {
+          return await service.customMethods.getOne(id);
+        }
+        
         const url = endpoints.get.replace('{id}', id);
         const response = await fetchWithAuth(url);
         
