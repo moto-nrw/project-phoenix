@@ -107,6 +107,12 @@ export const PUT = createPutHandler<Student, Partial<Student>>(
 );
 
 /**
+ * Handler for PATCH /api/students/[id]
+ * Partially updates a student (same as PUT but for PATCH requests)
+ */
+export const PATCH = PUT;
+
+/**
  * Handler for DELETE /api/students/[id]
  * Deletes a student
  */

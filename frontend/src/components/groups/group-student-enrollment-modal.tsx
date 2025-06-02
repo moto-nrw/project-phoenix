@@ -17,12 +17,13 @@ type GroupStudent = {
   bus: boolean;
 };
 
-// Type for available students
+// Type for available students (matches Student type from student-helpers)
 type AvailableStudent = {
   id: string;
-  person_id: string;
-  first_name: string;
-  last_name: string;
+  person_id?: string;
+  name: string;
+  first_name?: string;
+  second_name?: string;
   school_class: string;
   group_id?: string;
   group_name?: string;
@@ -57,7 +58,20 @@ export function GroupStudentEnrollmentModal({
       if (!response.ok) {
         throw new Error('Failed to fetch group students');
       }
-      const data = await response.json() as GroupStudent[];
+      const result = await response.json() as { data?: GroupStudent[]; status?: string; message?: string } | GroupStudent[];
+      
+      // Debug logging
+      console.log("Group students response:", result);
+      
+      // Handle both wrapped and unwrapped responses
+      let data: GroupStudent[] = [];
+      if (Array.isArray(result)) {
+        data = result;
+      } else if (result && typeof result === 'object' && 'data' in result) {
+        data = Array.isArray(result.data) ? result.data : [];
+      }
+      
+      console.log("Parsed enrolled students:", data);
       setEnrolledStudents(data);
     } catch (error) {
       console.error("Error fetching enrolled students:", error);
@@ -78,15 +92,47 @@ export function GroupStudentEnrollmentModal({
       if (!response.ok) {
         throw new Error('Failed to fetch students');
       }
-      const result = await response.json() as { data?: AvailableStudent[] } | AvailableStudent[];
+      const result = await response.json() as { data?: AvailableStudent[]; pagination?: unknown } | AvailableStudent[];
       
-      // Filter to only show students without a group
-      const allStudents = Array.isArray(result) ? result : (result.data ?? []);
-      const studentsWithoutGroup = allStudents.filter((student) => 
-        !student.group_id || student.group_id === group.id
-      );
+      console.log("Raw students API response:", result);
       
-      setAvailableStudents(studentsWithoutGroup);
+      // Handle the wrapped response structure
+      let allStudents: AvailableStudent[] = [];
+      if (Array.isArray(result)) {
+        allStudents = result;
+      } else if (result && typeof result === 'object' && 'data' in result) {
+        // The response is wrapped, check if data contains the students array
+        const data = result.data as any;
+        console.log("Data property content:", data);
+        
+        if (Array.isArray(data)) {
+          allStudents = data;
+        } else if (data && typeof data === 'object' && 'data' in data && Array.isArray(data.data)) {
+          // Double wrapped - paginated response inside wrapped response
+          allStudents = data.data;
+        }
+      }
+      
+      console.log("All students fetched:", allStudents);
+      console.log("Current group ID:", group.id);
+      
+      // Show all students except those already in this specific group
+      // Students in other groups can be moved to this group
+      const availableStudents = allStudents.filter((student) => {
+        // Convert both IDs to strings for comparison
+        const studentGroupId = student.group_id ? String(student.group_id) : null;
+        const currentGroupId = String(group.id);
+        
+        // Student is available if they're not in this group
+        // (they can be in no group or a different group)
+        const isNotInThisGroup = studentGroupId !== currentGroupId;
+        
+        console.log(`Student ${student.first_name || student.name}: group_id=${studentGroupId}, current_group=${currentGroupId}, available=${isNotInThisGroup}`);
+        return isNotInThisGroup;
+      });
+      
+      console.log("Available students after filtering:", availableStudents);
+      setAvailableStudents(availableStudents);
     } catch (error) {
       console.error("Error fetching available students:", error);
       showError("Fehler beim Laden verfügbarer Schüler");
@@ -216,7 +262,7 @@ export function GroupStudentEnrollmentModal({
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Gruppengröße:</span>
               <span className="font-semibold">
-                {enrolledStudents.length} Schüler
+                {Array.isArray(enrolledStudents) ? enrolledStudents.length : 0} Schüler
               </span>
             </div>
           </div>
@@ -231,7 +277,7 @@ export function GroupStudentEnrollmentModal({
                   : "border-transparent text-gray-500 hover:text-gray-700"
               }`}
             >
-              In der Gruppe ({enrolledStudents.length})
+              In der Gruppe ({Array.isArray(enrolledStudents) ? enrolledStudents.length : 0})
             </button>
             <button
               onClick={() => setActiveTab("available")}
@@ -252,7 +298,7 @@ export function GroupStudentEnrollmentModal({
             <>
               {activeTab === "enrolled" && (
                 <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {enrolledStudents.length === 0 ? (
+                  {!Array.isArray(enrolledStudents) || enrolledStudents.length === 0 ? (
                     <p className="text-center py-8 text-gray-500">
                       Keine Schüler in dieser Gruppe
                     </p>
@@ -268,15 +314,7 @@ export function GroupStudentEnrollmentModal({
                           </div>
                           <div className="text-sm text-gray-600">
                             Klasse: {student.school_class}
-                            {student.guardian_name && (
-                              <span className="ml-2">• Erziehungsberechtigter: {student.guardian_name}</span>
-                            )}
                           </div>
-                          {student.location && (
-                            <div className="text-sm text-gray-500">
-                              Standort: {student.location}
-                            </div>
-                          )}
                         </div>
                         <button
                           onClick={() => void handleRemoveFromGroup(student.id)}
@@ -322,11 +360,11 @@ export function GroupStudentEnrollmentModal({
                           />
                           <div className="flex-1">
                             <div className="font-medium">
-                              {student.first_name} {student.last_name}
+                              {student.name || `${student.first_name || ''} ${student.second_name || ''}`}
                             </div>
                             <div className="text-sm text-gray-600">
                               Klasse: {student.school_class}
-                              {student.group_name && student.group_id !== group.id && (
+                              {student.group_name && student.group_id && String(student.group_id) !== String(group.id) && (
                                 <span className="ml-2 text-orange-600">
                                   • Bereits in Gruppe: {student.group_name}
                                 </span>

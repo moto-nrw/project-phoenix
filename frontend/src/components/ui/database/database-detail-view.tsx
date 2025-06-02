@@ -102,7 +102,7 @@ export function DatabaseDetailView({
       )}
 
       {/* Action buttons - matching StudentDetailView exactly */}
-      {actions && (actions.onEdit || actions.onDelete || actions.custom) && (
+      {actions && (actions.onEdit ?? actions.onDelete ?? actions.custom) && (
         <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
           {actions.onEdit && (
             <button
