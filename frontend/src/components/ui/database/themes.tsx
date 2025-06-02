@@ -56,6 +56,12 @@ const GroupIcon = () => (
   </svg>
 );
 
+const ShieldIcon = () => (
+  <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+  </svg>
+);
+
 /**
  * Predefined themes for different entity types
  * Based on the students page design as the standard
@@ -110,6 +116,16 @@ export const databaseThemes = {
     textAccent: 'indigo-800',
     icon: <GroupIcon />,
     avatarGradient: 'from-indigo-400 to-purple-500'
+  },
+  roles: {
+    primary: 'gray-500',
+    secondary: 'slate-600',
+    accent: 'gray',
+    background: 'gray-50',
+    border: 'gray-200',
+    textAccent: 'gray-800',
+    icon: <ShieldIcon />,
+    avatarGradient: 'from-gray-400 to-slate-500'
   }
 } as const;
 
@@ -165,6 +181,7 @@ export function getThemeClassNames(theme: DatabaseTheme) {
       'from-green-500 to-emerald-600': theme.primary === 'green-500' && theme.secondary === 'emerald-600',
       'from-orange-500 to-red-600': theme.primary === 'orange-500' && theme.secondary === 'red-600',
       'from-indigo-500 to-purple-600': theme.primary === 'indigo-500' && theme.secondary === 'purple-600',
+      'from-gray-500 to-slate-600': theme.primary === 'gray-500' && theme.secondary === 'slate-600',
     },
     
     // Background classes
@@ -174,6 +191,7 @@ export function getThemeClassNames(theme: DatabaseTheme) {
       'bg-green-50': theme.background === 'green-50',
       'bg-orange-50': theme.background === 'orange-50',
       'bg-indigo-50': theme.background === 'indigo-50',
+      'bg-gray-50': theme.background === 'gray-50',
     },
     
     // Border classes
@@ -183,6 +201,7 @@ export function getThemeClassNames(theme: DatabaseTheme) {
       'border-green-200': theme.border === 'green-200',
       'border-orange-200': theme.border === 'orange-200',
       'border-indigo-200': theme.border === 'indigo-200',
+      'border-gray-200': theme.border === 'gray-200',
     },
     
     // Text classes
@@ -192,6 +211,7 @@ export function getThemeClassNames(theme: DatabaseTheme) {
       'text-green-800': theme.textAccent === 'green-800',
       'text-orange-800': theme.textAccent === 'orange-800',
       'text-indigo-800': theme.textAccent === 'indigo-800',
+      'text-gray-800': theme.textAccent === 'gray-800',
     }
   };
   
