@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { 
@@ -43,7 +43,7 @@ export function DatabasePage<T extends { id: string }>({
   
   // Determine search strategy (default to frontend)
   const searchStrategy = config.list.searchStrategy ?? 'frontend';
-  const searchableFields = config.list.searchableFields ?? ['name', 'title'];
+  const searchableFields = useMemo(() => config.list.searchableFields ?? ['name', 'title'], [config.list.searchableFields]);
   const minSearchLength = config.list.minSearchLength ?? 0;
   
   // Create Modal states
@@ -72,12 +72,12 @@ export function DatabasePage<T extends { id: string }>({
   const service = createCrudService(config);
 
   // Function to fetch items with optional filters
-  const fetchItems = async (search?: string, customFilters?: Record<string, string | null>, page = 1) => {
+  const fetchItems = useCallback(async (search?: string, customFilters?: Record<string, string | null>, page = 1) => {
     try {
       setLoading(true);
 
       // Prepare filters for API call
-      const apiFilters: Record<string, any> = {
+      const apiFilters: Record<string, string | number> = {
         ...Object.fromEntries(
           Object.entries(customFilters ?? filters).filter(([_, v]) => v !== null)
         ),
@@ -127,10 +127,10 @@ export function DatabasePage<T extends { id: string }>({
     } finally {
       setLoading(false);
     }
-  };
+  }, [service, filters, searchStrategy, minSearchLength, config.name.plural]);
 
   // Helper function for frontend search and filtering
-  const performFrontendSearch = (searchTerm: string, itemsToSearch: T[], activeFilters: Record<string, string | null>) => {
+  const performFrontendSearch = useCallback((searchTerm: string, itemsToSearch: T[], activeFilters: Record<string, string | null>) => {
     let filteredItems = itemsToSearch;
     
     // Apply filters first
@@ -143,7 +143,7 @@ export function DatabasePage<T extends { id: string }>({
             fieldName = 'group_id';
           }
           
-          const itemValue = (item as any)[fieldName];
+          const itemValue = (item as Record<string, unknown>)[fieldName];
           
           // Special handling for boolean fields
           if (filterId === 'bus') {
@@ -153,9 +153,9 @@ export function DatabasePage<T extends { id: string }>({
           
           // Special handling for supervisor_id filter
           if (filterId === 'supervisor_id') {
-            const supervisors = (item as any).supervisors;
+            const supervisors = (item as Record<string, unknown>).supervisors;
             if (Array.isArray(supervisors)) {
-              return supervisors.some(sup => String(sup.staff_id) === filterValue || String(sup.id) === filterValue);
+              return supervisors.some((sup: { staff_id?: unknown; id?: unknown }) => String(sup.staff_id) === filterValue || String(sup.id) === filterValue);
             }
             return false;
           }
@@ -175,19 +175,19 @@ export function DatabasePage<T extends { id: string }>({
     return filteredItems.filter(item => {
       // Search in all specified fields
       return searchableFields.some(field => {
-        const value = (item as any)[field];
+        const value = (item as Record<string, unknown>)[field];
         if (typeof value === 'string') {
           return value.toLowerCase().includes(lowercaseSearch);
         }
         return false;
       });
     });
-  };
+  }, [minSearchLength, searchableFields]);
 
   // Initial data load
   useEffect(() => {
     void fetchItems(undefined, undefined, currentPage);
-  }, [currentPage]);
+  }, [currentPage, fetchItems]);
   
   // Load async filter options
   useEffect(() => {
@@ -198,6 +198,16 @@ export function DatabasePage<T extends { id: string }>({
         if (typeof filter.options === 'function') {
           try {
             const options = await filter.options();
+            setAsyncFilterOptions(prev => ({
+              ...prev,
+              [filter.id]: options
+            }));
+          } catch (error) {
+            console.error(`Failed to load options for filter ${filter.id}:`, error);
+          }
+        } else if (filter.loadOptions) {
+          try {
+            const options = await filter.loadOptions();
             setAsyncFilterOptions(prev => ({
               ...prev,
               [filter.id]: options
@@ -227,7 +237,7 @@ export function DatabasePage<T extends { id: string }>({
 
       return () => clearTimeout(timer);
     }
-  }, [searchFilter, filters, searchStrategy, allItems]);
+  }, [searchFilter, filters, searchStrategy, allItems, fetchItems, performFrontendSearch]);
 
   if (status === "loading") {
     return <div />; // Let DatabaseListPage handle the loading state
@@ -366,10 +376,12 @@ export function DatabasePage<T extends { id: string }>({
         const groupMap = new Map<string, string>();
         
         allItems.forEach(item => {
-          const groupId = (item as any).group_id;
-          const groupName = (item as any).group_name;
-          if (groupId && groupName) {
-            groupMap.set(String(groupId), groupName);
+          const groupId = (item as Record<string, unknown>).group_id;
+          const groupName = (item as Record<string, unknown>).group_name;
+          if (groupId && groupName && 
+              (typeof groupId === 'string' || typeof groupId === 'number') && 
+              (typeof groupName === 'string' || typeof groupName === 'number')) {
+            groupMap.set(String(groupId), String(groupName));
           }
         });
         
@@ -386,10 +398,12 @@ export function DatabasePage<T extends { id: string }>({
         const categoryMap = new Map<string, string>();
         
         allItems.forEach(item => {
-          const categoryId = (item as any).ag_category_id;
-          const categoryName = (item as any).category_name;
-          if (categoryId && categoryName) {
-            categoryMap.set(String(categoryId), categoryName);
+          const categoryId = (item as Record<string, unknown>).ag_category_id;
+          const categoryName = (item as Record<string, unknown>).category_name;
+          if (categoryId && categoryName && 
+              (typeof categoryId === 'string' || typeof categoryId === 'number') && 
+              (typeof categoryName === 'string' || typeof categoryName === 'number')) {
+            categoryMap.set(String(categoryId), String(categoryName));
           }
         });
         
@@ -405,16 +419,16 @@ export function DatabasePage<T extends { id: string }>({
       const uniqueValues = Array.from(
         new Set(
           allItems
-            .filter(item => (item as any)[filter.id])
-            .map(item => (item as any)[filter.id])
+            .filter(item => (item as Record<string, unknown>)[filter.id])
+            .map(item => String((item as Record<string, unknown>)[filter.id]))
         )
       ).sort();
       
       return {
         ...filter,
         options: uniqueValues.map(value => ({
-          value: value as string,
-          label: value as string
+          value,
+          label: value
         }))
       };
     }
@@ -514,7 +528,7 @@ export function DatabasePage<T extends { id: string }>({
           setShowCreateModal(false);
           setCreateError(null);
         }}
-        title={config.labels?.createModalTitle || `Neuer ${config.name.singular}`}
+        title={config.labels?.createModalTitle ?? `Neuer ${config.name.singular}`}
         size="lg"
       >
         {createError && (
@@ -524,7 +538,27 @@ export function DatabasePage<T extends { id: string }>({
         )}
         
         <DatabaseForm
-          sections={config.form.sections}
+          sections={config.form.sections.map(section => ({
+            title: section.title,
+            subtitle: section.subtitle,
+            fields: section.fields.map(field => ({
+              name: field.name,
+              label: field.label,
+              type: field.type,
+              required: field.required,
+              placeholder: field.placeholder,
+              options: field.options,
+              validation: field.validation,
+              component: field.component,
+              helperText: field.helperText,
+              autoComplete: field.autoComplete,
+              colSpan: field.colSpan,
+              min: field.min,
+              max: field.max,
+            })),
+            columns: section.columns,
+            backgroundColor: section.backgroundColor,
+          }))}
           initialData={config.form.defaultValues}
           onSubmit={handleCreateItem}
           onCancel={() => setShowCreateModal(false)}
@@ -544,8 +578,8 @@ export function DatabasePage<T extends { id: string }>({
           setDetailError(null);
         }}
         title={isEditing 
-          ? (config.labels?.editModalTitle || `${config.name.singular} bearbeiten`)
-          : (config.labels?.detailModalTitle || `${config.name.singular}details`)
+          ? (config.labels?.editModalTitle ?? `${config.name.singular} bearbeiten`)
+          : (config.labels?.detailModalTitle ?? `${config.name.singular}details`)
         }
         size="xl"
         loading={detailLoading}
@@ -578,7 +612,7 @@ export function DatabasePage<T extends { id: string }>({
             }))}
             actions={{
               onEdit: config.detail.actions?.edit !== false ? () => setIsEditing(true) : undefined,
-              onDelete: config.detail.actions?.delete !== false ? handleDeleteItem : undefined,
+              onDelete: config.detail.actions?.delete !== false ? () => void handleDeleteItem() : undefined,
               custom: config.detail.actions?.custom?.map(action => ({
                 ...action,
                 onClick: () => action.onClick(selectedItem)
@@ -592,7 +626,27 @@ export function DatabasePage<T extends { id: string }>({
             sections={config.form.sections.filter(section => 
               // Filter out password section when editing teachers
               !(section.title === 'Zugangsdaten' && config.name.singular === 'Lehrer')
-            )}
+            ).map(section => ({
+              title: section.title,
+              subtitle: section.subtitle,
+              fields: section.fields.map(field => ({
+                name: field.name,
+                label: field.label,
+                type: field.type,
+                required: field.required,
+                placeholder: field.placeholder,
+                options: field.options,
+                validation: field.validation,
+                component: field.component,
+                helperText: field.helperText,
+                autoComplete: field.autoComplete,
+                colSpan: field.colSpan,
+                min: field.min,
+                max: field.max,
+              })),
+              columns: section.columns,
+              backgroundColor: section.backgroundColor,
+            }))}
             initialData={selectedItem}
             onSubmit={handleUpdateItem}
             onCancel={() => setIsEditing(false)}

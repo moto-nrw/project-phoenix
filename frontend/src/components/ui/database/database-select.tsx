@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { ReactNode } from "react";
 
 export interface SelectOption {
   value: string;
@@ -93,7 +92,7 @@ export function DatabaseSelect({
   }, [onChange]);
 
   const isLoading = loading || externalLoading;
-  const displayError = error || externalError;
+  const displayError = error ?? externalError;
 
   // Base input classes matching StudentForm styling
   const baseClasses = `
@@ -182,7 +181,17 @@ export function EntitySelect({
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== null && value !== undefined) {
-          params.append(key, String(value));
+          // Convert value to string safely
+          let stringValue: string;
+          if (typeof value === 'string') {
+            stringValue = value;
+          } else if (typeof value === 'number' || typeof value === 'boolean') {
+            stringValue = String(value);
+          } else {
+            // For objects and other types, use JSON.stringify
+            stringValue = JSON.stringify(value);
+          }
+          params.append(key, stringValue);
         }
       });
     }

@@ -48,7 +48,7 @@ interface FeedbackSummary {
 }
 
 export default function StatisticsPage() {
-    const { data: session, status } = useSession({
+    const { status } = useSession({
         required: true,
         onUnauthenticated() {
             redirect("/");

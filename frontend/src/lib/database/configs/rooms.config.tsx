@@ -3,7 +3,7 @@
 import { defineEntityConfig } from '../types';
 import { databaseThemes } from '@/components/ui/database/themes';
 import { mapRoomResponse, prepareRoomForBackend } from '@/lib/room-helpers';
-import type { Room } from '@/lib/room-helpers';
+import type { Room, BackendRoom } from '@/lib/room-helpers';
 
 export const roomsConfig = defineEntityConfig<Room>({
   name: {
@@ -121,35 +121,35 @@ export const roomsConfig = defineEntityConfig<Room>({
         items: [
           {
             label: 'Raumname',
-            value: (room) => room.name,
+            value: (room: Room) => room.name,
           },
           {
             label: 'Kategorie',
-            value: (room) => {
+            value: (room: Room) => {
               const categoryMap: Record<string, string> = {
                 classroom: 'Klassenraum',
                 grouproom: 'Gruppenraum',
                 specialroom: 'Fachraum',
                 other: 'Sonstiges',
               };
-              return categoryMap[room.category] || room.category;
+              return categoryMap[room.category] ?? room.category;
             },
           },
           {
             label: 'Kapazität',
-            value: (room) => room.capacity ? `${room.capacity} Plätze` : 'Nicht angegeben',
+            value: (room: Room) => room.capacity ? `${room.capacity} Plätze` : 'Nicht angegeben',
           },
           {
             label: 'Gebäude',
-            value: (room) => room.building || 'Nicht angegeben',
+            value: (room: Room) => room.building ?? 'Nicht angegeben',
           },
           {
             label: 'Etage',
-            value: (room) => `Etage ${room.floor}`,
+            value: (room: Room) => `Etage ${room.floor}`,
           },
           {
             label: 'Status',
-            value: (room) => room.isOccupied ? 'Belegt' : 'Frei',
+            value: (room: Room) => room.isOccupied ? 'Belegt' : 'Frei',
             colSpan: 2,
           },
         ],
@@ -170,8 +170,8 @@ export const roomsConfig = defineEntityConfig<Room>({
     minSearchLength: 0,
     
     item: {
-      title: (room) => room.name,
-      subtitle: (room) => {
+      title: (room: Room) => room.name,
+      subtitle: (room: Room) => {
         // Show occupancy status as subtitle
         if (room.isOccupied) {
           const parts = ['Belegt'];
@@ -181,8 +181,8 @@ export const roomsConfig = defineEntityConfig<Room>({
         }
         return 'Frei';
       },
-      description: (room) => {
-        const parts = [];
+      description: (room: Room) => {
+        const parts: string[] = [];
         if (room.building) parts.push(`Gebäude ${room.building}`);
         parts.push(`Etage ${room.floor}`);
         if (room.capacity) parts.push(`${room.capacity} Plätze`);
@@ -192,7 +192,7 @@ export const roomsConfig = defineEntityConfig<Room>({
         return parts.join(' • ');
       },
       avatar: {
-        text: (room) => {
+        text: (room: Room) => {
           // Use icon based on category or first letter
           const category = room.category?.toLowerCase();
           if (category?.includes('klassenraum') || category === 'klassenzimmer') return '📚';
@@ -207,14 +207,14 @@ export const roomsConfig = defineEntityConfig<Room>({
           if (category?.includes('medizin') || category?.includes('kranken')) return '🏥';
           if (category?.includes('büro')) return '🏢';
           if (category?.includes('besprechung') || category?.includes('konferenz')) return '💬';
-          return room.name ? room.name[0] : 'R';
+          return room.name?.[0] ?? 'R';
         },
         backgroundColor: databaseThemes.rooms.primary,
       },
       badges: [
         // Category badge
         {
-          label: (room) => {
+          label: (room: Room) => {
             const categoryMap: Record<string, string> = {
               // German values (keep as is)
               'Klassenzimmer': 'Klassenzimmer',
@@ -237,40 +237,40 @@ export const roomsConfig = defineEntityConfig<Room>({
               'other': 'Sonstiges',
               'standard': 'Standard',
             };
-            return categoryMap[room.category] || room.category || 'Standard';
+            return categoryMap[room.category] ?? room.category ?? 'Standard';
           },
           color: 'bg-indigo-100 text-indigo-800',
-          showWhen: (room) => !!room.category,
+          showWhen: (room: Room) => !!room.category,
         },
         // Building and floor badge  
         {
-          label: (room) => room.building ? `${room.building} - Etage ${room.floor}` : `Etage ${room.floor}`,
+          label: (room: Room) => room.building ? `${room.building} - Etage ${room.floor}` : `Etage ${room.floor}`,
           color: 'bg-gray-100 text-gray-800',
-          showWhen: (room) => room.floor !== undefined,
+          showWhen: (room: Room) => room.floor !== undefined,
         },
         // Capacity badge
         {
-          label: (room) => `${room.capacity} Plätze`,
+          label: (room: Room) => `${room.capacity} Plätze`,
           color: 'bg-blue-100 text-blue-800',
-          showWhen: (room) => !!room.capacity,
+          showWhen: (room: Room) => !!room.capacity,
         },
         // Occupancy status badge
         {
           label: 'Belegt',
           color: 'bg-red-100 text-red-800',
-          showWhen: (room) => room.isOccupied === true,
+          showWhen: (room: Room) => room.isOccupied === true,
         },
         {
           label: 'Frei',
           color: 'bg-green-100 text-green-800',
-          showWhen: (room) => room.isOccupied === false,
+          showWhen: (room: Room) => room.isOccupied === false,
         },
       ],
     },
   },
   
   service: {
-    mapResponse: mapRoomResponse,
+    mapResponse: (data: unknown) => mapRoomResponse(data as BackendRoom),
     mapRequest: prepareRoomForBackend,
   },
   

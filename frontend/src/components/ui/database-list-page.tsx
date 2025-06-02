@@ -180,7 +180,9 @@ export function DatabaseListPage<T = unknown>({
           {items.length > 0 ? (
             items.map((item, index) => {
               // Try to use id if available, otherwise fall back to index
-              const key = (item as any).id ? `item-${(item as any).id}` : `item-${index}`;
+              const itemWithId = item as Record<string, unknown>;
+              const itemId = itemWithId.id;
+              const key = itemId && (typeof itemId === 'string' || typeof itemId === 'number') ? `item-${String(itemId)}` : `item-${index}`;
               return (
                 <div key={key}>
                   {renderItem(item, index)}

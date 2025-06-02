@@ -2,34 +2,35 @@
 
 import { defineEntityConfig } from '../types';
 import { databaseThemes } from '@/components/ui/database/themes';
-import type { Teacher } from '@/lib/teacher-api';
+import type { Teacher, TeacherWithCredentials } from '@/lib/teacher-api';
 import { teacherService } from '@/lib/teacher-api';
 
 // Map teacher response from backend to frontend format
-function mapTeacherResponse(data: any): Teacher {
+function mapTeacherResponse(data: unknown): Teacher {
+  const typedData = data as Record<string, unknown>;
   return {
-    id: data.id?.toString() || '',
-    name: data.name || `${data.first_name} ${data.last_name}`,
-    first_name: data.first_name || '',
-    last_name: data.last_name || '',
-    email: data.email,
-    specialization: data.specialization || '',
-    role: data.role,
-    qualifications: data.qualifications,
-    tag_id: data.tag_id,
-    staff_notes: data.staff_notes,
-    created_at: data.created_at,
-    updated_at: data.updated_at,
-    person_id: data.person_id,
-    account_id: data.account_id,
-    is_teacher: data.is_teacher,
-    staff_id: data.staff_id,
-    teacher_id: data.teacher_id,
+    id: typedData.id?.toString() ?? '',
+    name: (typedData.name as string) ?? `${typedData.first_name as string} ${typedData.last_name as string}`,
+    first_name: (typedData.first_name as string) ?? '',
+    last_name: (typedData.last_name as string) ?? '',
+    email: typedData.email as string | undefined,
+    specialization: (typedData.specialization as string) ?? '',
+    role: typedData.role as string | null | undefined,
+    qualifications: typedData.qualifications as string | null | undefined,
+    tag_id: typedData.tag_id as string | null | undefined,
+    staff_notes: typedData.staff_notes as string | null | undefined,
+    created_at: typedData.created_at as string | undefined,
+    updated_at: typedData.updated_at as string | undefined,
+    person_id: typedData.person_id as number | undefined,
+    account_id: typedData.account_id as number | undefined,
+    is_teacher: typedData.is_teacher as boolean | undefined,
+    staff_id: typedData.staff_id as string | undefined,
+    teacher_id: typedData.teacher_id as string | undefined,
   };
 }
 
 // Prepare teacher data for backend
-function prepareTeacherForBackend(data: Partial<Teacher> & { password?: string }): any {
+function prepareTeacherForBackend(data: Partial<Teacher> & { password?: string }): Record<string, unknown> {
   return {
     first_name: data.first_name,
     last_name: data.last_name,
@@ -54,7 +55,6 @@ export const teachersConfig = defineEntityConfig<Teacher>({
   
   api: {
     basePath: '/api/staff',
-    listParams: { teachers_only: 'true' },
   },
   
   form: {
@@ -83,20 +83,20 @@ export const teachersConfig = defineEntityConfig<Teacher>({
             label: 'E-Mail',
             type: 'email',
             placeholder: 'lehrer@schule.de',
-            description: 'Wird für die Anmeldung verwendet',
+            helperText: 'Wird für die Anmeldung verwendet',
           },
           {
             name: 'tag_id',
             label: 'RFID-Karte',
             type: 'select',
             placeholder: 'RFID-Karte auswählen',
-            loadOptions: async () => {
+            options: async () => {
               try {
                 const response = await fetch('/api/users/rfid-cards/available');
                 if (response.ok) {
-                  const data = await response.json();
-                  const cards = Array.isArray(data) ? data : data.data || [];
-                  return cards.map((card: any) => ({
+                  const data = await response.json() as { data?: Array<{ tag_id: string }> } | Array<{ tag_id: string }>;
+                  const cards = Array.isArray(data) ? data : (data as Record<string, unknown>).data ?? [];
+                  return (cards as Array<{ tag_id: string }>).map((card) => ({
                     value: card.tag_id,
                     label: `RFID: ${card.tag_id}`
                   }));
@@ -154,7 +154,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
             type: 'password' as const,
             required: true,
             placeholder: 'Starkes Passwort erstellen',
-            description: 'Der Lehrer sollte das Passwort bei der ersten Anmeldung ändern.',
+            helperText: 'Der Lehrer sollte das Passwort bei der ersten Anmeldung ändern.',
           },
         ],
       },
@@ -165,7 +165,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
       role: '',
     },
     
-    validation: (data) => {
+    validation: (data: Record<string, unknown>) => {
       const errors: Record<string, string> = {};
       
       if (!data.first_name) {
@@ -189,16 +189,16 @@ export const teachersConfig = defineEntityConfig<Teacher>({
   
   detail: {
     header: {
-      title: (teacher) => teacher.name || `${teacher.first_name} ${teacher.last_name}`,
-      subtitle: (teacher) => {
-        const parts = [];
+      title: (teacher: Teacher) => teacher.name ?? `${teacher.first_name} ${teacher.last_name}`,
+      subtitle: (teacher: Teacher) => {
+        const parts: string[] = [];
         if (teacher.specialization) parts.push(teacher.specialization);
         if (teacher.role) parts.push(teacher.role);
         return parts.join(' • ') || 'Lehrer';
       },
       avatar: {
-        text: (teacher) => {
-          const initials = `${teacher.first_name?.[0] || ''}${teacher.last_name?.[0] || ''}`.toUpperCase();
+        text: (teacher: Teacher) => {
+          const initials = `${teacher.first_name?.[0] ?? ''}${teacher.last_name?.[0] ?? ''}`.toUpperCase();
           return initials || 'L';
         },
         size: 'lg',
@@ -212,15 +212,15 @@ export const teachersConfig = defineEntityConfig<Teacher>({
         items: [
           {
             label: 'Name',
-            value: (teacher) => `${teacher.first_name} ${teacher.last_name}`,
+            value: (teacher: Teacher) => `${teacher.first_name} ${teacher.last_name}`,
           },
           {
             label: 'E-Mail',
-            value: (teacher) => teacher.email || 'Nicht angegeben',
+            value: (teacher: Teacher) => teacher.email ?? 'Nicht angegeben',
           },
           {
             label: 'RFID-Karte',
-            value: (teacher) => teacher.tag_id ? `RFID: ${teacher.tag_id}` : 'Keine Karte zugewiesen',
+            value: (teacher: Teacher) => teacher.tag_id ? `RFID: ${teacher.tag_id}` : 'Keine Karte zugewiesen',
           },
         ],
       },
@@ -230,20 +230,20 @@ export const teachersConfig = defineEntityConfig<Teacher>({
         items: [
           {
             label: 'Fachgebiet',
-            value: (teacher) => teacher.specialization || 'Nicht angegeben',
+            value: (teacher: Teacher) => teacher.specialization ?? 'Nicht angegeben',
           },
           {
             label: 'Rolle',
-            value: (teacher) => teacher.role || 'Nicht angegeben',
+            value: (teacher: Teacher) => teacher.role ?? 'Nicht angegeben',
           },
           {
             label: 'Qualifikationen',
-            value: (teacher) => teacher.qualifications || 'Keine angegeben',
+            value: (teacher: Teacher) => teacher.qualifications ?? 'Keine angegeben',
             colSpan: 2,
           },
           {
             label: 'Interne Notizen',
-            value: (teacher) => teacher.staff_notes || 'Keine Notizen',
+            value: (teacher: Teacher) => teacher.staff_notes ?? 'Keine Notizen',
             colSpan: 2,
           },
         ],
@@ -266,32 +266,31 @@ export const teachersConfig = defineEntityConfig<Teacher>({
         id: 'role',
         label: 'Rolle',
         type: 'select',
-        placeholder: 'Alle Rollen',
         options: 'dynamic', // Will extract from data
       },
     ],
     
     item: {
-      title: (teacher) => teacher.name || `${teacher.first_name} ${teacher.last_name}`,
-      subtitle: (teacher) => teacher.specialization || 'Lehrer',
-      description: (teacher) => {
-        const parts = [];
+      title: (teacher: Teacher) => teacher.name ?? `${teacher.first_name} ${teacher.last_name}`,
+      subtitle: (teacher: Teacher) => teacher.specialization ?? 'Lehrer',
+      description: (teacher: Teacher) => {
+        const parts: string[] = [];
         if (teacher.role) parts.push(teacher.role);
         if (teacher.email) parts.push(teacher.email);
         return parts.join(' • ');
       },
       avatar: {
-        text: (teacher) => {
-          const initials = `${teacher.first_name?.[0] || ''}${teacher.last_name?.[0] || ''}`.toUpperCase();
+        text: (teacher: Teacher) => {
+          const initials = `${teacher.first_name?.[0] ?? ''}${teacher.last_name?.[0] ?? ''}`.toUpperCase();
           return initials || 'L';
         },
         backgroundColor: databaseThemes.teachers.primary,
       },
       badges: [
         {
-          label: (teacher) => teacher.role || '',
+          label: (teacher: Teacher) => teacher.role ?? '',
           color: 'bg-purple-100 text-purple-800',
-          showWhen: (teacher) => !!teacher.role,
+          showWhen: (teacher: Teacher) => !!teacher.role,
         },
       ],
     },
@@ -307,7 +306,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
       // Use the teacher service which handles this complex flow
       console.log('Creating teacher with data:', data);
       const teacherData = data as Partial<Teacher> & { password?: string };
-      const result = await teacherService.createTeacher(teacherData as any);
+      const result = await teacherService.createTeacher(teacherData as Omit<Teacher, "id" | "name" | "created_at" | "updated_at"> & { password?: string });
       return result;
     },
     
@@ -325,17 +324,14 @@ export const teachersConfig = defineEntityConfig<Teacher>({
     editModalTitle: 'Lehrer bearbeiten',
     detailModalTitle: 'Lehrerdetails',
     deleteConfirmation: 'Sind Sie sicher, dass Sie diesen Lehrer löschen möchten?',
-    empty: {
-      title: 'Keine Lehrer gefunden',
-      description: 'Beginnen Sie mit dem Erstellen eines neuen Lehrers.',
-    },
+    emptyState: 'Keine Lehrer gefunden',
   },
   
   // Custom credential display after creation
-  onCreateSuccess: (result: any) => {
+  onCreateSuccess: (result: TeacherWithCredentials) => {
     if (result.temporaryCredentials) {
       return {
-        type: 'credentials',
+        type: 'credentials' as const,
         title: 'Lehrer erfolgreich erstellt!',
         message: 'Bitte notieren Sie sich die folgenden temporären Zugangsdaten:',
         credentials: {
@@ -345,5 +341,6 @@ export const teachersConfig = defineEntityConfig<Teacher>({
         note: 'Der Lehrer sollte das Passwort bei der ersten Anmeldung ändern.',
       };
     }
+    return undefined;
   },
 });

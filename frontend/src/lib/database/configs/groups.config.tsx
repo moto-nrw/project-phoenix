@@ -2,7 +2,7 @@
 
 import { defineEntityConfig } from '../types';
 import { databaseThemes } from '@/components/ui/database/themes';
-import type { Group } from '@/lib/group-helpers';
+import type { Group, BackendGroup } from '@/lib/group-helpers';
 import { mapGroupResponse } from '@/lib/group-helpers';
 
 export const groupsConfig = defineEntityConfig<Group>({
@@ -99,8 +99,8 @@ export const groupsConfig = defineEntityConfig<Group>({
     
     transformBeforeSubmit: (data) => ({
       ...data,
-      room_id: data.room_id ? data.room_id : undefined,
-      representative_id: data.representative_id ? data.representative_id : undefined,
+      room_id: data.room_id ?? undefined,
+      representative_id: data.representative_id ?? undefined,
     }),
   },
   
@@ -224,18 +224,18 @@ export const groupsConfig = defineEntityConfig<Group>({
   },
   
   service: {
-    mapResponse: (data: any): Group => {
+    mapResponse: (data: unknown): Group => {
       // Handle wrapped response format (for consistency)
       let actualData = data;
       if (data && typeof data === 'object' && 'status' in data && 'data' in data) {
-        actualData = data.data;
+        actualData = (data as { status: string; data: unknown }).data;
       }
       
-      return mapGroupResponse(actualData);
+      return mapGroupResponse(actualData as BackendGroup);
     },
     
     mapRequest: (data: Partial<Group>) => {
-      const mapped: any = {
+      const mapped: Record<string, unknown> = {
         ...data,
         // Backend expects these as numbers, frontend stores as strings
         room_id: data.room_id ? parseInt(data.room_id) : undefined,

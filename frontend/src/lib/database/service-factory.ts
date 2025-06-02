@@ -49,7 +49,7 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       return null;
     }
     
-    return response.json();
+    return response.json() as Promise<unknown>;
   };
   
   // Build endpoint URLs
@@ -69,7 +69,17 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
         if (filters) {
           Object.entries(filters).forEach(([key, value]) => {
             if (value !== undefined && value !== null) {
-              params.append(key, String(value));
+              let stringValue: string;
+              if (typeof value === 'object') {
+                stringValue = JSON.stringify(value);
+              } else if (typeof value === 'boolean') {
+                stringValue = value.toString();
+              } else if (typeof value === 'number') {
+                stringValue = value.toString();
+              } else {
+                stringValue = value as string;
+              }
+              params.append(key, stringValue);
             }
           });
         }
@@ -81,23 +91,24 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
         
         // Handle API wrapper with success/message/data structure
         if (response && typeof response === 'object' && 'success' in response && 'data' in response) {
-          const innerData = response.data;
+          const innerData = (response as { success: boolean; data: unknown }).data;
           
           // Check if inner data is a paginated response
           if (innerData && typeof innerData === 'object' && 'data' in innerData && 'pagination' in innerData) {
+            const paginatedData = innerData as PaginatedResponse<unknown>;
             // Handle response mapping for paginated data
-            if (service?.mapResponse && Array.isArray(innerData.data)) {
+            if (service?.mapResponse && Array.isArray(paginatedData.data)) {
               return {
-                ...innerData,
-                data: innerData.data.map(service.mapResponse),
-              };
+                ...paginatedData,
+                data: paginatedData.data.map((item: unknown) => service.mapResponse!(item)),
+              } as PaginatedResponse<T>;
             }
-            return innerData;
+            return paginatedData as PaginatedResponse<T>;
           }
           
           // If inner data is an array
           if (Array.isArray(innerData)) {
-            const mappedData = service?.mapResponse ? innerData.map(service.mapResponse) : innerData;
+            const mappedData: T[] = service?.mapResponse ? (innerData as unknown[]).map((item: unknown) => service.mapResponse!(item)) : innerData as T[];
             return {
               data: mappedData,
               pagination: {
@@ -106,39 +117,41 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
                 total_pages: 1,
                 total_records: mappedData.length
               }
-            };
+            } as PaginatedResponse<T>;
           }
           
           // If inner data is an object with data array
-          if (innerData && typeof innerData === 'object' && 'data' in innerData && Array.isArray(innerData.data)) {
-            const mappedData = service?.mapResponse ? innerData.data.map(service.mapResponse) : innerData.data;
+          if (innerData && typeof innerData === 'object' && 'data' in innerData && Array.isArray((innerData as { data: unknown[] }).data)) {
+            const dataArray = (innerData as { data: unknown[]; pagination?: PaginatedResponse<T>['pagination'] }).data;
+            const mappedData: T[] = service?.mapResponse ? dataArray.map((item: unknown) => service.mapResponse!(item)) : dataArray as T[];
             return {
               data: mappedData,
-              pagination: innerData.pagination || {
+              pagination: (innerData as { pagination?: PaginatedResponse<T>['pagination'] }).pagination ?? {
                 current_page: 1,
                 page_size: mappedData.length,
                 total_pages: 1,
                 total_records: mappedData.length
               }
-            };
+            } as PaginatedResponse<T>;
           }
         }
         
         // Check if it's already a paginated response (without wrapper)
         if (response && typeof response === 'object' && 'data' in response && 'pagination' in response) {
+          const paginatedResponse = response as PaginatedResponse<unknown>;
           // Handle response mapping for paginated data
-          if (service?.mapResponse && Array.isArray(response.data)) {
+          if (service?.mapResponse && Array.isArray(paginatedResponse.data)) {
             return {
-              ...response,
-              data: response.data.map(service.mapResponse),
-            };
+              ...paginatedResponse,
+              data: paginatedResponse.data.map((item: unknown) => service.mapResponse!(item)),
+            } as PaginatedResponse<T>;
           }
-          return response;
+          return paginatedResponse as PaginatedResponse<T>;
         }
         
         // If it's a direct array response (backward compatibility)
         if (Array.isArray(response)) {
-          const mappedData = service?.mapResponse ? response.map(service.mapResponse) : response;
+          const mappedData: T[] = service?.mapResponse ? (response as unknown[]).map((item: unknown) => service.mapResponse!(item)) : response as T[];
           return {
             data: mappedData,
             pagination: {
@@ -151,17 +164,18 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
         }
         
         // Handle wrapped response (e.g., { data: [...] })
-        if (response && typeof response === 'object' && 'data' in response && Array.isArray(response.data)) {
-          const mappedData = service?.mapResponse ? response.data.map(service.mapResponse) : response.data;
+        if (response && typeof response === 'object' && 'data' in response && Array.isArray((response as { data: unknown[] }).data)) {
+          const dataArray = (response as { data: unknown[]; pagination?: PaginatedResponse<T>['pagination'] }).data;
+          const mappedData: T[] = service?.mapResponse ? dataArray.map((item: unknown) => service.mapResponse!(item)) : dataArray as T[];
           return {
             data: mappedData,
-            pagination: response.pagination || {
+            pagination: (response as { pagination?: PaginatedResponse<T>['pagination'] }).pagination ?? {
               current_page: 1,
               page_size: mappedData.length,
               total_pages: 1,
               total_records: mappedData.length
             }
-          };
+          } as PaginatedResponse<T>;
         }
         
         // Fallback - return empty paginated response
@@ -185,14 +199,15 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       try {
         // Check if there's a custom getOne method
         if (service?.customMethods?.getOne) {
-          return await service.customMethods.getOne(id);
+          const result = await service.customMethods.getOne(id);
+          return result as T;
         }
         
         const url = endpoints.get.replace('{id}', id);
         const response = await fetchWithAuth(url);
         
-        const data = response.data ?? response;
-        return service?.mapResponse ? service.mapResponse(data) : data;
+        const data = (response as { data?: unknown })?.data ?? response;
+        return service?.mapResponse ? service.mapResponse(data) : data as T;
       } catch (error) {
         console.error(`Error fetching ${config.name.singular} ${id}:`, error);
         throw error;
@@ -226,9 +241,10 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
           body: JSON.stringify(requestData),
         });
         
+        const responseData = (response as { data?: unknown })?.data ?? response;
         const result = service?.mapResponse 
-          ? service.mapResponse(response.data ?? response)
-          : (response.data ?? response);
+          ? service.mapResponse(responseData)
+          : responseData as T;
         
         // Apply after hook
         if (config.hooks?.afterCreate) {
@@ -270,9 +286,10 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
           body: JSON.stringify(requestData),
         });
         
+        const responseData = (response as { data?: unknown })?.data ?? response;
         const result = service?.mapResponse 
-          ? service.mapResponse(response.data ?? response)
-          : (response.data ?? response);
+          ? service.mapResponse(responseData)
+          : responseData as T;
         
         // Apply after hook
         if (config.hooks?.afterUpdate) {

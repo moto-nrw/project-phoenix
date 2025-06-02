@@ -48,7 +48,12 @@ export const studentsConfig = defineEntityConfig<Student>({
             label: 'OGS Gruppe',
             type: 'custom',
             required: true,
-            component: GroupSelect,
+            component: (props: { value: unknown; onChange: (value: unknown) => void; label: string; required?: boolean }) => 
+              GroupSelect({ 
+                name: 'group_id', 
+                value: props.value as string, 
+                onChange: props.onChange as (value: string) => void 
+              }),
           },
         ],
       },
@@ -317,28 +322,28 @@ export const studentsConfig = defineEntityConfig<Student>({
     ],
     
     item: {
-      title: (student) => `${student.first_name} ${student.second_name}`,
-      subtitle: (student) => student.name_lg || 'Kein Erziehungsberechtigter',
-      description: (student) => student.contact_lg,
+      title: (student: Student) => `${student.first_name} ${student.second_name}`,
+      subtitle: (student: Student) => student.name_lg ?? 'Kein Erziehungsberechtigter',
+      description: (student: Student) => student.contact_lg ?? '',
       avatar: {
-        text: (student) => `${student.first_name?.[0] ?? ''}${student.second_name?.[0] ?? ''}`,
+        text: (student: Student) => `${student.first_name?.[0] ?? ''}${student.second_name?.[0] ?? ''}`,
       },
       badges: [
         {
-          label: (student) => student.school_class || 'Keine Klasse',
+          label: (student: Student) => student.school_class ?? 'Keine Klasse',
           color: 'bg-blue-100 text-blue-700',
-          showWhen: (student) => !!student.school_class,
+          showWhen: (student: Student) => !!student.school_class,
         },
         {
-          label: (student) => student.group_name || 'Keine Gruppe',
+          label: (student: Student) => student.group_name ?? 'Keine Gruppe',
           color: 'bg-purple-100 text-purple-700',
-          showWhen: (student) => !!student.group_name,
+          showWhen: (student: Student) => !!student.group_name,
         },
         {
           field: 'bus',
           label: 'Bus',
           color: 'bg-orange-100 text-orange-700',
-          showWhen: (student) => !!student.bus,
+          showWhen: (student: Student) => !!student.bus,
         },
       ],
     },

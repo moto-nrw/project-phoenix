@@ -78,7 +78,7 @@ export const permissionsConfig = defineEntityConfig<Permission>({
       avatar: {
         text: (permission: Permission) => {
           // Use first letter of resource
-          return permission.resource?.[0]?.toUpperCase() ?? 'P';
+          return permission.resource[0]?.toUpperCase() ?? 'P';
         },
         size: 'lg',
       },
@@ -115,7 +115,7 @@ export const permissionsConfig = defineEntityConfig<Permission>({
               <div>
                 <div className="font-medium">{permission.resource}</div>
                 <div className="text-sm text-gray-600 mt-1">
-                  {resourceDescriptions[permission.resource] || 'Keine Beschreibung verfügbar'}
+                  {resourceDescriptions[permission.resource] ?? 'Keine Beschreibung verfügbar'}
                 </div>
               </div>
             ),
@@ -126,7 +126,7 @@ export const permissionsConfig = defineEntityConfig<Permission>({
               <div>
                 <div className="font-medium">{permission.action}</div>
                 <div className="text-sm text-gray-600 mt-1">
-                  {actionDescriptions[permission.action] || 'Keine Beschreibung verfügbar'}
+                  {actionDescriptions[permission.action] ?? 'Keine Beschreibung verfügbar'}
                 </div>
               </div>
             ),
@@ -144,20 +144,20 @@ export const permissionsConfig = defineEntityConfig<Permission>({
                 <div className="bg-amber-50 p-4 rounded-lg">
                   <h4 className="font-semibold text-amber-900 mb-2">Resource: {permission.resource}</h4>
                   <p className="text-amber-800 text-sm">
-                    {resourceDescriptions[permission.resource] || 'Keine Beschreibung verfügbar'}
+                    {resourceDescriptions[permission.resource] ?? 'Keine Beschreibung verfügbar'}
                   </p>
                 </div>
                 <div className="bg-orange-50 p-4 rounded-lg">
                   <h4 className="font-semibold text-orange-900 mb-2">Action: {permission.action}</h4>
                   <p className="text-orange-800 text-sm">
-                    {actionDescriptions[permission.action] || 'Keine Beschreibung verfügbar'}
+                    {actionDescriptions[permission.action] ?? 'Keine Beschreibung verfügbar'}
                   </p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <h4 className="font-semibold text-gray-900 mb-2">Zusammenfassung</h4>
                   <p className="text-gray-700 text-sm">
-                    Diese Berechtigung erlaubt es, die Aktion "{actionDescriptions[permission.action] || permission.action}" 
-                    auf der Resource "{permission.resource}" auszuführen.
+                    Diese Berechtigung erlaubt es, die Aktion &quot;{actionDescriptions[permission.action] ?? permission.action}&quot; 
+                    auf der Resource &quot;{permission.resource}&quot; auszuführen.
                   </p>
                 </div>
               </div>
@@ -216,7 +216,7 @@ export const permissionsConfig = defineEntityConfig<Permission>({
       subtitle: (permission: Permission) => permission.description,
       description: (permission: Permission) => `${permission.resource} → ${permission.action}`,
       avatar: {
-        text: (permission: Permission) => permission.resource?.[0]?.toUpperCase() ?? 'P',
+        text: (permission: Permission) => permission.resource[0]?.toUpperCase() ?? 'P',
       },
       badges: [],
     },
@@ -248,7 +248,10 @@ export const permissionsConfig = defineEntityConfig<Permission>({
     
     // Custom getOne that filters from the list since there's no individual GET endpoint
     customMethods: {
-      getOne: async (id: string): Promise<Permission> => {
+      getOne: async (id?: string): Promise<Permission> => {
+        if (!id) {
+          throw new Error('Permission ID is required');
+        }
         try {
           // Import auth service dynamically to avoid circular dependencies
           const { authService } = await import('@/lib/auth-service');

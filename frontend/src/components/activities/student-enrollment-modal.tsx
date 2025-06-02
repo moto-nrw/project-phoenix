@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { FormModal, Notification } from "~/components/ui";
 import { useNotification } from "~/lib/use-notification";
 import * as activityService from "~/lib/activity-api";
@@ -36,7 +36,7 @@ export function StudentEnrollmentModal({
   const [activeTab, setActiveTab] = useState<"enrolled" | "available">("enrolled");
 
   // Fetch enrolled students
-  const fetchEnrolledStudents = async () => {
+  const fetchEnrolledStudents = useCallback(async () => {
     try {
       const students = await activityService.getEnrolledStudents(activity.id);
       setEnrolledStudents(students);
@@ -44,10 +44,10 @@ export function StudentEnrollmentModal({
       console.error("Error fetching enrolled students:", error);
       showError("Fehler beim Laden der eingeschriebenen Schüler");
     }
-  };
+  }, [activity.id, showError]);
 
   // Fetch available students
-  const fetchAvailableStudents = async () => {
+  const fetchAvailableStudents = useCallback(async () => {
     try {
       const students = await activityService.getAvailableStudents(activity.id, {
         search: searchTerm,
@@ -57,7 +57,7 @@ export function StudentEnrollmentModal({
       console.error("Error fetching available students:", error);
       showError("Fehler beim Laden verfügbarer Schüler");
     }
-  };
+  }, [activity.id, searchTerm, showError]);
 
   useEffect(() => {
     if (isOpen) {
@@ -65,13 +65,13 @@ export function StudentEnrollmentModal({
       void Promise.all([fetchEnrolledStudents(), fetchAvailableStudents()])
         .finally(() => setLoading(false));
     }
-  }, [isOpen, activity.id]);
+  }, [isOpen, activity.id, fetchEnrolledStudents, fetchAvailableStudents]);
 
   useEffect(() => {
     if (isOpen && activeTab === "available") {
       void fetchAvailableStudents();
     }
-  }, [searchTerm, activeTab]);
+  }, [searchTerm, activeTab, isOpen, fetchAvailableStudents]);
 
   const handleToggleStudent = (studentId: string) => {
     setSelectedStudents((prev) =>

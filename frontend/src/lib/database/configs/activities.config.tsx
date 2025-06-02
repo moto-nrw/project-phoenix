@@ -2,7 +2,10 @@
 
 import { defineEntityConfig } from '../types';
 import { databaseThemes } from '@/components/ui/database/themes';
-import type { Activity, ActivitySupervisor } from '@/lib/activity-helpers';
+import type { Activity } from '@/lib/activity-helpers';
+
+// Import the correct type from activity helpers
+import type { ActivitySupervisor } from '@/lib/activity-helpers';
 import { getSession } from 'next-auth/react';
 
 export const activitiesConfig = defineEntityConfig<Activity>({
@@ -43,8 +46,17 @@ export const activitiesConfig = defineEntityConfig<Activity>({
                   'Authorization': `Bearer ${(await getSession())?.user?.token}`,
                 },
               });
-              const result = await response.json() as { data: Array<{ id: number; name: string }> };
-              const categories = result.data || [];
+              const result = await response.json() as { data?: Array<{ id: number; name: string }> } | Array<{ id: number; name: string }>;
+              
+              // Handle both wrapped and direct response formats
+              let categories: Array<{ id: number; name: string }>;
+              if (Array.isArray(result)) {
+                categories = result;
+              } else if (result && typeof result === 'object' && 'data' in result) {
+                categories = result.data ?? [];
+              } else {
+                categories = [];
+              }
               return categories.map((cat) => ({
                 value: cat.id.toString(),
                 label: cat.name,
@@ -97,14 +109,14 @@ export const activitiesConfig = defineEntityConfig<Activity>({
                 return [];
               }
               
-              const result = await response.json();
+              const result = await response.json() as { data?: Array<{ id: string; name: string }> } | Array<{ id: string; name: string }>;
               
               // Handle wrapped response from route wrapper
               let supervisors: Array<{ id: string; name: string }> = [];
-              if (result && typeof result === 'object' && 'data' in result) {
-                supervisors = result.data as Array<{ id: string; name: string }>;
-              } else if (Array.isArray(result)) {
+              if (Array.isArray(result)) {
                 supervisors = result;
+              } else if (result && typeof result === 'object' && 'data' in result) {
+                supervisors = result.data ?? [];
               }
               
               return supervisors.map((sup) => ({
@@ -132,14 +144,14 @@ export const activitiesConfig = defineEntityConfig<Activity>({
                 return [];
               }
               
-              const result = await response.json();
+              const result = await response.json() as { data?: Array<{ id: string; name: string }> } | Array<{ id: string; name: string }>;
               
               // Handle wrapped response from route wrapper
               let supervisors: Array<{ id: string; name: string }> = [];
-              if (result && typeof result === 'object' && 'data' in result) {
-                supervisors = result.data as Array<{ id: string; name: string }>;
-              } else if (Array.isArray(result)) {
+              if (Array.isArray(result)) {
                 supervisors = result;
+              } else if (result && typeof result === 'object' && 'data' in result) {
+                supervisors = result.data ?? [];
               }
               
               return supervisors.map((sup) => ({
@@ -167,14 +179,14 @@ export const activitiesConfig = defineEntityConfig<Activity>({
                 return [];
               }
               
-              const result = await response.json();
+              const result = await response.json() as { data?: Array<{ id: string | number; name: string }> } | Array<{ id: string | number; name: string }>;
               
               // Handle wrapped response
               let rooms: Array<{ id: string | number; name: string }> = [];
-              if (result && typeof result === 'object' && 'data' in result) {
-                rooms = result.data as Array<{ id: string | number; name: string }>;
-              } else if (Array.isArray(result)) {
+              if (Array.isArray(result)) {
                 rooms = result;
+              } else if (result && typeof result === 'object' && 'data' in result) {
+                rooms = result.data ?? [];
               }
               
               return rooms.map((room) => ({
@@ -203,7 +215,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       title: (activity) => activity.name,
       subtitle: (activity) => activity.category_name ?? 'Keine Kategorie',
       avatar: {
-        text: (activity) => {
+        text: (activity: Activity) => {
           // Use emoji based on category or activity name
           const name = activity.name?.toLowerCase();
           const category = activity.category_name?.toLowerCase();
@@ -260,14 +272,14 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       },
       badges: [
         {
-          label: (activity) => `${activity.participant_count || 0}/${activity.max_participant}`,
+          label: (activity) => `${activity.participant_count ?? 0}/${activity.max_participant}`,
           color: 'bg-blue-100 text-blue-700',
           showWhen: () => true,
         },
         {
           label: 'Voll',
           color: 'bg-red-100 text-red-700',
-          showWhen: (activity) => (activity.participant_count || 0) >= activity.max_participant,
+          showWhen: (activity: Activity) => (activity.participant_count ?? 0) >= activity.max_participant,
         },
       ],
     },
@@ -287,15 +299,15 @@ export const activitiesConfig = defineEntityConfig<Activity>({
           },
           {
             label: 'Beschreibung',
-            value: (activity) => activity.description || 'Keine Beschreibung',
+            value: (_activity) => 'Keine Beschreibung',
           },
           {
             label: 'Maximale Teilnehmer',
-            value: (activity) => activity.max_participant.toString(),
+            value: (activity: Activity) => activity.max_participant.toString(),
           },
           {
             label: 'Aktuelle Teilnehmer',
-            value: (activity) => (activity.participant_count || 0).toString(),
+            value: (activity: Activity) => String(activity.participant_count ?? 0),
           },
         ],
       },
@@ -305,19 +317,19 @@ export const activitiesConfig = defineEntityConfig<Activity>({
         items: [
           {
             label: 'Hauptbetreuer',
-            value: (activity) => {
-              const primary = activity.supervisors?.find(s => s.is_primary);
+            value: (activity: Activity) => {
+              const primary = activity.supervisors?.find((s: ActivitySupervisor) => s.is_primary);
               return primary 
-                ? `${primary.first_name} ${primary.last_name}`
+                ? `${primary.first_name ?? ''} ${primary.last_name ?? ''}`.trim()
                 : 'Kein Hauptbetreuer zugewiesen';
             },
           },
           {
             label: 'Weitere Betreuer',
-            value: (activity) => {
-              const secondary = activity.supervisors?.filter(s => !s.is_primary) || [];
+            value: (activity: Activity) => {
+              const secondary = activity.supervisors?.filter((s: ActivitySupervisor) => !s.is_primary) ?? [];
               return secondary.length > 0
-                ? secondary.map(s => `${s.first_name} ${s.last_name}`).join(', ')
+                ? secondary.map((s: ActivitySupervisor) => `${s.first_name ?? ''} ${s.last_name ?? ''}`.trim()).join(', ')
                 : 'Keine weiteren Betreuer';
             },
           },
@@ -368,7 +380,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
         id: 'supervisor_id',
         label: 'Betreuer',
         type: 'select',
-        options: async () => {
+        loadOptions: async () => {
           try {
             // Fetch supervisors from API
             const session = await getSession();
@@ -383,16 +395,16 @@ export const activitiesConfig = defineEntityConfig<Activity>({
               return [];
             }
             
-            const result = await response.json();
+            const result = await response.json() as { data?: Array<{ id: string; name: string }> } | Array<{ id: string; name: string }>;
             
             // Handle wrapped response from route wrapper
             let supervisors: Array<{ id: string; name: string }> = [];
-            if (result && typeof result === 'object' && 'data' in result) {
-              // Response is wrapped in ApiResponse format
-              supervisors = result.data as Array<{ id: string; name: string }>;
-            } else if (Array.isArray(result)) {
+            if (Array.isArray(result)) {
               // Direct array response
               supervisors = result;
+            } else if (result && typeof result === 'object' && 'data' in result) {
+              // Response is wrapped in ApiResponse format
+              supervisors = result.data ?? [];
             }
             
             return supervisors.map((sup) => ({
@@ -408,21 +420,21 @@ export const activitiesConfig = defineEntityConfig<Activity>({
     ],
     
     item: {
-      title: (activity) => activity.name,
-      subtitle: (activity) => {
-        const primary = activity.supervisors?.find(s => s.is_primary);
+      title: (activity: Activity) => activity.name,
+      subtitle: (activity: Activity) => {
+        const primary = activity.supervisors?.find((s: ActivitySupervisor) => s.is_primary);
         return primary 
-          ? `${primary.first_name} ${primary.last_name}`
+          ? `${primary.first_name ?? ''} ${primary.last_name ?? ''}`.trim()
           : 'Kein Hauptbetreuer';
       },
-      description: (activity) => {
+      description: (activity: Activity) => {
         if (activity.is_open_ags) {
           return 'Anmeldung offen';
         }
         return 'Anmeldung geschlossen';
       },
       avatar: {
-        text: (activity) => {
+        text: (activity: Activity) => {
           // Use emoji based on category or activity name
           const name = activity.name?.toLowerCase();
           const category = activity.category_name?.toLowerCase();
@@ -483,32 +495,23 @@ export const activitiesConfig = defineEntityConfig<Activity>({
           showWhen: () => true,
         },
         {
-          label: (activity) => `${activity.participant_count || 0}/${activity.max_participant}`,
+          label: (activity: Activity) => `${activity.participant_count ?? 0}/${activity.max_participant}`,
           color: 'bg-blue-100 text-blue-700',
           showWhen: () => true,
         },
         {
           label: 'Voll',
           color: 'bg-red-100 text-red-700',
-          showWhen: (activity) => (activity.participant_count || 0) >= activity.max_participant,
+          showWhen: (activity: Activity) => (activity.participant_count ?? 0) >= activity.max_participant,
         },
       ],
     },
   },
   
   service: {
-    mapRequest: (data: Partial<Activity & { additional_supervisor_ids?: string[] }>) => {
+    mapRequest: (data: Partial<Activity & { additional_supervisor_ids?: string[] }>): Record<string, unknown> => {
       // Convert frontend Activity to backend format
-      interface BackendRequest {
-        name?: string;
-        max_participants?: number;
-        is_open?: boolean;
-        category_id?: number;
-        planned_room_id?: number;
-        supervisor_ids?: number[];
-      }
-      
-      const request: BackendRequest = {
+      const request: Record<string, unknown> = {
         name: data.name,
         max_participants: data.max_participant,
         is_open: data.is_open_ags,
@@ -542,14 +545,27 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       return request;
     },
     
-    mapResponse: (responseData: unknown) => {
+    mapResponse: (responseData: unknown): Activity => {
+      // Extended activity interface for editing
+      interface EditableActivity extends Omit<Activity, 'supervisor_id'> {
+        additional_supervisor_ids?: string[];
+        description?: string;
+        supervisor_id?: string;
+      }
+      
+      interface SupervisorWithStaffId extends ActivitySupervisor {
+        staff_id: string;
+        is_primary: boolean;
+      }
+      
       // When loading an activity for editing, ensure supervisor fields are properly populated
-      const activity = responseData as Activity & { additional_supervisor_ids?: string[] };
+      const activity = responseData as EditableActivity;
       
       // Find the primary supervisor and additional supervisors
       if (activity.supervisors && activity.supervisors.length > 0) {
-        const primarySupervisor = activity.supervisors.find(s => s.is_primary);
-        const additionalSupervisors = activity.supervisors.filter(s => !s.is_primary);
+        const supervisorsWithStaffId = activity.supervisors as SupervisorWithStaffId[];
+        const primarySupervisor = supervisorsWithStaffId.find(s => s.is_primary);
+        const additionalSupervisors = supervisorsWithStaffId.filter(s => !s.is_primary);
         
         if (primarySupervisor) {
           activity.supervisor_id = primarySupervisor.staff_id;
@@ -560,7 +576,10 @@ export const activitiesConfig = defineEntityConfig<Activity>({
         }
       }
       
-      return activity;
+      // Ensure supervisor_id is set (required by Activity interface)
+      activity.supervisor_id ??= '0'; // Default value
+      
+      return activity as Activity;
     },
   },
   

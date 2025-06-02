@@ -60,6 +60,14 @@ interface PaginatedResponse<T> {
   message?: string;
 }
 
+// API response wrapper types
+interface ApiResponseWrapper<T> {
+  success: boolean;
+  message?: string;
+  data: T;
+}
+
+
 // Create an Axios instance
 const api = axios.create({
   baseURL: env.NEXT_PUBLIC_API_URL, // Client-safe environment variable pointing to the backend server
@@ -233,12 +241,13 @@ export const studentService = {
 
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
-                const responseData = await retryResponse.json();
+                const responseData = await retryResponse.json() as unknown;
                 
                 // Handle wrapped ApiResponse format from route wrapper
                 if (responseData && typeof responseData === 'object' && 'success' in responseData && 'data' in responseData) {
                   // Response is wrapped: { success: true, message: "...", data: { data: [...], pagination: {...} } }
-                  const innerData = responseData.data;
+                  const apiWrapper = responseData as ApiResponseWrapper<{ data: Student[]; pagination?: { current_page: number; page_size: number; total_pages: number; total_records: number; }; }>;
+                  const innerData = apiWrapper.data;
                   if (innerData && typeof innerData === 'object' && 'data' in innerData) {
                     return {
                       students: Array.isArray(innerData.data) ? innerData.data : [],
@@ -248,16 +257,17 @@ export const studentService = {
                 }
                 
                 // Handle direct paginated response format
-                if (responseData && typeof responseData === 'object' && 'data' in responseData && Array.isArray(responseData.data)) {
+                if (responseData && typeof responseData === 'object' && 'data' in responseData && Array.isArray((responseData as { data: unknown }).data)) {
+                  const paginatedData = responseData as { data: Student[]; pagination?: { current_page: number; page_size: number; total_pages: number; total_records: number; }; };
                   return {
-                    students: responseData.data,
-                    pagination: responseData.pagination
+                    students: paginatedData.data,
+                    pagination: paginatedData.pagination
                   };
                 }
                 
                 // Fallback for old format
                 return {
-                  students: Array.isArray(responseData) ? responseData : []
+                  students: Array.isArray(responseData) ? responseData as Student[] : []
                 };
               }
             }
@@ -267,12 +277,13 @@ export const studentService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json();
+        const responseData = await response.json() as unknown;
         
         // Handle wrapped ApiResponse format from route wrapper
         if (responseData && typeof responseData === 'object' && 'success' in responseData && 'data' in responseData) {
           // Response is wrapped: { success: true, message: "...", data: { data: [...], pagination: {...} } }
-          const innerData = responseData.data;
+          const apiWrapper = responseData as ApiResponseWrapper<{ data: Student[]; pagination?: { current_page: number; page_size: number; total_pages: number; total_records: number; }; }>;
+          const innerData = apiWrapper.data;
           if (innerData && typeof innerData === 'object' && 'data' in innerData) {
             return {
               students: Array.isArray(innerData.data) ? innerData.data : [],
@@ -282,16 +293,17 @@ export const studentService = {
         }
         
         // Handle direct paginated response format
-        if (responseData && typeof responseData === 'object' && 'data' in responseData && Array.isArray(responseData.data)) {
+        if (responseData && typeof responseData === 'object' && 'data' in responseData && Array.isArray((responseData as { data: unknown }).data)) {
+          const paginatedData = responseData as { data: Student[]; pagination?: { current_page: number; page_size: number; total_pages: number; total_records: number; }; };
           return {
-            students: responseData.data,
-            pagination: responseData.pagination
+            students: paginatedData.data,
+            pagination: paginatedData.pagination
           };
         }
         
         // Fallback for old format
         return {
-          students: Array.isArray(responseData) ? responseData : []
+          students: Array.isArray(responseData) ? responseData as Student[] : []
         };
       } else {
         // Server-side: use axios with the API URL directly

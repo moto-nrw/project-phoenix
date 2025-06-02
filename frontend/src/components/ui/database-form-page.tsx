@@ -8,50 +8,56 @@ import { redirect } from "next/navigation";
 import { PageHeader, SectionTitle, ResponsiveLayout } from "@/components/dashboard";
 
 // Configuration for the form page
-export interface DatabaseFormPageConfig<TFormData = any, TLoadData = any> {
+export interface DatabaseFormPageConfig<TFormData = Record<string, unknown>, TLoadData = Record<string, unknown>, TCreated = Record<string, unknown>> {
   // Basic configuration
   title: string;
   backUrl: string;
   resourceName: string;
   
   // Form configuration
-  FormComponent: React.ComponentType<any>; // Allow any form component
+  FormComponent: React.ComponentType<{
+    onSubmit: (data: TFormData) => void;
+    loading?: boolean;
+    error?: string | null;
+    loadedData?: TLoadData | null;
+    [key: string]: unknown;
+  }>;
   
   // Data handling
-  onCreate: (data: TFormData) => Promise<any>;
+  onCreate: (data: TFormData) => Promise<TCreated>;
   onDataLoad?: () => Promise<TLoadData>;
-  mapFormData?: (data: TFormData, loadedData?: TLoadData) => any;
+  mapFormData?: (data: TFormData, loadedData?: TLoadData) => TFormData;
   
   // Navigation
-  successRedirectUrl?: string | ((created: any) => string);
+  successRedirectUrl?: string | ((created: TCreated) => string);
   
   // Authentication
   requiresAuth?: boolean;
   
   // UI customization
-  successMessage?: string | ((created: any) => ReactNode);
+  successMessage?: string | ((created: TCreated) => ReactNode);
   hints?: ReactNode;
   beforeForm?: ReactNode;
   afterForm?: ReactNode;
   
   // Form props
-  formProps?: Record<string, any>;
-  initialFormData?: any;
+  formProps?: Record<string, unknown>;
+  initialFormData?: Partial<TFormData>;
 }
 
-interface DatabaseFormPageProps<TFormData = any, TLoadData = any> {
-  config: DatabaseFormPageConfig<TFormData, TLoadData>;
+interface DatabaseFormPageProps<TFormData = Record<string, unknown>, TLoadData = Record<string, unknown>, TCreated = Record<string, unknown>> {
+  config: DatabaseFormPageConfig<TFormData, TLoadData, TCreated>;
 }
 
-export function DatabaseFormPage<TFormData = any, TLoadData = any>({ 
+export function DatabaseFormPage<TFormData = Record<string, unknown>, TLoadData = Record<string, unknown>, TCreated = Record<string, unknown>>({ 
   config 
-}: DatabaseFormPageProps<TFormData, TLoadData>) {
+}: DatabaseFormPageProps<TFormData, TLoadData, TCreated>) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadedData, setLoadedData] = useState<TLoadData | null>(null);
-  const [successData, setSuccessData] = useState<any>(null);
+  const [, setSuccessData] = useState<TCreated | null>(null);
   
   // Handle authentication if required
   const { status } = useSession({
@@ -82,7 +88,7 @@ export function DatabaseFormPage<TFormData = any, TLoadData = any>({
     };
 
     void loadData();
-  }, [config.onDataLoad]);
+  }, [config.onDataLoad, config]);
 
   // Handle form submission
   const handleSubmit = async (formData: TFormData) => {
@@ -92,7 +98,7 @@ export function DatabaseFormPage<TFormData = any, TLoadData = any>({
       
       // Map form data if mapper is provided
       const dataToSave = config.mapFormData 
-        ? config.mapFormData(formData, loadedData || undefined)
+        ? config.mapFormData(formData, loadedData ?? undefined)
         : formData;
       
       // Create the resource
@@ -171,7 +177,7 @@ export function DatabaseFormPage<TFormData = any, TLoadData = any>({
                 onCancel={handleCancel}
                 loading={saving}
                 initialData={config.initialFormData}
-                {...(config.formProps || {})}
+                {...(config.formProps ?? {})}
                 {...(loadedData ? { loadedData } : {})}
                 // Support alternative prop names for compatibility
                 onSubmitAction={handleSubmit}
@@ -205,8 +211,8 @@ export function DatabaseFormPage<TFormData = any, TLoadData = any>({
 }
 
 // Helper function to create a form page configuration
-export function createFormPageConfig<TFormData = any, TLoadData = any>(
-  config: DatabaseFormPageConfig<TFormData, TLoadData>
-): DatabaseFormPageConfig<TFormData, TLoadData> {
+export function createFormPageConfig<TFormData = Record<string, unknown>, TLoadData = Record<string, unknown>, TCreated = Record<string, unknown>>(
+  config: DatabaseFormPageConfig<TFormData, TLoadData, TCreated>
+): DatabaseFormPageConfig<TFormData, TLoadData, TCreated> {
   return config;
 }

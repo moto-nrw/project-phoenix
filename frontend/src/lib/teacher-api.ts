@@ -331,10 +331,10 @@ class TeacherService {
                 if (teacherData.last_name !== undefined) personData.last_name = teacherData.last_name;
                 if (teacherData.tag_id !== undefined) {
                     // Convert empty string to null for backend
-                    personData.tag_id = teacherData.tag_id || null;
+                    personData.tag_id = teacherData.tag_id ?? null;
                 }
                 // Always include account_id from the fetched person data
-                const accountId = personInfo.data?.account_id || personInfo.account_id;
+                const accountId = personInfo.data?.account_id ?? personInfo.account_id;
                 if (accountId) {
                     personData.account_id = accountId;
                 }

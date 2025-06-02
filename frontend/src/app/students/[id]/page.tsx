@@ -33,7 +33,7 @@ export default function StudentDetailPage() {
     const searchParams = useSearchParams();
     const studentId = params.id as string;
     const referrer = searchParams.get("from") ?? "/students/search";
-    const { data: session } = useSession();
+    const { } = useSession();
 
     const [student, setStudent] = useState<ExtendedStudent | null>(null);
     const [loading, setLoading] = useState(true);

@@ -4,7 +4,7 @@
 
 import { defineEntityConfig } from '../types';
 import { databaseThemes } from '@/components/ui/database/themes';
-import type { Role } from '@/lib/auth-helpers';
+import type { Role, BackendRole } from '@/lib/auth-helpers';
 import { mapRoleResponse } from '@/lib/auth-helpers';
 
 export const rolesConfig = defineEntityConfig<Role>({
@@ -115,14 +115,14 @@ export const rolesConfig = defineEntityConfig<Role>({
   },
   
   service: {
-    mapResponse: (data: any): Role => {
+    mapResponse: (data: unknown): Role => {
       // Handle wrapped response format
       let actualData = data;
       if (data && typeof data === 'object' && 'status' in data && 'data' in data) {
-        actualData = data.data;
+        actualData = (data as { status: string; data: unknown }).data;
       }
       
-      return mapRoleResponse(actualData);
+      return mapRoleResponse(actualData as BackendRole);
     },
   },
   

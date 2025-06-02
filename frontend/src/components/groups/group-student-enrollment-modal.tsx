@@ -92,7 +92,7 @@ export function GroupStudentEnrollmentModal({
       if (!response.ok) {
         throw new Error('Failed to fetch students');
       }
-      const result = await response.json() as { data?: AvailableStudent[]; pagination?: unknown } | AvailableStudent[];
+      const result = await response.json() as { data?: AvailableStudent[] | { data: AvailableStudent[] }; pagination?: unknown } | AvailableStudent[];
       
       console.log("Raw students API response:", result);
       
@@ -102,7 +102,7 @@ export function GroupStudentEnrollmentModal({
         allStudents = result;
       } else if (result && typeof result === 'object' && 'data' in result) {
         // The response is wrapped, check if data contains the students array
-        const data = result.data as any;
+        const data = result.data;
         console.log("Data property content:", data);
         
         if (Array.isArray(data)) {
@@ -120,14 +120,14 @@ export function GroupStudentEnrollmentModal({
       // Students in other groups can be moved to this group
       const availableStudents = allStudents.filter((student) => {
         // Convert both IDs to strings for comparison
-        const studentGroupId = student.group_id ? String(student.group_id) : null;
+        const studentGroupId = student.group_id ?? null;
         const currentGroupId = String(group.id);
         
         // Student is available if they're not in this group
         // (they can be in no group or a different group)
         const isNotInThisGroup = studentGroupId !== currentGroupId;
         
-        console.log(`Student ${student.first_name || student.name}: group_id=${studentGroupId}, current_group=${currentGroupId}, available=${isNotInThisGroup}`);
+        console.log(`Student ${student.first_name ?? student.name}: group_id=${studentGroupId}, current_group=${currentGroupId}, available=${isNotInThisGroup}`);
         return isNotInThisGroup;
       });
       
@@ -360,7 +360,7 @@ export function GroupStudentEnrollmentModal({
                           />
                           <div className="flex-1">
                             <div className="font-medium">
-                              {student.name || `${student.first_name || ''} ${student.second_name || ''}`}
+                              {student.name ?? `${student.first_name ?? ''} ${student.second_name ?? ''}`}
                             </div>
                             <div className="text-sm text-gray-600">
                               Klasse: {student.school_class}

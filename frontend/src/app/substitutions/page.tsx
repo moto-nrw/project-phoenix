@@ -15,7 +15,7 @@ import { formatTeacherName, getTeacherStatus } from "~/lib/substitution-helpers"
 
 export default function SubstitutionPage() {
     const router = useRouter();
-    const { data: session, status } = useSession({
+    const { status } = useSession({
         required: true,
         onUnauthenticated() {
             router.push("/");

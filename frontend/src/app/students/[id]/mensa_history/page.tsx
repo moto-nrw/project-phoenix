@@ -45,7 +45,7 @@ export default function StudentMensaHistoryPage() {
     const searchParams = useSearchParams();
     const studentId = params.id as string;
     const referrer = searchParams.get("from") ?? "/students/search";
-    const { data: session } = useSession();
+    const { } = useSession();
 
     const [student, setStudent] = useState<Student | null>(null);
     const [mensaHistory, setMensaHistory] = useState<MensaEntry[]>([]);

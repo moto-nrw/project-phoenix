@@ -37,7 +37,7 @@ const categoryColors: Record<string, string> = {
 };
 
 export default function RoomsPage() {
-    const { data: session, status } = useSession({
+    const { status } = useSession({
         required: true,
         onUnauthenticated() {
             router.push("/");

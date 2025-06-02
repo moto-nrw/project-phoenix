@@ -11,7 +11,7 @@ import type { Student, Group } from "~/lib/api";
 
 
 function SearchPageContent() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
