@@ -307,7 +307,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 
 	var students []*users.Student
 	var totalCount int
-	
+
 	// Get students - show all for search functionality
 	if len(allowedGroupIDs) > 0 {
 		// Specific group filter requested
@@ -321,12 +321,12 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		totalCount = len(students)
 	} else {
 		// No specific group filter - get all students
-		
+
 		// First, count total students matching database filters (without person-based filters)
 		// This gives us an approximate count for pagination
 		countOptions := base.NewQueryOptions()
 		countFilter := base.NewFilter()
-		
+
 		// Apply only database-level filters for counting
 		if schoolClass != "" {
 			countFilter.ILike("school_class", "%"+schoolClass+"%")
@@ -335,7 +335,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			countFilter.ILike("guardian_name", "%"+guardianName+"%")
 		}
 		countOptions.Filter = countFilter
-		
+
 		// Get the count efficiently from database
 		dbCount, err := rs.StudentRepo.CountWithOptions(r.Context(), countOptions)
 		if err != nil {
@@ -344,7 +344,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-		
+
 		// If no search/person filters, use the database count
 		if search == "" && firstName == "" && lastName == "" && location == "" {
 			totalCount = dbCount
@@ -354,7 +354,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			// In a production system, you might want to do this filtering at the database level
 			totalCount = dbCount
 		}
-		
+
 		// Get the paginated subset
 		students, err = rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
 		if err != nil {
@@ -807,7 +807,7 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 	// Check authorization - only group supervisors can see this information
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	isAdmin := hasAdminPermissions(userPermissions)
-	
+
 	if !isAdmin {
 		// Check if user supervises this educational group
 		staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
@@ -872,8 +872,8 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 
 	// Prepare response
 	response := map[string]interface{}{
-		"in_group_room": inGroupRoom,
-		"group_room_id": *group.RoomID,
+		"in_group_room":   inGroupRoom,
+		"group_room_id":   *group.RoomID,
 		"current_room_id": activeGroup.RoomID,
 	}
 

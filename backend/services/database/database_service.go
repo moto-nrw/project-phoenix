@@ -25,12 +25,12 @@ func NewService(repos *repositories.Factory) DatabaseService {
 func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) {
 	// Get claims from context to check permissions
 	claims := jwt.ClaimsFromCtx(ctx)
-	
+
 	// Initialize response
 	response := &StatsResponse{
 		Permissions: StatsPermissions{},
 	}
-	
+
 	// Helper function to check if user has permission
 	hasPermission := func(permission string) bool {
 		for _, p := range claims.Permissions {
@@ -40,7 +40,7 @@ func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) 
 		}
 		return false
 	}
-	
+
 	// Check and get student count
 	if hasPermission(permissions.UsersRead) || hasPermission(permissions.UsersList) {
 		response.Permissions.CanViewStudents = true
@@ -52,7 +52,7 @@ func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) 
 			response.Students = len(students)
 		}
 	}
-	
+
 	// Check and get teacher count
 	if hasPermission(permissions.UsersRead) || hasPermission(permissions.UsersList) {
 		response.Permissions.CanViewTeachers = true
@@ -63,7 +63,7 @@ func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) 
 			response.Teachers = len(teachers)
 		}
 	}
-	
+
 	// Check and get room count
 	if hasPermission(permissions.RoomsRead) || hasPermission(permissions.RoomsList) {
 		response.Permissions.CanViewRooms = true
@@ -74,7 +74,7 @@ func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) 
 			response.Rooms = len(rooms)
 		}
 	}
-	
+
 	// Check and get activity count
 	if hasPermission(permissions.ActivitiesRead) || hasPermission(permissions.ActivitiesList) {
 		response.Permissions.CanViewActivities = true
@@ -85,7 +85,7 @@ func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) 
 			response.Activities = len(activities)
 		}
 	}
-	
+
 	// Check and get group count
 	if hasPermission(permissions.GroupsRead) || hasPermission(permissions.GroupsList) {
 		response.Permissions.CanViewGroups = true
@@ -96,7 +96,7 @@ func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) 
 			response.Groups = len(groups)
 		}
 	}
-	
+
 	// Check and get role count - using AuthManage permission since there's no specific roles permission
 	if hasPermission(permissions.AuthManage) {
 		response.Permissions.CanViewRoles = true
@@ -107,7 +107,7 @@ func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) 
 			response.Roles = len(roles)
 		}
 	}
-	
+
 	// Check and get permission count - using AuthManage permission
 	if hasPermission(permissions.AuthManage) {
 		response.Permissions.CanViewPermissions = true
@@ -118,6 +118,6 @@ func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) 
 			response.PermissionCount = len(perms)
 		}
 	}
-	
+
 	return response, nil
 }

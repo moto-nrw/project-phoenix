@@ -30,30 +30,30 @@ func NewSupervisorPlannedRepository(db *bun.DB) activities.SupervisorPlannedRepo
 // FindByID overrides the base repository method to fix the alias issue
 func (r *SupervisorPlannedRepository) FindByID(ctx context.Context, id interface{}) (*activities.SupervisorPlanned, error) {
 	var supervisor activities.SupervisorPlanned
-	
+
 	var query *bun.SelectQuery
-	
+
 	// Extract transaction from context if it exists
 	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
 		query = (*tx).NewSelect()
 	} else {
 		query = r.db.NewSelect()
 	}
-	
+
 	// Use the same alias as base repository: "supervisor_planned"
 	err := query.
 		Model(&supervisor).
 		ModelTableExpr(`activities.supervisors AS "supervisor_planned"`).
 		Where(`"supervisor_planned".id = ?`, id).
 		Scan(ctx)
-	
+
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by id",
 			Err: err,
 		}
 	}
-	
+
 	return &supervisor, nil
 }
 
@@ -248,7 +248,7 @@ func (r *SupervisorPlannedRepository) Update(ctx context.Context, supervisor *ac
 	}
 
 	var query *bun.UpdateQuery
-	
+
 	// Extract transaction from context if it exists
 	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
 		query = (*tx).NewUpdate()
@@ -277,7 +277,7 @@ func (r *SupervisorPlannedRepository) Update(ctx context.Context, supervisor *ac
 // Delete overrides the base Delete method to handle transactions
 func (r *SupervisorPlannedRepository) Delete(ctx context.Context, id interface{}) error {
 	var query *bun.DeleteQuery
-	
+
 	// Extract transaction from context if it exists
 	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
 		query = (*tx).NewDelete()

@@ -235,7 +235,7 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 				group = groupWithRoom
 			}
 		}
-		
+
 		// Get teachers for this group to show representative in list
 		teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
 		if err != nil {
@@ -243,14 +243,14 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Failed to get teachers for group %d: %v", group.ID, err)
 			teachers = []*users.Teacher{}
 		}
-		
+
 		// Get student count for this group
 		students, err := rs.StudentRepo.FindByGroupID(r.Context(), group.ID)
 		studentCount := 0
 		if err == nil {
 			studentCount = len(students)
 		}
-		
+
 		responses = append(responses, newGroupResponse(group, teachers, studentCount))
 	}
 
@@ -284,7 +284,7 @@ func (rs *Resource) getGroup(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Failed to get teachers for group %d: %v", id, err)
 		teachers = []*users.Teacher{}
 	}
-	
+
 	// Get student count for this group
 	students, err := rs.StudentRepo.FindByGroupID(r.Context(), id)
 	studentCount := 0
@@ -335,7 +335,7 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 
 	// Get teachers for the group
 	teachers, _ := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
-	
+
 	// New group has no students yet
 	studentCount := 0
 
@@ -399,7 +399,7 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 
 	// Get teachers for the updated group
 	teachers, _ := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
-	
+
 	// Get student count for the updated group
 	students, err := rs.StudentRepo.FindByGroupID(r.Context(), group.ID)
 	studentCount := 0
@@ -455,14 +455,14 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 	// Get user permissions to check authorization
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	isAdmin := hasAdminPermissions(userPermissions)
-	
+
 	// Check if user is supervisor of this group
 	myGroups, err := rs.UserContextService.GetMyGroups(r.Context())
 	if err != nil {
 		log.Printf("Error getting user groups: %v", err)
 		myGroups = []*education.Group{}
 	}
-	
+
 	// Determine if user can see full student details
 	canAccessFullDetails := isAdmin
 	if !canAccessFullDetails {
@@ -526,7 +526,7 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 		if canAccessFullDetails {
 			response.GuardianName = student.GuardianName
 			response.GuardianContact = student.GuardianContact
-			
+
 			if student.GuardianEmail != nil {
 				response.GuardianEmail = *student.GuardianEmail
 			}
@@ -546,7 +546,7 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 		} else {
 			// Limited data for non-supervisor staff
 			response.GuardianName = student.GuardianName
-			
+
 			// Show generic location status
 			if student.InHouse || student.WC || student.SchoolYard {
 				response.Location = "In House"
@@ -642,7 +642,7 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 	// Check authorization - only group supervisors and admins can see this information
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	isAdmin := hasAdminPermissions(userPermissions)
-	
+
 	if !isAdmin {
 		// Check if user supervises this educational group
 		hasAccess := false
@@ -679,7 +679,7 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 		result := make(map[string]interface{})
 		result["group_has_room"] = false
 		result["student_room_status"] = make(map[string]interface{})
-		
+
 		for _, student := range students {
 			studentStatus := map[string]interface{}{
 				"in_group_room": false,
@@ -687,7 +687,7 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 			}
 			result["student_room_status"].(map[string]interface{})[strconv.FormatInt(student.ID, 10)] = studentStatus
 		}
-		
+
 		common.Respond(w, r, http.StatusOK, result, "Group has no assigned room")
 		return
 	}
@@ -714,7 +714,7 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 				inGroupRoom := activeGroup.RoomID == *group.RoomID
 				studentStatus["in_group_room"] = inGroupRoom
 				studentStatus["current_room_id"] = activeGroup.RoomID
-				
+
 				if inGroupRoom {
 					delete(studentStatus, "reason")
 				} else {

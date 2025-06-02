@@ -6,26 +6,26 @@ import (
 
 // StatsResponse represents the database statistics with counts and permissions
 type StatsResponse struct {
-	Students int `json:"students"`
-	Teachers int `json:"teachers"`
-	Rooms    int `json:"rooms"`
-	Activities int `json:"activities"`
-	Groups   int `json:"groups"`
-	Roles    int `json:"roles"`
+	Students        int `json:"students"`
+	Teachers        int `json:"teachers"`
+	Rooms           int `json:"rooms"`
+	Activities      int `json:"activities"`
+	Groups          int `json:"groups"`
+	Roles           int `json:"roles"`
 	PermissionCount int `json:"permissionCount"`
-	
+
 	// Permissions indicate which counts the user is allowed to see
 	Permissions StatsPermissions `json:"permissions"`
 }
 
 // StatsPermissions indicates which statistics the user has permission to view
 type StatsPermissions struct {
-	CanViewStudents   bool `json:"canViewStudents"`
-	CanViewTeachers   bool `json:"canViewTeachers"`
-	CanViewRooms      bool `json:"canViewRooms"`
-	CanViewActivities bool `json:"canViewActivities"`
-	CanViewGroups     bool `json:"canViewGroups"`
-	CanViewRoles      bool `json:"canViewRoles"`
+	CanViewStudents    bool `json:"canViewStudents"`
+	CanViewTeachers    bool `json:"canViewTeachers"`
+	CanViewRooms       bool `json:"canViewRooms"`
+	CanViewActivities  bool `json:"canViewActivities"`
+	CanViewGroups      bool `json:"canViewGroups"`
+	CanViewRoles       bool `json:"canViewRoles"`
 	CanViewPermissions bool `json:"canViewPermissions"`
 }
 

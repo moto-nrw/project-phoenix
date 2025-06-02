@@ -236,7 +236,7 @@ func resetData(ctx context.Context, db *bun.DB) error {
 		"activities.categories",
 		"schedule.timeframes",
 		"users.students",
-		"education.group_teacher",  // Must be deleted before teachers and groups
+		"education.group_teacher", // Must be deleted before teachers and groups
 		"users.teachers",
 		"users.staff",
 		"users.persons",
@@ -1087,7 +1087,7 @@ func seedGroupTeachers(ctx context.Context, tx bun.Tx, groupIDs []int64, teacher
 	for _, groupID := range groupIDs {
 		// Randomly pick 1-2 teachers for this group
 		numTeachers := rng.Intn(2) + 1 // 1 or 2 teachers
-		
+
 		// Shuffle teachers and pick the first numTeachers
 		shuffledTeachers := make([]int64, len(teacherIDs))
 		copy(shuffledTeachers, teacherIDs)
@@ -1095,21 +1095,21 @@ func seedGroupTeachers(ctx context.Context, tx bun.Tx, groupIDs []int64, teacher
 			j := rng.Intn(i + 1)
 			shuffledTeachers[i], shuffledTeachers[j] = shuffledTeachers[j], shuffledTeachers[i]
 		}
-		
+
 		for i := 0; i < numTeachers && i < len(shuffledTeachers); i++ {
 			teacherID := shuffledTeachers[i]
-			
+
 			query := `INSERT INTO education.group_teacher (group_id, teacher_id, created_at, updated_at) 
 			          VALUES (?, ?, ?, ?) ON CONFLICT (group_id, teacher_id) DO NOTHING`
-			
+
 			_, err := tx.ExecContext(ctx, query,
 				groupID, teacherID, time.Now(), time.Now())
-			
+
 			if err != nil {
 				return fmt.Errorf("failed to assign teacher %d to group %d: %w", teacherID, groupID, err)
 			}
 		}
 	}
-	
+
 	return nil
 }

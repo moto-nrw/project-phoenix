@@ -1062,7 +1062,7 @@ func (s *Service) UpdateGroupSupervisors(ctx context.Context, groupID int64, sta
 				if len(currentStaffIDs) == 1 && len(staffIDs) == 0 {
 					return &ActivityError{Op: "update supervisors", Err: errors.New("cannot remove all supervisors from an activity")}
 				}
-				
+
 				// If we're removing a supervisor and there will be others remaining, safe to delete
 				if err := txService.(*Service).supervisorRepo.Delete(ctx, supervisorID); err != nil {
 					return &ActivityError{Op: "delete supervisor", Err: err}
@@ -1075,7 +1075,7 @@ func (s *Service) UpdateGroupSupervisors(ctx context.Context, groupID int64, sta
 			if _, exists := currentStaffIDs[staffID]; !exists {
 				// First new supervisor becomes primary if no supervisors will remain
 				isPrimary := i == 0 && len(newStaffIDs) == len(staffIDs)
-				
+
 				// Create the supervisor
 				supervisor := &activities.SupervisorPlanned{
 					GroupID:   groupID,
