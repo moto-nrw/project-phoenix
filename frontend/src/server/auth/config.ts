@@ -18,6 +18,7 @@ declare module "next-auth" {
       roles?: string[];
       firstName?: string;
     } & DefaultSession["user"];
+    error?: "RefreshTokenExpired" | "RefreshTokenError";
   }
 
   interface User {
@@ -276,6 +277,7 @@ export const authConfig = {
             roles: [],
             firstName: token.firstName as string || "",
           },
+          error: token.error,
         };
       }
       
