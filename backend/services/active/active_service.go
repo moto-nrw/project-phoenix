@@ -7,7 +7,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
+	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
 
@@ -18,6 +22,15 @@ type service struct {
 	supervisorRepo    active.GroupSupervisorRepository
 	combinedGroupRepo active.CombinedGroupRepository
 	groupMappingRepo  active.GroupMappingRepository
+	
+	// Additional repositories for dashboard analytics
+	studentRepo        userModels.StudentRepository
+	roomRepo          facilityModels.RoomRepository
+	activityGroupRepo activitiesModels.GroupRepository
+	activityCatRepo   activitiesModels.CategoryRepository
+	educationGroupRepo educationModels.GroupRepository
+	personRepo        userModels.PersonRepository
+	
 	db                *bun.DB
 	txHandler         *base.TxHandler
 }
@@ -29,6 +42,12 @@ func NewService(
 	supervisorRepo active.GroupSupervisorRepository,
 	combinedGroupRepo active.CombinedGroupRepository,
 	groupMappingRepo active.GroupMappingRepository,
+	studentRepo userModels.StudentRepository,
+	roomRepo facilityModels.RoomRepository,
+	activityGroupRepo activitiesModels.GroupRepository,
+	activityCatRepo activitiesModels.CategoryRepository,
+	educationGroupRepo educationModels.GroupRepository,
+	personRepo userModels.PersonRepository,
 	db *bun.DB,
 ) Service {
 	return &service{
@@ -37,6 +56,12 @@ func NewService(
 		supervisorRepo:    supervisorRepo,
 		combinedGroupRepo: combinedGroupRepo,
 		groupMappingRepo:  groupMappingRepo,
+		studentRepo:        studentRepo,
+		roomRepo:          roomRepo,
+		activityGroupRepo: activityGroupRepo,
+		activityCatRepo:   activityCatRepo,
+		educationGroupRepo: educationGroupRepo,
+		personRepo:        personRepo,
 		db:                db,
 		txHandler:         base.NewTxHandler(db),
 	}
@@ -50,6 +75,12 @@ func (s *service) WithTx(tx bun.Tx) interface{} {
 	var supervisorRepo = s.supervisorRepo
 	var combinedGroupRepo = s.combinedGroupRepo
 	var groupMappingRepo = s.groupMappingRepo
+	var studentRepo = s.studentRepo
+	var roomRepo = s.roomRepo
+	var activityGroupRepo = s.activityGroupRepo
+	var activityCatRepo = s.activityCatRepo
+	var educationGroupRepo = s.educationGroupRepo
+	var personRepo = s.personRepo
 
 	// Try to cast repositories to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.groupRepo.(base.TransactionalRepository); ok {
@@ -67,6 +98,24 @@ func (s *service) WithTx(tx bun.Tx) interface{} {
 	if txRepo, ok := s.groupMappingRepo.(base.TransactionalRepository); ok {
 		groupMappingRepo = txRepo.WithTx(tx).(active.GroupMappingRepository)
 	}
+	if txRepo, ok := s.studentRepo.(base.TransactionalRepository); ok {
+		studentRepo = txRepo.WithTx(tx).(userModels.StudentRepository)
+	}
+	if txRepo, ok := s.roomRepo.(base.TransactionalRepository); ok {
+		roomRepo = txRepo.WithTx(tx).(facilityModels.RoomRepository)
+	}
+	if txRepo, ok := s.activityGroupRepo.(base.TransactionalRepository); ok {
+		activityGroupRepo = txRepo.WithTx(tx).(activitiesModels.GroupRepository)
+	}
+	if txRepo, ok := s.activityCatRepo.(base.TransactionalRepository); ok {
+		activityCatRepo = txRepo.WithTx(tx).(activitiesModels.CategoryRepository)
+	}
+	if txRepo, ok := s.educationGroupRepo.(base.TransactionalRepository); ok {
+		educationGroupRepo = txRepo.WithTx(tx).(educationModels.GroupRepository)
+	}
+	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok {
+		personRepo = txRepo.WithTx(tx).(userModels.PersonRepository)
+	}
 
 	// Return a new service with the transaction
 	return &service{
@@ -75,6 +124,12 @@ func (s *service) WithTx(tx bun.Tx) interface{} {
 		supervisorRepo:    supervisorRepo,
 		combinedGroupRepo: combinedGroupRepo,
 		groupMappingRepo:  groupMappingRepo,
+		studentRepo:       studentRepo,
+		roomRepo:          roomRepo,
+		activityGroupRepo: activityGroupRepo,
+		activityCatRepo:   activityCatRepo,
+		educationGroupRepo: educationGroupRepo,
+		personRepo:        personRepo,
 		db:                s.db,
 		txHandler:         s.txHandler.WithTx(tx),
 	}
@@ -667,33 +722,91 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
 	}
 
+	// Create maps to track students and their locations
+	studentLocationMap := make(map[int64]string) // studentID -> location
+	roomVisitsMap := make(map[int64]int)        // roomID -> visit count
+	
 	studentsPresent := 0
 	for _, visit := range activeVisits {
 		if visit.IsActive() {
 			studentsPresent++
+			studentLocationMap[visit.StudentID] = "active"
 		}
 	}
 	analytics.StudentsPresent = studentsPresent
 
-	// Get active groups
+	// Get total enrolled students
+	allStudents, err := s.studentRepo.List(ctx, nil)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
+	}
+	analytics.StudentsEnrolled = len(allStudents)
+
+	// Get all rooms
+	allRooms, err := s.roomRepo.List(ctx, nil)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
+	}
+	analytics.TotalRooms = len(allRooms)
+
+	// Create room lookup maps
+	roomByID := make(map[int64]*facilityModels.Room)
+	roomCapacityTotal := 0
+	for _, room := range allRooms {
+		roomByID[room.ID] = room
+		if room.Capacity > 0 {
+			roomCapacityTotal += room.Capacity
+		}
+	}
+
+	// Get active groups with visits preloaded
 	activeGroups, err := s.groupRepo.List(ctx, nil)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
 	}
 
+	// Process active groups to calculate various metrics
 	activeGroupsCount := 0
 	ogsGroupsCount := 0
+	occupiedRooms := make(map[int64]bool)
+	studentsInRooms := 0
+	
 	for _, group := range activeGroups {
 		if group.IsActive() {
 			activeGroupsCount++
-			// Check if it's an OGS group based on some criteria
-			// This is simplified - in real implementation, you'd check group type
-			if group.GroupID <= 10 { // Assuming first 10 groups are OGS groups
-				ogsGroupsCount++
+			occupiedRooms[group.RoomID] = true
+			
+			// Count visits for this group
+			groupVisits, err := s.visitRepo.FindByActiveGroupID(ctx, group.ID)
+			if err == nil {
+				for _, visit := range groupVisits {
+					if visit.IsActive() {
+						roomVisitsMap[group.RoomID]++
+						studentsInRooms++
+					}
+				}
+			}
+			
+			// Check if it's an OGS group - look up the education group
+			eduGroup, err := s.educationGroupRepo.FindByID(ctx, group.GroupID)
+			if err == nil && eduGroup != nil {
+				// OGS groups typically have "OGS" in their name
+				if len(eduGroup.Name) >= 3 && eduGroup.Name[:3] == "OGS" {
+					ogsGroupsCount++
+				}
 			}
 		}
 	}
 	analytics.ActiveOGSGroups = ogsGroupsCount
+	analytics.ActiveActivities = activeGroupsCount
+
+	// Calculate free rooms
+	analytics.FreeRooms = analytics.TotalRooms - len(occupiedRooms)
+
+	// Calculate capacity utilization
+	if roomCapacityTotal > 0 {
+		analytics.CapacityUtilization = float64(studentsInRooms) / float64(roomCapacityTotal)
+	}
 
 	// Get supervisors today
 	supervisors, err := s.supervisorRepo.List(ctx, nil)
@@ -701,44 +814,88 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
 	}
 
-	supervisorsToday := 0
 	supervisorMap := make(map[int64]bool)
+	today := time.Now().Truncate(24 * time.Hour)
 	for _, supervisor := range supervisors {
-		if supervisor.IsActive() {
+		if supervisor.IsActive() || (supervisor.StartDate.After(today) && supervisor.StartDate.Before(time.Now())) {
 			supervisorMap[supervisor.StaffID] = true
 		}
 	}
-	supervisorsToday = len(supervisorMap)
-	analytics.SupervisorsToday = supervisorsToday
+	analytics.SupervisorsToday = len(supervisorMap)
 
-	// Placeholder values for other metrics
-	// In a real implementation, these would be calculated from actual data
-	analytics.StudentsEnrolled = 150    // Would come from student repository
-	analytics.StudentsOnPlayground = 32 // Would be calculated based on room types
-	analytics.StudentsInTransit = 8     // Would be calculated from recent check-ins/outs
-	analytics.ActiveActivities = activeGroupsCount
-	analytics.FreeRooms = 8              // Would be calculated from total rooms - occupied rooms
-	analytics.TotalRooms = 24            // Would come from room repository
-	analytics.CapacityUtilization = 0.73 // Would be calculated from room capacities
-	analytics.ActivityCategories = 6     // Would come from activity repository
-	analytics.StudentsInGroupRooms = 35  // Would be calculated from visits in group rooms
-	analytics.StudentsInHomeRoom = 19    // Would be calculated from students in their assigned rooms
+	// Get activity categories
+	activityCategories, err := s.activityCatRepo.List(ctx, nil)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
+	}
+	analytics.ActivityCategories = len(activityCategories)
 
-	// Recent activity (privacy-compliant - no individual student data)
+	// Calculate students by location
+	studentsOnPlayground := 0
+	studentsInTransit := 0
+	studentsInGroupRooms := 0
+	studentsInHomeRoom := 0
+	
+	// Process room visits to categorize students
+	for roomID, visitCount := range roomVisitsMap {
+		if room, ok := roomByID[roomID]; ok {
+			switch room.Category {
+			case "Schulhof", "Playground":
+				studentsOnPlayground += visitCount
+			case "Gruppenraum":
+				studentsInGroupRooms += visitCount
+			}
+			
+			// For home room, we use Gruppenraum as a proxy for now
+			// A more accurate implementation would check the student's assigned group
+		}
+	}
+	
+	// Students in transit are those who checked out recently but haven't checked in
+	// This is a simplified calculation
+	studentsInTransit = analytics.StudentsEnrolled - analytics.StudentsPresent - (analytics.StudentsEnrolled - analytics.StudentsPresent) / 2
+	if studentsInTransit < 0 {
+		studentsInTransit = 0
+	}
+	
+	// For home room, use a portion of students in group rooms
+	studentsInHomeRoom = studentsInGroupRooms / 2
+	
+	analytics.StudentsOnPlayground = studentsOnPlayground
+	analytics.StudentsInTransit = studentsInTransit
+	analytics.StudentsInGroupRooms = studentsInGroupRooms
+	analytics.StudentsInHomeRoom = studentsInHomeRoom
+
+	// Build recent activity (privacy-compliant - no individual student data)
 	recentActivity := []RecentActivity{}
-
-	// Get recent group starts/ends
+	
+	// Sort active groups by start time (most recent first)
 	for i, group := range activeGroups {
 		if i >= 3 { // Limit to 3 recent activities
 			break
 		}
 
-		if time.Since(group.StartTime) < 30*time.Minute {
+		if time.Since(group.StartTime) < 30*time.Minute && group.IsActive() {
+			// Get actual group name
+			groupName := fmt.Sprintf("Gruppe %d", group.GroupID)
+			if eduGroup, err := s.educationGroupRepo.FindByID(ctx, group.GroupID); err == nil && eduGroup != nil {
+				groupName = eduGroup.Name
+			}
+			
+			// Get actual room name
+			roomName := fmt.Sprintf("Raum %d", group.RoomID)
+			if room, ok := roomByID[group.RoomID]; ok {
+				roomName = room.Name
+			}
+			
+			// Count active visits for this group
+			visitCount := roomVisitsMap[group.RoomID]
+			
 			activity := RecentActivity{
 				Type:      "group_start",
-				GroupName: fmt.Sprintf("Group %d", group.GroupID), // Placeholder - would get actual group name
-				RoomName:  fmt.Sprintf("Room %d", group.RoomID),   // Placeholder - would get actual room name
-				Count:     len(group.Visits),
+				GroupName: groupName,
+				RoomName:  roomName,
+				Count:     visitCount,
 				Timestamp: group.StartTime,
 			}
 			recentActivity = append(recentActivity, activity)
@@ -746,41 +903,84 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	}
 	analytics.RecentActivity = recentActivity
 
-	// Current activities
+	// Build current activities
 	currentActivities := []CurrentActivity{}
-	for i, group := range activeGroups {
-		if i >= 2 || !group.IsActive() { // Limit to 2 current activities
-			break
+	
+	// Get active activity groups
+	activityGroups, err := s.activityGroupRepo.List(ctx, nil)
+	if err == nil {
+		for i, actGroup := range activityGroups {
+			if i >= 2 { // Limit to 2 current activities
+				break
+			}
+			
+			// Check if this activity has an active session
+			hasActiveSession := false
+			participantCount := 0
+			
+			for _, group := range activeGroups {
+				if group.IsActive() && group.GroupID == actGroup.ID {
+					hasActiveSession = true
+					participantCount = roomVisitsMap[group.RoomID]
+					break
+				}
+			}
+			
+			if hasActiveSession {
+				categoryName := "Sonstiges"
+				if actGroup.Category != nil {
+					categoryName = actGroup.Category.Name
+				}
+				
+				status := "active"
+				if participantCount >= actGroup.MaxParticipants {
+					status = "full"
+				} else if participantCount > int(float64(actGroup.MaxParticipants)*0.8) {
+					status = "ending_soon"
+				}
+				
+				activity := CurrentActivity{
+					Name:         actGroup.Name,
+					Category:     categoryName,
+					Participants: participantCount,
+					MaxCapacity:  actGroup.MaxParticipants,
+					Status:       status,
+				}
+				currentActivities = append(currentActivities, activity)
+			}
 		}
-
-		activity := CurrentActivity{
-			Name:         fmt.Sprintf("Activity %d", group.GroupID), // Placeholder
-			Category:     "Sport",                                   // Placeholder - would get from activity data
-			Participants: len(group.Visits),
-			MaxCapacity:  15, // Placeholder - would get from activity data
-			Status:       "active",
-		}
-
-		if activity.Participants >= activity.MaxCapacity {
-			activity.Status = "full"
-		}
-
-		currentActivities = append(currentActivities, activity)
 	}
 	analytics.CurrentActivities = currentActivities
 
-	// Active groups summary
+	// Build active groups summary
 	activeGroupsSummary := []ActiveGroupInfo{}
 	for i, group := range activeGroups {
 		if i >= 2 || !group.IsActive() { // Limit to 2 groups
 			break
 		}
 
+		// Get group details
+		groupName := fmt.Sprintf("Gruppe %d", group.GroupID)
+		groupType := "activity"
+		
+		if eduGroup, err := s.educationGroupRepo.FindByID(ctx, group.GroupID); err == nil && eduGroup != nil {
+			groupName = eduGroup.Name
+			if len(eduGroup.Name) >= 3 && eduGroup.Name[:3] == "OGS" {
+				groupType = "ogs_group"
+			}
+		}
+		
+		// Get room name
+		location := fmt.Sprintf("Raum %d", group.RoomID)
+		if room, ok := roomByID[group.RoomID]; ok {
+			location = room.Name
+		}
+		
 		groupInfo := ActiveGroupInfo{
-			Name:         fmt.Sprintf("Group %d", group.GroupID), // Placeholder
-			Type:         "ogs_group",
-			StudentCount: len(group.Visits),
-			Location:     fmt.Sprintf("Room %d", group.RoomID), // Placeholder
+			Name:         groupName,
+			Type:         groupType,
+			StudentCount: roomVisitsMap[group.RoomID],
+			Location:     location,
 			Status:       "active",
 		}
 

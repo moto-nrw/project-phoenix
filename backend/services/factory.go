@@ -44,6 +44,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.GroupSupervisor,
 		repos.CombinedGroup,
 		repos.GroupMapping,
+		repos.Student,
+		repos.Room,
+		repos.ActivityGroup,
+		repos.ActivityCategory,
+		repos.Group,
+		repos.Person,
 		db,
 	)
 
