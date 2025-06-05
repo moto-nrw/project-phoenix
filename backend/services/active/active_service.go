@@ -725,12 +725,16 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	// Create maps to track students and their locations
 	studentLocationMap := make(map[int64]string) // studentID -> location
 	roomVisitsMap := make(map[int64]int)        // roomID -> visit count
+	recentCheckouts := make(map[int64]time.Time) // studentID -> checkout time
 	
 	studentsPresent := 0
 	for _, visit := range activeVisits {
 		if visit.IsActive() {
 			studentsPresent++
 			studentLocationMap[visit.StudentID] = "active"
+		} else if visit.ExitTime != nil {
+			// Track recent checkouts for transit calculation
+			recentCheckouts[visit.StudentID] = *visit.ExitTime
 		}
 	}
 	analytics.StudentsPresent = studentsPresent
@@ -787,13 +791,11 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 				}
 			}
 			
-			// Check if it's an OGS group - look up the education group
+			// Since all educational groups are OGS groups, we count all active education group sessions
 			eduGroup, err := s.educationGroupRepo.FindByID(ctx, group.GroupID)
 			if err == nil && eduGroup != nil {
-				// OGS groups typically have "OGS" in their name
-				if len(eduGroup.Name) >= 3 && eduGroup.Name[:3] == "OGS" {
-					ogsGroupsCount++
-				}
+				// This is an OGS group (educational group)
+				ogsGroupsCount++
 			}
 		}
 	}
@@ -849,13 +851,19 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	studentsInTransit := 0
 	studentsInGroupRooms := 0
 	studentsInHomeRoom := 0
+	studentsInWC := 0
+	studentsInSchoolYard := 0
 	
 	// Process room visits to categorize students
 	for roomID, visitCount := range roomVisitsMap {
 		if room, ok := roomByID[roomID]; ok {
-			// Check for playground by category
-			if room.Category == "Schulhof" || room.Category == "Playground" {
+			// Check for playground/school yard by category
+			if room.Category == "Schulhof" || room.Category == "Playground" || room.Category == "school_yard" {
 				studentsOnPlayground += visitCount
+				studentsInSchoolYard += visitCount
+			} else if room.Category == "WC" || room.Category == "Toilette" || room.Category == "Restroom" || room.Category == "wc" {
+				// Track students in WC
+				studentsInWC += visitCount
 			}
 			
 			// Check if this room belongs to an educational group
@@ -867,11 +875,25 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		}
 	}
 	
-	// Students in transit are those who checked out recently but haven't checked in
-	// This is a simplified calculation
-	studentsInTransit = analytics.StudentsEnrolled - analytics.StudentsPresent - (analytics.StudentsEnrolled - analytics.StudentsPresent) / 2
-	if studentsInTransit < 0 {
-		studentsInTransit = 0
+	// Calculate students in transit: students with in_house=true but not in any room/WC/schoolyard
+	// First, get all students who are in_house (in OGS)
+	studentsInOGS := 0
+	ogsStudentIDs := make(map[int64]bool)
+	for _, student := range allStudents {
+		if student.InHouse {
+			studentsInOGS++
+			ogsStudentIDs[student.ID] = true
+		}
+	}
+	
+	// Now check which OGS students are NOT in any location
+	studentsInTransit = 0
+	for studentID := range ogsStudentIDs {
+		// Check if this OGS student has an active visit (is in a room)
+		if _, hasActiveVisit := studentLocationMap[studentID]; !hasActiveVisit {
+			// This OGS student is not in any room/location
+			studentsInTransit++
+		}
 	}
 	
 	analytics.StudentsOnPlayground = studentsOnPlayground
@@ -978,9 +1000,8 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		
 		if eduGroup, err := s.educationGroupRepo.FindByID(ctx, group.GroupID); err == nil && eduGroup != nil {
 			groupName = eduGroup.Name
-			if len(eduGroup.Name) >= 3 && eduGroup.Name[:3] == "OGS" {
-				groupType = "ogs_group"
-			}
+			// All educational groups are OGS groups
+			groupType = "ogs_group"
 		}
 		
 		// Get room name
