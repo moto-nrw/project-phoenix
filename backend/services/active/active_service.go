@@ -830,6 +830,20 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	}
 	analytics.ActivityCategories = len(activityCategories)
 
+	// Get all educational groups to identify group rooms
+	allEducationGroups, err := s.educationGroupRepo.List(ctx, nil)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
+	}
+	
+	// Create a set of room IDs that belong to educational groups
+	educationGroupRooms := make(map[int64]bool)
+	for _, eduGroup := range allEducationGroups {
+		if eduGroup.RoomID != nil && *eduGroup.RoomID > 0 {
+			educationGroupRooms[*eduGroup.RoomID] = true
+		}
+	}
+	
 	// Calculate students by location
 	studentsOnPlayground := 0
 	studentsInTransit := 0
@@ -839,15 +853,17 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	// Process room visits to categorize students
 	for roomID, visitCount := range roomVisitsMap {
 		if room, ok := roomByID[roomID]; ok {
-			switch room.Category {
-			case "Schulhof", "Playground":
+			// Check for playground by category
+			if room.Category == "Schulhof" || room.Category == "Playground" {
 				studentsOnPlayground += visitCount
-			case "Gruppenraum":
-				studentsInGroupRooms += visitCount
 			}
 			
-			// For home room, we use Gruppenraum as a proxy for now
-			// A more accurate implementation would check the student's assigned group
+			// Check if this room belongs to an educational group
+			if educationGroupRooms[roomID] {
+				studentsInGroupRooms += visitCount
+				// For now, consider all students in group rooms as in their home room
+				studentsInHomeRoom = studentsInGroupRooms
+			}
 		}
 	}
 	
@@ -857,9 +873,6 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	if studentsInTransit < 0 {
 		studentsInTransit = 0
 	}
-	
-	// For home room, use a portion of students in group rooms
-	studentsInHomeRoom = studentsInGroupRooms / 2
 	
 	analytics.StudentsOnPlayground = studentsOnPlayground
 	analytics.StudentsInTransit = studentsInTransit

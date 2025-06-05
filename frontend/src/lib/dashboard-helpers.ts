@@ -139,9 +139,16 @@ export function mapDashboardAnalyticsResponse(
 }
 
 // Helper functions for formatting
-export function formatRecentActivityTime(timestamp: Date): string {
+export function formatRecentActivityTime(timestamp: Date | string): string {
   const now = new Date();
-  const diffMinutes = Math.floor((now.getTime() - timestamp.getTime()) / 60000);
+  const timestampDate = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+  
+  // Check if the date is valid
+  if (isNaN(timestampDate.getTime())) {
+    return "Unbekannt";
+  }
+  
+  const diffMinutes = Math.floor((now.getTime() - timestampDate.getTime()) / 60000);
   
   if (diffMinutes < 1) return "gerade eben";
   if (diffMinutes < 60) return `vor ${diffMinutes} min`;
@@ -149,7 +156,7 @@ export function formatRecentActivityTime(timestamp: Date): string {
   const diffHours = Math.floor(diffMinutes / 60);
   if (diffHours < 24) return `vor ${diffHours} Std.`;
   
-  return timestamp.toLocaleDateString("de-DE");
+  return timestampDate.toLocaleDateString("de-DE");
 }
 
 export function getActivityTypeIcon(type: RecentActivity["type"]): string {
