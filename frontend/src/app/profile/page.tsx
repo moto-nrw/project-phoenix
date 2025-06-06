@@ -232,7 +232,7 @@ function ProfilePageContent() {
 
   if (!profile) {
     return (
-      <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+      <ResponsiveLayout>
         <div className="max-w-4xl mx-auto">
           <Alert type="error" message="Profil konnte nicht geladen werden" />
         </div>
@@ -241,7 +241,7 @@ function ProfilePageContent() {
   }
 
   return (
-    <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+    <ResponsiveLayout>
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-6 md:mb-8">

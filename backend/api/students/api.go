@@ -83,6 +83,7 @@ type StudentResponse struct {
 	TagID           string    `json:"tag_id,omitempty"`
 	SchoolClass     string    `json:"school_class"`
 	Location        string    `json:"location"`
+	Bus             bool      `json:"bus"`
 	GuardianName    string    `json:"guardian_name"`
 	GuardianContact string    `json:"guardian_contact"`
 	GuardianEmail   string    `json:"guardian_email,omitempty"`
@@ -126,6 +127,7 @@ type StudentRequest struct {
 	GuardianEmail string `json:"guardian_email,omitempty"`
 	GuardianPhone string `json:"guardian_phone,omitempty"`
 	GroupID       *int64 `json:"group_id,omitempty"`
+	Bus           *bool  `json:"bus,omitempty"` // Whether student takes the bus
 }
 
 // UpdateStudentRequest represents a student update request
@@ -142,6 +144,7 @@ type UpdateStudentRequest struct {
 	GuardianEmail   *string `json:"guardian_email,omitempty"`
 	GuardianPhone   *string `json:"guardian_phone,omitempty"`
 	GroupID         *int64  `json:"group_id,omitempty"`
+	Bus             *bool   `json:"bus,omitempty"` // Whether student takes the bus
 }
 
 // Bind validates the student request
@@ -197,6 +200,7 @@ func newStudentResponse(student *users.Student, person *users.Person, group *edu
 		ID:              student.ID,
 		PersonID:        student.PersonID,
 		SchoolClass:     student.SchoolClass,
+		Bus:             student.Bus,
 		GuardianName:    student.GuardianName,
 		GuardianContact: student.GuardianContact,
 		CreatedAt:       student.CreatedAt,
@@ -302,20 +306,56 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	queryOptions.Filter = filter
 
 	var students []*users.Student
-	var err error
+	var totalCount int
 
 	// Get students - show all for search functionality
 	if len(allowedGroupIDs) > 0 {
 		// Specific group filter requested
-		students, err = rs.StudentRepo.FindByGroupIDs(r.Context(), allowedGroupIDs)
+		students, err := rs.StudentRepo.FindByGroupIDs(r.Context(), allowedGroupIDs)
 		if err != nil {
 			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 				log.Printf("Error rendering error response: %v", err)
 			}
 			return
 		}
+		totalCount = len(students)
 	} else {
 		// No specific group filter - get all students
+
+		// First, count total students matching database filters (without person-based filters)
+		// This gives us an approximate count for pagination
+		countOptions := base.NewQueryOptions()
+		countFilter := base.NewFilter()
+
+		// Apply only database-level filters for counting
+		if schoolClass != "" {
+			countFilter.ILike("school_class", "%"+schoolClass+"%")
+		}
+		if guardianName != "" {
+			countFilter.ILike("guardian_name", "%"+guardianName+"%")
+		}
+		countOptions.Filter = countFilter
+
+		// Get the count efficiently from database
+		dbCount, err := rs.StudentRepo.CountWithOptions(r.Context(), countOptions)
+		if err != nil {
+			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+
+		// If no search/person filters, use the database count
+		if search == "" && firstName == "" && lastName == "" && location == "" {
+			totalCount = dbCount
+		} else {
+			// With search/person filters, we need to count after filtering
+			// For now, use the database count as an approximation
+			// In a production system, you might want to do this filtering at the database level
+			totalCount = dbCount
+		}
+
+		// Get the paginated subset
 		students, err = rs.StudentRepo.ListWithOptions(r.Context(), queryOptions)
 		if err != nil {
 			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
@@ -370,7 +410,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		responses = append(responses, newStudentResponse(student, person, group, canAccessLocation))
 	}
 
-	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), "Students retrieved successfully")
+	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, totalCount, "Students retrieved successfully")
 }
 
 // getStudent handles getting a student by ID
@@ -530,6 +570,10 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		student.GroupID = req.GroupID
 	}
 
+	if req.Bus != nil {
+		student.Bus = *req.Bus
+	}
+
 	// Create student
 	if err := rs.StudentRepo.Create(r.Context(), student); err != nil {
 		// Clean up person if student creation fails
@@ -647,6 +691,9 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	if req.GroupID != nil {
 		student.GroupID = req.GroupID
 	}
+	if req.Bus != nil {
+		student.Bus = *req.Bus
+	}
 
 	// Update student
 	if err := rs.StudentRepo.Update(r.Context(), student); err != nil {
@@ -760,7 +807,7 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 	// Check authorization - only group supervisors can see this information
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	isAdmin := hasAdminPermissions(userPermissions)
-	
+
 	if !isAdmin {
 		// Check if user supervises this educational group
 		staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
@@ -825,8 +872,8 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 
 	// Prepare response
 	response := map[string]interface{}{
-		"in_group_room": inGroupRoom,
-		"group_room_id": *group.RoomID,
+		"in_group_room":   inGroupRoom,
+		"group_room_id":   *group.RoomID,
 		"current_room_id": activeGroup.RoomID,
 	}
 

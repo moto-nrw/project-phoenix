@@ -115,14 +115,32 @@ export function mapAccountResponse(backendAccount: BackendAccount): Account {
     };
 }
 
-export function mapRoleResponse(backendRole: BackendRole): Role {
+// Flexible role interface for handling mixed case API responses
+interface FlexibleRoleData {
+    ID?: number;
+    id?: number;
+    Name?: string;
+    name?: string;
+    Description?: string;
+    description?: string;
+    CreatedAt?: string;
+    created_at?: string;
+    UpdatedAt?: string;
+    updated_at?: string;
+    Permissions?: BackendPermission[];
+    permissions?: BackendPermission[];
+}
+
+export function mapRoleResponse(backendRole: BackendRole | FlexibleRoleData): Role {
+    // Handle both uppercase (BackendRole) and lowercase (from API) field names
+    const roleData = backendRole as BackendRole & FlexibleRoleData;
     return {
-        id: String(backendRole.ID),
-        name: backendRole.Name,
-        description: backendRole.Description,
-        createdAt: backendRole.CreatedAt,
-        updatedAt: backendRole.UpdatedAt,
-        permissions: backendRole.Permissions?.map(mapPermissionResponse),
+        id: String(roleData.ID ?? roleData.id ?? 0),
+        name: roleData.Name ?? roleData.name ?? '',
+        description: roleData.Description ?? roleData.description ?? '',
+        createdAt: roleData.CreatedAt ?? roleData.created_at ?? '',
+        updatedAt: roleData.UpdatedAt ?? roleData.updated_at ?? '',
+        permissions: (roleData.Permissions ?? roleData.permissions)?.map(mapPermissionResponse) ?? undefined,
     };
 }
 

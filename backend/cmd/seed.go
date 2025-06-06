@@ -142,6 +142,14 @@ func seedDatabase(ctx context.Context, reset bool) {
 		}
 		fmt.Printf("Created %d students\n", len(studentIDs))
 
+		// 6.5. Assign Teachers to Education Groups
+		fmt.Println("Assigning teachers to education groups...")
+		err = seedGroupTeachers(ctx, tx, groupIDs[:10], teacherIDs, rng) // First 10 groups are grade classes
+		if err != nil {
+			return fmt.Errorf("failed to assign teachers to groups: %w", err)
+		}
+		fmt.Printf("Assigned teachers to education groups\n")
+
 		// 7. Create Activity Categories (no dependencies)
 		fmt.Println("Creating activity categories...")
 		categoryIDs, err := seedActivityCategories(ctx, tx)
@@ -228,6 +236,7 @@ func resetData(ctx context.Context, db *bun.DB) error {
 		"activities.categories",
 		"schedule.timeframes",
 		"users.students",
+		"education.group_teacher", // Must be deleted before teachers and groups
 		"users.teachers",
 		"users.staff",
 		"users.persons",
@@ -1071,4 +1080,36 @@ func seedPrivacyConsents(ctx context.Context, tx bun.Tx, studentIDs []int64, rng
 	}
 
 	return consentIDs, nil
+}
+
+func seedGroupTeachers(ctx context.Context, tx bun.Tx, groupIDs []int64, teacherIDs []int64, rng *rand.Rand) error {
+	// Assign 1-2 teachers to each education group
+	for _, groupID := range groupIDs {
+		// Randomly pick 1-2 teachers for this group
+		numTeachers := rng.Intn(2) + 1 // 1 or 2 teachers
+
+		// Shuffle teachers and pick the first numTeachers
+		shuffledTeachers := make([]int64, len(teacherIDs))
+		copy(shuffledTeachers, teacherIDs)
+		for i := len(shuffledTeachers) - 1; i > 0; i-- {
+			j := rng.Intn(i + 1)
+			shuffledTeachers[i], shuffledTeachers[j] = shuffledTeachers[j], shuffledTeachers[i]
+		}
+
+		for i := 0; i < numTeachers && i < len(shuffledTeachers); i++ {
+			teacherID := shuffledTeachers[i]
+
+			query := `INSERT INTO education.group_teacher (group_id, teacher_id, created_at, updated_at) 
+			          VALUES (?, ?, ?, ?) ON CONFLICT (group_id, teacher_id) DO NOTHING`
+
+			_, err := tx.ExecContext(ctx, query,
+				groupID, teacherID, time.Now(), time.Now())
+
+			if err != nil {
+				return fmt.Errorf("failed to assign teacher %d to group %d: %w", teacherID, groupID, err)
+			}
+		}
+	}
+
+	return nil
 }

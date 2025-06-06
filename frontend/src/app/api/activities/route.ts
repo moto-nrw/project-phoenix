@@ -21,19 +21,40 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
     queryParams.append(key, value);
   });
   
+  // Override page_size to load all activities at once for frontend search
+  queryParams.set('page_size', '1000');
+  
   const endpoint = `/api/activities${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
   
   try {
     const response = await apiGet<ApiResponse<BackendActivity[]>>(endpoint, token);
     
-    
     // Handle response structure
     if (response?.status === "success" && Array.isArray(response.data)) {
-      return response.data.map(mapActivityResponse);
+      const mappedData = response.data.map(mapActivityResponse);
+      
+      // Return paginated response structure expected by DatabasePage
+      return {
+        data: mappedData,
+        pagination: {
+          current_page: 1,
+          page_size: mappedData.length,
+          total_pages: 1,
+          total_records: mappedData.length
+        }
+      };
     }
     
-    // If no data or unexpected structure, return empty array
-    return [];
+    // If no data or unexpected structure, return empty paginated response
+    return {
+      data: [],
+      pagination: {
+        current_page: 1,
+        page_size: 50,
+        total_pages: 0,
+        total_records: 0
+      }
+    };
   } catch (error) {
     throw error; // Rethrow to see the real error
   }

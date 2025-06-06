@@ -61,7 +61,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// Current user routes
 		r.Get("/account", rs.getAccount)
-		
+
 		// Password change - users can change their own password without special permissions
 		r.Post("/password", rs.changePassword)
 

@@ -10,6 +10,7 @@ export interface BackendStudent {
     tag_id?: string;
     school_class: string;
     location: string;
+    bus: boolean;
     guardian_name: string;
     guardian_contact: string;
     guardian_email?: string;
@@ -95,7 +96,7 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student {
         in_house: current_location === "In House",
         wc: current_location === "WC",
         school_yard: current_location === "School Yard",
-        bus: current_location === "Bus", // Keep for backward compatibility
+        bus: backendStudent.bus, // Now properly mapped from backend
         name_lg: backendStudent.guardian_name,
         contact_lg: backendStudent.guardian_contact,
         custom_users_id: undefined, // Not provided by backend
@@ -132,12 +133,12 @@ export function prepareStudentForBackend(student: Partial<Student> & {
     guardian_email?: string;
     guardian_phone?: string;
 }): Partial<BackendStudent> {
-    // Calculate location string from boolean flags
+    // Calculate location string from boolean flags (excluding bus)
     let location = "Unknown";
     if (student.in_house) location = "In House";
     else if (student.wc) location = "WC";
     else if (student.school_yard) location = "School Yard";
-    else if (student.bus) location = "Bus";
+    // Note: bus is NOT a location, it's a separate transportation field
 
     return {
         id: student.id ? parseInt(student.id, 10) : undefined,
@@ -145,6 +146,7 @@ export function prepareStudentForBackend(student: Partial<Student> & {
         last_name: student.second_name, // Map second_name to last_name for backend
         school_class: student.school_class,
         location: location,
+        bus: student.bus ?? false, // Send bus as a separate field
         guardian_name: student.name_lg,
         guardian_contact: student.contact_lg,
         group_id: student.group_id ? parseInt(student.group_id, 10) : undefined,

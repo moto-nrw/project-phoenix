@@ -15,7 +15,7 @@ import { formatTeacherName, getTeacherStatus } from "~/lib/substitution-helpers"
 
 export default function SubstitutionPage() {
     const router = useRouter();
-    const { data: session, status } = useSession({
+    const { status } = useSession({
         required: true,
         onUnauthenticated() {
             router.push("/");
@@ -185,7 +185,7 @@ export default function SubstitutionPage() {
 
 
     return (
-        <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+        <ResponsiveLayout>
             <div className="max-w-7xl mx-auto">
                 {/* Mobile-optimized Header */}
                 <div className="mb-4 md:mb-8">
