@@ -68,8 +68,8 @@ export function DatabasePage<T extends { id: string }>({
     },
   });
 
-  // Create service instance
-  const service = createCrudService(config);
+  // Create service instance - memoized to prevent recreation on every render
+  const service = useMemo(() => createCrudService(config), [config]);
 
   // Function to fetch items with optional filters
   const fetchItems = useCallback(async (search?: string, customFilters?: Record<string, string | null>, page = 1) => {
