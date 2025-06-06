@@ -2,7 +2,6 @@ package active
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -687,28 +686,104 @@ func (s *service) GetActiveVisitsCount(ctx context.Context) (int, error) {
 }
 
 func (s *service) GetRoomUtilization(ctx context.Context, roomID int64) (float64, error) {
-	// Room utilization is a complex calculation that would require looking at the history
-	// of active groups in a room over a time period compared to the room's available hours
-	// This is a simplified placeholder implementation
+	// TODO: Current Implementation vs Original Intent
+	//
+	// CURRENT IMPLEMENTATION (Dashboard Branch):
+	// - Returns current occupancy ratio: active students / room capacity
+	// - Example: 15 students in a room with capacity 20 = 0.75 (75%)
+	// - This is a real-time snapshot matching dashboard's capacity calculation
+	//
+	// ORIGINAL INTENT (from deleted comments):
+	// - Calculate total hours the room has been used vs available hours
+	// - Example: Room used 6 hours out of 8 available hours = 0.75 (75%)
+	// - This would be a time-based historical utilization
+	//
+	// WHAT NEEDS TO BE DONE FOR FULL IMPLEMENTATION:
+	// 1. Add time range parameters (start, end time.Time)
+	// 2. Query historical active_groups data within time range
+	// 3. Calculate total hours room was occupied
+	// 4. Calculate total available hours in time range
+	// 5. Return ratio of used hours to available hours
+	//
+	// NOTE: This method is NOT used by the dashboard (uses GetDashboardAnalytics instead)
+	// but API routes exist at /api/active/analytics/room/[roomId]/utilization
+	// The statistics page would need this for historical room usage analysis
 
-	// For a real implementation, you would:
-	// 1. Determine the total available hours for the room
-	// 2. Calculate the total hours the room has been used (active groups)
-	// 3. Return the ratio of used hours to available hours
-
-	return 0.0, &ActiveError{Op: "GetRoomUtilization", Err: errors.New("not implemented")}
+	// Get room to check capacity
+	room, err := s.roomRepo.FindByID(ctx, roomID)
+	if err != nil {
+		return 0.0, &ActiveError{Op: "GetRoomUtilization", Err: err}
+	}
+	
+	// If room has no capacity, utilization is 0
+	if room.Capacity <= 0 {
+		return 0.0, nil
+	}
+	
+	// Count active visits in this room (same pattern as dashboard)
+	activeGroups, err := s.groupRepo.FindActiveByRoomID(ctx, roomID)
+	if err != nil {
+		return 0.0, &ActiveError{Op: "GetRoomUtilization", Err: err}
+	}
+	
+	currentOccupancy := 0
+	for _, group := range activeGroups {
+		if group.IsActive() {
+			visits, err := s.visitRepo.FindByActiveGroupID(ctx, group.ID)
+			if err == nil {
+				for _, visit := range visits {
+					if visit.IsActive() {
+						currentOccupancy++
+					}
+				}
+			}
+		}
+	}
+	
+	// Return utilization as a ratio between 0.0 and 1.0
+	return float64(currentOccupancy) / float64(room.Capacity), nil
 }
 
 func (s *service) GetStudentAttendanceRate(ctx context.Context, studentID int64) (float64, error) {
-	// Student attendance rate would require looking at the student's schedule vs. their actual attendance
-	// This is a simplified placeholder implementation
-
-	// For a real implementation, you would:
-	// 1. Determine the total scheduled activities for the student
-	// 2. Calculate how many of those activities the student attended
-	// 3. Return the ratio of attended to scheduled activities
-
-	return 0.0, &ActiveError{Op: "GetStudentAttendanceRate", Err: errors.New("not implemented")}
+	// TODO: Current Implementation vs Original Intent
+	//
+	// CURRENT IMPLEMENTATION (Dashboard Branch):
+	// - Returns binary presence: 1.0 if student is currently present, 0.0 if not
+	// - This is a simple "is the student here right now?" check
+	// - Matches dashboard's real-time presence tracking
+	//
+	// ORIGINAL INTENT (from deleted comments):
+	// - Calculate ratio of attended activities vs scheduled activities
+	// - Example: Student attended 4 out of 5 scheduled activities = 0.8 (80%)
+	// - This would be a historical attendance rate over a time period
+	//
+	// WHAT NEEDS TO BE DONE FOR FULL IMPLEMENTATION:
+	// 1. Add time range parameters (start, end time.Time)
+	// 2. Query student's scheduled activities within time range
+	//    - This requires linking to activities.student_enrollments
+	//    - And checking activity schedules
+	// 3. Query student's actual attendance (visits) for those activities
+	// 4. Calculate ratio: attended activities / scheduled activities
+	// 5. Handle edge cases (no scheduled activities, partial attendance, etc.)
+	//
+	// NOTE: This method is NOT used by the dashboard (uses GetDashboardAnalytics instead)
+	// but API routes exist at /api/active/analytics/student/[studentId]/attendance
+	// Individual student pages or reports would need this for attendance tracking
+	
+	// Simple implementation matching dashboard's binary presence logic
+	// Returns 1.0 if student has active visit, 0.0 if not
+	
+	visit, err := s.GetStudentCurrentVisit(ctx, studentID)
+	if err != nil {
+		// If error, assume student not present
+		return 0.0, nil
+	}
+	
+	if visit != nil && visit.IsActive() {
+		return 1.0, nil // Student is present
+	}
+	
+	return 0.0, nil // Student is not present
 }
 
 func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytics, error) {
