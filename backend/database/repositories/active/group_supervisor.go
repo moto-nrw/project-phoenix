@@ -98,10 +98,15 @@ func (r *GroupSupervisorRepository) Create(ctx context.Context, supervision *act
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupSupervisorRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.GroupSupervisor, error) {
 	var supervisions []*active.GroupSupervisor
-	query := r.db.NewSelect().Model(&supervisions)
+	query := r.db.NewSelect().
+		Model(&supervisions).
+		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`)
 
-	// Apply query options
+	// Apply query options with table alias
 	if options != nil {
+		if options.Filter != nil {
+			options.Filter.WithTableAlias("group_supervisor")
+		}
 		query = options.ApplyToQuery(query)
 	}
 

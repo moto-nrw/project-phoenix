@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/iot"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Group represents an active group session in a room
@@ -29,21 +28,20 @@ type Group struct {
 	Supervisors []*GroupSupervisor `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
 }
 
-func (g *Group) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("active.groups")
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("active.groups")
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("active.groups")
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("active.groups")
-	}
-	return nil
-}
+// BeforeAppendModel is commented out to let the repository control the table expression
+// func (g *Group) BeforeAppendModel(query any) error {
+// 	switch q := query.(type) {
+// 	case *bun.SelectQuery:
+// 		q.ModelTableExpr("active.groups")
+// 	case *bun.InsertQuery:
+// 		q.ModelTableExpr("active.groups")
+// 	case *bun.UpdateQuery:
+// 		q.ModelTableExpr("active.groups")
+// 	case *bun.DeleteQuery:
+// 		q.ModelTableExpr("active.groups")
+// 	}
+// 	return nil
+// }
 
 // GetID returns the entity's ID
 func (g *Group) GetID() interface{} {
