@@ -7,10 +7,6 @@ export async function POST(request: NextRequest) {
     // Forward the registration request to the backend
     const requestBody = (await request.json()) as Record<string, unknown>;
 
-    console.log(
-      `Forwarding registration request to ${env.NEXT_PUBLIC_API_URL}/auth/register`,
-      requestBody,
-    );
 
     const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/register`, {
       method: "POST",
@@ -49,7 +45,6 @@ export async function POST(request: NextRequest) {
       console.error("Registration failed:", {
         status: response.status,
         contentType: contentType,
-        responseData: responseData,
       });
     }
 
