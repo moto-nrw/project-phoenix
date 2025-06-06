@@ -48,7 +48,7 @@ interface FeedbackSummary {
 }
 
 export default function StatisticsPage() {
-    const { data: session, status } = useSession({
+    const { status } = useSession({
         required: true,
         onUnauthenticated() {
             redirect("/");
@@ -176,7 +176,7 @@ export default function StatisticsPage() {
 
     if (error) {
         return (
-            <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+            <ResponsiveLayout>
                 <div className="flex min-h-[80vh] flex-col items-center justify-center">
                     <Alert type="error" message={error} />
                 </div>
@@ -185,7 +185,7 @@ export default function StatisticsPage() {
     }
 
     return (
-        <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+        <ResponsiveLayout>
             <div className="max-w-7xl mx-auto">
                 {/* Page Title */}
                 <h1 className="mb-8 text-4xl font-bold text-gray-900">Statistik & Auswertung</h1>

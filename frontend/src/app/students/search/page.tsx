@@ -11,7 +11,7 @@ import type { Student, Group } from "~/lib/api";
 
 
 function SearchPageContent() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -44,7 +44,7 @@ function SearchPageContent() {
         groupId: filters?.groupId ?? selectedGroup
       });
 
-      setStudents(fetchedStudents);
+      setStudents(fetchedStudents.students);
     } catch {
       // Error fetching students - handle gracefully
       setError("Fehler beim Laden der Schülerdaten.");
@@ -191,7 +191,7 @@ function SearchPageContent() {
   }
 
   return (
-    <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+    <ResponsiveLayout>
       <div className="max-w-7xl mx-auto">
         {/* Mobile-optimized Header */}
         <div className="mb-4 md:mb-8">

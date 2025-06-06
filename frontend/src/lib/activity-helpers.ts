@@ -75,10 +75,10 @@ export interface BackendActivityStudent {
 }
 
 // Actual backend structure for enrolled students from /api/activities/{id}/students
-// Backend appears to return simplified structure with direct person fields
+// Backend returns a simplified StudentResponse with id, first_name, last_name
 export interface BackendStudentEnrollment {
-    id: number;
-    student_id?: number;
+    id: number;  // This is the student ID
+    student_id?: number;  // Backend doesn't actually return this field
     activity_group_id?: number;
     enrollment_date?: string;
     attendance_status?: string;
@@ -350,7 +350,8 @@ export function mapStudentEnrollmentResponse(enrollment: BackendStudentEnrollmen
     return {
         id: String(enrollment.id),
         activity_id: enrollment.activity_group_id ? String(enrollment.activity_group_id) : '',
-        student_id: enrollment.student_id ? String(enrollment.student_id) : '',
+        // Backend returns 'id' as the student ID, not 'student_id'
+        student_id: String(enrollment.id),
         name: fullName,
         school_class: enrollment.school_class ?? enrollment.student__school_class ?? '',
         in_house: enrollment.in_house ?? enrollment.student__in_house ?? false,

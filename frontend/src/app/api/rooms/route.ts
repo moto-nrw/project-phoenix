@@ -23,6 +23,13 @@ interface RoomCreateRequest {
 interface ApiRoomsResponse {
   status: string;
   data: BackendRoomResponse[];
+  pagination?: {
+    current_page: number;
+    page_size: number;
+    total_pages: number;
+    total_records: number;
+  };
+  message?: string;
 }
 
 /**
@@ -71,31 +78,38 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
     
     // The response has a nested structure with the rooms in the data field
     if (response.status === "success" && Array.isArray(response.data)) {
-      // Map the response data to ensure consistent field names
-      const mappedRooms = response.data.map((room: BackendRoomResponse) => ({
-        ...room,
-        // Ensure all required fields exist
-        id: String(room.id), // Convert to string to match frontend expectations
-        name: room.name ?? room.room_name ?? "",
-        isOccupied: room.is_occupied ?? false,
-        capacity: room.capacity ?? 0,
-        category: room.category ?? "Other",
-        color: room.color ?? "#FFFFFF",
-        deviceId: room.device_id ?? "",
-        createdAt: room.created_at ?? "",
-        updatedAt: room.updated_at ?? ""
-      }));
-      
-      return mappedRooms;
+      // Keep the original backend format since the service factory will handle mapping
+      return {
+        data: response.data,
+        pagination: response.pagination,
+        status: response.status,
+        message: response.message
+      };
     }
     
     // If the response doesn't have the expected structure, return an empty array
     console.warn("API response does not have the expected structure:", response);
-    return [];
+    return {
+      data: [],
+      pagination: {
+        current_page: 1,
+        page_size: 50,
+        total_pages: 1,
+        total_records: 0
+      }
+    };
   } catch (error) {
     console.error("Error fetching rooms:", error);
-    // Return empty array instead of throwing error
-    return [];
+    // Return empty response with pagination
+    return {
+      data: [],
+      pagination: {
+        current_page: 1,
+        page_size: 50,
+        total_pages: 1,
+        total_records: 0
+      }
+    };
   }
 });
 

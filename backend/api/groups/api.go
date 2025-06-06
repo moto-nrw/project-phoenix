@@ -2,6 +2,7 @@ package groups
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -81,6 +82,7 @@ type GroupResponse struct {
 	RepresentativeID *int64            `json:"representative_id,omitempty"`
 	Representative   *TeacherResponse  `json:"representative,omitempty"`
 	Teachers         []TeacherResponse `json:"teachers,omitempty"`
+	StudentCount     int               `json:"student_count"`
 	CreatedAt        time.Time         `json:"created_at"`
 	UpdatedAt        time.Time         `json:"updated_at"`
 }
@@ -118,13 +120,14 @@ func (req *GroupRequest) Bind(r *http.Request) error {
 }
 
 // newGroupResponse converts a group model to a response object
-func newGroupResponse(group *education.Group, teachers []*users.Teacher) GroupResponse {
+func newGroupResponse(group *education.Group, teachers []*users.Teacher, studentCount int) GroupResponse {
 	response := GroupResponse{
-		ID:        group.ID,
-		Name:      group.Name,
-		RoomID:    group.RoomID,
-		CreatedAt: group.CreatedAt,
-		UpdatedAt: group.UpdatedAt,
+		ID:           group.ID,
+		Name:         group.Name,
+		RoomID:       group.RoomID,
+		StudentCount: studentCount,
+		CreatedAt:    group.CreatedAt,
+		UpdatedAt:    group.UpdatedAt,
 	}
 
 	// Add room details if available
@@ -232,8 +235,23 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 				group = groupWithRoom
 			}
 		}
-		// For list operations, don't include teachers for performance
-		responses = append(responses, newGroupResponse(group, nil))
+
+		// Get teachers for this group to show representative in list
+		teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
+		if err != nil {
+			// Log error but continue without teachers
+			log.Printf("Failed to get teachers for group %d: %v", group.ID, err)
+			teachers = []*users.Teacher{}
+		}
+
+		// Get student count for this group
+		students, err := rs.StudentRepo.FindByGroupID(r.Context(), group.ID)
+		studentCount := 0
+		if err == nil {
+			studentCount = len(students)
+		}
+
+		responses = append(responses, newGroupResponse(group, teachers, studentCount))
 	}
 
 	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), "Groups retrieved successfully")
@@ -267,7 +285,14 @@ func (rs *Resource) getGroup(w http.ResponseWriter, r *http.Request) {
 		teachers = []*users.Teacher{}
 	}
 
-	common.Respond(w, r, http.StatusOK, newGroupResponse(group, teachers), "Group retrieved successfully")
+	// Get student count for this group
+	students, err := rs.StudentRepo.FindByGroupID(r.Context(), id)
+	studentCount := 0
+	if err == nil {
+		studentCount = len(students)
+	}
+
+	common.Respond(w, r, http.StatusOK, newGroupResponse(group, teachers, studentCount), "Group retrieved successfully")
 }
 
 // createGroup handles creating a new group
@@ -311,7 +336,10 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 	// Get teachers for the group
 	teachers, _ := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
 
-	common.Respond(w, r, http.StatusCreated, newGroupResponse(createdGroup, teachers), "Group created successfully")
+	// New group has no students yet
+	studentCount := 0
+
+	common.Respond(w, r, http.StatusCreated, newGroupResponse(createdGroup, teachers, studentCount), "Group created successfully")
 }
 
 // updateGroup handles updating a group
@@ -372,7 +400,14 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 	// Get teachers for the updated group
 	teachers, _ := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
 
-	common.Respond(w, r, http.StatusOK, newGroupResponse(updatedGroup, teachers), "Group updated successfully")
+	// Get student count for the updated group
+	students, err := rs.StudentRepo.FindByGroupID(r.Context(), group.ID)
+	studentCount := 0
+	if err == nil {
+		studentCount = len(students)
+	}
+
+	common.Respond(w, r, http.StatusOK, newGroupResponse(updatedGroup, teachers, studentCount), "Group updated successfully")
 }
 
 // deleteGroup handles deleting a group
@@ -409,7 +444,7 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if group exists
-	_, err = rs.EducationService.GetGroup(r.Context(), id)
+	group, err := rs.EducationService.GetGroup(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("group not found"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -417,11 +452,113 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Get students for this group
-	// For this implementation, we'll return an empty array as the student
-	// repository needs to be integrated. In a real implementation, we would
-	// fetch students from the student repository with GroupID filter.
-	common.Respond(w, r, http.StatusOK, []interface{}{}, "No students in this group yet")
+	// Get user permissions to check authorization
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	isAdmin := hasAdminPermissions(userPermissions)
+
+	// Check if user is supervisor of this group
+	myGroups, err := rs.UserContextService.GetMyGroups(r.Context())
+	if err != nil {
+		log.Printf("Error getting user groups: %v", err)
+		myGroups = []*education.Group{}
+	}
+
+	// Determine if user can see full student details
+	canAccessFullDetails := isAdmin
+	if !canAccessFullDetails {
+		for _, myGroup := range myGroups {
+			if myGroup.ID == id {
+				canAccessFullDetails = true
+				break
+			}
+		}
+	}
+
+	// Get students for this group
+	students, err := rs.StudentRepo.FindByGroupID(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Build response with person data for each student
+	type StudentResponse struct {
+		ID              int64  `json:"id"`
+		PersonID        int64  `json:"person_id"`
+		FirstName       string `json:"first_name"`
+		LastName        string `json:"last_name"`
+		SchoolClass     string `json:"school_class"`
+		GroupID         int64  `json:"group_id"`
+		GroupName       string `json:"group_name"`
+		GuardianName    string `json:"guardian_name,omitempty"`
+		GuardianContact string `json:"guardian_contact,omitempty"`
+		GuardianEmail   string `json:"guardian_email,omitempty"`
+		GuardianPhone   string `json:"guardian_phone,omitempty"`
+		Location        string `json:"location,omitempty"`
+		Bus             bool   `json:"bus"`
+		TagID           string `json:"tag_id,omitempty"`
+	}
+
+	responses := make([]StudentResponse, 0, len(students))
+	for _, student := range students {
+		// Get person data
+		person, err := rs.UserService.Get(r.Context(), student.PersonID)
+		if err != nil {
+			// Skip this student if person not found
+			log.Printf("Failed to get person data for student %d: %v", student.ID, err)
+			continue
+		}
+
+		response := StudentResponse{
+			ID:          student.ID,
+			PersonID:    student.PersonID,
+			FirstName:   person.FirstName,
+			LastName:    person.LastName,
+			SchoolClass: student.SchoolClass,
+			GroupID:     id,
+			GroupName:   group.Name,
+			Bus:         student.Bus,
+		}
+
+		// Include sensitive data only for authorized users
+		if canAccessFullDetails {
+			response.GuardianName = student.GuardianName
+			response.GuardianContact = student.GuardianContact
+
+			if student.GuardianEmail != nil {
+				response.GuardianEmail = *student.GuardianEmail
+			}
+			if student.GuardianPhone != nil {
+				response.GuardianPhone = *student.GuardianPhone
+			}
+			if person.TagID != nil {
+				response.TagID = *person.TagID
+			}
+
+			// Include location information
+			if student.InHouse || student.WC || student.SchoolYard {
+				response.Location = student.GetLocation()
+			} else {
+				response.Location = "Home"
+			}
+		} else {
+			// Limited data for non-supervisor staff
+			response.GuardianName = student.GuardianName
+
+			// Show generic location status
+			if student.InHouse || student.WC || student.SchoolYard {
+				response.Location = "In House"
+			} else {
+				response.Location = "Home"
+			}
+		}
+
+		responses = append(responses, response)
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, fmt.Sprintf("Found %d students in group", len(responses)))
 }
 
 // getGroupSupervisors gets all supervisors (teachers) for a specific group

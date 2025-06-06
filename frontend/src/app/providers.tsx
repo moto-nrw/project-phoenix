@@ -5,7 +5,13 @@ import { ModalProvider } from "@/components/dashboard/modal-context";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider>
+    <SessionProvider 
+      // Check session every 4 minutes (240 seconds)
+      // This ensures we attempt refresh before the 15-minute token expires
+      refetchInterval={4 * 60}
+      // Also refetch when window regains focus
+      refetchOnWindowFocus={true}
+    >
       <ModalProvider>
         {children}
       </ModalProvider>

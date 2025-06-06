@@ -1,9 +1,9 @@
 // app/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import {
   Input,
@@ -11,13 +11,25 @@ import {
   Alert,
   HelpButton,
 } from "~/components/ui";
+import { Suspense } from "react";
 
-export default function HomePage() {
+function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  // Check for session errors in URL
+  useEffect(() => {
+    const urlError = searchParams.get("error");
+    if (urlError === "SessionRequired") {
+      setError("Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.");
+    } else if (urlError === "SessionExpired") {
+      setError("Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.");
+    }
+  }, [searchParams]);
 
   const launchConfetti = () => {
     // Create a simple CSS-based confetti effect
@@ -270,5 +282,13 @@ export default function HomePage() {
 
       </div>
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen flex-col items-center justify-center p-4">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

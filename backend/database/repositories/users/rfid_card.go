@@ -31,7 +31,8 @@ func NewRFIDCardRepository(db *bun.DB) users.RFIDCardRepository {
 func (r *RFIDCardRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.NewDelete().
 		Model((*users.RFIDCard)(nil)).
-		Where("id = ?", id).
+		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
+		Where(`"rfid_card".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -49,7 +50,8 @@ func (r *RFIDCardRepository) FindByID(ctx context.Context, id string) (*users.RF
 	card := new(users.RFIDCard)
 	err := r.db.NewSelect().
 		Model(card).
-		Where("id = ?", id).
+		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
+		Where(`"rfid_card".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -66,8 +68,9 @@ func (r *RFIDCardRepository) FindByID(ctx context.Context, id string) (*users.RF
 func (r *RFIDCardRepository) Activate(ctx context.Context, id string) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.RFIDCard)(nil)).
+		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
 		Set("active = ?", true).
-		Where("id = ?", id).
+		Where(`"rfid_card".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -84,8 +87,9 @@ func (r *RFIDCardRepository) Activate(ctx context.Context, id string) error {
 func (r *RFIDCardRepository) Deactivate(ctx context.Context, id string) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.RFIDCard)(nil)).
+		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
 		Set("active = ?", false).
-		Where("id = ?", id).
+		Where(`"rfid_card".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -156,7 +160,7 @@ func (r *RFIDCardRepository) ListWithOptions(ctx context.Context, options *model
 	var cards []*users.RFIDCard
 	query := r.db.NewSelect().
 		Model(&cards).
-		ModelTableExpr("users.rfid_cards AS rfid_card")
+		ModelTableExpr(`users.rfid_cards AS "rfid_card"`)
 
 	// Apply query options
 	if options != nil {
@@ -186,7 +190,8 @@ func (r *RFIDCardRepository) FindCardWithPerson(ctx context.Context, id string) 
 	person := new(users.Person)
 	err = r.db.NewSelect().
 		Model(person).
-		Where("tag_id = ?", id).
+		ModelTableExpr(`users.persons AS "person"`).
+		Where(`"person".tag_id = ?`, id).
 		Scan(ctx)
 
 	// It's OK if we don't find a person (not an error)

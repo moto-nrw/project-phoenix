@@ -282,7 +282,7 @@ export default function OGSGroupPage() {
     }
 
     return (
-        <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+        <ResponsiveLayout>
             <div className="max-w-7xl mx-auto">
                             {/* OGS Group Header with Gradient */}
                             <div className="mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-blue-600 to-teal-500 shadow-lg">

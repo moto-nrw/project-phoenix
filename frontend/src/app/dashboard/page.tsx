@@ -12,32 +12,32 @@ import { UserContextProvider, useHasEducationalGroups } from "~/lib/usercontext-
 
 // Info Card Component with proper TypeScript types and responsive design
 interface InfoCardProps {
-    title: string;
-    children: React.ReactNode;
-    href?: string;
-    className?: string;
+  title: string;
+  children: React.ReactNode;
+  href?: string;
+  className?: string;
 }
 
 const InfoCard: React.FC<InfoCardProps> = ({ title, children, href, className }) => (
-    <div className={`rounded-lg border border-gray-100 bg-white p-4 md:p-6 shadow-md h-full ${className ?? ""}`}>
-        <div className="mb-3 md:mb-4 flex items-start md:items-center justify-between flex-col md:flex-row gap-2 md:gap-0">
-            <h3 className="text-base md:text-lg font-semibold">{title}</h3>
-            {href && (
-                <Link
-                    href={href}
-                    className="text-xs md:text-sm font-medium text-purple-600 hover:text-purple-800 self-end md:self-auto"
-                >
-                    <span className="hidden md:inline">
-                        {title.includes("OGS") ? "Meine OGS-Gruppe →" : "Alle anzeigen →"}
-                    </span>
-                    <span className="md:hidden">
-                        {title.includes("OGS") ? "OGS →" : "Alle →"}
-                    </span>
-                </Link>
-            )}
-        </div>
-        {children}
+  <div className={`rounded-lg border border-gray-100 bg-white p-4 md:p-6 shadow-md h-full ${className ?? ""}`}>
+    <div className="mb-3 md:mb-4 flex items-start md:items-center justify-between flex-col md:flex-row gap-2 md:gap-0">
+      <h3 className="text-base md:text-lg font-semibold">{title}</h3>
+      {href && (
+        <Link
+          href={href}
+          className="text-xs md:text-sm font-medium text-purple-600 hover:text-purple-800 self-end md:self-auto"
+        >
+          <span className="hidden md:inline">
+            {title.includes("OGS") ? "Meine OGS-Gruppe →" : "Alle anzeigen →"}
+          </span>
+          <span className="md:hidden">
+            {title.includes("OGS") ? "OGS →" : "Alle →"}
+          </span>
+        </Link>
+      )}
     </div>
+    {children}
+  </div>
 );
 
 // Student Stats Component
@@ -257,57 +257,57 @@ const QuickActions: React.FC<QuickActionsProps> = ({ showOGSGroups }) => (
                 </Link>
             )}
 
-            <Link
-                href="/statistics"
-                className="flex items-center rounded-lg border border-gray-200 p-2 md:p-3 transition-all hover:border-amber-500 hover:bg-amber-50 active:bg-amber-100"
-            >
-                <div className="mr-2 md:mr-3 p-1.5 md:p-2 rounded-lg bg-amber-100">
-                    <svg className="h-4 w-4 md:h-5 md:w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                </div>
-                <div className="min-w-0 flex-1">
-                    <h4 className="text-sm md:text-base font-medium text-gray-900">Statistiken</h4>
-                    <p className="text-xs text-gray-500 truncate">Schulweite Kennzahlen und Daten</p>
-                </div>
-            </Link>
-
-            <Link
-                href="/substitutions"
-                className="flex items-center rounded-lg border border-gray-200 p-2 md:p-3 transition-all hover:border-purple-500 hover:bg-purple-50 active:bg-purple-100"
-            >
-                <div className="mr-2 md:mr-3 p-1.5 md:p-2 rounded-lg bg-purple-100">
-                    <svg className="h-4 w-4 md:h-5 md:w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                </div>
-                <div className="min-w-0 flex-1">
-                    <h4 className="text-sm md:text-base font-medium text-gray-900">Vertretungen</h4>
-                    <p className="text-xs text-gray-500 truncate">Personalausfälle verwalten</p>
-                </div>
-            </Link>
+      <Link
+        href="/statistics"
+        className="flex items-center rounded-lg border border-gray-200 p-2 md:p-3 transition-all hover:border-amber-500 hover:bg-amber-50 active:bg-amber-100"
+      >
+        <div className="mr-2 md:mr-3 p-1.5 md:p-2 rounded-lg bg-amber-100">
+          <svg className="h-4 w-4 md:h-5 md:w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
         </div>
-    </InfoCard>
+        <div className="min-w-0 flex-1">
+          <h4 className="text-sm md:text-base font-medium text-gray-900">Statistiken</h4>
+          <p className="text-xs text-gray-500 truncate">Schulweite Kennzahlen und Daten</p>
+        </div>
+      </Link>
+
+      <Link
+        href="/substitutions"
+        className="flex items-center rounded-lg border border-gray-200 p-2 md:p-3 transition-all hover:border-purple-500 hover:bg-purple-50 active:bg-purple-100"
+      >
+        <div className="mr-2 md:mr-3 p-1.5 md:p-2 rounded-lg bg-purple-100">
+          <svg className="h-4 w-4 md:h-5 md:w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+        </div>
+        <div className="min-w-0 flex-1">
+          <h4 className="text-sm md:text-base font-medium text-gray-900">Vertretungen</h4>
+          <p className="text-xs text-gray-500 truncate">Personalausfälle verwalten</p>
+        </div>
+      </Link>
+    </div>
+  </InfoCard>
 );
 
 // Helper function to get time-based greeting
 function getTimeBasedGreeting(): string {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Guten Morgen";
-    if (hour < 17) return "Guten Tag";
-    return "Guten Abend";
+  const hour = new Date().getHours();
+  if (hour < 12) return "Guten Morgen";
+  if (hour < 17) return "Guten Tag";
+  return "Guten Abend";
 }
 
 // Helper function to get current date in German format
 function getCurrentDate(): string {
-    const today = new Date();
-    const options: Intl.DateTimeFormatOptions = { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-    };
-    return today.toLocaleDateString('de-DE', options);
+  const today = new Date();
+  const options: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  };
+  return today.toLocaleDateString('de-DE', options);
 }
 
 // Dashboard Content Component that uses the context

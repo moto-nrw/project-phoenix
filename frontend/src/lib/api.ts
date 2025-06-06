@@ -60,6 +60,14 @@ interface PaginatedResponse<T> {
   message?: string;
 }
 
+// API response wrapper types
+interface ApiResponseWrapper<T> {
+  success: boolean;
+  message?: string;
+  data: T;
+}
+
+
 // Create an Axios instance
 const api = axios.create({
   baseURL: env.NEXT_PUBLIC_API_URL, // Client-safe environment variable pointing to the backend server
@@ -163,13 +171,25 @@ export const studentService = {
     search?: string;
     inHouse?: boolean;
     groupId?: string;
-  }): Promise<Student[]> => {
+    page?: number;
+    pageSize?: number;
+  }): Promise<{
+    students: Student[];
+    pagination?: {
+      current_page: number;
+      page_size: number;
+      total_pages: number;
+      total_records: number;
+    };
+  }> => {
     // Build query parameters
     const params = new URLSearchParams();
     if (filters?.search) params.append("search", filters.search);
     if (filters?.inHouse !== undefined)
       params.append("in_house", filters.inHouse.toString());
     if (filters?.groupId) params.append("group_id", filters.groupId);
+    if (filters?.page) params.append("page", filters.page.toString());
+    if (filters?.pageSize) params.append("page_size", filters.pageSize.toString());
 
     // Use the nextjs api route which handles auth token properly
     // Use relative URL in browser environment
@@ -221,19 +241,34 @@ export const studentService = {
 
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
-                const responseData = await retryResponse.json() as {
-                  data?: Student[];
-                  [key: string]: unknown;
-                };
+                const responseData = await retryResponse.json() as unknown;
                 
-                // The Next.js API route uses route wrapper which may wrap the response
-                if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
-                  // If wrapped, extract the data
-                  return responseData.data;
+                // Handle wrapped ApiResponse format from route wrapper
+                if (responseData && typeof responseData === 'object' && 'success' in responseData && 'data' in responseData) {
+                  // Response is wrapped: { success: true, message: "...", data: { data: [...], pagination: {...} } }
+                  const apiWrapper = responseData as ApiResponseWrapper<{ data: Student[]; pagination?: { current_page: number; page_size: number; total_pages: number; total_records: number; }; }>;
+                  const innerData = apiWrapper.data;
+                  if (innerData && typeof innerData === 'object' && 'data' in innerData) {
+                    return {
+                      students: Array.isArray(innerData.data) ? innerData.data : [],
+                      pagination: innerData.pagination
+                    };
+                  }
                 }
                 
-                // Otherwise, treat as direct array
-                return responseData as unknown as Student[];
+                // Handle direct paginated response format
+                if (responseData && typeof responseData === 'object' && 'data' in responseData && Array.isArray((responseData as { data: unknown }).data)) {
+                  const paginatedData = responseData as { data: Student[]; pagination?: { current_page: number; page_size: number; total_pages: number; total_records: number; }; };
+                  return {
+                    students: paginatedData.data,
+                    pagination: paginatedData.pagination
+                  };
+                }
+                
+                // Fallback for old format
+                return {
+                  students: Array.isArray(responseData) ? responseData as Student[] : []
+                };
               }
             }
           }
@@ -242,23 +277,42 @@ export const studentService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json() as {
-          data?: Student[];
-          [key: string]: unknown;
-        };
+        const responseData = await response.json() as unknown;
         
-        // The Next.js API route uses route wrapper which may wrap the response
-        if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
-          // If wrapped, extract the data
-          return responseData.data;
+        // Handle wrapped ApiResponse format from route wrapper
+        if (responseData && typeof responseData === 'object' && 'success' in responseData && 'data' in responseData) {
+          // Response is wrapped: { success: true, message: "...", data: { data: [...], pagination: {...} } }
+          const apiWrapper = responseData as ApiResponseWrapper<{ data: Student[]; pagination?: { current_page: number; page_size: number; total_pages: number; total_records: number; }; }>;
+          const innerData = apiWrapper.data;
+          if (innerData && typeof innerData === 'object' && 'data' in innerData) {
+            return {
+              students: Array.isArray(innerData.data) ? innerData.data : [],
+              pagination: innerData.pagination
+            };
+          }
         }
         
-        // Otherwise, treat as direct array
-        return responseData as unknown as Student[];
+        // Handle direct paginated response format
+        if (responseData && typeof responseData === 'object' && 'data' in responseData && Array.isArray((responseData as { data: unknown }).data)) {
+          const paginatedData = responseData as { data: Student[]; pagination?: { current_page: number; page_size: number; total_pages: number; total_records: number; }; };
+          return {
+            students: paginatedData.data,
+            pagination: paginatedData.pagination
+          };
+        }
+        
+        // Fallback for old format
+        return {
+          students: Array.isArray(responseData) ? responseData as Student[] : []
+        };
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
-        return mapStudentsResponse((response as { data: unknown }).data as BackendStudent[]);
+        const paginatedResponse = response.data as PaginatedResponse<BackendStudent>;
+        return {
+          students: mapStudentsResponse(paginatedResponse.data),
+          pagination: paginatedResponse.pagination
+        };
       }
     } catch (error) {
       throw handleApiError(error, "Error fetching students");
@@ -360,23 +414,20 @@ export const studentService = {
 
   // Create a new student
   createStudent: async (student: Omit<Student, "id">): Promise<Student> => {
-    // Transform from frontend model to backend model
-    const backendStudent = prepareStudentForBackend(student);
-
-    // Basic validation for student creation - match backend requirements
-    if (!backendStudent.first_name) {
+    // Basic validation for student creation - using frontend field names
+    if (!student.first_name) {
       throw new Error("First name is required");
     }
-    if (!backendStudent.last_name) {
+    if (!student.second_name) {
       throw new Error("Last name is required");
     }
-    if (!backendStudent.school_class) {
+    if (!student.school_class) {
       throw new Error("School class is required");
     }
-    if (!backendStudent.guardian_name) {
+    if (!student.name_lg) {
       throw new Error("Guardian name is required");
     }
-    if (!backendStudent.guardian_contact) {
+    if (!student.contact_lg) {
       throw new Error("Guardian contact is required");
     }
 
@@ -388,6 +439,7 @@ export const studentService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
+        // Send frontend format data - the API route will handle transformation
         const session = await getSession();
         const response = await fetch(url, {
           method: "POST",
@@ -398,7 +450,7 @@ export const studentService = {
                 "Content-Type": "application/json",
               }
             : undefined,
-          body: JSON.stringify(backendStudent),
+          body: JSON.stringify(student),
         });
 
         if (!response.ok) {
@@ -423,6 +475,8 @@ export const studentService = {
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
+        // For server-side, we need to transform the data since we're calling the backend directly
+        const backendStudent = prepareStudentForBackend(student);
         const response = await api.post(url, backendStudent);
         return mapSingleStudentResponse({ 
           data: response.data as unknown as BackendStudent 
@@ -438,17 +492,6 @@ export const studentService = {
     id: string,
     student: Partial<Student>,
   ): Promise<Student> => {
-    // First, capture the name fields so we can track them in the response later
-    const firstName = student.first_name;
-    const secondName = student.second_name;
-
-    // Transform from frontend model to backend model updates
-    const backendUpdates = prepareStudentForBackend(student);
-
-    // Validation for required fields in updates
-    // Note: For updates, we only validate fields that are provided
-    // Backend will handle partial updates correctly
-
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/students/${id}`
@@ -457,6 +500,7 @@ export const studentService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
+        // Send frontend format data - the API route will handle transformation
         const session = await getSession();
         const response = await fetch(url, {
           method: "PUT",
@@ -467,7 +511,7 @@ export const studentService = {
                 "Content-Type": "application/json",
               }
             : undefined,
-          body: JSON.stringify(backendUpdates),
+          body: JSON.stringify(student),
         });
 
         if (!response.ok) {
@@ -497,23 +541,12 @@ export const studentService = {
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
+        // For server-side, we need to transform the data since we're calling the backend directly
+        const backendUpdates = prepareStudentForBackend(student);
         const response = await api.put(url, backendUpdates);
-        // Merge the returned data with our local name changes if provided
         const mappedResponse = mapSingleStudentResponse({
           data: response.data as unknown as BackendStudent
         });
-        if (firstName || secondName) {
-          if (firstName) mappedResponse.first_name = firstName;
-          if (secondName) mappedResponse.second_name = secondName;
-          // Update the display name as well
-          if (firstName && secondName) {
-            mappedResponse.name = `${firstName} ${secondName}`;
-          } else if (firstName) {
-            mappedResponse.name = firstName;
-          } else if (secondName) {
-            mappedResponse.name = secondName;
-          }
-        }
         return mappedResponse;
       }
     } catch (error) {

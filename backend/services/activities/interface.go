@@ -45,6 +45,7 @@ type ActivityService interface {
 	SetPrimarySupervisor(ctx context.Context, id int64) error
 	UpdateSupervisor(ctx context.Context, supervisor *activities.SupervisorPlanned) (*activities.SupervisorPlanned, error)
 	GetStaffAssignments(ctx context.Context, staffID int64) ([]*activities.SupervisorPlanned, error)
+	UpdateGroupSupervisors(ctx context.Context, groupID int64, staffIDs []int64) error
 
 	// Enrollment operations
 	EnrollStudent(ctx context.Context, groupID, studentID int64) error

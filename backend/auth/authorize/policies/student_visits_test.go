@@ -264,6 +264,11 @@ func (m *SimpleMockStudentRepository) FindByGroupIDs(ctx context.Context, groupI
 	return args.Get(0).([]*userModels.Student), args.Error(1)
 }
 
+func (m *SimpleMockStudentRepository) CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error) {
+	args := m.Called(ctx, options)
+	return args.Int(0), args.Error(1)
+}
+
 type SimpleMockStaffRepository struct {
 	mock.Mock
 }

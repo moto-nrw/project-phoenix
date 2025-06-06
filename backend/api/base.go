@@ -14,6 +14,7 @@ import (
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
+	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
@@ -50,6 +51,7 @@ type API struct {
 	Users         *usersAPI.Resource
 	UserContext   *usercontextAPI.Resource
 	Substitutions *substitutionsAPI.Resource
+	Database      *databaseAPI.Resource
 }
 
 // New creates a new API instance
@@ -155,6 +157,7 @@ func New(enableCORS bool) (*API, error) {
 	api.Users = usersAPI.NewResource(api.Services.Users)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
+	api.Database = databaseAPI.NewResource(api.Services.Database)
 
 	// Register routes with rate limiting
 	api.registerRoutesWithRateLimiting()
@@ -256,6 +259,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount substitutions resources
 		r.Mount("/substitutions", a.Substitutions.Router())
+
+		// Mount database resources
+		r.Mount("/database", a.Database.Router())
 
 		// Add other resource routes here as they are implemented
 	})
