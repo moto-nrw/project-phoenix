@@ -986,9 +986,14 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		}
 
 		if time.Since(group.StartTime) < 30*time.Minute && group.IsActive() {
-			// Get actual group name
+			// Get actual group name - first try activity group, then education group
 			groupName := fmt.Sprintf("Gruppe %d", group.GroupID)
-			if eduGroup, err := s.educationGroupRepo.FindByID(ctx, group.GroupID); err == nil && eduGroup != nil {
+			
+			// Try to find in activity groups first
+			if actGroup, err := s.activityGroupRepo.FindByID(ctx, group.GroupID); err == nil && actGroup != nil {
+				groupName = actGroup.Name
+			} else if eduGroup, err := s.educationGroupRepo.FindByID(ctx, group.GroupID); err == nil && eduGroup != nil {
+				// Fall back to education group
 				groupName = eduGroup.Name
 			}
 			
