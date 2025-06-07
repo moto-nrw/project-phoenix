@@ -17,7 +17,7 @@ type Group struct {
 	StartTime  time.Time  `bun:"start_time,notnull" json:"start_time"`
 	EndTime    *time.Time `bun:"end_time" json:"end_time,omitempty"`
 	GroupID    int64      `bun:"group_id,notnull" json:"group_id"`
-	DeviceID   int64      `bun:"device_id,notnull" json:"device_id"`
+	DeviceID   *int64     `bun:"device_id" json:"device_id,omitempty"`      // Optional for RFID system
 	RoomID     int64      `bun:"room_id,notnull" json:"room_id"`
 
 	// Relations - these would be populated when using the ORM's relations
@@ -77,9 +77,8 @@ func (g *Group) Validate() error {
 		return errors.New("group ID is required")
 	}
 
-	if g.DeviceID <= 0 {
-		return errors.New("device ID is required")
-	}
+	// DeviceID is now optional for RFID system
+	// No validation needed for DeviceID
 
 	if g.RoomID <= 0 {
 		return errors.New("room ID is required")
