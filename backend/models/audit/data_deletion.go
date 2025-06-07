@@ -4,19 +4,18 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
 
 // DataDeletion represents a record of deleted data for GDPR compliance
 type DataDeletion struct {
-	base.Model     `bun:"schema:audit,table:data_deletions"`
+	ID             int64                  `bun:"id,pk,autoincrement" json:"id"`
 	StudentID      int64                  `bun:"student_id,notnull" json:"student_id"`
 	DeletionType   string                 `bun:"deletion_type,notnull" json:"deletion_type"`   // 'visit_retention', 'manual', 'gdpr_request'
 	RecordsDeleted int                    `bun:"records_deleted,notnull" json:"records_deleted"`
 	DeletionReason string                 `bun:"deletion_reason" json:"deletion_reason,omitempty"`
 	DeletedBy      string                 `bun:"deleted_by,notnull" json:"deleted_by"` // 'system' or account username
-	DeletedAt      time.Time              `bun:"deleted_at,notnull" json:"deleted_at"`
+	DeletedAt      time.Time              `bun:"deleted_at,notnull,default:now()" json:"deleted_at"`
 	Metadata       map[string]interface{} `bun:"metadata,type:jsonb" json:"metadata,omitempty"`
 }
 
@@ -89,12 +88,12 @@ func (dd *DataDeletion) GetID() interface{} {
 
 // GetCreatedAt implements the base.Entity interface
 func (dd *DataDeletion) GetCreatedAt() time.Time {
-	return dd.CreatedAt
+	return dd.DeletedAt
 }
 
 // GetUpdatedAt implements the base.Entity interface
 func (dd *DataDeletion) GetUpdatedAt() time.Time {
-	return dd.UpdatedAt
+	return dd.DeletedAt
 }
 
 // GetMetadata returns the metadata map

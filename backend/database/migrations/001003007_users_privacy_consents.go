@@ -160,14 +160,7 @@ func usersPrivacyConsentsUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating expired_privacy_consents view: %w", err)
 	}
 
-	// Create indexes on visits table for efficient cleanup queries
-	_, err = tx.ExecContext(ctx, `
-		CREATE INDEX IF NOT EXISTS idx_active_visits_student_created ON active.visits(student_id, created_at)
-		WHERE exit_time IS NOT NULL;
-	`)
-	if err != nil {
-		return fmt.Errorf("error creating compound index on visits: %w", err)
-	}
+	// Note: Index on visits table will be created in the visits migration after the table exists
 
 	// Create audit schema and table for data deletion tracking (GDPR compliance)
 	_, err = tx.ExecContext(ctx, `
@@ -219,9 +212,6 @@ func usersPrivacyConsentsDown(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		-- Drop audit table
 		DROP TABLE IF EXISTS audit.data_deletions;
-		
-		-- Drop indexes
-		DROP INDEX IF EXISTS active.idx_active_visits_student_created;
 		
 		-- Drop view
 		DROP VIEW IF EXISTS users.expired_privacy_consents;
