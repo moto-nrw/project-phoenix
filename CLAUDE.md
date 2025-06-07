@@ -64,6 +64,8 @@ go run main.go migrate          # Run database migrations
 go run main.go migrate status   # Show migration status
 go run main.go migrate validate # Validate migration dependencies
 go run main.go migrate reset    # WARNING: Reset database and run all migrations
+go run main.go seed             # Populate database with test data
+go run main.go seed --reset     # Clear ALL test data and repopulate
 
 # Testing
 go test ./...                   # Run all tests
@@ -332,11 +334,12 @@ cd ../../..
 ## RFID Integration
 
 The system integrates with RFID readers for student tracking:
-- Devices authenticate via API endpoints
+- Devices authenticate via API endpoints with two-layer auth (device API key + teacher PIN)
 - Student check-in/check-out tracked in `active_visits` table
 - Room occupancy calculated from active sessions
-- See `backend/docs/rfid-integration-guide.md` for device setup
-- Example flows in `backend/docs/rfid-examples.md`
+- Implementation guide: `/RFID_IMPLEMENTATION_GUIDE.md` (comprehensive workflows and API specs)
+- Device setup docs: `backend/docs/rfid-integration-guide.md`
+- Example flows: `backend/docs/rfid-examples.md`
 
 ## Testing Strategy
 
@@ -393,6 +396,19 @@ Test helpers are in `test/helpers.go`. Integration tests use a real test databas
 3. **Ineffective assignments**: Remove unused variable assignments
 
 4. **Empty branches**: Add implementation or remove unnecessary conditions
+
+5. **Import grouping** (goimports):
+   ```go
+   // Group imports: stdlib, external, internal
+   import (
+       "context"
+       "fmt"
+       
+       "github.com/go-chi/chi/v5"
+       
+       "github.com/moto-nrw/project-phoenix/models"
+   )
+   ```
 
 ## Critical Backend Patterns
 
@@ -493,6 +509,7 @@ export default function Page() {
 6. Create API handlers in `api/{domain}/`
 7. Write tests for repository and service layers
 8. Run linter: `golangci-lint run --timeout 10m`
+9. Test with seed data: `go run main.go seed`
 
 ### Frontend Development Flow
 1. Define TypeScript interfaces in `lib/{domain}-helpers.ts`
@@ -502,6 +519,13 @@ export default function Page() {
 5. Build pages in `app/{domain}/`
 6. Always run `npm run check` before committing
 
+### Creating New Features
+1. Create feature branch from `development`: `git checkout -b feature/feature-name`
+2. Implement backend first if API changes needed
+3. Update frontend to consume new/changed APIs
+4. Test end-to-end with both services running
+5. Create PR targeting `development` branch (NEVER `main`)
+
 ## Domain-Specific Details
 
 ### Active Sessions (Real-time tracking)
@@ -509,18 +533,27 @@ export default function Page() {
 - Visit tracking for students entering/leaving rooms
 - Supervisor assignments for active groups
 - Combined groups can contain multiple regular groups
+- Device tracking: `device_id` is now optional in `active.groups` (for RFID integration)
 
 ### Education Domain
 - Groups have teachers and representatives
 - Teachers are linked through `education.group_teacher` join table
 - Groups can be assigned to rooms
 - Substitution system for temporary staff changes
+- **No backdating rule**: Substitutions must start today or in the future
 
 ### User Management
 - Person → Staff → Teacher hierarchy
 - Students linked to guardians through join tables
 - RFID cards associated with persons
 - Privacy consent tracking for students
+- Staff PIN management: 4-digit PINs for device authentication (stored in `users.staff`)
+
+### IoT/Device Management
+- Devices authenticate with API keys (stored in `iot.devices`)
+- Two-layer authentication: Device API key + Teacher PIN
+- Device health monitoring via ping endpoints
+- RFID tag assignments tracked per person
 
 ## Database Migration Pattern
 
