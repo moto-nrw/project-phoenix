@@ -55,7 +55,7 @@ func createActiveGroupsTable(ctx context.Context, db *bun.DB) error {
 			start_time TIMESTAMPTZ NOT NULL, -- Required start time
 			end_time TIMESTAMPTZ,           -- Optional end time
 			group_id BIGINT NOT NULL,        -- Reference to activities.groups
-			device_id BIGINT NOT NULL,       -- Reference to iot.devices
+			device_id BIGINT,                -- Reference to iot.devices (optional for RFID)
 			room_id BIGINT NOT NULL,         -- Reference to facilities.rooms
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

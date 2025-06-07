@@ -54,6 +54,9 @@ func usersStaffUp(ctx context.Context, db *bun.DB) error {
 			id BIGSERIAL PRIMARY KEY,
 			person_id BIGINT NOT NULL UNIQUE,
 			staff_notes TEXT,
+			pin_hash VARCHAR(255),           -- RFID device PIN (hashed)
+			pin_attempts INTEGER DEFAULT 0,   -- Failed PIN attempts counter
+			pin_locked_until TIMESTAMPTZ,     -- Account lockout timestamp
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			CONSTRAINT fk_staff_person FOREIGN KEY (person_id) 
