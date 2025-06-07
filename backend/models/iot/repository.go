@@ -16,6 +16,7 @@ type DeviceRepository interface {
 
 	// Domain-specific operations
 	FindByDeviceID(ctx context.Context, deviceID string) (*Device, error)
+	FindByAPIKey(ctx context.Context, apiKey string) (*Device, error)
 	FindByType(ctx context.Context, deviceType string) ([]*Device, error)
 	FindByStatus(ctx context.Context, status DeviceStatus) ([]*Device, error)
 	FindByRegisteredBy(ctx context.Context, personID int64) ([]*Device, error)
