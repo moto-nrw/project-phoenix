@@ -42,6 +42,19 @@ type VisitRepository interface {
 
 	// EndVisit marks a visit as ended at the current time
 	EndVisit(ctx context.Context, id int64) error
+
+	// Cleanup operations for data retention
+	// DeleteExpiredVisits deletes visits older than retention days for a specific student
+	DeleteExpiredVisits(ctx context.Context, studentID int64, retentionDays int) (int64, error)
+
+	// DeleteVisitsBeforeDate deletes visits created before a specific date for a student
+	DeleteVisitsBeforeDate(ctx context.Context, studentID int64, beforeDate time.Time) (int64, error)
+
+	// GetVisitRetentionStats gets statistics about visits that are candidates for deletion
+	GetVisitRetentionStats(ctx context.Context) (map[int64]int, error)
+
+	// CountExpiredVisits counts visits that are older than retention period for all students
+	CountExpiredVisits(ctx context.Context) (int64, error)
 }
 
 // GroupSupervisorRepository defines operations for managing active group supervisors
