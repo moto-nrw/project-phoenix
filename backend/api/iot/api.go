@@ -15,22 +15,26 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // Resource defines the IoT API resource
 type Resource struct {
-	IoTService   iotSvc.Service
-	UsersService usersSvc.PersonService
+	IoTService    iotSvc.Service
+	UsersService  usersSvc.PersonService
+	ActiveService activeSvc.Service
 }
 
 // NewResource creates a new IoT resource
-func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService) *Resource {
+func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activeService activeSvc.Service) *Resource {
 	return &Resource{
-		IoTService:   iotService,
-		UsersService: usersService,
+		IoTService:    iotService,
+		UsersService:  usersService,
+		ActiveService: activeService,
 	}
 }
 
@@ -796,6 +800,18 @@ type CheckinRequest struct {
 	RoomID      *int64 `json:"room_id,omitempty"`
 }
 
+// CheckinResponse represents the response to a student check-in request
+type CheckinResponse struct {
+	StudentID   int64     `json:"student_id"`
+	StudentName string    `json:"student_name"`
+	Action      string    `json:"action"`
+	VisitID     *int64    `json:"visit_id,omitempty"`
+	RoomName    string    `json:"room_name,omitempty"`
+	ProcessedAt time.Time `json:"processed_at"`
+	Message     string    `json:"message"`
+	Status      string    `json:"status"`
+}
+
 // Bind validates the checkin request
 func (req *CheckinRequest) Bind(r *http.Request) error {
 	return validation.ValidateStruct(req,
@@ -826,23 +842,152 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Implement student check-in/check-out logic
-	// This would involve:
-	// 1. Finding the student by RFID tag
-	// 2. Creating/ending active visits
-	// 3. Updating room occupancy
-	// 4. Logging the action for audit trail
-
-	// For now, return a placeholder response
-	response := map[string]interface{}{
-		"device_id":      deviceCtx.DeviceID,
-		"staff_id":       staffCtx.ID,
-		"student_rfid":   req.StudentRFID,
-		"action":         req.Action,
-		"room_id":        req.RoomID,
-		"processed_at":   time.Now(),
-		"status":         "received", // TODO: Implement actual processing
+	// Find student by RFID tag
+	person, err := rs.UsersService.FindByTagID(r.Context(), req.StudentRFID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not found"))); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
 	}
 
-	common.Respond(w, r, http.StatusOK, response, "Check-in request received")
+	if person == nil || person.TagID == nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person"))); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Get student details from person
+	studentRepo := rs.UsersService.StudentRepository()
+	student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	if student == nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Load person details for student name
+	student.Person = person
+
+	// Check for existing active visit
+	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID)
+	if err != nil {
+		// Log error but don't fail - student might not have any visits
+		log.Printf("Error checking current visit: %v", err)
+	}
+
+	now := time.Now()
+	var visitID *int64
+	var actionMsg string
+	var roomName string
+
+	switch req.Action {
+	case "checkin":
+		// End previous visit if exists (auto-checkout)
+		if currentVisit != nil && currentVisit.ExitTime == nil {
+			if err := rs.ActiveService.EndVisit(r.Context(), currentVisit.ID); err != nil {
+				log.Printf("Error ending previous visit: %v", err)
+				// Continue anyway - we'll create a new visit
+			}
+		}
+
+		// Determine which active group to associate with
+		var activeGroupID int64
+		if req.RoomID != nil {
+			// Find active groups in the specified room
+			activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(r.Context(), *req.RoomID)
+			if err != nil {
+				if err := render.Render(w, r, ErrorInternalServer(errors.New("error finding active groups in room"))); err != nil {
+					log.Printf("Render error: %v", err)
+				}
+				return
+			}
+
+			if len(activeGroups) == 0 {
+				if err := render.Render(w, r, ErrorNotFound(errors.New("no active groups in specified room"))); err != nil {
+					log.Printf("Render error: %v", err)
+				}
+				return
+			}
+
+			// Use the first active group (in practice, there should typically be only one per room)
+			activeGroupID = activeGroups[0].ID
+			roomName = "Room " + string(rune(*req.RoomID)) // Simple room name - could be enhanced
+		} else {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("room_id is required for check-in"))); err != nil {
+				log.Printf("Render error: %v", err)
+			}
+			return
+		}
+
+		// Create new visit
+		newVisit := &active.Visit{
+			StudentID:     student.ID,
+			ActiveGroupID: activeGroupID,
+			EntryTime:     now,
+		}
+
+		if err := rs.ActiveService.CreateVisit(r.Context(), newVisit); err != nil {
+			if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to create visit record"))); err != nil {
+				log.Printf("Render error: %v", err)
+			}
+			return
+		}
+
+		visitID = &newVisit.ID
+		actionMsg = "checked_in"
+
+	case "checkout":
+		// Check if student has an active visit to end
+		if currentVisit == nil || currentVisit.ExitTime != nil {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("student is not currently checked in"))); err != nil {
+				log.Printf("Render error: %v", err)
+			}
+			return
+		}
+
+		// End current visit
+		if err := rs.ActiveService.EndVisit(r.Context(), currentVisit.ID); err != nil {
+			if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to end visit record"))); err != nil {
+				log.Printf("Render error: %v", err)
+			}
+			return
+		}
+
+		visitID = &currentVisit.ID
+		actionMsg = "checked_out"
+	}
+
+	// Generate German greeting message
+	studentName := person.FirstName + " " + person.LastName
+	var greetingMsg string
+	switch req.Action {
+	case "checkin":
+		greetingMsg = "Hallo " + person.FirstName + "!"
+	case "checkout":
+		greetingMsg = "Tschüss " + person.FirstName + "!"
+	}
+
+	// Prepare response
+	response := map[string]interface{}{
+		"student_id":    student.ID,
+		"student_name":  studentName,
+		"action":        actionMsg,
+		"visit_id":      visitID,
+		"room_name":     roomName,
+		"processed_at":  now,
+		"message":       greetingMsg,
+		"status":        "success",
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Student "+actionMsg+" successfully")
 }
