@@ -148,6 +148,7 @@ interface BackendStudentRequest {
 
 export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; }>(
   async (_request: NextRequest, body: Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; }, token: string) => {
+    console.log("Received body:", JSON.stringify(body, null, 2));
     // Extract privacy consent fields
     const { privacy_consent_accepted, data_retention_days, ...studentData } = body;
     
@@ -212,16 +213,25 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
     
     try {
       // Create the student via the simplified API endpoint
-      const response = await apiPost<StudentResponseFromBackend>("/api/students", token, backendRequest as StudentResponseFromBackend);
+      const rawResponse = await apiPost<{ status: string; data: StudentResponseFromBackend; message: string }>("/api/students", token, backendRequest as StudentResponseFromBackend);
+      
+      // Extract the student data from the response
+      const response = rawResponse.data;
       
       // Handle privacy consent if provided
-      if ((privacy_consent_accepted !== undefined || data_retention_days !== undefined) && response.id) {
+      if ((privacy_consent_accepted !== undefined || data_retention_days !== undefined) && response?.id) {
         try {
-          await apiPut(`/api/students/${response.id}/privacy-consent`, token, {
+          console.log("Creating privacy consent for student", response.id, "with values:", {
             policy_version: "1.0",
             accepted: privacy_consent_accepted ?? false,
             data_retention_days: data_retention_days ?? 30,
           });
+          const consentResponse = await apiPut(`/api/students/${response.id}/privacy-consent`, token, {
+            policy_version: "1.0",
+            accepted: privacy_consent_accepted ?? false,
+            data_retention_days: data_retention_days ?? 30,
+          });
+          console.log("Privacy consent created:", consentResponse);
         } catch (consentError) {
           console.error("Error creating privacy consent:", consentError);
           // Don't fail the whole operation if consent creation fails
