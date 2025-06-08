@@ -96,6 +96,9 @@ export interface Student {
     custom_users_id?: string;
     // Privacy consent data (fetched separately)
     privacy_consent?: PrivacyConsent;
+    // Privacy consent fields for form handling
+    privacy_consent_accepted?: boolean;
+    data_retention_days?: number;
     // Additional fields for access control
     has_full_access?: boolean;
     group_supervisors?: SupervisorContact[];

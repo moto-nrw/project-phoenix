@@ -255,8 +255,21 @@ func (r *PrivacyConsentRepository) Update(ctx context.Context, consent *users.Pr
 		return err
 	}
 
-	// Use the base Update method
-	return r.Repository.Update(ctx, consent)
+	// Execute update with correct table alias
+	_, err := r.db.NewUpdate().
+		Model(consent).
+		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
+		WherePK().
+		Exec(ctx)
+	
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update",
+			Err: err,
+		}
+	}
+	
+	return nil
 }
 
 // Legacy method to maintain compatibility with old interface

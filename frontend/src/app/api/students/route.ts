@@ -148,7 +148,6 @@ interface BackendStudentRequest {
 
 export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; }>(
   async (_request: NextRequest, body: Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; }, token: string) => {
-    console.log("Received body:", JSON.stringify(body, null, 2));
     // Extract privacy consent fields
     const { privacy_consent_accepted, data_retention_days, ...studentData } = body;
     
@@ -221,17 +220,11 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
       // Handle privacy consent if provided
       if ((privacy_consent_accepted !== undefined || data_retention_days !== undefined) && response?.id) {
         try {
-          console.log("Creating privacy consent for student", response.id, "with values:", {
+          await apiPut(`/api/students/${response.id}/privacy-consent`, token, {
             policy_version: "1.0",
             accepted: privacy_consent_accepted ?? false,
             data_retention_days: data_retention_days ?? 30,
           });
-          const consentResponse = await apiPut(`/api/students/${response.id}/privacy-consent`, token, {
-            policy_version: "1.0",
-            accepted: privacy_consent_accepted ?? false,
-            data_retention_days: data_retention_days ?? 30,
-          });
-          console.log("Privacy consent created:", consentResponse);
         } catch (consentError) {
           console.error("Error creating privacy consent:", consentError);
           // Don't fail the whole operation if consent creation fails
