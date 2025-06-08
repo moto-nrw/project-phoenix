@@ -166,6 +166,14 @@ func (m *SimpleMockUserService) ListAvailableRFIDCards(ctx context.Context) ([]*
 	return args.Get(0).([]*userModels.RFIDCard), args.Error(1)
 }
 
+func (m *SimpleMockUserService) ValidateStaffPIN(ctx context.Context, pin string) (*userModels.Staff, error) {
+	args := m.Called(ctx, pin)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*userModels.Staff), args.Error(1)
+}
+
 func (m *SimpleMockUserService) WithTx(tx bun.Tx) interface{} {
 	// Required by base.TransactionalService
 	return m

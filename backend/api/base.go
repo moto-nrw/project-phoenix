@@ -103,7 +103,7 @@ func New(enableCORS bool) (*API, error) {
 		api.Router.Use(cors.Handler(cors.Options{
 			AllowedOrigins:   allowedOrigins,
 			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Staff-PIN"},
 			ExposedHeaders:   []string{"Link"},
 			AllowCredentials: true,
 			MaxAge:           300,
@@ -153,7 +153,7 @@ func New(enableCORS bool) (*API, error) {
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
 	api.Config = configAPI.NewResource(api.Services.Config)
 	api.Active = activeAPI.NewResource(api.Services.Active)
-	api.IoT = iotAPI.NewResource(api.Services.IoT)
+	api.IoT = iotAPI.NewResource(api.Services.IoT, api.Services.Users)
 	api.Users = usersAPI.NewResource(api.Services.Users)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)

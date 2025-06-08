@@ -2,7 +2,9 @@ package users
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -500,4 +502,52 @@ func (s *personService) ListAvailableRFIDCards(ctx context.Context) ([]*userMode
 	}
 
 	return availableCards, nil
+}
+
+// ValidateStaffPIN validates a staff member's PIN and returns the staff record
+func (s *personService) ValidateStaffPIN(ctx context.Context, pin string) (*userModels.Staff, error) {
+	if pin == "" {
+		return nil, &UsersError{Op: "validate staff PIN", Err: errors.New("PIN cannot be empty")}
+	}
+
+	// Get all staff members to check PIN against each one
+	staff, err := s.staffRepo.List(ctx, nil)
+	if err != nil {
+		return nil, &UsersError{Op: "validate staff PIN", Err: err}
+	}
+
+	// Check PIN against all staff members
+	for _, staffMember := range staff {
+		if staffMember.HasPIN() && !staffMember.IsLocked() {
+			// Use the VerifyPIN function from the users model
+			if userModels.VerifyPIN(pin, *staffMember.PINHash) {
+				// Load the person relation for the authenticated staff
+				person, err := s.personRepo.FindByID(ctx, staffMember.PersonID)
+				if err != nil {
+					return nil, &UsersError{Op: "validate staff PIN - load person", Err: err}
+				}
+				staffMember.Person = person
+				
+				return staffMember, nil
+			} else {
+				// Increment failed attempts for this staff member
+				staffMember.IncrementPINAttempts()
+				
+				// Lock account if too many failed attempts (5 attempts)
+				if staffMember.PINAttempts >= 5 {
+					staffMember.LockAccount(30 * time.Minute) // Lock for 30 minutes
+				}
+				
+				// Update the staff record with new attempt count/lock status
+				if updateErr := s.staffRepo.Update(ctx, staffMember); updateErr != nil {
+					// Log error but don't fail the authentication check
+					// Continue checking other staff members
+					_ = updateErr // Mark as intentionally ignored
+				}
+			}
+		}
+	}
+
+	// No staff member found with matching PIN
+	return nil, &UsersError{Op: "validate staff PIN", Err: ErrInvalidPIN}
 }

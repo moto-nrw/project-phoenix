@@ -63,4 +63,7 @@ type PersonService interface {
 
 	// ListAvailableRFIDCards returns RFID cards that are not assigned to any person
 	ListAvailableRFIDCards(ctx context.Context) ([]*userModels.RFIDCard, error)
+
+	// Authentication operations
+	ValidateStaffPIN(ctx context.Context, pin string) (*userModels.Staff, error)
 }

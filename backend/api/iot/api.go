@@ -13,20 +13,24 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // Resource defines the IoT API resource
 type Resource struct {
-	IoTService iotSvc.Service
+	IoTService   iotSvc.Service
+	UsersService usersSvc.PersonService
 }
 
 // NewResource creates a new IoT resource
-func NewResource(iotService iotSvc.Service) *Resource {
+func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService) *Resource {
 	return &Resource{
-		IoTService: iotService,
+		IoTService:   iotService,
+		UsersService: usersService,
 	}
 }
 
@@ -71,6 +75,16 @@ func (rs *Resource) Router() chi.Router {
 		// Network operations require iot:manage permission
 		r.With(authorize.RequiresPermission(permissions.IOTManage)).Post("/detect-new", rs.detectNewDevices)
 		r.With(authorize.RequiresPermission(permissions.IOTManage)).Post("/scan-network", rs.scanNetwork)
+	})
+
+	// Device-authenticated routes for RFID devices
+	r.Group(func(r chi.Router) {
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService))
+
+		// Device endpoints that require device API key + staff PIN authentication
+		r.Post("/ping", rs.devicePing)
+		r.Post("/checkin", rs.deviceCheckin)
+		r.Get("/status", rs.deviceStatus)
 	})
 
 	return r
@@ -690,4 +704,145 @@ func isValidDeviceStatus(status iot.DeviceStatus) bool {
 		return true
 	}
 	return false
+}
+
+// Device-authenticated handlers for RFID devices
+
+// devicePing handles ping requests from RFID devices
+func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device and staff from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	staffCtx := device.StaffFromCtx(r.Context())
+
+	if deviceCtx == nil || staffCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Update device last seen time (already done in middleware, but let's be explicit)
+	if err := rs.IoTService.PingDevice(r.Context(), deviceCtx.DeviceID); err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Return device status and staff info
+	response := map[string]interface{}{
+		"device_id":    deviceCtx.DeviceID,
+		"device_name":  deviceCtx.Name,
+		"status":       deviceCtx.Status,
+		"staff_id":     staffCtx.ID,
+		"person_id":    staffCtx.PersonID,
+		"last_seen":    deviceCtx.LastSeen,
+		"is_online":    deviceCtx.IsOnline(),
+		"ping_time":    time.Now(),
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Device ping successful")
+}
+
+// deviceStatus handles status requests from RFID devices
+func (rs *Resource) deviceStatus(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device and staff from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	staffCtx := device.StaffFromCtx(r.Context())
+
+	if deviceCtx == nil || staffCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Return detailed device and staff status
+	response := map[string]interface{}{
+		"device": map[string]interface{}{
+			"id":          deviceCtx.ID,
+			"device_id":   deviceCtx.DeviceID,
+			"device_type": deviceCtx.DeviceType,
+			"name":        deviceCtx.Name,
+			"status":      deviceCtx.Status,
+			"last_seen":   deviceCtx.LastSeen,
+			"is_online":   deviceCtx.IsOnline(),
+			"is_active":   deviceCtx.IsActive(),
+		},
+		"staff": map[string]interface{}{
+			"id":        staffCtx.ID,
+			"person_id": staffCtx.PersonID,
+			"is_locked": staffCtx.IsLocked(),
+		},
+		"authenticated_at": time.Now(),
+	}
+
+	// Add person info if available
+	if staffCtx.Person != nil {
+		response["person"] = map[string]interface{}{
+			"id":         staffCtx.Person.ID,
+			"first_name": staffCtx.Person.FirstName,
+			"last_name":  staffCtx.Person.LastName,
+		}
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Device status retrieved")
+}
+
+// CheckinRequest represents a student check-in request from RFID devices
+type CheckinRequest struct {
+	StudentRFID string `json:"student_rfid"`
+	Action      string `json:"action"` // "checkin" or "checkout"
+	RoomID      *int64 `json:"room_id,omitempty"`
+}
+
+// Bind validates the checkin request
+func (req *CheckinRequest) Bind(r *http.Request) error {
+	return validation.ValidateStruct(req,
+		validation.Field(&req.StudentRFID, validation.Required),
+		validation.Field(&req.Action, validation.Required, validation.In("checkin", "checkout")),
+	)
+}
+
+// deviceCheckin handles student check-in/check-out requests from RFID devices
+func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device and staff from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	staffCtx := device.StaffFromCtx(r.Context())
+
+	if deviceCtx == nil || staffCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Parse request
+	req := &CheckinRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// TODO: Implement student check-in/check-out logic
+	// This would involve:
+	// 1. Finding the student by RFID tag
+	// 2. Creating/ending active visits
+	// 3. Updating room occupancy
+	// 4. Logging the action for audit trail
+
+	// For now, return a placeholder response
+	response := map[string]interface{}{
+		"device_id":      deviceCtx.DeviceID,
+		"staff_id":       staffCtx.ID,
+		"student_rfid":   req.StudentRFID,
+		"action":         req.Action,
+		"room_id":        req.RoomID,
+		"processed_at":   time.Now(),
+		"status":         "received", // TODO: Implement actual processing
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Check-in request received")
 }

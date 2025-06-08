@@ -346,3 +346,21 @@ func (s *service) ScanNetwork(ctx context.Context) (map[string]string, error) {
 	// For now, just return an error to indicate this is not implemented
 	return nil, &IoTError{Op: "ScanNetwork", Err: errors.New("network scanning not implemented")}
 }
+
+// GetDeviceByAPIKey retrieves a device by its API key for authentication
+func (s *service) GetDeviceByAPIKey(ctx context.Context, apiKey string) (*iot.Device, error) {
+	if apiKey == "" {
+		return nil, &IoTError{Op: "GetDeviceByAPIKey", Err: errors.New("API key cannot be empty")}
+	}
+
+	device, err := s.deviceRepo.FindByAPIKey(ctx, apiKey)
+	if err != nil {
+		return nil, &IoTError{Op: "GetDeviceByAPIKey", Err: err}
+	}
+
+	if device == nil {
+		return nil, &IoTError{Op: "GetDeviceByAPIKey", Err: &DeviceNotFoundError{DeviceID: "unknown"}}
+	}
+
+	return device, nil
+}
