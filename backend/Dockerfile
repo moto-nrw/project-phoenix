@@ -20,7 +20,7 @@ RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
 
 # Multi-Stage production build
 FROM alpine AS production
-RUN apk --no-cache add ca-certificates bash cron
+RUN apk --no-cache add ca-certificates bash
 
 WORKDIR /app
 # Retrieve the binary from the previous stage
