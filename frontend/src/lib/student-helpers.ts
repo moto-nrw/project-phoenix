@@ -37,6 +37,37 @@ export interface BackendStudentDetail extends BackendStudent {
     group_supervisors?: SupervisorContact[];
 }
 
+// Privacy consent types
+export interface BackendPrivacyConsent {
+    id: number;
+    student_id: number;
+    policy_version: string;
+    accepted: boolean;
+    accepted_at?: string;
+    expires_at?: string;
+    duration_days?: number;
+    renewal_required: boolean;
+    data_retention_days: number;
+    details?: Record<string, unknown>;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface PrivacyConsent {
+    id: string;
+    studentId: string;
+    policyVersion: string;
+    accepted: boolean;
+    acceptedAt?: Date;
+    expiresAt?: Date;
+    durationDays?: number;
+    renewalRequired: boolean;
+    dataRetentionDays: number;
+    details?: Record<string, unknown>;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
 // Student location enum
 export type StudentLocation = "Home" | "In House" | "WC" | "School Yard" | "Bus" | "Unknown";
 
@@ -63,6 +94,8 @@ export interface Student {
     name_lg?: string;
     contact_lg?: string;
     custom_users_id?: string;
+    // Privacy consent data (fetched separately)
+    privacy_consent?: PrivacyConsent;
     // Additional fields for access control
     has_full_access?: boolean;
     group_supervisors?: SupervisorContact[];
@@ -192,6 +225,24 @@ export interface BackendUpdateRequest {
     guardian_email?: string;
     guardian_phone?: string;
     group_id?: number;
+}
+
+// Map privacy consent from backend to frontend
+export function mapPrivacyConsentResponse(backendConsent: BackendPrivacyConsent): PrivacyConsent {
+    return {
+        id: String(backendConsent.id),
+        studentId: String(backendConsent.student_id),
+        policyVersion: backendConsent.policy_version,
+        accepted: backendConsent.accepted,
+        acceptedAt: backendConsent.accepted_at ? new Date(backendConsent.accepted_at) : undefined,
+        expiresAt: backendConsent.expires_at ? new Date(backendConsent.expires_at) : undefined,
+        durationDays: backendConsent.duration_days,
+        renewalRequired: backendConsent.renewal_required,
+        dataRetentionDays: backendConsent.data_retention_days,
+        details: backendConsent.details,
+        createdAt: new Date(backendConsent.created_at),
+        updatedAt: new Date(backendConsent.updated_at),
+    };
 }
 
 // Map frontend update request to backend format

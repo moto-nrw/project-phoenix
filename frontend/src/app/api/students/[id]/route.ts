@@ -37,7 +37,7 @@ interface StudentResponseFromBackend {
 
 /**
  * Handler for GET /api/students/[id]
- * Returns a single student by ID
+ * Returns a single student by ID with privacy consent data
  */
 export const GET = createGetHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
   const id = params.id as string;
@@ -61,7 +61,34 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     
     // Map the backend response to frontend format
     const studentData = typedResponse.data as BackendStudent;
-    return mapStudentResponse(studentData);
+    const mappedStudent = mapStudentResponse(studentData);
+    
+    // Fetch privacy consent data
+    try {
+      const consentResponse = await apiGet<unknown>(`/api/students/${id}/privacy-consent`, token);
+      
+      if (consentResponse && typeof consentResponse === 'object' && 'data' in consentResponse) {
+        const consentData = (consentResponse as { data: unknown }).data;
+        if (consentData && typeof consentData === 'object' && 'accepted' in consentData && 'data_retention_days' in consentData) {
+          const consent = consentData as { accepted: boolean; data_retention_days: number };
+          // Add privacy consent fields to the student object
+          return {
+            ...mappedStudent,
+            privacy_consent_accepted: consent.accepted,
+            data_retention_days: consent.data_retention_days,
+          };
+        }
+      }
+    } catch {
+      console.log("No privacy consent found for student, using defaults");
+    }
+    
+    // Return student with default privacy consent values if not found
+    return {
+      ...mappedStudent,
+      privacy_consent_accepted: false,
+      data_retention_days: 30,
+    };
   } catch (error) {
     console.error("Error fetching student:", error);
     throw error;
@@ -72,8 +99,8 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
  * Handler for PUT /api/students/[id]
  * Updates an existing student
  */
-export const PUT = createPutHandler<Student, Partial<Student>>(
-  async (_request: NextRequest, body: Partial<Student>, token: string, params: Record<string, unknown>) => {
+export const PUT = createPutHandler<Student, Partial<Student> & { privacy_consent_accepted?: boolean; data_retention_days?: number }>(
+  async (_request: NextRequest, body: Partial<Student> & { privacy_consent_accepted?: boolean; data_retention_days?: number }, token: string, params: Record<string, unknown>) => {
     const id = params.id as string;
     
     if (!id) {
@@ -81,8 +108,11 @@ export const PUT = createPutHandler<Student, Partial<Student>>(
     }
     
     try {
+      // Extract privacy consent fields
+      const { privacy_consent_accepted, data_retention_days, ...studentData } = body;
+      
       // Transform frontend format to backend format
-      const backendData = prepareStudentForBackend(body);
+      const backendData = prepareStudentForBackend(studentData);
       
       // Call backend API to update student
       const response = await apiPut<ApiStudentResponse>(
@@ -94,6 +124,20 @@ export const PUT = createPutHandler<Student, Partial<Student>>(
       // Handle null or undefined response
       if (!response?.data) {
         throw new Error('Invalid response from backend');
+      }
+      
+      // Handle privacy consent if provided
+      if (privacy_consent_accepted !== undefined || data_retention_days !== undefined) {
+        try {
+          await apiPut(`/api/students/${id}/privacy-consent`, token, {
+            policy_version: "1.0",
+            accepted: privacy_consent_accepted ?? false,
+            data_retention_days: data_retention_days ?? 30,
+          });
+        } catch (consentError) {
+          console.error("Error updating privacy consent:", consentError);
+          // Don't fail the whole operation if consent update fails
+        }
       }
       
       // Map the response to frontend format

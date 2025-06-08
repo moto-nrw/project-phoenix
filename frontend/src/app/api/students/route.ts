@@ -1,6 +1,6 @@
 // app/api/students/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers";
+import { apiGet, apiPost, apiPut } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 import type { Student } from "~/lib/student-helpers";
 import { mapStudentResponse, prepareStudentForBackend } from "~/lib/student-helpers";
@@ -146,10 +146,13 @@ interface BackendStudentRequest {
   bus?: boolean;
 }
 
-export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; }>(
-  async (_request: NextRequest, body: Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; }, token: string) => {
+export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; }>(
+  async (_request: NextRequest, body: Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; }, token: string) => {
+    // Extract privacy consent fields
+    const { privacy_consent_accepted, data_retention_days, ...studentData } = body;
+    
     // Transform frontend format to backend format
-    const backendData = prepareStudentForBackend(body);
+    const backendData = prepareStudentForBackend(studentData);
     
     // Extract guardian email/phone from contact_lg if not provided separately
     let guardianEmail = body.guardian_email;
@@ -210,6 +213,20 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
     try {
       // Create the student via the simplified API endpoint
       const response = await apiPost<StudentResponseFromBackend>("/api/students", token, backendRequest as StudentResponseFromBackend);
+      
+      // Handle privacy consent if provided
+      if ((privacy_consent_accepted !== undefined || data_retention_days !== undefined) && response.id) {
+        try {
+          await apiPut(`/api/students/${response.id}/privacy-consent`, token, {
+            policy_version: "1.0",
+            accepted: privacy_consent_accepted ?? false,
+            data_retention_days: data_retention_days ?? 30,
+          });
+        } catch (consentError) {
+          console.error("Error creating privacy consent:", consentError);
+          // Don't fail the whole operation if consent creation fails
+        }
+      }
       
       // Map the backend response to frontend format using the consistent mapping function
       return mapStudentResponse(response);

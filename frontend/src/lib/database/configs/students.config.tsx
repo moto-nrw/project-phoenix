@@ -4,6 +4,15 @@ import { defineEntityConfig } from '../types';
 import { databaseThemes } from '@/components/ui/database/themes';
 import { GroupSelect } from '@/components/ui/database';
 import type { Student } from '@/lib/api';
+import dynamic from 'next/dynamic';
+
+const PrivacyConsentSection = dynamic(
+  () => import('@/components/students/privacy-consent-section'),
+  { 
+    ssr: false,
+    loading: () => <div className="text-gray-500 text-sm">Lade...</div>
+  }
+);
 
 export const studentsConfig = defineEntityConfig<Student>({
   name: {
@@ -88,6 +97,28 @@ export const studentsConfig = defineEntityConfig<Student>({
             label: 'Fährt mit dem Bus',
             type: 'checkbox',
             helperText: 'Aktivieren, wenn der Schüler mit dem Bus fährt',
+          },
+        ],
+      },
+      {
+        title: 'Datenschutz',
+        backgroundColor: 'bg-yellow-50',
+        columns: 2,
+        fields: [
+          {
+            name: 'privacy_consent_accepted',
+            label: 'Datenschutzeinwilligung erteilt',
+            type: 'checkbox',
+            helperText: 'Aktivieren, wenn die Einwilligung zur Datenverarbeitung vorliegt',
+          },
+          {
+            name: 'data_retention_days',
+            label: 'Aufbewahrungsdauer (Tage)',
+            type: 'number',
+            min: 1,
+            max: 31,
+            required: false,
+            helperText: 'Anzahl der Tage für die Datenspeicherung (1-31)',
           },
         ],
       },
@@ -281,6 +312,16 @@ export const studentsConfig = defineEntityConfig<Student>({
                 </span>
               </div>
             ),
+          },
+        ],
+      },
+      {
+        title: 'Datenverwaltung',
+        titleColor: 'text-yellow-800',
+        items: [
+          {
+            label: 'Datenschutzeinstellungen',
+            value: (student) => <PrivacyConsentSection studentId={student.id} />,
           },
         ],
       },
