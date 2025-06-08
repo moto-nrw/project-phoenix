@@ -36,7 +36,7 @@ export const GET = createGetHandler(async (request, token, params) => {
   }
 
   try {
-    const response = await apiGet<PrivacyConsentResponse>(`/students/${id}/privacy-consent`, token);
+    const response = await apiGet<PrivacyConsentResponse>(`/api/students/${id}/privacy-consent`, token);
     return response.data.data;
   } catch (error) {
     const axiosError = error as AxiosError;
@@ -73,7 +73,7 @@ export const PUT = createPutHandler<unknown, PrivacyConsentBody>(
       throw new Error("data_retention_days must be between 1 and 31");
     }
 
-    const response = await apiPut<PrivacyConsentResponse>(`/students/${id}/privacy-consent`, body, token);
+    const response = await apiPut<PrivacyConsentResponse>(`/api/students/${id}/privacy-consent`, body, token);
     return response.data.data;
   }
 );

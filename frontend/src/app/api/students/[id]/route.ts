@@ -67,17 +67,15 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     try {
       const consentResponse = await apiGet<unknown>(`/api/students/${id}/privacy-consent`, token);
       
-      if (consentResponse && typeof consentResponse === 'object' && 'data' in consentResponse) {
-        const consentData = (consentResponse as { data: unknown }).data;
-        if (consentData && typeof consentData === 'object' && 'accepted' in consentData && 'data_retention_days' in consentData) {
-          const consent = consentData as { accepted: boolean; data_retention_days: number };
-          // Add privacy consent fields to the student object
-          return {
-            ...mappedStudent,
-            privacy_consent_accepted: consent.accepted,
-            data_retention_days: consent.data_retention_days,
-          };
-        }
+      // The privacy consent route handler returns the consent object directly
+      if (consentResponse && typeof consentResponse === 'object' && 'accepted' in consentResponse && 'data_retention_days' in consentResponse) {
+        const consent = consentResponse as { accepted: boolean; data_retention_days: number };
+        // Add privacy consent fields to the student object
+        return {
+          ...mappedStudent,
+          privacy_consent_accepted: consent.accepted,
+          data_retention_days: consent.data_retention_days,
+        };
       }
     } catch {
       console.log("No privacy consent found for student, using defaults");

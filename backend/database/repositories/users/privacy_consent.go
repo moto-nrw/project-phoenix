@@ -32,7 +32,8 @@ func (r *PrivacyConsentRepository) FindByStudentID(ctx context.Context, studentI
 	var consents []*users.PrivacyConsent
 	err := r.db.NewSelect().
 		Model(&consents).
-		Where("student_id = ?", studentID).
+		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
+		Where(`"privacy_consent".student_id = ?`, studentID).
 		Scan(ctx)
 
 	if err != nil {
@@ -50,7 +51,8 @@ func (r *PrivacyConsentRepository) FindByStudentIDAndPolicyVersion(ctx context.C
 	consent := new(users.PrivacyConsent)
 	err := r.db.NewSelect().
 		Model(consent).
-		Where("student_id = ? AND policy_version = ?", studentID, policyVersion).
+		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
+		Where(`"privacy_consent".student_id = ? AND "privacy_consent".policy_version = ?`, studentID, policyVersion).
 		Scan(ctx)
 
 	if err != nil {
@@ -70,7 +72,8 @@ func (r *PrivacyConsentRepository) FindActiveByStudentID(ctx context.Context, st
 
 	err := r.db.NewSelect().
 		Model(&consents).
-		Where("student_id = ? AND accepted = TRUE AND (expires_at IS NULL OR expires_at > ?)", studentID, now).
+		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
+		Where(`"privacy_consent".student_id = ? AND "privacy_consent".accepted = TRUE AND ("privacy_consent".expires_at IS NULL OR "privacy_consent".expires_at > ?)`, studentID, now).
 		Scan(ctx)
 
 	if err != nil {
@@ -90,7 +93,8 @@ func (r *PrivacyConsentRepository) FindExpired(ctx context.Context) ([]*users.Pr
 
 	err := r.db.NewSelect().
 		Model(&consents).
-		Where("expires_at < ? AND accepted = TRUE", now).
+		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
+		Where(`"privacy_consent".expires_at < ? AND "privacy_consent".accepted = TRUE`, now).
 		Scan(ctx)
 
 	if err != nil {
@@ -109,7 +113,8 @@ func (r *PrivacyConsentRepository) FindNeedingRenewal(ctx context.Context) ([]*u
 
 	err := r.db.NewSelect().
 		Model(&consents).
-		Where("renewal_required = TRUE AND accepted = TRUE").
+		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
+		Where(`"privacy_consent".renewal_required = TRUE AND "privacy_consent".accepted = TRUE`).
 		Scan(ctx)
 
 	if err != nil {
@@ -126,9 +131,10 @@ func (r *PrivacyConsentRepository) FindNeedingRenewal(ctx context.Context) ([]*u
 func (r *PrivacyConsentRepository) Accept(ctx context.Context, id int64, acceptedAt time.Time) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.PrivacyConsent)(nil)).
+		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Set("accepted = TRUE").
 		Set("accepted_at = ?", acceptedAt).
-		Where("id = ?", id).
+		Where(`"privacy_consent".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -145,8 +151,9 @@ func (r *PrivacyConsentRepository) Accept(ctx context.Context, id int64, accepte
 func (r *PrivacyConsentRepository) Revoke(ctx context.Context, id int64) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.PrivacyConsent)(nil)).
+		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Set("accepted = FALSE").
-		Where("id = ?", id).
+		Where(`"privacy_consent".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -163,8 +170,9 @@ func (r *PrivacyConsentRepository) Revoke(ctx context.Context, id int64) error {
 func (r *PrivacyConsentRepository) SetExpiryDate(ctx context.Context, id int64, expiresAt time.Time) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.PrivacyConsent)(nil)).
+		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Set("expires_at = ?", expiresAt).
-		Where("id = ?", id).
+		Where(`"privacy_consent".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -181,8 +189,9 @@ func (r *PrivacyConsentRepository) SetExpiryDate(ctx context.Context, id int64, 
 func (r *PrivacyConsentRepository) SetRenewalRequired(ctx context.Context, id int64, renewalRequired bool) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.PrivacyConsent)(nil)).
+		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Set("renewal_required = ?", renewalRequired).
-		Where("id = ?", id).
+		Where(`"privacy_consent".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -205,8 +214,9 @@ func (r *PrivacyConsentRepository) UpdateDetails(ctx context.Context, id int64, 
 
 	_, err := r.db.NewUpdate().
 		Model((*users.PrivacyConsent)(nil)).
+		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Set("details = ?", details).
-		Where("id = ?", id).
+		Where(`"privacy_consent".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -253,7 +263,7 @@ func (r *PrivacyConsentRepository) Update(ctx context.Context, consent *users.Pr
 func (r *PrivacyConsentRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.PrivacyConsent, error) {
 	// Convert old filter format to new QueryOptions
 	options := modelBase.NewQueryOptions()
-	filter := modelBase.NewFilter()
+	filter := modelBase.NewFilter().WithTableAlias("privacy_consent")
 
 	for field, value := range filters {
 		if value != nil {
@@ -266,12 +276,17 @@ func (r *PrivacyConsentRepository) List(ctx context.Context, filters map[string]
 				if boolValue, ok := value.(bool); ok && boolValue {
 					now := time.Now()
 					filter.Equal("accepted", true)
-					filter.Where("expires_at IS NULL OR expires_at > ?", modelBase.OpEqual, now)
+					// For complex conditions, we need to use OR conditions
+					orFilter := modelBase.NewFilter().WithTableAlias("privacy_consent")
+					orFilter.IsNull("expires_at")
+					orFilter2 := modelBase.NewFilter().WithTableAlias("privacy_consent")
+					orFilter2.GreaterThan("expires_at", now)
+					filter.Or(*orFilter).Or(*orFilter2)
 				}
 			case "expired":
 				if boolValue, ok := value.(bool); ok && boolValue {
 					now := time.Now()
-					filter.Where("expires_at < ?", modelBase.OpLessThan, now)
+					filter.LessThan("expires_at", now)
 				}
 			case "policy_version":
 				filter.Equal("policy_version", value)
@@ -290,7 +305,9 @@ func (r *PrivacyConsentRepository) List(ctx context.Context, filters map[string]
 // ListWithOptions provides a type-safe way to list privacy consents with query options
 func (r *PrivacyConsentRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.PrivacyConsent, error) {
 	var consents []*users.PrivacyConsent
-	query := r.db.NewSelect().Model(&consents)
+	query := r.db.NewSelect().
+		Model(&consents).
+		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`)
 
 	// Apply query options
 	if options != nil {
@@ -313,8 +330,9 @@ func (r *PrivacyConsentRepository) FindWithStudent(ctx context.Context, id int64
 	consent := new(users.PrivacyConsent)
 	err := r.db.NewSelect().
 		Model(consent).
+		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Relation("Student").
-		Where("id = ?", id).
+		Where(`"privacy_consent".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -332,9 +350,10 @@ func (r *PrivacyConsentRepository) FindWithStudentAndPerson(ctx context.Context,
 	consent := new(users.PrivacyConsent)
 	err := r.db.NewSelect().
 		Model(consent).
+		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Relation("Student").
 		Relation("Student.Person").
-		Where("id = ?", id).
+		Where(`"privacy_consent".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -355,10 +374,11 @@ func (r *PrivacyConsentRepository) MarkAutoRenewals(ctx context.Context, daysBef
 	// Set renewal_required for all consents approaching expiration
 	res, err := r.db.NewUpdate().
 		Model((*users.PrivacyConsent)(nil)).
+		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Set("renewal_required = TRUE").
-		Where("accepted = TRUE").
-		Where("expires_at IS NOT NULL AND expires_at <= ?", thresholdDate).
-		Where("renewal_required = FALSE").
+		Where(`"privacy_consent".accepted = TRUE`).
+		Where(`"privacy_consent".expires_at IS NOT NULL AND "privacy_consent".expires_at <= ?`, thresholdDate).
+		Where(`"privacy_consent".renewal_required = FALSE`).
 		Exec(ctx)
 
 	if err != nil {
