@@ -6,17 +6,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // Staff represents a staff member in the system
 type Staff struct {
-	base.Model     `bun:"schema:users,table:staff"`
-	PersonID       int64      `bun:"person_id,notnull,unique" json:"person_id"`
-	StaffNotes     string     `bun:"staff_notes" json:"staff_notes,omitempty"`
-	PINHash        *string    `bun:"pin_hash" json:"-"`                           // Never expose PIN hash in JSON
-	PINAttempts    int        `bun:"pin_attempts,default:0" json:"pin_attempts"`
-	PINLockedUntil *time.Time `bun:"pin_locked_until" json:"pin_locked_until,omitempty"`
+	base.Model `bun:"schema:users,table:staff"`
+	PersonID   int64  `bun:"person_id,notnull,unique" json:"person_id"`
+	StaffNotes string `bun:"staff_notes" json:"staff_notes,omitempty"`
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
@@ -92,47 +88,5 @@ func (m *Staff) GetUpdatedAt() time.Time {
 	return m.UpdatedAt
 }
 
-// HasPIN returns true if the staff member has a PIN set
-func (s *Staff) HasPIN() bool {
-	return s.PINHash != nil && *s.PINHash != ""
-}
-
-// IsLocked returns true if the account is currently locked due to failed PIN attempts
-func (s *Staff) IsLocked() bool {
-	if s.PINLockedUntil == nil {
-		return false
-	}
-	return time.Now().Before(*s.PINLockedUntil)
-}
-
-// LockAccount locks the account for the specified duration
-func (s *Staff) LockAccount(duration time.Duration) {
-	lockUntil := time.Now().Add(duration)
-	s.PINLockedUntil = &lockUntil
-}
-
-// UnlockAccount removes the account lock
-func (s *Staff) UnlockAccount() {
-	s.PINLockedUntil = nil
-	s.PINAttempts = 0
-}
-
-// IncrementPINAttempts increments the failed PIN attempts counter
-func (s *Staff) IncrementPINAttempts() {
-	s.PINAttempts++
-}
-
-// HashPIN hashes a PIN using bcrypt
-func HashPIN(pin string) (string, error) {
-	hashedPIN, err := bcrypt.GenerateFromPassword([]byte(pin), bcrypt.DefaultCost)
-	if err != nil {
-		return "", err
-	}
-	return string(hashedPIN), nil
-}
-
-// VerifyPIN verifies a PIN against a hash
-func VerifyPIN(pin, hash string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(pin))
-	return err == nil
-}
+// PIN-related functionality has been moved to auth.Account model
+// This simplifies the architecture by centralizing all authentication data

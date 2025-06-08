@@ -2,7 +2,10 @@ package iot
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -44,6 +47,18 @@ func (s *service) WithTx(tx bun.Tx) interface{} {
 	}
 }
 
+// generateAPIKey generates a secure random API key for device authentication
+func (s *service) generateAPIKey() (string, error) {
+	// Generate 32 random bytes
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	
+	// Convert to hex string and add prefix
+	return fmt.Sprintf("dev_%s", hex.EncodeToString(bytes)), nil
+}
+
 // CreateDevice creates a new IoT device
 func (s *service) CreateDevice(ctx context.Context, device *iot.Device) error {
 	if device == nil {
@@ -59,6 +74,15 @@ func (s *service) CreateDevice(ctx context.Context, device *iot.Device) error {
 	existingDevice, err := s.deviceRepo.FindByDeviceID(ctx, device.DeviceID)
 	if err == nil && existingDevice != nil && existingDevice.ID > 0 {
 		return &IoTError{Op: "CreateDevice", Err: &DuplicateDeviceIDError{DeviceID: device.DeviceID}}
+	}
+
+	// Generate API key if not provided
+	if device.APIKey == nil || *device.APIKey == "" {
+		apiKey, err := s.generateAPIKey()
+		if err != nil {
+			return &IoTError{Op: "CreateDevice", Err: fmt.Errorf("failed to generate API key: %w", err)}
+		}
+		device.APIKey = &apiKey
 	}
 
 	// Set default status if not provided

@@ -279,15 +279,24 @@ userRepo := repoFactory.NewUserRepository()
 When working with PostgreSQL schemas, BUN requires explicit table expressions in repository methods:
 
 ```go
-// In repository methods, always set ModelTableExpr
+// In repository methods, always set ModelTableExpr with quotes around alias
 func (r *GroupRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*education.Group, error) {
     var groups []*education.Group
     query := r.db.NewSelect().
         Model(&groups).
-        ModelTableExpr(`education.groups AS "group"`)  // Critical for schema-qualified tables!
+        ModelTableExpr(`education.groups AS "group"`)  // Critical: quotes around alias!
     
     // Apply options and execute query
 }
+```
+
+**CRITICAL**: Always include table alias with quotes to prevent SQL errors:
+```go
+// CORRECT - Will generate: SELECT "group".* FROM education.groups AS "group"
+ModelTableExpr(`education.groups AS "group"`)
+
+// WRONG - Will cause "missing FROM-clause entry for table" errors
+ModelTableExpr(`education.groups`)
 ```
 
 Models should implement BeforeAppendModel when using schemas:
@@ -340,7 +349,8 @@ cd ../../..
 - **JWT Errors**: Verify `AUTH_JWT_SECRET` is set and consistent
 - **CORS Issues**: Ensure `ENABLE_CORS=true` for local development
 - **SQL Debugging**: Set `DB_DEBUG=true` to see queries
-- **Schema-qualified tables**: Always use `ModelTableExpr` in repository methods
+- **Schema-qualified tables**: Always use `ModelTableExpr` with quoted aliases in repository methods
+- **"missing FROM-clause entry" errors**: Ensure table aliases are quoted in `ModelTableExpr`
 
 ### Frontend Issues
 - **API Connection**: Verify `NEXT_PUBLIC_API_URL` points to backend
@@ -363,6 +373,13 @@ The system integrates with RFID readers for student tracking:
 - Implementation guide: `/RFID_IMPLEMENTATION_GUIDE.md` (comprehensive workflows and API specs)
 - Device setup docs: `backend/docs/rfid-integration-guide.md`
 - Example flows: `backend/docs/rfid-examples.md`
+
+### PIN Architecture (Simplified)
+The system uses a simplified PIN architecture for RFID device authentication:
+- **PIN Storage**: All PINs stored in `auth.accounts` table (not in `users.staff`)
+- **Authentication Flow**: Device API key + staff PIN → validates against account PIN
+- **Management**: Staff can set/update PINs via `/api/staff/pin` endpoints
+- **Security**: Uses Argon2id hashing with attempt limiting and account lockout
 
 ## Testing Strategy
 
@@ -594,7 +611,7 @@ export default function Page() {
 - Students linked to guardians through join tables
 - RFID cards associated with persons
 - Privacy consent tracking for students
-- Staff PIN management: 4-digit PINs for device authentication (stored in `users.staff`)
+- Staff PIN management: 4-digit PINs for device authentication (stored in `auth.accounts`)
 
 ### IoT/Device Management
 - Devices authenticate with API keys (stored in `iot.devices`)

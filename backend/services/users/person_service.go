@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -510,45 +509,63 @@ func (s *personService) ValidateStaffPIN(ctx context.Context, pin string) (*user
 		return nil, &UsersError{Op: "validate staff PIN", Err: errors.New("PIN cannot be empty")}
 	}
 
-	// Get all staff members to check PIN against each one
-	staff, err := s.staffRepo.List(ctx, nil)
+	// Get all accounts that have PINs set
+	accounts, err := s.accountRepo.List(ctx, nil)
 	if err != nil {
 		return nil, &UsersError{Op: "validate staff PIN", Err: err}
 	}
 
-	// Check PIN against all staff members
-	for _, staffMember := range staff {
-		if staffMember.HasPIN() && !staffMember.IsLocked() {
-			// Use the VerifyPIN function from the users model
-			if userModels.VerifyPIN(pin, *staffMember.PINHash) {
-				// Load the person relation for the authenticated staff
-				person, err := s.personRepo.FindByID(ctx, staffMember.PersonID)
+	// Check PIN against all accounts that have PINs
+	for _, account := range accounts {
+		if account.HasPIN() && !account.IsPINLocked() {
+			// Use the VerifyPIN method from the account model
+			if account.VerifyPIN(pin) {
+				// PIN is valid - find the person linked to this account
+				person, err := s.personRepo.FindByAccountID(ctx, account.ID)
 				if err != nil {
-					return nil, &UsersError{Op: "validate staff PIN - load person", Err: err}
+					return nil, &UsersError{Op: "validate staff PIN - find person", Err: err}
 				}
-				staffMember.Person = person
+				if person == nil {
+					// Account has PIN but no person linked - continue searching
+					continue
+				}
+
+				// Find the staff record for this person
+				staff, err := s.staffRepo.FindByPersonID(ctx, person.ID)
+				if err != nil {
+					return nil, &UsersError{Op: "validate staff PIN - find staff", Err: err}
+				}
+				if staff == nil {
+					// Person exists but is not staff - continue searching
+					continue
+				}
+
+				// Reset PIN attempts on successful authentication
+				account.ResetPINAttempts()
+				if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
+					// Log error but don't fail authentication
+					_ = updateErr
+				}
+
+				// Load the person relation for the authenticated staff
+				staff.Person = person
 				
-				return staffMember, nil
+				return staff, nil
 			} else {
-				// Increment failed attempts for this staff member
-				staffMember.IncrementPINAttempts()
+				// Increment failed attempts for this account
+				account.IncrementPINAttempts()
 				
-				// Lock account if too many failed attempts (5 attempts)
-				if staffMember.PINAttempts >= 5 {
-					staffMember.LockAccount(30 * time.Minute) // Lock for 30 minutes
-				}
-				
-				// Update the staff record with new attempt count/lock status
-				if updateErr := s.staffRepo.Update(ctx, staffMember); updateErr != nil {
+				// Update the account record with new attempt count/lock status
+				if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
 					// Log error but don't fail the authentication check
-					// Continue checking other staff members
+					// Continue checking other accounts
 					_ = updateErr // Mark as intentionally ignored
 				}
 			}
 		}
 	}
 
-	// No staff member found with matching PIN
+	// No account found with matching PIN
 	return nil, &UsersError{Op: "validate staff PIN", Err: ErrInvalidPIN}
 }
 

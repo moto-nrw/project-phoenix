@@ -62,4 +62,7 @@ type ActivityService interface {
 	GetPublicGroups(ctx context.Context, categoryID *int64) ([]*activities.Group, map[int64]int, error)
 	GetPublicCategories(ctx context.Context) ([]*activities.Category, error)
 	GetOpenGroups(ctx context.Context) ([]*activities.Group, error)
+
+	// Device operations for RFID teacher selection
+	GetTeacherTodaysActivities(ctx context.Context, staffID int64) ([]*activities.Group, error)
 }

@@ -62,7 +62,10 @@ func createAuthAccountsTable(ctx context.Context, db *bun.DB) error {
 			username TEXT UNIQUE,
 			active BOOLEAN NOT NULL DEFAULT TRUE,
 			password_hash TEXT,
-			is_password_otp BOOLEAN DEFAULT FALSE
+			is_password_otp BOOLEAN DEFAULT FALSE,
+			pin_hash VARCHAR(255),           -- RFID device PIN (hashed with Argon2id)
+			pin_attempts INTEGER DEFAULT 0,   -- Failed PIN attempts counter
+			pin_locked_until TIMESTAMPTZ     -- Account lockout timestamp
 		)
 	`)
 	if err != nil {

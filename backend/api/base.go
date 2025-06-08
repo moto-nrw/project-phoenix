@@ -153,7 +153,7 @@ func New(enableCORS bool) (*API, error) {
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
 	api.Config = configAPI.NewResource(api.Services.Config)
 	api.Active = activeAPI.NewResource(api.Services.Active)
-	api.IoT = iotAPI.NewResource(api.Services.IoT, api.Services.Users, api.Services.Active)
+	api.IoT = iotAPI.NewResource(api.Services.IoT, api.Services.Users, api.Services.Active, api.Services.Activities)
 	api.Users = usersAPI.NewResource(api.Services.Users)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)

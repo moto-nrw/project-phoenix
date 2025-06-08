@@ -4,6 +4,7 @@ package activities
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -210,6 +211,39 @@ func (r *GroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by staff supervisor",
+			Err: err,
+		}
+	}
+
+	return groups, nil
+}
+
+// FindByStaffSupervisorToday finds all activity groups where a staff member is a supervisor for today
+func (r *GroupRepository) FindByStaffSupervisorToday(ctx context.Context, staffID int64) ([]*activities.Group, error) {
+	currentWeekday := int(time.Now().Weekday())
+	if currentWeekday == 0 { // Convert Sunday from 0 to 7
+		currentWeekday = 7
+	}
+
+	var groups []*activities.Group
+	err := r.db.NewSelect().
+		Model(&groups).
+		Table("activities.groups").
+		Where("id IN (?)", r.db.NewSelect().
+			Table("activities.supervisors").
+			Column("group_id").
+			Where("staff_id = ?", staffID)).
+		Where("is_open = ?", true).
+		Where("id IN (?)", r.db.NewSelect().
+			Table("activities.schedules").
+			Column("activity_group_id").
+			Where("weekday = ? OR weekday IS NULL", currentWeekday)).
+		Order("name ASC").
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by staff supervisor today",
 			Err: err,
 		}
 	}

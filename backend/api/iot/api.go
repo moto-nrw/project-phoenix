@@ -2,6 +2,7 @@ package iot
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -16,25 +17,29 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // Resource defines the IoT API resource
 type Resource struct {
-	IoTService    iotSvc.Service
-	UsersService  usersSvc.PersonService
-	ActiveService activeSvc.Service
+	IoTService        iotSvc.Service
+	UsersService      usersSvc.PersonService
+	ActiveService     activeSvc.Service
+	ActivitiesService activitiesSvc.ActivityService
 }
 
 // NewResource creates a new IoT resource
-func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activeService activeSvc.Service) *Resource {
+func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activeService activeSvc.Service, activitiesService activitiesSvc.ActivityService) *Resource {
 	return &Resource{
-		IoTService:    iotService,
-		UsersService:  usersService,
-		ActiveService: activeService,
+		IoTService:        iotService,
+		UsersService:      usersService,
+		ActiveService:     activeService,
+		ActivitiesService: activitiesService,
 	}
 }
 
@@ -90,6 +95,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/checkin", rs.deviceCheckin)
 		r.Get("/status", rs.deviceStatus)
 		r.Get("/students", rs.getTeacherStudents)
+		r.Get("/activities", rs.getTeacherActivities)
 	})
 
 	return r
@@ -107,6 +113,12 @@ type DeviceResponse struct {
 	IsOnline       bool         `json:"is_online"`
 	CreatedAt      common.Time  `json:"created_at"`
 	UpdatedAt      common.Time  `json:"updated_at"`
+}
+
+// DeviceCreationResponse represents a device creation response with API key
+type DeviceCreationResponse struct {
+	DeviceResponse
+	APIKey string `json:"api_key"` // Only included during creation
 }
 
 // DeviceRequest represents a device creation/update request
@@ -187,6 +199,20 @@ func newDeviceResponse(device *iot.Device) DeviceResponse {
 	if device.LastSeen != nil {
 		lastSeen := common.Time(*device.LastSeen)
 		response.LastSeen = &lastSeen
+	}
+
+	return response
+}
+
+// newDeviceCreationResponse converts a device model to a creation response object with API key
+func newDeviceCreationResponse(device *iot.Device) DeviceCreationResponse {
+	response := DeviceCreationResponse{
+		DeviceResponse: newDeviceResponse(device),
+	}
+
+	// Include API key only during creation
+	if device.APIKey != nil {
+		response.APIKey = *device.APIKey
 	}
 
 	return response
@@ -320,7 +346,7 @@ func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusCreated, newDeviceResponse(device), "Device created successfully")
+	common.Respond(w, r, http.StatusCreated, newDeviceCreationResponse(device), "Device created successfully")
 }
 
 // updateDevice handles updating an existing device
@@ -777,7 +803,6 @@ func (rs *Resource) deviceStatus(w http.ResponseWriter, r *http.Request) {
 		"staff": map[string]interface{}{
 			"id":        staffCtx.ID,
 			"person_id": staffCtx.PersonID,
-			"is_locked": staffCtx.IsLocked(),
 		},
 		"authenticated_at": time.Now(),
 	}
@@ -822,6 +847,20 @@ type TeacherStudentResponse struct {
 	SchoolClass string `json:"school_class"`
 	GroupName   string `json:"group_name"`
 	RFIDTag     string `json:"rfid_tag,omitempty"`
+}
+
+// DeviceActivityResponse represents an activity available for teacher selection on RFID devices
+type DeviceActivityResponse struct {
+	ID              int64  `json:"id"`
+	Name            string `json:"name"`
+	CategoryName    string `json:"category_name"`
+	CategoryColor   string `json:"category_color,omitempty"`
+	RoomName        string `json:"room_name,omitempty"`
+	EnrollmentCount int    `json:"enrollment_count"`
+	MaxParticipants int    `json:"max_participants"`
+	HasSpots        bool   `json:"has_spots"`
+	SupervisorName  string `json:"supervisor_name"`
+	IsActive        bool   `json:"is_active"`
 }
 
 // Bind validates the checkin request
@@ -1068,4 +1107,84 @@ func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Teacher students retrieved successfully")
+}
+
+// convertToDeviceActivityResponse converts an activity group to device response format
+func convertToDeviceActivityResponse(group *activities.Group, enrollmentCount int, supervisorName string) DeviceActivityResponse {
+	response := DeviceActivityResponse{
+		ID:              group.ID,
+		Name:            group.Name,
+		EnrollmentCount: enrollmentCount,
+		MaxParticipants: group.MaxParticipants,
+		HasSpots:        enrollmentCount < group.MaxParticipants,
+		SupervisorName:  supervisorName,
+		IsActive:        group.IsOpen,
+	}
+
+	if group.Category != nil {
+		response.CategoryName = group.Category.Name
+		response.CategoryColor = group.Category.Color
+	}
+
+	if group.PlannedRoom != nil {
+		response.RoomName = group.PlannedRoom.Name
+	}
+
+	return response
+}
+
+// getTeacherActivities handles getting activities supervised by the authenticated teacher (for RFID devices)
+func (rs *Resource) getTeacherActivities(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device and staff from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	staffCtx := device.StaffFromCtx(r.Context())
+
+	if deviceCtx == nil || staffCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Find teacher for authenticated staff
+	teacherRepo := rs.UsersService.TeacherRepository()
+	teacher, err := teacherRepo.FindByStaffID(r.Context(), staffCtx.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("teacher not found for authenticated staff"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+	if teacher == nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("teacher not found for authenticated staff"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get teacher's activities for today
+	activityGroups, err := rs.ActivitiesService.GetTeacherTodaysActivities(r.Context(), staffCtx.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Convert to device response format
+	responses := make([]DeviceActivityResponse, 0, len(activityGroups))
+	for _, activityGroup := range activityGroups {
+		// Get enrollment count - for now using 0, this could be optimized with batch query
+		enrollmentCount := 0 // TODO: Implement enrollment counting if needed
+
+		// Get supervisor name from teacher context
+		supervisorName := ""
+		if teacher.Staff != nil && teacher.Staff.Person != nil {
+			supervisorName = fmt.Sprintf("%s %s", teacher.Staff.Person.FirstName, teacher.Staff.Person.LastName)
+		}
+
+		responses = append(responses, convertToDeviceActivityResponse(activityGroup, enrollmentCount, supervisorName))
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Teacher activities retrieved successfully")
 }

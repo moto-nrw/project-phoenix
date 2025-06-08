@@ -1357,3 +1357,12 @@ func (s *Service) GetOpenGroups(ctx context.Context) ([]*activities.Group, error
 
 	return groups, nil
 }
+
+// GetTeacherTodaysActivities returns activities available for teacher selection on devices
+func (s *Service) GetTeacherTodaysActivities(ctx context.Context, staffID int64) ([]*activities.Group, error) {
+	groups, err := s.groupRepo.FindByStaffSupervisorToday(ctx, staffID)
+	if err != nil {
+		return nil, &ActivityError{Op: "get teacher today activities", Err: err}
+	}
+	return groups, nil
+}

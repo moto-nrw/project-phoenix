@@ -127,7 +127,7 @@ func createAuthRolePermissionsTable(ctx context.Context, db *bun.DB) error {
 		INSERT INTO auth.role_permissions (role_id, permission_id)
 		SELECT user_role.id, p.id
 		FROM auth.permissions p, user_role
-		WHERE p.name IN ('user.read', 'activities:create')
+		WHERE p.name IN ('user.read', 'activities:create', 'iot:read', 'iot:manage')
 		ON CONFLICT (role_id, permission_id) DO NOTHING
 	`)
 	if err != nil {

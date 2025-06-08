@@ -71,6 +71,10 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createStaff)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}", rs.updateStaff)
 		r.With(authorize.RequiresPermission(permissions.UsersDelete)).Delete("/{id}", rs.deleteStaff)
+
+		// PIN management endpoints - staff can manage their own PIN
+		r.Get("/pin", rs.getPINStatus)
+		r.Put("/pin", rs.updatePIN)
 	})
 
 	return r
@@ -124,6 +128,18 @@ type StaffRequest struct {
 	Qualifications string `json:"qualifications,omitempty"`
 }
 
+// PINStatusResponse represents the PIN status response
+type PINStatusResponse struct {
+	HasPIN      bool       `json:"has_pin"`
+	LastChanged *time.Time `json:"last_changed,omitempty"`
+}
+
+// PINUpdateRequest represents a PIN update request
+type PINUpdateRequest struct {
+	CurrentPIN *string `json:"current_pin,omitempty"` // null for first-time setup
+	NewPIN     string  `json:"new_pin"`
+}
+
 // Bind validates the staff request
 func (req *StaffRequest) Bind(r *http.Request) error {
 	if req.PersonID <= 0 {
@@ -133,6 +149,27 @@ func (req *StaffRequest) Bind(r *http.Request) error {
 	// If creating a teacher, specialization is required
 	if req.IsTeacher && req.Specialization == "" {
 		return errors.New("specialization is required for teachers")
+	}
+
+	return nil
+}
+
+// Bind validates the PIN update request
+func (req *PINUpdateRequest) Bind(r *http.Request) error {
+	if req.NewPIN == "" {
+		return errors.New("new PIN is required")
+	}
+
+	// Validate PIN format (4 digits)
+	if len(req.NewPIN) != 4 {
+		return errors.New("PIN must be exactly 4 digits")
+	}
+
+	// Check if PIN contains only digits
+	for _, char := range req.NewPIN {
+		if char < '0' || char > '9' {
+			return errors.New("PIN must contain only digits")
+		}
 	}
 
 	return nil
@@ -812,4 +849,160 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 func containsIgnoreCase(s, substr string) bool {
 	s, substr = strings.ToLower(s), strings.ToLower(substr)
 	return strings.Contains(s, substr)
+}
+
+// getPINStatus handles getting the current user's PIN status
+func (rs *Resource) getPINStatus(w http.ResponseWriter, r *http.Request) {
+	// Get user from JWT context
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	if userClaims.ID == 0 {
+		if err := render.Render(w, r, ErrorUnauthorized(errors.New("invalid token"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get account directly
+	account, err := rs.AuthService.GetAccountByID(r.Context(), userClaims.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("account not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Verify this is a staff member by checking person->staff relationship
+	person, err := rs.PersonService.FindByAccountID(r.Context(), account.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("person not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Find staff record for this person to verify staff status
+	_, err = rs.StaffRepo.FindByPersonID(r.Context(), person.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Build response using account PIN data
+	response := PINStatusResponse{
+		HasPIN: account.HasPIN(),
+	}
+
+	// Include last changed timestamp if available (use UpdatedAt as proxy)
+	if account.HasPIN() {
+		response.LastChanged = &account.UpdatedAt
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "PIN status retrieved successfully")
+}
+
+// updatePIN handles updating the current user's PIN
+func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
+	// Parse request
+	req := &PINUpdateRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Get user from JWT context
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	if userClaims.ID == 0 {
+		if err := render.Render(w, r, ErrorUnauthorized(errors.New("invalid token"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get account directly
+	account, err := rs.AuthService.GetAccountByID(r.Context(), userClaims.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("account not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Verify this is a staff member by checking person->staff relationship
+	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(account.ID))
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("person not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Find staff record for this person to verify staff status
+	_, err = rs.StaffRepo.FindByPersonID(r.Context(), person.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if account is locked
+	if account.IsPINLocked() {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("account is temporarily locked due to failed PIN attempts"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// If account has existing PIN, validate current PIN
+	if account.HasPIN() {
+		if req.CurrentPIN == nil || *req.CurrentPIN == "" {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("current PIN is required when updating existing PIN"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+
+		// Verify current PIN
+		if !account.VerifyPIN(*req.CurrentPIN) {
+			// Increment failed attempts
+			account.IncrementPINAttempts()
+
+			// Update account record with incremented attempts
+			if updateErr := rs.AuthService.UpdateAccount(r.Context(), account); updateErr != nil {
+				log.Printf("Failed to update account PIN attempts: %v", updateErr)
+			}
+
+			if err := render.Render(w, r, ErrorUnauthorized(errors.New("current PIN is incorrect"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+	}
+
+	// Hash and set the new PIN
+	if err := account.HashPIN(req.NewPIN); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to hash PIN"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Reset PIN attempts on successful PIN change
+	account.ResetPINAttempts()
+
+	if err := rs.AuthService.UpdateAccount(r.Context(), account); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"message": "PIN updated successfully",
+	}, "PIN updated successfully")
 }

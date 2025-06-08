@@ -111,12 +111,8 @@ func DeviceAuthenticator(iotService iotSvc.Service, usersService usersSvc.Person
 				return
 			}
 
-			// Check if staff account is locked
-			if staff.IsLocked() {
-				logging.GetLogEntry(r).Warn("Device authentication failed: staff account locked until:", staff.PINLockedUntil)
-				_ = render.Render(w, r, ErrDeviceForbidden(ErrStaffAccountLocked))
-				return
-			}
+			// Account locking is now handled in ValidateStaffPIN via account-level validation
+			// No need for additional lock check here since ValidateStaffPIN already validates account lock status
 
 			// Authentication successful - set contexts
 			ctx := context.WithValue(r.Context(), CtxDevice, device)

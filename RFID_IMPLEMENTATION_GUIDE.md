@@ -179,6 +179,11 @@ Headers: {
 }
 ```
 
+#### Simplified PIN Architecture ✅ IMPLEMENTED
+Staff PINs are stored directly in the `auth.accounts` table rather than `users.staff`, 
+eliminating the complex lookup chain and improving performance. This architectural 
+simplification maintains all security features while reducing database complexity.
+
 #### Device-Authenticated Endpoints ✅ IMPLEMENTED
 The following endpoints require both device API key AND staff PIN:
 ```typescript
@@ -469,6 +474,45 @@ Response: [
 // Used by devices for tag assignment and student identification
 ```
 
+#### Get Teacher's Activities (Device-Authenticated) ✅ COMPLETED
+```typescript
+GET /api/iot/activities
+Headers: {
+  "Authorization": "Bearer dev_xyz123...",  // Device API key
+  "X-Staff-PIN": "1234"                    // Staff PIN
+}
+Response: [
+  {
+    "id": 123,
+    "name": "Bastelstunde",
+    "category_name": "Kunst & Basteln",
+    "category_color": "#FF6B6B",
+    "room_name": "Werkraum 1",
+    "enrollment_count": 8,
+    "max_participants": 15,
+    "has_spots": true,
+    "supervisor_name": "Frau Schmidt",
+    "is_active": true
+  },
+  {
+    "id": 124,
+    "name": "Fußball Training", 
+    "category_name": "Sport",
+    "category_color": "#4ECDC4",
+    "room_name": "Sporthalle",
+    "enrollment_count": 12,
+    "max_participants": 20,
+    "has_spots": true,
+    "supervisor_name": "Frau Schmidt",
+    "is_active": true
+  }
+]
+// Returns activities supervised by authenticated teacher for today only
+// Device can show these activities for teacher selection
+// Activities filtered to today's/active sessions only (RFID design requirement)
+// Includes enrollment status and room assignments for device display
+```
+
 ## Database Changes Required
 
 ### 1. Make device_id Optional in active_groups
@@ -478,14 +522,33 @@ ALTER TABLE active.groups
 ALTER COLUMN device_id DROP NOT NULL;
 ```
 
-### 2. Add PIN Storage to Staff
+### 2. PIN Storage Architecture Simplification
 ```sql
--- Migration: Add PIN field
-ALTER TABLE users.staff 
+-- Migration: Move PIN storage from users.staff to auth.accounts
+-- This simplifies the authentication chain from Account→Person→Staff→PIN to Account→PIN
+
+-- Add PIN fields to auth.accounts table
+ALTER TABLE auth.accounts 
 ADD COLUMN pin_hash VARCHAR(255),
 ADD COLUMN pin_attempts INTEGER DEFAULT 0,
-ADD COLUMN pin_locked_until TIMESTAMP;
+ADD COLUMN pin_locked_until TIMESTAMPTZ;
+
+-- Remove PIN fields from users.staff table (if they existed)
+-- ALTER TABLE users.staff 
+-- DROP COLUMN pin_hash,
+-- DROP COLUMN pin_attempts,
+-- DROP COLUMN pin_locked_until;
 ```
+
+### PIN Architecture Benefits ✅ IMPLEMENTED
+The simplified PIN architecture provides several advantages:
+
+- **Simplified Storage**: PINs stored directly in `auth.accounts` table (not `users.staff`)
+- **Reduced Complexity**: Eliminates complex Account→Person→Staff→PIN lookup chain
+- **Better Performance**: Direct account lookup vs. iterative staff searches
+- **Centralized Authentication**: All authentication data in one table
+- **Maintained Security**: Two-layer device authentication preserved
+- **Easier Maintenance**: Single source of truth for authentication data
 
 ### 3. Add Device Authentication
 ```sql
@@ -516,7 +579,7 @@ CREATE TABLE device_sessions (
 
 ## Implementation Progress Status
 
-**Overall Progress: ~85% Complete** (Last updated: June 2025)
+**Overall Progress: ~88% Complete** (Last updated: June 2025)
 
 ### What's Currently Working ✅
 1. **✅ Database Schema**: RFID system tables with API keys, PIN storage, health monitoring (5/5 migrations complete)
@@ -534,6 +597,7 @@ CREATE TABLE device_sessions (
 13. **✅ CORS Configuration**: Device authentication headers properly configured
 14. **✅ Teacher-Student APIs**: Device endpoints for teachers to see their supervised students with GDPR compliance
 15. **✅ Quick Activity Creation**: Mobile-optimized endpoint for teachers to create activities with auto-supervision
+16. **✅ Device Activity Selection**: Teachers can view and select today's activities on RFID devices (`/api/iot/activities`)
 
 ### Critical Gaps Remaining ❌
 1. **🚨 NEXT PRIORITY: Activity Session Management**: Activity conflict detection and session start/end for devices
@@ -582,11 +646,13 @@ CREATE TABLE device_sessions (
 - [x] **✅ COMPLETED: My students endpoint for teachers** (filtered by teacher's groups with GDPR compliance)
 - [x] **✅ COMPLETED: Student-group relationship filtering** (privacy-compliant data access)
 
-**✅ COMPLETED - Mobile Activity Creation**
+**✅ COMPLETED - Mobile Activity Creation & Device Selection**
 - [x] **✅ Quick activity creation endpoint** (mobile-optimized activity creation - `/api/activities/quick-create`)
 - [x] **✅ Teacher auto-assignment as supervisor** (authenticated teacher becomes primary supervisor)
 - [x] **✅ Smart defaults for mobile** (is_open=true, no complex scheduling, immediate availability)
 - [x] **✅ Mobile-optimized request/response** (minimal required fields, enhanced response with context)
+- [x] **✅ Device activity selection API** (teachers can see their today activities on RFID devices - `/api/iot/activities`)
+- [x] **✅ Activity filtering for devices** (today's/active only with enrollment counts and room assignments)
 
 **🚨 CURRENT PRIORITY - Activity Session Management**
 - [ ] **🚨 NEXT: Activity conflict detection** (one device per activity validation)
@@ -741,6 +807,30 @@ curl -X GET http://localhost:8080/api/activities/categories \
   -H "Authorization: Bearer teacher_jwt_token..."
 
 # Expected: List of activity categories (Sport, Kunst & Basteln, Musik, etc.)
+```
+
+**✅ Teacher Activity Selection (RFID Device):**
+```bash
+# Device can get teacher's today activities for selection
+curl -X GET http://localhost:8080/api/iot/activities \
+  -H "Authorization: Bearer dev_xyz123..." \
+  -H "X-Staff-PIN: 1234"
+
+# Expected: List of activities supervised by authenticated teacher for today
+# [
+#   {
+#     "id": 123,
+#     "name": "Bastelstunde",
+#     "category_name": "Kunst & Basteln",
+#     "category_color": "#FF6B6B",
+#     "room_name": "Werkraum 1",
+#     "enrollment_count": 8,
+#     "max_participants": 15,
+#     "has_spots": true,
+#     "supervisor_name": "Frau Schmidt",
+#     "is_active": true
+#   }
+# ]
 ```
 
 **✅ Device Registration & Authentication:**
@@ -913,12 +1003,13 @@ curl -X GET http://localhost:8080/api/iot/students \
 
 **✅ ACHIEVED:**
 8. **Teachers can create activities on mobile** - Mobile API endpoint complete (`/api/activities/quick-create`)
+9. **Teachers can select activities on devices** - Device activity selection API complete (`/api/iot/activities`)
 
 **🚨 IN PROGRESS:**
-9. **Dashboard shows attendance (5-min refresh)** - Frontend integration needed
+10. **Dashboard shows attendance (5-min refresh)** - Frontend integration needed
 
 **📋 REMAINING:**
-10. **Activities auto-end after 30 minutes** - Session management needed
-11. **System works with intermittent network** - Pi app feature
+11. **Activities auto-end after 30 minutes** - Session management needed
+12. **System works with intermittent network** - Pi app feature
 
-**CURRENT STATUS: 8/11 criteria fully met (73% complete → mobile milestone achieved!)**
+**CURRENT STATUS: 9/12 criteria fully met (75% complete → device selection milestone achieved!)**
