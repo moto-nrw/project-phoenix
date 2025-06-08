@@ -1030,3 +1030,24 @@ func (m *SimpleMockActiveService) GetRoomUtilization(ctx context.Context, roomID
 func (m *SimpleMockActiveService) GetStudentAttendanceRate(ctx context.Context, studentID int64) (float64, error) {
 	return 0, nil
 }
+
+// Activity Session Management with Conflict Detection
+func (m *SimpleMockActiveService) StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64) (*active.Group, error) {
+	return nil, nil
+}
+
+func (m *SimpleMockActiveService) CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*activeSvc.ActivityConflictInfo, error) {
+	return &activeSvc.ActivityConflictInfo{}, nil
+}
+
+func (m *SimpleMockActiveService) EndActivitySession(ctx context.Context, activeGroupID int64) error {
+	return nil
+}
+
+func (m *SimpleMockActiveService) ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64) (*active.Group, error) {
+	return nil, nil
+}
+
+func (m *SimpleMockActiveService) GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error) {
+	return nil, nil
+}
