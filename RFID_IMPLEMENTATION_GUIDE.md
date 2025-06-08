@@ -782,8 +782,8 @@ CREATE TABLE device_sessions (
 23. **✅ Background Cleanup Service**: Automated cleanup of abandoned sessions with safety thresholds
 
 ### Critical Gaps Remaining ❌
-1. **Frontend UI**: Device management interfaces and mobile activity creation
-2. **Mobile Integration**: Activity creation forms and device management interfaces
+1. **Frontend UI**: Core production interfaces (device registration, mobile activity creation, PIN management)
+2. **Mobile Integration**: Activity creation forms optimized for teacher workflows
 
 ### Implementation Priority Order
 **✅ Phase 1 (COMPLETED)**: Device authentication middleware and PIN validation endpoints
@@ -849,16 +849,17 @@ CREATE TABLE device_sessions (
 - [x] **✅ Activity tracking integration** (automatic timeout reset on RFID scans and UI interactions)
 - [x] **✅ Timeout configuration management** (global defaults with device-specific overrides)
 
-**📋 REMAINING - Frontend Development**
-- [ ] **Default PIN migration for existing teachers** (set default PINs)
-- [ ] **Frontend UI development** (device management interfaces)
+**📋 REMAINING - Frontend Development (Production-Ready Core)**
+- [ ] **Mobile activity creation form** (teachers create activities on phones)
+- [ ] **Device registration page** (`/database/devices`) (admins register RFID devices) 
+- [ ] **PIN management interface** (teachers set/change PINs in user settings)
 
 #### Frontend Tasks
 - [ ] Mobile activity creation form
 - [ ] PIN management in user settings
 - [ ] Device registration page (`/database/devices`)
-- [ ] Device status monitoring dashboard
-- [ ] Device lifecycle management UI (activate/deactivate)
+- [ ] ~~Device status monitoring dashboard~~ (LATER - Administrative nice-to-have)
+- [ ] ~~Device lifecycle management UI (activate/deactivate)~~ (LATER - Administrative nice-to-have)
 
 ### PyrePortal (Pi App)
 
@@ -959,9 +960,9 @@ CREATE TABLE device_sessions (
 - **🚨 PyrePortal Integration**: Connect with Pi app timeout detection
 
 **📋 FUTURE DEVELOPMENT:**
-- **Frontend Interfaces**: Device management UI and mobile activity creation
-- **Default PIN Setup**: Migration for existing teachers
-- **Advanced Features**: Multi-room activities, offline support, analytics
+- **Advanced Admin Features**: Device status monitoring dashboard, lifecycle management UI
+- **Enhanced Features**: Multi-room activities, offline support, analytics
+- **Optimization**: Performance monitoring, advanced device management
 
 ### What Can Be Tested Right Now ✅
 
