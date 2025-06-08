@@ -219,3 +219,71 @@ func (r *GroupRepository) FindBySourceIDs(ctx context.Context, sourceIDs []int64
 
 	return groups, nil
 }
+
+// Activity session conflict detection methods
+
+// FindActiveByGroupIDWithDevice finds all active instances of a specific activity group with device information
+func (r *GroupRepository) FindActiveByGroupIDWithDevice(ctx context.Context, groupID int64) ([]*active.Group, error) {
+	var groups []*active.Group
+	err := r.db.NewSelect().
+		Model(&groups).
+		Where("group_id = ? AND end_time IS NULL", groupID).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active by group ID with device",
+			Err: err,
+		}
+	}
+
+	return groups, nil
+}
+
+// FindActiveByDeviceID finds the current active session for a specific device
+func (r *GroupRepository) FindActiveByDeviceID(ctx context.Context, deviceID int64) (*active.Group, error) {
+	var group active.Group
+	err := r.db.NewSelect().
+		Model(&group).
+		Where("device_id = ? AND end_time IS NULL", deviceID).
+		Scan(ctx)
+
+	if err != nil {
+		if err.Error() == "sql: no rows in result set" {
+			return nil, nil // No active session found - not an error
+		}
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active by device ID",
+			Err: err,
+		}
+	}
+
+	return &group, nil
+}
+
+// CheckActivityDeviceConflict checks if an activity is already running on another device
+func (r *GroupRepository) CheckActivityDeviceConflict(ctx context.Context, activityID, excludeDeviceID int64) (bool, *active.Group, error) {
+	var group active.Group
+	query := r.db.NewSelect().
+		Model(&group).
+		Where("group_id = ? AND end_time IS NULL", activityID)
+
+	// Exclude the requesting device if specified
+	if excludeDeviceID > 0 {
+		query = query.Where("device_id != ? OR device_id IS NULL", excludeDeviceID)
+	}
+
+	err := query.Scan(ctx)
+	if err != nil {
+		if err.Error() == "sql: no rows in result set" {
+			return false, nil, nil // No conflict found
+		}
+		return false, nil, &modelBase.DatabaseError{
+			Op:  "check activity device conflict",
+			Err: err,
+		}
+	}
+
+	// Conflict found
+	return true, &group, nil
+}

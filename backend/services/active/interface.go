@@ -65,6 +65,13 @@ type Service interface {
 	GetGroupMappingsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*active.GroupMapping, error)
 	GetGroupMappingsByCombinedGroupID(ctx context.Context, combinedGroupID int64) ([]*active.GroupMapping, error)
 
+	// Activity Session Management with Conflict Detection
+	StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64) (*active.Group, error)
+	CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*ActivityConflictInfo, error)
+	EndActivitySession(ctx context.Context, activeGroupID int64) error
+	ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64) (*active.Group, error)
+	GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error)
+
 	// Analytics and statistics
 	GetActiveGroupsCount(ctx context.Context) (int, error)
 	GetTotalVisitsCount(ctx context.Context) (int, error)
@@ -133,4 +140,13 @@ type ActiveGroupInfo struct {
 	StudentCount int
 	Location     string
 	Status       string
+}
+
+// ActivityConflictInfo represents information about a detected activity conflict
+type ActivityConflictInfo struct {
+	HasConflict      bool         `json:"has_conflict"`
+	ConflictingGroup *active.Group `json:"conflicting_group,omitempty"`
+	ConflictingDevice *string      `json:"conflicting_device,omitempty"`
+	ConflictMessage  string       `json:"conflict_message"`
+	CanOverride      bool         `json:"can_override"`
 }

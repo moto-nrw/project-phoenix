@@ -96,6 +96,12 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/status", rs.deviceStatus)
 		r.Get("/students", rs.getTeacherStudents)
 		r.Get("/activities", rs.getTeacherActivities)
+
+		// Activity session management
+		r.Post("/session/start", rs.startActivitySession)
+		r.Post("/session/end", rs.endActivitySession)
+		r.Get("/session/current", rs.getCurrentSession)
+		r.Post("/session/check-conflict", rs.checkSessionConflict)
 	})
 
 	return r
@@ -1187,4 +1193,271 @@ func (rs *Resource) getTeacherActivities(w http.ResponseWriter, r *http.Request)
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Teacher activities retrieved successfully")
+}
+
+// Activity Session Management Handlers
+
+// SessionStartRequest represents a request to start an activity session
+type SessionStartRequest struct {
+	ActivityID int64 `json:"activity_id"`
+	Force      bool  `json:"force,omitempty"`
+}
+
+// SessionStartResponse represents the response when starting an activity session
+type SessionStartResponse struct {
+	ActiveGroupID   int64               `json:"active_group_id"`
+	ActivityID      int64               `json:"activity_id"`
+	DeviceID        int64               `json:"device_id"`
+	StartTime       time.Time           `json:"start_time"`
+	ConflictInfo    *ConflictInfoResponse `json:"conflict_info,omitempty"`
+	Status          string              `json:"status"`
+	Message         string              `json:"message"`
+}
+
+// ConflictInfoResponse represents conflict information for API responses
+type ConflictInfoResponse struct {
+	HasConflict       bool   `json:"has_conflict"`
+	ConflictingDevice *int64 `json:"conflicting_device,omitempty"`
+	ConflictMessage   string `json:"conflict_message"`
+	CanOverride       bool   `json:"can_override"`
+}
+
+// SessionCurrentResponse represents the current session information
+type SessionCurrentResponse struct {
+	ActiveGroupID *int64    `json:"active_group_id,omitempty"`
+	ActivityID    *int64    `json:"activity_id,omitempty"`
+	DeviceID      int64     `json:"device_id"`
+	StartTime     *time.Time `json:"start_time,omitempty"`
+	Duration      *string   `json:"duration,omitempty"`
+	IsActive      bool      `json:"is_active"`
+}
+
+// Bind validates the session start request
+func (req *SessionStartRequest) Bind(r *http.Request) error {
+	return validation.ValidateStruct(req,
+		validation.Field(&req.ActivityID, validation.Required, validation.Min(int64(1))),
+	)
+}
+
+// startActivitySession handles starting an activity session on a device
+func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device and staff from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	staffCtx := device.StaffFromCtx(r.Context())
+
+	if deviceCtx == nil || staffCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Parse request
+	req := &SessionStartRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	var activeGroup *active.Group
+	var err error
+
+	if req.Force {
+		// Force start with override
+		activeGroup, err = rs.ActiveService.ForceStartActivitySession(r.Context(), req.ActivityID, deviceCtx.ID, staffCtx.ID)
+	} else {
+		// Normal start with conflict detection
+		activeGroup, err = rs.ActiveService.StartActivitySession(r.Context(), req.ActivityID, deviceCtx.ID, staffCtx.ID)
+	}
+
+	if err != nil {
+		// Check if this is a conflict error and provide conflict info
+		if errors.Is(err, activeSvc.ErrSessionConflict) || errors.Is(err, activeSvc.ErrActivityAlreadyActive) || errors.Is(err, activeSvc.ErrDeviceAlreadyActive) {
+			// Get conflict details
+			conflictInfo, conflictErr := rs.ActiveService.CheckActivityConflict(r.Context(), req.ActivityID, deviceCtx.ID)
+			if conflictErr == nil && conflictInfo.HasConflict {
+				response := SessionStartResponse{
+					Status:  "conflict",
+					Message: conflictInfo.ConflictMessage,
+					ConflictInfo: &ConflictInfoResponse{
+						HasConflict:     conflictInfo.HasConflict,
+						ConflictMessage: conflictInfo.ConflictMessage,
+						CanOverride:     conflictInfo.CanOverride,
+					},
+				}
+				if conflictInfo.ConflictingDevice != nil {
+					if deviceID, parseErr := strconv.ParseInt(*conflictInfo.ConflictingDevice, 10, 64); parseErr == nil {
+						response.ConflictInfo.ConflictingDevice = &deviceID
+					}
+				}
+				common.Respond(w, r, http.StatusConflict, response, "Session conflict detected")
+				return
+			}
+		}
+
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Success response
+	response := SessionStartResponse{
+		ActiveGroupID: activeGroup.ID,
+		ActivityID:    activeGroup.GroupID,
+		DeviceID:      deviceCtx.ID,
+		StartTime:     activeGroup.StartTime,
+		Status:        "started",
+		Message:       "Activity session started successfully",
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Activity session started successfully")
+}
+
+// endActivitySession handles ending the current activity session on a device
+func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device and staff from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	staffCtx := device.StaffFromCtx(r.Context())
+
+	if deviceCtx == nil || staffCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Get current session for this device
+	currentSession, err := rs.ActiveService.GetDeviceCurrentSession(r.Context(), deviceCtx.ID)
+	if err != nil {
+		if errors.Is(err, activeSvc.ErrNoActiveSession) {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("no active session to end"))); err != nil {
+				log.Printf("Render error: %v", err)
+			}
+			return
+		}
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// End the session
+	if err := rs.ActiveService.EndActivitySession(r.Context(), currentSession.ID); err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	response := map[string]interface{}{
+		"active_group_id": currentSession.ID,
+		"activity_id":     currentSession.GroupID,
+		"device_id":       deviceCtx.ID,
+		"ended_at":        time.Now(),
+		"duration":        time.Since(currentSession.StartTime).String(),
+		"status":          "ended",
+		"message":         "Activity session ended successfully",
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Activity session ended successfully")
+}
+
+// getCurrentSession handles getting the current session information for a device
+func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	staffCtx := device.StaffFromCtx(r.Context())
+
+	if deviceCtx == nil || staffCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Get current session for this device
+	currentSession, err := rs.ActiveService.GetDeviceCurrentSession(r.Context(), deviceCtx.ID)
+	
+	response := SessionCurrentResponse{
+		DeviceID: deviceCtx.ID,
+		IsActive: false,
+	}
+
+	if err != nil {
+		if errors.Is(err, activeSvc.ErrNoActiveSession) {
+			// No active session - return empty response with IsActive: false
+			common.Respond(w, r, http.StatusOK, response, "No active session")
+			return
+		}
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Session found - populate response
+	response.IsActive = true
+	response.ActiveGroupID = &currentSession.ID
+	response.ActivityID = &currentSession.GroupID
+	response.StartTime = &currentSession.StartTime
+	duration := time.Since(currentSession.StartTime).String()
+	response.Duration = &duration
+
+	common.Respond(w, r, http.StatusOK, response, "Current session retrieved successfully")
+}
+
+// checkSessionConflict handles checking for conflicts before starting a session
+func (rs *Resource) checkSessionConflict(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device and staff from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	staffCtx := device.StaffFromCtx(r.Context())
+
+	if deviceCtx == nil || staffCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Parse request
+	req := &SessionStartRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Check for conflicts
+	conflictInfo, err := rs.ActiveService.CheckActivityConflict(r.Context(), req.ActivityID, deviceCtx.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	response := ConflictInfoResponse{
+		HasConflict:     conflictInfo.HasConflict,
+		ConflictMessage: conflictInfo.ConflictMessage,
+		CanOverride:     conflictInfo.CanOverride,
+	}
+
+	if conflictInfo.ConflictingDevice != nil {
+		if deviceID, parseErr := strconv.ParseInt(*conflictInfo.ConflictingDevice, 10, 64); parseErr == nil {
+			response.ConflictingDevice = &deviceID
+		}
+	}
+
+	statusCode := http.StatusOK
+	message := "No conflicts detected"
+	if conflictInfo.HasConflict {
+		statusCode = http.StatusConflict
+		message = "Conflict detected"
+	}
+
+	common.Respond(w, r, statusCode, response, message)
 }

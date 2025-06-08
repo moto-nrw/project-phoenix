@@ -24,6 +24,12 @@ var (
 	ErrStaffAlreadySupervising   = errors.New("staff member already supervising this group")
 	ErrInvalidData               = errors.New("invalid data provided")
 	ErrDatabaseOperation         = errors.New("database operation failed")
+	// Activity session management errors
+	ErrActivityAlreadyActive     = errors.New("activity is already active on another device")
+	ErrDeviceAlreadyActive       = errors.New("device is already running an activity session")
+	ErrNoActiveSession           = errors.New("no active session found")
+	ErrSessionConflict           = errors.New("session conflict detected")
+	ErrInvalidActivitySession    = errors.New("invalid activity session parameters")
 )
 
 // ActiveError represents an error that occurred in the active service

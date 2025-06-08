@@ -85,6 +85,19 @@ func createActiveGroupsTable(ctx context.Context, db *bun.DB) error {
 		-- Index for finding active sessions (where end_time is null)
 		CREATE INDEX IF NOT EXISTS idx_active_groups_currently_active ON active.groups(group_id)
 		WHERE end_time IS NULL;
+
+		-- Performance indexes for session conflict detection
+		-- Composite index for activity conflict detection: WHERE group_id = ? AND end_time IS NULL
+		CREATE INDEX IF NOT EXISTS idx_active_groups_conflict_detection
+		ON active.groups(group_id, device_id, end_time) WHERE end_time IS NULL;
+
+		-- Index for device session lookup: WHERE device_id = ? AND end_time IS NULL
+		CREATE INDEX IF NOT EXISTS idx_active_groups_device_session
+		ON active.groups(device_id, end_time) WHERE device_id IS NOT NULL AND end_time IS NULL;
+
+		-- Index for room-based active queries: WHERE room_id = ? AND end_time IS NULL  
+		CREATE INDEX IF NOT EXISTS idx_active_groups_room_active
+		ON active.groups(room_id, end_time) WHERE end_time IS NULL;
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating indexes for active_groups table: %w", err)
