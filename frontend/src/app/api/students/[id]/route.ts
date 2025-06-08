@@ -78,7 +78,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
         };
       }
     } catch {
-      console.log("No privacy consent found for student, using defaults");
+      // No privacy consent found, use defaults
     }
     
     // Return student with default privacy consent values if not found
