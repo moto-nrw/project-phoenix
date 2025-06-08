@@ -1,0 +1,71 @@
+# Docker Compose configuration for automated cleanup service
+# This can be used alongside the main docker-compose.yml
+
+version: '3.8'
+
+services:
+  cleanup-scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: phoenix-cleanup-scheduler
+    environment:
+      # Database connection (must match main service)
+      DB_DSN: ${DB_DSN:-postgres://postgres:postgres@postgres:5432/postgres?sslmode=require}
+      
+      # Cleanup configuration
+      CLEANUP_TIME: ${CLEANUP_TIME:-02:00}
+      PROJECT_DIR: /app
+      LOG_DIR: /app/logs
+      
+      # Other required environment variables
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ./backend/logs:/app/logs
+      - ./config/ssl/postgres/certs:/certs:ro
+    networks:
+      - phoenix-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Override the default command to run the cron setup
+    command: >
+      sh -c "
+        echo 'Setting up cleanup cron job...' &&
+        ./scripts/cleanup-cron.sh &&
+        echo 'Starting cron daemon...' &&
+        cron -f
+      "
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "pgrep", "cron"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Alternative: Run cleanup as a one-off task (for testing or manual execution)
+  cleanup-manual:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: phoenix-cleanup-manual
+    environment:
+      DB_DSN: ${DB_DSN:-postgres://postgres:postgres@postgres:5432/postgres?sslmode=require}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ./config/ssl/postgres/certs:/certs:ro
+    networks:
+      - phoenix-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ./main cleanup visits
+    # This service exits after running, no restart
+    restart: "no"
+
+networks:
+  phoenix-network:
+    external: true
+    name: project-phoenix_default

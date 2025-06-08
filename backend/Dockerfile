@@ -20,7 +20,7 @@ RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
 
 # Multi-Stage production build
 FROM alpine AS production
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates bash cron
 
 WORKDIR /app
 # Retrieve the binary from the previous stage
@@ -29,6 +29,9 @@ COPY --from=builder /src/main .
 COPY templates templates
 # Copy frontend
 COPY public public
+# Copy scripts
+COPY scripts scripts
+RUN chmod +x scripts/*.sh
 # Expose port
 EXPOSE 8080
 # Set the binary as the entrypoint of the container
