@@ -19,22 +19,25 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // Resource defines the activities API resource
 type Resource struct {
-	ActivityService activitiesSvc.ActivityService
-	ScheduleService scheduleSvc.Service
-	UserService     usersSvc.PersonService
+	ActivityService    activitiesSvc.ActivityService
+	ScheduleService    scheduleSvc.Service
+	UserService        usersSvc.PersonService
+	UserContextService usercontextSvc.UserContextService
 }
 
 // NewResource creates a new activities resource
-func NewResource(activityService activitiesSvc.ActivityService, scheduleService scheduleSvc.Service, userService usersSvc.PersonService) *Resource {
+func NewResource(activityService activitiesSvc.ActivityService, scheduleService scheduleSvc.Service, userService usersSvc.PersonService, userContextService usercontextSvc.UserContextService) *Resource {
 	return &Resource{
-		ActivityService: activityService,
-		ScheduleService: scheduleService,
-		UserService:     userService,
+		ActivityService:    activityService,
+		ScheduleService:    scheduleService,
+		UserService:        userService,
+		UserContextService: userContextService,
 	}
 }
 
@@ -59,6 +62,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// Basic Activity Group operations (Write)
 		r.With(authorize.RequiresPermission(permissions.ActivitiesCreate)).Post("/", rs.createActivity)
+		r.With(authorize.RequiresPermission(permissions.ActivitiesCreate)).Post("/quick-create", rs.quickCreateActivity)
 		r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate)).Put("/{id}", rs.updateActivity)
 		r.With(authorize.RequiresPermission(permissions.ActivitiesDelete)).Delete("/{id}", rs.deleteActivity)
 
@@ -163,6 +167,26 @@ type ActivityRequest struct {
 	SupervisorIDs   []int64           `json:"supervisor_ids,omitempty"`
 }
 
+// QuickActivityRequest represents a simplified activity creation request for mobile devices
+type QuickActivityRequest struct {
+	Name            string `json:"name"`
+	CategoryID      int64  `json:"category_id"`
+	RoomID          *int64 `json:"room_id,omitempty"`
+	MaxParticipants int    `json:"max_participants"`
+}
+
+// QuickActivityResponse represents the response after creating an activity via quick-create
+type QuickActivityResponse struct {
+	ActivityID     int64     `json:"activity_id"`
+	Name           string    `json:"name"`
+	CategoryName   string    `json:"category_name"`
+	RoomName       string    `json:"room_name,omitempty"`
+	SupervisorName string    `json:"supervisor_name"`
+	Status         string    `json:"status"`
+	Message        string    `json:"message"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
 // ScheduleRequest represents a schedule in activity creation/update request
 type ScheduleRequest struct {
 	Weekday     int    `json:"weekday"`
@@ -190,6 +214,20 @@ func (req *ActivityRequest) Bind(r *http.Request) error {
 		}
 	}
 
+	return nil
+}
+
+// Bind validates the quick activity request
+func (req *QuickActivityRequest) Bind(r *http.Request) error {
+	if req.Name == "" {
+		return errors.New("activity name is required")
+	}
+	if req.CategoryID <= 0 {
+		return errors.New("category ID is required")
+	}
+	if req.MaxParticipants <= 0 {
+		return errors.New("max participants must be greater than zero")
+	}
 	return nil
 }
 
@@ -571,6 +609,76 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:       createdGroup.UpdatedAt,
 		EnrollmentCount: 0,
 		Schedules:       []ScheduleResponse{}, // Always use empty slice, not nil
+	}
+
+	common.Respond(w, r, http.StatusCreated, response, "Activity created successfully")
+}
+
+// quickCreateActivity handles creating a new activity with mobile-optimized interface
+func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) {
+	// Parse request
+	req := &QuickActivityRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Extract authenticated teacher from JWT context
+	teacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
+	if err != nil {
+		if err := render.Render(w, r, ErrorUnauthorized(errors.New("user is not a teacher"))); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Create activity group with smart defaults
+	group := &activities.Group{
+		Name:            req.Name,
+		MaxParticipants: req.MaxParticipants,
+		IsOpen:          true, // Default to true for quick-create
+		CategoryID:      req.CategoryID,
+		PlannedRoomID:   req.RoomID,
+	}
+
+	// Auto-assign authenticated teacher as primary supervisor
+	supervisorIDs := []int64{teacher.ID}
+
+	// Create the activity group with auto-assigned teacher supervision
+	createdGroup, err := rs.ActivityService.CreateGroup(r.Context(), group, supervisorIDs, nil)
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Build enhanced response with additional context
+	response := QuickActivityResponse{
+		ActivityID: createdGroup.ID,
+		Name:       createdGroup.Name,
+		Status:     "created",
+		Message:    "Activity created successfully and ready for RFID device selection",
+		CreatedAt:  createdGroup.CreatedAt,
+	}
+
+	// Get category name for response
+	if category, err := rs.ActivityService.GetCategory(r.Context(), req.CategoryID); err == nil && category != nil {
+		response.CategoryName = category.Name
+	}
+
+	// Get room name if room was specified
+	if req.RoomID != nil {
+		// Assuming there's a room service available via UserService or similar
+		// For now, we'll leave it empty since room service access wasn't specified
+		response.RoomName = ""
+	}
+
+	// Add supervisor name to response
+	if teacher.Staff != nil && teacher.Staff.Person != nil {
+		response.SupervisorName = fmt.Sprintf("%s %s", teacher.Staff.Person.FirstName, teacher.Staff.Person.LastName)
 	}
 
 	common.Respond(w, r, http.StatusCreated, response, "Activity created successfully")
