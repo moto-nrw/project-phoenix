@@ -72,6 +72,13 @@ type Service interface {
 	ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64) (*active.Group, error)
 	GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error)
 
+	// Session timeout operations
+	ProcessSessionTimeout(ctx context.Context, deviceID int64) (*TimeoutResult, error)
+	UpdateSessionActivity(ctx context.Context, activeGroupID int64) error
+	ValidateSessionTimeout(ctx context.Context, deviceID int64, timeoutMinutes int) error
+	GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*SessionTimeoutInfo, error)
+	CleanupAbandonedSessions(ctx context.Context, olderThan time.Duration) (int, error)
+
 	// Analytics and statistics
 	GetActiveGroupsCount(ctx context.Context) (int, error)
 	GetTotalVisitsCount(ctx context.Context) (int, error)
@@ -149,4 +156,25 @@ type ActivityConflictInfo struct {
 	ConflictingDevice *string      `json:"conflicting_device,omitempty"`
 	ConflictMessage  string       `json:"conflict_message"`
 	CanOverride      bool         `json:"can_override"`
+}
+
+// TimeoutResult represents the result of processing a session timeout
+type TimeoutResult struct {
+	SessionID          int64     `json:"session_id"`
+	ActivityID         int64     `json:"activity_id"`
+	StudentsCheckedOut int       `json:"students_checked_out"`
+	TimeoutAt          time.Time `json:"timeout_at"`
+}
+
+// SessionTimeoutInfo provides information about a session's timeout status
+type SessionTimeoutInfo struct {
+	SessionID           int64         `json:"session_id"`
+	ActivityID          int64         `json:"activity_id"`
+	StartTime           time.Time     `json:"start_time"`
+	LastActivity        time.Time     `json:"last_activity"`
+	TimeoutMinutes      int           `json:"timeout_minutes"`
+	InactivityDuration  time.Duration `json:"inactivity_duration"`
+	TimeUntilTimeout    time.Duration `json:"time_until_timeout"`
+	IsTimedOut          bool          `json:"is_timed_out"`
+	ActiveStudentCount  int           `json:"active_student_count"`
 }

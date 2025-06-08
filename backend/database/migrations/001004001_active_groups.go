@@ -54,6 +54,8 @@ func createActiveGroupsTable(ctx context.Context, db *bun.DB) error {
 			id BIGSERIAL PRIMARY KEY,
 			start_time TIMESTAMPTZ NOT NULL, -- Required start time
 			end_time TIMESTAMPTZ,           -- Optional end time
+			last_activity TIMESTAMPTZ NOT NULL DEFAULT NOW(), -- Activity tracking for timeout
+			timeout_minutes INTEGER DEFAULT 30,               -- Session timeout config
 			group_id BIGINT NOT NULL,        -- Reference to activities.groups
 			device_id BIGINT,                -- Reference to iot.devices (optional for RFID)
 			room_id BIGINT NOT NULL,         -- Reference to facilities.rooms
@@ -98,6 +100,10 @@ func createActiveGroupsTable(ctx context.Context, db *bun.DB) error {
 		-- Index for room-based active queries: WHERE room_id = ? AND end_time IS NULL  
 		CREATE INDEX IF NOT EXISTS idx_active_groups_room_active
 		ON active.groups(room_id, end_time) WHERE end_time IS NULL;
+
+		-- Index for timeout monitoring queries: active sessions with last_activity tracking
+		CREATE INDEX IF NOT EXISTS idx_active_groups_timeout_monitoring
+		ON active.groups(last_activity, end_time) WHERE end_time IS NULL;
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating indexes for active_groups table: %w", err)

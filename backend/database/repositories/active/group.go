@@ -287,3 +287,85 @@ func (r *GroupRepository) CheckActivityDeviceConflict(ctx context.Context, activ
 	// Conflict found
 	return true, &group, nil
 }
+
+// UpdateLastActivity updates the last activity timestamp for a session
+func (r *GroupRepository) UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error {
+	// Use the base repository's transaction support
+	query := r.db.NewUpdate().
+		Model((*active.Group)(nil)).
+		Set("last_activity = ?", lastActivity).
+		Set("updated_at = ?", time.Now()).
+		Where("id = ? AND end_time IS NULL", id)
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update last activity",
+			Err: err,
+		}
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update last activity - check rows affected",
+			Err: err,
+		}
+	}
+
+	if rowsAffected == 0 {
+		return &modelBase.DatabaseError{
+			Op:  "update last activity - session not found",
+			Err: fmt.Errorf("active group with id %d not found or already ended", id),
+		}
+	}
+
+	return nil
+}
+
+// FindActiveSessionsOlderThan finds active sessions that haven't had activity since the cutoff time
+func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*active.Group, error) {
+	var groups []*active.Group
+	err := r.db.NewSelect().
+		Model(&groups).
+		Where("end_time IS NULL").                        // Only active sessions
+		Where("last_activity < ?", cutoffTime).           // Haven't had activity since cutoff
+		Where("device_id IS NOT NULL").                   // Only device-managed sessions
+		Order("last_activity ASC").                       // Oldest first
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active sessions older than",
+			Err: err,
+		}
+	}
+
+	return groups, nil
+}
+
+// FindInactiveSessions finds sessions that have been inactive for the specified duration
+func (r *GroupRepository) FindInactiveSessions(ctx context.Context, inactiveDuration time.Duration) ([]*active.Group, error) {
+	cutoffTime := time.Now().Add(-inactiveDuration)
+	
+	var groups []*active.Group
+	err := r.db.NewSelect().
+		Model(&groups).
+		Where("end_time IS NULL").                        // Only active sessions
+		Where("last_activity < ?", cutoffTime).           // Inactive for specified duration
+		Where("device_id IS NOT NULL").                   // Only device-managed sessions
+		Where("timeout_minutes > 0").                     // Has timeout configured
+		// Only include sessions where inactivity exceeds their configured timeout
+		Where("EXTRACT(EPOCH FROM (NOW() - last_activity))/60 >= timeout_minutes").
+		Order("last_activity ASC").                       // Oldest first
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find inactive sessions",
+			Err: err,
+		}
+	}
+
+	return groups, nil
+}

@@ -119,7 +119,7 @@ Student → RFID Tag → Pi Device → Moto API
 ```
 Teacher → Pi Device
 1. Teacher clicks "End Activity" button
-2. OR 30 minutes of no interaction triggers auto-end (any button/scan resets timer)
+2. OR device reports timeout after configured inactivity period (default 30 minutes, any interaction resets timer)
 3. All students marked as checked out
 4. Device returns to activity selection
 5. Next teacher can use device
@@ -605,6 +605,89 @@ Response (Conflict): {
 // Performance optimized with composite indexes for < 10ms responses
 ```
 
+### Session Timeout Management ✅ IMPLEMENTED
+
+#### Session Timeout Configuration
+```typescript
+GET /api/iot/session/timeout-config
+Headers: {
+  "Authorization": "Bearer dev_xyz123...",
+  "X-Staff-PIN": "1234"
+}
+Response: {
+  "timeout_minutes": 30,
+  "warning_minutes": 5,
+  "check_interval_seconds": 30
+}
+
+// Process timeout when device detects inactivity
+POST /api/iot/session/timeout
+Headers: {
+  "Authorization": "Bearer dev_xyz123...",
+  "X-Staff-PIN": "1234"
+}
+Response: {
+  "session_id": 456,
+  "activity_id": 123,
+  "students_checked_out": 8,
+  "timeout_at": "2025-06-08T15:30:00Z",
+  "status": "completed",
+  "message": "Session ended due to timeout. 8 students checked out."
+}
+
+// Get comprehensive timeout information
+GET /api/iot/session/timeout-info
+Headers: {
+  "Authorization": "Bearer dev_xyz123...",
+  "X-Staff-PIN": "1234"
+}
+Response: {
+  "session_id": 456,
+  "activity_id": 123,
+  "start_time": "2025-06-08T14:00:00Z",
+  "last_activity": "2025-06-08T14:25:00Z",
+  "timeout_minutes": 30,
+  "inactivity_seconds": 1500,
+  "time_until_timeout_seconds": 300,
+  "is_timed_out": false,
+  "active_student_count": 8
+}
+
+// Validate timeout request (security check)
+POST /api/iot/session/validate-timeout
+Headers: {
+  "Authorization": "Bearer dev_xyz123...",
+  "X-Staff-PIN": "1234"
+}
+Request: {
+  "timeout_minutes": 30,
+  "last_activity": "2025-06-08T14:25:00Z"
+}
+Response: {
+  "valid": true,
+  "timeout_minutes": 30,
+  "last_activity": "2025-06-08T14:25:00Z",
+  "validated_at": "2025-06-08T14:55:00Z"
+}
+
+// Update session activity (resets timeout)
+POST /api/iot/session/activity
+Headers: {
+  "Authorization": "Bearer dev_xyz123...",
+  "X-Staff-PIN": "1234"
+}
+Request: {
+  "activity_type": "student_scan",
+  "timestamp": "2025-06-08T14:55:00Z"
+}
+Response: {
+  "session_id": 456,
+  "updated_at": "2025-06-08T14:55:00Z",
+  "timeout_reset": true,
+  "message": "Session activity updated successfully"
+}
+```
+
 ## Database Changes Required
 
 ### 1. Make device_id Optional in active_groups
@@ -671,7 +754,7 @@ CREATE TABLE device_sessions (
 
 ## Implementation Progress Status
 
-**Overall Progress: ~95% Complete** (Last updated: June 2025)
+**Overall Progress: ~98% Complete** (Last updated: June 2025)
 
 ### What's Currently Working ✅
 1. **✅ Database Schema**: RFID system tables with API keys, PIN storage, health monitoring (5/5 migrations complete)
@@ -694,11 +777,13 @@ CREATE TABLE device_sessions (
 18. **✅ Session Conflict Detection**: Atomic conflict detection with race condition prevention
 19. **✅ Performance Optimization**: Database indexes for < 10ms conflict detection queries
 20. **✅ Session Override Capabilities**: Administrative override for conflict resolution
+21. **✅ Session Timeout System**: Configurable timeout settings with device validation and automatic cleanup
+22. **✅ Timeout API Endpoints**: Complete timeout management with validation and info endpoints
+23. **✅ Background Cleanup Service**: Automated cleanup of abandoned sessions with safety thresholds
 
 ### Critical Gaps Remaining ❌
 1. **Frontend UI**: Device management interfaces and mobile activity creation
-2. **Session Management**: 30-minute timeouts and active session handling
-3. **Mobile Integration**: Activity creation forms and device management interfaces
+2. **Mobile Integration**: Activity creation forms and device management interfaces
 
 ### Implementation Priority Order
 **✅ Phase 1 (COMPLETED)**: Device authentication middleware and PIN validation endpoints
@@ -706,6 +791,7 @@ CREATE TABLE device_sessions (
 **✅ Phase 3 (COMPLETED)**: Teacher-student relationships and privacy-compliant APIs
 **✅ Phase 4A (COMPLETED)**: Quick activity creation for mobile devices
 **✅ Phase 4B (COMPLETED)**: Activity session management and conflict detection
+**✅ Phase 4C (COMPLETED)**: Session timeout system with background cleanup
 **Phase 5 (CURRENT)**: Build device management and mobile interfaces
 **Phase 6 (Integration)**: Connect with PyrePortal Pi app
 
@@ -756,8 +842,14 @@ CREATE TABLE device_sessions (
 - [x] **✅ Performance optimization** (database indexes for < 10ms conflict detection response times)
 - [x] **✅ Session lifecycle management** (atomic session creation, graceful termination, device session tracking)
 
-**📋 REMAINING - Session Management & Frontend**
-- [ ] **30-minute activity timeout logic** (automatic session ending)
+**✅ COMPLETED - Session Timeout Implementation**
+- [x] **✅ Session timeout system** (configurable timeout settings with device validation)
+- [x] **✅ Timeout API endpoints** (complete timeout management with validation and info endpoints)
+- [x] **✅ Background cleanup service** (automated cleanup of abandoned sessions with safety thresholds)
+- [x] **✅ Activity tracking integration** (automatic timeout reset on RFID scans and UI interactions)
+- [x] **✅ Timeout configuration management** (global defaults with device-specific overrides)
+
+**📋 REMAINING - Frontend Development**
 - [ ] **Default PIN migration for existing teachers** (set default PINs)
 - [ ] **Frontend UI development** (device management interfaces)
 
@@ -863,8 +955,8 @@ CREATE TABLE device_sessions (
 - **✅ Atomic Session Control**: Race condition prevention with transaction-level locking
 
 **🚨 CURRENT DEVELOPMENT FOCUS:**
-- **🚨 Session Timeouts**: 30-minute automatic session ending with inactivity detection
 - **🚨 Frontend Development**: Device management interfaces and mobile UI
+- **🚨 PyrePortal Integration**: Connect with Pi app timeout detection
 
 **📋 FUTURE DEVELOPMENT:**
 - **Frontend Interfaces**: Device management UI and mobile activity creation
@@ -1086,6 +1178,85 @@ curl -X GET http://localhost:8080/api/iot/students \
 - API keys never exposed in responses
 - Proper HTTP status codes for all error conditions
 
+**✅ Session Timeout Management:**
+```bash
+# 1. Get timeout configuration for device
+curl -X GET http://localhost:8080/api/iot/session/timeout-config \
+  -H "Authorization: Bearer dev_xyz123..." \
+  -H "X-Staff-PIN: 1234"
+
+# Expected: Timeout configuration
+# {
+#   "timeout_minutes": 30,
+#   "warning_minutes": 5,
+#   "check_interval_seconds": 30
+# }
+
+# 2. Get session timeout information
+curl -X GET http://localhost:8080/api/iot/session/timeout-info \
+  -H "Authorization: Bearer dev_xyz123..." \
+  -H "X-Staff-PIN: 1234"
+
+# Expected: Comprehensive timeout status
+# {
+#   "session_id": 456,
+#   "activity_id": 123,
+#   "inactivity_seconds": 1200,
+#   "time_until_timeout_seconds": 600,
+#   "is_timed_out": false,
+#   "active_student_count": 8
+# }
+
+# 3. Process timeout (when device detects inactivity)
+curl -X POST http://localhost:8080/api/iot/session/timeout \
+  -H "Authorization: Bearer dev_xyz123..." \
+  -H "X-Staff-PIN: 1234"
+
+# Expected: Session ended with student checkout
+# {
+#   "session_id": 456,
+#   "activity_id": 123,
+#   "students_checked_out": 8,
+#   "status": "completed",
+#   "message": "Session ended due to timeout. 8 students checked out."
+# }
+
+# 4. Reset timeout by updating activity
+curl -X POST http://localhost:8080/api/iot/session/activity \
+  -H "Authorization: Bearer dev_xyz123..." \
+  -H "X-Staff-PIN: 1234" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "activity_type": "student_scan",
+    "timestamp": "2025-06-08T14:55:00Z"
+  }'
+
+# Expected: Timeout reset confirmation
+# {
+#   "session_id": 456,
+#   "timeout_reset": true,
+#   "message": "Session activity updated successfully"
+# }
+
+# 5. Validate timeout request (security check)
+curl -X POST http://localhost:8080/api/iot/session/validate-timeout \
+  -H "Authorization: Bearer dev_xyz123..." \
+  -H "X-Staff-PIN: 1234" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "timeout_minutes": 30,
+    "last_activity": "2025-06-08T14:25:00Z"
+  }'
+
+# Expected: Validation confirmation
+# {
+#   "valid": true,
+#   "timeout_minutes": 30,
+#   "last_activity": "2025-06-08T14:25:00Z",
+#   "validated_at": "2025-06-08T14:55:00Z"
+# }
+```
+
 **✅ Code Quality:**
 - Implementation passes all linting checks (golangci-lint: 0 issues)
 - Follows established Go best practices and codebase patterns
@@ -1126,7 +1297,7 @@ curl -X GET http://localhost:8080/api/iot/students \
 - Activities shown: Today's and currently active only
 - Immediate availability: Activities available right after creation
 - Conflict handling: One device per activity, error message with override option
-- 30-minute timeout: Any interaction resets timer
+- Configurable timeout: Default 30 minutes with device-specific overrides (any interaction resets timer)
 - Crash recovery: On restart, option to resume active sessions
 - Auto-logout: Students automatically logged out when entering different room
 
@@ -1192,8 +1363,10 @@ curl -X GET http://localhost:8080/api/iot/students \
 **🚨 IN PROGRESS:**
 11. **Dashboard shows attendance (5-min refresh)** - Frontend integration needed
 
+**✅ ACHIEVED:**
+12. **Activities auto-end after configured timeout** - Session timeout system implemented with device validation
+
 **📋 REMAINING:**
-12. **Activities auto-end after 30 minutes** - Session timeout logic needed
 13. **System works with intermittent network** - Pi app feature
 
-**CURRENT STATUS: 10/13 criteria fully met (77% complete → session management milestone achieved!)**
+**CURRENT STATUS: 11/13 criteria fully met (85% complete → timeout management milestone achieved!)**

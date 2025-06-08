@@ -1142,11 +1142,14 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 		}
 
 		// Create new active group session
+		now := time.Now()
 		newGroup = &active.Group{
-			StartTime: time.Now(),
-			GroupID:   activityID,
-			DeviceID:  &deviceID,
-			RoomID:    1, // TODO: Get room from activity configuration
+			StartTime:      now,
+			LastActivity:   now,             // Initialize activity tracking
+			TimeoutMinutes: 30,              // Default 30 minutes timeout
+			GroupID:        activityID,
+			DeviceID:       &deviceID,
+			RoomID:         1, // TODO: Get room from activity configuration
 		}
 
 		if err := s.groupRepo.Create(ctx, newGroup); err != nil {
@@ -1191,11 +1194,14 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 		}
 
 		// Create new active group session
+		now := time.Now()
 		newGroup = &active.Group{
-			StartTime: time.Now(),
-			GroupID:   activityID,
-			DeviceID:  &deviceID,
-			RoomID:    1, // TODO: Get room from activity configuration
+			StartTime:      now,
+			LastActivity:   now,             // Initialize activity tracking
+			TimeoutMinutes: 30,              // Default 30 minutes timeout
+			GroupID:        activityID,
+			DeviceID:       &deviceID,
+			RoomID:         1, // TODO: Get room from activity configuration
 		}
 
 		if err := s.groupRepo.Create(ctx, newGroup); err != nil {
@@ -1280,4 +1286,157 @@ func (s *service) GetDeviceCurrentSession(ctx context.Context, deviceID int64) (
 	}
 
 	return session, nil
+}
+
+// ProcessSessionTimeout handles device-triggered session timeout
+func (s *service) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*TimeoutResult, error) {
+	// Validate device has active session
+	session, err := s.GetDeviceCurrentSession(ctx, deviceID)
+	if err != nil {
+		return nil, &ActiveError{Op: "ProcessSessionTimeout", Err: ErrNoActiveSession}
+	}
+
+	// Perform atomic cleanup: end session and checkout all students
+	var result *TimeoutResult
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// End all active visits first
+		visits, err := s.visitRepo.FindByActiveGroupID(ctx, session.ID)
+		if err != nil {
+			return err
+		}
+
+		studentsCheckedOut := 0
+		for _, visit := range visits {
+			if visit.IsActive() {
+				if err := s.visitRepo.EndVisit(ctx, visit.ID); err != nil {
+					return err
+				}
+				studentsCheckedOut++
+			}
+		}
+
+		// End the session
+		if err := s.groupRepo.EndSession(ctx, session.ID); err != nil {
+			return err
+		}
+
+		result = &TimeoutResult{
+			SessionID:          session.ID,
+			ActivityID:         session.GroupID,
+			StudentsCheckedOut: studentsCheckedOut,
+			TimeoutAt:          time.Now(),
+		}
+		return nil
+	})
+
+	return result, err
+}
+
+// UpdateSessionActivity updates the last activity timestamp for a session
+func (s *service) UpdateSessionActivity(ctx context.Context, activeGroupID int64) error {
+	// Get the current session to validate it exists and is active
+	session, err := s.groupRepo.FindByID(ctx, activeGroupID)
+	if err != nil {
+		return &ActiveError{Op: "UpdateSessionActivity", Err: err}
+	}
+
+	if session == nil {
+		return &ActiveError{Op: "UpdateSessionActivity", Err: ErrActiveGroupNotFound}
+	}
+
+	if !session.IsActive() {
+		return &ActiveError{Op: "UpdateSessionActivity", Err: ErrActiveGroupAlreadyEnded}
+	}
+
+	// Update last activity timestamp
+	return s.groupRepo.UpdateLastActivity(ctx, activeGroupID, time.Now())
+}
+
+// ValidateSessionTimeout validates if a timeout request is valid
+func (s *service) ValidateSessionTimeout(ctx context.Context, deviceID int64, timeoutMinutes int) error {
+	// Validate device has active session
+	session, err := s.GetDeviceCurrentSession(ctx, deviceID)
+	if err != nil {
+		return &ActiveError{Op: "ValidateSessionTimeout", Err: err}
+	}
+
+	// Validate timeout parameters
+	if timeoutMinutes <= 0 || timeoutMinutes > 480 { // Max 8 hours
+		return &ActiveError{Op: "ValidateSessionTimeout", Err: fmt.Errorf("invalid timeout minutes: %d", timeoutMinutes)}
+	}
+
+	// Check if session is actually timed out based on inactivity
+	timeoutDuration := time.Duration(timeoutMinutes) * time.Minute
+	inactivityDuration := time.Since(session.LastActivity)
+	
+	if inactivityDuration < timeoutDuration {
+		return &ActiveError{Op: "ValidateSessionTimeout", Err: fmt.Errorf("session not yet timed out: %v remaining", timeoutDuration-inactivityDuration)}
+	}
+
+	return nil
+}
+
+// GetSessionTimeoutInfo provides comprehensive timeout information for a device session
+func (s *service) GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*SessionTimeoutInfo, error) {
+	// Get current session
+	session, err := s.GetDeviceCurrentSession(ctx, deviceID)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetSessionTimeoutInfo", Err: err}
+	}
+
+	// Count active students in the session
+	visits, err := s.visitRepo.FindByActiveGroupID(ctx, session.ID)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetSessionTimeoutInfo", Err: err}
+	}
+
+	activeStudentCount := 0
+	for _, visit := range visits {
+		if visit.IsActive() {
+			activeStudentCount++
+		}
+	}
+
+	info := &SessionTimeoutInfo{
+		SessionID:           session.ID,
+		ActivityID:          session.GroupID,
+		StartTime:           session.StartTime,
+		LastActivity:        session.LastActivity,
+		TimeoutMinutes:      session.TimeoutMinutes,
+		InactivityDuration:  session.GetInactivityDuration(),
+		TimeUntilTimeout:    session.GetTimeUntilTimeout(),
+		IsTimedOut:          session.IsTimedOut(),
+		ActiveStudentCount:  activeStudentCount,
+	}
+
+	return info, nil
+}
+
+// CleanupAbandonedSessions cleans up sessions that have been abandoned for longer than the specified duration
+func (s *service) CleanupAbandonedSessions(ctx context.Context, olderThan time.Duration) (int, error) {
+	// Find sessions that have been active for longer than the threshold
+	cutoffTime := time.Now().Add(-olderThan)
+	
+	// This would require a new repository method to find sessions by last activity
+	// For now, let's implement a conservative approach
+	sessions, err := s.groupRepo.FindActiveSessionsOlderThan(ctx, cutoffTime)
+	if err != nil {
+		return 0, &ActiveError{Op: "CleanupAbandonedSessions", Err: err}
+	}
+
+	cleanedCount := 0
+	for _, session := range sessions {
+		// Only cleanup sessions that are clearly abandoned (more than 2x timeout threshold)
+		if session.GetInactivityDuration() >= 2*session.GetTimeoutDuration() {
+			// Use ProcessSessionTimeout to ensure proper cleanup
+			_, err := s.ProcessSessionTimeout(ctx, *session.DeviceID)
+			if err != nil {
+				// Log error but continue with other sessions
+				continue
+			}
+			cleanedCount++
+		}
+	}
+
+	return cleanedCount, nil
 }

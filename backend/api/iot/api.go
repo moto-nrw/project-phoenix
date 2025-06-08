@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -31,15 +32,17 @@ type Resource struct {
 	UsersService      usersSvc.PersonService
 	ActiveService     activeSvc.Service
 	ActivitiesService activitiesSvc.ActivityService
+	ConfigService     configSvc.Service
 }
 
 // NewResource creates a new IoT resource
-func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activeService activeSvc.Service, activitiesService activitiesSvc.ActivityService) *Resource {
+func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activeService activeSvc.Service, activitiesService activitiesSvc.ActivityService, configService configSvc.Service) *Resource {
 	return &Resource{
 		IoTService:        iotService,
 		UsersService:      usersService,
 		ActiveService:     activeService,
 		ActivitiesService: activitiesService,
+		ConfigService:     configService,
 	}
 }
 
@@ -102,6 +105,13 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/session/end", rs.endActivitySession)
 		r.Get("/session/current", rs.getCurrentSession)
 		r.Post("/session/check-conflict", rs.checkSessionConflict)
+
+		// Session timeout management
+		r.Post("/session/timeout", rs.processSessionTimeout)
+		r.Get("/session/timeout-config", rs.getSessionTimeoutConfig)
+		r.Post("/session/activity", rs.updateSessionActivity)
+		r.Post("/session/validate-timeout", rs.validateSessionTimeout)
+		r.Get("/session/timeout-info", rs.getSessionTimeoutInfo)
 	})
 
 	return r
@@ -1034,6 +1044,22 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		greetingMsg = "Tschüss " + person.FirstName + "!"
 	}
 
+	// Update session activity when student scans (for monitoring only)
+	if req.RoomID != nil {
+		if activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(r.Context(), *req.RoomID); err == nil {
+			for _, group := range activeGroups {
+				// Only update activity for device-managed sessions
+				if group.DeviceID != nil && *group.DeviceID == deviceCtx.ID {
+					if updateErr := rs.ActiveService.UpdateSessionActivity(r.Context(), group.ID); updateErr != nil {
+						log.Printf("Warning: Failed to update session activity for group %d: %v", group.ID, updateErr)
+						// Don't fail the request - this is just for monitoring
+					}
+					break // Only update the matching device session
+				}
+			}
+		}
+	}
+
 	// Prepare response
 	response := map[string]interface{}{
 		"student_id":    student.ID,
@@ -1220,6 +1246,72 @@ type ConflictInfoResponse struct {
 	ConflictingDevice *int64 `json:"conflicting_device,omitempty"`
 	ConflictMessage   string `json:"conflict_message"`
 	CanOverride       bool   `json:"can_override"`
+}
+
+// SessionTimeoutResponse represents the result of processing a session timeout
+type SessionTimeoutResponse struct {
+	SessionID          int64     `json:"session_id"`
+	ActivityID         int64     `json:"activity_id"`
+	StudentsCheckedOut int       `json:"students_checked_out"`
+	TimeoutAt          time.Time `json:"timeout_at"`
+	Status             string    `json:"status"`
+	Message            string    `json:"message"`
+}
+
+// SessionTimeoutConfig represents timeout configuration for devices
+type SessionTimeoutConfig struct {
+	TimeoutMinutes       int `json:"timeout_minutes"`
+	WarningMinutes       int `json:"warning_minutes"`
+	CheckIntervalSeconds int `json:"check_interval_seconds"`
+}
+
+// SessionActivityRequest represents a session activity update request
+type SessionActivityRequest struct {
+	ActivityType string    `json:"activity_type"` // "rfid_scan", "button_press", "ui_interaction"
+	Timestamp    time.Time `json:"timestamp"`
+}
+
+// Bind validates the session activity request
+func (req *SessionActivityRequest) Bind(r *http.Request) error {
+	if err := validation.ValidateStruct(req,
+		validation.Field(&req.ActivityType, validation.Required, validation.In("rfid_scan", "button_press", "ui_interaction")),
+	); err != nil {
+		return err
+	}
+
+	// Set timestamp to now if not provided
+	if req.Timestamp.IsZero() {
+		req.Timestamp = time.Now()
+	}
+
+	return nil
+}
+
+// TimeoutValidationRequest represents a timeout validation request
+type TimeoutValidationRequest struct {
+	TimeoutMinutes int       `json:"timeout_minutes"`
+	LastActivity   time.Time `json:"last_activity"`
+}
+
+// Bind validates the timeout validation request
+func (req *TimeoutValidationRequest) Bind(r *http.Request) error {
+	return validation.ValidateStruct(req,
+		validation.Field(&req.TimeoutMinutes, validation.Required, validation.Min(1), validation.Max(480)),
+		validation.Field(&req.LastActivity, validation.Required),
+	)
+}
+
+// SessionTimeoutInfoResponse provides comprehensive timeout information
+type SessionTimeoutInfoResponse struct {
+	SessionID               int64     `json:"session_id"`
+	ActivityID              int64     `json:"activity_id"`
+	StartTime               time.Time `json:"start_time"`
+	LastActivity            time.Time `json:"last_activity"`
+	TimeoutMinutes          int       `json:"timeout_minutes"`
+	InactivitySeconds       int       `json:"inactivity_seconds"`
+	TimeUntilTimeoutSeconds int       `json:"time_until_timeout_seconds"`
+	IsTimedOut              bool      `json:"is_timed_out"`
+	ActiveStudentCount      int       `json:"active_student_count"`
 }
 
 // SessionCurrentResponse represents the current session information
@@ -1460,4 +1552,146 @@ func (rs *Resource) checkSessionConflict(w http.ResponseWriter, r *http.Request)
 	}
 
 	common.Respond(w, r, statusCode, response, message)
+}
+
+// processSessionTimeout handles device timeout notification
+func (rs *Resource) processSessionTimeout(w http.ResponseWriter, r *http.Request) {
+	deviceCtx := device.DeviceFromCtx(r.Context())
+
+	// Process timeout via device ID
+	result, err := rs.ActiveService.ProcessSessionTimeout(r.Context(), deviceCtx.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	response := SessionTimeoutResponse{
+		SessionID:          result.SessionID,
+		ActivityID:         result.ActivityID,
+		StudentsCheckedOut: result.StudentsCheckedOut,
+		TimeoutAt:          result.TimeoutAt,
+		Status:             "completed",
+		Message:            fmt.Sprintf("Session ended due to timeout. %d students checked out.", result.StudentsCheckedOut),
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Session timeout processed successfully")
+}
+
+// getSessionTimeoutConfig returns timeout configuration for the requesting device
+func (rs *Resource) getSessionTimeoutConfig(w http.ResponseWriter, r *http.Request) {
+	deviceCtx := device.DeviceFromCtx(r.Context())
+
+	settings, err := rs.ConfigService.GetDeviceTimeoutSettings(r.Context(), deviceCtx.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	config := SessionTimeoutConfig{
+		TimeoutMinutes:       settings.GetEffectiveTimeoutMinutes(),
+		WarningMinutes:       settings.WarningThresholdMinutes,
+		CheckIntervalSeconds: settings.CheckIntervalSeconds,
+	}
+
+	common.Respond(w, r, http.StatusOK, config, "Timeout configuration retrieved")
+}
+
+// updateSessionActivity handles activity updates for timeout tracking
+func (rs *Resource) updateSessionActivity(w http.ResponseWriter, r *http.Request) {
+	deviceCtx := device.DeviceFromCtx(r.Context())
+
+	var req SessionActivityRequest
+	if err := render.Bind(r, &req); err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get current session for this device
+	session, err := rs.ActiveService.GetDeviceCurrentSession(r.Context(), deviceCtx.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Update session activity
+	if err := rs.ActiveService.UpdateSessionActivity(r.Context(), session.ID); err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	response := map[string]interface{}{
+		"session_id":     session.ID,
+		"activity_type":  req.ActivityType,
+		"updated_at":     time.Now(),
+		"last_activity":  time.Now(),
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Session activity updated")
+}
+
+// validateSessionTimeout validates if a timeout request is legitimate
+func (rs *Resource) validateSessionTimeout(w http.ResponseWriter, r *http.Request) {
+	deviceCtx := device.DeviceFromCtx(r.Context())
+
+	var req TimeoutValidationRequest
+	if err := render.Bind(r, &req); err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Validate the timeout request
+	if err := rs.ActiveService.ValidateSessionTimeout(r.Context(), deviceCtx.ID, req.TimeoutMinutes); err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	response := map[string]interface{}{
+		"valid":            true,
+		"timeout_minutes":  req.TimeoutMinutes,
+		"last_activity":    req.LastActivity,
+		"validated_at":     time.Now(),
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Timeout validation successful")
+}
+
+// getSessionTimeoutInfo provides comprehensive timeout information
+func (rs *Resource) getSessionTimeoutInfo(w http.ResponseWriter, r *http.Request) {
+	deviceCtx := device.DeviceFromCtx(r.Context())
+
+	info, err := rs.ActiveService.GetSessionTimeoutInfo(r.Context(), deviceCtx.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	response := SessionTimeoutInfoResponse{
+		SessionID:           info.SessionID,
+		ActivityID:          info.ActivityID,
+		StartTime:           info.StartTime,
+		LastActivity:        info.LastActivity,
+		TimeoutMinutes:      info.TimeoutMinutes,
+		InactivitySeconds:   int(info.InactivityDuration.Seconds()),
+		TimeUntilTimeoutSeconds: int(info.TimeUntilTimeout.Seconds()),
+		IsTimedOut:          info.IsTimedOut,
+		ActiveStudentCount:  info.ActiveStudentCount,
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Session timeout information retrieved")
 }

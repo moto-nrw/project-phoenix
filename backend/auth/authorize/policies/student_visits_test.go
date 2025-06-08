@@ -1051,3 +1051,24 @@ func (m *SimpleMockActiveService) ForceStartActivitySession(ctx context.Context,
 func (m *SimpleMockActiveService) GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error) {
 	return nil, nil
 }
+
+// Session timeout operations - mock implementations
+func (m *SimpleMockActiveService) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*activeSvc.TimeoutResult, error) {
+	return nil, nil
+}
+
+func (m *SimpleMockActiveService) UpdateSessionActivity(ctx context.Context, activeGroupID int64) error {
+	return nil
+}
+
+func (m *SimpleMockActiveService) ValidateSessionTimeout(ctx context.Context, deviceID int64, timeoutMinutes int) error {
+	return nil
+}
+
+func (m *SimpleMockActiveService) GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*activeSvc.SessionTimeoutInfo, error) {
+	return nil, nil
+}
+
+func (m *SimpleMockActiveService) CleanupAbandonedSessions(ctx context.Context, olderThan time.Duration) (int, error) {
+	return 0, nil
+}
