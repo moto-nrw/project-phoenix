@@ -438,6 +438,29 @@ Response: {
 // Auto-checkout from previous locations, visit state management
 ```
 
+#### Get Teacher's Students (Device-Authenticated) ✅ COMPLETED
+```typescript
+GET /api/iot/students
+Headers: {
+  "Authorization": "Bearer dev_xyz123...",  // Device API key
+  "X-Staff-PIN": "1234"                    // Staff PIN
+}
+Response: [
+  {
+    "student_id": 123,
+    "person_id": 456,
+    "first_name": "Max",
+    "last_name": "Mustermann",
+    "school_class": "5A",
+    "group_name": "OGS Gruppe 1",
+    "rfid_tag": "RFID-001001"
+  }
+]
+// Returns only students from teacher's supervised groups (GDPR compliant)
+// Includes person details and optional RFID tag assignments
+// Used by devices for tag assignment and student identification
+```
+
 ## Database Changes Required
 
 ### 1. Make device_id Optional in active_groups
@@ -485,7 +508,7 @@ CREATE TABLE device_sessions (
 
 ## Implementation Progress Status
 
-**Overall Progress: ~75% Complete** (Last updated: January 2025)
+**Overall Progress: ~80% Complete** (Last updated: June 2025)
 
 ### What's Currently Working ✅
 1. **✅ Database Schema**: RFID system tables with API keys, PIN storage, health monitoring (5/5 migrations complete)
@@ -501,21 +524,21 @@ CREATE TABLE device_sessions (
 11. **✅ Security Features**: Account locking, bcrypt PIN hashing, comprehensive audit logging
 12. **✅ Error Handling**: Proper HTTP status codes and security error responses
 13. **✅ CORS Configuration**: Device authentication headers properly configured
+14. **✅ Teacher-Student APIs**: Device endpoints for teachers to see their supervised students with GDPR compliance
 
 ### Critical Gaps Remaining ❌
-1. **🚨 NEXT PRIORITY: Teacher-Student APIs**: Endpoints for teachers to see their supervised students via devices
-2. **Activity Management**: Quick activity creation and conflict detection for devices
-3. **Frontend UI**: Device management interfaces and mobile activity creation
-4. **Session Management**: 30-minute timeouts and active session handling
-5. **Student-Teacher Relationship APIs**: Device-optimized endpoints for filtered student lists
+1. **🚨 NEXT PRIORITY: Activity Management APIs**: Quick activity creation and conflict detection for devices
+2. **Frontend UI**: Device management interfaces and mobile activity creation
+3. **Session Management**: 30-minute timeouts and active session handling
+4. **Mobile Integration**: Activity creation forms and device management interfaces
 
 ### Implementation Priority Order
 **✅ Phase 1 (COMPLETED)**: Device authentication middleware and PIN validation endpoints
-**✅ Phase 2 (75% COMPLETED)**: Core RFID student processing functionality complete
-**Phase 3 (CURRENT)**: Teacher-student relationships and activity management
-**Phase 3 (Session Logic)**: Add timeout handling and conflict detection  
-**Phase 4 (Frontend)**: Build device management and mobile interfaces
-**Phase 5 (Integration)**: Connect with PyrePortal Pi app
+**✅ Phase 2 (COMPLETED)**: Core RFID student processing functionality complete
+**✅ Phase 3 (COMPLETED)**: Teacher-student relationships and privacy-compliant APIs
+**Phase 4 (CURRENT)**: Activity management and session logic with timeout handling
+**Phase 5 (Frontend)**: Build device management and mobile interfaces
+**Phase 6 (Integration)**: Connect with PyrePortal Pi app
 
 ---
 
@@ -544,10 +567,15 @@ CREATE TABLE device_sessions (
 - [x] **✅ Visit state management** (proper entry/exit time tracking with validation)
 - [x] **✅ Active group association** (link visits to active groups in specified rooms)
 
-**🚨 CURRENT PRIORITY - Teacher APIs & Activity Management**
-- [ ] **🚨 NEXT: Teacher-Student APIs** (device endpoints for teachers to see their students)
+**✅ COMPLETED - Teacher APIs & Student Management**
+- [x] **✅ COMPLETED: Teacher-Student APIs** (device endpoints for teachers to see their students)
+- [x] **✅ COMPLETED: My students endpoint for teachers** (filtered by teacher's groups with GDPR compliance)
+- [x] **✅ COMPLETED: Student-group relationship filtering** (privacy-compliant data access)
+
+**🚨 CURRENT PRIORITY - Activity Management**
 - [ ] **🚨 NEXT: Quick activity creation endpoint** (mobile-optimized activity creation)
-- [ ] **🚨 NEXT: My students endpoint for teachers** (filtered by teacher's groups)
+- [ ] **🚨 NEXT: Activity conflict detection** (one device per activity validation)
+- [ ] **🚨 NEXT: Activity session management** (start/end activity on devices)
 
 **📋 REMAINING - Session Management & Frontend**
 - [ ] **30-minute activity timeout logic** (automatic session ending)
@@ -649,9 +677,9 @@ CREATE TABLE device_sessions (
 - **✅ Database Schema**: All required tables and relationships implemented
 
 **🚨 CURRENT DEVELOPMENT FOCUS:**
-- **🚨 Teacher-Student APIs**: Device endpoints for teachers to see their supervised students
 - **🚨 Quick Activity Creation**: Mobile-optimized activity creation for teachers
 - **🚨 Activity Management**: Conflict detection and session management
+- **🚨 Session Logic**: 30-minute timeouts and activity lifecycle management
 
 **📋 FUTURE DEVELOPMENT:**
 - **Session Management**: 30-minute timeouts and activity ending
@@ -702,6 +730,27 @@ curl -X POST http://localhost:8080/api/iot/checkin \
 #   "message": "Hallo Max!",
 #   "status": "success"
 # }
+```
+
+**✅ Teacher-Student API (GDPR Compliant):**
+```bash
+# Device can get teacher's supervised students for tag assignment
+curl -X GET http://localhost:8080/api/iot/students \
+  -H "Authorization: Bearer dev_xyz123..." \
+  -H "X-Staff-PIN: 1234"
+
+# Expected: List of students from teacher's supervised groups only
+# [
+#   {
+#     "student_id": 123,
+#     "person_id": 456,
+#     "first_name": "Max",
+#     "last_name": "Mustermann",
+#     "school_class": "5A", 
+#     "group_name": "OGS Gruppe 1",
+#     "rfid_tag": "RFID-001001"
+#   }
+# ]
 ```
 
 **✅ Security Features:**
@@ -806,13 +855,14 @@ curl -X POST http://localhost:8080/api/iot/checkin \
 4. **✅ Security infrastructure** - Account locking, audit logging, error handling
 5. **✅ Students can check in/out with taps** - Full RFID workflow: scan → "Hallo Max!" / "Tschüss Max!"
 6. **✅ RFID tags can be assigned to students** - Complete assignment system with validation
+7. **✅ Teachers can see their supervised students on devices** - GDPR-compliant API endpoints implemented
 
 **🚨 IN PROGRESS:**
-7. **Teachers can create activities on mobile** - Mobile interface needed
-8. **Dashboard shows attendance (5-min refresh)** - Frontend integration needed
+8. **Teachers can create activities on mobile** - Mobile interface needed
+9. **Dashboard shows attendance (5-min refresh)** - Frontend integration needed
 
 **📋 REMAINING:**
-9. **Activities auto-end after 30 minutes** - Session management needed
-10. **System works with intermittent network** - Pi app feature
+10. **Activities auto-end after 30 minutes** - Session management needed
+11. **System works with intermittent network** - Pi app feature
 
-**CURRENT STATUS: 6/10 criteria fully met (60% complete → major milestone achieved!)**
+**CURRENT STATUS: 7/11 criteria fully met (64% complete → major milestone achieved!)**

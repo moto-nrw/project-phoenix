@@ -113,6 +113,12 @@ type StudentRepository interface {
 
 	// RemoveFromGroup removes a student from their group
 	RemoveFromGroup(ctx context.Context, studentID int64) error
+
+	// FindByTeacherID retrieves students supervised by a teacher (through group assignments)
+	FindByTeacherID(ctx context.Context, teacherID int64) ([]*Student, error)
+
+	// FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
+	FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*StudentWithGroupInfo, error)
 }
 
 // StaffRepository defines operations for managing staff members

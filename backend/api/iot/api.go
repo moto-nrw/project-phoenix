@@ -89,6 +89,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/ping", rs.devicePing)
 		r.Post("/checkin", rs.deviceCheckin)
 		r.Get("/status", rs.deviceStatus)
+		r.Get("/students", rs.getTeacherStudents)
 	})
 
 	return r
@@ -812,6 +813,17 @@ type CheckinResponse struct {
 	Status      string    `json:"status"`
 }
 
+// TeacherStudentResponse represents a student supervised by a teacher for RFID devices
+type TeacherStudentResponse struct {
+	StudentID   int64  `json:"student_id"`
+	PersonID    int64  `json:"person_id"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	SchoolClass string `json:"school_class"`
+	GroupName   string `json:"group_name"`
+	RFIDTag     string `json:"rfid_tag,omitempty"`
+}
+
 // Bind validates the checkin request
 func (req *CheckinRequest) Bind(r *http.Request) error {
 	return validation.ValidateStruct(req,
@@ -990,4 +1002,70 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Student "+actionMsg+" successfully")
+}
+
+// getTeacherStudents handles getting students supervised by the authenticated teacher (for RFID devices)
+func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device and staff from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	staffCtx := device.StaffFromCtx(r.Context())
+
+	if deviceCtx == nil || staffCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Find teacher for authenticated staff
+	teacherRepo := rs.UsersService.TeacherRepository()
+	teacher, err := teacherRepo.FindByStaffID(r.Context(), staffCtx.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("teacher not found for authenticated staff"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+	if teacher == nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("teacher not found for authenticated staff"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get students supervised by this teacher with group information
+	studentsWithGroups, err := rs.UsersService.GetStudentsWithGroupsByTeacher(r.Context(), teacher.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Convert students to device response format
+	responses := make([]TeacherStudentResponse, 0, len(studentsWithGroups))
+	for _, swg := range studentsWithGroups {
+		student := swg.Student
+		response := TeacherStudentResponse{
+			StudentID:   student.ID,
+			PersonID:    student.PersonID,
+			SchoolClass: student.SchoolClass,
+			GroupName:   swg.GroupName,
+		}
+
+		// Add person details if available
+		if student.Person != nil {
+			response.FirstName = student.Person.FirstName
+			response.LastName = student.Person.LastName
+			
+			// Add RFID tag if available
+			if student.Person.TagID != nil {
+				response.RFIDTag = *student.Person.TagID
+			}
+		}
+
+		responses = append(responses, response)
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Teacher students retrieved successfully")
 }

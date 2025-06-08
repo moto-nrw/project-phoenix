@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/uptrace/bun"
@@ -174,6 +175,22 @@ func (m *SimpleMockUserService) ValidateStaffPIN(ctx context.Context, pin string
 	return args.Get(0).(*userModels.Staff), args.Error(1)
 }
 
+func (m *SimpleMockUserService) GetStudentsByTeacher(ctx context.Context, teacherID int64) ([]*userModels.Student, error) {
+	args := m.Called(ctx, teacherID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*userModels.Student), args.Error(1)
+}
+
+func (m *SimpleMockUserService) GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]usersSvc.StudentWithGroup, error) {
+	args := m.Called(ctx, teacherID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]usersSvc.StudentWithGroup), args.Error(1)
+}
+
 func (m *SimpleMockUserService) WithTx(tx bun.Tx) interface{} {
 	// Required by base.TransactionalService
 	return m
@@ -275,6 +292,22 @@ func (m *SimpleMockStudentRepository) FindByGroupIDs(ctx context.Context, groupI
 func (m *SimpleMockStudentRepository) CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error) {
 	args := m.Called(ctx, options)
 	return args.Int(0), args.Error(1)
+}
+
+func (m *SimpleMockStudentRepository) FindByTeacherID(ctx context.Context, teacherID int64) ([]*userModels.Student, error) {
+	args := m.Called(ctx, teacherID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*userModels.Student), args.Error(1)
+}
+
+func (m *SimpleMockStudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*userModels.StudentWithGroupInfo, error) {
+	args := m.Called(ctx, teacherID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*userModels.StudentWithGroupInfo), args.Error(1)
 }
 
 type SimpleMockStaffRepository struct {

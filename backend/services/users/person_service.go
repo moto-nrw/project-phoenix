@@ -551,3 +551,53 @@ func (s *personService) ValidateStaffPIN(ctx context.Context, pin string) (*user
 	// No staff member found with matching PIN
 	return nil, &UsersError{Op: "validate staff PIN", Err: ErrInvalidPIN}
 }
+
+// GetStudentsByTeacher retrieves students supervised by a teacher (through group assignments)
+func (s *personService) GetStudentsByTeacher(ctx context.Context, teacherID int64) ([]*userModels.Student, error) {
+	// First verify the teacher exists
+	teacher, err := s.teacherRepo.FindByID(ctx, teacherID)
+	if err != nil {
+		return nil, &UsersError{Op: "get students by teacher", Err: err}
+	}
+	if teacher == nil {
+		return nil, &UsersError{Op: "get students by teacher", Err: ErrTeacherNotFound}
+	}
+
+	// Use the repository method to get students by teacher ID
+	students, err := s.studentRepo.FindByTeacherID(ctx, teacherID)
+	if err != nil {
+		return nil, &UsersError{Op: "get students by teacher", Err: err}
+	}
+
+	return students, nil
+}
+
+// GetStudentsWithGroupsByTeacher retrieves students with group info supervised by a teacher
+func (s *personService) GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]StudentWithGroup, error) {
+	// First verify the teacher exists
+	teacher, err := s.teacherRepo.FindByID(ctx, teacherID)
+	if err != nil {
+		return nil, &UsersError{Op: "get students with groups by teacher", Err: err}
+	}
+	if teacher == nil {
+		return nil, &UsersError{Op: "get students with groups by teacher", Err: ErrTeacherNotFound}
+	}
+
+	// Use the enhanced repository method to get students with group info
+	studentsWithGroups, err := s.studentRepo.FindByTeacherIDWithGroups(ctx, teacherID)
+	if err != nil {
+		return nil, &UsersError{Op: "get students with groups by teacher", Err: err}
+	}
+
+	// Convert to service layer struct
+	results := make([]StudentWithGroup, 0, len(studentsWithGroups))
+	for _, swg := range studentsWithGroups {
+		result := StudentWithGroup{
+			Student:   swg.Student,
+			GroupName: swg.GroupName,
+		}
+		results = append(results, result)
+	}
+
+	return results, nil
+}
