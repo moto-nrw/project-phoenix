@@ -16,6 +16,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - RFID Integration: Custom API endpoints for device communication
 - Deployment: Docker/Docker Compose
 
+**Security Notice:**
+- All sensitive configuration uses example templates (never commit real .env files)
+- SSL certificates must be generated locally using setup scripts
+- Real configuration files (.env, certificates) are git-ignored
+- See [Security Guidelines](docs/security.md) for complete security practices
+
 ## Architecture Overview
 
 The project follows a layered architecture with clear domain boundaries:
@@ -50,6 +56,19 @@ The database uses multiple PostgreSQL schemas to organize tables by domain:
 - **config**: System configuration
 
 ## Development Commands
+
+### Quick Setup (New Development Environment)
+```bash
+# Automated setup with SSL certificates and secure configuration
+./scripts/setup-dev.sh          # Creates configs and SSL certs automatically
+docker compose up -d            # Start all services
+
+# Manual setup alternative
+cd config/ssl/postgres && ./create-certs.sh && cd ../../..
+cp backend/dev.env.example backend/dev.env
+cp frontend/.env.local.example frontend/.env.local
+# Edit environment files with your values
+```
 
 ### Backend (Go)
 ```bash
@@ -120,11 +139,15 @@ docker compose up -d            # Start all services in detached mode
 
 # Database Operations
 docker compose run server ./main migrate  # Run migrations
+docker compose run server ./main seed     # Populate with test data
 docker compose logs postgres             # Check database logs
 
 # Frontend Operations
 docker compose run frontend npm run lint # Run lint checks in container
 docker compose logs frontend            # Check frontend logs
+
+# API Testing
+cd bruno && bru run --env Local         # Run API tests
 
 # Cleanup
 docker compose down             # Stop all services
@@ -361,6 +384,30 @@ func TestUserLogin(t *testing.T) {
 ```
 
 Test helpers are in `test/helpers.go`. Integration tests use a real test database.
+
+### API Testing with Bruno
+Bruno is used for comprehensive API endpoint testing:
+
+```bash
+cd bruno
+
+# Run all API tests
+bru run --env Local
+
+# Run specific test suites
+make test-auth         # Authentication endpoints
+make test-groups       # Group management
+make test-students     # Student management
+
+# Manual testing with GUI
+# Open Bruno app → Open Collection → Select bruno/ directory
+```
+
+**Key Bruno Features:**
+- **Authentication Flow**: Login automatically saves tokens for subsequent requests
+- **Environment Variables**: `{{baseUrl}}`, `{{accessToken}}`, `{{refreshToken}}`
+- **Default Credentials**: admin@example.com / Test1234%
+- **Test Coverage**: Auth, Groups, Students, Rooms, Active Sessions, IoT, Analytics
 
 ### Frontend Testing
 - Component testing with React Testing Library
