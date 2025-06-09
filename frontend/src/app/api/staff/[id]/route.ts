@@ -21,6 +21,7 @@ interface BackendStaffResponse {
     last_name: string;
     email?: string;
     tag_id?: string;
+    account_id?: number;
     created_at: string;
     updated_at: string;
   };
@@ -87,6 +88,8 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       updated_at: staff.updated_at,
       // Include person_id for updates
       person_id: staff.person_id,
+      // Include account_id from person object
+      account_id: staff.person?.account_id,
       // Include both IDs for debugging
       staff_id: String(staff.id),
       teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
@@ -149,6 +152,8 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
         staff_notes: response.staff_notes ?? null,
         created_at: response.created_at,
         updated_at: response.updated_at,
+        // Include account_id from person object
+        account_id: response.person?.account_id,
       };
     } catch (error) {
       // Check for permission errors (403 Forbidden)

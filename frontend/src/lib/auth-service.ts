@@ -1187,8 +1187,28 @@ export const authService = {
                     throw new Error(`Get account roles failed: ${response.status}`);
                 }
 
-                const responseData = await response.json() as ApiResponse<BackendRole[]>;
-                return responseData.data.map(mapRoleResponse);
+                const responseData = await response.json() as { data?: BackendRole[] | { data: BackendRole[] } } | BackendRole[];
+                // Processing account roles response
+                console.log('Account roles raw response:', responseData);
+                
+                // Handle different response structures
+                let rolesData: BackendRole[] = [];
+                
+                if (Array.isArray(responseData)) {
+                    // Direct array response
+                    rolesData = responseData;
+                } else if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+                    if (Array.isArray(responseData.data)) {
+                        // Single nested: { data: [...] }
+                        rolesData = responseData.data;
+                    } else if (responseData.data && typeof responseData.data === 'object' && 'data' in responseData.data && Array.isArray((responseData.data as { data: BackendRole[] }).data)) {
+                        // Double nested: { data: { data: [...] } }
+                        rolesData = (responseData.data as { data: BackendRole[] }).data;
+                    }
+                }
+                
+                console.log('Mapped roles data:', rolesData);
+                return rolesData.map(mapRoleResponse);
             } else {
                 const response = await api.get<ApiResponse<BackendRole[]>>(url);
                 return response.data.data.map(mapRoleResponse);

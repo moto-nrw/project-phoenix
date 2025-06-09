@@ -23,6 +23,7 @@ export default function TeachersPage() {
           {
             label: 'Rollen verwalten',
             onClick: (teacher: Teacher) => {
+              console.log('Rollen verwalten clicked - teacher:', teacher);
               setSelectedTeacher(teacher);
               setRoleModalOpen(true);
             },
@@ -31,6 +32,7 @@ export default function TeachersPage() {
           {
             label: 'Berechtigungen verwalten',
             onClick: (teacher: Teacher) => {
+              console.log('Berechtigungen verwalten clicked - teacher:', teacher);
               setSelectedTeacher(teacher);
               setPermissionModalOpen(true);
             },

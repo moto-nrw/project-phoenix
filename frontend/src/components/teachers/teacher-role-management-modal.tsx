@@ -29,6 +29,18 @@ export function TeacherRoleManagementModal({
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"assigned" | "available">("assigned");
 
+  // Debug logging
+  useEffect(() => {
+    if (isOpen) {
+      console.log('TeacherRoleManagementModal - Teacher data:', {
+        teacher,
+        account_id: teacher.account_id,
+        hasAccountId: !!teacher.account_id,
+        accountIdType: typeof teacher.account_id,
+      });
+    }
+  }, [isOpen, teacher]);
+
   // Fetch all roles and account roles
   const fetchRoles = async () => {
     if (!teacher.account_id) {

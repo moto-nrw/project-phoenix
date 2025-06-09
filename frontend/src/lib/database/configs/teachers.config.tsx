@@ -13,20 +13,30 @@ function mapTeacherResponse(data: unknown): Teacher {
   const person = typedData.person as Record<string, unknown> | undefined;
   
   // Get account_id from either direct data or nested person object
-  const accountId = typedData.account_id as number | undefined || 
+  const accountId = typedData.account_id as number | undefined ?? 
                     person?.account_id as number | undefined;
   
   // Get email from either direct data or nested person object
-  const email = typedData.email as string | undefined || 
+  const email = typedData.email as string | undefined ?? 
                 person?.email as string | undefined;
                 
   // Get first and last name from either direct data or nested person object
-  const firstName = (typedData.first_name as string) || (person?.first_name as string) || '';
-  const lastName = (typedData.last_name as string) || (person?.last_name as string) || '';
+  const firstName = (typedData.first_name as string | undefined) ?? (person?.first_name as string | undefined) ?? '';
+  const lastName = (typedData.last_name as string | undefined) ?? (person?.last_name as string | undefined) ?? '';
   
   // Get tag_id from either direct data or nested person object
-  const tagId = typedData.tag_id as string | null | undefined || 
+  const tagId = typedData.tag_id as string | null | undefined ?? 
                 person?.tag_id as string | null | undefined;
+  
+  // Debug logging to check account_id mapping
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Teacher mapping debug:', {
+      raw_data: typedData,
+      person_data: person,
+      extracted_account_id: accountId,
+      email: email,
+    });
+  }
   
   return {
     id: typedData.id?.toString() ?? '',
