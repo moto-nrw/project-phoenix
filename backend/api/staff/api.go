@@ -871,23 +871,19 @@ func (rs *Resource) getPINStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify this is a staff member by checking person->staff relationship
+	// Try to find person associated with this account
 	person, err := rs.PersonService.FindByAccountID(r.Context(), account.ID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("person not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+	if err == nil {
+		// If person exists, verify they are a staff member
+		_, err = rs.StaffRepo.FindByPersonID(r.Context(), person.ID)
+		if err != nil {
+			if err := render.Render(w, r, ErrorForbidden(errors.New("only staff members can access PIN settings"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
 		}
-		return
 	}
-
-	// Find staff record for this person to verify staff status
-	_, err = rs.StaffRepo.FindByPersonID(r.Context(), person.ID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
+	// If no person record exists (e.g., admin account), allow access for PIN management
 
 	// Build response using account PIN data
 	response := PINStatusResponse{
@@ -931,23 +927,19 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify this is a staff member by checking person->staff relationship
+	// Try to find person associated with this account
 	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(account.ID))
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("person not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+	if err == nil {
+		// If person exists, verify they are a staff member
+		_, err = rs.StaffRepo.FindByPersonID(r.Context(), person.ID)
+		if err != nil {
+			if err := render.Render(w, r, ErrorForbidden(errors.New("only staff members can access PIN settings"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
 		}
-		return
 	}
-
-	// Find staff record for this person to verify staff status
-	_, err = rs.StaffRepo.FindByPersonID(r.Context(), person.ID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
+	// If no person record exists (e.g., admin account), allow access for PIN management
 
 	// Check if account is locked
 	if account.IsPINLocked() {

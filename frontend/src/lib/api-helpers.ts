@@ -200,9 +200,10 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
     }
   }
 
-  // Default to 500 for unknown errors
+  // Default to 500 for unknown errors, but preserve the error message if available
+  const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
   return NextResponse.json(
-    { error: "Internal Server Error" },
+    { error: errorMessage },
     { status: 500 }
   );
 }

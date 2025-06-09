@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Description:** A GDPR-compliant RFID-based student attendance and room management system for educational institutions. Implements strict privacy controls for student data access.
 
 **Key Technologies:**
-- Backend: Go (1.21+) with Chi router, Bun ORM for PostgreSQL
+- Backend: Go (1.23+) with Chi router, Bun ORM for PostgreSQL
 - Frontend: Next.js (v15+) with React (v19+), Tailwind CSS (v4+)
 - Database: PostgreSQL (17+) with SSL encryption (GDPR compliance)
 - Authentication: JWT-based auth system with role-based access control
@@ -147,7 +147,10 @@ docker compose run frontend npm run lint # Run lint checks in container
 docker compose logs frontend            # Check frontend logs
 
 # API Testing
-cd bruno && bru run --env Local         # Run API tests
+cd bruno
+./dev-test.sh all                       # Run simplified test suite (~252ms)
+./dev-test.sh groups                    # Test groups API only (~44ms)  
+bru run --env Local                     # Traditional Bruno CLI
 
 # Cleanup
 docker compose down             # Stop all services
@@ -363,6 +366,7 @@ cd ../../..
 - **Permission Errors**: Check volume permissions and user context
 - **Port Conflicts**: Ensure ports 3000, 8080, 5432 are available
 - **Code Changes Not Reflected**: Restart containers to pick up changes
+- **Backend Code Changes**: MUST rebuild backend container after Go code changes (`docker compose build server`)
 
 ## RFID Integration
 
@@ -403,28 +407,35 @@ func TestUserLogin(t *testing.T) {
 Test helpers are in `test/helpers.go`. Integration tests use a real test database.
 
 ### API Testing with Bruno
-Bruno is used for comprehensive API endpoint testing:
+Bruno provides a simplified API testing suite optimized for development workflow:
 
 ```bash
 cd bruno
 
-# Run all API tests
-bru run --env Local
+# Simplified test runner (gets fresh admin token automatically)
+./dev-test.sh groups    # Test groups API (25 groups) - ~44ms
+./dev-test.sh students  # Test students API (50 students) - ~50ms  
+./dev-test.sh rooms     # Test rooms API (24 rooms) - ~19ms
+./dev-test.sh devices   # Test RFID device auth - ~117ms
+./dev-test.sh all       # Test everything - ~252ms
+./dev-test.sh examples  # View API examples
+./dev-test.sh manual    # Pre-release checks
 
-# Run specific test suites
-make test-auth         # Authentication endpoints
-make test-groups       # Group management
-make test-students     # Student management
+# Traditional Bruno CLI (requires manual token management)
+bru run --env Local     # Run all tests
+bru run dev/groups.bru --env Local --env-var accessToken="$TOKEN"
 
-# Manual testing with GUI
+# Bruno GUI (optional)
 # Open Bruno app → Open Collection → Select bruno/ directory
 ```
 
-**Key Bruno Features:**
-- **Authentication Flow**: Login automatically saves tokens for subsequent requests
-- **Environment Variables**: `{{baseUrl}}`, `{{accessToken}}`, `{{refreshToken}}`
-- **Default Credentials**: admin@example.com / Test1234%
-- **Test Coverage**: Auth, Groups, Students, Rooms, Active Sessions, IoT, Analytics
+**Bruno Implementation Features:**
+- **Smart Authentication**: Fresh admin tokens per test (no persistence issues)
+- **Simple Structure**: Only 9 test files (dev/, examples/, manual/)
+- **Fast Execution**: Complete test suite runs in ~252ms
+- **Development Focus**: Quick confidence checks, not comprehensive testing
+- **RFID Testing**: Two-layer device authentication (API key + PIN)
+- **Test Accounts**: admin@example.com / Test1234%, y.wenger@gmx.de / Test1234% (PIN: 1234)
 
 ### Frontend Testing
 - Component testing with React Testing Library
