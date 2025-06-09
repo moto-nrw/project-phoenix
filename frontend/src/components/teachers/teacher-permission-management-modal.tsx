@@ -47,9 +47,6 @@ export function TeacherPermissionManagementModal({
         authService.getAccountDirectPermissions(teacher.account_id.toString()),
       ]);
       
-      console.log("All permissions:", allPerms);
-      console.log("Account permissions (all):", accountPerms);
-      console.log("Direct permissions:", directPerms);
       
       setAllPermissions(allPerms);
       setAccountPermissions(accountPerms);
@@ -165,13 +162,6 @@ export function TeacherPermissionManagementModal({
            !directPermissions.some(p => p.id === permission.id);
   };
 
-  // Debug logging
-  console.log('Permission Modal Debug:', {
-    activeTab,
-    selectedPermissionsLength: selectedPermissions.length,
-    isAvailableTab: activeTab === "available",
-    availablePermissionsCount: availablePermissions.length,
-  });
 
   if (!teacher.account_id) {
     return (

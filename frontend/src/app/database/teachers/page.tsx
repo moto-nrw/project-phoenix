@@ -23,7 +23,6 @@ export default function TeachersPage() {
           {
             label: 'Rollen verwalten',
             onClick: (teacher: Teacher) => {
-              console.log('Rollen verwalten clicked - teacher:', teacher);
               // Check if teacher has an account
               if (!teacher.account_id) {
                 alert('Dieser Lehrer hat kein verknüpftes Konto. Bitte erstellen Sie zuerst ein Konto für diesen Lehrer.');
@@ -37,7 +36,6 @@ export default function TeachersPage() {
           {
             label: 'Berechtigungen verwalten',
             onClick: (teacher: Teacher) => {
-              console.log('Berechtigungen verwalten clicked - teacher:', teacher);
               // Check if teacher has an account
               if (!teacher.account_id) {
                 alert('Dieser Lehrer hat kein verknüpftes Konto. Bitte erstellen Sie zuerst ein Konto für diesen Lehrer.');
