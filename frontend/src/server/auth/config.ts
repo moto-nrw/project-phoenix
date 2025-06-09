@@ -206,7 +206,10 @@ export const authConfig = {
           // Attempt to refresh the token
           const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/refresh`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token.refreshToken}`
+            },
             body: JSON.stringify({
               refresh_token: token.refreshToken,
             }),
