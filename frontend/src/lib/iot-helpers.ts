@@ -103,7 +103,7 @@ export function getDeviceTypeDisplayName(deviceType: string): string {
     'beacon': 'Beacon',
   };
   
-  return typeMap[deviceType] || deviceType;
+  return typeMap[deviceType] ?? deviceType;
 }
 
 /**
@@ -117,7 +117,7 @@ export function getDeviceStatusDisplayName(status: string): string {
     'offline': 'Offline',
   };
   
-  return statusMap[status] || status;
+  return statusMap[status] ?? status;
 }
 
 /**
@@ -131,7 +131,7 @@ export function getDeviceStatusColor(status: string): string {
     'offline': 'bg-red-100 text-red-800',
   };
   
-  return colorMap[status] || 'bg-gray-100 text-gray-800';
+  return colorMap[status] ?? 'bg-gray-100 text-gray-800';
 }
 
 /**
@@ -172,7 +172,7 @@ export function getDeviceTypeEmoji(deviceType: string): string {
     'beacon': '📶',
   };
   
-  return emojiMap[deviceType] || '🔧';
+  return emojiMap[deviceType] ?? '🔧';
 }
 
 /**
@@ -188,6 +188,6 @@ export function generateDefaultDeviceName(deviceType: string, deviceId: string):
     'beacon': 'Beacon',
   };
   
-  const typeName = typeNames[deviceType] || 'Gerät';
+  const typeName = typeNames[deviceType] ?? 'Gerät';
   return `${typeName} ${deviceId}`;
 }

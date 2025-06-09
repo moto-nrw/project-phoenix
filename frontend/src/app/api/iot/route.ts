@@ -37,7 +37,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string):
   const actualData = response.data;
   
   // Check for the backend response structure { status: "success", data: [...] }
-  if (actualData && 'data' in actualData && Array.isArray(actualData.data)) {
+  if (actualData && typeof actualData === 'object' && actualData !== null && 'data' in actualData && Array.isArray(actualData.data)) {
     // Map the backend response format to the frontend format
     const mappedDevices = actualData.data.map((device: BackendDevice) => {
       const mapped = mapDeviceResponse(device);
@@ -74,7 +74,7 @@ export const POST = createPostHandler(async (request, body, token) => {
   const actualData = response.data;
   
   // Check for the backend response structure { status: "success", data: {...} }
-  if (actualData && 'data' in actualData) {
+  if (actualData && typeof actualData === 'object' && actualData !== null && 'data' in actualData) {
     return mapDeviceResponse(actualData.data as BackendDevice);
   }
   

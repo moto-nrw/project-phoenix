@@ -4,12 +4,10 @@ import { defineEntityConfig } from '../types';
 import { databaseThemes } from '@/components/ui/database/themes';
 import type { Device } from '@/lib/iot-helpers';
 import { 
-  mapDeviceResponse, 
   prepareDeviceForBackend, 
   getDeviceTypeDisplayName,
   getDeviceStatusDisplayName,
   getDeviceStatusColor,
-  getOnlineStatusColor,
   formatLastSeen,
   getDeviceTypeEmoji,
   generateDefaultDeviceName
@@ -93,7 +91,7 @@ export const devicesConfig = defineEntityConfig<Device>({
   
   detail: {
     header: {
-      title: (device) => device.name || device.device_id,
+      title: (device) => device.name ?? device.device_id,
       subtitle: (device) => getDeviceTypeDisplayName(device.device_type),
       avatar: {
         text: (device) => getDeviceTypeEmoji(device.device_type),
@@ -101,14 +99,14 @@ export const devicesConfig = defineEntityConfig<Device>({
       },
       badges: [
         {
-          label: (device) => getDeviceStatusDisplayName(device.status),
-          color: (device) => getDeviceStatusColor(device.status),
+          label: (device: Device) => getDeviceStatusDisplayName(device.status),
+          color: 'bg-blue-100 text-blue-800',
           showWhen: () => true,
         },
         {
-          label: (device) => device.is_online ? 'Online' : 'Offline',
-          color: (device) => getOnlineStatusColor(device.is_online),
-          showWhen: (device) => device.status === 'active', // Only show online/offline for active devices
+          label: (device: Device) => device.is_online ? 'Online' : 'Offline',
+          color: 'bg-green-100 text-green-800',
+          showWhen: (device: Device) => device.status === 'active', // Only show online/offline for active devices
         },
       ],
     },
@@ -128,7 +126,7 @@ export const devicesConfig = defineEntityConfig<Device>({
           },
           {
             label: 'Name',
-            value: (device) => device.name || 'Nicht gesetzt',
+            value: (device) => device.name ?? 'Nicht gesetzt',
           },
           {
             label: 'Status',
@@ -194,10 +192,10 @@ export const devicesConfig = defineEntityConfig<Device>({
                     Anzeigen
                   </button>
                   <button 
-                    onClick={() => {
-                      navigator.clipboard.writeText(device.api_key!);
+                    onClick={(e) => {
+                      void navigator.clipboard.writeText(device.api_key!);
                       // Simple feedback - could be enhanced with toast
-                      const btn = event?.target as HTMLButtonElement;
+                      const btn = e.target as HTMLButtonElement;
                       const originalText = btn.textContent;
                       btn.textContent = 'Kopiert!';
                       setTimeout(() => {
@@ -214,7 +212,7 @@ export const devicesConfig = defineEntityConfig<Device>({
                     <span className="text-blue-600 text-sm">🔐</span>
                     <span className="text-xs text-blue-800">
                       <strong>Sicherheit:</strong> API-Schlüssel ist standardmäßig verborgen. 
-                      Klicken Sie "Anzeigen" um ihn sichtbar zu machen.
+                      Klicken Sie &quot;Anzeigen&quot; um ihn sichtbar zu machen.
                     </span>
                   </div>
                 </div>
@@ -267,7 +265,7 @@ export const devicesConfig = defineEntityConfig<Device>({
     ],
     
     item: {
-      title: (device) => device.name || device.device_id,
+      title: (device) => device.name ?? device.device_id,
       subtitle: (device) => getDeviceTypeDisplayName(device.device_type),
       description: (device) => `Zuletzt gesehen: ${formatLastSeen(device.last_seen)}`,
       avatar: {
@@ -280,8 +278,8 @@ export const devicesConfig = defineEntityConfig<Device>({
           showWhen: () => true,
         },
         {
-          label: (device) => getDeviceStatusDisplayName(device.status),
-          color: (device) => getDeviceStatusColor(device.status),
+          label: (device: Device) => getDeviceStatusDisplayName(device.status),
+          color: 'bg-blue-100 text-blue-800',
           showWhen: () => true,
         },
         {
@@ -295,10 +293,10 @@ export const devicesConfig = defineEntityConfig<Device>({
   
   service: {
     // mapResponse: removed because API route already handles mapping
-    mapRequest: prepareDeviceForBackend,
+    mapRequest: (data: Partial<Device>) => prepareDeviceForBackend(data) as Record<string, unknown>,
   },
   
-  onCreateSuccess: (device: Device) => {
+  onCreateSuccess: (_device: Device) => {
     // The database page will automatically open the detail modal if the device has an API key
     // This callback can be used for additional logic if needed
   },

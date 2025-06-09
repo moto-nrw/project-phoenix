@@ -4,7 +4,7 @@ import type { BackendDevice } from '@/lib/iot-helpers';
 import { mapDeviceResponse } from '@/lib/iot-helpers';
 
 export const GET = createGetHandler(async (request, token, params) => {
-  const { id } = await params;
+  const id = params.id as string;
   const response = await apiGet(`/api/iot/${id}`, token);
   
   // Handle null or undefined response
@@ -16,7 +16,7 @@ export const GET = createGetHandler(async (request, token, params) => {
   const actualData = response.data;
   
   // Check for the backend response structure { status: "success", data: {...} }
-  if (actualData && 'data' in actualData) {
+  if (actualData && typeof actualData === 'object' && actualData !== null && 'data' in actualData) {
     return mapDeviceResponse(actualData.data as BackendDevice);
   }
   
@@ -24,7 +24,7 @@ export const GET = createGetHandler(async (request, token, params) => {
 });
 
 export const PUT = createPutHandler(async (request, body, token, params) => {
-  const { id } = params;
+  const id = params.id as string;
   const response = await apiPut(`/api/iot/${id}`, body, token);
   
   // Handle null or undefined response
@@ -36,7 +36,7 @@ export const PUT = createPutHandler(async (request, body, token, params) => {
   const actualData = response.data;
   
   // Check for the backend response structure { status: "success", data: {...} }
-  if (actualData && 'data' in actualData) {
+  if (actualData && typeof actualData === 'object' && actualData !== null && 'data' in actualData) {
     return mapDeviceResponse(actualData.data as BackendDevice);
   }
   
@@ -44,8 +44,8 @@ export const PUT = createPutHandler(async (request, body, token, params) => {
 });
 
 export const DELETE = createDeleteHandler(async (request, token, params) => {
-  const { id } = params;
-  const response = await apiDelete(`/api/iot/${id}`, token);
+  const id = params.id as string;
+  await apiDelete(`/api/iot/${id}`, token);
   
   // Return success response for delete operations
   return { success: true, message: 'Device deleted successfully' };

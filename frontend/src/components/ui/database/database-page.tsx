@@ -289,7 +289,7 @@ export function DatabasePage<T extends { id: string }>({
       await fetchItems(searchFilter, filters, currentPage);
       
       // For devices with API keys, automatically open the detail modal
-      if ((newItem as any).api_key) {
+      if ('api_key' in newItem && newItem.api_key) {
         setSelectedItem(newItem);
         setShowDetailModal(true);
       }
