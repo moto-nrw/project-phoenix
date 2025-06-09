@@ -1249,6 +1249,56 @@ export const authService = {
         }
     },
 
+    getAccountDirectPermissions: async (accountId: string): Promise<Permission[]> => {
+        const useProxyApi = typeof window !== "undefined";
+        const url = useProxyApi
+            ? `/api/auth/accounts/${accountId}/permissions/direct`
+            : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/permissions/direct`;
+
+        try {
+            if (useProxyApi) {
+                const session = await getSession();
+                const response = await fetch(url, {
+                    headers: {
+                        Authorization: `Bearer ${session?.user?.token}`,
+                        "Content-Type": "application/json",
+                    },
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(`Get account direct permissions error: ${response.status}`, errorText);
+                    throw new Error(`Get account direct permissions failed: ${response.status}`);
+                }
+
+                const responseData = await response.json() as { data?: { data?: BackendPermission[] } | BackendPermission[] };
+                // Processing direct permissions API response
+                
+                // Handle nested response structure
+                let permissionsData: BackendPermission[] = [];
+                
+                if (responseData?.data && typeof responseData.data === 'object' && 'data' in responseData.data && Array.isArray(responseData.data.data)) {
+                    // Double nested structure: { data: { data: [] } }
+                    permissionsData = responseData.data.data;
+                } else if (responseData?.data && Array.isArray(responseData.data)) {
+                    // Single nested structure: { data: [] }
+                    permissionsData = responseData.data;
+                } else {
+                    console.error("Unexpected response structure:", responseData);
+                    throw new Error("Invalid response format from direct permissions API");
+                }
+                
+                return permissionsData.map(mapPermissionResponse);
+            } else {
+                const response = await api.get<ApiResponse<BackendPermission[]>>(url);
+                return response.data.data.map(mapPermissionResponse);
+            }
+        } catch (error) {
+            console.error("Get account direct permissions error:", error);
+            throw error;
+        }
+    },
+
     grantPermissionToAccount: async (accountId: string, permissionId: string): Promise<void> => {
         const useProxyApi = typeof window !== "undefined";
         const url = useProxyApi
@@ -1340,6 +1390,11 @@ export const authService = {
             console.error("Remove permission from account error:", error);
             throw error;
         }
+    },
+
+    assignPermissionToAccount: async (accountId: string, permissionId: string): Promise<void> => {
+        // Use the grant endpoint for assigning permissions
+        return authService.grantPermissionToAccount(accountId, permissionId);
     },
 
     // Get all available permissions for assignment

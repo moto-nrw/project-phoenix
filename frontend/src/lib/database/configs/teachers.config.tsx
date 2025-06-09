@@ -248,6 +248,41 @@ export const teachersConfig = defineEntityConfig<Teacher>({
           },
         ],
       },
+      {
+        title: 'Konto-Status',
+        titleColor: 'text-purple-800',
+        items: [
+          {
+            label: 'Konto-Informationen',
+            value: (teacher: Teacher) => {
+              if (!teacher.account_id) {
+                return (
+                  <div className="text-sm text-gray-500">
+                    Kein Konto verknüpft - Erstellen Sie ein Konto, um Zugriffsrechte zu verwalten
+                  </div>
+                );
+              }
+              
+              return (
+                <div className="space-y-2">
+                  <div className="text-sm">
+                    <span className="font-medium">Konto-ID:</span> {teacher.account_id}
+                  </div>
+                  {teacher.email && (
+                    <div className="text-sm">
+                      <span className="font-medium">E-Mail:</span> {teacher.email}
+                    </div>
+                  )}
+                  <div className="text-xs text-gray-500 mt-2">
+                    Verwenden Sie die Aktionsbuttons oben, um Rollen und Berechtigungen zu verwalten
+                  </div>
+                </div>
+              );
+            },
+            colSpan: 2,
+          },
+        ],
+      },
     ],
   },
   
