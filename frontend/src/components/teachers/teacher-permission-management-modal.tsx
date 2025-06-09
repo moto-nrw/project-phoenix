@@ -165,15 +165,13 @@ export function TeacherPermissionManagementModal({
            !directPermissions.some(p => p.id === permission.id);
   };
 
-  const footer = activeTab === "available" && selectedPermissions.length > 0 && (
-    <button
-      onClick={handleAssignSelected}
-      disabled={saving}
-      className="rounded-lg bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
-    >
-      {saving ? "Wird gespeichert..." : `${selectedPermissions.length} Berechtigungen hinzufügen`}
-    </button>
-  );
+  // Debug logging
+  console.log('Permission Modal Debug:', {
+    activeTab,
+    selectedPermissionsLength: selectedPermissions.length,
+    isAvailableTab: activeTab === "available",
+    availablePermissionsCount: availablePermissions.length,
+  });
 
   if (!teacher.account_id) {
     return (
@@ -203,7 +201,6 @@ export function TeacherPermissionManagementModal({
         onClose={onClose}
         title={`Berechtigungen verwalten - ${teacher.name}`}
         size="xl"
-        footer={footer}
       >
         <div className="space-y-4">
           {/* Stats */}
@@ -361,6 +358,21 @@ export function TeacherPermissionManagementModal({
                   })
                 )
               )}
+            </div>
+          )}
+          
+          {/* Action button for available tab */}
+          {activeTab === "available" && (
+            <div className="flex justify-end pt-4 border-t border-gray-200">
+              <button
+                onClick={handleAssignSelected}
+                disabled={saving || selectedPermissions.length === 0}
+                className="rounded-lg bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {saving ? "Wird gespeichert..." : 
+                 selectedPermissions.length > 0 ? `${selectedPermissions.length} Berechtigungen hinzufügen` : 
+                 "Wählen Sie Berechtigungen aus"}
+              </button>
             </div>
           )}
         </div>

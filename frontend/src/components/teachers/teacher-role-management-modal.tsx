@@ -160,15 +160,13 @@ export function TeacherRoleManagementModal({
     }
   };
 
-  const footer = activeTab === "available" && selectedRoles.length > 0 && (
-    <button
-      onClick={handleAssignSelected}
-      disabled={saving}
-      className="rounded-lg bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
-    >
-      {saving ? "Wird gespeichert..." : `${selectedRoles.length} Rollen hinzufügen`}
-    </button>
-  );
+  // Debug for consistency
+  console.log('Role Modal Debug:', {
+    activeTab,
+    selectedRolesLength: selectedRoles.length,
+    isAvailableTab: activeTab === "available",
+    availableRolesCount: availableRoles.length,
+  });
 
   if (!teacher.account_id) {
     return (
@@ -198,7 +196,6 @@ export function TeacherRoleManagementModal({
         onClose={onClose}
         title={`Rollen verwalten - ${teacher.name}`}
         size="xl"
-        footer={footer}
       >
         <div className="space-y-4">
           {/* Stats */}
@@ -320,6 +317,21 @@ export function TeacherRoleManagementModal({
                 </div>
               )}
             </>
+          )}
+          
+          {/* Action button for available tab */}
+          {activeTab === "available" && (
+            <div className="flex justify-end pt-4 border-t border-gray-200">
+              <button
+                onClick={handleAssignSelected}
+                disabled={saving || selectedRoles.length === 0}
+                className="rounded-lg bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {saving ? "Wird gespeichert..." : 
+                 selectedRoles.length > 0 ? `${selectedRoles.length} Rollen hinzufügen` : 
+                 "Wählen Sie Rollen aus"}
+              </button>
+            </div>
           )}
         </div>
       </FormModal>
