@@ -44,11 +44,10 @@ func setupActiveService(t *testing.T, db *bun.DB) activeSvc.Service {
 	return serviceFactory.Active
 }
 
-
 // cleanupTestData removes test data from database
 func cleanupTestData(t *testing.T, db *bun.DB, groupIDs ...int64) {
 	ctx := context.Background()
-	
+
 	// Clean up active groups
 	for _, groupID := range groupIDs {
 		_, err := db.NewDelete().
@@ -238,7 +237,7 @@ func TestSessionLifecycle(t *testing.T) {
 
 	t.Run("end non-existent session returns error", func(t *testing.T) {
 		nonExistentID := int64(99999)
-		
+
 		err := service.EndActivitySession(ctx, nonExistentID)
 		assert.Error(t, err, "Expected error when ending non-existent session")
 	})
@@ -299,12 +298,12 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 
 		// Start two goroutines trying to start the same activity simultaneously
 		results := make(chan error, 2)
-		
+
 		go func() {
 			_, err := service.StartActivitySession(ctx, activityID, device1ID, staffID)
 			results <- err
 		}()
-		
+
 		go func() {
 			time.Sleep(10 * time.Millisecond) // Small delay to test race condition
 			_, err := service.StartActivitySession(ctx, activityID, device2ID, staffID)
@@ -357,7 +356,7 @@ func setupActiveServiceBench(b *testing.B, db *bun.DB) activeSvc.Service {
 // cleanupTestDataBench removes test data from database for benchmarks
 func cleanupTestDataBench(b *testing.B, db *bun.DB, groupIDs ...int64) {
 	ctx := context.Background()
-	
+
 	// Clean up active groups
 	for _, groupID := range groupIDs {
 		_, err := db.NewDelete().

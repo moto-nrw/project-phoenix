@@ -32,25 +32,42 @@ This document outlines the complete implementation plan for the RFID-based stude
 
 ## Complete Workflow
 
-### Device Registration (Admin Only)
+### Device Registration (Admin Only) ✅ IMPLEMENTED
 ```
 Admin → Web Dashboard → Device Management
-1. Admin navigates to /database/devices
-2. Clicks "Register New Device"
-3. Enters:
-   - Device Name (e.g., "Classroom Pi 01")
-   - Device Type: "rfid_reader"
-4. System generates:
-   - Unique device_id (UUID)
-   - API key (dev_xyz123...)
-5. Admin configures device with credentials:
-   - SSH into device or use config UI
-   - Store device_id and api_key in device config
-   - Device saves credentials locally
-6. Device verifies connection:
-   - Sends test ping to server
-   - Server confirms device is registered
+1. Admin navigates to /database/devices via main database section
+2. Clicks "Neues Gerät registrieren" button
+3. Fills device registration form:
+   - Geräte-ID: Unique identifier (e.g., "RFID-001")
+   - Gerätetyp: "RFID-Leser" (only option available)
+   - Name: Optional descriptive name (e.g., "Haupteingang RFID-Leser")
+   - Status: "Aktiv" (default), "Inaktiv", or "Wartung"
+4. Clicks "Erstellen" to submit form
+5. System automatically:
+   - Validates device_id is unique
+   - Generates secure API key (dev_64-char-hex...)
+   - Creates device in database (last_seen initially null)
+   - Device will show as "Offline" until first communication
+6. Success workflow:
+   - Shows success notification
+   - Automatically opens device detail modal
+   - Displays API key with copy functionality and security warning
+   - API key is hidden by default with "Anzeigen" button to reveal
+7. Admin copies API key and configures physical device:
+   - SSH into Raspberry Pi or use configuration interface
+   - Store device_id and api_key in device config file
+   - Device saves credentials locally for authentication
+8. Device verification:
+   - Device sends test ping to server using saved credentials
+   - Server confirms device is registered and active
+   - Device status shows "Online" when communicating (last seen < 5 minutes)
    - Device ready for teacher use
+
+Important Security Notes:
+- API key is only shown once during creation
+- In subsequent views, API key section shows "Nur bei Erstellung sichtbar"
+- Device online status is automatic based on communication, not manually set
+- Green dot indicator shows in device list when device is online
 ```
 
 ### 1. Teacher Activity Creation (Mobile)
@@ -133,13 +150,57 @@ Pi Device → Server (Background Process)
    - Uses device API key authentication
 2. Server updates last_activity timestamp
 3. Dashboard shows device status:
-   - Green: Online (ping within 2 minutes)
-   - Yellow: Warning (ping 2-5 minutes old)
-   - Red: Offline (no ping for 5+ minutes)
+   - Online: Last communication within 5 minutes (green dot indicator)
+   - Offline: No communication for 5+ minutes (no indicator)
 4. If device goes offline:
    - Active sessions remain open
    - Device resumes when connection restored
    - Queued check-ins sync automatically
+```
+
+### 8. Device Management Interface ✅ IMPLEMENTED
+```
+Admin → Web Dashboard → Device Management
+Location: /database/devices
+
+Features:
+1. Device List View:
+   - Shows all registered devices with filtering options
+   - Displays: Device name, type, status, last seen timestamp
+   - Badge indicators: Device type (blue), operational status (colored)
+   - Green dot: Appears when device is online (last seen < 5 minutes)
+   - Search functionality: Search by device ID, name, or type
+   - Filters: Device type, operational status, online status
+
+2. Device Detail Modal:
+   - Comprehensive device information display
+   - Sections: Geräteinformationen, Systemdaten, API-Schlüssel
+   - Device info: ID, type, name, status, online status, last seen
+   - System data: Creation and update timestamps
+   - API key section: 
+     * Shows "Nur bei Erstellung sichtbar" for existing devices
+     * For newly created devices: Full API key with show/hide toggle
+     * Copy button for easy credential copying
+     * Security warning about one-time visibility
+
+3. Device Creation:
+   - Form fields: Device ID (required), Type (RFID-Leser only), Name (optional), Status
+   - Automatic API key generation (64-character secure hex)
+   - Helper text: Explains online/offline determination
+   - Validation: Ensures unique device IDs
+   - Success flow: Auto-opens detail modal with API key visible
+
+4. Device Management:
+   - Edit device details (name, status, etc.)
+   - Delete devices (with confirmation)
+   - View device activity and status history
+   - No manual online/offline setting (automatic based on communication)
+
+5. Security Features:
+   - API keys never re-exposed after creation
+   - Only administrative status changes allowed (active/inactive/maintenance)
+   - Proper authentication required for all operations
+   - Clear separation between device status and connectivity status
 ```
 
 ## API Specifications

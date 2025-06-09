@@ -49,16 +49,32 @@ func (m *SimpleGroupRepo) FindActiveSessionsOlderThan(ctx context.Context, cutof
 // Stub methods for interface compliance
 func (m *SimpleGroupRepo) Create(ctx context.Context, entity *active.Group) error { return nil }
 func (m *SimpleGroupRepo) Update(ctx context.Context, entity *active.Group) error { return nil }
-func (m *SimpleGroupRepo) Delete(ctx context.Context, id interface{}) error { return nil }
-func (m *SimpleGroupRepo) List(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error) { return nil, nil }
-func (m *SimpleGroupRepo) FindActiveByRoomID(ctx context.Context, roomID int64) ([]*active.Group, error) { return nil, nil }
-func (m *SimpleGroupRepo) FindActiveByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error) { return nil, nil }
-func (m *SimpleGroupRepo) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Group, error) { return nil, nil }
+func (m *SimpleGroupRepo) Delete(ctx context.Context, id interface{}) error       { return nil }
+func (m *SimpleGroupRepo) List(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error) {
+	return nil, nil
+}
+func (m *SimpleGroupRepo) FindActiveByRoomID(ctx context.Context, roomID int64) ([]*active.Group, error) {
+	return nil, nil
+}
+func (m *SimpleGroupRepo) FindActiveByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error) {
+	return nil, nil
+}
+func (m *SimpleGroupRepo) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Group, error) {
+	return nil, nil
+}
 func (m *SimpleGroupRepo) EndSession(ctx context.Context, id int64) error { return nil }
-func (m *SimpleGroupRepo) FindBySourceIDs(ctx context.Context, sourceIDs []int64, sourceType string) ([]*active.Group, error) { return nil, nil }
-func (m *SimpleGroupRepo) FindActiveByGroupIDWithDevice(ctx context.Context, groupID int64) ([]*active.Group, error) { return nil, nil }
-func (m *SimpleGroupRepo) CheckActivityDeviceConflict(ctx context.Context, activityID, excludeDeviceID int64) (bool, *active.Group, error) { return false, nil, nil }
-func (m *SimpleGroupRepo) FindInactiveSessions(ctx context.Context, inactiveDuration time.Duration) ([]*active.Group, error) { return nil, nil }
+func (m *SimpleGroupRepo) FindBySourceIDs(ctx context.Context, sourceIDs []int64, sourceType string) ([]*active.Group, error) {
+	return nil, nil
+}
+func (m *SimpleGroupRepo) FindActiveByGroupIDWithDevice(ctx context.Context, groupID int64) ([]*active.Group, error) {
+	return nil, nil
+}
+func (m *SimpleGroupRepo) CheckActivityDeviceConflict(ctx context.Context, activityID, excludeDeviceID int64) (bool, *active.Group, error) {
+	return false, nil, nil
+}
+func (m *SimpleGroupRepo) FindInactiveSessions(ctx context.Context, inactiveDuration time.Duration) ([]*active.Group, error) {
+	return nil, nil
+}
 
 // Simple MockVisitRepository for testing
 type MockVisitRepository struct {
@@ -74,13 +90,21 @@ func (m *MockVisitRepository) FindByActiveGroupID(ctx context.Context, activeGro
 }
 
 // Stub methods for interface compliance
-func (m *MockVisitRepository) FindByID(ctx context.Context, id interface{}) (*active.Visit, error) { return nil, nil }
+func (m *MockVisitRepository) FindByID(ctx context.Context, id interface{}) (*active.Visit, error) {
+	return nil, nil
+}
 func (m *MockVisitRepository) Create(ctx context.Context, entity *active.Visit) error { return nil }
 func (m *MockVisitRepository) Update(ctx context.Context, entity *active.Visit) error { return nil }
-func (m *MockVisitRepository) Delete(ctx context.Context, id interface{}) error { return nil }
-func (m *MockVisitRepository) List(ctx context.Context, options *base.QueryOptions) ([]*active.Visit, error) { return nil, nil }
-func (m *MockVisitRepository) FindActiveByStudentID(ctx context.Context, studentID int64) ([]*active.Visit, error) { return nil, nil }
-func (m *MockVisitRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Visit, error) { return nil, nil }
+func (m *MockVisitRepository) Delete(ctx context.Context, id interface{}) error       { return nil }
+func (m *MockVisitRepository) List(ctx context.Context, options *base.QueryOptions) ([]*active.Visit, error) {
+	return nil, nil
+}
+func (m *MockVisitRepository) FindActiveByStudentID(ctx context.Context, studentID int64) ([]*active.Visit, error) {
+	return nil, nil
+}
+func (m *MockVisitRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Visit, error) {
+	return nil, nil
+}
 func (m *MockVisitRepository) EndVisit(ctx context.Context, id int64) error { return nil }
 
 func TestUpdateSessionActivity_Simple(t *testing.T) {

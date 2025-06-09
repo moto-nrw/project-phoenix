@@ -54,7 +54,7 @@ func (s *service) generateAPIKey() (string, error) {
 	if _, err := rand.Read(bytes); err != nil {
 		return "", err
 	}
-	
+
 	// Convert to hex string and add prefix
 	return fmt.Sprintf("dev_%s", hex.EncodeToString(bytes)), nil
 }

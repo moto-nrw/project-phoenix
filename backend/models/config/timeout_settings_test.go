@@ -145,9 +145,9 @@ func TestTimeoutSettings_Validate(t *testing.T) {
 
 func TestTimeoutSettings_GetEffectiveTimeoutMinutes(t *testing.T) {
 	tests := []struct {
-		name               string
-		settings           *TimeoutSettings
-		expectedTimeout    int
+		name            string
+		settings        *TimeoutSettings
+		expectedTimeout int
 	}{
 		{
 			name: "use global timeout when no device override",

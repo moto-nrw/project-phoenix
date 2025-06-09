@@ -27,8 +27,8 @@ type Device struct {
 	DeviceType     string       `bun:"device_type,notnull" json:"device_type"`
 	Name           *string      `bun:"name" json:"name,omitempty"`
 	Status         DeviceStatus `bun:"status,notnull,default:'active'" json:"status"`
-	APIKey         *string      `bun:"api_key,unique" json:"-"`                    // Never expose API key in JSON
-	LastSeen       *time.Time   `bun:"last_seen" json:"last_seen,omitempty"`       // Used as last_activity for health monitoring
+	APIKey         *string      `bun:"api_key,unique" json:"-"`              // Never expose API key in JSON
+	LastSeen       *time.Time   `bun:"last_seen" json:"last_seen,omitempty"` // Used as last_activity for health monitoring
 	RegisteredByID *int64       `bun:"registered_by_id" json:"registered_by_id,omitempty"`
 
 	// Relations

@@ -275,6 +275,11 @@ export function DatabasePage<T extends { id: string }>({
       // Create the item
       const newItem = await service.create(itemData);
       
+      // Call onCreateSuccess callback if defined
+      if (config.onCreateSuccess) {
+        config.onCreateSuccess(newItem);
+      }
+      
       // Show success notification
       const displayName = config.list.item.title(newItem);
       showSuccess(getDbOperationMessage('create', config.name.singular, displayName));
@@ -282,6 +287,12 @@ export function DatabasePage<T extends { id: string }>({
       // Close modal and refresh list
       setShowCreateModal(false);
       await fetchItems(searchFilter, filters, currentPage);
+      
+      // For devices with API keys, automatically open the detail modal
+      if ((newItem as any).api_key) {
+        setSelectedItem(newItem);
+        setShowDetailModal(true);
+      }
     } catch (err) {
       console.error(`Error creating ${config.name.singular}:`, err);
       setCreateError(

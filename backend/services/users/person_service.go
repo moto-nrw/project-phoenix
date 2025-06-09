@@ -549,12 +549,12 @@ func (s *personService) ValidateStaffPIN(ctx context.Context, pin string) (*user
 
 				// Load the person relation for the authenticated staff
 				staff.Person = person
-				
+
 				return staff, nil
 			} else {
 				// Increment failed attempts for this account
 				account.IncrementPINAttempts()
-				
+
 				// Update the account record with new attempt count/lock status
 				if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
 					// Log error but don't fail the authentication check

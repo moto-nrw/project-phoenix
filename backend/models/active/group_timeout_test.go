@@ -25,28 +25,28 @@ func TestGroup_UpdateActivity(t *testing.T) {
 
 func TestGroup_GetTimeoutDuration(t *testing.T) {
 	tests := []struct {
-		name           string
-		timeoutMinutes int
+		name             string
+		timeoutMinutes   int
 		expectedDuration time.Duration
 	}{
 		{
-			name:           "default 30 minutes",
-			timeoutMinutes: 30,
+			name:             "default 30 minutes",
+			timeoutMinutes:   30,
 			expectedDuration: 30 * time.Minute,
 		},
 		{
-			name:           "custom 60 minutes",
-			timeoutMinutes: 60,
+			name:             "custom 60 minutes",
+			timeoutMinutes:   60,
 			expectedDuration: 60 * time.Minute,
 		},
 		{
-			name:           "zero timeout defaults to 30 minutes",
-			timeoutMinutes: 0,
+			name:             "zero timeout defaults to 30 minutes",
+			timeoutMinutes:   0,
 			expectedDuration: 30 * time.Minute,
 		},
 		{
-			name:           "negative timeout defaults to 30 minutes",
-			timeoutMinutes: -10,
+			name:             "negative timeout defaults to 30 minutes",
+			timeoutMinutes:   -10,
 			expectedDuration: 30 * time.Minute,
 		},
 	}
@@ -65,7 +65,7 @@ func TestGroup_GetTimeoutDuration(t *testing.T) {
 
 func TestGroup_GetInactivityDuration(t *testing.T) {
 	now := time.Now()
-	
+
 	tests := []struct {
 		name               string
 		lastActivity       time.Time
@@ -99,14 +99,14 @@ func TestGroup_GetInactivityDuration(t *testing.T) {
 			}
 
 			inactivity := group.GetInactivityDuration()
-			
+
 			// Check that the inactivity duration is within tolerance of expected
 			diff := inactivity - tt.expectedInactivity
 			if diff < 0 {
 				diff = -diff
 			}
-			assert.True(t, diff <= tt.tolerance, 
-				"Inactivity duration %v should be within %v of expected %v", 
+			assert.True(t, diff <= tt.tolerance,
+				"Inactivity duration %v should be within %v of expected %v",
 				inactivity, tt.tolerance, tt.expectedInactivity)
 		})
 	}
@@ -114,7 +114,7 @@ func TestGroup_GetInactivityDuration(t *testing.T) {
 
 func TestGroup_IsTimedOut(t *testing.T) {
 	now := time.Now()
-	
+
 	tests := []struct {
 		name           string
 		lastActivity   time.Time
@@ -168,7 +168,7 @@ func TestGroup_IsTimedOut(t *testing.T) {
 
 func TestGroup_GetTimeUntilTimeout(t *testing.T) {
 	now := time.Now()
-	
+
 	tests := []struct {
 		name           string
 		lastActivity   time.Time
@@ -216,8 +216,8 @@ func TestGroup_GetTimeUntilTimeout(t *testing.T) {
 				if diff < 0 {
 					diff = -diff
 				}
-				assert.True(t, diff <= tt.tolerance, 
-					"Time until timeout %v should be within %v of expected %v", 
+				assert.True(t, diff <= tt.tolerance,
+					"Time until timeout %v should be within %v of expected %v",
 					timeUntil, tt.tolerance, expectedTime)
 			case "negative":
 				assert.True(t, timeUntil < 0, "Time until timeout should be negative (already timed out)")
@@ -226,11 +226,11 @@ func TestGroup_GetTimeUntilTimeout(t *testing.T) {
 				if diff < 0 {
 					diff = -diff
 				}
-				assert.True(t, diff <= tt.tolerance, 
-					"Time until timeout %v should be within %v of expected %v", 
+				assert.True(t, diff <= tt.tolerance,
+					"Time until timeout %v should be within %v of expected %v",
 					timeUntil, tt.tolerance, expectedTime)
 			case "zero":
-				assert.True(t, timeUntil >= -tt.tolerance && timeUntil <= tt.tolerance, 
+				assert.True(t, timeUntil >= -tt.tolerance && timeUntil <= tt.tolerance,
 					"Time until timeout should be approximately zero, got %v", timeUntil)
 			}
 		})
@@ -254,25 +254,25 @@ func TestGroup_TimeoutMethods_Integration(t *testing.T) {
 
 		// Inactivity should be ~35 minutes
 		inactivity := group.GetInactivityDuration()
-		assert.True(t, inactivity >= 34*time.Minute && inactivity <= 36*time.Minute, 
+		assert.True(t, inactivity >= 34*time.Minute && inactivity <= 36*time.Minute,
 			"Inactivity duration should be around 35 minutes, got %v", inactivity)
 
 		// Time until timeout should be negative (already timed out by ~5 minutes)
 		timeUntil := group.GetTimeUntilTimeout()
 		assert.True(t, timeUntil < 0, "Time until timeout should be negative")
-		assert.True(t, timeUntil >= -6*time.Minute && timeUntil <= -4*time.Minute, 
+		assert.True(t, timeUntil >= -6*time.Minute && timeUntil <= -4*time.Minute,
 			"Time until timeout should be around -5 minutes, got %v", timeUntil)
 
 		// Update activity and retest
 		group.UpdateActivity()
-		
+
 		// Should no longer be timed out
 		assert.False(t, group.IsTimedOut(), "Group should not be timed out after activity update")
-		
+
 		// Time until timeout should now be positive (~30 minutes)
 		timeUntil = group.GetTimeUntilTimeout()
 		assert.True(t, timeUntil > 0, "Time until timeout should be positive after activity update")
-		assert.True(t, timeUntil >= 29*time.Minute && timeUntil <= 30*time.Minute, 
+		assert.True(t, timeUntil >= 29*time.Minute && timeUntil <= 30*time.Minute,
 			"Time until timeout should be around 30 minutes, got %v", timeUntil)
 	})
 }

@@ -21,17 +21,17 @@ type service struct {
 	supervisorRepo    active.GroupSupervisorRepository
 	combinedGroupRepo active.CombinedGroupRepository
 	groupMappingRepo  active.GroupMappingRepository
-	
+
 	// Additional repositories for dashboard analytics
 	studentRepo        userModels.StudentRepository
-	roomRepo          facilityModels.RoomRepository
-	activityGroupRepo activitiesModels.GroupRepository
-	activityCatRepo   activitiesModels.CategoryRepository
+	roomRepo           facilityModels.RoomRepository
+	activityGroupRepo  activitiesModels.GroupRepository
+	activityCatRepo    activitiesModels.CategoryRepository
 	educationGroupRepo educationModels.GroupRepository
-	personRepo        userModels.PersonRepository
-	
-	db                *bun.DB
-	txHandler         *base.TxHandler
+	personRepo         userModels.PersonRepository
+
+	db        *bun.DB
+	txHandler *base.TxHandler
 }
 
 // NewService creates a new active service instance
@@ -50,19 +50,19 @@ func NewService(
 	db *bun.DB,
 ) Service {
 	return &service{
-		groupRepo:         groupRepo,
-		visitRepo:         visitRepo,
-		supervisorRepo:    supervisorRepo,
-		combinedGroupRepo: combinedGroupRepo,
-		groupMappingRepo:  groupMappingRepo,
+		groupRepo:          groupRepo,
+		visitRepo:          visitRepo,
+		supervisorRepo:     supervisorRepo,
+		combinedGroupRepo:  combinedGroupRepo,
+		groupMappingRepo:   groupMappingRepo,
 		studentRepo:        studentRepo,
-		roomRepo:          roomRepo,
-		activityGroupRepo: activityGroupRepo,
-		activityCatRepo:   activityCatRepo,
+		roomRepo:           roomRepo,
+		activityGroupRepo:  activityGroupRepo,
+		activityCatRepo:    activityCatRepo,
 		educationGroupRepo: educationGroupRepo,
-		personRepo:        personRepo,
-		db:                db,
-		txHandler:         base.NewTxHandler(db),
+		personRepo:         personRepo,
+		db:                 db,
+		txHandler:          base.NewTxHandler(db),
 	}
 }
 
@@ -118,19 +118,19 @@ func (s *service) WithTx(tx bun.Tx) interface{} {
 
 	// Return a new service with the transaction
 	return &service{
-		groupRepo:         groupRepo,
-		visitRepo:         visitRepo,
-		supervisorRepo:    supervisorRepo,
-		combinedGroupRepo: combinedGroupRepo,
-		groupMappingRepo:  groupMappingRepo,
-		studentRepo:       studentRepo,
-		roomRepo:          roomRepo,
-		activityGroupRepo: activityGroupRepo,
-		activityCatRepo:   activityCatRepo,
+		groupRepo:          groupRepo,
+		visitRepo:          visitRepo,
+		supervisorRepo:     supervisorRepo,
+		combinedGroupRepo:  combinedGroupRepo,
+		groupMappingRepo:   groupMappingRepo,
+		studentRepo:        studentRepo,
+		roomRepo:           roomRepo,
+		activityGroupRepo:  activityGroupRepo,
+		activityCatRepo:    activityCatRepo,
 		educationGroupRepo: educationGroupRepo,
-		personRepo:        personRepo,
-		db:                s.db,
-		txHandler:         s.txHandler.WithTx(tx),
+		personRepo:         personRepo,
+		db:                 s.db,
+		txHandler:          s.txHandler.WithTx(tx),
 	}
 }
 
@@ -714,18 +714,18 @@ func (s *service) GetRoomUtilization(ctx context.Context, roomID int64) (float64
 	if err != nil {
 		return 0.0, &ActiveError{Op: "GetRoomUtilization", Err: err}
 	}
-	
+
 	// If room has no capacity, utilization is 0
 	if room.Capacity <= 0 {
 		return 0.0, nil
 	}
-	
+
 	// Count active visits in this room (same pattern as dashboard)
 	activeGroups, err := s.groupRepo.FindActiveByRoomID(ctx, roomID)
 	if err != nil {
 		return 0.0, &ActiveError{Op: "GetRoomUtilization", Err: err}
 	}
-	
+
 	currentOccupancy := 0
 	for _, group := range activeGroups {
 		if group.IsActive() {
@@ -739,7 +739,7 @@ func (s *service) GetRoomUtilization(ctx context.Context, roomID int64) (float64
 			}
 		}
 	}
-	
+
 	// Return utilization as a ratio between 0.0 and 1.0
 	return float64(currentOccupancy) / float64(room.Capacity), nil
 }
@@ -769,20 +769,20 @@ func (s *service) GetStudentAttendanceRate(ctx context.Context, studentID int64)
 	// NOTE: This method is NOT used by the dashboard (uses GetDashboardAnalytics instead)
 	// but API routes exist at /api/active/analytics/student/[studentId]/attendance
 	// Individual student pages or reports would need this for attendance tracking
-	
+
 	// Simple implementation matching dashboard's binary presence logic
 	// Returns 1.0 if student has active visit, 0.0 if not
-	
+
 	visit, err := s.GetStudentCurrentVisit(ctx, studentID)
 	if err != nil {
 		// If error, assume student not present
 		return 0.0, nil
 	}
-	
+
 	if visit != nil && visit.IsActive() {
 		return 1.0, nil // Student is present
 	}
-	
+
 	return 0.0, nil // Student is not present
 }
 
@@ -799,9 +799,9 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 
 	// Create maps to track students and their locations
 	studentLocationMap := make(map[int64]string) // studentID -> location
-	roomVisitsMap := make(map[int64]int)        // roomID -> visit count
+	roomVisitsMap := make(map[int64]int)         // roomID -> visit count
 	recentCheckouts := make(map[int64]time.Time) // studentID -> checkout time
-	
+
 	studentsPresent := 0
 	for _, visit := range activeVisits {
 		if visit.IsActive() {
@@ -849,12 +849,12 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	ogsGroupsCount := 0
 	occupiedRooms := make(map[int64]bool)
 	studentsInRooms := 0
-	
+
 	for _, group := range activeGroups {
 		if group.IsActive() {
 			activeGroupsCount++
 			occupiedRooms[group.RoomID] = true
-			
+
 			// Count visits for this group
 			groupVisits, err := s.visitRepo.FindByActiveGroupID(ctx, group.ID)
 			if err == nil {
@@ -865,7 +865,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 					}
 				}
 			}
-			
+
 			// Since all educational groups are OGS groups, we count all active education group sessions
 			eduGroup, err := s.educationGroupRepo.FindByID(ctx, group.GroupID)
 			if err == nil && eduGroup != nil {
@@ -912,7 +912,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	if err != nil {
 		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
 	}
-	
+
 	// Create a set of room IDs that belong to educational groups
 	educationGroupRooms := make(map[int64]bool)
 	for _, eduGroup := range allEducationGroups {
@@ -920,7 +920,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			educationGroupRooms[*eduGroup.RoomID] = true
 		}
 	}
-	
+
 	// Calculate students by location
 	studentsOnPlayground := 0
 	studentsInTransit := 0
@@ -928,7 +928,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	studentsInHomeRoom := 0
 	studentsInWC := 0
 	studentsInSchoolYard := 0
-	
+
 	// Process room visits to categorize students
 	for roomID, visitCount := range roomVisitsMap {
 		if room, ok := roomByID[roomID]; ok {
@@ -941,7 +941,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 				// Track students in WC
 				studentsInWC += visitCount
 			}
-			
+
 			// Check if this room belongs to an educational group
 			if educationGroupRooms[roomID] {
 				studentsInGroupRooms += visitCount
@@ -950,7 +950,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			}
 		}
 	}
-	
+
 	// Calculate students in transit: students with in_house=true but not in any room/WC/schoolyard
 	// First, get all students who are in_house (in OGS)
 	studentsInOGS := 0
@@ -961,7 +961,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			ogsStudentIDs[student.ID] = true
 		}
 	}
-	
+
 	// Now check which OGS students are NOT in any location
 	studentsInTransit = 0
 	for studentID := range ogsStudentIDs {
@@ -971,7 +971,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			studentsInTransit++
 		}
 	}
-	
+
 	analytics.StudentsOnPlayground = studentsOnPlayground
 	analytics.StudentsInTransit = studentsInTransit
 	analytics.StudentsInGroupRooms = studentsInGroupRooms
@@ -979,7 +979,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 
 	// Build recent activity (privacy-compliant - no individual student data)
 	recentActivity := []RecentActivity{}
-	
+
 	// Sort active groups by start time (most recent first)
 	for i, group := range activeGroups {
 		if i >= 3 { // Limit to 3 recent activities
@@ -989,7 +989,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		if time.Since(group.StartTime) < 30*time.Minute && group.IsActive() {
 			// Get actual group name - first try activity group, then education group
 			groupName := fmt.Sprintf("Gruppe %d", group.GroupID)
-			
+
 			// Try to find in activity groups first
 			if actGroup, err := s.activityGroupRepo.FindByID(ctx, group.GroupID); err == nil && actGroup != nil {
 				groupName = actGroup.Name
@@ -997,16 +997,16 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 				// Fall back to education group
 				groupName = eduGroup.Name
 			}
-			
+
 			// Get actual room name
 			roomName := fmt.Sprintf("Raum %d", group.RoomID)
 			if room, ok := roomByID[group.RoomID]; ok {
 				roomName = room.Name
 			}
-			
+
 			// Count active visits for this group
 			visitCount := roomVisitsMap[group.RoomID]
-			
+
 			activity := RecentActivity{
 				Type:      "group_start",
 				GroupName: groupName,
@@ -1021,7 +1021,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 
 	// Build current activities
 	currentActivities := []CurrentActivity{}
-	
+
 	// Get active activity groups
 	activityGroups, err := s.activityGroupRepo.List(ctx, nil)
 	if err == nil {
@@ -1029,11 +1029,11 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			if i >= 2 { // Limit to 2 current activities
 				break
 			}
-			
+
 			// Check if this activity has an active session
 			hasActiveSession := false
 			participantCount := 0
-			
+
 			for _, group := range activeGroups {
 				if group.IsActive() && group.GroupID == actGroup.ID {
 					hasActiveSession = true
@@ -1041,20 +1041,20 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 					break
 				}
 			}
-			
+
 			if hasActiveSession {
 				categoryName := "Sonstiges"
 				if actGroup.Category != nil {
 					categoryName = actGroup.Category.Name
 				}
-				
+
 				status := "active"
 				if participantCount >= actGroup.MaxParticipants {
 					status = "full"
 				} else if participantCount > int(float64(actGroup.MaxParticipants)*0.8) {
 					status = "ending_soon"
 				}
-				
+
 				activity := CurrentActivity{
 					Name:         actGroup.Name,
 					Category:     categoryName,
@@ -1078,19 +1078,19 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		// Get group details
 		groupName := fmt.Sprintf("Gruppe %d", group.GroupID)
 		groupType := "activity"
-		
+
 		if eduGroup, err := s.educationGroupRepo.FindByID(ctx, group.GroupID); err == nil && eduGroup != nil {
 			groupName = eduGroup.Name
 			// All educational groups are OGS groups
 			groupType = "ogs_group"
 		}
-		
+
 		// Get room name
 		location := fmt.Sprintf("Raum %d", group.RoomID)
 		if room, ok := roomByID[group.RoomID]; ok {
 			location = room.Name
 		}
-		
+
 		groupInfo := ActiveGroupInfo{
 			Name:         groupName,
 			Type:         groupType,
@@ -1145,8 +1145,8 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 		now := time.Now()
 		newGroup = &active.Group{
 			StartTime:      now,
-			LastActivity:   now,             // Initialize activity tracking
-			TimeoutMinutes: 30,              // Default 30 minutes timeout
+			LastActivity:   now, // Initialize activity tracking
+			TimeoutMinutes: 30,  // Default 30 minutes timeout
 			GroupID:        activityID,
 			DeviceID:       &deviceID,
 			RoomID:         1, // TODO: Get room from activity configuration
@@ -1197,8 +1197,8 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 		now := time.Now()
 		newGroup = &active.Group{
 			StartTime:      now,
-			LastActivity:   now,             // Initialize activity tracking
-			TimeoutMinutes: 30,              // Default 30 minutes timeout
+			LastActivity:   now, // Initialize activity tracking
+			TimeoutMinutes: 30,  // Default 30 minutes timeout
 			GroupID:        activityID,
 			DeviceID:       &deviceID,
 			RoomID:         1, // TODO: Get room from activity configuration
@@ -1368,7 +1368,7 @@ func (s *service) ValidateSessionTimeout(ctx context.Context, deviceID int64, ti
 	// Check if session is actually timed out based on inactivity
 	timeoutDuration := time.Duration(timeoutMinutes) * time.Minute
 	inactivityDuration := time.Since(session.LastActivity)
-	
+
 	if inactivityDuration < timeoutDuration {
 		return &ActiveError{Op: "ValidateSessionTimeout", Err: fmt.Errorf("session not yet timed out: %v remaining", timeoutDuration-inactivityDuration)}
 	}
@@ -1398,15 +1398,15 @@ func (s *service) GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*S
 	}
 
 	info := &SessionTimeoutInfo{
-		SessionID:           session.ID,
-		ActivityID:          session.GroupID,
-		StartTime:           session.StartTime,
-		LastActivity:        session.LastActivity,
-		TimeoutMinutes:      session.TimeoutMinutes,
-		InactivityDuration:  session.GetInactivityDuration(),
-		TimeUntilTimeout:    session.GetTimeUntilTimeout(),
-		IsTimedOut:          session.IsTimedOut(),
-		ActiveStudentCount:  activeStudentCount,
+		SessionID:          session.ID,
+		ActivityID:         session.GroupID,
+		StartTime:          session.StartTime,
+		LastActivity:       session.LastActivity,
+		TimeoutMinutes:     session.TimeoutMinutes,
+		InactivityDuration: session.GetInactivityDuration(),
+		TimeUntilTimeout:   session.GetTimeUntilTimeout(),
+		IsTimedOut:         session.IsTimedOut(),
+		ActiveStudentCount: activeStudentCount,
 	}
 
 	return info, nil
@@ -1416,7 +1416,7 @@ func (s *service) GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*S
 func (s *service) CleanupAbandonedSessions(ctx context.Context, olderThan time.Duration) (int, error) {
 	// Find sessions that have been active for longer than the threshold
 	cutoffTime := time.Now().Add(-olderThan)
-	
+
 	// This would require a new repository method to find sessions by last activity
 	// For now, let's implement a conservative approach
 	sessions, err := s.groupRepo.FindActiveSessionsOlderThan(ctx, cutoffTime)

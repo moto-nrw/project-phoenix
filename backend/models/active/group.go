@@ -16,10 +16,10 @@ type Group struct {
 	base.Model     `bun:"schema:active,table:groups"`
 	StartTime      time.Time  `bun:"start_time,notnull" json:"start_time"`
 	EndTime        *time.Time `bun:"end_time" json:"end_time,omitempty"`
-	LastActivity   time.Time  `bun:"last_activity,notnull" json:"last_activity"`     // Activity tracking for timeout
+	LastActivity   time.Time  `bun:"last_activity,notnull" json:"last_activity"`      // Activity tracking for timeout
 	TimeoutMinutes int        `bun:"timeout_minutes,nullzero" json:"timeout_minutes"` // Session timeout config (default 30)
 	GroupID        int64      `bun:"group_id,notnull" json:"group_id"`
-	DeviceID       *int64     `bun:"device_id" json:"device_id,omitempty"`      // Optional for RFID system
+	DeviceID       *int64     `bun:"device_id" json:"device_id,omitempty"` // Optional for RFID system
 	RoomID         int64      `bun:"room_id,notnull" json:"room_id"`
 
 	// Relations - these would be populated when using the ORM's relations

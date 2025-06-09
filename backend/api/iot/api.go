@@ -778,14 +778,14 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 
 	// Return device status and staff info
 	response := map[string]interface{}{
-		"device_id":    deviceCtx.DeviceID,
-		"device_name":  deviceCtx.Name,
-		"status":       deviceCtx.Status,
-		"staff_id":     staffCtx.ID,
-		"person_id":    staffCtx.PersonID,
-		"last_seen":    deviceCtx.LastSeen,
-		"is_online":    deviceCtx.IsOnline(),
-		"ping_time":    time.Now(),
+		"device_id":   deviceCtx.DeviceID,
+		"device_name": deviceCtx.Name,
+		"status":      deviceCtx.Status,
+		"staff_id":    staffCtx.ID,
+		"person_id":   staffCtx.PersonID,
+		"last_seen":   deviceCtx.LastSeen,
+		"is_online":   deviceCtx.IsOnline(),
+		"ping_time":   time.Now(),
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Device ping successful")
@@ -1062,14 +1062,14 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare response
 	response := map[string]interface{}{
-		"student_id":    student.ID,
-		"student_name":  studentName,
-		"action":        actionMsg,
-		"visit_id":      visitID,
-		"room_name":     roomName,
-		"processed_at":  now,
-		"message":       greetingMsg,
-		"status":        "success",
+		"student_id":   student.ID,
+		"student_name": studentName,
+		"action":       actionMsg,
+		"visit_id":     visitID,
+		"room_name":    roomName,
+		"processed_at": now,
+		"message":      greetingMsg,
+		"status":       "success",
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Student "+actionMsg+" successfully")
@@ -1128,7 +1128,7 @@ func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
 		if student.Person != nil {
 			response.FirstName = student.Person.FirstName
 			response.LastName = student.Person.LastName
-			
+
 			// Add RFID tag if available
 			if student.Person.TagID != nil {
 				response.RFIDTag = *student.Person.TagID
@@ -1231,13 +1231,13 @@ type SessionStartRequest struct {
 
 // SessionStartResponse represents the response when starting an activity session
 type SessionStartResponse struct {
-	ActiveGroupID   int64               `json:"active_group_id"`
-	ActivityID      int64               `json:"activity_id"`
-	DeviceID        int64               `json:"device_id"`
-	StartTime       time.Time           `json:"start_time"`
-	ConflictInfo    *ConflictInfoResponse `json:"conflict_info,omitempty"`
-	Status          string              `json:"status"`
-	Message         string              `json:"message"`
+	ActiveGroupID int64                 `json:"active_group_id"`
+	ActivityID    int64                 `json:"activity_id"`
+	DeviceID      int64                 `json:"device_id"`
+	StartTime     time.Time             `json:"start_time"`
+	ConflictInfo  *ConflictInfoResponse `json:"conflict_info,omitempty"`
+	Status        string                `json:"status"`
+	Message       string                `json:"message"`
 }
 
 // ConflictInfoResponse represents conflict information for API responses
@@ -1316,12 +1316,12 @@ type SessionTimeoutInfoResponse struct {
 
 // SessionCurrentResponse represents the current session information
 type SessionCurrentResponse struct {
-	ActiveGroupID *int64    `json:"active_group_id,omitempty"`
-	ActivityID    *int64    `json:"activity_id,omitempty"`
-	DeviceID      int64     `json:"device_id"`
+	ActiveGroupID *int64     `json:"active_group_id,omitempty"`
+	ActivityID    *int64     `json:"activity_id,omitempty"`
+	DeviceID      int64      `json:"device_id"`
 	StartTime     *time.Time `json:"start_time,omitempty"`
-	Duration      *string   `json:"duration,omitempty"`
-	IsActive      bool      `json:"is_active"`
+	Duration      *string    `json:"duration,omitempty"`
+	IsActive      bool       `json:"is_active"`
 }
 
 // Bind validates the session start request
@@ -1472,7 +1472,7 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 
 	// Get current session for this device
 	currentSession, err := rs.ActiveService.GetDeviceCurrentSession(r.Context(), deviceCtx.ID)
-	
+
 	response := SessionCurrentResponse{
 		DeviceID: deviceCtx.ID,
 		IsActive: false,
@@ -1630,10 +1630,10 @@ func (rs *Resource) updateSessionActivity(w http.ResponseWriter, r *http.Request
 	}
 
 	response := map[string]interface{}{
-		"session_id":     session.ID,
-		"activity_type":  req.ActivityType,
-		"updated_at":     time.Now(),
-		"last_activity":  time.Now(),
+		"session_id":    session.ID,
+		"activity_type": req.ActivityType,
+		"updated_at":    time.Now(),
+		"last_activity": time.Now(),
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Session activity updated")
@@ -1660,10 +1660,10 @@ func (rs *Resource) validateSessionTimeout(w http.ResponseWriter, r *http.Reques
 	}
 
 	response := map[string]interface{}{
-		"valid":            true,
-		"timeout_minutes":  req.TimeoutMinutes,
-		"last_activity":    req.LastActivity,
-		"validated_at":     time.Now(),
+		"valid":           true,
+		"timeout_minutes": req.TimeoutMinutes,
+		"last_activity":   req.LastActivity,
+		"validated_at":    time.Now(),
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Timeout validation successful")
@@ -1682,15 +1682,15 @@ func (rs *Resource) getSessionTimeoutInfo(w http.ResponseWriter, r *http.Request
 	}
 
 	response := SessionTimeoutInfoResponse{
-		SessionID:           info.SessionID,
-		ActivityID:          info.ActivityID,
-		StartTime:           info.StartTime,
-		LastActivity:        info.LastActivity,
-		TimeoutMinutes:      info.TimeoutMinutes,
-		InactivitySeconds:   int(info.InactivityDuration.Seconds()),
+		SessionID:               info.SessionID,
+		ActivityID:              info.ActivityID,
+		StartTime:               info.StartTime,
+		LastActivity:            info.LastActivity,
+		TimeoutMinutes:          info.TimeoutMinutes,
+		InactivitySeconds:       int(info.InactivityDuration.Seconds()),
 		TimeUntilTimeoutSeconds: int(info.TimeUntilTimeout.Seconds()),
-		IsTimedOut:          info.IsTimedOut,
-		ActiveStudentCount:  info.ActiveStudentCount,
+		IsTimedOut:              info.IsTimedOut,
+		ActiveStudentCount:      info.ActiveStudentCount,
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Session timeout information retrieved")

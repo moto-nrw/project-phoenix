@@ -151,11 +151,11 @@ type ActiveGroupInfo struct {
 
 // ActivityConflictInfo represents information about a detected activity conflict
 type ActivityConflictInfo struct {
-	HasConflict      bool         `json:"has_conflict"`
-	ConflictingGroup *active.Group `json:"conflicting_group,omitempty"`
-	ConflictingDevice *string      `json:"conflicting_device,omitempty"`
-	ConflictMessage  string       `json:"conflict_message"`
-	CanOverride      bool         `json:"can_override"`
+	HasConflict       bool          `json:"has_conflict"`
+	ConflictingGroup  *active.Group `json:"conflicting_group,omitempty"`
+	ConflictingDevice *string       `json:"conflicting_device,omitempty"`
+	ConflictMessage   string        `json:"conflict_message"`
+	CanOverride       bool          `json:"can_override"`
 }
 
 // TimeoutResult represents the result of processing a session timeout
@@ -168,13 +168,13 @@ type TimeoutResult struct {
 
 // SessionTimeoutInfo provides information about a session's timeout status
 type SessionTimeoutInfo struct {
-	SessionID           int64         `json:"session_id"`
-	ActivityID          int64         `json:"activity_id"`
-	StartTime           time.Time     `json:"start_time"`
-	LastActivity        time.Time     `json:"last_activity"`
-	TimeoutMinutes      int           `json:"timeout_minutes"`
-	InactivityDuration  time.Duration `json:"inactivity_duration"`
-	TimeUntilTimeout    time.Duration `json:"time_until_timeout"`
-	IsTimedOut          bool          `json:"is_timed_out"`
-	ActiveStudentCount  int           `json:"active_student_count"`
+	SessionID          int64         `json:"session_id"`
+	ActivityID         int64         `json:"activity_id"`
+	StartTime          time.Time     `json:"start_time"`
+	LastActivity       time.Time     `json:"last_activity"`
+	TimeoutMinutes     int           `json:"timeout_minutes"`
+	InactivityDuration time.Duration `json:"inactivity_duration"`
+	TimeUntilTimeout   time.Duration `json:"time_until_timeout"`
+	IsTimedOut         bool          `json:"is_timed_out"`
+	ActiveStudentCount int           `json:"active_student_count"`
 }

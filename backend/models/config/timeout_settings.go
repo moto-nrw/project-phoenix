@@ -7,10 +7,10 @@ import (
 
 // TimeoutSettings represents session timeout configuration
 type TimeoutSettings struct {
-	GlobalTimeoutMinutes    int `json:"global_timeout_minutes"`     // Default timeout for all sessions
-	DeviceTimeoutMinutes    *int `json:"device_timeout_minutes,omitempty"` // Device-specific override
-	WarningThresholdMinutes int `json:"warning_threshold_minutes"`  // When to warn about upcoming timeout
-	CheckIntervalSeconds    int `json:"check_interval_seconds"`     // How often device should check for timeout
+	GlobalTimeoutMinutes    int       `json:"global_timeout_minutes"`           // Default timeout for all sessions
+	DeviceTimeoutMinutes    *int      `json:"device_timeout_minutes,omitempty"` // Device-specific override
+	WarningThresholdMinutes int       `json:"warning_threshold_minutes"`        // When to warn about upcoming timeout
+	CheckIntervalSeconds    int       `json:"check_interval_seconds"`           // How often device should check for timeout
 	CreatedAt               time.Time `json:"created_at"`
 	UpdatedAt               time.Time `json:"updated_at"`
 }
@@ -20,43 +20,43 @@ func (ts *TimeoutSettings) Validate() error {
 	if ts.GlobalTimeoutMinutes <= 0 {
 		return errors.New("global timeout minutes must be positive")
 	}
-	
+
 	if ts.GlobalTimeoutMinutes > 480 { // Max 8 hours
 		return errors.New("global timeout minutes cannot exceed 480 (8 hours)")
 	}
-	
+
 	if ts.DeviceTimeoutMinutes != nil {
 		if *ts.DeviceTimeoutMinutes <= 0 {
 			return errors.New("device timeout minutes must be positive")
 		}
-		
+
 		if *ts.DeviceTimeoutMinutes > 480 { // Max 8 hours
 			return errors.New("device timeout minutes cannot exceed 480 (8 hours)")
 		}
 	}
-	
+
 	if ts.WarningThresholdMinutes <= 0 {
 		return errors.New("warning threshold minutes must be positive")
 	}
-	
+
 	if ts.CheckIntervalSeconds <= 0 {
 		return errors.New("check interval seconds must be positive")
 	}
-	
+
 	if ts.CheckIntervalSeconds > 300 { // Max 5 minutes
 		return errors.New("check interval seconds cannot exceed 300 (5 minutes)")
 	}
-	
+
 	// Warning threshold should be less than timeout
 	effectiveTimeout := ts.GlobalTimeoutMinutes
 	if ts.DeviceTimeoutMinutes != nil {
 		effectiveTimeout = *ts.DeviceTimeoutMinutes
 	}
-	
+
 	if ts.WarningThresholdMinutes >= effectiveTimeout {
 		return errors.New("warning threshold must be less than timeout duration")
 	}
-	
+
 	return nil
 }
 
@@ -86,9 +86,9 @@ func (ts *TimeoutSettings) GetCheckInterval() time.Duration {
 // NewDefaultTimeoutSettings creates default timeout settings
 func NewDefaultTimeoutSettings() *TimeoutSettings {
 	return &TimeoutSettings{
-		GlobalTimeoutMinutes:    30,  // 30 minutes default
-		WarningThresholdMinutes: 5,   // 5 minutes warning
-		CheckIntervalSeconds:    30,  // Check every 30 seconds
+		GlobalTimeoutMinutes:    30, // 30 minutes default
+		WarningThresholdMinutes: 5,  // 5 minutes warning
+		CheckIntervalSeconds:    30, // Check every 30 seconds
 		CreatedAt:               time.Now(),
 		UpdatedAt:               time.Now(),
 	}
@@ -99,11 +99,11 @@ func (ts *TimeoutSettings) SetDeviceTimeout(minutes int) error {
 	if minutes <= 0 {
 		return errors.New("device timeout minutes must be positive")
 	}
-	
+
 	if minutes > 480 {
 		return errors.New("device timeout minutes cannot exceed 480 (8 hours)")
 	}
-	
+
 	ts.DeviceTimeoutMinutes = &minutes
 	ts.UpdatedAt = time.Now()
 	return nil

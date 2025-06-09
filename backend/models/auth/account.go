@@ -13,16 +13,16 @@ import (
 
 // Account represents an authentication account
 type Account struct {
-	base.Model      `bun:"schema:auth,table:accounts"`
-	Email           string     `bun:"email,notnull" json:"email"`
-	Username        *string    `bun:"username,unique" json:"username,omitempty"`
-	Active          bool       `bun:"active,notnull,default:true" json:"active"`
-	PasswordHash    *string    `bun:"password_hash" json:"-"`
-	IsPasswordOTP   bool       `bun:"is_password_otp,default:false" json:"is_password_otp"`
-	LastLogin       *time.Time `bun:"last_login" json:"last_login,omitempty"`
-	PINHash         *string    `bun:"pin_hash" json:"-"`
-	PINAttempts     int        `bun:"pin_attempts,default:0" json:"-"`
-	PINLockedUntil  *time.Time `bun:"pin_locked_until" json:"-"`
+	base.Model     `bun:"schema:auth,table:accounts"`
+	Email          string     `bun:"email,notnull" json:"email"`
+	Username       *string    `bun:"username,unique" json:"username,omitempty"`
+	Active         bool       `bun:"active,notnull,default:true" json:"active"`
+	PasswordHash   *string    `bun:"password_hash" json:"-"`
+	IsPasswordOTP  bool       `bun:"is_password_otp,default:false" json:"is_password_otp"`
+	LastLogin      *time.Time `bun:"last_login" json:"last_login,omitempty"`
+	PINHash        *string    `bun:"pin_hash" json:"-"`
+	PINAttempts    int        `bun:"pin_attempts,default:0" json:"-"`
+	PINLockedUntil *time.Time `bun:"pin_locked_until" json:"-"`
 
 	// Relations not stored in the database
 	Roles       []*Role       `bun:"-" json:"roles,omitempty"`
@@ -163,7 +163,7 @@ func (a *Account) IsPINLocked() bool {
 // IncrementPINAttempts increments the failed PIN attempt counter and locks if needed
 func (a *Account) IncrementPINAttempts() {
 	a.PINAttempts++
-	
+
 	// Lock account for 15 minutes after 5 failed attempts
 	if a.PINAttempts >= 5 {
 		lockUntil := time.Now().Add(15 * time.Minute)

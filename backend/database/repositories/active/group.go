@@ -328,10 +328,10 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 	var groups []*active.Group
 	err := r.db.NewSelect().
 		Model(&groups).
-		Where("end_time IS NULL").                        // Only active sessions
-		Where("last_activity < ?", cutoffTime).           // Haven't had activity since cutoff
-		Where("device_id IS NOT NULL").                   // Only device-managed sessions
-		Order("last_activity ASC").                       // Oldest first
+		Where("end_time IS NULL").              // Only active sessions
+		Where("last_activity < ?", cutoffTime). // Haven't had activity since cutoff
+		Where("device_id IS NOT NULL").         // Only device-managed sessions
+		Order("last_activity ASC").             // Oldest first
 		Scan(ctx)
 
 	if err != nil {
@@ -347,17 +347,17 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 // FindInactiveSessions finds sessions that have been inactive for the specified duration
 func (r *GroupRepository) FindInactiveSessions(ctx context.Context, inactiveDuration time.Duration) ([]*active.Group, error) {
 	cutoffTime := time.Now().Add(-inactiveDuration)
-	
+
 	var groups []*active.Group
 	err := r.db.NewSelect().
 		Model(&groups).
-		Where("end_time IS NULL").                        // Only active sessions
-		Where("last_activity < ?", cutoffTime).           // Inactive for specified duration
-		Where("device_id IS NOT NULL").                   // Only device-managed sessions
-		Where("timeout_minutes > 0").                     // Has timeout configured
+		Where("end_time IS NULL").              // Only active sessions
+		Where("last_activity < ?", cutoffTime). // Inactive for specified duration
+		Where("device_id IS NOT NULL").         // Only device-managed sessions
+		Where("timeout_minutes > 0").           // Has timeout configured
 		// Only include sessions where inactivity exceeds their configured timeout
 		Where("EXTRACT(EPOCH FROM (NOW() - last_activity))/60 >= timeout_minutes").
-		Order("last_activity ASC").                       // Oldest first
+		Order("last_activity ASC"). // Oldest first
 		Scan(ctx)
 
 	if err != nil {
