@@ -9,6 +9,7 @@ import Link from "next/link";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import { formatRecentActivityTime, getActivityStatusColor, getGroupStatusColor } from "~/lib/dashboard-helpers";
 import { UserContextProvider, useHasEducationalGroups } from "~/lib/usercontext-context";
+import { QuickCreateActivityModal } from "~/components/activities/quick-create-modal";
 
 // Info Card Component with proper TypeScript types and responsive design
 interface InfoCardProps {
@@ -222,9 +223,28 @@ interface QuickActionsProps {
     showOGSGroups: boolean;
 }
 
-const QuickActions: React.FC<QuickActionsProps> = ({ showOGSGroups }) => (
-    <InfoCard title="Schnellzugriff">
-        <div className="grid grid-cols-1 gap-2 md:gap-3">
+const QuickActions: React.FC<QuickActionsProps> = ({ showOGSGroups }) => {
+    const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
+
+    return (
+        <>
+            <InfoCard title="Schnellzugriff">
+                <div className="grid grid-cols-1 gap-2 md:gap-3">
+                    {/* Quick Create Activity Button */}
+                    <button
+                        onClick={() => setIsQuickCreateOpen(true)}
+                        className="flex items-center rounded-lg border border-gray-200 p-2 md:p-3 transition-all hover:border-blue-500 hover:bg-blue-50 active:bg-blue-100 w-full text-left"
+                    >
+                        <div className="mr-2 md:mr-3 p-1.5 md:p-2 rounded-lg bg-blue-100">
+                            <svg className="h-4 w-4 md:h-5 md:w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <h4 className="text-sm md:text-base font-medium text-gray-900">Schnell-Aktivität</h4>
+                            <p className="text-xs text-gray-500 truncate">Neue Aktivität schnell erstellen</p>
+                        </div>
+                    </button>
             <Link
                 href="/students/search"
                 className="flex items-center rounded-lg border border-gray-200 p-2 md:p-3 transition-all hover:border-blue-500 hover:bg-blue-50 active:bg-blue-100"
@@ -257,7 +277,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({ showOGSGroups }) => (
                 </Link>
             )}
 
-      <Link
+      {/* <Link
         href="/statistics"
         className="flex items-center rounded-lg border border-gray-200 p-2 md:p-3 transition-all hover:border-amber-500 hover:bg-amber-50 active:bg-amber-100"
       >
@@ -270,7 +290,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({ showOGSGroups }) => (
           <h4 className="text-sm md:text-base font-medium text-gray-900">Statistiken</h4>
           <p className="text-xs text-gray-500 truncate">Schulweite Kennzahlen und Daten</p>
         </div>
-      </Link>
+      </Link> */}
 
       <Link
         href="/substitutions"
@@ -286,9 +306,21 @@ const QuickActions: React.FC<QuickActionsProps> = ({ showOGSGroups }) => (
           <p className="text-xs text-gray-500 truncate">Personalausfälle verwalten</p>
         </div>
       </Link>
-    </div>
-  </InfoCard>
-);
+                </div>
+            </InfoCard>
+            
+            {/* Quick Create Activity Modal */}
+            <QuickCreateActivityModal
+                isOpen={isQuickCreateOpen}
+                onClose={() => setIsQuickCreateOpen(false)}
+                onSuccess={() => {
+                    setIsQuickCreateOpen(false);
+                    // Optional: Show success notification or refresh data
+                }}
+            />
+        </>
+    );
+};
 
 // Helper function to get time-based greeting
 function getTimeBasedGreeting(): string {
