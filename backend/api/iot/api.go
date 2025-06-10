@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -1893,8 +1894,11 @@ func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Normalize the tag ID to match the stored format (same logic as in person repository)
+	normalizedTagID := normalizeTagID(tagID)
+
 	// Find person by RFID tag using existing service method
-	person, err := rs.UsersService.FindByTagID(r.Context(), tagID)
+	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedTagID)
 	if err != nil {
 		// Handle case where tag is not assigned to anyone (no person found)
 		log.Printf("Warning: No person found for RFID tag %s: %v", tagID, err)
@@ -1908,7 +1912,7 @@ func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Reques
 	}
 
 	// If person found and has this tag, check if they're a student
-	if person != nil && person.TagID != nil && *person.TagID == tagID {
+	if person != nil && person.TagID != nil && *person.TagID == normalizedTagID {
 		// Get student details using existing repository
 		studentRepo := rs.UsersService.StudentRepository()
 		student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
@@ -1931,4 +1935,18 @@ func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Reques
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "RFID tag assignment status retrieved")
+}
+
+// normalizeTagID normalizes RFID tag ID format (same logic as in person repository)
+func normalizeTagID(tagID string) string {
+	// Trim spaces
+	tagID = strings.TrimSpace(tagID)
+	
+	// Remove common separators
+	tagID = strings.ReplaceAll(tagID, ":", "")
+	tagID = strings.ReplaceAll(tagID, "-", "")
+	tagID = strings.ReplaceAll(tagID, " ", "")
+	
+	// Convert to uppercase
+	return strings.ToUpper(tagID)
 }
