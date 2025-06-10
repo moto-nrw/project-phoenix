@@ -344,13 +344,20 @@ func (s *personService) UnlinkFromAccount(ctx context.Context, personID int64) e
 
 // LinkToRFIDCard associates a person with an RFID card
 func (s *personService) LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error {
-	// Verify the RFID card exists
+	// Check if the RFID card exists, create it if it doesn't (auto-create on assignment)
 	card, err := s.rfidRepo.FindByID(ctx, tagID)
 	if err != nil {
 		return &UsersError{Op: "link to RFID card", Err: err}
 	}
 	if card == nil {
-		return &UsersError{Op: "link to RFID card", Err: ErrRFIDCardNotFound}
+		// Auto-create RFID card on assignment (per RFID Implementation Guide)
+		newCard := &userModels.RFIDCard{
+			StringIDModel: base.StringIDModel{ID: tagID},
+			Active:        true,
+		}
+		if err := s.rfidRepo.Create(ctx, newCard); err != nil {
+			return &UsersError{Op: "link to RFID card", Err: err}
+		}
 	}
 
 	// Check if the card is already linked to another person
@@ -359,7 +366,10 @@ func (s *personService) LinkToRFIDCard(ctx context.Context, personID int64, tagI
 		return &UsersError{Op: "link to RFID card", Err: err}
 	}
 	if existingPerson != nil && existingPerson.ID != personID {
-		return &UsersError{Op: "link to RFID card", Err: ErrRFIDCardAlreadyLinked}
+		// Auto-unlink from previous person (tag override behavior)
+		if err := s.personRepo.UnlinkFromRFIDCard(ctx, existingPerson.ID); err != nil {
+			return &UsersError{Op: "link to RFID card", Err: err}
+		}
 	}
 
 	if err := s.personRepo.LinkToRFIDCard(ctx, personID, tagID); err != nil {

@@ -55,6 +55,9 @@ func (r *RFIDCardRepository) FindByID(ctx context.Context, id string) (*users.RF
 		Scan(ctx)
 
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil // Card not found - return nil without error for auto-create logic
+		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by id",
 			Err: err,

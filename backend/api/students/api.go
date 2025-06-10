@@ -13,12 +13,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
+	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -30,16 +32,18 @@ type Resource struct {
 	EducationService   educationService.Service
 	UserContextService userContextService.UserContextService
 	ActiveService      activeService.Service
+	IoTService         iotSvc.Service
 }
 
 // NewResource creates a new students resource
-func NewResource(personService userService.PersonService, studentRepo users.StudentRepository, educationService educationService.Service, userContextService userContextService.UserContextService, activeService activeService.Service) *Resource {
+func NewResource(personService userService.PersonService, studentRepo users.StudentRepository, educationService educationService.Service, userContextService userContextService.UserContextService, activeService activeService.Service, iotService iotSvc.Service) *Resource {
 	return &Resource{
 		PersonService:      personService,
 		StudentRepo:        studentRepo,
 		EducationService:   educationService,
 		UserContextService: userContextService,
 		ActiveService:      activeService,
+		IoTService:         iotService,
 	}
 }
 
@@ -69,6 +73,14 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:delete permission
 		r.With(authorize.RequiresPermission(permissions.UsersDelete)).Delete("/{id}", rs.deleteStudent)
+	})
+
+	// Device-authenticated routes for RFID devices
+	r.Group(func(r chi.Router) {
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.PersonService))
+
+		// RFID tag assignment endpoint
+		r.Post("/{id}/rfid", rs.assignRFIDTag)
 	})
 
 	return r
@@ -147,6 +159,21 @@ type UpdateStudentRequest struct {
 	Bus             *bool   `json:"bus,omitempty"` // Whether student takes the bus
 }
 
+// RFIDAssignmentRequest represents an RFID tag assignment request
+type RFIDAssignmentRequest struct {
+	RFIDTag string `json:"rfid_tag"`
+}
+
+// RFIDAssignmentResponse represents an RFID tag assignment response
+type RFIDAssignmentResponse struct {
+	Success     bool    `json:"success"`
+	StudentID   int64   `json:"student_id"`
+	StudentName string  `json:"student_name"`
+	RFIDTag     string  `json:"rfid_tag"`
+	PreviousTag *string `json:"previous_tag,omitempty"`
+	Message     string  `json:"message"`
+}
+
 // Bind validates the student request
 func (req *StudentRequest) Bind(r *http.Request) error {
 	// Basic validation for person fields
@@ -189,6 +216,20 @@ func (req *UpdateStudentRequest) Bind(r *http.Request) error {
 	}
 	if req.GuardianContact != nil && *req.GuardianContact == "" {
 		return errors.New("guardian contact cannot be empty")
+	}
+	return nil
+}
+
+// Bind validates the RFID assignment request
+func (req *RFIDAssignmentRequest) Bind(r *http.Request) error {
+	if req.RFIDTag == "" {
+		return errors.New("rfid_tag is required")
+	}
+	if len(req.RFIDTag) < 8 {
+		return errors.New("rfid_tag must be at least 8 characters")
+	}
+	if len(req.RFIDTag) > 64 {
+		return errors.New("rfid_tag must be at most 64 characters")
 	}
 	return nil
 }
@@ -899,4 +940,124 @@ func hasAdminPermissions(permissions []string) bool {
 		}
 	}
 	return false
+}
+
+// assignRFIDTag handles assigning an RFID tag to a student (device-authenticated endpoint)
+func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device and staff from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	staffCtx := device.StaffFromCtx(r.Context())
+
+	if deviceCtx == nil || staffCtx == nil {
+		if err := render.Render(w, r, ErrorUnauthorized(errors.New("device and staff authentication required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Parse student ID from URL
+	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Parse request
+	req := &RFIDAssignmentRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get the student to assign tag to
+	student, err := rs.StudentRepo.FindByID(r.Context(), studentID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get person details for the student
+	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for student"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Authorization: Verify teacher can assign tags to this student
+	// Find teacher for authenticated staff
+	teacherRepo := rs.PersonService.TeacherRepository()
+	teacher, err := teacherRepo.FindByStaffID(r.Context(), staffCtx.ID)
+	if err != nil || teacher == nil {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("only teachers can assign RFID tags"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if teacher supervises this student
+	studentsWithGroups, err := rs.PersonService.GetStudentsWithGroupsByTeacher(r.Context(), teacher.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get supervised students"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Verify student is in teacher's supervised list
+	canAssignTag := false
+	for _, swg := range studentsWithGroups {
+		if swg.Student.ID == studentID {
+			canAssignTag = true
+			break
+		}
+	}
+
+	if !canAssignTag {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("you can only assign RFID tags to students in your supervised groups"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Store previous tag for response
+	var previousTag *string
+	if person.TagID != nil {
+		previousTag = person.TagID
+	}
+
+	// Assign the RFID tag (this handles unlinking old assignments automatically)
+	if err := rs.PersonService.LinkToRFIDCard(r.Context(), person.ID, req.RFIDTag); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Create response
+	response := RFIDAssignmentResponse{
+		Success:     true,
+		StudentID:   student.ID,
+		StudentName: person.FirstName + " " + person.LastName,
+		RFIDTag:     req.RFIDTag,
+		PreviousTag: previousTag,
+		Message:     "RFID tag assigned successfully",
+	}
+
+	if previousTag != nil {
+		response.Message = "RFID tag assigned successfully (previous tag replaced)"
+	}
+
+	// Log assignment for audit trail
+	log.Printf("RFID tag assignment: device=%s, staff=%d, student=%d, tag=%s, previous_tag=%v",
+		deviceCtx.DeviceID, staffCtx.ID, studentID, req.RFIDTag, previousTag)
+
+	common.Respond(w, r, http.StatusOK, response, response.Message)
 }
