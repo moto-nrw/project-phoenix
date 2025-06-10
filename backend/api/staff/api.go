@@ -83,6 +83,7 @@ type PersonResponse struct {
 	LastName  string    `json:"last_name"`
 	Email     string    `json:"email,omitempty"`
 	TagID     string    `json:"tag_id,omitempty"`
+	AccountID *int64    `json:"account_id,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -148,6 +149,7 @@ func newPersonResponse(person *users.Person) *PersonResponse {
 		ID:        person.ID,
 		FirstName: person.FirstName,
 		LastName:  person.LastName,
+		AccountID: person.AccountID,
 		CreatedAt: person.CreatedAt,
 		UpdatedAt: person.UpdatedAt,
 	}
