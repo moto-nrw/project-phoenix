@@ -52,7 +52,8 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
         throw new Error(errorData.error ?? "Fehler beim Laden des PIN-Status");
       }
       
-      const responseData = await response.json() as { data: PINStatus };
+      // The route wrapper returns { success: boolean, message: string, data: T }
+      const responseData = await response.json() as { success: boolean; message: string; data: PINStatus };
       setPinStatus(responseData.data);
     } catch (err) {
       console.error("Error loading PIN status:", err);
@@ -124,7 +125,11 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
         throw new Error(errorData.error ?? "Fehler beim Aktualisieren der PIN");
       }
 
-      await response.json() as { success: boolean; message: string };
+      // The route wrapper returns { success: boolean, message: string, data: BackendPINUpdateResponse }
+      const responseData = await response.json() as { success: boolean; message: string; data: { status: string; data: { success: boolean; message: string }; message: string } };
+      
+      // Extract success message from nested structure
+      const updateMessage = responseData.data?.data?.message || "PIN erfolgreich aktualisiert";
       
       // Clear form
       setCurrentPin("");
@@ -135,7 +140,7 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
       void loadPinStatus();
       
       // Show success message
-      setSuccess(pinStatus?.has_pin ? "PIN erfolgreich geändert" : "PIN erfolgreich erstellt");
+      setSuccess(updateMessage || (pinStatus?.has_pin ? "PIN erfolgreich geändert" : "PIN erfolgreich erstellt"));
       
       // Call success callback
       onSuccess?.();

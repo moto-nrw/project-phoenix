@@ -46,11 +46,8 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
     
     console.log("PIN status response:", JSON.stringify(response, null, 2));
     
-    // Map the response to frontend format
-    return {
-      has_pin: response.data.has_pin,
-      last_changed: response.data.last_changed ?? null,
-    };
+    // Extract data from the backend response - backend already returns the correct structure
+    return response.data;
   } catch (error) {
     console.error("Error fetching PIN status:", error);
     
@@ -89,7 +86,8 @@ export const PUT = createPutHandler<BackendPINUpdateResponse, PINUpdateRequest>(
       
       console.log("PIN update response:", JSON.stringify(response, null, 2));
       
-      return response.data;
+      // Return the full backend response (route wrapper will extract data)
+      return response;
     } catch (error) {
       console.error("Error updating PIN:", error);
       
