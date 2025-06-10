@@ -644,7 +644,7 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Auto-assign authenticated teacher as primary supervisor
-	supervisorIDs := []int64{teacher.ID}
+	supervisorIDs := []int64{teacher.StaffID}
 
 	// Create the activity group with auto-assigned teacher supervision
 	createdGroup, err := rs.ActivityService.CreateGroup(r.Context(), group, supervisorIDs, nil)
