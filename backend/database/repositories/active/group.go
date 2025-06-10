@@ -31,6 +31,7 @@ func (r *GroupRepository) FindActiveByRoomID(ctx context.Context, roomID int64) 
 	var groups []*active.Group
 	err := r.db.NewSelect().
 		Model(&groups).
+		ModelTableExpr(`active.groups AS "group"`).
 		Where("room_id = ? AND end_time IS NULL", roomID).
 		Scan(ctx)
 
@@ -49,6 +50,7 @@ func (r *GroupRepository) FindActiveByGroupID(ctx context.Context, groupID int64
 	var groups []*active.Group
 	err := r.db.NewSelect().
 		Model(&groups).
+		ModelTableExpr(`active.groups AS "group"`).
 		Where("group_id = ? AND end_time IS NULL", groupID).
 		Scan(ctx)
 
@@ -67,6 +69,7 @@ func (r *GroupRepository) FindByTimeRange(ctx context.Context, start, end time.T
 	var groups []*active.Group
 	err := r.db.NewSelect().
 		Model(&groups).
+		ModelTableExpr(`active.groups AS "group"`).
 		Where("start_time <= ? AND (end_time IS NULL OR end_time >= ?)", end, start).
 		Scan(ctx)
 
@@ -84,6 +87,7 @@ func (r *GroupRepository) FindByTimeRange(ctx context.Context, start, end time.T
 func (r *GroupRepository) EndSession(ctx context.Context, id int64) error {
 	_, err := r.db.NewUpdate().
 		Model((*active.Group)(nil)).
+		ModelTableExpr(`active.groups AS "group"`).
 		Set("end_time = ?", time.Now()).
 		Where("id = ? AND end_time IS NULL", id).
 		Exec(ctx)
@@ -207,6 +211,7 @@ func (r *GroupRepository) FindBySourceIDs(ctx context.Context, sourceIDs []int64
 	var groups []*active.Group
 	err := r.db.NewSelect().
 		Model(&groups).
+		ModelTableExpr(`active.groups AS "group"`).
 		Where("source_id IN (?) AND source_type = ? AND end_time IS NULL", bun.In(sourceIDs), sourceType).
 		Scan(ctx)
 
@@ -227,6 +232,7 @@ func (r *GroupRepository) FindActiveByGroupIDWithDevice(ctx context.Context, gro
 	var groups []*active.Group
 	err := r.db.NewSelect().
 		Model(&groups).
+		ModelTableExpr(`active.groups AS "group"`).
 		Where("group_id = ? AND end_time IS NULL", groupID).
 		Scan(ctx)
 
@@ -245,6 +251,7 @@ func (r *GroupRepository) FindActiveByDeviceID(ctx context.Context, deviceID int
 	var group active.Group
 	err := r.db.NewSelect().
 		Model(&group).
+		ModelTableExpr(`active.groups AS "group"`).
 		Where("device_id = ? AND end_time IS NULL", deviceID).
 		Scan(ctx)
 
@@ -266,6 +273,7 @@ func (r *GroupRepository) CheckActivityDeviceConflict(ctx context.Context, activ
 	var group active.Group
 	query := r.db.NewSelect().
 		Model(&group).
+		ModelTableExpr(`active.groups AS "group"`).
 		Where("group_id = ? AND end_time IS NULL", activityID)
 
 	// Exclude the requesting device if specified
@@ -293,6 +301,7 @@ func (r *GroupRepository) UpdateLastActivity(ctx context.Context, id int64, last
 	// Use the base repository's transaction support
 	query := r.db.NewUpdate().
 		Model((*active.Group)(nil)).
+		ModelTableExpr(`active.groups AS "group"`).
 		Set("last_activity = ?", lastActivity).
 		Set("updated_at = ?", time.Now()).
 		Where("id = ? AND end_time IS NULL", id)
@@ -328,6 +337,7 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 	var groups []*active.Group
 	err := r.db.NewSelect().
 		Model(&groups).
+		ModelTableExpr(`active.groups AS "group"`).
 		Where("end_time IS NULL").              // Only active sessions
 		Where("last_activity < ?", cutoffTime). // Haven't had activity since cutoff
 		Where("device_id IS NOT NULL").         // Only device-managed sessions
@@ -351,6 +361,7 @@ func (r *GroupRepository) FindInactiveSessions(ctx context.Context, inactiveDura
 	var groups []*active.Group
 	err := r.db.NewSelect().
 		Model(&groups).
+		ModelTableExpr(`active.groups AS "group"`).
 		Where("end_time IS NULL").              // Only active sessions
 		Where("last_activity < ?", cutoffTime). // Inactive for specified duration
 		Where("device_id IS NOT NULL").         // Only device-managed sessions
