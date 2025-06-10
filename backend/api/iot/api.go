@@ -89,6 +89,14 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.IOTManage)).Post("/scan-network", rs.scanNetwork)
 	})
 
+	// Device-only authenticated routes (API key only, no PIN required)
+	r.Group(func(r chi.Router) {
+		r.Use(device.DeviceOnlyAuthenticator(rs.IoTService))
+
+		// Get available teachers for device login selection
+		r.Get("/teachers", rs.getAvailableTeachers)
+	})
+
 	// Device-authenticated routes for RFID devices
 	r.Group(func(r chi.Router) {
 		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService))
@@ -753,6 +761,68 @@ func isValidDeviceStatus(status iot.DeviceStatus) bool {
 	return false
 }
 
+// Device-only authenticated handlers (API key only, no PIN required)
+
+// getAvailableTeachers handles getting the list of teachers available for device login selection
+func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device from context (no staff context required)
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	if deviceCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Get all staff members who are teachers
+	staffMembers, err := rs.UsersService.StaffRepository().List(r.Context(), nil)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Build response with teachers who have PINs set
+	responses := make([]DeviceTeacherResponse, 0)
+	teacherRepo := rs.UsersService.TeacherRepository()
+
+	for _, staff := range staffMembers {
+		// Check if this staff member is a teacher
+		teacher, err := teacherRepo.FindByStaffID(r.Context(), staff.ID)
+		if err != nil || teacher == nil {
+			continue // Skip non-teachers
+		}
+
+		// Get person details
+		person, err := rs.UsersService.Get(r.Context(), staff.PersonID)
+		if err != nil || person == nil {
+			continue // Skip if person not found
+		}
+
+		// Check if person has an account with a PIN set
+		if person.Account == nil || !person.Account.HasPIN() {
+			continue // Skip teachers without PINs
+		}
+
+		// Create teacher response
+		response := DeviceTeacherResponse{
+			StaffID:     staff.ID,
+			PersonID:    person.ID,
+			FirstName:   person.FirstName,
+			LastName:    person.LastName,
+			DisplayName: fmt.Sprintf("%s %s", person.FirstName, person.LastName),
+		}
+
+		responses = append(responses, response)
+	}
+
+	// Log device access for audit trail
+	log.Printf("Device %s requested teacher list, returned %d teachers", deviceCtx.DeviceID, len(responses))
+
+	common.Respond(w, r, http.StatusOK, responses, "Available teachers retrieved successfully")
+}
+
 // Device-authenticated handlers for RFID devices
 
 // devicePing handles ping requests from RFID devices
@@ -852,6 +922,15 @@ type CheckinResponse struct {
 	ProcessedAt time.Time `json:"processed_at"`
 	Message     string    `json:"message"`
 	Status      string    `json:"status"`
+}
+
+// DeviceTeacherResponse represents a teacher available for device login selection
+type DeviceTeacherResponse struct {
+	StaffID     int64  `json:"staff_id"`
+	PersonID    int64  `json:"person_id"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	DisplayName string `json:"display_name"`
 }
 
 // TeacherStudentResponse represents a student supervised by a teacher for RFID devices

@@ -226,6 +226,7 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 		ColumnExpr(`"account".id AS "account__id", "account".created_at AS "account__created_at", "account".updated_at AS "account__updated_at"`).
 		ColumnExpr(`"account".email AS "account__email", "account".username AS "account__username"`).
 		ColumnExpr(`"account".active AS "account__active", "account".last_login AS "account__last_login"`).
+		ColumnExpr(`"account".pin_hash AS "account__pin_hash", "account".pin_attempts AS "account__pin_attempts", "account".pin_locked_until AS "account__pin_locked_until"`).
 		// JOIN - Fixed to use auth.accounts directly rather than joining to a table alias "accounts"
 		Join(`LEFT JOIN auth.accounts AS "account" ON ("account".id = "person".account_id)`).
 		Where(`"person".id = ?`, id).

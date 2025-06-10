@@ -137,6 +137,78 @@ func DeviceAuthenticator(iotService iotSvc.Service, usersService usersSvc.Person
 	}
 }
 
+// DeviceOnlyAuthenticator is a middleware that validates only device API keys.
+// It requires only Authorization: Bearer <api_key> header (no staff PIN required).
+// The middleware sets device context for downstream handlers.
+// This is used for endpoints that need device authentication but not staff authentication,
+// such as getting the list of available teachers for login selection.
+func DeviceOnlyAuthenticator(iotService iotSvc.Service) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Extract API key from Authorization header
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				logging.GetLogEntry(r).Warn("Device authentication failed: missing Authorization header")
+				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrMissingAPIKey))
+				return
+			}
+
+			// Parse Bearer token
+			const bearerPrefix = "Bearer "
+			if !strings.HasPrefix(authHeader, bearerPrefix) {
+				logging.GetLogEntry(r).Warn("Device authentication failed: invalid Authorization header format")
+				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidAPIKeyFormat))
+				return
+			}
+
+			apiKey := strings.TrimPrefix(authHeader, bearerPrefix)
+			if apiKey == "" {
+				logging.GetLogEntry(r).Warn("Device authentication failed: empty API key")
+				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrMissingAPIKey))
+				return
+			}
+
+			// Validate API key and get device
+			device, err := iotService.GetDeviceByAPIKey(r.Context(), apiKey)
+			if err != nil {
+				logging.GetLogEntry(r).Warn("Device authentication failed: invalid API key:", err)
+				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidAPIKey))
+				return
+			}
+
+			if device == nil {
+				logging.GetLogEntry(r).Warn("Device authentication failed: device not found")
+				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidAPIKey))
+				return
+			}
+
+			// Check if device is active
+			if !device.IsActive() {
+				logging.GetLogEntry(r).Warn("Device authentication failed: device not active, status:", device.Status)
+				_ = render.Render(w, r, ErrDeviceForbidden(ErrDeviceInactive))
+				return
+			}
+
+			// Authentication successful - set device context only
+			ctx := context.WithValue(r.Context(), CtxDevice, device)
+
+			// Log successful device authentication for audit trail
+			logging.GetLogEntry(r).Info("Device-only authentication successful",
+				"device_id", device.DeviceID)
+
+			// Update device last seen time
+			device.UpdateLastSeen()
+			if err := iotService.UpdateDevice(r.Context(), device); err != nil {
+				// Log error but don't fail the request
+				logging.GetLogEntry(r).Warn("Failed to update device last seen time:", err)
+			}
+
+			// Call the next handler with updated context
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
 // SecureCompareStrings performs a constant-time comparison of two strings to prevent timing attacks
 func SecureCompareStrings(a, b string) bool {
 	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
