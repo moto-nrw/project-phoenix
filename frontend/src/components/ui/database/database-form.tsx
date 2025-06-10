@@ -67,40 +67,77 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
   // Initialize form data from sections
   useEffect(() => {
-    const initialFormData: Record<string, unknown> = {};
-    
-    // Set defaults from sections
-    sections.forEach(section => {
-      section.fields.forEach(field => {
-        if (field.type === 'checkbox') {
-          initialFormData[field.name] = false;
-        } else if (field.type === 'multiselect') {
-          initialFormData[field.name] = [];
-        } else if (field.type === 'number') {
-          initialFormData[field.name] = 0;
-        } else {
-          initialFormData[field.name] = '';
-        }
-      });
-    });
-
-    // Override with initial data if provided
-    if (initialData) {
-      Object.keys(initialData).forEach(key => {
-        if (initialData[key as keyof T] !== undefined) {
-          const value = initialData[key as keyof T];
-          // Ensure numbers are properly typed
-          const field = sections.flatMap(s => s.fields).find(f => f.name === key);
-          if (field?.type === 'number' && typeof value === 'string') {
-            initialFormData[key] = parseInt(value as unknown as string, 10) || 0;
+    const initializeFormData = async () => {
+      const initialFormData: Record<string, unknown> = {};
+      
+      // Set defaults from sections
+      sections.forEach(section => {
+        section.fields.forEach(field => {
+          if (field.type === 'checkbox') {
+            initialFormData[field.name] = false;
+          } else if (field.type === 'multiselect') {
+            initialFormData[field.name] = [];
+          } else if (field.type === 'number') {
+            // Special handling for data_retention_days
+            if (field.name === 'data_retention_days') {
+              initialFormData[field.name] = 30;
+            } else {
+              initialFormData[field.name] = 0;
+            }
           } else {
-            initialFormData[key] = value;
+            initialFormData[field.name] = '';
+          }
+        });
+      });
+
+      // Override with initial data if provided
+      if (initialData) {
+        Object.keys(initialData).forEach(key => {
+          const value = initialData[key as keyof T];
+          if (value !== undefined && value !== null) {
+            // Ensure numbers are properly typed
+            const field = sections.flatMap(s => s.fields).find(f => f.name === key);
+            if (field?.type === 'number' && typeof value === 'string') {
+              initialFormData[key] = parseInt(value as unknown as string, 10) || 0;
+            } else {
+              initialFormData[key] = value;
+            }
+          }
+        });
+        
+        // Special handling for students - fetch privacy consent if editing
+        if (initialData && 'id' in initialData && typeof initialData.id === 'string' && 
+            sections.some(s => s.fields.some(f => f.name === 'privacy_consent_accepted' || f.name === 'data_retention_days'))) {
+          try {
+            const response = await fetch(`/api/students/${initialData.id}/privacy-consent`);
+            if (response.ok) {
+              const responseData = await response.json() as unknown;
+              console.log('Privacy consent response:', responseData);
+              
+              // The route handler should return the consent data directly in the data field
+              if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+                const consent = (responseData as { data: unknown }).data;
+                if (consent && typeof consent === 'object' && 'accepted' in consent && 'data_retention_days' in consent) {
+                  const typedConsent = consent as { accepted: boolean; data_retention_days: number };
+                  initialFormData.privacy_consent_accepted = typedConsent.accepted;
+                  initialFormData.data_retention_days = typedConsent.data_retention_days;
+                  console.log('Set privacy consent fields:', {
+                    privacy_consent_accepted: typedConsent.accepted,
+                    data_retention_days: typedConsent.data_retention_days
+                  });
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching privacy consent:', error);
           }
         }
-      });
-    }
+      }
 
-    setFormData(initialFormData);
+      setFormData(initialFormData);
+    };
+    
+    void initializeFormData();
   }, [initialData, sections]);
 
   // Load async options for select fields

@@ -933,10 +933,11 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	for roomID, visitCount := range roomVisitsMap {
 		if room, ok := roomByID[roomID]; ok {
 			// Check for playground/school yard by category
-			if room.Category == "Schulhof" || room.Category == "Playground" || room.Category == "school_yard" {
+			switch room.Category {
+			case "Schulhof", "Playground", "school_yard":
 				studentsOnPlayground += visitCount
 				studentsInSchoolYard += visitCount
-			} else if room.Category == "WC" || room.Category == "Toilette" || room.Category == "Restroom" || room.Category == "wc" {
+			case "WC", "Toilette", "Restroom", "wc":
 				// Track students in WC
 				studentsInWC += visitCount
 			}

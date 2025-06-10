@@ -25,21 +25,23 @@ import (
 
 // Resource defines the students API resource
 type Resource struct {
-	PersonService      userService.PersonService
-	StudentRepo        users.StudentRepository
-	EducationService   educationService.Service
-	UserContextService userContextService.UserContextService
-	ActiveService      activeService.Service
+	PersonService        userService.PersonService
+	StudentRepo          users.StudentRepository
+	EducationService     educationService.Service
+	UserContextService   userContextService.UserContextService
+	ActiveService        activeService.Service
+	PrivacyConsentRepo   users.PrivacyConsentRepository
 }
 
 // NewResource creates a new students resource
-func NewResource(personService userService.PersonService, studentRepo users.StudentRepository, educationService educationService.Service, userContextService userContextService.UserContextService, activeService activeService.Service) *Resource {
+func NewResource(personService userService.PersonService, studentRepo users.StudentRepository, educationService educationService.Service, userContextService userContextService.UserContextService, activeService activeService.Service, privacyConsentRepo users.PrivacyConsentRepository) *Resource {
 	return &Resource{
 		PersonService:      personService,
 		StudentRepo:        studentRepo,
 		EducationService:   educationService,
 		UserContextService: userContextService,
 		ActiveService:      activeService,
+		PrivacyConsentRepo: privacyConsentRepo,
 	}
 }
 
@@ -69,6 +71,10 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:delete permission
 		r.With(authorize.RequiresPermission(permissions.UsersDelete)).Delete("/{id}", rs.deleteStudent)
+
+		// Privacy consent routes
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/privacy-consent", rs.getStudentPrivacyConsent)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/privacy-consent", rs.updateStudentPrivacyConsent)
 	})
 
 	return r
@@ -899,4 +905,287 @@ func hasAdminPermissions(permissions []string) bool {
 		}
 	}
 	return false
+}
+
+// PrivacyConsentResponse represents a privacy consent response
+type PrivacyConsentResponse struct {
+	ID                int64                  `json:"id"`
+	StudentID         int64                  `json:"student_id"`
+	PolicyVersion     string                 `json:"policy_version"`
+	Accepted          bool                   `json:"accepted"`
+	AcceptedAt        *time.Time             `json:"accepted_at,omitempty"`
+	ExpiresAt         *time.Time             `json:"expires_at,omitempty"`
+	DurationDays      *int                   `json:"duration_days,omitempty"`
+	RenewalRequired   bool                   `json:"renewal_required"`
+	DataRetentionDays int                    `json:"data_retention_days"`
+	Details           map[string]interface{} `json:"details,omitempty"`
+	CreatedAt         time.Time              `json:"created_at"`
+	UpdatedAt         time.Time              `json:"updated_at"`
+}
+
+// PrivacyConsentRequest represents a privacy consent update request
+type PrivacyConsentRequest struct {
+	PolicyVersion     string                 `json:"policy_version"`
+	Accepted          bool                   `json:"accepted"`
+	DurationDays      *int                   `json:"duration_days,omitempty"`
+	DataRetentionDays int                    `json:"data_retention_days"`
+	Details           map[string]interface{} `json:"details,omitempty"`
+}
+
+// Bind validates the privacy consent request
+func (req *PrivacyConsentRequest) Bind(r *http.Request) error {
+	if req.PolicyVersion == "" {
+		return errors.New("policy version is required")
+	}
+	if req.DataRetentionDays < 1 || req.DataRetentionDays > 31 {
+		return errors.New("data retention days must be between 1 and 31")
+	}
+	return nil
+}
+
+// newPrivacyConsentResponse converts a privacy consent model to a response
+func newPrivacyConsentResponse(consent *users.PrivacyConsent) PrivacyConsentResponse {
+	return PrivacyConsentResponse{
+		ID:                consent.ID,
+		StudentID:         consent.StudentID,
+		PolicyVersion:     consent.PolicyVersion,
+		Accepted:          consent.Accepted,
+		AcceptedAt:        consent.AcceptedAt,
+		ExpiresAt:         consent.ExpiresAt,
+		DurationDays:      consent.DurationDays,
+		RenewalRequired:   consent.RenewalRequired,
+		DataRetentionDays: consent.DataRetentionDays,
+		Details:           consent.Details,
+		CreatedAt:         consent.CreatedAt,
+		UpdatedAt:         consent.UpdatedAt,
+	}
+}
+
+// getStudentPrivacyConsent handles getting a student's privacy consent
+func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Request) {
+	// Parse student ID from URL
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if user has permission to view this student's data
+	// Admin users have full access
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	isAdmin := hasAdminPermissions(userPermissions)
+	
+	if !isAdmin {
+		// Check if user is a staff member who supervises the student's group
+		student, err := rs.StudentRepo.FindByID(r.Context(), id)
+		if err != nil {
+			if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+		
+		if student.GroupID != nil {
+			// Check if current user supervises this group
+			staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
+			if err != nil || staff == nil {
+				if err := render.Render(w, r, ErrorForbidden(errors.New("insufficient permissions to access this student's data"))); err != nil {
+					log.Printf("Error rendering error response: %v", err)
+				}
+				return
+			}
+			
+			// Check if staff supervises the student's group
+			educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
+			if err != nil {
+				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+					log.Printf("Error rendering error response: %v", err)
+				}
+				return
+			}
+			
+			hasAccess := false
+			for _, group := range educationGroups {
+				if group.ID == *student.GroupID {
+					hasAccess = true
+					break
+				}
+			}
+			
+			if !hasAccess {
+				if err := render.Render(w, r, ErrorForbidden(errors.New("you do not supervise this student's group"))); err != nil {
+					log.Printf("Error rendering error response: %v", err)
+				}
+				return
+			}
+		}
+	}
+
+	// Get privacy consents
+	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Find the most recent accepted consent
+	var consent *users.PrivacyConsent
+	for _, c := range consents {
+		if c.Accepted && (consent == nil || c.CreatedAt.After(consent.CreatedAt)) {
+			consent = c
+		}
+	}
+
+	// If no consent exists, return a default response
+	if consent == nil {
+		response := PrivacyConsentResponse{
+			StudentID:         id,
+			PolicyVersion:     "1.0",
+			Accepted:          false,
+			RenewalRequired:   true,
+			DataRetentionDays: 30, // Default 30 days
+		}
+		common.Respond(w, r, http.StatusOK, response, "No privacy consent found, returning defaults")
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, newPrivacyConsentResponse(consent), "Privacy consent retrieved successfully")
+}
+
+// updateStudentPrivacyConsent handles updating a student's privacy consent
+func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.Request) {
+	// Parse student ID from URL
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Parse request
+	req := &PrivacyConsentRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Check if student exists
+	student, err := rs.StudentRepo.FindByID(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if user has permission to update this student's data
+	// Admin users have full access
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	isAdmin := hasAdminPermissions(userPermissions)
+	
+	if !isAdmin {
+		// Check if user is a staff member who supervises the student's group
+		if student.GroupID != nil {
+			// Check if current user supervises this group
+			staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
+			if err != nil || staff == nil {
+				if err := render.Render(w, r, ErrorForbidden(errors.New("insufficient permissions to update this student's data"))); err != nil {
+					log.Printf("Error rendering error response: %v", err)
+				}
+				return
+			}
+			
+			// Check if staff supervises the student's group
+			educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
+			if err != nil {
+				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+					log.Printf("Error rendering error response: %v", err)
+				}
+				return
+			}
+			
+			hasAccess := false
+			for _, group := range educationGroups {
+				if group.ID == *student.GroupID {
+					hasAccess = true
+					break
+				}
+			}
+			
+			if !hasAccess {
+				if err := render.Render(w, r, ErrorForbidden(errors.New("you do not supervise this student's group"))); err != nil {
+					log.Printf("Error rendering error response: %v", err)
+				}
+				return
+			}
+		}
+	}
+
+	// Get existing consents
+	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), id)
+	if err != nil && !strings.Contains(err.Error(), "not found") {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Find the most recent consent for this policy version
+	var consent *users.PrivacyConsent
+	for _, c := range consents {
+		if c.PolicyVersion == req.PolicyVersion && (consent == nil || c.CreatedAt.After(consent.CreatedAt)) {
+			consent = c
+		}
+	}
+
+	if consent == nil {
+		// Create new consent
+		consent = &users.PrivacyConsent{
+			StudentID: student.ID,
+		}
+	}
+
+	// Update consent fields
+	consent.PolicyVersion = req.PolicyVersion
+	consent.Accepted = req.Accepted
+	consent.DurationDays = req.DurationDays
+	consent.DataRetentionDays = req.DataRetentionDays
+	consent.Details = req.Details
+
+	// If accepting, set accepted timestamp
+	if req.Accepted && consent.AcceptedAt == nil {
+		now := time.Now()
+		consent.AcceptedAt = &now
+	}
+
+	// Validate consent
+	if err := consent.Validate(); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Save consent
+	if consent.ID == 0 {
+		err = rs.PrivacyConsentRepo.Create(r.Context(), consent)
+	} else {
+		err = rs.PrivacyConsentRepo.Update(r.Context(), consent)
+	}
+
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, newPrivacyConsentResponse(consent), "Privacy consent updated successfully")
 }

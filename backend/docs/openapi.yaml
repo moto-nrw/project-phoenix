@@ -124,6 +124,25 @@ paths:
       summary: GET /api/active/analytics/counts
       tags:
       - Active
+  /api/active/analytics/dashboard:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/active/analytics/dashboard
+      tags:
+      - Active
   /api/active/analytics/room/{roomId}/utilization:
     get:
       description: Generated from routes
@@ -1986,6 +2005,81 @@ paths:
       security:
       - bearerAuth: []
       summary: PATCH /api/config/key/{key}
+      tags:
+      - Config
+  /api/config/retention:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/config/retention
+      tags:
+      - Config
+    put:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: PUT /api/config/retention
+      tags:
+      - Config
+  /api/config/retention/cleanup:
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/config/retention/cleanup
+      tags:
+      - Config
+  /api/config/retention/stats:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/config/retention/stats
       tags:
       - Config
   /api/config/system-status:
@@ -4199,6 +4293,57 @@ paths:
       security:
       - bearerAuth: []
       summary: GET /api/students/{id}/in-group-room
+      tags:
+      - Students
+  /api/students/{id}/privacy-consent:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/students/{id}/privacy-consent
+      tags:
+      - Students
+    put:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: PUT /api/students/{id}/privacy-consent
       tags:
       - Students
   /api/substitutions:

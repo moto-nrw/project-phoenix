@@ -59,6 +59,7 @@ func usersPrivacyConsentsUp(ctx context.Context, db *bun.DB) error {
 			expires_at TIMESTAMPTZ,
 			duration_days INTEGER,
 			renewal_required BOOLEAN DEFAULT FALSE,
+			data_retention_days INTEGER NOT NULL DEFAULT 30,
 			details JSONB,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -66,11 +67,23 @@ func usersPrivacyConsentsUp(ctx context.Context, db *bun.DB) error {
 				REFERENCES users.students(id) ON DELETE CASCADE,
 			CONSTRAINT chk_expires_at_future CHECK (
 				expires_at IS NULL OR expires_at > created_at
+			),
+			CONSTRAINT chk_data_retention_days_range CHECK (
+				data_retention_days >= 1 AND data_retention_days <= 31
 			)
 		)
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating privacy_consents table: %w", err)
+	}
+
+	// Add column comments
+	_, err = tx.ExecContext(ctx, `
+		COMMENT ON COLUMN users.privacy_consents.data_retention_days IS 
+		'Number of days (1-31) to retain student visit data after creation. Visit records older than this will be automatically deleted.';
+	`)
+	if err != nil {
+		return fmt.Errorf("error adding column comment: %w", err)
 	}
 
 	// Create indexes for privacy_consents
@@ -147,6 +160,35 @@ func usersPrivacyConsentsUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating expired_privacy_consents view: %w", err)
 	}
 
+	// Note: Index on visits table will be created in the visits migration after the table exists
+
+	// Create audit schema and table for data deletion tracking (GDPR compliance)
+	_, err = tx.ExecContext(ctx, `
+		CREATE SCHEMA IF NOT EXISTS audit;
+		
+		CREATE TABLE IF NOT EXISTS audit.data_deletions (
+			id BIGSERIAL PRIMARY KEY,
+			student_id BIGINT NOT NULL,
+			deletion_type TEXT NOT NULL, -- 'visit_retention', 'manual', 'gdpr_request'
+			records_deleted INT NOT NULL,
+			deletion_reason TEXT,
+			deleted_by TEXT NOT NULL, -- 'system' or account username
+			deleted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			metadata JSONB, -- Additional information about the deletion
+			
+			-- Index for querying by student
+			CONSTRAINT fk_data_deletions_student FOREIGN KEY (student_id)
+				REFERENCES users.students(id) ON DELETE CASCADE
+		);
+		
+		CREATE INDEX IF NOT EXISTS idx_data_deletions_student_id ON audit.data_deletions(student_id);
+		CREATE INDEX IF NOT EXISTS idx_data_deletions_deleted_at ON audit.data_deletions(deleted_at);
+		CREATE INDEX IF NOT EXISTS idx_data_deletions_type ON audit.data_deletions(deletion_type);
+	`)
+	if err != nil {
+		return fmt.Errorf("error creating audit table: %w", err)
+	}
+
 	// Commit the transaction
 	return tx.Commit()
 }
@@ -168,6 +210,9 @@ func usersPrivacyConsentsDown(ctx context.Context, db *bun.DB) error {
 
 	// Drop the view first, then the triggers, function, and table
 	_, err = tx.ExecContext(ctx, `
+		-- Drop audit table
+		DROP TABLE IF EXISTS audit.data_deletions;
+		
 		-- Drop view
 		DROP VIEW IF EXISTS users.expired_privacy_consents;
 		

@@ -176,6 +176,11 @@ ADMIN_PASSWORD=strong_password_here   # Change immediately!
 LOG_LEVEL=debug                 # Options: debug, info, warn, error
 ENABLE_CORS=true               # Required for local development
 PORT=8080                      # Server port
+
+# Automated Cleanup (GDPR Compliance)
+CLEANUP_SCHEDULER_ENABLED=true  # Enable automatic visit data cleanup
+CLEANUP_SCHEDULER_TIME=02:00    # Daily cleanup time (24-hour format)
+CLEANUP_SCHEDULER_TIMEOUT_MINUTES=30  # Maximum cleanup duration
 ```
 
 ### Frontend Environment Variables (.env.local)
@@ -577,15 +582,16 @@ For deployment instructions, please refer to the deployment documentation specif
    - Consent expiration and renewal tracking
    - Frontend UI for consent management is **planned** (not yet implemented)
 
-3. **Data Retention Policy** (Planned):
-   - Attendance/location data: Maximum 30 days
-   - If no consent given: Delete same day
-   - Implementation of automated cleanup is **planned**
+3. **Data Retention Policy** (Implemented):
+   - Individual retention settings per student (1-31 days)
+   - Default: 30 days if no consent specified
+   - Automated cleanup via scheduler or manual CLI commands
+   - Only completed visits deleted (active sessions preserved)
 
-4. **Audit Logging** (Planned):
-   - Comprehensive logging of who accesses student data
+4. **Audit Logging** (Implemented):
+   - All data deletions logged in `audit.data_deletions` table
+   - Tracks who deleted data, when, and why
    - Required for GDPR Article 30 compliance
-   - To be implemented in future release
 
 5. **Right to Erasure**:
    - Hard delete all student data
@@ -599,6 +605,9 @@ For deployment instructions, please refer to the deployment documentation specif
 ### Privacy-Critical Code Locations
 
 - **Privacy Consent Model**: `backend/models/users/privacy_consent.go`
+- **Cleanup Service**: `backend/services/active/cleanup_service.go`
+- **Cleanup Commands**: `backend/cmd/cleanup.go`
+- **Audit Logging**: `backend/models/audit/data_deletion.go`
 - **Student Data Access**: `backend/services/usercontext/usercontext_service.go`
 - **Permission System**: `backend/auth/authorize/`
 - **Security Headers**: `backend/middleware/security_headers.go`

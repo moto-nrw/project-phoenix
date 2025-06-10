@@ -3,6 +3,7 @@ package repositories
 import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/database/repositories/activities"
+	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
@@ -14,6 +15,7 @@ import (
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -86,6 +88,9 @@ type Factory struct {
 
 	// Config domain
 	Setting configModels.SettingRepository
+
+	// Audit domain
+	DataDeletion auditModels.DataDeletionRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -149,5 +154,8 @@ func NewFactory(db *bun.DB) *Factory {
 
 		// Config repositories
 		Setting: config.NewSettingRepository(db),
+
+		// Audit repositories
+		DataDeletion: audit.NewDataDeletionRepository(db),
 	}
 }
