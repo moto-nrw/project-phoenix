@@ -154,15 +154,16 @@ func fixPermissionNames(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error inserting additional permissions: %w", err)
 	}
 
-	// Grant appropriate permissions to user role for teacher creation
+	// Grant appropriate permissions to user role for teacher functionality
 	// Teachers need to be able to create persons when creating new teacher accounts
+	// and manage activities (create activities, view categories)
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO auth.role_permissions (role_id, permission_id)
 		SELECT r.id, p.id
 		FROM auth.roles r
 		CROSS JOIN auth.permissions p
 		WHERE r.name = 'user' 
-		AND p.name IN ('users:create', 'users:update')
+		AND p.name IN ('users:create', 'users:update', 'activities:create', 'activities:read')
 		ON CONFLICT (role_id, permission_id) DO NOTHING
 	`)
 	if err != nil {
@@ -254,7 +255,7 @@ func revertPermissionNames(ctx context.Context, db *bun.DB) error {
 		WHERE role_id IN (SELECT id FROM auth.roles WHERE name = 'user')
 		AND permission_id IN (
 			SELECT id FROM auth.permissions 
-			WHERE name IN ('users:create', 'users:update')
+			WHERE name IN ('users:create', 'users:update', 'activities:create', 'activities:read')
 		)
 	`)
 	if err != nil {
