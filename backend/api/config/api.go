@@ -682,9 +682,13 @@ func (rs *Resource) triggerRetentionCleanup(w http.ResponseWriter, r *http.Reque
 	}
 	lastCleanupSetting.Value = time.Now().Format(time.RFC3339)
 	if lastCleanupSetting.ID == 0 {
-		_ = rs.ConfigService.CreateSetting(r.Context(), lastCleanupSetting)
+		if err := rs.ConfigService.CreateSetting(r.Context(), lastCleanupSetting); err != nil {
+			log.Printf("Warning: Failed to record cleanup timestamp: %v", err)
+		}
 	} else {
-		_ = rs.ConfigService.UpdateSetting(r.Context(), lastCleanupSetting)
+		if err := rs.ConfigService.UpdateSetting(r.Context(), lastCleanupSetting); err != nil {
+			log.Printf("Warning: Failed to update cleanup timestamp: %v", err)
+		}
 	}
 
 	// Build response
