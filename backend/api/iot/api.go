@@ -112,6 +112,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/students", rs.getTeacherStudents)
 		r.Get("/activities", rs.getTeacherActivities)
 		r.Get("/rooms/available", rs.getAvailableRoomsForDevice)
+		r.Get("/rfid/{tagId}", rs.checkRFIDTagAssignment)
 
 		// Activity session management
 		r.Post("/session/start", rs.startActivitySession)
@@ -972,6 +973,19 @@ type DeviceRoomResponse struct {
 	Capacity int    `json:"capacity"`
 	Category string `json:"category"`
 	Color    string `json:"color"`
+}
+
+// RFIDTagAssignmentResponse represents RFID tag assignment status
+type RFIDTagAssignmentResponse struct {
+	Assigned bool                          `json:"assigned"`
+	Student  *RFIDTagAssignedStudent       `json:"student,omitempty"`
+}
+
+// RFIDTagAssignedStudent represents student info for assigned RFID tag
+type RFIDTagAssignedStudent struct {
+	ID    int64  `json:"id"`
+	Name  string `json:"name"`
+	Group string `json:"group"`
 }
 
 // Bind validates the checkin request
@@ -1855,4 +1869,66 @@ func (rs *Resource) getSessionTimeoutInfo(w http.ResponseWriter, r *http.Request
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Session timeout information retrieved")
+}
+
+// checkRFIDTagAssignment handles checking RFID tag assignment status
+func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device and staff from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	staffCtx := device.StaffFromCtx(r.Context())
+
+	if deviceCtx == nil || staffCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Get tagId from URL parameter
+	tagID := chi.URLParam(r, "tagId")
+	if tagID == "" {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("tagId parameter is required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Find person by RFID tag using existing service method
+	person, err := rs.UsersService.FindByTagID(r.Context(), tagID)
+	if err != nil {
+		// Handle case where tag is not assigned to anyone (no person found)
+		log.Printf("Warning: No person found for RFID tag %s: %v", tagID, err)
+		// Continue with response.Assigned = false (tag not assigned to anyone)
+		person = nil
+	}
+
+	// Prepare response for unassigned tag
+	response := RFIDTagAssignmentResponse{
+		Assigned: false,
+	}
+
+	// If person found and has this tag, check if they're a student
+	if person != nil && person.TagID != nil && *person.TagID == tagID {
+		// Get student details using existing repository
+		studentRepo := rs.UsersService.StudentRepository()
+		student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
+		
+		// Handle case where person exists but is not a student (no error, just nil result)
+		if err != nil {
+			// Only treat as error if it's not a "no rows found" situation
+			log.Printf("Warning: Error finding student for person %d: %v", person.ID, err)
+			// Continue with response.Assigned = false (person exists but not a student)
+		} else if student != nil {
+			// Person is a student, return assignment info
+			response.Assigned = true
+			response.Student = &RFIDTagAssignedStudent{
+				ID:    student.ID,
+				Name:  person.FirstName + " " + person.LastName,
+				Group: student.SchoolClass, // Use school class as group identifier
+			}
+		}
+		// If student == nil, the person exists but is not a student (keep response.Assigned = false)
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "RFID tag assignment status retrieved")
 }
