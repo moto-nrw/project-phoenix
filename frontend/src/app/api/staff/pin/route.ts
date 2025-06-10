@@ -27,7 +27,11 @@ interface PINUpdateRequest {
  * Type definition for PIN update response from backend
  */
 interface BackendPINUpdateResponse {
-  success: boolean;
+  status: string;
+  data: {
+    success: boolean;
+    message: string;
+  };
   message: string;
 }
 
@@ -85,7 +89,7 @@ export const PUT = createPutHandler<BackendPINUpdateResponse, PINUpdateRequest>(
       
       console.log("PIN update response:", JSON.stringify(response, null, 2));
       
-      return response;
+      return response.data;
     } catch (error) {
       console.error("Error updating PIN:", error);
       

@@ -72,6 +72,12 @@ func (m *SimpleGroupRepo) FindActiveByGroupIDWithDevice(ctx context.Context, gro
 func (m *SimpleGroupRepo) CheckActivityDeviceConflict(ctx context.Context, activityID, excludeDeviceID int64) (bool, *active.Group, error) {
 	return false, nil, nil
 }
+func (m *SimpleGroupRepo) FindActiveByDeviceIDWithRelations(ctx context.Context, deviceID int64) (*active.Group, error) {
+	return nil, nil
+}
+func (m *SimpleGroupRepo) FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*active.Group, error) {
+	return nil, nil
+}
 func (m *SimpleGroupRepo) FindInactiveSessions(ctx context.Context, inactiveDuration time.Duration) ([]*active.Group, error) {
 	return nil, nil
 }

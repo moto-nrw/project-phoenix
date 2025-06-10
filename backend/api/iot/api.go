@@ -18,10 +18,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -33,16 +35,18 @@ type Resource struct {
 	ActiveService     activeSvc.Service
 	ActivitiesService activitiesSvc.ActivityService
 	ConfigService     configSvc.Service
+	FacilityService   facilitiesSvc.Service
 }
 
 // NewResource creates a new IoT resource
-func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activeService activeSvc.Service, activitiesService activitiesSvc.ActivityService, configService configSvc.Service) *Resource {
+func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activeService activeSvc.Service, activitiesService activitiesSvc.ActivityService, configService configSvc.Service, facilityService facilitiesSvc.Service) *Resource {
 	return &Resource{
 		IoTService:        iotService,
 		UsersService:      usersService,
 		ActiveService:     activeService,
 		ActivitiesService: activitiesService,
 		ConfigService:     configService,
+		FacilityService:   facilityService,
 	}
 }
 
@@ -107,6 +111,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/status", rs.deviceStatus)
 		r.Get("/students", rs.getTeacherStudents)
 		r.Get("/activities", rs.getTeacherActivities)
+		r.Get("/rooms/available", rs.getAvailableRoomsForDevice)
 
 		// Activity session management
 		r.Post("/session/start", rs.startActivitySession)
@@ -958,6 +963,17 @@ type DeviceActivityResponse struct {
 	IsActive        bool   `json:"is_active"`
 }
 
+// DeviceRoomResponse represents a room available for RFID device selection
+type DeviceRoomResponse struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Building string `json:"building,omitempty"`
+	Floor    int    `json:"floor"`
+	Capacity int    `json:"capacity"`
+	Category string `json:"category"`
+	Color    string `json:"color"`
+}
+
 // Bind validates the checkin request
 func (req *CheckinRequest) Bind(r *http.Request) error {
 	return validation.ValidateStruct(req,
@@ -1244,6 +1260,19 @@ func convertToDeviceActivityResponse(group *activities.Group, enrollmentCount in
 	return response
 }
 
+// newDeviceRoomResponse converts a facilities.Room to DeviceRoomResponse format
+func newDeviceRoomResponse(room *facilities.Room) DeviceRoomResponse {
+	return DeviceRoomResponse{
+		ID:       room.ID,
+		Name:     room.Name,
+		Building: room.Building,
+		Floor:    room.Floor,
+		Capacity: room.Capacity,
+		Category: room.Category,
+		Color:    room.Color,
+	}
+}
+
 // getTeacherActivities handles getting activities supervised by the authenticated teacher (for RFID devices)
 func (rs *Resource) getTeacherActivities(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device and staff from context
@@ -1298,6 +1327,45 @@ func (rs *Resource) getTeacherActivities(w http.ResponseWriter, r *http.Request)
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Teacher activities retrieved successfully")
+}
+
+// getAvailableRoomsForDevice handles getting available rooms for RFID devices
+func (rs *Resource) getAvailableRoomsForDevice(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device and staff from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	staffCtx := device.StaffFromCtx(r.Context())
+
+	if deviceCtx == nil || staffCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Parse capacity parameter if provided
+	capacity := 0
+	if capacityStr := r.URL.Query().Get("capacity"); capacityStr != "" {
+		if cap, err := strconv.Atoi(capacityStr); err == nil && cap > 0 {
+			capacity = cap
+		}
+	}
+
+	// Get available rooms from facility service
+	rooms, err := rs.FacilityService.GetAvailableRooms(r.Context(), capacity)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Convert to device response format
+	responses := make([]DeviceRoomResponse, 0, len(rooms))
+	for _, room := range rooms {
+		responses = append(responses, newDeviceRoomResponse(room))
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Available rooms retrieved successfully")
 }
 
 // Activity Session Management Handlers
@@ -1397,6 +1465,9 @@ type SessionTimeoutInfoResponse struct {
 type SessionCurrentResponse struct {
 	ActiveGroupID *int64     `json:"active_group_id,omitempty"`
 	ActivityID    *int64     `json:"activity_id,omitempty"`
+	ActivityName  *string    `json:"activity_name,omitempty"`
+	RoomID        *int64     `json:"room_id,omitempty"`
+	RoomName      *string    `json:"room_name,omitempty"`
 	DeviceID      int64      `json:"device_id"`
 	StartTime     *time.Time `json:"start_time,omitempty"`
 	Duration      *string    `json:"duration,omitempty"`
@@ -1573,9 +1644,20 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	response.IsActive = true
 	response.ActiveGroupID = &currentSession.ID
 	response.ActivityID = &currentSession.GroupID
+	response.RoomID = &currentSession.RoomID
 	response.StartTime = &currentSession.StartTime
 	duration := time.Since(currentSession.StartTime).String()
 	response.Duration = &duration
+
+	// Add activity name if available
+	if currentSession.ActualGroup != nil {
+		response.ActivityName = &currentSession.ActualGroup.Name
+	}
+
+	// Add room name if available
+	if currentSession.Room != nil {
+		response.RoomName = &currentSession.Room.Name
+	}
 
 	common.Respond(w, r, http.StatusOK, response, "Current session retrieved successfully")
 }

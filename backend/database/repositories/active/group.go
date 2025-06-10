@@ -8,7 +8,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/uptrace/bun"
 )
 
@@ -248,12 +250,26 @@ func (r *GroupRepository) FindActiveByGroupIDWithDevice(ctx context.Context, gro
 
 // FindActiveByDeviceID finds the current active session for a specific device
 func (r *GroupRepository) FindActiveByDeviceID(ctx context.Context, deviceID int64) (*active.Group, error) {
-	var group active.Group
+	type basicGroup struct {
+		ID             int64      `bun:"id"`
+		StartTime      time.Time  `bun:"start_time"`
+		EndTime        *time.Time `bun:"end_time"`
+		LastActivity   time.Time  `bun:"last_activity"`
+		TimeoutMinutes int        `bun:"timeout_minutes"`
+		GroupID        int64      `bun:"group_id"`
+		DeviceID       *int64     `bun:"device_id"`
+		RoomID         int64      `bun:"room_id"`
+		CreatedAt      time.Time  `bun:"created_at"`
+		UpdatedAt      time.Time  `bun:"updated_at"`
+	}
+
+	var result basicGroup
 	err := r.db.NewSelect().
-		Model(&group).
-		ModelTableExpr(`active.groups AS "group"`).
-		Where("device_id = ? AND end_time IS NULL", deviceID).
-		Scan(ctx)
+		TableExpr("active.groups AS ag").
+		ColumnExpr("ag.id, ag.start_time, ag.end_time, ag.last_activity, ag.timeout_minutes").
+		ColumnExpr("ag.group_id, ag.device_id, ag.room_id, ag.created_at, ag.updated_at").
+		Where("ag.device_id = ? AND ag.end_time IS NULL", deviceID).
+		Scan(ctx, &result)
 
 	if err != nil {
 		if err.Error() == "sql: no rows in result set" {
@@ -265,7 +281,107 @@ func (r *GroupRepository) FindActiveByDeviceID(ctx context.Context, deviceID int
 		}
 	}
 
-	return &group, nil
+	// Convert to active.Group without relations
+	group := &active.Group{
+		Model: modelBase.Model{
+			ID:        result.ID,
+			CreatedAt: result.CreatedAt,
+			UpdatedAt: result.UpdatedAt,
+		},
+		StartTime:      result.StartTime,
+		EndTime:        result.EndTime,
+		LastActivity:   result.LastActivity,
+		TimeoutMinutes: result.TimeoutMinutes,
+		GroupID:        result.GroupID,
+		DeviceID:       result.DeviceID,
+		RoomID:         result.RoomID,
+	}
+
+	return group, nil
+}
+
+// FindActiveByDeviceIDWithRelations finds the current active session for a specific device with activity and room details
+// DEPRECATED: Use FindActiveByDeviceIDWithNames instead to avoid BUN relation conflicts
+func (r *GroupRepository) FindActiveByDeviceIDWithRelations(ctx context.Context, deviceID int64) (*active.Group, error) {
+	// Redirect to the working method to avoid BUN schema conflicts
+	return r.FindActiveByDeviceIDWithNames(ctx, deviceID)
+}
+
+// FindActiveByDeviceIDWithNames finds the current active session for a device with activity and room names using direct SQL
+func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*active.Group, error) {
+	type sessionQueryResult struct {
+		ID             int64      `bun:"id"`
+		StartTime      time.Time  `bun:"start_time"`
+		EndTime        *time.Time `bun:"end_time"`
+		LastActivity   time.Time  `bun:"last_activity"`
+		TimeoutMinutes int        `bun:"timeout_minutes"`
+		GroupID        int64      `bun:"group_id"`
+		DeviceID       *int64     `bun:"device_id"`
+		RoomID         int64      `bun:"room_id"`
+		CreatedAt      time.Time  `bun:"created_at"`
+		UpdatedAt      time.Time  `bun:"updated_at"`
+		ActivityName   *string    `bun:"activity_name"`
+		RoomName       *string    `bun:"room_name"`
+	}
+
+	var result sessionQueryResult
+	
+	// Use facilities service pattern: TableExpr with explicit schema.table names
+	// This avoids BUN model hooks that cause "groups does not exist" errors
+	err := r.db.NewSelect().
+		TableExpr("active.groups AS ag").
+		ColumnExpr("ag.id, ag.start_time, ag.end_time, ag.last_activity, ag.timeout_minutes").
+		ColumnExpr("ag.group_id, ag.device_id, ag.room_id, ag.created_at, ag.updated_at").
+		ColumnExpr("actg.name AS activity_name").  // Use 'actg' not 'act' to avoid confusion
+		ColumnExpr("rm.name AS room_name").        // Use 'rm' not 'r' for clarity
+		Join("LEFT JOIN activities.groups AS actg ON actg.id = ag.group_id").
+		Join("LEFT JOIN facilities.rooms AS rm ON rm.id = ag.room_id").
+		Where("ag.device_id = ? AND ag.end_time IS NULL", deviceID).
+		Scan(ctx, &result)
+
+	if err != nil {
+		if err.Error() == "sql: no rows in result set" {
+			return nil, nil // No active session found - not an error
+		}
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active by device ID with names",
+			Err: err,
+		}
+	}
+
+	// Create active.Group from result
+	session := &active.Group{
+		Model: modelBase.Model{
+			ID:        result.ID,
+			CreatedAt: result.CreatedAt,
+			UpdatedAt: result.UpdatedAt,
+		},
+		StartTime:      result.StartTime,
+		EndTime:        result.EndTime,
+		LastActivity:   result.LastActivity,
+		TimeoutMinutes: result.TimeoutMinutes,
+		GroupID:        result.GroupID,
+		DeviceID:       result.DeviceID,
+		RoomID:         result.RoomID,
+	}
+
+	// Add activity info if available
+	if result.ActivityName != nil && *result.ActivityName != "" {
+		session.ActualGroup = &activities.Group{
+			Model: modelBase.Model{ID: result.GroupID},
+			Name:  *result.ActivityName,
+		}
+	}
+
+	// Add room info if available
+	if result.RoomName != nil && *result.RoomName != "" {
+		session.Room = &facilities.Room{
+			Model: modelBase.Model{ID: result.RoomID},
+			Name:  *result.RoomName,
+		}
+	}
+
+	return session, nil
 }
 
 // CheckActivityDeviceConflict checks if an activity is already running on another device

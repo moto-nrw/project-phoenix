@@ -26,9 +26,16 @@ type GroupRepository interface {
 	// FindBySourceIDs finds active groups based on source IDs and source type
 	FindBySourceIDs(ctx context.Context, sourceIDs []int64, sourceType string) ([]*Group, error)
 
+	// Relations methods
+	FindWithRelations(ctx context.Context, id int64) (*Group, error)
+	FindWithVisits(ctx context.Context, id int64) (*Group, error)
+	FindWithSupervisors(ctx context.Context, id int64) (*Group, error)
+
 	// Activity session conflict detection methods
 	FindActiveByGroupIDWithDevice(ctx context.Context, groupID int64) ([]*Group, error)
 	FindActiveByDeviceID(ctx context.Context, deviceID int64) (*Group, error)
+	FindActiveByDeviceIDWithRelations(ctx context.Context, deviceID int64) (*Group, error)
+	FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*Group, error)
 	CheckActivityDeviceConflict(ctx context.Context, activityID, excludeDeviceID int64) (bool, *Group, error)
 
 	// Session timeout methods

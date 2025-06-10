@@ -1276,7 +1276,7 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 
 // GetDeviceCurrentSession gets the current active session for a device
 func (s *service) GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error) {
-	session, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
+	session, err := s.groupRepo.FindActiveByDeviceIDWithNames(ctx, deviceID)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetDeviceCurrentSession", Err: err}
 	}
