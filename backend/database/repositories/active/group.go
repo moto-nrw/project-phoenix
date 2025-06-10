@@ -412,6 +412,34 @@ func (r *GroupRepository) CheckActivityDeviceConflict(ctx context.Context, activ
 	return true, &group, nil
 }
 
+// CheckRoomConflict checks if a room is already occupied by another active group
+func (r *GroupRepository) CheckRoomConflict(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *active.Group, error) {
+	var group active.Group
+	query := r.db.NewSelect().
+		Model(&group).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where("room_id = ? AND end_time IS NULL", roomID)
+
+	// Exclude the current group if specified (for updates)
+	if excludeGroupID > 0 {
+		query = query.Where("id != ?", excludeGroupID)
+	}
+
+	err := query.Scan(ctx)
+	if err != nil {
+		if err.Error() == "sql: no rows in result set" {
+			return false, nil, nil // No conflict found
+		}
+		return false, nil, &modelBase.DatabaseError{
+			Op:  "check room conflict",
+			Err: err,
+		}
+	}
+
+	// Conflict found
+	return true, &group, nil
+}
+
 // UpdateLastActivity updates the last activity timestamp for a session
 func (r *GroupRepository) UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error {
 	// Use the base repository's transaction support

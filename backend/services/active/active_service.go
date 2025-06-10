@@ -148,6 +148,17 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 		return &ActiveError{Op: "CreateActiveGroup", Err: ErrInvalidData}
 	}
 
+	// Check for room conflicts if room is assigned
+	if group.RoomID > 0 {
+		hasConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, group.RoomID, 0)
+		if err != nil {
+			return &ActiveError{Op: "CreateActiveGroup", Err: ErrDatabaseOperation}
+		}
+		if hasConflict {
+			return &ActiveError{Op: "CreateActiveGroup", Err: ErrRoomConflict}
+		}
+	}
+
 	if err := s.groupRepo.Create(ctx, group); err != nil {
 		return &ActiveError{Op: "CreateActiveGroup", Err: ErrDatabaseOperation}
 	}
@@ -158,6 +169,17 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) error {
 	if err := group.Validate(); err != nil {
 		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrInvalidData}
+	}
+
+	// Check for room conflicts if room is assigned (exclude current group)
+	if group.RoomID > 0 {
+		hasConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, group.RoomID, group.ID)
+		if err != nil {
+			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
+		}
+		if hasConflict {
+			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrRoomConflict}
+		}
 	}
 
 	if err := s.groupRepo.Update(ctx, group); err != nil {

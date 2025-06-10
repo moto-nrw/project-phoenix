@@ -38,6 +38,9 @@ type GroupRepository interface {
 	FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*Group, error)
 	CheckActivityDeviceConflict(ctx context.Context, activityID, excludeDeviceID int64) (bool, *Group, error)
 
+	// Room conflict detection methods
+	CheckRoomConflict(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *Group, error)
+
 	// Session timeout methods
 	UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error
 	FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*Group, error)
