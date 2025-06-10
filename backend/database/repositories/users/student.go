@@ -30,6 +30,7 @@ func (r *StudentRepository) FindByPersonID(ctx context.Context, personID int64) 
 	student := new(users.Student)
 	err := r.db.NewSelect().
 		Model(student).
+		ModelTableExpr("users.students AS student").
 		Where("person_id = ?", personID).
 		Scan(ctx)
 

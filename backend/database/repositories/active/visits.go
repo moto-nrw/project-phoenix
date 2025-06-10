@@ -86,10 +86,9 @@ func (r *VisitRepository) FindByTimeRange(ctx context.Context, start, end time.T
 // EndVisit marks a visit as ended at the current time
 func (r *VisitRepository) EndVisit(ctx context.Context, id int64) error {
 	_, err := r.db.NewUpdate().
-		Model((*active.Visit)(nil)).
-		ModelTableExpr(`active.visits AS "visit"`).
-		Set(`"visit".exit_time = ?`, time.Now()).
-		Where(`"visit".id = ? AND "visit".exit_time IS NULL`, id).
+		Table("active.visits").
+		Set(`exit_time = ?`, time.Now()).
+		Where(`id = ? AND exit_time IS NULL`, id).
 		Exec(ctx)
 
 	if err != nil {
