@@ -8,12 +8,18 @@ interface DatabaseStats {
   rooms: number;
   activities: number;
   groups: number;
+  roles: number;
+  devices: number;
+  permissionCount: number;
   permissions: {
     canViewStudents: boolean;
     canViewTeachers: boolean;
     canViewRooms: boolean;
     canViewActivities: boolean;
     canViewGroups: boolean;
+    canViewRoles: boolean;
+    canViewDevices: boolean;
+    canViewPermissions: boolean;
   };
 }
 

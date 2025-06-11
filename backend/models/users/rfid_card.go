@@ -56,7 +56,15 @@ func (r *RFIDCard) Validate() error {
 	// Trim spaces from ID
 	r.ID = strings.TrimSpace(r.ID)
 
-	// Validate ID length
+	// Normalize RFID tag format - remove common separators
+	r.ID = strings.ReplaceAll(r.ID, ":", "")
+	r.ID = strings.ReplaceAll(r.ID, "-", "")
+	r.ID = strings.ReplaceAll(r.ID, " ", "")
+
+	// Convert to uppercase for consistency
+	r.ID = strings.ToUpper(r.ID)
+
+	// Validate ID length after normalization
 	idLength := len(r.ID)
 	if idLength < MinRFIDCardLength {
 		return fmt.Errorf("RFID card ID too short: minimum length is %d characters", MinRFIDCardLength)
@@ -65,14 +73,11 @@ func (r *RFIDCard) Validate() error {
 		return fmt.Errorf("RFID card ID too long: maximum length is %d characters", MaxRFIDCardLength)
 	}
 
-	// Validate ID format (typically hexadecimal)
-	hexPattern := regexp.MustCompile(`^[A-Fa-f0-9]+$`)
+	// Validate ID format (must be hexadecimal after normalization)
+	hexPattern := regexp.MustCompile(`^[A-F0-9]+$`)
 	if !hexPattern.MatchString(r.ID) {
 		return errors.New("invalid RFID card ID format, must be hexadecimal")
 	}
-
-	// Normalize to uppercase for consistency
-	r.ID = strings.ToUpper(r.ID)
 
 	return nil
 }

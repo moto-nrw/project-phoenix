@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -343,13 +344,20 @@ func (s *personService) UnlinkFromAccount(ctx context.Context, personID int64) e
 
 // LinkToRFIDCard associates a person with an RFID card
 func (s *personService) LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error {
-	// Verify the RFID card exists
+	// Check if the RFID card exists, create it if it doesn't (auto-create on assignment)
 	card, err := s.rfidRepo.FindByID(ctx, tagID)
 	if err != nil {
 		return &UsersError{Op: "link to RFID card", Err: err}
 	}
 	if card == nil {
-		return &UsersError{Op: "link to RFID card", Err: ErrRFIDCardNotFound}
+		// Auto-create RFID card on assignment (per RFID Implementation Guide)
+		newCard := &userModels.RFIDCard{
+			StringIDModel: base.StringIDModel{ID: tagID},
+			Active:        true,
+		}
+		if err := s.rfidRepo.Create(ctx, newCard); err != nil {
+			return &UsersError{Op: "link to RFID card", Err: err}
+		}
 	}
 
 	// Check if the card is already linked to another person
@@ -358,7 +366,10 @@ func (s *personService) LinkToRFIDCard(ctx context.Context, personID int64, tagI
 		return &UsersError{Op: "link to RFID card", Err: err}
 	}
 	if existingPerson != nil && existingPerson.ID != personID {
-		return &UsersError{Op: "link to RFID card", Err: ErrRFIDCardAlreadyLinked}
+		// Auto-unlink from previous person (tag override behavior)
+		if err := s.personRepo.UnlinkFromRFIDCard(ctx, existingPerson.ID); err != nil {
+			return &UsersError{Op: "link to RFID card", Err: err}
+		}
 	}
 
 	if err := s.personRepo.LinkToRFIDCard(ctx, personID, tagID); err != nil {
@@ -500,4 +511,120 @@ func (s *personService) ListAvailableRFIDCards(ctx context.Context) ([]*userMode
 	}
 
 	return availableCards, nil
+}
+
+// ValidateStaffPIN validates a staff member's PIN and returns the staff record
+func (s *personService) ValidateStaffPIN(ctx context.Context, pin string) (*userModels.Staff, error) {
+	if pin == "" {
+		return nil, &UsersError{Op: "validate staff PIN", Err: errors.New("PIN cannot be empty")}
+	}
+
+	// Get all accounts that have PINs set
+	accounts, err := s.accountRepo.List(ctx, nil)
+	if err != nil {
+		return nil, &UsersError{Op: "validate staff PIN", Err: err}
+	}
+
+	// Check PIN against all accounts that have PINs
+	for _, account := range accounts {
+		if account.HasPIN() && !account.IsPINLocked() {
+			// Use the VerifyPIN method from the account model
+			if account.VerifyPIN(pin) {
+				// PIN is valid - find the person linked to this account
+				person, err := s.personRepo.FindByAccountID(ctx, account.ID)
+				if err != nil {
+					return nil, &UsersError{Op: "validate staff PIN - find person", Err: err}
+				}
+				if person == nil {
+					// Account has PIN but no person linked - continue searching
+					continue
+				}
+
+				// Find the staff record for this person
+				staff, err := s.staffRepo.FindByPersonID(ctx, person.ID)
+				if err != nil {
+					return nil, &UsersError{Op: "validate staff PIN - find staff", Err: err}
+				}
+				if staff == nil {
+					// Person exists but is not staff - continue searching
+					continue
+				}
+
+				// Reset PIN attempts on successful authentication
+				account.ResetPINAttempts()
+				if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
+					// Log error but don't fail authentication
+					_ = updateErr
+				}
+
+				// Load the person relation for the authenticated staff
+				staff.Person = person
+
+				return staff, nil
+			} else {
+				// Increment failed attempts for this account
+				account.IncrementPINAttempts()
+
+				// Update the account record with new attempt count/lock status
+				if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
+					// Log error but don't fail the authentication check
+					// Continue checking other accounts
+					_ = updateErr // Mark as intentionally ignored
+				}
+			}
+		}
+	}
+
+	// No account found with matching PIN
+	return nil, &UsersError{Op: "validate staff PIN", Err: ErrInvalidPIN}
+}
+
+// GetStudentsByTeacher retrieves students supervised by a teacher (through group assignments)
+func (s *personService) GetStudentsByTeacher(ctx context.Context, teacherID int64) ([]*userModels.Student, error) {
+	// First verify the teacher exists
+	teacher, err := s.teacherRepo.FindByID(ctx, teacherID)
+	if err != nil {
+		return nil, &UsersError{Op: "get students by teacher", Err: err}
+	}
+	if teacher == nil {
+		return nil, &UsersError{Op: "get students by teacher", Err: ErrTeacherNotFound}
+	}
+
+	// Use the repository method to get students by teacher ID
+	students, err := s.studentRepo.FindByTeacherID(ctx, teacherID)
+	if err != nil {
+		return nil, &UsersError{Op: "get students by teacher", Err: err}
+	}
+
+	return students, nil
+}
+
+// GetStudentsWithGroupsByTeacher retrieves students with group info supervised by a teacher
+func (s *personService) GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]StudentWithGroup, error) {
+	// First verify the teacher exists
+	teacher, err := s.teacherRepo.FindByID(ctx, teacherID)
+	if err != nil {
+		return nil, &UsersError{Op: "get students with groups by teacher", Err: err}
+	}
+	if teacher == nil {
+		return nil, &UsersError{Op: "get students with groups by teacher", Err: ErrTeacherNotFound}
+	}
+
+	// Use the enhanced repository method to get students with group info
+	studentsWithGroups, err := s.studentRepo.FindByTeacherIDWithGroups(ctx, teacherID)
+	if err != nil {
+		return nil, &UsersError{Op: "get students with groups by teacher", Err: err}
+	}
+
+	// Convert to service layer struct
+	results := make([]StudentWithGroup, 0, len(studentsWithGroups))
+	for _, swg := range studentsWithGroups {
+		result := StudentWithGroup{
+			Student:   swg.Student,
+			GroupName: swg.GroupName,
+		}
+		results = append(results, result)
+	}
+
+	return results, nil
 }

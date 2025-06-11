@@ -182,3 +182,9 @@ func (m *Student) GetCreatedAt() time.Time {
 func (m *Student) GetUpdatedAt() time.Time {
 	return m.UpdatedAt
 }
+
+// StudentWithGroupInfo represents a student with their group information
+type StudentWithGroupInfo struct {
+	*Student
+	GroupName string `json:"group_name"`
+}

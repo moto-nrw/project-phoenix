@@ -70,11 +70,19 @@ const baseDataSections = [
     color: "from-[#9333ea] to-[#7c3aed]",
   },
   {
+    id: "devices",
+    title: "Geräte",
+    description: "IoT-Geräte und RFID-Reader verwalten",
+    href: "/database/devices",
+    icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
+    color: "from-amber-500 to-orange-600",
+  },
+  {
     id: "permissions",
     title: "Berechtigungen",
     description: "Systemberechtigungen ansehen",
     href: "/database/permissions",
-    icon: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z",
+    icon: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1 1 21 9z",
     color: "from-[#ec4899] to-[#db2777]",
   },
 ];
@@ -88,6 +96,7 @@ function DatabaseContent() {
     activities: number;
     groups: number;
     roles: number;
+    devices: number;
     permissionCount: number;
   }>({
     students: 0,
@@ -96,6 +105,7 @@ function DatabaseContent() {
     activities: 0,
     groups: 0,
     roles: 0,
+    devices: 0,
     permissionCount: 0,
   });
   const [permissions, setPermissions] = useState<{
@@ -105,6 +115,7 @@ function DatabaseContent() {
     canViewActivities: boolean;
     canViewGroups: boolean;
     canViewRoles: boolean;
+    canViewDevices: boolean;
     canViewPermissions: boolean;
   }>({
     canViewStudents: false,
@@ -113,6 +124,7 @@ function DatabaseContent() {
     canViewActivities: false,
     canViewGroups: false,
     canViewRoles: false,
+    canViewDevices: false,
     canViewPermissions: false,
   });
   const [countsLoading, setCountsLoading] = useState(true);
@@ -133,6 +145,7 @@ function DatabaseContent() {
               activities: number;
               groups: number;
               roles: number;
+              devices: number;
               permissionCount: number;
               permissions: {
                 canViewStudents: boolean;
@@ -141,6 +154,7 @@ function DatabaseContent() {
                 canViewActivities: boolean;
                 canViewGroups: boolean;
                 canViewRoles: boolean;
+                canViewDevices: boolean;
                 canViewPermissions: boolean;
               };
             };
@@ -154,6 +168,7 @@ function DatabaseContent() {
             activities: data.activities,
             groups: data.groups,
             roles: data.roles,
+            devices: data.devices,
             permissionCount: data.permissionCount,
           });
           setPermissions(data.permissions || {
@@ -163,6 +178,7 @@ function DatabaseContent() {
             canViewActivities: false,
             canViewGroups: false,
             canViewRoles: false,
+            canViewDevices: false,
             canViewPermissions: false,
           });
           console.log("Permissions set to:", data.permissions);

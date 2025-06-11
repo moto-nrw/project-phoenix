@@ -434,3 +434,6 @@ docker-compose.prod.yml
 **/ssl/**/keys/
 config/ssl/**/certs/
 deployment/**/ssl/certs/
+# Bruno API testing collection
+/bruno
+/My API Tests

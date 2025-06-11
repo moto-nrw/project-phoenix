@@ -87,3 +87,6 @@ func (m *Staff) GetCreatedAt() time.Time {
 func (m *Staff) GetUpdatedAt() time.Time {
 	return m.UpdatedAt
 }
+
+// PIN-related functionality has been moved to auth.Account model
+// This simplifies the architecture by centralizing all authentication data

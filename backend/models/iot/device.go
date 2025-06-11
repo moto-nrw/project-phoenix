@@ -27,7 +27,8 @@ type Device struct {
 	DeviceType     string       `bun:"device_type,notnull" json:"device_type"`
 	Name           *string      `bun:"name" json:"name,omitempty"`
 	Status         DeviceStatus `bun:"status,notnull,default:'active'" json:"status"`
-	LastSeen       *time.Time   `bun:"last_seen" json:"last_seen,omitempty"`
+	APIKey         *string      `bun:"api_key,unique" json:"-"`              // Never expose API key in JSON
+	LastSeen       *time.Time   `bun:"last_seen" json:"last_seen,omitempty"` // Used as last_activity for health monitoring
 	RegisteredByID *int64       `bun:"registered_by_id" json:"registered_by_id,omitempty"`
 
 	// Relations
@@ -144,4 +145,9 @@ func (m *Device) GetCreatedAt() time.Time {
 // GetUpdatedAt returns the last update timestamp
 func (m *Device) GetUpdatedAt() time.Time {
 	return m.UpdatedAt
+}
+
+// HasAPIKey returns true if the device has an API key set
+func (d *Device) HasAPIKey() bool {
+	return d.APIKey != nil && *d.APIKey != ""
 }

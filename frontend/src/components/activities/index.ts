@@ -3,3 +3,4 @@ export { default as ActivityForm } from "./activity-form";
 export * from "./activity-list-item";
 export * from "./student-enrollment-modal";
 export * from "./time-management-modal";
+export * from "./quick-create-modal";

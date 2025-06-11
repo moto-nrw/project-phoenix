@@ -30,7 +30,8 @@ func (r *TokenRepository) FindByToken(ctx context.Context, token string) (*auth.
 	authToken := new(auth.Token)
 	err := r.db.NewSelect().
 		Model(authToken).
-		Where("token = ?", token).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".token = ?`, token).
 		Scan(ctx)
 
 	if err != nil {

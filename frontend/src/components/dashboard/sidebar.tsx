@@ -3,7 +3,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { UserContextProvider, useHasEducationalGroups } from "~/lib/usercontext-context";
+import { QuickCreateActivityModal } from "~/components/activities/quick-create-modal";
 
 // Type für Navigation Items
 interface NavItem {
@@ -69,6 +71,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
     // Aktuelle Route ermitteln
     const pathname = usePathname();
 
+    // Quick create activity modal state
+    const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
+
     // Check if user has educational groups
     const { hasEducationalGroups, isLoading } = useHasEducationalGroups();
 
@@ -122,9 +127,31 @@ function SidebarContent({ className = "" }: SidebarProps) {
                             </Link>
                         ))}
                     </nav>
+                    
+                    {/* Quick Create Activity Button */}
+                    <div className="mt-6 pt-4 border-t border-gray-200">
+                        <button
+                            onClick={() => setIsQuickCreateOpen(true)}
+                            className="w-full flex items-center px-4 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md"
+                        >
+                            <svg className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            Schnell-Aktivität
+                        </button>
+                    </div>
                 </div>
             </aside>
 
+            {/* Quick Create Activity Modal */}
+            <QuickCreateActivityModal
+                isOpen={isQuickCreateOpen}
+                onClose={() => setIsQuickCreateOpen(false)}
+                onSuccess={() => {
+                    setIsQuickCreateOpen(false);
+                    // Optional: Show success notification or refresh data
+                }}
+            />
         </>
     );
 }

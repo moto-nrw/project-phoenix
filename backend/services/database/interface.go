@@ -12,6 +12,7 @@ type StatsResponse struct {
 	Activities      int `json:"activities"`
 	Groups          int `json:"groups"`
 	Roles           int `json:"roles"`
+	Devices         int `json:"devices"`
 	PermissionCount int `json:"permissionCount"`
 
 	// Permissions indicate which counts the user is allowed to see
@@ -26,6 +27,7 @@ type StatsPermissions struct {
 	CanViewActivities  bool `json:"canViewActivities"`
 	CanViewGroups      bool `json:"canViewGroups"`
 	CanViewRoles       bool `json:"canViewRoles"`
+	CanViewDevices     bool `json:"canViewDevices"`
 	CanViewPermissions bool `json:"canViewPermissions"`
 }
 

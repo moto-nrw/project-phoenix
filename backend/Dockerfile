@@ -29,9 +29,6 @@ COPY --from=builder /src/main .
 COPY templates templates
 # Copy frontend
 COPY public public
-# Copy scripts
-COPY scripts scripts
-RUN chmod +x scripts/*.sh
 # Expose port
 EXPOSE 8080
 # Set the binary as the entrypoint of the container

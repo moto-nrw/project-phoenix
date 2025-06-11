@@ -108,6 +108,17 @@ func (s *databaseService) GetStats(ctx context.Context) (*StatsResponse, error) 
 		}
 	}
 
+	// Check and get device count - using IoT permissions
+	if hasPermission(permissions.IOTRead) || hasPermission(permissions.IOTManage) {
+		response.Permissions.CanViewDevices = true
+		devices, err := s.repos.Device.List(ctx, nil)
+		if err != nil {
+			log.Printf("Error counting devices: %v", err)
+		} else {
+			response.Devices = len(devices)
+		}
+	}
+
 	// Check and get permission count - using AuthManage permission
 	if hasPermission(permissions.AuthManage) {
 		response.Permissions.CanViewPermissions = true

@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelAuth "github.com/moto-nrw/project-phoenix/models/auth"
@@ -29,11 +30,14 @@ func NewPersonRepository(db *bun.DB) users.PersonRepository {
 
 // FindByTagID retrieves a person by their RFID tag ID
 func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*users.Person, error) {
+	// Normalize the tag ID to match the stored format
+	normalizedTagID := normalizeTagID(tagID)
+	
 	person := new(users.Person)
 	err := r.db.NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
-		Where(`"person".tag_id = ?`, tagID).
+		Where(`"person".tag_id = ?`, normalizedTagID).
 		Scan(ctx)
 
 	if err != nil {
@@ -111,12 +115,29 @@ func (r *PersonRepository) UnlinkFromAccount(ctx context.Context, personID int64
 	return nil
 }
 
+// normalizeTagID normalizes RFID tag ID format (same logic as RFIDCard.Validate)
+func normalizeTagID(tagID string) string {
+	// Trim spaces
+	tagID = strings.TrimSpace(tagID)
+	
+	// Remove common separators
+	tagID = strings.ReplaceAll(tagID, ":", "")
+	tagID = strings.ReplaceAll(tagID, "-", "")
+	tagID = strings.ReplaceAll(tagID, " ", "")
+	
+	// Convert to uppercase
+	return strings.ToUpper(tagID)
+}
+
 // LinkToRFIDCard associates a person with an RFID card
 func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error {
+	// Normalize the tag ID to match RFID card format
+	normalizedTagID := normalizeTagID(tagID)
+	
 	_, err := r.db.NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
-		Set("tag_id = ?", tagID).
+		Set("tag_id = ?", normalizedTagID).
 		Where(`"person".id = ?`, personID).
 		Exec(ctx)
 
@@ -226,6 +247,7 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 		ColumnExpr(`"account".id AS "account__id", "account".created_at AS "account__created_at", "account".updated_at AS "account__updated_at"`).
 		ColumnExpr(`"account".email AS "account__email", "account".username AS "account__username"`).
 		ColumnExpr(`"account".active AS "account__active", "account".last_login AS "account__last_login"`).
+		ColumnExpr(`"account".pin_hash AS "account__pin_hash", "account".pin_attempts AS "account__pin_attempts", "account".pin_locked_until AS "account__pin_locked_until"`).
 		// JOIN - Fixed to use auth.accounts directly rather than joining to a table alias "accounts"
 		Join(`LEFT JOIN auth.accounts AS "account" ON ("account".id = "person".account_id)`).
 		Where(`"person".id = ?`, id).

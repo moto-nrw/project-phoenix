@@ -31,6 +31,7 @@ func (r *GroupSupervisorRepository) FindActiveByStaffID(ctx context.Context, sta
 	var supervisions []*active.GroupSupervisor
 	err := r.db.NewSelect().
 		Model(&supervisions).
+		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Where("staff_id = ? AND (end_date IS NULL OR end_date >= CURRENT_DATE)", staffID).
 		Scan(ctx)
 
@@ -49,6 +50,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, act
 	var supervisions []*active.GroupSupervisor
 	err := r.db.NewSelect().
 		Model(&supervisions).
+		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Where("group_id = ?", activeGroupID).
 		Scan(ctx)
 
@@ -126,6 +128,7 @@ func (r *GroupSupervisorRepository) FindWithStaff(ctx context.Context, id int64)
 	supervision := new(active.GroupSupervisor)
 	err := r.db.NewSelect().
 		Model(supervision).
+		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Relation("Staff").
 		Where("id = ?", id).
 		Scan(ctx)
@@ -145,6 +148,7 @@ func (r *GroupSupervisorRepository) FindWithActiveGroup(ctx context.Context, id 
 	supervision := new(active.GroupSupervisor)
 	err := r.db.NewSelect().
 		Model(supervision).
+		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Relation("ActiveGroup").
 		Where("id = ?", id).
 		Scan(ctx)

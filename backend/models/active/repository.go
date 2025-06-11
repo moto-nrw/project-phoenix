@@ -25,6 +25,26 @@ type GroupRepository interface {
 
 	// FindBySourceIDs finds active groups based on source IDs and source type
 	FindBySourceIDs(ctx context.Context, sourceIDs []int64, sourceType string) ([]*Group, error)
+
+	// Relations methods
+	FindWithRelations(ctx context.Context, id int64) (*Group, error)
+	FindWithVisits(ctx context.Context, id int64) (*Group, error)
+	FindWithSupervisors(ctx context.Context, id int64) (*Group, error)
+
+	// Activity session conflict detection methods
+	FindActiveByGroupIDWithDevice(ctx context.Context, groupID int64) ([]*Group, error)
+	FindActiveByDeviceID(ctx context.Context, deviceID int64) (*Group, error)
+	FindActiveByDeviceIDWithRelations(ctx context.Context, deviceID int64) (*Group, error)
+	FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*Group, error)
+	CheckActivityDeviceConflict(ctx context.Context, activityID, excludeDeviceID int64) (bool, *Group, error)
+
+	// Room conflict detection methods
+	CheckRoomConflict(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *Group, error)
+
+	// Session timeout methods
+	UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error
+	FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*Group, error)
+	FindInactiveSessions(ctx context.Context, inactiveDuration time.Duration) ([]*Group, error)
 }
 
 // VisitRepository defines operations for managing active visits
@@ -42,6 +62,9 @@ type VisitRepository interface {
 
 	// EndVisit marks a visit as ended at the current time
 	EndVisit(ctx context.Context, id int64) error
+
+	// TransferVisitsFromRecentSessions transfers active visits from recent ended sessions on the same device to a new session
+	TransferVisitsFromRecentSessions(ctx context.Context, newActiveGroupID, deviceID int64) (int, error)
 
 	// Cleanup operations for data retention
 	// DeleteExpiredVisits deletes visits older than retention days for a specific student

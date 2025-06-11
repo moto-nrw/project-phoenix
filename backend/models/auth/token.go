@@ -72,16 +72,16 @@ func (m *Token) GetUpdatedAt() time.Time {
 // BeforeAppendModel lets us modify query before it's executed
 func (t *Token) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("auth.tokens")
+		q.ModelTableExpr(`auth.tokens AS "token"`)
 	}
 	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("auth.tokens")
+		q.ModelTableExpr(`auth.tokens AS "token"`)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("auth.tokens")
+		q.ModelTableExpr(`auth.tokens AS "token"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("auth.tokens")
+		q.ModelTableExpr(`auth.tokens AS "token"`)
 	}
 	return nil
 }

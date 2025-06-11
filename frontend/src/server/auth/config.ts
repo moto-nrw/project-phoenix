@@ -202,11 +202,22 @@ export const authConfig = {
       if (token.tokenExpiry && Date.now() > (token.tokenExpiry as number) - 60 * 1000) {
         console.log("Access token expiring soon, attempting refresh...");
         
+        // Ensure refresh token exists before attempting refresh
+        if (!token.refreshToken || typeof token.refreshToken !== 'string') {
+          console.error("No refresh token available");
+          token.error = "RefreshTokenExpired";
+          token.needsRefresh = true;
+          return token;
+        }
+        
         try {
           // Attempt to refresh the token
           const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/refresh`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token.refreshToken}`
+            },
             body: JSON.stringify({
               refresh_token: token.refreshToken,
             }),

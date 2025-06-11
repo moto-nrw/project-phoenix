@@ -21,17 +21,17 @@ type service struct {
 	supervisorRepo    active.GroupSupervisorRepository
 	combinedGroupRepo active.CombinedGroupRepository
 	groupMappingRepo  active.GroupMappingRepository
-	
+
 	// Additional repositories for dashboard analytics
 	studentRepo        userModels.StudentRepository
-	roomRepo          facilityModels.RoomRepository
-	activityGroupRepo activitiesModels.GroupRepository
-	activityCatRepo   activitiesModels.CategoryRepository
+	roomRepo           facilityModels.RoomRepository
+	activityGroupRepo  activitiesModels.GroupRepository
+	activityCatRepo    activitiesModels.CategoryRepository
 	educationGroupRepo educationModels.GroupRepository
-	personRepo        userModels.PersonRepository
-	
-	db                *bun.DB
-	txHandler         *base.TxHandler
+	personRepo         userModels.PersonRepository
+
+	db        *bun.DB
+	txHandler *base.TxHandler
 }
 
 // NewService creates a new active service instance
@@ -50,19 +50,19 @@ func NewService(
 	db *bun.DB,
 ) Service {
 	return &service{
-		groupRepo:         groupRepo,
-		visitRepo:         visitRepo,
-		supervisorRepo:    supervisorRepo,
-		combinedGroupRepo: combinedGroupRepo,
-		groupMappingRepo:  groupMappingRepo,
+		groupRepo:          groupRepo,
+		visitRepo:          visitRepo,
+		supervisorRepo:     supervisorRepo,
+		combinedGroupRepo:  combinedGroupRepo,
+		groupMappingRepo:   groupMappingRepo,
 		studentRepo:        studentRepo,
-		roomRepo:          roomRepo,
-		activityGroupRepo: activityGroupRepo,
-		activityCatRepo:   activityCatRepo,
+		roomRepo:           roomRepo,
+		activityGroupRepo:  activityGroupRepo,
+		activityCatRepo:    activityCatRepo,
 		educationGroupRepo: educationGroupRepo,
-		personRepo:        personRepo,
-		db:                db,
-		txHandler:         base.NewTxHandler(db),
+		personRepo:         personRepo,
+		db:                 db,
+		txHandler:          base.NewTxHandler(db),
 	}
 }
 
@@ -118,19 +118,19 @@ func (s *service) WithTx(tx bun.Tx) interface{} {
 
 	// Return a new service with the transaction
 	return &service{
-		groupRepo:         groupRepo,
-		visitRepo:         visitRepo,
-		supervisorRepo:    supervisorRepo,
-		combinedGroupRepo: combinedGroupRepo,
-		groupMappingRepo:  groupMappingRepo,
-		studentRepo:       studentRepo,
-		roomRepo:          roomRepo,
-		activityGroupRepo: activityGroupRepo,
-		activityCatRepo:   activityCatRepo,
+		groupRepo:          groupRepo,
+		visitRepo:          visitRepo,
+		supervisorRepo:     supervisorRepo,
+		combinedGroupRepo:  combinedGroupRepo,
+		groupMappingRepo:   groupMappingRepo,
+		studentRepo:        studentRepo,
+		roomRepo:           roomRepo,
+		activityGroupRepo:  activityGroupRepo,
+		activityCatRepo:    activityCatRepo,
 		educationGroupRepo: educationGroupRepo,
-		personRepo:        personRepo,
-		db:                s.db,
-		txHandler:         s.txHandler.WithTx(tx),
+		personRepo:         personRepo,
+		db:                 s.db,
+		txHandler:          s.txHandler.WithTx(tx),
 	}
 }
 
@@ -148,6 +148,17 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 		return &ActiveError{Op: "CreateActiveGroup", Err: ErrInvalidData}
 	}
 
+	// Check for room conflicts if room is assigned
+	if group.RoomID > 0 {
+		hasConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, group.RoomID, 0)
+		if err != nil {
+			return &ActiveError{Op: "CreateActiveGroup", Err: ErrDatabaseOperation}
+		}
+		if hasConflict {
+			return &ActiveError{Op: "CreateActiveGroup", Err: ErrRoomConflict}
+		}
+	}
+
 	if err := s.groupRepo.Create(ctx, group); err != nil {
 		return &ActiveError{Op: "CreateActiveGroup", Err: ErrDatabaseOperation}
 	}
@@ -158,6 +169,17 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) error {
 	if err := group.Validate(); err != nil {
 		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrInvalidData}
+	}
+
+	// Check for room conflicts if room is assigned (exclude current group)
+	if group.RoomID > 0 {
+		hasConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, group.RoomID, group.ID)
+		if err != nil {
+			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
+		}
+		if hasConflict {
+			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrRoomConflict}
+		}
 	}
 
 	if err := s.groupRepo.Update(ctx, group); err != nil {
@@ -714,18 +736,18 @@ func (s *service) GetRoomUtilization(ctx context.Context, roomID int64) (float64
 	if err != nil {
 		return 0.0, &ActiveError{Op: "GetRoomUtilization", Err: err}
 	}
-	
+
 	// If room has no capacity, utilization is 0
 	if room.Capacity <= 0 {
 		return 0.0, nil
 	}
-	
+
 	// Count active visits in this room (same pattern as dashboard)
 	activeGroups, err := s.groupRepo.FindActiveByRoomID(ctx, roomID)
 	if err != nil {
 		return 0.0, &ActiveError{Op: "GetRoomUtilization", Err: err}
 	}
-	
+
 	currentOccupancy := 0
 	for _, group := range activeGroups {
 		if group.IsActive() {
@@ -739,7 +761,7 @@ func (s *service) GetRoomUtilization(ctx context.Context, roomID int64) (float64
 			}
 		}
 	}
-	
+
 	// Return utilization as a ratio between 0.0 and 1.0
 	return float64(currentOccupancy) / float64(room.Capacity), nil
 }
@@ -769,20 +791,20 @@ func (s *service) GetStudentAttendanceRate(ctx context.Context, studentID int64)
 	// NOTE: This method is NOT used by the dashboard (uses GetDashboardAnalytics instead)
 	// but API routes exist at /api/active/analytics/student/[studentId]/attendance
 	// Individual student pages or reports would need this for attendance tracking
-	
+
 	// Simple implementation matching dashboard's binary presence logic
 	// Returns 1.0 if student has active visit, 0.0 if not
-	
+
 	visit, err := s.GetStudentCurrentVisit(ctx, studentID)
 	if err != nil {
 		// If error, assume student not present
 		return 0.0, nil
 	}
-	
+
 	if visit != nil && visit.IsActive() {
 		return 1.0, nil // Student is present
 	}
-	
+
 	return 0.0, nil // Student is not present
 }
 
@@ -799,9 +821,9 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 
 	// Create maps to track students and their locations
 	studentLocationMap := make(map[int64]string) // studentID -> location
-	roomVisitsMap := make(map[int64]int)        // roomID -> visit count
+	roomVisitsMap := make(map[int64]int)         // roomID -> visit count
 	recentCheckouts := make(map[int64]time.Time) // studentID -> checkout time
-	
+
 	studentsPresent := 0
 	for _, visit := range activeVisits {
 		if visit.IsActive() {
@@ -849,12 +871,12 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	ogsGroupsCount := 0
 	occupiedRooms := make(map[int64]bool)
 	studentsInRooms := 0
-	
+
 	for _, group := range activeGroups {
 		if group.IsActive() {
 			activeGroupsCount++
 			occupiedRooms[group.RoomID] = true
-			
+
 			// Count visits for this group
 			groupVisits, err := s.visitRepo.FindByActiveGroupID(ctx, group.ID)
 			if err == nil {
@@ -865,7 +887,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 					}
 				}
 			}
-			
+
 			// Since all educational groups are OGS groups, we count all active education group sessions
 			eduGroup, err := s.educationGroupRepo.FindByID(ctx, group.GroupID)
 			if err == nil && eduGroup != nil {
@@ -912,7 +934,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	if err != nil {
 		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
 	}
-	
+
 	// Create a set of room IDs that belong to educational groups
 	educationGroupRooms := make(map[int64]bool)
 	for _, eduGroup := range allEducationGroups {
@@ -920,7 +942,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			educationGroupRooms[*eduGroup.RoomID] = true
 		}
 	}
-	
+
 	// Calculate students by location
 	studentsOnPlayground := 0
 	studentsInTransit := 0
@@ -928,7 +950,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	studentsInHomeRoom := 0
 	studentsInWC := 0
 	studentsInSchoolYard := 0
-	
+
 	// Process room visits to categorize students
 	for roomID, visitCount := range roomVisitsMap {
 		if room, ok := roomByID[roomID]; ok {
@@ -941,7 +963,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 				// Track students in WC
 				studentsInWC += visitCount
 			}
-			
+
 			// Check if this room belongs to an educational group
 			if educationGroupRooms[roomID] {
 				studentsInGroupRooms += visitCount
@@ -950,7 +972,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			}
 		}
 	}
-	
+
 	// Calculate students in transit: students with in_house=true but not in any room/WC/schoolyard
 	// First, get all students who are in_house (in OGS)
 	studentsInOGS := 0
@@ -961,7 +983,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			ogsStudentIDs[student.ID] = true
 		}
 	}
-	
+
 	// Now check which OGS students are NOT in any location
 	studentsInTransit = 0
 	for studentID := range ogsStudentIDs {
@@ -971,7 +993,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			studentsInTransit++
 		}
 	}
-	
+
 	analytics.StudentsOnPlayground = studentsOnPlayground
 	analytics.StudentsInTransit = studentsInTransit
 	analytics.StudentsInGroupRooms = studentsInGroupRooms
@@ -979,7 +1001,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 
 	// Build recent activity (privacy-compliant - no individual student data)
 	recentActivity := []RecentActivity{}
-	
+
 	// Sort active groups by start time (most recent first)
 	for i, group := range activeGroups {
 		if i >= 3 { // Limit to 3 recent activities
@@ -989,7 +1011,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		if time.Since(group.StartTime) < 30*time.Minute && group.IsActive() {
 			// Get actual group name - first try activity group, then education group
 			groupName := fmt.Sprintf("Gruppe %d", group.GroupID)
-			
+
 			// Try to find in activity groups first
 			if actGroup, err := s.activityGroupRepo.FindByID(ctx, group.GroupID); err == nil && actGroup != nil {
 				groupName = actGroup.Name
@@ -997,16 +1019,16 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 				// Fall back to education group
 				groupName = eduGroup.Name
 			}
-			
+
 			// Get actual room name
 			roomName := fmt.Sprintf("Raum %d", group.RoomID)
 			if room, ok := roomByID[group.RoomID]; ok {
 				roomName = room.Name
 			}
-			
+
 			// Count active visits for this group
 			visitCount := roomVisitsMap[group.RoomID]
-			
+
 			activity := RecentActivity{
 				Type:      "group_start",
 				GroupName: groupName,
@@ -1021,7 +1043,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 
 	// Build current activities
 	currentActivities := []CurrentActivity{}
-	
+
 	// Get active activity groups
 	activityGroups, err := s.activityGroupRepo.List(ctx, nil)
 	if err == nil {
@@ -1029,11 +1051,11 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			if i >= 2 { // Limit to 2 current activities
 				break
 			}
-			
+
 			// Check if this activity has an active session
 			hasActiveSession := false
 			participantCount := 0
-			
+
 			for _, group := range activeGroups {
 				if group.IsActive() && group.GroupID == actGroup.ID {
 					hasActiveSession = true
@@ -1041,20 +1063,20 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 					break
 				}
 			}
-			
+
 			if hasActiveSession {
 				categoryName := "Sonstiges"
 				if actGroup.Category != nil {
 					categoryName = actGroup.Category.Name
 				}
-				
+
 				status := "active"
 				if participantCount >= actGroup.MaxParticipants {
 					status = "full"
 				} else if participantCount > int(float64(actGroup.MaxParticipants)*0.8) {
 					status = "ending_soon"
 				}
-				
+
 				activity := CurrentActivity{
 					Name:         actGroup.Name,
 					Category:     categoryName,
@@ -1078,19 +1100,19 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		// Get group details
 		groupName := fmt.Sprintf("Gruppe %d", group.GroupID)
 		groupType := "activity"
-		
+
 		if eduGroup, err := s.educationGroupRepo.FindByID(ctx, group.GroupID); err == nil && eduGroup != nil {
 			groupName = eduGroup.Name
 			// All educational groups are OGS groups
 			groupType = "ogs_group"
 		}
-		
+
 		// Get room name
 		location := fmt.Sprintf("Raum %d", group.RoomID)
 		if room, ok := roomByID[group.RoomID]; ok {
 			location = room.Name
 		}
-		
+
 		groupInfo := ActiveGroupInfo{
 			Name:         groupName,
 			Type:         groupType,
@@ -1104,4 +1126,363 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	analytics.ActiveGroupsSummary = activeGroupsSummary
 
 	return analytics, nil
+}
+
+// Activity Session Management with Conflict Detection
+
+// StartActivitySession starts a new activity session on a device with conflict detection
+func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64) (*active.Group, error) {
+	// First check for conflicts
+	conflictInfo, err := s.CheckActivityConflict(ctx, activityID, deviceID)
+	if err != nil {
+		return nil, &ActiveError{Op: "StartActivitySession", Err: err}
+	}
+
+	if conflictInfo.HasConflict {
+		return nil, &ActiveError{Op: "StartActivitySession", Err: ErrSessionConflict}
+	}
+
+	// Use transaction to ensure atomicity
+	var newGroup *active.Group
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Double-check for conflicts within transaction (race condition prevention)
+		hasConflict, _, err := s.groupRepo.CheckActivityDeviceConflict(ctx, activityID, deviceID)
+		if err != nil {
+			return err
+		}
+		if hasConflict {
+			return ErrActivityAlreadyActive
+		}
+
+		// Check if device is already running another session
+		existingSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
+		if err != nil {
+			return err
+		}
+		if existingSession != nil {
+			return ErrDeviceAlreadyActive
+		}
+
+		// Create new active group session
+		now := time.Now()
+		newGroup = &active.Group{
+			StartTime:      now,
+			LastActivity:   now, // Initialize activity tracking
+			TimeoutMinutes: 30,  // Default 30 minutes timeout
+			GroupID:        activityID,
+			DeviceID:       &deviceID,
+			RoomID:         1, // TODO: Get room from activity configuration
+		}
+
+		if err := s.groupRepo.Create(ctx, newGroup); err != nil {
+			return err
+		}
+
+		// Transfer any active visits from recent ended sessions on the same device
+		transferredCount, err := s.visitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
+		if err != nil {
+			return err
+		}
+		
+		// Log the transfer for debugging
+		if transferredCount > 0 {
+			// Using fmt.Printf for now since we don't have a logger instance here
+			// In production, you might want to use a proper logger
+			fmt.Printf("Transferred %d active visits to new session %d\n", transferredCount, newGroup.ID)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, &ActiveError{Op: "StartActivitySession", Err: err}
+	}
+
+	return newGroup, nil
+}
+
+// ForceStartActivitySession starts an activity session with override capability
+func (s *service) ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64) (*active.Group, error) {
+	// Use transaction to handle conflicts and cleanup
+	var newGroup *active.Group
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// End any existing session for this activity
+		existingGroups, err := s.groupRepo.FindActiveByGroupID(ctx, activityID)
+		if err != nil {
+			return err
+		}
+		for _, group := range existingGroups {
+			if err := s.groupRepo.EndSession(ctx, group.ID); err != nil {
+				return err
+			}
+		}
+
+		// End any existing session for this device
+		existingDeviceSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
+		if err != nil {
+			return err
+		}
+		if existingDeviceSession != nil {
+			if err := s.groupRepo.EndSession(ctx, existingDeviceSession.ID); err != nil {
+				return err
+			}
+		}
+
+		// Create new active group session
+		now := time.Now()
+		newGroup = &active.Group{
+			StartTime:      now,
+			LastActivity:   now, // Initialize activity tracking
+			TimeoutMinutes: 30,  // Default 30 minutes timeout
+			GroupID:        activityID,
+			DeviceID:       &deviceID,
+			RoomID:         1, // TODO: Get room from activity configuration
+		}
+
+		if err := s.groupRepo.Create(ctx, newGroup); err != nil {
+			return err
+		}
+
+		// Transfer any active visits from recent ended sessions on the same device
+		transferredCount, err := s.visitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
+		if err != nil {
+			return err
+		}
+		
+		// Log the transfer for debugging
+		if transferredCount > 0 {
+			fmt.Printf("Transferred %d active visits to new session %d (force start)\n", transferredCount, newGroup.ID)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, &ActiveError{Op: "ForceStartActivitySession", Err: err}
+	}
+
+	return newGroup, nil
+}
+
+// CheckActivityConflict checks for conflicts before starting an activity session
+func (s *service) CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*ActivityConflictInfo, error) {
+	// Check if activity is already running on another device
+	hasActivityConflict, conflictingGroup, err := s.groupRepo.CheckActivityDeviceConflict(ctx, activityID, deviceID)
+	if err != nil {
+		return nil, &ActiveError{Op: "CheckActivityConflict", Err: err}
+	}
+
+	// Check if device is already running another session
+	existingDeviceSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
+	if err != nil {
+		return nil, &ActiveError{Op: "CheckActivityConflict", Err: err}
+	}
+
+	conflictInfo := &ActivityConflictInfo{
+		HasConflict: hasActivityConflict || existingDeviceSession != nil,
+		CanOverride: true, // Administrative override is always possible
+	}
+
+	if hasActivityConflict {
+		conflictInfo.ConflictingGroup = conflictingGroup
+		conflictInfo.ConflictMessage = fmt.Sprintf("Activity %d is already active on another device", activityID)
+		if conflictingGroup.DeviceID != nil {
+			deviceIDStr := fmt.Sprintf("%d", *conflictingGroup.DeviceID)
+			conflictInfo.ConflictingDevice = &deviceIDStr
+		}
+	} else if existingDeviceSession != nil {
+		conflictInfo.ConflictingGroup = existingDeviceSession
+		conflictInfo.ConflictMessage = fmt.Sprintf("Device %d is already running activity %d", deviceID, existingDeviceSession.GroupID)
+		deviceIDStr := fmt.Sprintf("%d", deviceID)
+		conflictInfo.ConflictingDevice = &deviceIDStr
+	}
+
+	return conflictInfo, nil
+}
+
+// EndActivitySession ends an active activity session
+func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) error {
+	// Verify the session exists and is active
+	group, err := s.groupRepo.FindByID(ctx, activeGroupID)
+	if err != nil {
+		return &ActiveError{Op: "EndActivitySession", Err: ErrActiveGroupNotFound}
+	}
+
+	if !group.IsActive() {
+		return &ActiveError{Op: "EndActivitySession", Err: ErrActiveGroupAlreadyEnded}
+	}
+
+	// End the session
+	if err := s.groupRepo.EndSession(ctx, activeGroupID); err != nil {
+		return &ActiveError{Op: "EndActivitySession", Err: err}
+	}
+
+	return nil
+}
+
+// GetDeviceCurrentSession gets the current active session for a device
+func (s *service) GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error) {
+	session, err := s.groupRepo.FindActiveByDeviceIDWithNames(ctx, deviceID)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetDeviceCurrentSession", Err: err}
+	}
+
+	if session == nil {
+		return nil, &ActiveError{Op: "GetDeviceCurrentSession", Err: ErrNoActiveSession}
+	}
+
+	return session, nil
+}
+
+// ProcessSessionTimeout handles device-triggered session timeout
+func (s *service) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*TimeoutResult, error) {
+	// Validate device has active session
+	session, err := s.GetDeviceCurrentSession(ctx, deviceID)
+	if err != nil {
+		return nil, &ActiveError{Op: "ProcessSessionTimeout", Err: ErrNoActiveSession}
+	}
+
+	// Perform atomic cleanup: end session and checkout all students
+	var result *TimeoutResult
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// End all active visits first
+		visits, err := s.visitRepo.FindByActiveGroupID(ctx, session.ID)
+		if err != nil {
+			return err
+		}
+
+		studentsCheckedOut := 0
+		for _, visit := range visits {
+			if visit.IsActive() {
+				if err := s.visitRepo.EndVisit(ctx, visit.ID); err != nil {
+					return err
+				}
+				studentsCheckedOut++
+			}
+		}
+
+		// End the session
+		if err := s.groupRepo.EndSession(ctx, session.ID); err != nil {
+			return err
+		}
+
+		result = &TimeoutResult{
+			SessionID:          session.ID,
+			ActivityID:         session.GroupID,
+			StudentsCheckedOut: studentsCheckedOut,
+			TimeoutAt:          time.Now(),
+		}
+		return nil
+	})
+
+	return result, err
+}
+
+// UpdateSessionActivity updates the last activity timestamp for a session
+func (s *service) UpdateSessionActivity(ctx context.Context, activeGroupID int64) error {
+	// Get the current session to validate it exists and is active
+	session, err := s.groupRepo.FindByID(ctx, activeGroupID)
+	if err != nil {
+		return &ActiveError{Op: "UpdateSessionActivity", Err: err}
+	}
+
+	if session == nil {
+		return &ActiveError{Op: "UpdateSessionActivity", Err: ErrActiveGroupNotFound}
+	}
+
+	if !session.IsActive() {
+		return &ActiveError{Op: "UpdateSessionActivity", Err: ErrActiveGroupAlreadyEnded}
+	}
+
+	// Update last activity timestamp
+	return s.groupRepo.UpdateLastActivity(ctx, activeGroupID, time.Now())
+}
+
+// ValidateSessionTimeout validates if a timeout request is valid
+func (s *service) ValidateSessionTimeout(ctx context.Context, deviceID int64, timeoutMinutes int) error {
+	// Validate device has active session
+	session, err := s.GetDeviceCurrentSession(ctx, deviceID)
+	if err != nil {
+		return &ActiveError{Op: "ValidateSessionTimeout", Err: err}
+	}
+
+	// Validate timeout parameters
+	if timeoutMinutes <= 0 || timeoutMinutes > 480 { // Max 8 hours
+		return &ActiveError{Op: "ValidateSessionTimeout", Err: fmt.Errorf("invalid timeout minutes: %d", timeoutMinutes)}
+	}
+
+	// Check if session is actually timed out based on inactivity
+	timeoutDuration := time.Duration(timeoutMinutes) * time.Minute
+	inactivityDuration := time.Since(session.LastActivity)
+
+	if inactivityDuration < timeoutDuration {
+		return &ActiveError{Op: "ValidateSessionTimeout", Err: fmt.Errorf("session not yet timed out: %v remaining", timeoutDuration-inactivityDuration)}
+	}
+
+	return nil
+}
+
+// GetSessionTimeoutInfo provides comprehensive timeout information for a device session
+func (s *service) GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*SessionTimeoutInfo, error) {
+	// Get current session
+	session, err := s.GetDeviceCurrentSession(ctx, deviceID)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetSessionTimeoutInfo", Err: err}
+	}
+
+	// Count active students in the session
+	visits, err := s.visitRepo.FindByActiveGroupID(ctx, session.ID)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetSessionTimeoutInfo", Err: err}
+	}
+
+	activeStudentCount := 0
+	for _, visit := range visits {
+		if visit.IsActive() {
+			activeStudentCount++
+		}
+	}
+
+	info := &SessionTimeoutInfo{
+		SessionID:          session.ID,
+		ActivityID:         session.GroupID,
+		StartTime:          session.StartTime,
+		LastActivity:       session.LastActivity,
+		TimeoutMinutes:     session.TimeoutMinutes,
+		InactivityDuration: session.GetInactivityDuration(),
+		TimeUntilTimeout:   session.GetTimeUntilTimeout(),
+		IsTimedOut:         session.IsTimedOut(),
+		ActiveStudentCount: activeStudentCount,
+	}
+
+	return info, nil
+}
+
+// CleanupAbandonedSessions cleans up sessions that have been abandoned for longer than the specified duration
+func (s *service) CleanupAbandonedSessions(ctx context.Context, olderThan time.Duration) (int, error) {
+	// Find sessions that have been active for longer than the threshold
+	cutoffTime := time.Now().Add(-olderThan)
+
+	// This would require a new repository method to find sessions by last activity
+	// For now, let's implement a conservative approach
+	sessions, err := s.groupRepo.FindActiveSessionsOlderThan(ctx, cutoffTime)
+	if err != nil {
+		return 0, &ActiveError{Op: "CleanupAbandonedSessions", Err: err}
+	}
+
+	cleanedCount := 0
+	for _, session := range sessions {
+		// Only cleanup sessions that are clearly abandoned (more than 2x timeout threshold)
+		if session.GetInactivityDuration() >= 2*session.GetTimeoutDuration() {
+			// Use ProcessSessionTimeout to ensure proper cleanup
+			_, err := s.ProcessSessionTimeout(ctx, *session.DeviceID)
+			if err != nil {
+				// Log error but continue with other sessions
+				continue
+			}
+			cleanedCount++
+		}
+	}
+
+	return cleanedCount, nil
 }

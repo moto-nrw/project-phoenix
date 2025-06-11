@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Button, PasswordChangeModal } from "~/components/ui";
+import { PINManagement } from "~/components/staff";
 
 // Simple icon component
 const Icon: React.FC<{ path: string; className?: string }> = ({ path, className }) => (
@@ -49,7 +50,7 @@ const settingsSections: SettingsSection[] = [
   {
     id: "security",
     title: "Sicherheit & Datenschutz",
-    description: "Passwort ändern und Datenschutzeinstellungen",
+    description: "Passwort ändern und Datenschutz",
     iconPath: "M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z",
     href: "#security",
   },
@@ -97,16 +98,15 @@ function SettingsContent() {
     isActive?: boolean;
   }> = ({ section, onClick, isActive }) => {
     const isExternalLink = section.href?.startsWith('/');
-    
+
     if (isExternalLink && section.href) {
       return (
         <Link
           href={section.href}
-          className={`block w-full rounded-lg border p-4 text-left transition-all duration-200 hover:shadow-md ${
-            isActive
+          className={`block w-full rounded-lg border p-4 text-left transition-all duration-200 hover:shadow-md ${isActive
               ? "border-gray-900 bg-gray-50 shadow-md"
               : "border-gray-200 bg-white hover:border-gray-300"
-          }`}
+            }`}
         >
           <div className="flex items-start justify-between">
             <div className="flex items-start space-x-3">
@@ -114,31 +114,27 @@ function SettingsContent() {
                 <Icon path={section.iconPath} className={`h-5 w-5 ${isActive ? "text-white" : "text-gray-600"}`} />
               </div>
               <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-gray-900">{section.title}</h3>
-                  {section.badge && (
-                    <span className="rounded-full bg-gray-900 px-2 py-0.5 text-xs font-medium text-white">
-                      {section.badge}
-                    </span>
-                  )}
-                </div>
+                <h3 className="font-semibold text-gray-900">{section.title}</h3>
+                {section.badge && (
+                  <span className="mt-1 inline-block rounded-full bg-gray-900 px-2 py-0.5 text-xs font-medium text-white">
+                    {section.badge}
+                  </span>
+                )}
                 <p className="mt-1 text-sm text-gray-600">{section.description}</p>
               </div>
             </div>
-            <Icon path="M8.25 4.5l7.5 7.5-7.5 7.5" className="h-5 w-5 text-gray-400" />
           </div>
         </Link>
       );
     }
-    
+
     return (
       <button
         onClick={onClick ?? (() => setActiveSection(section.id))}
-        className={`w-full rounded-lg border p-4 text-left transition-all duration-200 hover:shadow-md ${
-          isActive
+        className={`w-full rounded-lg border p-4 text-left transition-all duration-200 hover:shadow-md ${isActive
             ? "border-gray-900 bg-gray-50 shadow-md"
             : "border-gray-200 bg-white hover:border-gray-300"
-        }`}
+          }`}
       >
         <div className="flex items-start justify-between">
           <div className="flex items-start space-x-3">
@@ -146,18 +142,15 @@ function SettingsContent() {
               <Icon path={section.iconPath} className={`h-5 w-5 ${isActive ? "text-white" : "text-gray-600"}`} />
             </div>
             <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-gray-900">{section.title}</h3>
-                {section.badge && (
-                  <span className="rounded-full bg-gray-900 px-2 py-0.5 text-xs font-medium text-white">
-                    {section.badge}
-                  </span>
-                )}
-              </div>
+              <h3 className="font-semibold text-gray-900">{section.title}</h3>
+              {section.badge && (
+                <span className="mt-1 inline-block rounded-full bg-gray-900 px-2 py-0.5 text-xs font-medium text-white">
+                  {section.badge}
+                </span>
+              )}
               <p className="mt-1 text-sm text-gray-600">{section.description}</p>
             </div>
           </div>
-          <Icon path="M8.25 4.5l7.5 7.5-7.5 7.5" className="h-5 w-5 text-gray-400" />
         </div>
       </button>
     );
@@ -185,8 +178,8 @@ function SettingsContent() {
                   <div className="flex items-center space-x-3">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white shadow-md group-hover:shadow-lg transition-all">
                       <span className="text-lg font-bold">
-                        {session?.user?.name ? 
-                          session.user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 
+                        {session?.user?.name ?
+                          session.user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) :
                           'U'
                         }
                       </span>
@@ -196,7 +189,6 @@ function SettingsContent() {
                       <p className="text-sm text-gray-600">Name, E-Mail und Passwort ändern</p>
                     </div>
                   </div>
-                  <Icon path="M8.25 4.5l7.5 7.5-7.5 7.5" className="h-5 w-5 text-gray-400 group-hover:translate-x-1 transition-transform" />
                 </div>
               </Link>
 
@@ -242,14 +234,12 @@ function SettingsContent() {
                 </div>
                 <button
                   onClick={() => setEmailNotifications(!emailNotifications)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    emailNotifications ? "bg-[#83CD2D]" : "bg-gray-200"
-                  }`}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${emailNotifications ? "bg-[#83CD2D]" : "bg-gray-200"
+                    }`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
-                      emailNotifications ? "translate-x-6" : "translate-x-1"
-                    }`}
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${emailNotifications ? "translate-x-6" : "translate-x-1"
+                      }`}
                   />
                 </button>
               </div>
@@ -263,14 +253,12 @@ function SettingsContent() {
                 </div>
                 <button
                   onClick={() => setSystemNotifications(!systemNotifications)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    systemNotifications ? "bg-[#83CD2D]" : "bg-gray-200"
-                  }`}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${systemNotifications ? "bg-[#83CD2D]" : "bg-gray-200"
+                    }`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
-                      systemNotifications ? "translate-x-6" : "translate-x-1"
-                    }`}
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${systemNotifications ? "translate-x-6" : "translate-x-1"
+                      }`}
                   />
                 </button>
               </div>
@@ -288,13 +276,13 @@ function SettingsContent() {
               </p>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
               <button
                 onClick={() => setShowPasswordModal(true)}
                 className="w-full flex items-center justify-between rounded-lg border border-gray-200 p-4 transition-colors hover:bg-gray-50"
               >
                 <div className="flex items-center space-x-3">
-                  <Icon path="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" className="h-5 w-5 text-gray-600" />
+                  <Icon path="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1 1 21 9z" className="h-5 w-5 text-gray-600" />
                   <div className="text-left">
                     <h4 className="font-medium text-gray-900">Passwort ändern</h4>
                     <p className="text-sm text-gray-600">
@@ -304,6 +292,16 @@ function SettingsContent() {
                 </div>
                 <Icon path="M8.25 4.5l7.5 7.5-7.5 7.5" className="h-5 w-5 text-gray-400" />
               </button>
+
+              {/* PIN Management Section */}
+              <div className="rounded-lg border border-gray-200 bg-white p-6">
+                <PINManagement
+                  onSuccess={() => {
+                    setShowSaveAlert(true);
+                    setTimeout(() => setShowSaveAlert(false), 3000);
+                  }}
+                />
+              </div>
 
               <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
                 <div className="flex items-start space-x-3">
@@ -358,7 +356,6 @@ function SettingsContent() {
               onClick={() => setActiveSection(null)}
               className="mb-4 flex items-center text-sm text-gray-600 hover:text-gray-900"
             >
-              <Icon path="M8.25 4.5l7.5 7.5-7.5 7.5" className="mr-1 h-4 w-4 rotate-180" />
               Zurück zu Einstellungen
             </button>
             <div className="rounded-lg border border-gray-200 bg-white p-4 md:p-6">
@@ -388,27 +385,27 @@ function SettingsContent() {
             {(activeSection === "general" || activeSection === "notifications") && (
               <div className="mt-6 border-t border-gray-100 pt-6">
                 <div className="flex justify-end">
-                  <Button 
-                    onClick={handleSave} 
+                  <Button
+                    onClick={handleSave}
                     variant="success"
                     className="relative min-w-[200px] overflow-hidden"
                   >
                     {/* Gradient overlay that moves on hover */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out" />
-                    
+
                     {/* Button content */}
                     <span className="relative flex items-center gap-2.5">
                       <span className="relative flex items-center justify-center">
                         {/* Animated ring around icon */}
                         <span className="absolute h-7 w-7 rounded-full bg-white/20 scale-0 group-hover:scale-110 transition-transform duration-300 ease-out" />
-                        <Icon 
-                          path="M5 13l4 4L19 7" 
+                        <Icon
+                          path="M5 13l4 4L19 7"
                           className="relative h-5 w-5 transition-transform duration-200"
                         />
                       </span>
                       <span className="font-medium tracking-wide">Änderungen speichern</span>
                     </span>
-                    
+
                     {/* Subtle pulse on hover */}
                     <span className="absolute inset-0 rounded-lg ring-2 ring-[#83CD2D] ring-opacity-0 group-hover:ring-opacity-30 transition-all duration-300 group-hover:scale-105 pointer-events-none" />
                   </Button>
@@ -425,26 +422,26 @@ function SettingsContent() {
           <div className="relative">
             {/* Backdrop blur effect */}
             <div className="absolute inset-0 bg-white/80 backdrop-blur-xl rounded-2xl" />
-            
+
             {/* Content */}
             <div className="relative flex items-center gap-3 rounded-2xl border border-[#83CD2D]/30 bg-gradient-to-br from-[#83CD2D]/10 to-[#83CD2D]/5 px-5 py-4 shadow-2xl shadow-[#83CD2D]/10">
               {/* Success icon with animation */}
               <div className="relative">
                 <div className="absolute inset-0 bg-[#83CD2D] rounded-full blur-xl opacity-25 animate-pulse" />
                 <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525]">
-                  <Icon 
-                    path="M5 13l4 4L19 7" 
+                  <Icon
+                    path="M5 13l4 4L19 7"
                     className="h-5 w-5 text-white"
                   />
                 </div>
               </div>
-              
+
               {/* Text */}
               <div>
                 <p className="font-semibold text-gray-900">Erfolgreich gespeichert</p>
                 <p className="text-sm text-gray-600">Ihre Einstellungen wurden übernommen</p>
               </div>
-              
+
               {/* Progress bar */}
               <div className="absolute bottom-0 left-0 right-0 h-1 overflow-hidden rounded-b-2xl">
                 <div className="h-full bg-gradient-to-r from-[#83CD2D] to-[#70b525] animate-[shrink_3s_linear_forwards]" />

@@ -6,19 +6,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
 
 // Account represents an authentication account
 type Account struct {
-	base.Model    `bun:"schema:auth,table:accounts"`
-	Email         string     `bun:"email,notnull" json:"email"`
-	Username      *string    `bun:"username,unique" json:"username,omitempty"`
-	Active        bool       `bun:"active,notnull,default:true" json:"active"`
-	PasswordHash  *string    `bun:"password_hash" json:"-"`
-	IsPasswordOTP bool       `bun:"is_password_otp,default:false" json:"is_password_otp"`
-	LastLogin     *time.Time `bun:"last_login" json:"last_login,omitempty"`
+	base.Model     `bun:"schema:auth,table:accounts"`
+	Email          string     `bun:"email,notnull" json:"email"`
+	Username       *string    `bun:"username,unique" json:"username,omitempty"`
+	Active         bool       `bun:"active,notnull,default:true" json:"active"`
+	PasswordHash   *string    `bun:"password_hash" json:"-"`
+	IsPasswordOTP  bool       `bun:"is_password_otp,default:false" json:"is_password_otp"`
+	LastLogin      *time.Time `bun:"last_login" json:"last_login,omitempty"`
+	PINHash        *string    `bun:"pin_hash" json:"-"`
+	PINAttempts    int        `bun:"pin_attempts,default:0" json:"-"`
+	PINLockedUntil *time.Time `bun:"pin_locked_until" json:"-"`
 
 	// Relations not stored in the database
 	Roles       []*Role       `bun:"-" json:"roles,omitempty"`
@@ -117,4 +121,64 @@ func (a *Account) GetCreatedAt() time.Time {
 // GetUpdatedAt returns the last update timestamp
 func (a *Account) GetUpdatedAt() time.Time {
 	return a.UpdatedAt
+}
+
+// PIN-related methods
+
+// HashPIN hashes a PIN using Argon2id
+func (a *Account) HashPIN(pin string) error {
+	hashedPIN, err := userpass.HashPassword(pin, nil)
+	if err != nil {
+		return err
+	}
+	a.PINHash = &hashedPIN
+	return nil
+}
+
+// VerifyPIN verifies a PIN against the stored hash
+func (a *Account) VerifyPIN(pin string) bool {
+	if a.PINHash == nil {
+		return false
+	}
+	isValid, err := userpass.VerifyPassword(pin, *a.PINHash)
+	if err != nil {
+		return false
+	}
+	return isValid
+}
+
+// HasPIN checks if the account has a PIN set
+func (a *Account) HasPIN() bool {
+	return a.PINHash != nil && *a.PINHash != ""
+}
+
+// IsPINLocked checks if the account is temporarily locked due to failed PIN attempts
+func (a *Account) IsPINLocked() bool {
+	if a.PINLockedUntil == nil {
+		return false
+	}
+	return time.Now().Before(*a.PINLockedUntil)
+}
+
+// IncrementPINAttempts increments the failed PIN attempt counter and locks if needed
+func (a *Account) IncrementPINAttempts() {
+	a.PINAttempts++
+
+	// Lock account for 15 minutes after 5 failed attempts
+	if a.PINAttempts >= 5 {
+		lockUntil := time.Now().Add(15 * time.Minute)
+		a.PINLockedUntil = &lockUntil
+	}
+}
+
+// ResetPINAttempts resets the failed PIN attempt counter
+func (a *Account) ResetPINAttempts() {
+	a.PINAttempts = 0
+	a.PINLockedUntil = nil
+}
+
+// ClearPIN removes the PIN from the account
+func (a *Account) ClearPIN() {
+	a.PINHash = nil
+	a.ResetPINAttempts()
 }

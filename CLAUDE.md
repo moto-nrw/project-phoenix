@@ -9,12 +9,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Description:** A GDPR-compliant RFID-based student attendance and room management system for educational institutions. Implements strict privacy controls for student data access.
 
 **Key Technologies:**
-- Backend: Go (1.21+) with Chi router, Bun ORM for PostgreSQL
+- Backend: Go (1.23+) with Chi router, Bun ORM for PostgreSQL
 - Frontend: Next.js (v15+) with React (v19+), Tailwind CSS (v4+)
 - Database: PostgreSQL (17+) with SSL encryption (GDPR compliance)
 - Authentication: JWT-based auth system with role-based access control
 - RFID Integration: Custom API endpoints for device communication
 - Deployment: Docker/Docker Compose
+
+**Security Notice:**
+- All sensitive configuration uses example templates (never commit real .env files)
+- SSL certificates must be generated locally using setup scripts
+- Real configuration files (.env, certificates) are git-ignored
+- See [Security Guidelines](docs/security.md) for complete security practices
 
 ## Architecture Overview
 
@@ -51,6 +57,19 @@ The database uses multiple PostgreSQL schemas to organize tables by domain:
 
 ## Development Commands
 
+### Quick Setup (New Development Environment)
+```bash
+# Automated setup with SSL certificates and secure configuration
+./scripts/setup-dev.sh          # Creates configs and SSL certs automatically
+docker compose up -d            # Start all services
+
+# Manual setup alternative
+cd config/ssl/postgres && ./create-certs.sh && cd ../../..
+cp backend/dev.env.example backend/dev.env
+cp frontend/.env.local.example frontend/.env.local
+# Edit environment files with your values
+```
+
 ### Backend (Go)
 ```bash
 cd backend
@@ -64,6 +83,8 @@ go run main.go migrate          # Run database migrations
 go run main.go migrate status   # Show migration status
 go run main.go migrate validate # Validate migration dependencies
 go run main.go migrate reset    # WARNING: Reset database and run all migrations
+go run main.go seed             # Populate database with test data
+go run main.go seed --reset     # Clear ALL test data and repopulate
 
 # Testing
 go test ./...                   # Run all tests
@@ -118,11 +139,18 @@ docker compose up -d            # Start all services in detached mode
 
 # Database Operations
 docker compose run server ./main migrate  # Run migrations
+docker compose run server ./main seed     # Populate with test data
 docker compose logs postgres             # Check database logs
 
 # Frontend Operations
 docker compose run frontend npm run lint # Run lint checks in container
 docker compose logs frontend            # Check frontend logs
+
+# API Testing
+cd bruno
+./dev-test.sh all                       # Run simplified test suite (~252ms)
+./dev-test.sh groups                    # Test groups API only (~44ms)  
+bru run --env Local                     # Traditional Bruno CLI
 
 # Cleanup
 docker compose down             # Stop all services
@@ -259,15 +287,24 @@ userRepo := repoFactory.NewUserRepository()
 When working with PostgreSQL schemas, BUN requires explicit table expressions in repository methods:
 
 ```go
-// In repository methods, always set ModelTableExpr
+// In repository methods, always set ModelTableExpr with quotes around alias
 func (r *GroupRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*education.Group, error) {
     var groups []*education.Group
     query := r.db.NewSelect().
         Model(&groups).
-        ModelTableExpr(`education.groups AS "group"`)  // Critical for schema-qualified tables!
+        ModelTableExpr(`education.groups AS "group"`)  // Critical: quotes around alias!
     
     // Apply options and execute query
 }
+```
+
+**CRITICAL**: Always include table alias with quotes to prevent SQL errors:
+```go
+// CORRECT - Will generate: SELECT "group".* FROM education.groups AS "group"
+ModelTableExpr(`education.groups AS "group"`)
+
+// WRONG - Will cause "missing FROM-clause entry for table" errors
+ModelTableExpr(`education.groups`)
 ```
 
 Models should implement BeforeAppendModel when using schemas:
@@ -320,7 +357,8 @@ cd ../../..
 - **JWT Errors**: Verify `AUTH_JWT_SECRET` is set and consistent
 - **CORS Issues**: Ensure `ENABLE_CORS=true` for local development
 - **SQL Debugging**: Set `DB_DEBUG=true` to see queries
-- **Schema-qualified tables**: Always use `ModelTableExpr` in repository methods
+- **Schema-qualified tables**: Always use `ModelTableExpr` with quoted aliases in repository methods
+- **"missing FROM-clause entry" errors**: Ensure table aliases are quoted in `ModelTableExpr`
 
 ### Frontend Issues
 - **API Connection**: Verify `NEXT_PUBLIC_API_URL` points to backend
@@ -333,15 +371,24 @@ cd ../../..
 - **Permission Errors**: Check volume permissions and user context
 - **Port Conflicts**: Ensure ports 3000, 8080, 5432 are available
 - **Code Changes Not Reflected**: Restart containers to pick up changes
+- **Backend Code Changes**: MUST rebuild backend container after Go code changes (`docker compose build server`)
 
 ## RFID Integration
 
 The system integrates with RFID readers for student tracking:
-- Devices authenticate via API endpoints
+- Devices authenticate via API endpoints with two-layer auth (device API key + teacher PIN)
 - Student check-in/check-out tracked in `active_visits` table
 - Room occupancy calculated from active sessions
-- See `backend/docs/rfid-integration-guide.md` for device setup
-- Example flows in `backend/docs/rfid-examples.md`
+- Implementation guide: `/RFID_IMPLEMENTATION_GUIDE.md` (comprehensive workflows and API specs)
+- Device setup docs: `backend/docs/rfid-integration-guide.md`
+- Example flows: `backend/docs/rfid-examples.md`
+
+### PIN Architecture (Simplified)
+The system uses a simplified PIN architecture for RFID device authentication:
+- **PIN Storage**: All PINs stored in `auth.accounts` table (not in `users.staff`)
+- **Authentication Flow**: Device API key + staff PIN → validates against account PIN
+- **Management**: Staff can set/update PINs via `/api/staff/pin` endpoints
+- **Security**: Uses Argon2id hashing with attempt limiting and account lockout
 
 ## Testing Strategy
 
@@ -363,6 +410,37 @@ func TestUserLogin(t *testing.T) {
 ```
 
 Test helpers are in `test/helpers.go`. Integration tests use a real test database.
+
+### API Testing with Bruno
+Bruno provides a simplified API testing suite optimized for development workflow:
+
+```bash
+cd bruno
+
+# Simplified test runner (gets fresh admin token automatically)
+./dev-test.sh groups    # Test groups API (25 groups) - ~44ms
+./dev-test.sh students  # Test students API (50 students) - ~50ms  
+./dev-test.sh rooms     # Test rooms API (24 rooms) - ~19ms
+./dev-test.sh devices   # Test RFID device auth - ~117ms
+./dev-test.sh all       # Test everything - ~252ms
+./dev-test.sh examples  # View API examples
+./dev-test.sh manual    # Pre-release checks
+
+# Traditional Bruno CLI (requires manual token management)
+bru run --env Local     # Run all tests
+bru run dev/groups.bru --env Local --env-var accessToken="$TOKEN"
+
+# Bruno GUI (optional)
+# Open Bruno app → Open Collection → Select bruno/ directory
+```
+
+**Bruno Implementation Features:**
+- **Smart Authentication**: Fresh admin tokens per test (no persistence issues)
+- **Simple Structure**: Only 9 test files (dev/, examples/, manual/)
+- **Fast Execution**: Complete test suite runs in ~252ms
+- **Development Focus**: Quick confidence checks, not comprehensive testing
+- **RFID Testing**: Two-layer device authentication (API key + PIN)
+- **Test Accounts**: admin@example.com / Test1234%, y.wenger@gmx.de / Test1234% (PIN: 1234)
 
 ### Frontend Testing
 - Component testing with React Testing Library
@@ -398,6 +476,19 @@ Test helpers are in `test/helpers.go`. Integration tests use a real test databas
 3. **Ineffective assignments**: Remove unused variable assignments
 
 4. **Empty branches**: Add implementation or remove unnecessary conditions
+
+5. **Import grouping** (goimports):
+   ```go
+   // Group imports: stdlib, external, internal
+   import (
+       "context"
+       "fmt"
+       
+       "github.com/go-chi/chi/v5"
+       
+       "github.com/moto-nrw/project-phoenix/models"
+   )
+   ```
 
 ## Critical Backend Patterns
 
@@ -498,6 +589,7 @@ export default function Page() {
 6. Create API handlers in `api/{domain}/`
 7. Write tests for repository and service layers
 8. Run linter: `golangci-lint run --timeout 10m`
+9. Test with seed data: `go run main.go seed`
 
 ### Frontend Development Flow
 1. Define TypeScript interfaces in `lib/{domain}-helpers.ts`
@@ -507,6 +599,13 @@ export default function Page() {
 5. Build pages in `app/{domain}/`
 6. Always run `npm run check` before committing
 
+### Creating New Features
+1. Create feature branch from `development`: `git checkout -b feature/feature-name`
+2. Implement backend first if API changes needed
+3. Update frontend to consume new/changed APIs
+4. Test end-to-end with both services running
+5. Create PR targeting `development` branch (NEVER `main`)
+
 ## Domain-Specific Details
 
 ### Active Sessions (Real-time tracking)
@@ -514,18 +613,27 @@ export default function Page() {
 - Visit tracking for students entering/leaving rooms
 - Supervisor assignments for active groups
 - Combined groups can contain multiple regular groups
+- Device tracking: `device_id` is now optional in `active.groups` (for RFID integration)
 
 ### Education Domain
 - Groups have teachers and representatives
 - Teachers are linked through `education.group_teacher` join table
 - Groups can be assigned to rooms
 - Substitution system for temporary staff changes
+- **No backdating rule**: Substitutions must start today or in the future
 
 ### User Management
 - Person → Staff → Teacher hierarchy
 - Students linked to guardians through join tables
 - RFID cards associated with persons
 - Privacy consent tracking for students
+- Staff PIN management: 4-digit PINs for device authentication (stored in `auth.accounts`)
+
+### IoT/Device Management
+- Devices authenticate with API keys (stored in `iot.devices`)
+- Two-layer authentication: Device API key + Teacher PIN
+- Device health monitoring via ping endpoints
+- RFID tag assignments tracked per person
 
 ## Database Migration Pattern
 
