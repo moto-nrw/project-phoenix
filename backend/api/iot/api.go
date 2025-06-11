@@ -993,6 +993,7 @@ type RFIDTagAssignedStudent struct {
 func (req *CheckinRequest) Bind(r *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.StudentRFID, validation.Required),
+		// Note: Action field is ignored in logic but still required for API compatibility
 		validation.Field(&req.Action, validation.Required, validation.In("checkin", "checkout")),
 	)
 }
@@ -1067,16 +1068,29 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	var actionMsg string
 	var roomName string
 
-	switch req.Action {
-	case "checkin":
-		// End previous visit if exists (auto-checkout)
-		if currentVisit != nil && currentVisit.ExitTime == nil {
-			if err := rs.ActiveService.EndVisit(r.Context(), currentVisit.ID); err != nil {
-				log.Printf("Error ending previous visit: %v", err)
-				// Continue anyway - we'll create a new visit
+	// Debug logging to track the action field
+	log.Printf("RFID Request: action='%s', student_rfid='%s', room_id=%v", req.Action, req.StudentRFID, req.RoomID)
+
+	// Auto-determine action based on student's current status (ignore req.Action)
+	// If student has an active visit, perform checkout; otherwise perform checkin
+	if currentVisit != nil && currentVisit.ExitTime == nil {
+		// Student is currently checked in - perform CHECKOUT
+		log.Printf("Student %d has active visit %d - performing checkout", student.ID, currentVisit.ID)
+		
+		// End current visit
+		if err := rs.ActiveService.EndVisit(r.Context(), currentVisit.ID); err != nil {
+			if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to end visit record"))); err != nil {
+				log.Printf("Render error: %v", err)
 			}
+			return
 		}
 
+		visitID = &currentVisit.ID
+		actionMsg = "checked_out"
+	} else {
+		// Student is not currently checked in - perform CHECKIN
+		log.Printf("Student %d has no active visit - performing checkin", student.ID)
+		
 		// Determine which active group to associate with
 		var activeGroupID int64
 		if req.RoomID != nil {
@@ -1122,35 +1136,14 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 
 		visitID = &newVisit.ID
 		actionMsg = "checked_in"
-
-	case "checkout":
-		// Check if student has an active visit to end
-		if currentVisit == nil || currentVisit.ExitTime != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("student is not currently checked in"))); err != nil {
-				log.Printf("Render error: %v", err)
-			}
-			return
-		}
-
-		// End current visit
-		if err := rs.ActiveService.EndVisit(r.Context(), currentVisit.ID); err != nil {
-			if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to end visit record"))); err != nil {
-				log.Printf("Render error: %v", err)
-			}
-			return
-		}
-
-		visitID = &currentVisit.ID
-		actionMsg = "checked_out"
 	}
 
-	// Generate German greeting message
+	// Generate German greeting message based on actual action performed
 	studentName := person.FirstName + " " + person.LastName
 	var greetingMsg string
-	switch req.Action {
-	case "checkin":
+	if actionMsg == "checked_in" {
 		greetingMsg = "Hallo " + person.FirstName + "!"
-	case "checkout":
+	} else if actionMsg == "checked_out" {
 		greetingMsg = "Tschüss " + person.FirstName + "!"
 	}
 
@@ -1169,6 +1162,9 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
+	// Debug logging before sending response
+	log.Printf("RFID Response: action='%s', student='%s', message='%s'", actionMsg, studentName, greetingMsg)
 
 	// Prepare response
 	response := map[string]interface{}{
