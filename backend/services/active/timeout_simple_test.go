@@ -25,6 +25,14 @@ func (m *SimpleGroupRepo) FindActiveByDeviceID(ctx context.Context, deviceID int
 	return args.Get(0).(*active.Group), args.Error(1)
 }
 
+func (m *SimpleGroupRepo) FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*active.Group, error) {
+	args := m.Called(mock.Anything, deviceID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*active.Group), args.Error(1)
+}
+
 func (m *SimpleGroupRepo) FindByID(ctx context.Context, id interface{}) (*active.Group, error) {
 	args := m.Called(mock.Anything, id)
 	if args.Get(0) == nil {
@@ -66,6 +74,16 @@ func (m *SimpleGroupRepo) EndSession(ctx context.Context, id int64) error { retu
 func (m *SimpleGroupRepo) FindBySourceIDs(ctx context.Context, sourceIDs []int64, sourceType string) ([]*active.Group, error) {
 	return nil, nil
 }
+// FindWithRelations - missing method from interface
+func (m *SimpleGroupRepo) FindWithRelations(ctx context.Context, id int64) (*active.Group, error) {
+	return nil, nil
+}
+func (m *SimpleGroupRepo) FindWithVisits(ctx context.Context, id int64) (*active.Group, error) {
+	return nil, nil
+}
+func (m *SimpleGroupRepo) FindWithSupervisors(ctx context.Context, id int64) (*active.Group, error) {
+	return nil, nil
+}
 func (m *SimpleGroupRepo) FindActiveByGroupIDWithDevice(ctx context.Context, groupID int64) ([]*active.Group, error) {
 	return nil, nil
 }
@@ -76,9 +94,6 @@ func (m *SimpleGroupRepo) CheckRoomConflict(ctx context.Context, roomID int64, e
 	return false, nil, nil
 }
 func (m *SimpleGroupRepo) FindActiveByDeviceIDWithRelations(ctx context.Context, deviceID int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *SimpleGroupRepo) FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*active.Group, error) {
 	return nil, nil
 }
 func (m *SimpleGroupRepo) FindInactiveSessions(ctx context.Context, inactiveDuration time.Duration) ([]*active.Group, error) {
@@ -115,6 +130,21 @@ func (m *MockVisitRepository) FindByTimeRange(ctx context.Context, start, end ti
 	return nil, nil
 }
 func (m *MockVisitRepository) EndVisit(ctx context.Context, id int64) error { return nil }
+func (m *MockVisitRepository) TransferVisitsFromRecentSessions(ctx context.Context, newActiveGroupID, deviceID int64) (int, error) {
+	return 0, nil
+}
+func (m *MockVisitRepository) DeleteExpiredVisits(ctx context.Context, studentID int64, retentionDays int) (int64, error) {
+	return 0, nil
+}
+func (m *MockVisitRepository) DeleteVisitsBeforeDate(ctx context.Context, studentID int64, beforeDate time.Time) (int64, error) {
+	return 0, nil
+}
+func (m *MockVisitRepository) GetVisitRetentionStats(ctx context.Context) (map[int64]int, error) {
+	return nil, nil
+}
+func (m *MockVisitRepository) CountExpiredVisits(ctx context.Context) (int64, error) {
+	return 0, nil
+}
 
 func TestUpdateSessionActivity_Simple(t *testing.T) {
 	tests := []struct {
@@ -222,7 +252,7 @@ func TestValidateSessionTimeout_Simple(t *testing.T) {
 				deviceID := int64(1)
 				activeGroup.DeviceID = &deviceID
 
-				repo.On("FindActiveByDeviceID", mock.Anything, int64(1)).Return(activeGroup, nil)
+				repo.On("FindActiveByDeviceIDWithNames", mock.Anything, int64(1)).Return(activeGroup, nil)
 			},
 			expectError: false,
 		},
@@ -240,7 +270,7 @@ func TestValidateSessionTimeout_Simple(t *testing.T) {
 				deviceID := int64(2)
 				activeGroup.DeviceID = &deviceID
 
-				repo.On("FindActiveByDeviceID", mock.Anything, int64(2)).Return(activeGroup, nil)
+				repo.On("FindActiveByDeviceIDWithNames", mock.Anything, int64(2)).Return(activeGroup, nil)
 			},
 			expectError:   true,
 			errorContains: "not yet timed out",
@@ -259,7 +289,7 @@ func TestValidateSessionTimeout_Simple(t *testing.T) {
 				deviceID := int64(3)
 				activeGroup.DeviceID = &deviceID
 
-				repo.On("FindActiveByDeviceID", mock.Anything, int64(3)).Return(activeGroup, nil)
+				repo.On("FindActiveByDeviceIDWithNames", mock.Anything, int64(3)).Return(activeGroup, nil)
 			},
 			expectError:   true,
 			errorContains: "invalid timeout minutes",
@@ -269,7 +299,7 @@ func TestValidateSessionTimeout_Simple(t *testing.T) {
 			deviceID:       4,
 			timeoutMinutes: 30,
 			setupMock: func(repo *SimpleGroupRepo) {
-				repo.On("FindActiveByDeviceID", mock.Anything, int64(4)).Return(nil, ErrNoActiveSession)
+				repo.On("FindActiveByDeviceIDWithNames", mock.Anything, int64(4)).Return(nil, ErrNoActiveSession)
 			},
 			expectError:   true,
 			errorContains: "no active session",
@@ -327,7 +357,7 @@ func TestGetSessionTimeoutInfo_Simple(t *testing.T) {
 				deviceID := int64(1)
 				activeGroup.DeviceID = &deviceID
 
-				groupRepo.On("FindActiveByDeviceID", mock.Anything, int64(1)).Return(activeGroup, nil)
+				groupRepo.On("FindActiveByDeviceIDWithNames", mock.Anything, int64(1)).Return(activeGroup, nil)
 
 				// Mock active visits
 				activeVisits := []*active.Visit{
