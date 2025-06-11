@@ -24,6 +24,7 @@ import (
 type Factory struct {
 	Auth        auth.AuthService
 	Active      active.Service
+	ActiveCleanup active.CleanupService
 	Activities  activities.ActivityService
 	Education   education.Service
 	Facilities  facilities.Service
@@ -180,18 +181,27 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	// Initialize database stats service
 	databaseService := database.NewService(repos)
 
+	// Initialize cleanup service
+	activeCleanupService := active.NewCleanupService(
+		repos.ActiveVisit,
+		repos.PrivacyConsent,
+		repos.DataDeletion,
+		db,
+	)
+
 	return &Factory{
-		Auth:        authService,
-		Active:      activeService,
-		Activities:  activitiesService,
-		Education:   educationService,
-		Facilities:  facilitiesService,
-		Feedback:    feedbackService,
-		IoT:         iotService,
-		Config:      configService,
-		Schedule:    scheduleService,
-		Users:       usersService,
-		UserContext: userContextService,
-		Database:    databaseService,
+		Auth:          authService,
+		Active:        activeService,
+		ActiveCleanup: activeCleanupService,
+		Activities:    activitiesService,
+		Education:     educationService,
+		Facilities:    facilitiesService,
+		Feedback:      feedbackService,
+		IoT:           iotService,
+		Config:        configService,
+		Schedule:      scheduleService,
+		Users:         usersService,
+		UserContext:   userContextService,
+		Database:      databaseService,
 	}, nil
 }

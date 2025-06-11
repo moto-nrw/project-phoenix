@@ -8,24 +8,55 @@ import { teacherService } from '@/lib/teacher-api';
 // Map teacher response from backend to frontend format
 function mapTeacherResponse(data: unknown): Teacher {
   const typedData = data as Record<string, unknown>;
+  
+  // Extract person data if nested
+  const person = typedData.person as Record<string, unknown> | undefined;
+  
+  // Get account_id from either direct data or nested person object
+  const accountId = typedData.account_id as number | undefined ?? 
+                    person?.account_id as number | undefined;
+  
+  // Get email from either direct data or nested person object
+  const email = typedData.email as string | undefined ?? 
+                person?.email as string | undefined;
+                
+  // Get first and last name from either direct data or nested person object
+  const firstName = (typedData.first_name as string | undefined) ?? (person?.first_name as string | undefined) ?? '';
+  const lastName = (typedData.last_name as string | undefined) ?? (person?.last_name as string | undefined) ?? '';
+  
+  // Get tag_id from either direct data or nested person object
+  const tagId = typedData.tag_id as string | null | undefined ?? 
+                person?.tag_id as string | null | undefined;
+  
+  // Debug logging to check account_id mapping
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Teacher mapping debug:', {
+      raw_data: typedData,
+      person_data: person,
+      extracted_account_id: accountId,
+      email: email,
+    });
+  }
+  
   return {
     id: typedData.id?.toString() ?? '',
-    name: (typedData.name as string) ?? `${typedData.first_name as string} ${typedData.last_name as string}`,
-    first_name: (typedData.first_name as string) ?? '',
-    last_name: (typedData.last_name as string) ?? '',
-    email: typedData.email as string | undefined,
+    name: (typedData.name as string) ?? `${firstName} ${lastName}`,
+    first_name: firstName,
+    last_name: lastName,
+    email: email,
     specialization: (typedData.specialization as string) ?? '',
     role: typedData.role as string | null | undefined,
     qualifications: typedData.qualifications as string | null | undefined,
-    tag_id: typedData.tag_id as string | null | undefined,
+    tag_id: tagId,
     staff_notes: typedData.staff_notes as string | null | undefined,
     created_at: typedData.created_at as string | undefined,
     updated_at: typedData.updated_at as string | undefined,
     person_id: typedData.person_id as number | undefined,
-    account_id: typedData.account_id as number | undefined,
+    account_id: accountId,
     is_teacher: typedData.is_teacher as boolean | undefined,
     staff_id: typedData.staff_id as string | undefined,
     teacher_id: typedData.teacher_id as string | undefined,
+    person: person,
   };
 }
 
@@ -244,6 +275,41 @@ export const teachersConfig = defineEntityConfig<Teacher>({
           {
             label: 'Interne Notizen',
             value: (teacher: Teacher) => teacher.staff_notes ?? 'Keine Notizen',
+            colSpan: 2,
+          },
+        ],
+      },
+      {
+        title: 'Konto-Status',
+        titleColor: 'text-purple-800',
+        items: [
+          {
+            label: 'Konto-Informationen',
+            value: (teacher: Teacher) => {
+              if (!teacher.account_id) {
+                return (
+                  <div className="text-sm text-gray-500">
+                    Kein Konto verknüpft - Erstellen Sie ein Konto, um Zugriffsrechte zu verwalten
+                  </div>
+                );
+              }
+              
+              return (
+                <div className="space-y-2">
+                  <div className="text-sm">
+                    <span className="font-medium">Konto-ID:</span> {teacher.account_id}
+                  </div>
+                  {teacher.email && (
+                    <div className="text-sm">
+                      <span className="font-medium">E-Mail:</span> {teacher.email}
+                    </div>
+                  )}
+                  <div className="text-xs text-gray-500 mt-2">
+                    Verwenden Sie die Aktionsbuttons oben, um Rollen und Berechtigungen zu verwalten
+                  </div>
+                </div>
+              );
+            },
             colSpan: 2,
           },
         ],

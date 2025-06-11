@@ -23,6 +23,11 @@ go run main.go migrate reset    # WARNING: Reset database and run all migrations
 go run main.go seed             # Populate database with test data
 go run main.go seed --reset     # Clear ALL test data and repopulate
 
+# Data Cleanup (GDPR Compliance)
+go run main.go cleanup visits   # Delete expired visit records based on privacy consent
+go run main.go cleanup preview  # Preview what would be deleted (dry run)
+go run main.go cleanup stats    # Show data retention statistics
+
 # Documentation
 go run main.go gendoc           # Generate routes.md and OpenAPI spec
 
@@ -216,6 +221,11 @@ Key variables in `dev.env`:
 - `DB_DEBUG=true`: Log SQL queries
 - `ENABLE_CORS=true`: For frontend development
 - `LOG_LEVEL=debug`: Logging verbosity
+
+Automated Cleanup Scheduler:
+- `CLEANUP_SCHEDULER_ENABLED=true`: Enable automated daily cleanup
+- `CLEANUP_SCHEDULER_TIME=02:00`: Time to run cleanup (24-hour format)
+- `CLEANUP_SCHEDULER_TIMEOUT_MINUTES=30`: Maximum cleanup duration
 
 ## Seed Data
 

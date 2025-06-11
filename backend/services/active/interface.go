@@ -178,3 +178,50 @@ type SessionTimeoutInfo struct {
 	IsTimedOut         bool          `json:"is_timed_out"`
 	ActiveStudentCount int           `json:"active_student_count"`
 }
+
+// CleanupService defines operations for data retention and cleanup
+type CleanupService interface {
+	// CleanupExpiredVisits runs the cleanup process for all students
+	CleanupExpiredVisits(ctx context.Context) (*CleanupResult, error)
+	
+	// CleanupVisitsForStudent runs cleanup for a specific student
+	CleanupVisitsForStudent(ctx context.Context, studentID int64) (int64, error)
+	
+	// GetRetentionStatistics gets statistics about data that will be deleted
+	GetRetentionStatistics(ctx context.Context) (*RetentionStats, error)
+	
+	// PreviewCleanup shows what would be deleted without actually deleting
+	PreviewCleanup(ctx context.Context) (*CleanupPreview, error)
+}
+
+// CleanupResult represents the result of a cleanup operation
+type CleanupResult struct {
+	StartedAt         time.Time
+	CompletedAt       time.Time
+	StudentsProcessed int
+	RecordsDeleted    int64
+	Errors            []CleanupError
+	Success           bool
+}
+
+// CleanupError represents an error during cleanup for a specific student
+type CleanupError struct {
+	StudentID int64
+	Error     string
+	Timestamp time.Time
+}
+
+// RetentionStats represents statistics about data retention
+type RetentionStats struct {
+	TotalExpiredVisits   int64
+	StudentsAffected     int
+	OldestExpiredVisit   *time.Time
+	ExpiredVisitsByMonth map[string]int64
+}
+
+// CleanupPreview shows what would be deleted
+type CleanupPreview struct {
+	StudentVisitCounts map[int64]int  // Student ID -> number of visits to delete
+	TotalVisits        int64
+	OldestVisit        *time.Time
+}

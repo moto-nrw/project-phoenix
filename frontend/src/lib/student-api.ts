@@ -6,9 +6,12 @@ import {
     mapStudentResponse,
     mapStudentsResponse,
     mapStudentDetailResponse,
+    mapPrivacyConsentResponse,
     type Student,
     type BackendStudent,
-    type BackendStudentDetail
+    type BackendStudentDetail,
+    type BackendPrivacyConsent,
+    type PrivacyConsent
 } from "./student-helpers";
 import {
     mapGroupResponse,
@@ -396,5 +399,101 @@ export async function fetchGroups(): Promise<Group[]> {
     } catch (error) {
         console.error("Error fetching groups:", error);
         return [];
+    }
+}
+
+// Fetch student's privacy consent
+export async function fetchStudentPrivacyConsent(studentId: string): Promise<PrivacyConsent | null> {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+        ? `/api/students/${studentId}/privacy-consent`
+        : `${env.NEXT_PUBLIC_API_URL}/students/${studentId}/privacy-consent`;
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "GET",
+                credentials: "include",
+                headers: {
+                    ...(session?.user?.token && {
+                        Authorization: `Bearer ${session.user.token}`,
+                    }),
+                },
+            });
+
+            if (!response.ok) {
+                if (response.status === 404) {
+                    // No consent found, return null
+                    return null;
+                }
+                throw new Error(`API error (${response.status}): ${response.statusText}`);
+            }
+
+            const responseData = await response.json() as ApiResponse<BackendPrivacyConsent>;
+            return mapPrivacyConsentResponse(responseData.data);
+        } else {
+            const response = await api.get<ApiResponse<BackendPrivacyConsent>>(url);
+            return mapPrivacyConsentResponse(response.data.data);
+        }
+    } catch (error) {
+        console.error("Error fetching privacy consent:", error);
+        return null;
+    }
+}
+
+// Update or create student's privacy consent
+export async function updateStudentPrivacyConsent(
+    studentId: string,
+    consentData: {
+        policy_version: string;
+        accepted: boolean;
+        duration_days?: number;
+        data_retention_days: number;
+        details?: Record<string, unknown>;
+    }
+): Promise<PrivacyConsent> {
+    const useProxyApi = typeof window !== "undefined";
+    const url = useProxyApi
+        ? `/api/students/${studentId}/privacy-consent`
+        : `${env.NEXT_PUBLIC_API_URL}/students/${studentId}/privacy-consent`;
+
+    try {
+        if (useProxyApi) {
+            const session = await getSession();
+            const response = await fetch(url, {
+                method: "PUT",
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(session?.user?.token && {
+                        Authorization: `Bearer ${session.user.token}`,
+                    }),
+                },
+                body: JSON.stringify(consentData),
+            });
+
+            if (!response.ok) {
+                throw new Error(`API error (${response.status}): ${response.statusText}`);
+            }
+
+            const responseData = await response.json() as ApiResponse<BackendPrivacyConsent>;
+            return mapPrivacyConsentResponse(responseData.data);
+        } else {
+            const session = await getSession();
+            const response = await api.put<ApiResponse<BackendPrivacyConsent>>(
+                url,
+                consentData,
+                {
+                    headers: {
+                        Authorization: `Bearer ${session?.user?.token}`,
+                    },
+                }
+            );
+            return mapPrivacyConsentResponse(response.data.data);
+        }
+    } catch (error) {
+        handleStudentApiError(error, "update privacy consent");
+        throw error; // Re-throw after handling to satisfy return type
     }
 }
