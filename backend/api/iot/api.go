@@ -1478,15 +1478,16 @@ type SessionTimeoutInfoResponse struct {
 
 // SessionCurrentResponse represents the current session information
 type SessionCurrentResponse struct {
-	ActiveGroupID *int64     `json:"active_group_id,omitempty"`
-	ActivityID    *int64     `json:"activity_id,omitempty"`
-	ActivityName  *string    `json:"activity_name,omitempty"`
-	RoomID        *int64     `json:"room_id,omitempty"`
-	RoomName      *string    `json:"room_name,omitempty"`
-	DeviceID      int64      `json:"device_id"`
-	StartTime     *time.Time `json:"start_time,omitempty"`
-	Duration      *string    `json:"duration,omitempty"`
-	IsActive      bool       `json:"is_active"`
+	ActiveGroupID   *int64     `json:"active_group_id,omitempty"`
+	ActivityID      *int64     `json:"activity_id,omitempty"`
+	ActivityName    *string    `json:"activity_name,omitempty"`
+	RoomID          *int64     `json:"room_id,omitempty"`
+	RoomName        *string    `json:"room_name,omitempty"`
+	DeviceID        int64      `json:"device_id"`
+	StartTime       *time.Time `json:"start_time,omitempty"`
+	Duration        *string    `json:"duration,omitempty"`
+	IsActive        bool       `json:"is_active"`
+	ActiveStudents  *int       `json:"active_students,omitempty"`
 }
 
 // Bind validates the session start request
@@ -1672,6 +1673,22 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	// Add room name if available
 	if currentSession.Room != nil {
 		response.RoomName = &currentSession.Room.Name
+	}
+
+	// Get active student count for this session
+	activeVisits, err := rs.ActiveService.FindVisitsByActiveGroupID(r.Context(), currentSession.ID)
+	if err != nil {
+		// Log error but don't fail the request - student count is optional info
+		log.Printf("Warning: Failed to get active student count for session %d: %v", currentSession.ID, err)
+	} else {
+		// Count visits without exit_time (active students)
+		activeCount := 0
+		for _, visit := range activeVisits {
+			if visit.ExitTime == nil {
+				activeCount++
+			}
+		}
+		response.ActiveStudents = &activeCount
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Current session retrieved successfully")
