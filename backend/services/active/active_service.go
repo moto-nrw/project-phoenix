@@ -1178,6 +1178,19 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 			return err
 		}
 
+		// Transfer any active visits from recent ended sessions on the same device
+		transferredCount, err := s.visitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
+		if err != nil {
+			return err
+		}
+		
+		// Log the transfer for debugging
+		if transferredCount > 0 {
+			// Using fmt.Printf for now since we don't have a logger instance here
+			// In production, you might want to use a proper logger
+			fmt.Printf("Transferred %d active visits to new session %d\n", transferredCount, newGroup.ID)
+		}
+
 		return nil
 	})
 
@@ -1228,6 +1241,17 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 
 		if err := s.groupRepo.Create(ctx, newGroup); err != nil {
 			return err
+		}
+
+		// Transfer any active visits from recent ended sessions on the same device
+		transferredCount, err := s.visitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
+		if err != nil {
+			return err
+		}
+		
+		// Log the transfer for debugging
+		if transferredCount > 0 {
+			fmt.Printf("Transferred %d active visits to new session %d (force start)\n", transferredCount, newGroup.ID)
 		}
 
 		return nil

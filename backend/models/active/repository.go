@@ -62,6 +62,9 @@ type VisitRepository interface {
 
 	// EndVisit marks a visit as ended at the current time
 	EndVisit(ctx context.Context, id int64) error
+
+	// TransferVisitsFromRecentSessions transfers active visits from recent ended sessions on the same device to a new session
+	TransferVisitsFromRecentSessions(ctx context.Context, newActiveGroupID, deviceID int64) (int, error)
 }
 
 // GroupSupervisorRepository defines operations for managing active group supervisors
