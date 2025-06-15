@@ -291,6 +291,7 @@ export const authConfig = {
           user: {
             ...session.user,
             id: token.id as string || "",
+            email: token.email ?? "",
             token: "", // Empty token will cause API calls to fail with 401
             refreshToken: "",
             roles: [],
@@ -305,6 +306,7 @@ export const authConfig = {
         user: {
           ...session.user,
           id: token.id as string,
+          email: token.email ?? "",
           token: token.token as string,
           refreshToken: token.refreshToken as string,
           roles: token.roles as string[],

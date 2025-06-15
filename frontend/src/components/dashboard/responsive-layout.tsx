@@ -15,6 +15,9 @@ export default function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
   const userName = session?.user?.name ?? 'Root';
+  const userEmail = session?.user?.email ?? '';
+  const userRoles = session?.user?.roles ?? [];
+  const userRole = userRoles.length > 0 ? userRoles[0] : 'User';
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
 
   // Check for invalid session and redirect
@@ -45,7 +48,7 @@ export default function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
     <div className="min-h-screen flex flex-col">
       {/* Header with conditional blur - sticky positioning */}
       <div className={`sticky top-0 z-40 transition-all duration-300 ${isMobileModalOpen ? 'blur-md lg:blur-none' : ''}`}>
-        <Header userName={userName} />
+        <Header userName={userName} userEmail={userEmail} userRole={userRole} />
       </div>
       
       {/* Main content with conditional blur */}
