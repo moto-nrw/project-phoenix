@@ -283,7 +283,7 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
                                 
                                 <div className="hidden md:block text-left">
                                     <div className="text-sm font-medium text-gray-900">
-                                        {userName.split(' ')[0]}
+                                        {userName}
                                     </div>
                                     <div className="text-xs text-gray-500">
                                         Administrator

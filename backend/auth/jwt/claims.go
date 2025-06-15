@@ -17,6 +17,7 @@ type AppClaims struct {
 	Sub         string   `json:"sub,omitempty"`
 	Username    string   `json:"username,omitempty"`
 	FirstName   string   `json:"first_name,omitempty"`
+	LastName    string   `json:"last_name,omitempty"`
 	Roles       []string `json:"roles,omitempty"`
 	Permissions []string `json:"permissions,omitempty"` // Added permissions field
 	CommonClaims
@@ -44,6 +45,11 @@ func (c *AppClaims) ParseClaims(claims map[string]any) error {
 	firstName, ok := claims["first_name"]
 	if ok && firstName != nil {
 		c.FirstName = firstName.(string)
+	}
+
+	lastName, ok := claims["last_name"]
+	if ok && lastName != nil {
+		c.LastName = lastName.(string)
 	}
 
 	rl, ok := claims["roles"]

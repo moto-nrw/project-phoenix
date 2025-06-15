@@ -246,9 +246,11 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, st
 	}
 
 	firstName := ""
+	lastName := ""
 	person, err := s.personRepo.FindByAccountID(ctx, account.ID)
 	if err == nil && person != nil {
 		firstName = person.FirstName
+		lastName = person.LastName
 	}
 
 	// Generate token pair
@@ -258,6 +260,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, st
 		Sub:         email, // Use email as subject
 		Username:    username,
 		FirstName:   firstName,
+		LastName:    lastName,
 		Roles:       roleNames,
 		Permissions: permissionStrs, // Use string array here
 	}

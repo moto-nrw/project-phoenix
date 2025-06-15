@@ -117,6 +117,7 @@ export const authConfig = {
               sub?: string;
               username?: string;
               first_name?: string;
+              last_name?: string;
               roles?: string[];
               email?: string;
             };
@@ -135,8 +136,15 @@ export const authConfig = {
               );
             }
 
-            // Use username from JWT token as display name, with email as fallback
-            const displayName: string = payload.username ?? (credentials.email as string);
+            // Construct full name from JWT token, with fallbacks
+            let displayName: string;
+            if (payload.first_name && payload.last_name) {
+              displayName = `${payload.first_name} ${payload.last_name}`;
+            } else if (payload.first_name) {
+              displayName = payload.first_name;
+            } else {
+              displayName = payload.username ?? (credentials.email as string);
+            }
             console.log("Using display name:", displayName);
 
             // Using type assertions for credentials to satisfy TypeScript
