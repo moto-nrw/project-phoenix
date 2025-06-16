@@ -103,7 +103,7 @@ func seedDatabase(ctx context.Context, reset bool) {
 
 		// 3. Create RFID cards first (needed for persons)
 		fmt.Println("Creating RFID cards...")
-		rfidIDs, err := seedRFIDCards(ctx, tx)
+		rfidIDs, err := seedRFIDCards(ctx, tx, rng)
 		if err != nil {
 			return fmt.Errorf("failed to seed RFID cards: %w", err)
 		}
@@ -381,11 +381,30 @@ func seedGroups(ctx context.Context, tx bun.Tx, roomIDs []int64) ([]int64, error
 	return groupIDs, nil
 }
 
-func seedRFIDCards(ctx context.Context, tx bun.Tx) ([]string, error) {
+func seedRFIDCards(ctx context.Context, tx bun.Tx, rng *rand.Rand) ([]string, error) {
 	// Create RFID cards first
 	rfidIDs := make([]string, 0, 150)
+	usedTags := make(map[string]bool) // Track used tags to avoid duplicates
+	
 	for i := 0; i < 150; i++ {
-		rfidID := fmt.Sprintf("RFID-%06d", i+1000)
+		// Generate a unique realistic RFID tag
+		var rfidID string
+		for {
+			// Mix of 7-byte (70%) and 4-byte (30%) UIDs for variety
+			if i%10 < 7 {
+				// 7-byte UID (14 hex characters)
+				rfidID = generateRFIDTag(rng, 7)
+			} else {
+				// 4-byte UID (8 hex characters)
+				rfidID = generateRFIDTag(rng, 4)
+			}
+			
+			// Ensure uniqueness
+			if !usedTags[rfidID] {
+				usedTags[rfidID] = true
+				break
+			}
+		}
 
 		query := `INSERT INTO users.rfid_cards (id, active, created_at, updated_at) 
 		          VALUES (?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`
@@ -400,6 +419,22 @@ func seedRFIDCards(ctx context.Context, tx bun.Tx) ([]string, error) {
 	}
 
 	return rfidIDs, nil
+}
+
+// generateRFIDTag generates a realistic RFID tag in normalized format
+// For example: 
+//   - 7-byte tag "04:D6:94:82:97:6A:80" becomes "04D69482976A80"
+//   - 4-byte tag "04:D6:94:82" becomes "04D69482"
+func generateRFIDTag(rng *rand.Rand, byteCount int) string {
+	// Generate random bytes
+	bytes := make([]byte, byteCount)
+	for i := range bytes {
+		bytes[i] = byte(rng.Intn(256))
+	}
+	
+	// Convert to hex string (normalized: uppercase, no separators)
+	// This matches what the API normalization does
+	return fmt.Sprintf("%X", bytes)
 }
 
 func seedPersons(ctx context.Context, tx bun.Tx, rfidIDs []string, rng *rand.Rand) ([]int64, error) {
@@ -638,7 +673,10 @@ func seedActivityCategories(ctx context.Context, tx bun.Tx) ([]int64, error) {
 	for _, data := range categoryData {
 		var id int64
 		query := `INSERT INTO activities.categories (name, description, color, created_at, updated_at) 
-		          VALUES (?, ?, ?, ?, ?) RETURNING id`
+		          VALUES (?, ?, ?, ?, ?) 
+		          ON CONFLICT (name) DO UPDATE 
+		          SET updated_at = EXCLUDED.updated_at
+		          RETURNING id`
 
 		err := tx.QueryRowContext(ctx, query,
 			data.name, data.description, data.color, time.Now(), time.Now()).Scan(&id)
