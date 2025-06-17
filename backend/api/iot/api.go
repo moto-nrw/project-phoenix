@@ -1113,6 +1113,12 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		// Store the previous room name for transfer message
 		if currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil {
 			previousRoomName = currentVisit.ActiveGroup.Room.Name
+			log.Printf("[CHECKIN] Previous room name from active group: %s (Room ID: %d)", 
+				previousRoomName, currentVisit.ActiveGroup.RoomID)
+		} else {
+			log.Printf("[CHECKIN] Warning: Could not get previous room name - ActiveGroup: %v, Room: %v", 
+				currentVisit.ActiveGroup != nil, 
+				currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil)
 		}
 
 		// End current visit
@@ -1132,7 +1138,29 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Step 2: Handle checkin if room_id is provided
-	if req.RoomID != nil {
+	// Check if we should skip checkin (same room checkout/checkin scenario)
+	var skipCheckin bool
+	if req.RoomID != nil && checkedOut && currentVisit != nil && currentVisit.ActiveGroup != nil {
+		// If student just checked out from the same room they're trying to check into, skip checkin
+		if currentVisit.ActiveGroup.RoomID == *req.RoomID {
+			skipCheckin = true
+			log.Printf("[CHECKIN] Student checked out from room %d, same as checkin room - skipping re-checkin", *req.RoomID)
+			// Set room name for the response
+			if currentVisit.ActiveGroup.Room != nil {
+				roomName = currentVisit.ActiveGroup.Room.Name
+			} else {
+				// Try to load the room info to get the actual name
+				room, err := rs.FacilityService.GetRoom(r.Context(), *req.RoomID)
+				if err == nil && room != nil {
+					roomName = room.Name
+				} else {
+					roomName = fmt.Sprintf("Room %d", *req.RoomID)
+				}
+			}
+		}
+	}
+	
+	if req.RoomID != nil && !skipCheckin {
 		log.Printf("[CHECKIN] Student %s %s (ID: %d) - performing CHECK-IN to room %d",
 			person.FirstName, person.LastName, student.ID, *req.RoomID)
 
@@ -1166,7 +1194,13 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		if activeGroups[0].Room != nil {
 			roomName = activeGroups[0].Room.Name
 		} else {
-			roomName = fmt.Sprintf("Room %d", *req.RoomID)
+			// Try to load the room info to get the actual name
+			room, err := rs.FacilityService.GetRoom(r.Context(), *req.RoomID)
+			if err == nil && room != nil {
+				roomName = room.Name
+			} else {
+				roomName = fmt.Sprintf("Room %d", *req.RoomID)
+			}
 		}
 
 		// Create new visit
@@ -1188,7 +1222,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[CHECKIN] SUCCESS: Checked in student %s %s (ID: %d), created visit %d in room %s",
 			person.FirstName, person.LastName, student.ID, newVisit.ID, roomName)
 		newVisitID = &newVisit.ID
-	} else if !checkedOut {
+	} else if !checkedOut && !skipCheckin {
 		// No room_id provided and no previous checkout - this is an error
 		log.Printf("[CHECKIN] ERROR: Room ID is required for check-in")
 		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("room_id is required for check-in"))); err != nil {
@@ -1213,7 +1247,8 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 			// Same room or previous room unknown - treat as regular check-in
 			actionMsg = "checked_in"
 			greetingMsg = "Hallo " + person.FirstName + "!"
-			log.Printf("[CHECKIN] Student %s re-entered %s", studentName, roomName)
+			log.Printf("[CHECKIN] Student %s re-entered room (previous: '%s', current: '%s')", 
+				studentName, previousRoomName, roomName)
 		}
 		// Use the new visit ID for the response
 		visitID = newVisitID
