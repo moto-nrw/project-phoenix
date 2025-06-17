@@ -10,6 +10,7 @@ import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import { formatRecentActivityTime, getActivityStatusColor, getGroupStatusColor } from "~/lib/dashboard-helpers";
 import { UserContextProvider, useHasEducationalGroups } from "~/lib/usercontext-context";
 import { QuickCreateActivityModal } from "~/components/activities/quick-create-modal";
+import { fetchWithAuth } from "~/lib/fetch-with-auth";
 
 // Info Card Component with proper TypeScript types and responsive design
 interface InfoCardProps {
@@ -362,9 +363,11 @@ function DashboardContent() {
         const fetchDashboardData = async () => {
             try {
                 setIsLoading(true);
-                const response = await fetch("/api/dashboard/analytics");
+                const response = await fetchWithAuth("/api/dashboard/analytics");
                 
+                // fetchWithAuth will handle 401 and retry, so if we get here with !ok, it's a real error
                 if (!response.ok) {
+                    console.error(`Dashboard API returned status ${response.status}`);
                     throw new Error("Failed to fetch dashboard data");
                 }
 
@@ -379,9 +382,23 @@ function DashboardContent() {
             }
         };
 
-        // Only fetch if session is loaded
-        if (status === "authenticated") {
-            void fetchDashboardData();
+        // Check for session errors
+        if (status === "authenticated" && session) {
+            // Type assertion to access error property
+            const sessionWithError = session as typeof session & { error?: string };
+            if (sessionWithError.error === "RefreshTokenExpired") {
+                console.log("Session refresh token expired, redirecting to login");
+                redirect("/");
+                return;
+            }
+            
+            // Only fetch if we have a valid token
+            if (session.user?.token) {
+                void fetchDashboardData();
+            } else {
+                console.log("No valid token in session, redirecting to login");
+                redirect("/");
+            }
 
             // Refresh data every 5 minutes
             const interval = setInterval(() => {
@@ -390,7 +407,7 @@ function DashboardContent() {
 
             return () => clearInterval(interval);
         }
-    }, [status]);
+    }, [status, session]);
 
     if (status === "loading") {
         return (

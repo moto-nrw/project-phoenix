@@ -54,25 +54,90 @@ export const authConfig = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        internalRefresh: { label: "Internal Refresh", type: "text" },
+        token: { label: "Token", type: "text" },
+        refreshToken: { label: "Refresh Token", type: "text" },
       },
       async authorize(credentials, _request) {
-        // Adding request parameter to match the expected type signature
-        if (!credentials?.email || !credentials?.password) return null;
+        // Cast credentials to have string values
+        const creds = credentials as Record<string, string> | undefined;
+        
+        // Handle internal token refresh
+        if (creds?.internalRefresh === "true" && creds?.token && creds?.refreshToken) {
+          console.log("Handling internal token refresh");
+          
+          // Parse the JWT token to get user info
+          const tokenString = creds.token;
+          const tokenParts = tokenString.split(".");
+          if (tokenParts.length !== 3) {
+            console.error("Invalid token format during refresh");
+            return null;
+          }
+          
+          try {
+            const payloadPart = tokenParts[1];
+            if (!payloadPart) {
+              console.error("Invalid token part during refresh");
+              return null;
+            }
+            const payload = JSON.parse(
+              Buffer.from(payloadPart, "base64").toString(),
+            ) as {
+              id: string | number;
+              sub?: string;
+              username?: string;
+              first_name?: string;
+              last_name?: string;
+              email?: string;
+              roles?: string[];
+            };
+            
+            // Extract email and roles from token
+            const email = payload.email ?? payload.sub ?? "";
+            const roles = payload.roles ?? [];
+            
+            // Construct display name
+            const displayName = payload.first_name
+              ? payload.last_name
+                ? `${payload.first_name} ${payload.last_name}`
+                : payload.first_name
+              : payload.username ?? email ?? "User";
+            
+            return {
+              id: String(payload.id),
+              name: displayName,
+              email: email,
+              token: creds.token,
+              refreshToken: creds.refreshToken,
+              roles: roles,
+              firstName: payload.first_name,
+            };
+          } catch (e) {
+            console.error("Error parsing JWT during refresh:", e);
+            return null;
+          }
+        }
+        
+        // Regular login flow
+        if (!creds?.email || !creds?.password) return null;
 
         try {
           // Improved error handling with more detailed logging
+          // Use server URL in server context (Docker environment)
+          const apiUrl = process.env.NODE_ENV === 'production' || process.env.DOCKER_ENV
+            ? 'http://server:8080'
+            : env.NEXT_PUBLIC_API_URL;
           console.log(
-            `Attempting login with API URL: ${env.NEXT_PUBLIC_API_URL}/auth/login`,
+            `Attempting login with API URL: ${apiUrl}/auth/login`,
           );
-
           const response = await fetch(
-            `${env.NEXT_PUBLIC_API_URL}/auth/login`,
+            `${apiUrl}/auth/login`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                email: credentials.email,
-                password: credentials.password,
+                email: creds.email,
+                password: creds.password,
               }),
             },
           );
@@ -143,7 +208,7 @@ export const authConfig = {
             return {
               id: String(payload.id),
               name: displayName,
-              email: credentials.email as string,
+              email: creds.email,
               token: responseData.access_token,
               refreshToken: responseData.refresh_token,
               roles: roles,
@@ -200,6 +265,26 @@ export const authConfig = {
 
       // Check if access token needs refresh (with 5 minute buffer for proactive refresh)
       if (token.tokenExpiry && Date.now() > (token.tokenExpiry as number) - 5 * 60 * 1000) {
+        // Rate limiting: Check if we've attempted refresh recently
+        const lastRefreshAttempt = token.lastRefreshAttempt as number | undefined;
+        const refreshCooldown = 30 * 1000; // 30 seconds cooldown between attempts
+        
+        if (lastRefreshAttempt && Date.now() - lastRefreshAttempt < refreshCooldown) {
+          console.log("Skipping refresh - cooldown period active");
+          return token;
+        }
+        
+        // Retry tracking: Check if we've failed too many times
+        const refreshRetries = (token.refreshRetries as number) || 0;
+        const maxRetries = 3;
+        
+        if (refreshRetries >= maxRetries) {
+          console.error("Max refresh retries exceeded");
+          token.error = "RefreshTokenExpired";
+          token.needsRefresh = true;
+          return token;
+        }
+        
         console.log("Access token expiring soon, attempting refresh...");
         
         // Ensure refresh token exists before attempting refresh
@@ -211,8 +296,15 @@ export const authConfig = {
         }
         
         try {
+          // Update last refresh attempt timestamp
+          token.lastRefreshAttempt = Date.now();
+          
           // Attempt to refresh the token
-          const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/refresh`, {
+          // Use server URL in server context (Docker environment)
+          const apiUrl = process.env.NODE_ENV === 'production' || process.env.DOCKER_ENV
+            ? 'http://server:8080'
+            : env.NEXT_PUBLIC_API_URL;
+          const response = await fetch(`${apiUrl}/auth/refresh`, {
             method: "POST",
             headers: { 
               "Authorization": `Bearer ${token.refreshToken}`
@@ -231,13 +323,18 @@ export const authConfig = {
             token.tokenExpiry = Date.now() + 15 * 60 * 1000; // Reset access token expiry (15 minutes)
             token.refreshTokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // Reset refresh token expiry (24 hours)
             
-            // Clear error states on successful refresh
+            // Clear error states and reset retry count on successful refresh
             token.error = undefined;
             token.needsRefresh = undefined;
+            token.refreshRetries = 0;
+            token.lastRefreshAttempt = undefined;
             
             console.log("Token refreshed successfully");
           } else {
             console.error(`Failed to refresh token: ${response.status}`);
+            
+            // Increment retry count
+            token.refreshRetries = ((token.refreshRetries as number) || 0) + 1;
             
             // Distinguish between different error types
             if (response.status === 401 || response.status === 403) {
@@ -258,6 +355,10 @@ export const authConfig = {
         } catch (error) {
           // Network errors or other exceptions
           console.error("Network error refreshing token:", error);
+          
+          // Increment retry count
+          token.refreshRetries = ((token.refreshRetries as number) || 0) + 1;
+          
           token.error = "RefreshTokenError";
           token.needsRefresh = true;
           

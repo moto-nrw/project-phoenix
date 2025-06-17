@@ -1,8 +1,9 @@
 // lib/api-helpers.ts
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { env } from "~/env";
 import { auth } from "../server/auth";
+import api from "./api";
+import { isAxiosError } from "axios";
 
 /**
  * Type for API response to ensure consistent structure
@@ -48,27 +49,51 @@ export async function apiGet<T>(
   endpoint: string,
   token: string
 ): Promise<T> {
-  const response = await fetch(
-    `${env.NEXT_PUBLIC_API_URL}${endpoint}`,
-    {
+  // In server context, use fetch directly to avoid client-side interceptors
+  if (typeof window === "undefined") {
+    const { env } = await import("~/env");
+    const response = await fetch(
+      `${env.NEXT_PUBLIC_API_URL}${endpoint}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API error (${response.status}): ${errorText}`);
+    }
+
+    // Handle 204 No Content responses
+    if (response.status === 204) {
+      return {} as T;
+    }
+
+    return (await response.json()) as T;
+  }
+  
+  // In client context, use axios with interceptors
+  try {
+    const response = await api.get<T>(endpoint, {
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
       },
+    });
+
+    return response.data;
+  } catch (error) {
+    if (isAxiosError(error)) {
+      const status = error.response?.status ?? 500;
+      const errorText = error.response?.data 
+        ? JSON.stringify(error.response.data) 
+        : error.message;
+      throw new Error(`API error (${status}): ${errorText}`);
     }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`API error (${response.status}): ${errorText}`);
+    throw error;
   }
-
-  // Handle 204 No Content responses
-  if (response.status === 204) {
-    return {} as T;
-  }
-
-  return (await response.json()) as T;
 }
 
 /**
@@ -83,29 +108,53 @@ export async function apiPost<T, B = unknown>(
   token: string,
   body?: B
 ): Promise<T> {
-  const response = await fetch(
-    `${env.NEXT_PUBLIC_API_URL}${endpoint}`,
-    {
-      method: "POST",
+  // In server context, use fetch directly to avoid client-side interceptors
+  if (typeof window === "undefined") {
+    const { env } = await import("~/env");
+    const response = await fetch(
+      `${env.NEXT_PUBLIC_API_URL}${endpoint}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API error (${response.status}): ${errorText}`);
+    }
+
+    // Handle 204 No Content responses
+    if (response.status === 204) {
+      return {} as T;
+    }
+
+    return (await response.json()) as T;
+  }
+  
+  // In client context, use axios with interceptors
+  try {
+    const response = await api.post<T>(endpoint, body, {
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
       },
-      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    return response.data;
+  } catch (error) {
+    if (isAxiosError(error)) {
+      const status = error.response?.status ?? 500;
+      const errorText = error.response?.data 
+        ? JSON.stringify(error.response.data) 
+        : error.message;
+      throw new Error(`API error (${status}): ${errorText}`);
     }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`API error (${response.status}): ${errorText}`);
+    throw error;
   }
-
-  // Handle 204 No Content responses
-  if (response.status === 204) {
-    return {} as T;
-  }
-
-  return (await response.json()) as T;
 }
 
 /**
@@ -120,29 +169,53 @@ export async function apiPut<T, B = unknown>(
   token: string,
   body?: B
 ): Promise<T> {
-  const response = await fetch(
-    `${env.NEXT_PUBLIC_API_URL}${endpoint}`,
-    {
-      method: "PUT",
+  // In server context, use fetch directly to avoid client-side interceptors
+  if (typeof window === "undefined") {
+    const { env } = await import("~/env");
+    const response = await fetch(
+      `${env.NEXT_PUBLIC_API_URL}${endpoint}`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API error (${response.status}): ${errorText}`);
+    }
+
+    // Handle 204 No Content responses
+    if (response.status === 204) {
+      return {} as T;
+    }
+
+    return (await response.json()) as T;
+  }
+  
+  // In client context, use axios with interceptors
+  try {
+    const response = await api.put<T>(endpoint, body, {
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
       },
-      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    return response.data;
+  } catch (error) {
+    if (isAxiosError(error)) {
+      const status = error.response?.status ?? 500;
+      const errorText = error.response?.data 
+        ? JSON.stringify(error.response.data) 
+        : error.message;
+      throw new Error(`API error (${status}): ${errorText}`);
     }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`API error (${response.status}): ${errorText}`);
+    throw error;
   }
-
-  // Handle 204 No Content responses
-  if (response.status === 204) {
-    return {} as T;
-  }
-
-  return (await response.json()) as T;
 }
 
 /**
@@ -155,28 +228,57 @@ export async function apiDelete<T>(
   endpoint: string,
   token: string
 ): Promise<T | void> {
-  const response = await fetch(
-    `${env.NEXT_PUBLIC_API_URL}${endpoint}`,
-    {
-      method: "DELETE",
+  // In server context, use fetch directly to avoid client-side interceptors
+  if (typeof window === "undefined") {
+    const { env } = await import("~/env");
+    const response = await fetch(
+      `${env.NEXT_PUBLIC_API_URL}${endpoint}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API error (${response.status}): ${errorText}`);
+    }
+
+    // Return void for 204 No Content responses
+    if (response.status === 204) {
+      return;
+    }
+
+    return (await response.json()) as T;
+  }
+  
+  // In client context, use axios with interceptors
+  try {
+    const response = await api.delete<T>(endpoint, {
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
       },
+    });
+
+    // Return void for 204 No Content responses
+    if (response.status === 204) {
+      return;
     }
-  );
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`API error (${response.status}): ${errorText}`);
+    return response.data;
+  } catch (error) {
+    if (isAxiosError(error)) {
+      const status = error.response?.status ?? 500;
+      const errorText = error.response?.data 
+        ? JSON.stringify(error.response.data) 
+        : error.message;
+      throw new Error(`API error (${status}): ${errorText}`);
+    }
+    throw error;
   }
-
-  // Return void for 204 No Content responses
-  if (response.status === 204) {
-    return;
-  }
-
-  return (await response.json()) as T;
 }
 
 /**

@@ -99,6 +99,21 @@ api.interceptors.request.use(
   },
 );
 
+// Track ongoing refresh attempts to prevent multiple simultaneous refreshes
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
+
+// Subscribe to token refresh completion
+const subscribeTokenRefresh = (callback: (token: string) => void) => {
+  refreshSubscribers.push(callback);
+};
+
+// Notify all subscribers when refresh is complete
+const onTokenRefreshed = (token: string) => {
+  refreshSubscribers.forEach((callback) => callback(token));
+  refreshSubscribers = [];
+};
+
 // Add a response interceptor to handle common errors
 api.interceptors.response.use(
   (response: AxiosResponse) => {
@@ -107,32 +122,66 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as AxiosRequestConfig & {
       _retry?: boolean;
+      _retryCount?: number;
     };
 
     // If the error is a 401 (Unauthorized) and we haven't retried yet
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
+      originalRequest._retryCount = (originalRequest._retryCount ?? 0) + 1;
+
+      // Limit retry attempts
+      if (originalRequest._retryCount > 3) {
+        console.error("Max retry attempts reached, giving up");
+        if (typeof window !== "undefined") {
+          window.location.href = "/";
+        }
+        return Promise.reject(error);
+      }
+
+      // If we're already refreshing, queue this request
+      if (isRefreshing) {
+        console.log("Token refresh already in progress, queueing request");
+        return new Promise((resolve) => {
+          subscribeTokenRefresh((token: string) => {
+            if (originalRequest.headers) {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+              resolve(api(originalRequest));
+            }
+          });
+        });
+      }
 
       console.log("Received 401 error, attempting to refresh token");
+      isRefreshing = true;
 
-      // Try to refresh the token and retry the request
-      const refreshSuccessful = await handleAuthFailure();
+      try {
+        // Try to refresh the token and retry the request
+        const refreshSuccessful = await handleAuthFailure();
 
-      if (refreshSuccessful && originalRequest.headers) {
-        // Get the newest session with updated token
-        const session = await getSession();
+        if (refreshSuccessful && originalRequest.headers) {
+          // Get the newest session with updated token
+          const session = await getSession();
 
-        if (session?.user?.token) {
-          console.log("Using refreshed token for retry");
-          originalRequest.headers.Authorization = `Bearer ${session.user.token}`;
-          return api(originalRequest);
+          if (session?.user?.token) {
+            console.log("Token refresh successful, retrying original request");
+            
+            // Notify all queued requests
+            onTokenRefreshed(session.user.token);
+            
+            // Retry the original request
+            originalRequest.headers.Authorization = `Bearer ${session.user.token}`;
+            return api(originalRequest);
+          }
         }
-      } else {
-        console.log("Token refresh failed, unable to retry request");
+        
+        console.error("Token refresh failed, redirecting to login");
         // Force redirect to login if we're in the browser
         if (typeof window !== "undefined") {
           window.location.href = "/";
         }
+      } finally {
+        isRefreshing = false;
       }
     }
 

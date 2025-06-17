@@ -22,8 +22,12 @@ export async function POST(_request: NextRequest) {
     // Check for roles - continue even if no roles present
 
     // Send refresh token request to backend
+    // Use server URL in server context (Docker environment)
+    const apiUrl = process.env.NODE_ENV === 'production' || process.env.DOCKER_ENV
+      ? 'http://server:8080'
+      : env.NEXT_PUBLIC_API_URL;
     const backendResponse = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/auth/refresh`,
+      `${apiUrl}/auth/refresh`,
       {
         method: "POST",
         headers: {

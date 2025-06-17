@@ -93,7 +93,7 @@ func Authenticator(next http.Handler) http.Handler {
 // AuthenticateRefreshJWT checks validity of refresh tokens and is only used for access token refresh and logout requests. It responds with 401 Unauthorized for invalid or expired refresh tokens.
 func AuthenticateRefreshJWT(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token, claims, err := jwtauth.FromContext(r.Context())
+		token, _, err := jwtauth.FromContext(r.Context())
 		if err != nil {
 			logging.GetLogEntry(r).Warn(err)
 			if renderErr := render.Render(w, r, ErrUnauthorized(ErrTokenUnauthorized)); renderErr != nil {
@@ -109,18 +109,15 @@ func AuthenticateRefreshJWT(next http.Handler) http.Handler {
 			return
 		}
 
-		// Token is authenticated, parse refresh token string
-		var c RefreshClaims
-		err = c.ParseClaims(claims)
-		if err != nil {
-			logging.GetLogEntry(r).Error(err)
-			if renderErr := render.Render(w, r, ErrUnauthorized(ErrInvalidRefreshToken)); renderErr != nil {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			}
-			return
+		// Get the raw token string from the Authorization header
+		authHeader := r.Header.Get("Authorization")
+		tokenString := ""
+		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+			tokenString = authHeader[7:]
 		}
-		// Set refresh token string on context
-		ctx := context.WithValue(r.Context(), CtxRefreshToken, c.Token)
+		
+		// Set the full JWT refresh token string on context
+		ctx := context.WithValue(r.Context(), CtxRefreshToken, tokenString)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
