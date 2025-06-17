@@ -1011,9 +1011,14 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Log the start of check-in/check-out process
+	log.Printf("[CHECKIN] Starting process - Device: %s (ID: %d), Staff: %d", 
+		deviceCtx.DeviceID, deviceCtx.ID, staffCtx.ID)
+
 	// Parse request
 	req := &CheckinRequest{}
 	if err := render.Bind(r, req); err != nil {
+		log.Printf("[CHECKIN] ERROR: Invalid request from device %s: %v", deviceCtx.DeviceID, err)
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
 			log.Printf("Render error: %v", err)
 		}
@@ -1021,8 +1026,10 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Find student by RFID tag
+	log.Printf("[CHECKIN] Looking up RFID tag: %s", req.StudentRFID)
 	person, err := rs.UsersService.FindByTagID(r.Context(), req.StudentRFID)
 	if err != nil {
+		log.Printf("[CHECKIN] ERROR: RFID tag %s not found: %v", req.StudentRFID, err)
 		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not found"))); err != nil {
 			log.Printf("Render error: %v", err)
 		}
@@ -1030,16 +1037,21 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if person == nil || person.TagID == nil {
+		log.Printf("[CHECKIN] ERROR: RFID tag %s not assigned to any person", req.StudentRFID)
 		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person"))); err != nil {
 			log.Printf("Render error: %v", err)
 		}
 		return
 	}
 
+	log.Printf("[CHECKIN] RFID tag %s belongs to person: %s %s (ID: %d)", 
+		req.StudentRFID, person.FirstName, person.LastName, person.ID)
+
 	// Get student details from person
 	studentRepo := rs.UsersService.StudentRepository()
 	student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
 	if err != nil {
+		log.Printf("[CHECKIN] ERROR: Person %d is not a student: %v", person.ID, err)
 		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
 			log.Printf("Render error: %v", err)
 		}
@@ -1047,11 +1059,14 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if student == nil {
+		log.Printf("[CHECKIN] ERROR: Person %d is not registered as a student", person.ID)
 		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
 			log.Printf("Render error: %v", err)
 		}
 		return
 	}
+
+	log.Printf("[CHECKIN] Found student: ID %d, Class: %s", student.ID, student.SchoolClass)
 
 	// Load person details for student name
 	student.Person = person
@@ -1068,35 +1083,43 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	var actionMsg string
 	var roomName string
 
-	// Debug logging to track the action field
-	log.Printf("RFID Request: action='%s', student_rfid='%s', room_id=%v", req.Action, req.StudentRFID, req.RoomID)
+	// Log the request details
+	log.Printf("[CHECKIN] Request details: action='%s', student_rfid='%s', room_id=%v", req.Action, req.StudentRFID, req.RoomID)
 
 	// Auto-determine action based on student's current status (ignore req.Action)
 	// If student has an active visit, perform checkout; otherwise perform checkin
 	if currentVisit != nil && currentVisit.ExitTime == nil {
 		// Student is currently checked in - perform CHECKOUT
-		log.Printf("Student %d has active visit %d - performing checkout", student.ID, currentVisit.ID)
+		log.Printf("[CHECKIN] Student %s %s (ID: %d) has active visit %d - performing CHECKOUT", 
+			person.FirstName, person.LastName, student.ID, currentVisit.ID)
 		
 		// End current visit
 		if err := rs.ActiveService.EndVisit(r.Context(), currentVisit.ID); err != nil {
+			log.Printf("[CHECKIN] ERROR: Failed to end visit %d for student %d: %v", 
+				currentVisit.ID, student.ID, err)
 			if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to end visit record"))); err != nil {
 				log.Printf("Render error: %v", err)
 			}
 			return
 		}
 
+		log.Printf("[CHECKIN] SUCCESS: Checked out student %s %s (ID: %d), ended visit %d", 
+			person.FirstName, person.LastName, student.ID, currentVisit.ID)
 		visitID = &currentVisit.ID
 		actionMsg = "checked_out"
 	} else {
 		// Student is not currently checked in - perform CHECKIN
-		log.Printf("Student %d has no active visit - performing checkin", student.ID)
+		log.Printf("[CHECKIN] Student %s %s (ID: %d) has no active visit - performing CHECK-IN", 
+			person.FirstName, person.LastName, student.ID)
 		
 		// Determine which active group to associate with
 		var activeGroupID int64
 		if req.RoomID != nil {
+			log.Printf("[CHECKIN] Looking for active groups in room %d", *req.RoomID)
 			// Find active groups in the specified room
 			activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(r.Context(), *req.RoomID)
 			if err != nil {
+				log.Printf("[CHECKIN] ERROR: Failed to find active groups in room %d: %v", *req.RoomID, err)
 				if err := render.Render(w, r, ErrorInternalServer(errors.New("error finding active groups in room"))); err != nil {
 					log.Printf("Render error: %v", err)
 				}
@@ -1104,6 +1127,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 			}
 
 			if len(activeGroups) == 0 {
+				log.Printf("[CHECKIN] ERROR: No active groups found in room %d", *req.RoomID)
 				if err := render.Render(w, r, ErrorNotFound(errors.New("no active groups in specified room"))); err != nil {
 					log.Printf("Render error: %v", err)
 				}
@@ -1112,8 +1136,17 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 
 			// Use the first active group (in practice, there should typically be only one per room)
 			activeGroupID = activeGroups[0].ID
-			roomName = "Room " + string(rune(*req.RoomID)) // Simple room name - could be enhanced
+			log.Printf("[CHECKIN] Found %d active groups in room %d, using group %d", 
+				len(activeGroups), *req.RoomID, activeGroupID)
+			
+			// Get actual room name if possible
+			if activeGroups[0].Room != nil {
+				roomName = activeGroups[0].Room.Name
+			} else {
+				roomName = fmt.Sprintf("Room %d", *req.RoomID)
+			}
 		} else {
+			log.Printf("[CHECKIN] ERROR: Room ID is required for check-in")
 			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("room_id is required for check-in"))); err != nil {
 				log.Printf("Render error: %v", err)
 			}
@@ -1127,13 +1160,17 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 			EntryTime:     now,
 		}
 
+		log.Printf("[CHECKIN] Creating visit for student %d in active group %d", student.ID, activeGroupID)
 		if err := rs.ActiveService.CreateVisit(r.Context(), newVisit); err != nil {
+			log.Printf("[CHECKIN] ERROR: Failed to create visit for student %d: %v", student.ID, err)
 			if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to create visit record"))); err != nil {
 				log.Printf("Render error: %v", err)
 			}
 			return
 		}
 
+		log.Printf("[CHECKIN] SUCCESS: Checked in student %s %s (ID: %d), created visit %d in room %s", 
+			person.FirstName, person.LastName, student.ID, newVisit.ID, roomName)
 		visitID = &newVisit.ID
 		actionMsg = "checked_in"
 	}
@@ -1141,9 +1178,10 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	// Generate German greeting message based on actual action performed
 	studentName := person.FirstName + " " + person.LastName
 	var greetingMsg string
-	if actionMsg == "checked_in" {
+	switch actionMsg {
+	case "checked_in":
 		greetingMsg = "Hallo " + person.FirstName + "!"
-	} else if actionMsg == "checked_out" {
+	case "checked_out":
 		greetingMsg = "Tschüss " + person.FirstName + "!"
 	}
 
@@ -1163,8 +1201,9 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Debug logging before sending response
-	log.Printf("RFID Response: action='%s', student='%s', message='%s'", actionMsg, studentName, greetingMsg)
+	// Log final response details
+	log.Printf("[CHECKIN] Final response: action='%s', student='%s', message='%s', visit_id=%v, room='%s'", 
+		actionMsg, studentName, greetingMsg, visitID, roomName)
 
 	// Prepare response
 	response := map[string]interface{}{

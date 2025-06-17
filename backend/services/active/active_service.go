@@ -1312,8 +1312,31 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 		return &ActiveError{Op: "EndActivitySession", Err: ErrActiveGroupAlreadyEnded}
 	}
 
-	// End the session
-	if err := s.groupRepo.EndSession(ctx, activeGroupID); err != nil {
+	// Use transaction to ensure atomic cleanup
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// End all active visits first
+		visits, err := s.visitRepo.FindByActiveGroupID(ctx, activeGroupID)
+		if err != nil {
+			return err
+		}
+
+		for _, visit := range visits {
+			if visit.IsActive() {
+				if err := s.visitRepo.EndVisit(ctx, visit.ID); err != nil {
+					return err
+				}
+			}
+		}
+
+		// End the session
+		if err := s.groupRepo.EndSession(ctx, activeGroupID); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		return &ActiveError{Op: "EndActivitySession", Err: err}
 	}
 
