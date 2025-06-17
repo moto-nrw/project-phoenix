@@ -1131,7 +1131,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 // Activity Session Management with Conflict Detection
 
 // StartActivitySession starts a new activity session on a device with conflict detection
-func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64) (*active.Group, error) {
+func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error) {
 	// First check for conflicts
 	conflictInfo, err := s.CheckActivityConflict(ctx, activityID, deviceID)
 	if err != nil {
@@ -1163,6 +1163,30 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 			return ErrDeviceAlreadyActive
 		}
 
+		// Determine room ID: priority is manual > planned > default
+		finalRoomID := int64(1) // Default fallback
+		
+		if roomID != nil && *roomID > 0 {
+			// Manual room selection provided
+			finalRoomID = *roomID
+			
+			// Check if the manually selected room has conflicts
+			hasRoomConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, finalRoomID, 0)
+			if err != nil {
+				return err
+			}
+			if hasRoomConflict {
+				return ErrRoomConflict
+			}
+		} else {
+			// Try to get room from activity configuration
+			activityGroup, err := s.activityGroupRepo.FindByID(ctx, activityID)
+			if err == nil && activityGroup != nil && activityGroup.PlannedRoomID != nil && *activityGroup.PlannedRoomID > 0 {
+				finalRoomID = *activityGroup.PlannedRoomID
+			}
+			// If no planned room, keep default (1)
+		}
+
 		// Create new active group session
 		now := time.Now()
 		newGroup = &active.Group{
@@ -1171,7 +1195,7 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 			TimeoutMinutes: 30,  // Default 30 minutes timeout
 			GroupID:        activityID,
 			DeviceID:       &deviceID,
-			RoomID:         1, // TODO: Get room from activity configuration
+			RoomID:         finalRoomID,
 		}
 
 		if err := s.groupRepo.Create(ctx, newGroup); err != nil {
@@ -1202,7 +1226,7 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 }
 
 // ForceStartActivitySession starts an activity session with override capability
-func (s *service) ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64) (*active.Group, error) {
+func (s *service) ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error) {
 	// Use transaction to handle conflicts and cleanup
 	var newGroup *active.Group
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
@@ -1228,6 +1252,22 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 			}
 		}
 
+		// Determine room ID: priority is manual > planned > default
+		finalRoomID := int64(1) // Default fallback
+		
+		if roomID != nil && *roomID > 0 {
+			// Manual room selection provided
+			finalRoomID = *roomID
+			// Note: For force start, we don't check room conflicts as we're overriding
+		} else {
+			// Try to get room from activity configuration
+			activityGroup, err := s.activityGroupRepo.FindByID(ctx, activityID)
+			if err == nil && activityGroup != nil && activityGroup.PlannedRoomID != nil && *activityGroup.PlannedRoomID > 0 {
+				finalRoomID = *activityGroup.PlannedRoomID
+			}
+			// If no planned room, keep default (1)
+		}
+
 		// Create new active group session
 		now := time.Now()
 		newGroup = &active.Group{
@@ -1236,7 +1276,7 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 			TimeoutMinutes: 30,  // Default 30 minutes timeout
 			GroupID:        activityID,
 			DeviceID:       &deviceID,
-			RoomID:         1, // TODO: Get room from activity configuration
+			RoomID:         finalRoomID,
 		}
 
 		if err := s.groupRepo.Create(ctx, newGroup); err != nil {

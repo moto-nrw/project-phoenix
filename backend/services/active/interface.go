@@ -66,10 +66,10 @@ type Service interface {
 	GetGroupMappingsByCombinedGroupID(ctx context.Context, combinedGroupID int64) ([]*active.GroupMapping, error)
 
 	// Activity Session Management with Conflict Detection
-	StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64) (*active.Group, error)
+	StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error)
 	CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*ActivityConflictInfo, error)
 	EndActivitySession(ctx context.Context, activeGroupID int64) error
-	ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64) (*active.Group, error)
+	ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error)
 	GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error)
 
 	// Session timeout operations
