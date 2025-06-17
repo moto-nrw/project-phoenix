@@ -182,8 +182,8 @@ export const authConfig = {
         token.firstName = user.firstName;
         // Store token expiry (15 minutes from now)
         token.tokenExpiry = Date.now() + 15 * 60 * 1000; // 15 minutes
-        // Store refresh token expiry (1 hour from now)
-        token.refreshTokenExpiry = Date.now() + 60 * 60 * 1000; // 1 hour
+        // Store refresh token expiry (24 hours from now)
+        token.refreshTokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
         // Clear any previous error states
         token.error = undefined;
         token.needsRefresh = undefined;
@@ -198,8 +198,8 @@ export const authConfig = {
         return token;
       }
 
-      // Check if access token needs refresh (with 1 minute buffer)
-      if (token.tokenExpiry && Date.now() > (token.tokenExpiry as number) - 60 * 1000) {
+      // Check if access token needs refresh (with 5 minute buffer for proactive refresh)
+      if (token.tokenExpiry && Date.now() > (token.tokenExpiry as number) - 5 * 60 * 1000) {
         console.log("Access token expiring soon, attempting refresh...");
         
         // Ensure refresh token exists before attempting refresh
@@ -215,12 +215,8 @@ export const authConfig = {
           const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/refresh`, {
             method: "POST",
             headers: { 
-              "Content-Type": "application/json",
               "Authorization": `Bearer ${token.refreshToken}`
             },
-            body: JSON.stringify({
-              refresh_token: token.refreshToken,
-            }),
           });
 
           if (response.ok) {
@@ -232,8 +228,8 @@ export const authConfig = {
             // Update tokens
             token.token = refreshData.access_token;
             token.refreshToken = refreshData.refresh_token;
-            token.tokenExpiry = Date.now() + 15 * 60 * 1000; // Reset access token expiry
-            token.refreshTokenExpiry = Date.now() + 60 * 60 * 1000; // Reset refresh token expiry
+            token.tokenExpiry = Date.now() + 15 * 60 * 1000; // Reset access token expiry (15 minutes)
+            token.refreshTokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // Reset refresh token expiry (24 hours)
             
             // Clear error states on successful refresh
             token.error = undefined;

@@ -82,10 +82,7 @@ func (r *TokenRepository) FindByAccountIDAndIdentifier(ctx context.Context, acco
 
 // DeleteExpiredTokens removes all expired tokens
 func (r *TokenRepository) DeleteExpiredTokens(ctx context.Context) (int, error) {
-	res, err := r.db.NewDelete().
-		Model((*auth.Token)(nil)).
-		Where("expiry < ?", time.Now()).
-		Exec(ctx)
+	res, err := r.db.ExecContext(ctx, "DELETE FROM auth.tokens WHERE expiry < ?", time.Now())
 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{

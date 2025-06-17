@@ -12,9 +12,9 @@ export async function POST(_request: NextRequest) {
   try {
     const session = await auth();
 
-    if (!session?.user?.token) {
+    if (!session?.user?.refreshToken) {
       return NextResponse.json(
-        { error: "No valid session found" },
+        { error: "No refresh token found" },
         { status: 401 },
       );
     }
@@ -27,10 +27,8 @@ export async function POST(_request: NextRequest) {
       {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.user.token}`,
+          Authorization: `Bearer ${session.user.refreshToken}`,
         },
-        body: JSON.stringify({ refresh_token: session.user.refreshToken }),
       },
     );
 
