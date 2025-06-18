@@ -2,6 +2,68 @@
 import { signIn, signOut } from "next-auth/react";
 import { authService } from "./auth-service";
 
+// Singleton to manage token refresh and prevent concurrent refreshes
+class TokenRefreshManager {
+  private refreshPromise: Promise<{
+    access_token: string;
+    refresh_token: string;
+  } | null> | null = null;
+
+  async refreshToken(): Promise<{
+    access_token: string;
+    refresh_token: string;
+  } | null> {
+    // If a refresh is already in progress, return the existing promise
+    if (this.refreshPromise) {
+      console.log("Token refresh already in progress, waiting for existing refresh");
+      return this.refreshPromise;
+    }
+
+    // Create a new refresh promise
+    this.refreshPromise = this.doRefresh();
+
+    try {
+      const result = await this.refreshPromise;
+      return result;
+    } finally {
+      // Clear the promise after it completes (success or failure)
+      this.refreshPromise = null;
+    }
+  }
+
+  private async doRefresh(): Promise<{
+    access_token: string;
+    refresh_token: string;
+  } | null> {
+    try {
+      const response = await fetch("/api/auth/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include", // Important to include cookies
+      });
+
+      if (!response.ok) {
+        console.error("Token refresh failed:", response.status);
+        return null;
+      }
+
+      const data = (await response.json()) as {
+        access_token: string;
+        refresh_token: string;
+      };
+      return data;
+    } catch (error) {
+      console.error("Error refreshing token:", error);
+      return null;
+    }
+  }
+}
+
+// Create a singleton instance
+const tokenRefreshManager = new TokenRefreshManager();
+
 /**
  * Function to refresh the authentication token
  * @returns Promise with the new tokens or null if refresh failed
@@ -10,29 +72,7 @@ export async function refreshToken(): Promise<{
   access_token: string;
   refresh_token: string;
 } | null> {
-  try {
-    const response = await fetch("/api/auth/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include", // Important to include cookies
-    });
-
-    if (!response.ok) {
-      console.error("Token refresh failed:", response.status);
-      return null;
-    }
-
-    const data = (await response.json()) as {
-      access_token: string;
-      refresh_token: string;
-    };
-    return data;
-  } catch (error) {
-    console.error("Error refreshing token:", error);
-    return null;
-  }
+  return tokenRefreshManager.refreshToken();
 }
 
 /**

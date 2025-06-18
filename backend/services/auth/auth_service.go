@@ -188,6 +188,23 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, st
 		// Get transactional service
 		txService := s.WithTx(tx).(AuthService)
 
+		// Clean up existing tokens for this account
+		// This prevents token accumulation and ensures only one active session per account
+		// 
+		// Option 1: Delete ALL existing tokens (single session only)
+		if err := txService.(*Service).tokenRepo.DeleteByAccountID(ctx, account.ID); err != nil {
+			// Log the error but don't fail the login
+			// This ensures users can still login even if cleanup fails
+			log.Printf("Warning: failed to clean up existing tokens for account %d: %v", account.ID, err)
+		}
+		
+		// Option 2 (Alternative): Keep only the N most recent tokens (multiple sessions)
+		// Uncomment below and comment out Option 1 to allow multiple sessions
+		// const maxTokensPerAccount = 5
+		// if err := txService.(*Service).tokenRepo.CleanupOldTokensForAccount(ctx, account.ID, maxTokensPerAccount); err != nil {
+		//     log.Printf("Warning: failed to clean up old tokens for account %d: %v", account.ID, err)
+		// }
+
 		// Create token using the transaction-aware repositories
 		if err := txService.(*Service).tokenRepo.Create(ctx, token); err != nil {
 			return err

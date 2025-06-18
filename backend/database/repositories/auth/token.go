@@ -106,7 +106,8 @@ func (r *TokenRepository) DeleteExpiredTokens(ctx context.Context) (int, error) 
 func (r *TokenRepository) DeleteByAccountID(ctx context.Context, accountID int64) error {
 	_, err := r.db.NewDelete().
 		Model((*auth.Token)(nil)).
-		Where("account_id = ?", accountID).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".account_id = ?`, accountID).
 		Exec(ctx)
 
 	if err != nil {
@@ -123,7 +124,8 @@ func (r *TokenRepository) DeleteByAccountID(ctx context.Context, accountID int64
 func (r *TokenRepository) DeleteByAccountIDAndIdentifier(ctx context.Context, accountID int64, identifier string) error {
 	_, err := r.db.NewDelete().
 		Model((*auth.Token)(nil)).
-		Where("account_id = ? AND identifier = ?", accountID, identifier).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".account_id = ? AND "token".identifier = ?`, accountID, identifier).
 		Exec(ctx)
 
 	if err != nil {
@@ -235,4 +237,51 @@ func (r *TokenRepository) FindTokensWithAccount(ctx context.Context, filters map
 	}
 
 	return tokens, nil
+}
+
+// CleanupOldTokensForAccount keeps only the most recent N tokens for an account
+// This is useful to allow multiple sessions while preventing unlimited token accumulation
+func (r *TokenRepository) CleanupOldTokensForAccount(ctx context.Context, accountID int64, keepCount int) error {
+	// First, get all tokens for the account ordered by creation date (newest first)
+	var tokens []*auth.Token
+	err := r.db.NewSelect().
+		Model(&tokens).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".account_id = ?`, accountID).
+		Order(`"token".id DESC`). // Assuming ID is auto-incrementing, so higher ID = newer
+		Scan(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "find tokens for cleanup",
+			Err: err,
+		}
+	}
+
+	// If we have more tokens than we want to keep, delete the old ones
+	if len(tokens) > keepCount {
+		// Get the IDs of tokens to delete (all except the most recent keepCount)
+		var idsToDelete []int64
+		for i := keepCount; i < len(tokens); i++ {
+			idsToDelete = append(idsToDelete, tokens[i].ID)
+		}
+
+		// Delete the old tokens
+		if len(idsToDelete) > 0 {
+			_, err = r.db.NewDelete().
+				Model((*auth.Token)(nil)).
+				ModelTableExpr(`auth.tokens AS "token"`).
+				Where(`"token".id IN (?)`, bun.In(idsToDelete)).
+				Exec(ctx)
+
+			if err != nil {
+				return &modelBase.DatabaseError{
+					Op:  "delete old tokens",
+					Err: err,
+				}
+			}
+		}
+	}
+
+	return nil
 }

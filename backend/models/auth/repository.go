@@ -126,6 +126,7 @@ type TokenRepository interface {
 	DeleteByAccountIDAndIdentifier(ctx context.Context, accountID int64, identifier string) error
 	FindValidTokens(ctx context.Context, filters map[string]interface{}) ([]*Token, error)
 	FindTokensWithAccount(ctx context.Context, filters map[string]interface{}) ([]*Token, error)
+	CleanupOldTokensForAccount(ctx context.Context, accountID int64, keepCount int) error
 }
 
 // PasswordResetTokenRepository defines operations for managing password reset tokens
