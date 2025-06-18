@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import {
@@ -12,14 +12,61 @@ import {
   HelpButton,
 } from "~/components/ui";
 import { Suspense } from "react";
+import { refreshToken } from "~/lib/auth-api";
 
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session, status } = useSession();
+  
+  // Check for valid session and redirect to dashboard
+  useEffect(() => {
+    const checkAndRedirect = async () => {
+      // If we have a valid session with access token, redirect immediately
+      if (status === "authenticated" && session?.user?.token) {
+        console.log("Valid session found, redirecting to dashboard");
+        router.push("/dashboard");
+        return;
+      }
+      
+      // If session is expired but we have a refresh token, try to refresh
+      if (status === "authenticated" && session?.user?.refreshToken && !session?.user?.token) {
+        console.log("Session expired but refresh token available, attempting refresh");
+        try {
+          const newTokens = await refreshToken();
+          if (newTokens) {
+            // Update session with new tokens
+            const result = await signIn("credentials", {
+              redirect: false,
+              internalRefresh: true,
+              token: newTokens.access_token,
+              refreshToken: newTokens.refresh_token,
+            });
+            
+            if (!result?.error) {
+              console.log("Token refreshed successfully, redirecting to dashboard");
+              router.push("/dashboard");
+              return;
+            }
+          }
+        } catch (error) {
+          console.error("Failed to refresh token:", error);
+        }
+      }
+      
+      // Only show login form if not authenticated
+      if (status !== "loading") {
+        setCheckingAuth(false);
+      }
+    };
+    
+    void checkAndRedirect();
+  }, [status, session, router]);
   
   // Check for session errors in URL
   useEffect(() => {
@@ -30,6 +77,18 @@ function LoginForm() {
       setError("Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.");
     }
   }, [searchParams]);
+  
+  // Show loading while checking authentication
+  if (checkingAuth || status === "loading") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Überprüfe Anmeldestatus...</p>
+        </div>
+      </div>
+    );
+  }
 
   const launchConfetti = () => {
     // Create a simple CSS-based confetti effect

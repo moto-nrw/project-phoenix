@@ -571,17 +571,23 @@ func (s *Service) Logout(ctx context.Context, refreshTokenStr string) error {
 		return &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
 	}
 
-	// Get token from database
+	// Get token from database to find the account ID
 	dbToken, err := s.tokenRepo.FindByToken(ctx, refreshClaims.Token)
 	if err != nil {
 		// Token not found, consider logout successful
 		return nil
 	}
 
-	// Delete token from database
-	err = s.tokenRepo.Delete(ctx, dbToken)
+	// Delete ALL tokens for this account to ensure complete logout
+	// This ensures that all sessions (access and refresh tokens) are invalidated
+	err = s.tokenRepo.DeleteByAccountID(ctx, dbToken.AccountID)
 	if err != nil {
-		return &AuthError{Op: "delete token", Err: err}
+		// Log the error but don't fail the logout
+		log.Printf("Warning: failed to delete all tokens for account %d during logout: %v", dbToken.AccountID, err)
+		// Still try to delete the specific token
+		if deleteErr := s.tokenRepo.Delete(ctx, dbToken); deleteErr != nil {
+			return &AuthError{Op: "delete token", Err: deleteErr}
+		}
 	}
 
 	return nil
