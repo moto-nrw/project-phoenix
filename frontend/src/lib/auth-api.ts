@@ -36,6 +36,12 @@ class TokenRefreshManager {
     refresh_token: string;
   } | null> {
     try {
+      // Check if we're in a browser context
+      if (typeof window === "undefined") {
+        console.error("Token refresh attempted from server context");
+        return null;
+      }
+
       const response = await fetch("/api/auth/token", {
         method: "POST",
         headers: {
@@ -80,6 +86,12 @@ export async function refreshToken(): Promise<{
  * or signing out if that fails
  */
 export async function handleAuthFailure(): Promise<boolean> {
+  // Check if we're in a server context
+  if (typeof window === "undefined") {
+    console.error("Auth failure in server context - cannot refresh token or sign out");
+    return false;
+  }
+
   try {
     // Try to refresh the token
     const newTokens = await refreshToken();
@@ -112,15 +124,15 @@ export async function handleAuthFailure(): Promise<boolean> {
     console.log("Token refresh failed, signing out");
     await signOut({ redirect: false });
 
-    // If we're in the browser, redirect to home page (login)
-    if (typeof window !== "undefined") {
-      window.location.href = "/";
-    }
+    // Redirect to home page (login)
+    window.location.href = "/";
 
     return false;
   } catch (error) {
     console.error("Auth failure handling error:", error);
-    await signOut({ redirect: false });
+    if (typeof window !== "undefined") {
+      await signOut({ redirect: false });
+    }
     return false;
   }
 }
