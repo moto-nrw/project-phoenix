@@ -72,6 +72,7 @@ type PersonService interface {
 
 	// Authentication operations
 	ValidateStaffPIN(ctx context.Context, pin string) (*userModels.Staff, error)
+	ValidateStaffPINForSpecificStaff(ctx context.Context, staffID int64, pin string) (*userModels.Staff, error)
 
 	// GetStudentsByTeacher retrieves students supervised by a teacher (through group assignments)
 	GetStudentsByTeacher(ctx context.Context, teacherID int64) ([]*userModels.Student, error)
