@@ -127,6 +127,11 @@ type TokenRepository interface {
 	FindValidTokens(ctx context.Context, filters map[string]interface{}) ([]*Token, error)
 	FindTokensWithAccount(ctx context.Context, filters map[string]interface{}) ([]*Token, error)
 	CleanupOldTokensForAccount(ctx context.Context, accountID int64, keepCount int) error
+	
+	// Token family tracking methods
+	FindByFamilyID(ctx context.Context, familyID string) ([]*Token, error)
+	DeleteByFamilyID(ctx context.Context, familyID string) error
+	GetLatestTokenInFamily(ctx context.Context, familyID string) (*Token, error)
 }
 
 // PasswordResetTokenRepository defines operations for managing password reset tokens

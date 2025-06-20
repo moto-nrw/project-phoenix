@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -284,4 +286,71 @@ func (r *TokenRepository) CleanupOldTokensForAccount(ctx context.Context, accoun
 	}
 
 	return nil
+}
+
+// FindByFamilyID finds all tokens belonging to a specific family
+func (r *TokenRepository) FindByFamilyID(ctx context.Context, familyID string) ([]*auth.Token, error) {
+	var tokens []*auth.Token
+	
+	err := r.db.NewSelect().
+		Model(&tokens).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".family_id = ?`, familyID).
+		Order(`"token".generation DESC`).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find tokens by family ID",
+			Err: err,
+		}
+	}
+
+	return tokens, nil
+}
+
+// DeleteByFamilyID deletes all tokens in a specific family
+func (r *TokenRepository) DeleteByFamilyID(ctx context.Context, familyID string) error {
+	_, err := r.db.NewDelete().
+		Model((*auth.Token)(nil)).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".family_id = ?`, familyID).
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "delete tokens by family ID",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+// GetLatestTokenInFamily gets the token with the highest generation in a family
+func (r *TokenRepository) GetLatestTokenInFamily(ctx context.Context, familyID string) (*auth.Token, error) {
+	var token auth.Token
+	
+	err := r.db.NewSelect().
+		Model(&token).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".family_id = ?`, familyID).
+		Order(`"token".generation DESC`).
+		Limit(1).
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &modelBase.DatabaseError{
+				Op:  "get latest token in family",
+				Err: errors.New("token not found"),
+			}
+		}
+		return nil, &modelBase.DatabaseError{
+			Op:  "get latest token in family",
+			Err: err,
+		}
+	}
+
+	return &token, nil
 }

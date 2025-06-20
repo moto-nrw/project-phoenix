@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -186,7 +187,11 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, refreshToken, err := rs.AuthService.Login(r.Context(), req.Email, req.Password)
+	// Get IP address and user agent for audit logging
+	ipAddress := getClientIP(r)
+	userAgent := r.Header.Get("User-Agent")
+
+	accessToken, refreshToken, err := rs.AuthService.LoginWithAudit(r.Context(), req.Email, req.Password, ipAddress, userAgent)
 	if err != nil {
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
@@ -327,7 +332,11 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 	// Get refresh token from context
 	refreshToken := jwt.RefreshTokenFromCtx(r.Context())
 
-	accessToken, newRefreshToken, err := rs.AuthService.RefreshToken(r.Context(), refreshToken)
+	// Get IP address and user agent for audit logging
+	ipAddress := getClientIP(r)
+	userAgent := r.Header.Get("User-Agent")
+
+	accessToken, newRefreshToken, err := rs.AuthService.RefreshTokenWithAudit(r.Context(), refreshToken, ipAddress, userAgent)
 	if err != nil {
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
@@ -377,7 +386,11 @@ func (rs *Resource) logout(w http.ResponseWriter, r *http.Request) {
 	// Get refresh token from context
 	refreshToken := jwt.RefreshTokenFromCtx(r.Context())
 
-	err := rs.AuthService.Logout(r.Context(), refreshToken)
+	// Get IP address and user agent for audit logging
+	ipAddress := getClientIP(r)
+	userAgent := r.Header.Get("User-Agent")
+
+	err := rs.AuthService.LogoutWithAudit(r.Context(), refreshToken, ipAddress, userAgent)
 	if err != nil {
 		// Even if there's an error, we want to consider the logout successful from the client's perspective
 		// Just log the error on the server side
@@ -1873,4 +1886,33 @@ func (rs *Resource) listParentAccounts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Parent accounts retrieved successfully")
+}
+
+// getClientIP extracts the real client IP address from the request
+func getClientIP(r *http.Request) string {
+	// Check X-Real-IP header first (set by reverse proxy)
+	if ip := r.Header.Get("X-Real-IP"); ip != "" {
+		return ip
+	}
+
+	// Check X-Forwarded-For header
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// Split the header value on commas and trim each entry
+		ips := strings.Split(xff, ",")
+		for i, ip := range ips {
+			ips[i] = strings.TrimSpace(ip)
+		}
+		// Return the first IP in the list
+		if len(ips) > 0 {
+			return ips[0]
+		}
+	}
+
+	// Fall back to RemoteAddr
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+
+	return ip
 }

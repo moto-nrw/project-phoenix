@@ -13,10 +13,13 @@ type AuthService interface {
 
 	// Existing methods
 	Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
+	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 	Register(ctx context.Context, email, username, name, password string) (*auth.Account, error)
 	ValidateToken(ctx context.Context, token string) (*auth.Account, error)
 	RefreshToken(ctx context.Context, refreshToken string) (accessToken, newRefreshToken string, err error)
+	RefreshTokenWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (accessToken, newRefreshToken string, err error)
 	Logout(ctx context.Context, refreshToken string) error
+	LogoutWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) error
 	ChangePassword(ctx context.Context, accountID int, currentPassword, newPassword string) error
 	GetAccountByID(ctx context.Context, id int) (*auth.Account, error)
 	GetAccountByEmail(ctx context.Context, email string) (*auth.Account, error)

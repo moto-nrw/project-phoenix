@@ -1,4 +1,5 @@
 import api from "./api";
+import axios from "axios";
 import type { AxiosResponse, AxiosRequestConfig } from "axios";
 
 /**
@@ -9,7 +10,17 @@ export async function apiGet<T = unknown>(url: string, token?: string, config?: 
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
-  return api.get<T>(url, { ...config, headers });
+  
+  try {
+    return await api.get<T>(url, { ...config, headers });
+  } catch (error) {
+    // Re-throw the error to let the route handler deal with it
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      // Throw a specific error for 401s so route handlers can identify it
+      throw new Error(`API error (401): Unauthorized`);
+    }
+    throw error;
+  }
 }
 
 /**
@@ -20,7 +31,17 @@ export async function apiPost<T = unknown>(url: string, data?: unknown, token?: 
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
-  return api.post<T>(url, data, { ...config, headers });
+  
+  try {
+    return await api.post<T>(url, data, { ...config, headers });
+  } catch (error) {
+    // Re-throw the error to let the route handler deal with it
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      // Throw a specific error for 401s so route handlers can identify it
+      throw new Error(`API error (401): Unauthorized`);
+    }
+    throw error;
+  }
 }
 
 /**
@@ -31,7 +52,17 @@ export async function apiPut<T = unknown>(url: string, data?: unknown, token?: s
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
-  return api.put<T>(url, data, { ...config, headers });
+  
+  try {
+    return await api.put<T>(url, data, { ...config, headers });
+  } catch (error) {
+    // Re-throw the error to let the route handler deal with it
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      // Throw a specific error for 401s so route handlers can identify it
+      throw new Error(`API error (401): Unauthorized`);
+    }
+    throw error;
+  }
 }
 
 /**
@@ -42,5 +73,15 @@ export async function apiDelete<T = unknown>(url: string, token?: string, config
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
-  return api.delete<T>(url, { ...config, headers });
+  
+  try {
+    return await api.delete<T>(url, { ...config, headers });
+  } catch (error) {
+    // Re-throw the error to let the route handler deal with it
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      // Throw a specific error for 401s so route handlers can identify it
+      throw new Error(`API error (401): Unauthorized`);
+    }
+    throw error;
+  }
 }

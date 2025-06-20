@@ -38,6 +38,9 @@ declare module "next-auth" {
     refreshTokenExpiry?: number;
     error?: "RefreshTokenExpired" | "RefreshTokenError";
     needsRefresh?: boolean;
+    isRefreshing?: boolean;
+    lastRefreshAttempt?: number;
+    refreshRetries?: number;
   }
 }
 
@@ -236,6 +239,11 @@ export const authConfig = {
   ],
   callbacks: {
     jwt: async ({ token, user }) => {
+      console.log("=== JWT Callback Invoked ===");
+      console.log(`Has user object: ${!!user}`);
+      console.log(`Current refresh token: ${token.refreshToken ? (token.refreshToken as string).substring(0, 50) + '...' : 'none'}`);
+      console.log(`Token expiry: ${token.tokenExpiry ? new Date(token.tokenExpiry as number).toLocaleString() : 'not set'}`);
+      
       // Initial sign in
       if (user) {
         token.id = user.id;
@@ -247,11 +255,19 @@ export const authConfig = {
         token.firstName = user.firstName;
         // Store token expiry (15 minutes from now)
         token.tokenExpiry = Date.now() + 15 * 60 * 1000; // 15 minutes
-        // Store refresh token expiry (24 hours from now)
+        // Store refresh token expiry (24 hours from now - matching backend)
         token.refreshTokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
         // Clear any previous error states
         token.error = undefined;
         token.needsRefresh = undefined;
+        
+        // Log token configuration for debugging
+        console.log("=== Authentication Token Configuration ===");
+        console.log(`Access Token Expiry: 15 minutes (expires at ${new Date(token.tokenExpiry as number).toLocaleString()})`);
+        console.log(`Refresh Token Expiry: 24 hours (expires at ${new Date(token.refreshTokenExpiry as number).toLocaleString()})`);
+        console.log(`NextAuth Session Length: 24 hours`);
+        console.log(`Proactive Refresh: Tokens refresh after 5 minutes of use`);
+        console.log("========================================");
       }
 
       // Check if refresh token is expired
@@ -263,8 +279,10 @@ export const authConfig = {
         return token;
       }
 
-      // Check if access token needs refresh (with 5 minute buffer for proactive refresh)
-      if (token.tokenExpiry && Date.now() > (token.tokenExpiry as number) - 5 * 60 * 1000) {
+      // Check if access token needs refresh (with 10 minute buffer for proactive refresh)
+      // This gives us plenty of time to refresh before the token actually expires
+      // Since access tokens are 15 minutes, this refreshes after 5 minutes
+      if (token.tokenExpiry && Date.now() > (token.tokenExpiry as number) - 10 * 60 * 1000) {
         // Rate limiting: Check if we've attempted refresh recently
         const lastRefreshAttempt = token.lastRefreshAttempt as number | undefined;
         const refreshCooldown = 30 * 1000; // 30 seconds cooldown between attempts
@@ -285,7 +303,8 @@ export const authConfig = {
           return token;
         }
         
-        console.log("Access token expiring soon, attempting refresh...");
+        const timeUntilExpiry = Math.round(((token.tokenExpiry as number) - Date.now()) / 1000);
+        console.log(`Access token expiring in ${timeUntilExpiry} seconds, attempting refresh...`);
         
         // Ensure refresh token exists before attempting refresh
         if (!token.refreshToken || typeof token.refreshToken !== 'string') {
@@ -295,7 +314,17 @@ export const authConfig = {
           return token;
         }
         
+        // Check if we're already in the process of refreshing
+        // This helps prevent concurrent refresh attempts with the same token
+        if (token.isRefreshing) {
+          console.log("Token refresh already in progress, skipping");
+          return token;
+        }
+        
         try {
+          // Mark that we're refreshing
+          token.isRefreshing = true;
+          
           // Update last refresh attempt timestamp
           token.lastRefreshAttempt = Date.now();
           
@@ -307,7 +336,8 @@ export const authConfig = {
           const response = await fetch(`${apiUrl}/auth/refresh`, {
             method: "POST",
             headers: { 
-              "Authorization": `Bearer ${token.refreshToken}`
+              "Authorization": `Bearer ${token.refreshToken}`,
+              "Content-Type": "application/json"
             },
           });
 
@@ -316,6 +346,15 @@ export const authConfig = {
               access_token: string;
               refresh_token: string;
             };
+            
+            // Store old token for logging before updating
+            const oldRefreshToken = token.refreshToken as string;
+            
+            console.log("=== Token Refresh Successful ===");
+            console.log(`Old refresh token: ${oldRefreshToken.substring(0, 50)}...`);
+            console.log(`New access token: ${refreshData.access_token.substring(0, 50)}...`);
+            console.log(`New refresh token: ${refreshData.refresh_token.substring(0, 50)}...`);
+            console.log(`Tokens are different: ${oldRefreshToken !== refreshData.refresh_token}`);
             
             // Update tokens
             token.token = refreshData.access_token;
@@ -328,8 +367,10 @@ export const authConfig = {
             token.needsRefresh = undefined;
             token.refreshRetries = 0;
             token.lastRefreshAttempt = undefined;
-            
-            console.log("Token refreshed successfully");
+            token.isRefreshing = false;
+            console.log(`New Access Token Expiry: 15 minutes (expires at ${new Date(token.tokenExpiry as number).toLocaleString()})`);
+            console.log(`New Refresh Token Expiry: 24 hours (expires at ${new Date(token.refreshTokenExpiry as number).toLocaleString()})`);
+            console.log("================================");
           } else {
             console.error(`Failed to refresh token: ${response.status}`);
             
@@ -350,6 +391,7 @@ export const authConfig = {
             }
             
             // Keep existing user data for graceful degradation
+            token.isRefreshing = false;
             return token;
           }
         } catch (error) {
@@ -361,6 +403,7 @@ export const authConfig = {
           
           token.error = "RefreshTokenError";
           token.needsRefresh = true;
+          token.isRefreshing = false;
           
           // Keep existing user data for graceful degradation
           return token;
@@ -407,6 +450,6 @@ export const authConfig = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 60 * 60, // 1 hour
+    maxAge: 24 * 60 * 60, // 24 hours
   },
 } satisfies NextAuthConfig;

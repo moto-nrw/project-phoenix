@@ -93,30 +93,35 @@ export async function handleAuthFailure(): Promise<boolean> {
   }
 
   try {
-    // Try to refresh the token
+    // The JWT callback in NextAuth handles automatic token refresh
+    // If we're here with a 401, it likely means:
+    // 1. The JWT callback's refresh already failed, OR
+    // 2. We're in a race condition where client and server both tried to refresh
+    
+    // Let's check if we recently had a successful refresh
+    const lastRefresh = sessionStorage.getItem("lastSuccessfulRefresh");
+    if (lastRefresh) {
+      const lastRefreshTime = parseInt(lastRefresh, 10);
+      const timeSinceRefresh = Date.now() - lastRefreshTime;
+      
+      // If we refreshed less than 5 seconds ago, just retry the request
+      if (timeSinceRefresh < 5000) {
+        console.log("Recently refreshed tokens, retrying request...");
+        return true;
+      }
+    }
+    
+    // Try to refresh the token one more time
     const newTokens = await refreshToken();
 
     if (newTokens) {
       // Token refresh successful
-      console.log("Token refreshed successfully");
-      // Force a session reload to update the token in the session
-      const result = await signIn("credentials", {
-        redirect: false,
-        internalRefresh: true, // Special flag to indicate this is just a token refresh
-        token: newTokens.access_token,
-        refreshToken: newTokens.refresh_token,
-      });
-
-      if (result?.error) {
-        console.error(
-            "Session update failed after token refresh:",
-            result.error,
-        );
-        await signOut({ redirect: false });
-        return false;
-      }
-
-      console.log("Session updated with new tokens");
+      console.log("Client-side token refresh successful");
+      
+      // Mark the time of successful refresh
+      sessionStorage.setItem("lastSuccessfulRefresh", Date.now().toString());
+      
+      // Return true to retry the original request
       return true;
     }
 
