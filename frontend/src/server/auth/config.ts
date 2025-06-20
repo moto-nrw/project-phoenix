@@ -348,7 +348,7 @@ export const authConfig = {
             };
             
             // Store old token for logging before updating
-            const oldRefreshToken = token.refreshToken as string;
+            const oldRefreshToken = token.refreshToken;
             
             console.log("=== Token Refresh Successful ===");
             console.log(`Old refresh token: ${oldRefreshToken.substring(0, 50)}...`);

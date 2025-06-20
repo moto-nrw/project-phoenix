@@ -1,5 +1,5 @@
 // lib/auth-api.ts
-import { signIn, signOut } from "next-auth/react";
+import { signOut } from "next-auth/react";
 import { authService } from "./auth-service";
 
 // Singleton to manage token refresh and prevent concurrent refreshes

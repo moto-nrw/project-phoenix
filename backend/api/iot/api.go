@@ -1141,9 +1141,10 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	// Generate German greeting message based on actual action performed
 	studentName := person.FirstName + " " + person.LastName
 	var greetingMsg string
-	if actionMsg == "checked_in" {
+	switch actionMsg {
+	case "checked_in":
 		greetingMsg = "Hallo " + person.FirstName + "!"
-	} else if actionMsg == "checked_out" {
+	case "checked_out":
 		greetingMsg = "Tschüss " + person.FirstName + "!"
 	}
 
