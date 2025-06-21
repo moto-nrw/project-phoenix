@@ -80,10 +80,11 @@ authService := serviceFactory.NewAuthService()
 ```
 
 ### Authentication & Authorization
-- JWT tokens: Access (15m) + Refresh (1hr)
+- JWT tokens: Access (15m) + Refresh (24hr)
 - Role-based permissions via middleware
 - Permission constants in `auth/authorize/permissions/`
 - Authorization policies in `auth/authorize/policies/`
+- Token cleanup on login prevents accumulation (single session by default)
 
 ## Critical BUN ORM Patterns
 

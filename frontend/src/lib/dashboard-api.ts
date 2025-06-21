@@ -17,6 +17,7 @@ export async function fetchDashboardAnalytics(
     return mapDashboardAnalyticsResponse(response.data);
   } catch (error) {
     console.error("Error fetching dashboard analytics:", error);
-    throw new Error("Failed to fetch dashboard analytics");
+    // Re-throw the original error to preserve the 401 status
+    throw error;
   }
 }

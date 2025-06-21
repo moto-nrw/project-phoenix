@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/spf13/cobra"
 )
@@ -55,11 +56,21 @@ var cleanupStatsCmd = &cobra.Command{
 	RunE: runCleanupStats,
 }
 
+// cleanupTokensCmd represents the tokens subcommand
+var cleanupTokensCmd = &cobra.Command{
+	Use:   "tokens",
+	Short: "Clean up expired authentication tokens",
+	Long:  `Clean up expired refresh tokens from the database.
+This helps maintain database performance and security by removing tokens that can no longer be used.`,
+	RunE: runCleanupTokens,
+}
+
 func init() {
 	RootCmd.AddCommand(cleanupCmd)
 	cleanupCmd.AddCommand(cleanupVisitsCmd)
 	cleanupCmd.AddCommand(cleanupPreviewCmd)
 	cleanupCmd.AddCommand(cleanupStatsCmd)
+	cleanupCmd.AddCommand(cleanupTokensCmd)
 
 	// Flags for cleanup visits command
 	cleanupVisitsCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be deleted without deleting")
@@ -352,4 +363,54 @@ func getStatusString(success bool) string {
 		return "SUCCESS"
 	}
 	return "COMPLETED WITH ERRORS"
+}
+
+func runCleanupTokens(cmd *cobra.Command, args []string) error {
+	// Initialize database
+	db, err := database.InitDB()
+	if err != nil {
+		return fmt.Errorf("failed to initialize database: %w", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("failed to close database: %v", err)
+		}
+	}()
+
+	// Create repository factory
+	repoFactory := repositories.NewFactory(db)
+
+	// Create service factory (no mailer needed for token cleanup)
+	serviceFactory, err := services.NewFactory(repoFactory, db)
+	if err != nil {
+		return fmt.Errorf("failed to create service factory: %w", err)
+	}
+	authService := serviceFactory.Auth
+
+	ctx := context.Background()
+
+	// Get count of expired tokens first
+	count, err := db.NewSelect().
+		TableExpr("auth.tokens").
+		Where("expiry < ?", time.Now()).
+		Count(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to count expired tokens: %w", err)
+	}
+
+	fmt.Printf("Found %d expired tokens to clean up\n", count)
+
+	if count == 0 {
+		fmt.Println("No expired tokens to clean up")
+		return nil
+	}
+
+	// Delete expired tokens
+	deletedCount, err := authService.CleanupExpiredTokens(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete expired tokens: %w", err)
+	}
+
+	fmt.Printf("Successfully deleted %d expired tokens\n", deletedCount)
+	return nil
 }

@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Backend: Go (1.23+) with Chi router, Bun ORM for PostgreSQL
 - Frontend: Next.js (v15+) with React (v19+), Tailwind CSS (v4+)
 - Database: PostgreSQL (17+) with SSL encryption (GDPR compliance)
-- Authentication: JWT-based auth system with role-based access control
+- Authentication: JWT-based auth system with role-based access control (token cleanup on login)
 - RFID Integration: Custom API endpoints for device communication
 - Deployment: Docker/Docker Compose
 

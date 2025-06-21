@@ -91,6 +91,7 @@ type Factory struct {
 
 	// Audit domain
 	DataDeletion auditModels.DataDeletionRepository
+	AuthEvent    auditModels.AuthEventRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -157,5 +158,6 @@ func NewFactory(db *bun.DB) *Factory {
 
 		// Audit repositories
 		DataDeletion: audit.NewDataDeletionRepository(db),
+		AuthEvent:    audit.NewAuthEventRepository(db),
 	}
 }

@@ -61,19 +61,31 @@ import type { NextRequest } from "next/server";
           safeParams[key] = value;
         });
 
-        const data = await handler(request, session.user.token, safeParams);
+        try {
+          const data = await handler(request, session.user.token, safeParams);
 
-        // For the rooms endpoint, we need to pass the raw data directly
-        if (request.nextUrl.pathname === '/api/rooms') {
-          return NextResponse.json(data);
+          // For the rooms endpoint, we need to pass the raw data directly
+          if (request.nextUrl.pathname === '/api/rooms') {
+            return NextResponse.json(data);
+          }
+
+          // Wrap the response in ApiResponse format if it's not already
+          const response: ApiResponse<T> = typeof data === 'object' && data !== null && 'success' in data
+            ? (data as unknown as ApiResponse<T>)
+            : { success: true, message: "Success", data };
+
+          return NextResponse.json(response);
+        } catch (handlerError) {
+          // Check if it's a 401 error from the backend
+          if (handlerError instanceof Error && handlerError.message.includes("API error (401)")) {
+            // Return 401 to client so it can handle token refresh
+            return NextResponse.json(
+              { error: "Token expired", code: "TOKEN_EXPIRED" },
+              { status: 401 }
+            );
+          }
+          throw handlerError;
         }
-
-        // Wrap the response in ApiResponse format if it's not already
-        const response: ApiResponse<T> = typeof data === 'object' && data !== null && 'success' in data
-          ? (data as unknown as ApiResponse<T>)
-          : { success: true, message: "Success", data };
-
-        return NextResponse.json(response);
       } catch (error) {
         return handleApiError(error);
       }
@@ -145,14 +157,27 @@ import type { NextRequest } from "next/server";
         } catch {
           body = {} as B;
         }
-        const data = await handler(request, body, session.user.token, safeParams);
+        
+        try {
+          const data = await handler(request, body, session.user.token, safeParams);
 
-        // Wrap the response in ApiResponse format if it's not already
-        const response: ApiResponse<T> = typeof data === 'object' && data !== null && 'success' in data
-          ? (data as unknown as ApiResponse<T>)
-          : { success: true, message: "Success", data };
+          // Wrap the response in ApiResponse format if it's not already
+          const response: ApiResponse<T> = typeof data === 'object' && data !== null && 'success' in data
+            ? (data as unknown as ApiResponse<T>)
+            : { success: true, message: "Success", data };
 
-        return NextResponse.json(response);
+          return NextResponse.json(response);
+        } catch (handlerError) {
+          // Check if it's a 401 error from the backend
+          if (handlerError instanceof Error && handlerError.message.includes("API error (401)")) {
+            // Return 401 to client so it can handle token refresh
+            return NextResponse.json(
+              { error: "Token expired", code: "TOKEN_EXPIRED" },
+              { status: 401 }
+            );
+          }
+          throw handlerError;
+        }
       } catch (error) {
         return handleApiError(error);
       }
@@ -224,14 +249,27 @@ import type { NextRequest } from "next/server";
         } catch {
           body = {} as B;
         }
-        const data = await handler(request, body, session.user.token, safeParams);
+        
+        try {
+          const data = await handler(request, body, session.user.token, safeParams);
 
-        // Wrap the response in ApiResponse format if it's not already
-        const response: ApiResponse<T> = typeof data === 'object' && data !== null && 'success' in data
-          ? (data as unknown as ApiResponse<T>)
-          : { success: true, message: "Success", data };
+          // Wrap the response in ApiResponse format if it's not already
+          const response: ApiResponse<T> = typeof data === 'object' && data !== null && 'success' in data
+            ? (data as unknown as ApiResponse<T>)
+            : { success: true, message: "Success", data };
 
-        return NextResponse.json(response);
+          return NextResponse.json(response);
+        } catch (handlerError) {
+          // Check if it's a 401 error from the backend
+          if (handlerError instanceof Error && handlerError.message.includes("API error (401)")) {
+            // Return 401 to client so it can handle token refresh
+            return NextResponse.json(
+              { error: "Token expired", code: "TOKEN_EXPIRED" },
+              { status: 401 }
+            );
+          }
+          throw handlerError;
+        }
       } catch (error) {
         return handleApiError(error);
       }
@@ -295,19 +333,31 @@ import type { NextRequest } from "next/server";
           safeParams[key] = value;
         });
 
-        const data = await handler(request, session.user.token, safeParams);
+        try {
+          const data = await handler(request, session.user.token, safeParams);
 
-        // For delete operations with no content, return 204 status
-        if (data === null || data === undefined) {
-          return new NextResponse(null, { status: 204 });
+          // For delete operations with no content, return 204 status
+          if (data === null || data === undefined) {
+            return new NextResponse(null, { status: 204 });
+          }
+
+          // Wrap the response in ApiResponse format if it's not already
+          const response: ApiResponse<T> = typeof data === 'object' && data !== null && 'success' in data
+            ? (data as unknown as ApiResponse<T>)
+            : { success: true, message: "Success", data };
+
+          return NextResponse.json(response);
+        } catch (handlerError) {
+          // Check if it's a 401 error from the backend
+          if (handlerError instanceof Error && handlerError.message.includes("API error (401)")) {
+            // Return 401 to client so it can handle token refresh
+            return NextResponse.json(
+              { error: "Token expired", code: "TOKEN_EXPIRED" },
+              { status: 401 }
+            );
+          }
+          throw handlerError;
         }
-
-        // Wrap the response in ApiResponse format if it's not already
-        const response: ApiResponse<T> = typeof data === 'object' && data !== null && 'success' in data
-          ? (data as unknown as ApiResponse<T>)
-          : { success: true, message: "Success", data };
-
-        return NextResponse.json(response);
       } catch (error) {
         return handleApiError(error);
       }

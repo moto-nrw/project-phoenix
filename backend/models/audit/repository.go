@@ -18,3 +18,15 @@ type DataDeletionRepository interface {
 	GetDeletionStats(ctx context.Context, startDate time.Time) (map[string]interface{}, error)
 	CountByType(ctx context.Context, deletionType string, since time.Time) (int64, error)
 }
+
+// AuthEventRepository defines operations for managing authentication event audit records
+type AuthEventRepository interface {
+	Create(ctx context.Context, event *AuthEvent) error
+	FindByID(ctx context.Context, id interface{}) (*AuthEvent, error)
+	FindByAccountID(ctx context.Context, accountID int64, limit int) ([]*AuthEvent, error)
+	FindByEventType(ctx context.Context, eventType string, since time.Time) ([]*AuthEvent, error)
+	FindFailedAttempts(ctx context.Context, accountID int64, since time.Time) ([]*AuthEvent, error)
+	CountFailedAttempts(ctx context.Context, accountID int64, since time.Time) (int, error)
+	CleanupOldEvents(ctx context.Context, olderThan time.Duration) (int, error)
+	List(ctx context.Context, filters map[string]interface{}) ([]*AuthEvent, error)
+}
