@@ -408,7 +408,7 @@ function DashboardContent() {
 
             return () => clearInterval(interval);
         }
-    }, [status, session]);
+    }, [status, session, router]);
 
     if (status === "loading") {
         return (
