@@ -93,9 +93,17 @@ func Authenticator(next http.Handler) http.Handler {
 // AuthenticateRefreshJWT checks validity of refresh tokens and is only used for access token refresh and logout requests. It responds with 401 Unauthorized for invalid or expired refresh tokens.
 func AuthenticateRefreshJWT(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token, _, err := jwtauth.FromContext(r.Context())
+		token, claims, err := jwtauth.FromContext(r.Context())
 		if err != nil {
 			logging.GetLogEntry(r).Warn(err)
+			if renderErr := render.Render(w, r, ErrUnauthorized(ErrTokenUnauthorized)); renderErr != nil {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			}
+			return
+		}
+
+		if token == nil {
+			logging.GetLogEntry(r).Warn("No token found in context")
 			if renderErr := render.Render(w, r, ErrUnauthorized(ErrTokenUnauthorized)); renderErr != nil {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			}
@@ -109,15 +117,28 @@ func AuthenticateRefreshJWT(next http.Handler) http.Handler {
 			return
 		}
 
+		// Parse and validate claims to ensure token integrity
+		var c AppClaims
+		err = c.ParseClaims(claims)
+		if err != nil {
+			logging.GetLogEntry(r).Error("Failed to parse refresh token claims:", err)
+			if renderErr := render.Render(w, r, ErrUnauthorized(ErrInvalidAccessToken)); renderErr != nil {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			}
+			return
+		}
+
 		// Get the raw token string from the Authorization header
+		// This is needed for the auth service to look up the token in the database
 		authHeader := r.Header.Get("Authorization")
 		tokenString := ""
 		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
 			tokenString = authHeader[7:]
 		}
-		
-		// Set the full JWT refresh token string on context
-		ctx := context.WithValue(r.Context(), CtxRefreshToken, tokenString)
+
+		// Set both the validated claims and the token string on context
+		ctx := context.WithValue(r.Context(), CtxClaims, c)
+		ctx = context.WithValue(ctx, CtxRefreshToken, tokenString)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
