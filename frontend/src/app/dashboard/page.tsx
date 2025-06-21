@@ -2,7 +2,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ResponsiveLayout } from "~/components/dashboard";
 import Link from "next/link";
@@ -345,10 +345,11 @@ function getCurrentDate(): string {
 
 // Dashboard Content Component that uses the context
 function DashboardContent() {
+    const router = useRouter();
     const { data: session, status } = useSession({
         required: true,
         onUnauthenticated() {
-            redirect("/");
+            router.push("/");
         },
     });
 
@@ -388,7 +389,7 @@ function DashboardContent() {
             const sessionWithError = session as typeof session & { error?: string };
             if (sessionWithError.error === "RefreshTokenExpired") {
                 console.log("Session refresh token expired, redirecting to login");
-                redirect("/");
+                router.push("/");
                 return;
             }
             
@@ -397,7 +398,7 @@ function DashboardContent() {
                 void fetchDashboardData();
             } else {
                 console.log("No valid token in session, redirecting to login");
-                redirect("/");
+                router.push("/");
             }
 
             // Refresh data every 5 minutes
