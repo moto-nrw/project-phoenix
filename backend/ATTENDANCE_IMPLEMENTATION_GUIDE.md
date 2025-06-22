@@ -153,7 +153,7 @@ AttendanceResult:
 - AttendanceID, StudentID, Timestamp
 ```
 
-**Status**: ⬜ To Do
+**Status**: ✅ Complete
 
 ### 3.2 Update Active Service Implementation
 **File**: `backend/services/active/active_service.go` (UPDATE)
@@ -343,7 +343,7 @@ Create test collection for:
 - ⬜ Write repository tests
 
 ### Service Layer
-- ⬜ Update service interface
+- ✅ Update service interface
 - ⬜ Implement service methods
 - ⬜ Update service factory
 - ⬜ Write service tests
