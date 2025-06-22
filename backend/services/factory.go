@@ -22,19 +22,19 @@ import (
 
 // Factory provides access to all services
 type Factory struct {
-	Auth        auth.AuthService
-	Active      active.Service
+	Auth          auth.AuthService
+	Active        active.Service
 	ActiveCleanup active.CleanupService
-	Activities  activities.ActivityService
-	Education   education.Service
-	Facilities  facilities.Service
-	Feedback    feedback.Service
-	IoT         iot.Service
-	Config      config.Service
-	Schedule    schedule.Service
-	Users       users.PersonService
-	UserContext usercontext.UserContextService
-	Database    database.DatabaseService
+	Activities    activities.ActivityService
+	Education     education.Service
+	Facilities    facilities.Service
+	Feedback      feedback.Service
+	IoT           iot.Service
+	Config        config.Service
+	Schedule      schedule.Service
+	Users         users.PersonService
+	UserContext   usercontext.UserContextService
+	Database      database.DatabaseService
 }
 
 // NewFactory creates a new services factory

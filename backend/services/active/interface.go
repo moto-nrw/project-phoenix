@@ -183,13 +183,13 @@ type SessionTimeoutInfo struct {
 type CleanupService interface {
 	// CleanupExpiredVisits runs the cleanup process for all students
 	CleanupExpiredVisits(ctx context.Context) (*CleanupResult, error)
-	
+
 	// CleanupVisitsForStudent runs cleanup for a specific student
 	CleanupVisitsForStudent(ctx context.Context, studentID int64) (int64, error)
-	
+
 	// GetRetentionStatistics gets statistics about data that will be deleted
 	GetRetentionStatistics(ctx context.Context) (*RetentionStats, error)
-	
+
 	// PreviewCleanup shows what would be deleted without actually deleting
 	PreviewCleanup(ctx context.Context) (*CleanupPreview, error)
 }
@@ -221,7 +221,7 @@ type RetentionStats struct {
 
 // CleanupPreview shows what would be deleted
 type CleanupPreview struct {
-	StudentVisitCounts map[int64]int  // Student ID -> number of visits to delete
+	StudentVisitCounts map[int64]int // Student ID -> number of visits to delete
 	TotalVisits        int64
 	OldestVisit        *time.Time
 }

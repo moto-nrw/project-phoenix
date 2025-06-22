@@ -32,7 +32,7 @@ func NewPersonRepository(db *bun.DB) users.PersonRepository {
 func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*users.Person, error) {
 	// Normalize the tag ID to match the stored format
 	normalizedTagID := normalizeTagID(tagID)
-	
+
 	person := new(users.Person)
 	err := r.db.NewSelect().
 		Model(person).
@@ -119,12 +119,12 @@ func (r *PersonRepository) UnlinkFromAccount(ctx context.Context, personID int64
 func normalizeTagID(tagID string) string {
 	// Trim spaces
 	tagID = strings.TrimSpace(tagID)
-	
+
 	// Remove common separators
 	tagID = strings.ReplaceAll(tagID, ":", "")
 	tagID = strings.ReplaceAll(tagID, "-", "")
 	tagID = strings.ReplaceAll(tagID, " ", "")
-	
+
 	// Convert to uppercase
 	return strings.ToUpper(tagID)
 }
@@ -133,7 +133,7 @@ func normalizeTagID(tagID string) string {
 func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error {
 	// Normalize the tag ID to match RFID card format
 	normalizedTagID := normalizeTagID(tagID)
-	
+
 	_, err := r.db.NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).

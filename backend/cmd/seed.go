@@ -385,7 +385,7 @@ func seedRFIDCards(ctx context.Context, tx bun.Tx, rng *rand.Rand) ([]string, er
 	// Create RFID cards first
 	rfidIDs := make([]string, 0, 150)
 	usedTags := make(map[string]bool) // Track used tags to avoid duplicates
-	
+
 	for i := 0; i < 150; i++ {
 		// Generate a unique realistic RFID tag
 		var rfidID string
@@ -398,7 +398,7 @@ func seedRFIDCards(ctx context.Context, tx bun.Tx, rng *rand.Rand) ([]string, er
 				// 4-byte UID (8 hex characters)
 				rfidID = generateRFIDTag(rng, 4)
 			}
-			
+
 			// Ensure uniqueness
 			if !usedTags[rfidID] {
 				usedTags[rfidID] = true
@@ -422,7 +422,7 @@ func seedRFIDCards(ctx context.Context, tx bun.Tx, rng *rand.Rand) ([]string, er
 }
 
 // generateRFIDTag generates a realistic RFID tag in normalized format
-// For example: 
+// For example:
 //   - 7-byte tag "04:D6:94:82:97:6A:80" becomes "04D69482976A80"
 //   - 4-byte tag "04:D6:94:82" becomes "04D69482"
 func generateRFIDTag(rng *rand.Rand, byteCount int) string {
@@ -431,7 +431,7 @@ func generateRFIDTag(rng *rand.Rand, byteCount int) string {
 	for i := range bytes {
 		bytes[i] = byte(rng.Intn(256))
 	}
-	
+
 	// Convert to hex string (normalized: uppercase, no separators)
 	// This matches what the API normalization does
 	return fmt.Sprintf("%X", bytes)

@@ -1165,11 +1165,11 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 
 		// Determine room ID: priority is manual > planned > default
 		finalRoomID := int64(1) // Default fallback
-		
+
 		if roomID != nil && *roomID > 0 {
 			// Manual room selection provided
 			finalRoomID = *roomID
-			
+
 			// Check if the manually selected room has conflicts
 			hasRoomConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, finalRoomID, 0)
 			if err != nil {
@@ -1207,7 +1207,7 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 		if err != nil {
 			return err
 		}
-		
+
 		// Log the transfer for debugging
 		if transferredCount > 0 {
 			// Using fmt.Printf for now since we don't have a logger instance here
@@ -1254,7 +1254,7 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 
 		// Determine room ID: priority is manual > planned > default
 		finalRoomID := int64(1) // Default fallback
-		
+
 		if roomID != nil && *roomID > 0 {
 			// Manual room selection provided
 			finalRoomID = *roomID
@@ -1288,7 +1288,7 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 		if err != nil {
 			return err
 		}
-		
+
 		// Log the transfer for debugging
 		if transferredCount > 0 {
 			fmt.Printf("Transferred %d active visits to new session %d (force start)\n", transferredCount, newGroup.ID)

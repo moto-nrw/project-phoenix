@@ -1077,7 +1077,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		// Log error but don't fail - student might not have any visits
 		log.Printf("Error checking current visit: %v", err)
 	}
-	
+
 	// If we have a current visit, load the active group with room information
 	if currentVisit != nil && currentVisit.ExitTime == nil {
 		activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), currentVisit.ActiveGroupID)
@@ -1113,11 +1113,11 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		// Store the previous room name for transfer message
 		if currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil {
 			previousRoomName = currentVisit.ActiveGroup.Room.Name
-			log.Printf("[CHECKIN] Previous room name from active group: %s (Room ID: %d)", 
+			log.Printf("[CHECKIN] Previous room name from active group: %s (Room ID: %d)",
 				previousRoomName, currentVisit.ActiveGroup.RoomID)
 		} else {
-			log.Printf("[CHECKIN] Warning: Could not get previous room name - ActiveGroup: %v, Room: %v", 
-				currentVisit.ActiveGroup != nil, 
+			log.Printf("[CHECKIN] Warning: Could not get previous room name - ActiveGroup: %v, Room: %v",
+				currentVisit.ActiveGroup != nil,
 				currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil)
 		}
 
@@ -1159,7 +1159,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	
+
 	if req.RoomID != nil && !skipCheckin {
 		log.Printf("[CHECKIN] Student %s %s (ID: %d) - performing CHECK-IN to room %d",
 			person.FirstName, person.LastName, student.ID, *req.RoomID)
@@ -1247,7 +1247,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 			// Same room or previous room unknown - treat as regular check-in
 			actionMsg = "checked_in"
 			greetingMsg = "Hallo " + person.FirstName + "!"
-			log.Printf("[CHECKIN] Student %s re-entered room (previous: '%s', current: '%s')", 
+			log.Printf("[CHECKIN] Student %s re-entered room (previous: '%s', current: '%s')",
 				studentName, previousRoomName, roomName)
 		}
 		// Use the new visit ID for the response
@@ -1507,7 +1507,7 @@ func (rs *Resource) getAvailableRoomsForDevice(w http.ResponseWriter, r *http.Re
 // SessionStartRequest represents a request to start an activity session
 type SessionStartRequest struct {
 	ActivityID int64  `json:"activity_id"`
-	RoomID     *int64 `json:"room_id,omitempty"`      // Optional: Override the activity's planned room
+	RoomID     *int64 `json:"room_id,omitempty"` // Optional: Override the activity's planned room
 	Force      bool   `json:"force,omitempty"`
 }
 

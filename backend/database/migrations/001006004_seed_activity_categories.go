@@ -73,7 +73,7 @@ func seedDefaultActivityCategories(ctx context.Context, db *bun.DB) error {
 			VALUES (?, ?, ?, ?, ?)
 			ON CONFLICT (name) DO NOTHING
 		`, cat.name, cat.description, cat.color, time.Now(), time.Now())
-		
+
 		if err != nil {
 			return fmt.Errorf("failed to insert category %s: %w", cat.name, err)
 		}
@@ -120,22 +120,22 @@ func removeSeededActivityCategories(ctx context.Context, db *bun.DB) error {
 			JOIN activities.categories ac ON ag.category_id = ac.id
 			WHERE ac.name = ?
 		`, name).Scan(&count)
-		
+
 		if err != nil {
 			return fmt.Errorf("failed to check category usage for %s: %w", name, err)
 		}
-		
+
 		if count > 0 {
 			log.Printf("WARNING: Category '%s' is in use by %d activity groups. Skipping removal.", name, count)
 			continue
 		}
-		
+
 		// Delete the category if it's not in use
 		_, err = tx.ExecContext(ctx, `
 			DELETE FROM activities.categories 
 			WHERE name = ?
 		`, name)
-		
+
 		if err != nil {
 			return fmt.Errorf("failed to delete category %s: %w", name, err)
 		}

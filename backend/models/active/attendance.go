@@ -9,14 +9,14 @@ import (
 
 // Attendance represents attendance tracking for RFID check-ins/outs
 type Attendance struct {
-	base.Model     `bun:"schema:active,table:attendance"`
-	StudentID      int64      `bun:"student_id,notnull" json:"student_id"`
-	Date           time.Time  `bun:"date,notnull" json:"date"`
-	CheckInTime    time.Time  `bun:"check_in_time,notnull" json:"check_in_time"`
-	CheckOutTime   *time.Time `bun:"check_out_time" json:"check_out_time,omitempty"`
-	CheckedInBy    int64      `bun:"checked_in_by,notnull" json:"checked_in_by"`
-	CheckedOutBy   *int64     `bun:"checked_out_by" json:"checked_out_by,omitempty"`
-	DeviceID       int64      `bun:"device_id,notnull" json:"device_id"`
+	base.Model   `bun:"schema:active,table:attendance"`
+	StudentID    int64      `bun:"student_id,notnull" json:"student_id"`
+	Date         time.Time  `bun:"date,notnull" json:"date"`
+	CheckInTime  time.Time  `bun:"check_in_time,notnull" json:"check_in_time"`
+	CheckOutTime *time.Time `bun:"check_out_time" json:"check_out_time,omitempty"`
+	CheckedInBy  int64      `bun:"checked_in_by,notnull" json:"checked_in_by"`
+	CheckedOutBy *int64     `bun:"checked_out_by" json:"checked_out_by,omitempty"`
+	DeviceID     int64      `bun:"device_id,notnull" json:"device_id"`
 }
 
 // BeforeAppendModel is commented out to let the repository control the table expression

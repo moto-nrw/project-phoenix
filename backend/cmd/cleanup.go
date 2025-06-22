@@ -15,9 +15,9 @@ import (
 )
 
 var (
-	dryRun   bool
-	verbose  bool
-	logFile  string
+	dryRun    bool
+	verbose   bool
+	logFile   string
 	batchSize int
 )
 
@@ -44,7 +44,7 @@ var cleanupPreviewCmd = &cobra.Command{
 	Use:   "preview",
 	Short: "Preview what would be deleted without actually deleting",
 	Long:  `Shows statistics about what data would be deleted if the cleanup command were run.`,
-	RunE: runCleanupPreview,
+	RunE:  runCleanupPreview,
 }
 
 // cleanupStatsCmd shows retention statistics
@@ -52,7 +52,7 @@ var cleanupStatsCmd = &cobra.Command{
 	Use:   "stats",
 	Short: "Show data retention statistics",
 	Long:  `Display statistics about expired data and retention policies.`,
-	RunE: runCleanupStats,
+	RunE:  runCleanupStats,
 }
 
 func init() {
@@ -158,7 +158,7 @@ func runCleanupVisits(cmd *cobra.Command, args []string) error {
 	logger.Printf("Cleanup completed in %s\n", result.CompletedAt.Sub(result.StartedAt))
 	logger.Printf("Students processed: %d\n", result.StudentsProcessed)
 	logger.Printf("Records deleted: %d\n", result.RecordsDeleted)
-	
+
 	if len(result.Errors) > 0 {
 		logger.Printf("Errors encountered: %d\n", len(result.Errors))
 		if verbose {
@@ -174,7 +174,7 @@ func runCleanupVisits(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Students processed: %d\n", result.StudentsProcessed)
 	fmt.Printf("Records deleted: %d\n", result.RecordsDeleted)
 	fmt.Printf("Status: %s\n", getStatusString(result.Success))
-	
+
 	if len(result.Errors) > 0 {
 		fmt.Printf("Errors: %d\n", len(result.Errors))
 	}
@@ -218,7 +218,7 @@ func runCleanupPreview(cmd *cobra.Command, args []string) error {
 	fmt.Println("==============================")
 	fmt.Printf("Total visits to delete: %d\n", preview.TotalVisits)
 	if preview.OldestVisit != nil {
-		fmt.Printf("Oldest visit: %s (%.0f days ago)\n", 
+		fmt.Printf("Oldest visit: %s (%.0f days ago)\n",
 			preview.OldestVisit.Format("2006-01-02"),
 			time.Since(*preview.OldestVisit).Hours()/24)
 	}
@@ -229,7 +229,7 @@ func runCleanupPreview(cmd *cobra.Command, args []string) error {
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 		_, _ = fmt.Fprintln(w, "Student ID\tVisits to Delete\t")
 		_, _ = fmt.Fprintln(w, "----------\t----------------\t")
-		
+
 		total := 0
 		for studentID, count := range preview.StudentVisitCounts {
 			_, _ = fmt.Fprintf(w, "%d\t%d\t\n", studentID, count)
@@ -281,7 +281,7 @@ func runCleanupStats(cmd *cobra.Command, args []string) error {
 	fmt.Println("========================")
 	fmt.Printf("Total expired visits: %d\n", stats.TotalExpiredVisits)
 	fmt.Printf("Students affected: %d\n", stats.StudentsAffected)
-	
+
 	if stats.OldestExpiredVisit != nil {
 		fmt.Printf("Oldest expired visit: %s (%.0f days ago)\n",
 			stats.OldestExpiredVisit.Format("2006-01-02"),
@@ -293,7 +293,7 @@ func runCleanupStats(cmd *cobra.Command, args []string) error {
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 		_, _ = fmt.Fprintln(w, "Month\tExpired Visits\t")
 		_, _ = fmt.Fprintln(w, "-------\t--------------\t")
-		
+
 		total := int64(0)
 		for month, count := range stats.ExpiredVisitsByMonth {
 			_, _ = fmt.Fprintf(w, "%s\t%d\t\n", month, count)
@@ -309,14 +309,14 @@ func runCleanupStats(cmd *cobra.Command, args []string) error {
 	// Get historical deletion statistics
 	if verbose {
 		fmt.Println("\nRecent deletion activity:")
-		
+
 		// Query recent deletions
 		var recentDeletions []struct {
 			Date           string `bun:"date"`
 			RecordsDeleted int64  `bun:"records_deleted"`
 			StudentCount   int64  `bun:"student_count"`
 		}
-		
+
 		err = db.NewRaw(`
 			SELECT 
 				TO_CHAR(deleted_at, 'YYYY-MM-DD') as date,
@@ -329,12 +329,12 @@ func runCleanupStats(cmd *cobra.Command, args []string) error {
 			ORDER BY date DESC
 			LIMIT 10
 		`).Scan(ctx, &recentDeletions)
-		
+
 		if err == nil && len(recentDeletions) > 0 {
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight)
 			_, _ = fmt.Fprintln(w, "Date\tRecords Deleted\tStudents\t")
 			_, _ = fmt.Fprintln(w, "----------\t---------------\t--------\t")
-			
+
 			for _, d := range recentDeletions {
 				_, _ = fmt.Fprintf(w, "%s\t%d\t%d\t\n", d.Date, d.RecordsDeleted, d.StudentCount)
 			}

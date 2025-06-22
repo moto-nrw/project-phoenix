@@ -325,15 +325,15 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 	}
 
 	var result sessionQueryResult
-	
+
 	// Use facilities service pattern: TableExpr with explicit schema.table names
 	// This avoids BUN model hooks that cause "groups does not exist" errors
 	err := r.db.NewSelect().
 		TableExpr("active.groups AS ag").
 		ColumnExpr("ag.id, ag.start_time, ag.end_time, ag.last_activity, ag.timeout_minutes").
 		ColumnExpr("ag.group_id, ag.device_id, ag.room_id, ag.created_at, ag.updated_at").
-		ColumnExpr("actg.name AS activity_name").  // Use 'actg' not 'act' to avoid confusion
-		ColumnExpr("rm.name AS room_name").        // Use 'rm' not 'r' for clarity
+		ColumnExpr("actg.name AS activity_name"). // Use 'actg' not 'act' to avoid confusion
+		ColumnExpr("rm.name AS room_name").       // Use 'rm' not 'r' for clarity
 		Join("LEFT JOIN activities.groups AS actg ON actg.id = ag.group_id").
 		Join("LEFT JOIN facilities.rooms AS rm ON rm.id = ag.room_id").
 		Where("ag.device_id = ? AND ag.end_time IS NULL", deviceID).
