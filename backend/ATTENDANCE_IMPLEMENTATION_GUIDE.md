@@ -288,13 +288,49 @@ toggleAttendance:
 ### 5.1 Repository Tests
 **File**: `backend/database/repositories/active/attendance_repository_test.go` (NEW)
 
-Test cases:
-- Create attendance record
-- Find by student and date (multiple records)
-- Find latest by student
-- Get current status (various states)
+**Test Coverage (✅ Complete)**:
 
-**Status**: ⬜ To Do
+**`TestAttendanceRepository_Create`** (4 test cases):
+- Create valid attendance record with all required fields
+- Create with check-out time and verify optional fields  
+- Validation test (nil attendance should fail)
+- Verify `IsCheckedIn()` helper method behavior
+
+**`TestAttendanceRepository_FindByStudentAndDate`** (6 test cases):
+- Single record for student on specific date
+- Multiple records ordered by check_in_time ASC
+- No records found for empty date
+- Date filtering ignores time component
+- Different students on same date isolation
+- Different dates for same student filtering
+
+**`TestAttendanceRepository_FindLatestByStudent`** (6 test cases):
+- Latest record across multiple dates
+- Latest record same day with multiple check-ins
+- No records returns proper error
+- Single record for student
+- Complex scenario with mixed dates and times
+- Different students do not interfere
+
+**`TestAttendanceRepository_GetStudentCurrentStatus`** (7 test cases):
+- No records today (not checked in)
+- Student checked in (no check-out time)
+- Student checked out (has check-out time)
+- Multiple records today - returns latest by check-in time
+- Historical records exist but none today
+- Different students on same day
+- Timezone handling and today calculation
+
+**Implementation Features**:
+- Real PostgreSQL connection using existing test DB pattern
+- Foreign key relationships (creates test students, staff, devices, persons)
+- Schema-qualified queries with proper `ModelTableExpr` and quoted aliases
+- BUN ORM integration following existing repository patterns
+- Proper cleanup removing test data in reverse dependency order
+- Error handling testing both success and error scenarios
+- Attendance business logic verification (multiple check-ins, date filtering, status determination)
+
+**Status**: ✅ Complete
 
 ### 5.2 Service Tests
 **File**: `backend/services/active/attendance_service_test.go` (NEW)
@@ -340,7 +376,7 @@ Create test collection for:
 ### Repository Layer
 - ✅ Create repository implementation
 - ✅ Update repository factory
-- ⬜ Write repository tests
+- ✅ Write repository tests
 
 ### Service Layer
 - ✅ Update service interface
