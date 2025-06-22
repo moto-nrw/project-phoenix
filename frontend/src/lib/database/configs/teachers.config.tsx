@@ -118,26 +118,21 @@ export const teachersConfig = defineEntityConfig<Teacher>({
           },
           {
             name: 'tag_id',
-            label: 'RFID-Karte',
-            type: 'select',
-            placeholder: 'RFID-Karte auswählen',
-            options: async () => {
-              try {
-                const response = await fetch('/api/users/rfid-cards/available');
-                if (response.ok) {
-                  const data = await response.json() as { data?: Array<{ tag_id: string }> } | Array<{ tag_id: string }>;
-                  const cards = Array.isArray(data) ? data : (data as Record<string, unknown>).data ?? [];
-                  return (cards as Array<{ tag_id: string }>).map((card) => ({
-                    value: card.tag_id,
-                    label: `RFID: ${card.tag_id}`
-                  }));
-                }
-                return [];
-              } catch (error) {
-                console.error('Error fetching RFID cards:', error);
-                return [];
-              }
-            },
+            label: 'RFID-Karte (Funktion nicht verfügbar)',
+            type: 'custom',
+            component: () => (
+              <div>
+                <label className="mb-1 block text-xs md:text-sm font-medium text-gray-400">
+                  RFID-Karte (Funktion nicht verfügbar)
+                </label>
+                <div className="w-full rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 md:px-4 md:py-2 text-sm md:text-base text-gray-400 cursor-not-allowed">
+                  RFID-Funktion deaktiviert
+                </div>
+                <p className="mt-1 text-xs text-gray-400">
+                  Die RFID-Kartenzuweisung ist derzeit nicht verfügbar
+                </p>
+              </div>
+            ),
           },
         ],
       },
