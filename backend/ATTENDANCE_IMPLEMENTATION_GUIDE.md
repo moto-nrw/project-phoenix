@@ -335,7 +335,7 @@ Create test collection for:
 ### Database Layer
 - ✅ Create migration file
 - ✅ Create model file
-- ⬜ Run migration
+- ✅ Run migration
 
 ### Repository Layer
 - ⬜ Create repository implementation
