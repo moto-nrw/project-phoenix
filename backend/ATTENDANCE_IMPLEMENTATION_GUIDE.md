@@ -279,7 +279,7 @@ toggleAttendance:
 - Build and return response
 ```
 
-**Status**: ⬜ To Do
+**Status**: ✅ Complete
 
 ---
 
@@ -350,8 +350,8 @@ Create test collection for:
 
 ### API Layer
 - ✅ Create response types
-- ⬜ Add routes
-- ⬜ Implement handlers
+- ✅ Add routes
+- ✅ Implement handlers
 - ⬜ Write API tests
 
 ### Integration Testing

@@ -24,6 +24,7 @@ import (
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -37,10 +38,11 @@ type Resource struct {
 	ActivitiesService activitiesSvc.ActivityService
 	ConfigService     configSvc.Service
 	FacilityService   facilitiesSvc.Service
+	EducationService  educationSvc.Service
 }
 
 // NewResource creates a new IoT resource
-func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activeService activeSvc.Service, activitiesService activitiesSvc.ActivityService, configService configSvc.Service, facilityService facilitiesSvc.Service) *Resource {
+func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activeService activeSvc.Service, activitiesService activitiesSvc.ActivityService, configService configSvc.Service, facilityService facilitiesSvc.Service, educationService educationSvc.Service) *Resource {
 	return &Resource{
 		IoTService:        iotService,
 		UsersService:      usersService,
@@ -48,6 +50,7 @@ func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService,
 		ActivitiesService: activitiesService,
 		ConfigService:     configService,
 		FacilityService:   facilityService,
+		EducationService:  educationService,
 	}
 }
 
@@ -114,6 +117,10 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/activities", rs.getTeacherActivities)
 		r.Get("/rooms/available", rs.getAvailableRoomsForDevice)
 		r.Get("/rfid/{tagId}", rs.checkRFIDTagAssignment)
+
+		// Attendance tracking endpoints
+		r.Get("/attendance/status/{rfid}", rs.getAttendanceStatus)
+		r.Post("/attendance/toggle", rs.toggleAttendance)
 
 		// Activity session management
 		r.Post("/session/start", rs.startActivitySession)
@@ -2072,6 +2079,254 @@ func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Reques
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "RFID tag assignment status retrieved")
+}
+
+// getAttendanceStatus handles checking a student's attendance status via RFID tag
+func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device and staff from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	staffCtx := device.StaffFromCtx(r.Context())
+
+	if deviceCtx == nil || staffCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Get RFID from URL parameter and normalize it
+	rfid := chi.URLParam(r, "rfid")
+	if rfid == "" {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("RFID parameter is required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	normalizedRFID := normalizeTagID(rfid)
+
+	// Find person by RFID tag
+	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	if person == nil || person.TagID == nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get student from person
+	studentRepo := rs.UsersService.StudentRepository()
+	student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	if student == nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check teacher has access to student
+	hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(r.Context(), staffCtx.ID, student.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	if !hasAccess {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("teacher does not have access to this student"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get attendance status from service
+	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Load student's group info from education.groups (not SchoolClass)
+	var groupInfo *AttendanceGroupInfo
+	if student.GroupID != nil {
+		group, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
+		if err == nil && group != nil {
+			groupInfo = &AttendanceGroupInfo{
+				ID:   group.ID,
+				Name: group.Name,
+			}
+		}
+		// If error getting group, continue without group info (it's optional)
+	}
+
+	// Build and return response
+	response := AttendanceStatusResponse{
+		Student: AttendanceStudentInfo{
+			ID:        student.ID,
+			FirstName: person.FirstName,
+			LastName:  person.LastName,
+			Group:     groupInfo,
+		},
+		Attendance: AttendanceInfo{
+			Status:       attendanceStatus.Status,
+			Date:         attendanceStatus.Date,
+			CheckInTime:  attendanceStatus.CheckInTime,
+			CheckOutTime: attendanceStatus.CheckOutTime,
+			CheckedInBy:  attendanceStatus.CheckedInBy,
+			CheckedOutBy: attendanceStatus.CheckedOutBy,
+		},
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Student attendance status retrieved successfully")
+}
+
+// toggleAttendance handles toggling a student's attendance state via RFID tag
+func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device and staff from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	staffCtx := device.StaffFromCtx(r.Context())
+
+	if deviceCtx == nil || staffCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Parse request body
+	req := &AttendanceToggleRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Handle "cancel" action by returning cancelled response
+	if req.Action == "cancel" {
+		response := AttendanceToggleResponse{
+			Action:  "cancelled",
+			Message: "Attendance tracking cancelled",
+		}
+		common.Respond(w, r, http.StatusOK, response, "Attendance tracking cancelled")
+		return
+	}
+
+	normalizedRFID := normalizeTagID(req.RFID)
+
+	// Find person by RFID tag
+	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	if person == nil || person.TagID == nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get student from person
+	studentRepo := rs.UsersService.StudentRepository()
+	student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	if student == nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Call ToggleStudentAttendance service
+	result, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, staffCtx.ID, deviceCtx.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get updated attendance status
+	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Load student's group info from education.groups (not SchoolClass)
+	var groupInfo *AttendanceGroupInfo
+	if student.GroupID != nil {
+		group, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
+		if err == nil && group != nil {
+			groupInfo = &AttendanceGroupInfo{
+				ID:   group.ID,
+				Name: group.Name,
+			}
+		}
+		// If error getting group, continue without group info (it's optional)
+	}
+
+	// Determine user-friendly message for RFID device display
+	var message string
+	switch result.Action {
+	case "checked_in":
+		message = fmt.Sprintf("Hallo %s!", person.FirstName)
+	case "checked_out":
+		message = fmt.Sprintf("Tschüss %s!", person.FirstName)
+	default:
+		message = fmt.Sprintf("Attendance %s for %s", result.Action, person.FirstName)
+	}
+
+	// Build and return response
+	response := AttendanceToggleResponse{
+		Action: result.Action,
+		Student: AttendanceStudentInfo{
+			ID:        student.ID,
+			FirstName: person.FirstName,
+			LastName:  person.LastName,
+			Group:     groupInfo,
+		},
+		Attendance: AttendanceInfo{
+			Status:       attendanceStatus.Status,
+			Date:         attendanceStatus.Date,
+			CheckInTime:  attendanceStatus.CheckInTime,
+			CheckOutTime: attendanceStatus.CheckOutTime,
+			CheckedInBy:  attendanceStatus.CheckedInBy,
+			CheckedOutBy: attendanceStatus.CheckedOutBy,
+		},
+		Message: message,
+	}
+
+	common.Respond(w, r, http.StatusOK, response, fmt.Sprintf("Student %s successfully", result.Action))
 }
 
 // normalizeTagID normalizes RFID tag ID format (same logic as in person repository)
