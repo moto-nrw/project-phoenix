@@ -195,7 +195,7 @@ CheckTeacherStudentAccess:
 - Return true/false
 ```
 
-**Status**: ⬜ To Do
+**Status**: ✅ Complete
 
 ### 3.3 Update Service Factory
 **File**: `backend/services/factory.go` (UPDATE)
@@ -207,7 +207,7 @@ Update NewActiveService to include:
 - teacherRepo
 - usersService
 
-**Status**: ⬜ To Do
+**Status**: ✅ Complete
 
 ---
 
@@ -344,8 +344,8 @@ Create test collection for:
 
 ### Service Layer
 - ✅ Update service interface
-- ⬜ Implement service methods
-- ⬜ Update service factory
+- ✅ Implement service methods
+- ✅ Update service factory
 - ⬜ Write service tests
 
 ### API Layer

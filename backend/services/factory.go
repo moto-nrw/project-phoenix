@@ -40,6 +40,29 @@ type Factory struct {
 // NewFactory creates a new services factory
 func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 
+	// Initialize education service first (needed for active service)
+	educationService := education.NewService(
+		repos.Group,
+		repos.GroupTeacher,
+		repos.GroupSubstitution,
+		repos.Room,
+		repos.Teacher,
+		repos.Staff,
+		db,
+	)
+
+	// Initialize users service first (needed for active service)
+	usersService := users.NewPersonService(
+		repos.Person,
+		repos.RFIDCard,
+		repos.Account,
+		repos.PersonGuardian,
+		repos.Student,
+		repos.Staff,
+		repos.Teacher,
+		db,
+	)
+
 	// Initialize active service
 	activeService := active.NewService(
 		repos.ActiveGroup,
@@ -53,19 +76,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.ActivityCategory,
 		repos.Group,
 		repos.Person,
-		db,
-	)
-
-	// Initialize education service
-	educationService := education.NewService(
-		repos.Group,
-		repos.GroupTeacher,
-		repos.GroupSubstitution,
-		repos.Room,
+		repos.Attendance,
+		educationService,
+		usersService,
 		repos.Teacher,
 		repos.Staff,
 		db,
 	)
+
 
 	// Initialize feedback service
 	feedbackService := feedback.NewService(
@@ -112,17 +130,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
-	// Initialize users service
-	usersService := users.NewPersonService(
-		repos.Person,
-		repos.RFIDCard,
-		repos.Account,
-		repos.PersonGuardian,
-		repos.Student,
-		repos.Staff,
-		repos.Teacher,
-		db,
-	)
 
 	// Initialize auth service
 	authService, err := auth.NewService(
