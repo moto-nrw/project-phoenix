@@ -204,7 +204,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
         errors.specialization = 'Fachgebiet ist erforderlich';
       }
       if (!data.id && !data.password) {
-        errors.password = 'Passwort ist erforderlich für neue pädagogische Fachkräfte';
+        errors.password = 'Passwort ist erforderlich für neue pädagogische Fachkraft';
       }
       
       return Object.keys(errors).length > 0 ? errors : null;
