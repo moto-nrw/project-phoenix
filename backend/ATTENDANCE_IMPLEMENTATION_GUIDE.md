@@ -116,7 +116,7 @@ GetStudentCurrentStatus:
 - Limit 1
 ```
 
-**Status**: ⬜ To Do
+**Status**: ✅ Complete
 
 ### 2.2 Update Repository Factory
 **File**: `backend/database/repositories/factory.go` (UPDATE)
@@ -125,7 +125,7 @@ GetStudentCurrentStatus:
 - Initialize in NewFactory
 - Add NewAttendanceRepository() method
 
-**Status**: ⬜ To Do
+**Status**: ✅ Complete
 
 ---
 
@@ -338,8 +338,8 @@ Create test collection for:
 - ✅ Run migration
 
 ### Repository Layer
-- ⬜ Create repository implementation
-- ⬜ Update repository factory
+- ✅ Create repository implementation
+- ✅ Update repository factory
 - ⬜ Write repository tests
 
 ### Service Layer
