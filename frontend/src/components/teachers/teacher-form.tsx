@@ -16,7 +16,7 @@ export function TeacherForm({
                                         onSubmitAction,
                                         onCancelAction,
                                         isLoading,
-                                        formTitle = "Lehrerdetails",
+                                        formTitle = "Details der pädagogischen Fachkraft",
                                         submitLabel = "Speichern",
                                         rfidCards = [],
                                     }: TeacherFormProps) {

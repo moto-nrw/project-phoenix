@@ -31,7 +31,7 @@ export const rolesConfig = defineEntityConfig<Role>({
             label: 'Name',
             type: 'text',
             required: true,
-            placeholder: 'z.B. Lehrer, Administrator',
+            placeholder: 'z.B. Pädagogische Fachkraft, Administrator',
           },
           {
             name: 'description',

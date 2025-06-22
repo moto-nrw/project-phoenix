@@ -135,7 +135,7 @@ export function QuickCreateActivityModal({
         
         // Handle specific error cases with user-friendly messages
         if (message.includes("user is not a teacher")) {
-          errorMessage = "Nur Lehrkräfte können Aktivitäten erstellen. Bitte wenden Sie sich an eine Lehrkraft oder einen Administrator.";
+          errorMessage = "Nur pädagogische Fachkräfte können Aktivitäten erstellen. Bitte wenden Sie sich an eine pädagogische Fachkraft oder einen Administrator.";
         } else if (message.includes("401")) {
           errorMessage = "Sie haben keine Berechtigung, Aktivitäten zu erstellen.";
         } else if (message.includes("403")) {

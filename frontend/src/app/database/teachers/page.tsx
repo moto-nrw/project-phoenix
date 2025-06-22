@@ -25,7 +25,7 @@ export default function TeachersPage() {
             onClick: (teacher: Teacher) => {
               // Check if teacher has an account
               if (!teacher.account_id) {
-                alert('Dieser Lehrer hat kein verknüpftes Konto. Bitte erstellen Sie zuerst ein Konto für diesen Lehrer.');
+                alert('Diese pädagogische Fachkraft hat kein verknüpftes Konto. Bitte erstellen Sie zuerst ein Konto für diese pädagogische Fachkraft.');
                 return;
               }
               setSelectedTeacher(teacher);
@@ -38,7 +38,7 @@ export default function TeachersPage() {
             onClick: (teacher: Teacher) => {
               // Check if teacher has an account
               if (!teacher.account_id) {
-                alert('Dieser Lehrer hat kein verknüpftes Konto. Bitte erstellen Sie zuerst ein Konto für diesen Lehrer.');
+                alert('Diese pädagogische Fachkraft hat kein verknüpftes Konto. Bitte erstellen Sie zuerst ein Konto für diese pädagogische Fachkraft.');
                 return;
               }
               setSelectedTeacher(teacher);

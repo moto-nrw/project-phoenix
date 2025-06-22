@@ -78,8 +78,8 @@ function prepareTeacherForBackend(data: Partial<Teacher> & { password?: string }
 
 export const teachersConfig = defineEntityConfig<Teacher>({
   name: {
-    singular: 'Lehrer',
-    plural: 'Lehrer'
+    singular: 'Pädagogische Fachkraft',
+    plural: 'Pädagogische Fachkräfte'
   },
   
   theme: databaseThemes.teachers,
@@ -113,7 +113,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
             name: 'email',
             label: 'E-Mail',
             type: 'email',
-            placeholder: 'lehrer@schule.de',
+            placeholder: 'fachkraft@schule.de',
             helperText: 'Wird für die Anmeldung verwendet',
           },
           {
@@ -157,7 +157,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
             name: 'role',
             label: 'Rolle',
             type: 'text',
-            placeholder: 'z.B. Klassenlehrer, Fachlehrer',
+            placeholder: 'z.B. Gruppenbetreuer, Fachbetreuer',
           },
           {
             name: 'qualifications',
@@ -185,7 +185,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
             type: 'password' as const,
             required: true,
             placeholder: 'Starkes Passwort erstellen',
-            helperText: 'Der Lehrer sollte das Passwort bei der ersten Anmeldung ändern.',
+            helperText: 'Die pädagogische Fachkraft sollte das Passwort bei der ersten Anmeldung ändern.',
           },
         ],
       },
@@ -209,7 +209,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
         errors.specialization = 'Fachgebiet ist erforderlich';
       }
       if (!data.id && !data.password) {
-        errors.password = 'Passwort ist erforderlich für neue Lehrer';
+        errors.password = 'Passwort ist erforderlich für neue pädagogische Fachkräfte';
       }
       
       return Object.keys(errors).length > 0 ? errors : null;
@@ -225,7 +225,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
         const parts: string[] = [];
         if (teacher.specialization) parts.push(teacher.specialization);
         if (teacher.role) parts.push(teacher.role);
-        return parts.join(' • ') || 'Lehrer';
+        return parts.join(' • ') || 'Pädagogische Fachkraft';
       },
       avatar: {
         text: (teacher: Teacher) => {
@@ -318,9 +318,9 @@ export const teachersConfig = defineEntityConfig<Teacher>({
   },
   
   list: {
-    title: 'Lehrer auswählen',
-    description: 'Verwalten Sie Lehrerprofile und Zuordnungen',
-    searchPlaceholder: 'Lehrer suchen...',
+    title: 'Pädagogische Fachkraft auswählen',
+    description: 'Verwalten Sie Profile der pädagogischen Fachkräfte und Zuordnungen',
+    searchPlaceholder: 'Pädagogische Fachkraft suchen...',
     
     // Frontend search for small dataset
     searchStrategy: 'frontend',
@@ -338,7 +338,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
     
     item: {
       title: (teacher: Teacher) => teacher.name ?? `${teacher.first_name} ${teacher.last_name}`,
-      subtitle: (teacher: Teacher) => teacher.specialization ?? 'Lehrer',
+      subtitle: (teacher: Teacher) => teacher.specialization ?? 'Pädagogische Fachkraft',
       description: (teacher: Teacher) => {
         const parts: string[] = [];
         if (teacher.role) parts.push(teacher.role);
@@ -385,12 +385,12 @@ export const teachersConfig = defineEntityConfig<Teacher>({
   },
   
   labels: {
-    createButton: 'Neuen Lehrer erstellen',
-    createModalTitle: 'Neuer Lehrer',
-    editModalTitle: 'Lehrer bearbeiten',
-    detailModalTitle: 'Lehrerdetails',
-    deleteConfirmation: 'Sind Sie sicher, dass Sie diesen Lehrer löschen möchten?',
-    emptyState: 'Keine Lehrer gefunden',
+    createButton: 'Neue pädagogische Fachkraft erstellen',
+    createModalTitle: 'Neue pädagogische Fachkraft',
+    editModalTitle: 'Pädagogische Fachkraft bearbeiten',
+    detailModalTitle: 'Details der pädagogischen Fachkraft',
+    deleteConfirmation: 'Sind Sie sicher, dass Sie diese pädagogische Fachkraft löschen möchten?',
+    emptyState: 'Keine pädagogischen Fachkräfte gefunden',
   },
   
   // Custom credential display after creation
