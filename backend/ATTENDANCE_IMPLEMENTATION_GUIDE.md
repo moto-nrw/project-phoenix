@@ -335,13 +335,27 @@ toggleAttendance:
 ### 5.2 Service Tests
 **File**: `backend/services/active/attendance_service_test.go` (NEW)
 
-Test cases:
-- Get status: not checked in, checked in, checked out
-- Toggle: check-in flow, check-out flow
-- Multiple check-ins per day
-- Permission checks (access granted/denied)
+**Test Coverage (🔄 In Progress)**:
 
-**Status**: ⬜ To Do
+**Implemented Tests**:
+- ✅ Get status: not checked in (with mock repository)
+- ✅ IsCheckedIn helper method on Attendance model
+- ✅ Mock repository behavior testing
+- ✅ Service testing pattern documentation
+
+**Remaining Tests**:
+- ⬜ Get status: checked in, checked out (requires comprehensive mocking)
+- ⬜ Toggle: check-in flow, check-out flow (requires service dependency mocks)
+- ⬜ Multiple check-ins per day scenarios
+- ⬜ Permission checks (CheckTeacherStudentAccess with educationService/usersService mocks)
+
+**Implementation Notes**:
+- Establishes foundation with MockAttendanceRepository using testify/mock
+- Demonstrates testing patterns for future comprehensive implementation
+- Requires mocking of educationService, usersService, staffRepo, teacherRepo, studentRepo for complete coverage
+- Two demonstration tests skipped to show dependency requirements
+
+**Status**: 🔄 In Progress
 
 ### 5.3 API Tests
 **File**: `backend/api/iot/attendance_handlers_test.go` (NEW)
@@ -382,7 +396,7 @@ Create test collection for:
 - ✅ Update service interface
 - ✅ Implement service methods
 - ✅ Update service factory
-- ⬜ Write service tests
+- 🔄 Write service tests
 
 ### API Layer
 - ✅ Create response types

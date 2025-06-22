@@ -84,7 +84,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
-
 	// Initialize feedback service
 	feedbackService := feedback.NewService(
 		repos.FeedbackEntry,
@@ -129,7 +128,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.RecurrenceRule,
 		db,
 	)
-
 
 	// Initialize auth service
 	authService, err := auth.NewService(

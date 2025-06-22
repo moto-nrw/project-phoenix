@@ -23,7 +23,7 @@ type AttendanceStudentInfo struct {
 
 // AttendanceInfo represents attendance status and timing information
 type AttendanceInfo struct {
-	Status       string     `json:"status"`         // "not_checked_in", "checked_in", "checked_out"
+	Status       string     `json:"status"` // "not_checked_in", "checked_in", "checked_out"
 	Date         time.Time  `json:"date"`
 	CheckInTime  *time.Time `json:"check_in_time"`
 	CheckOutTime *time.Time `json:"check_out_time"`
@@ -53,7 +53,7 @@ func (req *AttendanceToggleRequest) Bind(r *http.Request) error {
 
 // AttendanceToggleResponse represents the response after toggling attendance
 type AttendanceToggleResponse struct {
-	Action     string                `json:"action"`     // "checked_in", "checked_out", "cancelled"
+	Action     string                `json:"action"` // "checked_in", "checked_out", "cancelled"
 	Student    AttendanceStudentInfo `json:"student"`
 	Attendance AttendanceInfo        `json:"attendance"`
 	Message    string                `json:"message"` // User-friendly message for RFID device display
