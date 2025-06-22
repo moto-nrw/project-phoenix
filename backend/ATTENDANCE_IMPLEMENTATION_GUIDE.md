@@ -238,7 +238,7 @@ AttendanceGroupInfo:
 
 **Note**: Group information comes from the `education.groups` table via `educationService.GetGroup()`, not from the student's SchoolClass field.
 
-**Status**: ⬜ To Do
+**Status**: ✅ Complete
 
 ### 4.2 Add Attendance Handlers
 **File**: `backend/api/iot/api.go` (UPDATE)
@@ -349,7 +349,7 @@ Create test collection for:
 - ⬜ Write service tests
 
 ### API Layer
-- ⬜ Create response types
+- ✅ Create response types
 - ⬜ Add routes
 - ⬜ Implement handlers
 - ⬜ Write API tests
