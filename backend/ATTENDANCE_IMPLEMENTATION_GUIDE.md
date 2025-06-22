@@ -71,8 +71,9 @@ type Attendance struct {
 }
 
 // BeforeAppendModel hook for BUN
-// - Set timestamps on insert/update
-// - Set table expression for selects
+// - Commented out (follows active schema pattern)
+// - Database handles timestamps via defaults and triggers
+// - Would only set table expressions if uncommented
 
 // Helper method: IsCheckedIn() bool
 // - Returns true if CheckOutTime is nil
@@ -84,7 +85,7 @@ type Attendance struct {
 // - GetStudentCurrentStatus(studentID) (*Attendance, error)
 ```
 
-**Status**: ⬜ To Do
+**Status**: ✅ Complete
 
 ---
 
@@ -333,7 +334,7 @@ Create test collection for:
 
 ### Database Layer
 - ✅ Create migration file
-- ⬜ Create model file
+- ✅ Create model file
 - ⬜ Run migration
 
 ### Repository Layer
