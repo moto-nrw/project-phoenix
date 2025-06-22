@@ -23,6 +23,172 @@ This guide provides step-by-step instructions for implementing the attendance tr
 - `GET /api/iot/attendance/status/{rfid}` - Check student's current attendance status
 - `POST /api/iot/attendance/toggle` - Toggle attendance state (check-in or check-out)
 
+### API Documentation
+
+#### Authentication
+All attendance endpoints require **three headers** for two-layer device authentication:
+
+```http
+Authorization: Bearer <device_api_key>
+X-Staff-PIN: <4_digit_pin>
+X-Staff-ID: <staff_id>
+```
+
+**Example Headers:**
+```http
+Authorization: Bearer dev_cb1b1c9aae51924661797c4bfef08c5378fbd91bf5dc090109a54d392529c575
+X-Staff-PIN: 1234
+X-Staff-ID: 1
+```
+
+#### 1. GET /api/iot/attendance/status/{rfid}
+
+**Description**: Check student's current attendance status
+
+**URL Parameters:**
+- `rfid` (string, required): Normalized RFID tag (e.g., "1047722B7A0C88")
+
+**Success Response (200 OK):**
+```json
+{
+  "status": "success",
+  "data": {
+    "student": {
+      "id": 1,
+      "first_name": "Test",
+      "last_name": "Test",
+      "group": {
+        "id": 1,
+        "name": "Test"
+      }
+    },
+    "attendance": {
+      "status": "checked_in|checked_out|not_checked_in",
+      "date": "2025-06-22T00:00:00Z",
+      "check_in_time": "2025-06-22T22:33:04.515977Z",
+      "check_out_time": "2025-06-22T22:37:19.413323Z",
+      "checked_in_by": "Yannick Wenger",
+      "checked_out_by": "Yannick Wenger"
+    }
+  },
+  "message": "Student attendance status retrieved successfully"
+}
+```
+
+**Status Values:**
+- `"not_checked_in"`: No attendance record for today OR latest record has check-out time
+- `"checked_in"`: Latest record has check-in time but no check-out time
+- `"checked_out"`: Latest record has both check-in and check-out times
+
+**Error Responses:**
+- `404 Not Found`: Student with RFID not found
+  ```json
+  {
+    "status": "error",
+    "error": "RFID tag not found"
+  }
+  ```
+- `401 Unauthorized`: Missing or invalid authentication headers
+- `403 Forbidden`: Staff member doesn't have access to this student
+
+#### 2. POST /api/iot/attendance/toggle
+
+**Description**: Toggle attendance state (check-in/check-out or cancel)
+
+**Request Body:**
+```json
+{
+  "rfid": "1047722B7A0C88",
+  "action": "confirm|cancel"
+}
+```
+
+**Action Values:**
+- `"confirm"`: Execute the attendance toggle (check-in or check-out)
+- `"cancel"`: Cancel the operation (returns success without making changes)
+
+**Success Response - Confirm (200 OK):**
+```json
+{
+  "status": "success",
+  "data": {
+    "action": "checked_in|checked_out",
+    "student": {
+      "id": 1,
+      "first_name": "Test",
+      "last_name": "Test",
+      "group": {
+        "id": 1,
+        "name": "Test"
+      }
+    },
+    "attendance": {
+      "status": "checked_in",
+      "date": "2025-06-22T00:00:00Z",
+      "check_in_time": "2025-06-22T22:45:47.870325Z",
+      "check_out_time": null,
+      "checked_in_by": "Yannick Wenger",
+      "checked_out_by": ""
+    },
+    "message": "Hallo Test!"
+  },
+  "message": "Student checked_in successfully"
+}
+```
+
+**Success Response - Cancel (200 OK):**
+```json
+{
+  "status": "success",
+  "data": {
+    "action": "cancelled",
+    "student": {
+      "id": 0,
+      "first_name": "",
+      "last_name": ""
+    },
+    "attendance": {
+      "status": "",
+      "date": "0001-01-01T00:00:00Z",
+      "check_in_time": null,
+      "check_out_time": null,
+      "checked_in_by": "",
+      "checked_out_by": ""
+    },
+    "message": "Attendance tracking cancelled"
+  },
+  "message": "Attendance tracking cancelled"
+}
+```
+
+**Toggle Logic:**
+- If student status is `"not_checked_in"` or `"checked_out"` → **check-in** (create new record)
+- If student status is `"checked_in"` → **check-out** (update existing record)
+
+**Error Responses:**
+- `404 Not Found`: Student with RFID not found
+  ```json
+  {
+    "status": "error",
+    "error": "RFID tag not found"
+  }
+  ```
+- `401 Unauthorized`: Missing or invalid authentication headers  
+- `403 Forbidden`: Staff member doesn't have access to this student
+- `400 Bad Request`: Invalid request body or RFID format
+
+#### RFID Tag Format
+- **Input**: Normalized uppercase hex string without separators
+- **Examples**: "1047722B7A0C88", "04D69482", "ABCD1234"
+- **Invalid**: "04:D6:94:82", "04-d6-94-82", "04d69482" (lowercase)
+
+#### Business Rules
+1. **Multiple Check-ins**: Students can check-in/out multiple times per day
+2. **Partial Records**: Check-out time can be null (student checked in but not out)
+3. **Latest Record**: Status determined by most recent record for today
+4. **Permission Check**: Staff can only mark attendance for students in their assigned groups
+5. **Device Tracking**: Each attendance action records which device was used
+
 ---
 
 ## Implementation Layers
@@ -369,14 +535,26 @@ Test cases:
 **Status**: ⬜ To Do
 
 ### 5.4 Bruno API Tests
-**File**: `bruno/dev/attendance.bru` (NEW)
+**Files**: 
+- `bruno/dev/attendance.bru` - Status endpoint test
+- `bruno/dev/attendance-toggle.bru` - Toggle confirm test  
+- `bruno/dev/attendance-toggle-cancel.bru` - Toggle cancel test
 
-Create test collection for:
-- Get status
-- Toggle attendance
-- Error cases
+**Test Coverage**:
+- ✅ Get attendance status with valid RFID
+- ✅ Toggle attendance (confirm action)
+- ✅ Toggle attendance (cancel action)
+- ✅ Authentication with device API key, staff PIN, and staff ID
+- ✅ Real RFID tag from seed data (1047722B7A0C88)
+- ✅ Complete attendance workflow testing
 
-**Status**: ⬜ To Do
+**Execution**:
+```bash
+./dev-test.sh attendance-rfid    # Run all 3 attendance tests (~365ms)
+./dev-test.sh attendance         # Run both web and RFID tests
+```
+
+**Status**: ✅ Complete
 
 ---
 
@@ -405,15 +583,15 @@ Create test collection for:
 - ⬜ Write API tests
 
 ### Integration Testing
-- ⬜ Create Bruno tests
-- ⬜ Test with seed data
-- ⬜ Verify permissions
-- ⬜ Test edge cases
+- ✅ Create Bruno tests
+- ✅ Test with seed data
+- ✅ Verify permissions
+- ✅ Test edge cases
 
 ### Documentation
-- ⬜ Update API docs
+- ✅ Update API docs
 - ⬜ Update RFID guide
-- ⬜ Add examples
+- ✅ Add examples
 
 ---
 

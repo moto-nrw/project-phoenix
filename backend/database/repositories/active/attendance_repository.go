@@ -84,7 +84,7 @@ func (r *AttendanceRepository) GetStudentCurrentStatus(ctx context.Context, stud
 		Model(attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id = ? AND "attendance".date = ?`, studentID, today).
-		Order(`"attendance".check_in_time DESC`).
+		Order(`check_in_time DESC`).
 		Limit(1).
 		Scan(ctx)
 
