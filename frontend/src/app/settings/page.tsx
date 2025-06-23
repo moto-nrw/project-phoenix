@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -72,6 +72,21 @@ function SettingsContent() {
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [systemNotifications, setSystemNotifications] = useState(true);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+
+  // Detect mobile on mount and set initial section accordingly
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 1024; // lg breakpoint
+      // On mobile, start with no section selected (show menu)
+      // On desktop, keep "general" section
+      if (mobile) {
+        setActiveSection(null);
+      }
+    };
+
+    // Only run on mount
+    checkMobile();
+  }, []);
 
   if (status === "loading") {
     return (
