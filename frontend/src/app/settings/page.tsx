@@ -57,7 +57,7 @@ const settingsSections: SettingsSection[] = [
   {
     id: "database",
     title: "Datenverwaltung",
-    description: "Schüler, Lehrer, Räume und Aktivitäten verwalten",
+    description: "Schüler, Pädagogische Fachkräfte, Räume und Aktivitäten verwalten",
     iconPath: "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4",
     href: "/database",
     badge: "Admin",

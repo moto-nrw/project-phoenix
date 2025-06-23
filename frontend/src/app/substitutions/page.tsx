@@ -190,7 +190,7 @@ export default function SubstitutionPage() {
                 {/* Mobile-optimized Header */}
                 <div className="mb-4 md:mb-8">
                     <h1 className="text-2xl md:text-4xl font-bold text-gray-900">Vertretungsverwaltung</h1>
-                    <p className="mt-1 text-sm md:text-base text-gray-600">Verwalte Lehrkräfte und Vertretungszuweisungen</p>
+                    <p className="mt-1 text-sm md:text-base text-gray-600">Verwalte pädagogische Fachkräfte und Vertretungszuweisungen</p>
                 </div>
 
                 {/* Mobile Search Bar - Always Visible */}
@@ -198,7 +198,7 @@ export default function SubstitutionPage() {
                     <Input
                         label="Schnellsuche"
                         name="searchTerm"
-                        placeholder="Lehrkraft suchen..."
+                        placeholder="Pädagogische Fachkraft suchen..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="text-base" // Prevent iOS zoom
@@ -263,7 +263,7 @@ export default function SubstitutionPage() {
                 {/* Teachers Results Section */}
                 <div className="mb-6 md:mb-8 overflow-hidden rounded-xl bg-white/90 shadow-md backdrop-blur-sm">
                     <div className="p-4 md:p-6">
-                        <h2 className="mb-4 md:mb-6 text-lg md:text-xl font-bold text-gray-800">Verfügbare Lehrkräfte</h2>
+                        <h2 className="mb-4 md:mb-6 text-lg md:text-xl font-bold text-gray-800">Verfügbare pädagogische Fachkräfte</h2>
 
                         {error && (
                             <div className="mb-4 md:mb-6">
@@ -381,7 +381,7 @@ export default function SubstitutionPage() {
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                             </svg>
                                             <div>
-                                                <h3 className="text-lg font-medium text-gray-900">Keine Lehrkräfte gefunden</h3>
+                                                <h3 className="text-lg font-medium text-gray-900">Keine pädagogischen Fachkräfte gefunden</h3>
                                                 <p className="text-gray-600">Versuche deine Suchkriterien anzupassen.</p>
                                             </div>
                                         </div>
@@ -528,7 +528,7 @@ export default function SubstitutionPage() {
                             <h2 className="mb-4 text-lg md:text-xl font-bold text-gray-800">Vertretung zuweisen</h2>
 
                             <div className="mb-6">
-                                <p className="mb-2 text-sm font-medium text-gray-700">Lehrkraft:</p>
+                                <p className="mb-2 text-sm font-medium text-gray-700">Pädagogische Fachkraft:</p>
                                 <p className="font-medium text-gray-900">{formatTeacherName(selectedTeacher)}</p>
                             </div>
 

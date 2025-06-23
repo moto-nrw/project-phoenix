@@ -61,7 +61,9 @@ export const studentsConfig = defineEntityConfig<Student>({
               GroupSelect({ 
                 name: 'group_id', 
                 value: props.value as string, 
-                onChange: props.onChange as (value: string) => void 
+                onChange: props.onChange as (value: string) => void,
+                label: props.label,
+                required: props.required
               }),
           },
         ],

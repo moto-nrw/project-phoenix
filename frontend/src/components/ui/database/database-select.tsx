@@ -232,7 +232,7 @@ export function RoomSelect(props: Omit<EntitySelectProps, 'entityType'>) {
 }
 
 export function TeacherSelect(props: Omit<EntitySelectProps, 'entityType'>) {
-  return <EntitySelect {...props} entityType="teachers" label={props.label ?? "Lehrer"} />;
+  return <EntitySelect {...props} entityType="teachers" label={props.label ?? "Pädagogische Fachkraft"} />;
 }
 
 export function ActivitySelect(props: Omit<EntitySelectProps, 'entityType'>) {

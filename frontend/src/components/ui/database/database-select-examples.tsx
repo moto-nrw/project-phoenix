@@ -37,7 +37,7 @@ const _roleFieldExample = (_formData: { role: string }, _handleFieldChange: (nam
       value={value as string}
       onChange={onChange as (value: string) => void}
       options={[
-        { value: 'teacher', label: 'Lehrer' },
+        { value: 'teacher', label: 'Pädagogische Fachkraft' },
         { value: 'coordinator', label: 'Koordinator' },
         { value: 'assistant', label: 'Assistent' },
       ]}

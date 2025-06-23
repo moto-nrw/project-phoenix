@@ -16,9 +16,9 @@ export function TeacherForm({
                                         onSubmitAction,
                                         onCancelAction,
                                         isLoading,
-                                        formTitle = "Lehrerdetails",
+                                        formTitle = "Details der pädagogischen Fachkraft",
                                         submitLabel = "Speichern",
-                                        rfidCards = [],
+                                        rfidCards: _rfidCards = [],
                                     }: TeacherFormProps) {
     // Form state
     const [firstName, setFirstName] = useState(initialData.first_name ?? "");
@@ -253,28 +253,28 @@ export function TeacherForm({
                             </div>
                         )}
 
-                        {/* RFID Tag */}
+                        {/* RFID Tag - Disabled */}
                         <div>
                             <label
                                 htmlFor="tagId"
-                                className="mb-1 block text-sm font-medium text-gray-700"
+                                className="mb-1 block text-sm font-medium text-gray-500"
                             >
-                                RFID-Karte
+                                RFID-Karte (Funktion nicht verfügbar)
                             </label>
-                            <select
-                                id="tagId"
-                                value={tagId}
-                                onChange={(e) => setTagId(e.target.value)}
-                                className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                disabled={isLoading}
-                            >
-                                <option key="no-card" value="">Keine RFID-Karte</option>
-                                {Array.isArray(rfidCards) && rfidCards.map((card) => (
-                                    <option key={card.id} value={card.id}>
-                                        {card.label}
-                                    </option>
-                                ))}
-                            </select>
+                            <div className="relative">
+                                <select
+                                    id="tagId"
+                                    value=""
+                                    onChange={(e) => setTagId(e.target.value)}
+                                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-gray-500 cursor-not-allowed"
+                                    disabled={true}
+                                >
+                                    <option value="">RFID-Funktion deaktiviert</option>
+                                </select>
+                                <p className="mt-1 text-xs text-gray-500">
+                                    Die RFID-Kartenzuweisung ist derzeit nicht verfügbar
+                                </p>
+                            </div>
                         </div>
 
                         {/* Password - only for new teachers */}

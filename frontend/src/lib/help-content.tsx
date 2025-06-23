@@ -824,8 +824,8 @@ export const NAVIGATION_HELP: Record<string, { title: string; content: ReactNode
                         <div className="flex items-start space-x-3">
                             <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2 flex-shrink-0"></span>
                             <div>
-                                <span className="font-medium text-gray-900">Lehrer verwalten</span>
-                                <p className="text-sm text-gray-600">Lehrer- und Betreuerdaten organisieren</p>
+                                <span className="font-medium text-gray-900">Pädagogische Fachkräfte verwalten</span>
+                                <p className="text-sm text-gray-600">Daten der pädagogischen Fachkräfte und Betreuerdaten organisieren</p>
                             </div>
                         </div>
                     </div>

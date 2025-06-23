@@ -636,7 +636,7 @@ export function DatabasePage<T extends { id: string }>({
           <DatabaseForm
             sections={config.form.sections.filter(section => 
               // Filter out password section when editing teachers
-              !(section.title === 'Zugangsdaten' && config.name.singular === 'Lehrer')
+              !(section.title === 'Zugangsdaten' && config.name.singular === 'Pädagogische Fachkraft')
             ).map(section => ({
               title: section.title,
               subtitle: section.subtitle,
