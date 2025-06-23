@@ -85,7 +85,7 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		assert.False(t, conflict.HasConflict, "Expected no conflict for inactive activity")
 
 		// Start session - should succeed
-		session, err := service.StartActivitySession(ctx, activityID, deviceID, staffID)
+		session, err := service.StartActivitySession(ctx, activityID, deviceID, staffID, nil)
 		require.NoError(t, err)
 		assert.NotNil(t, session)
 		assert.Equal(t, activityID, session.GroupID)
@@ -101,7 +101,7 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		defer cleanupTestData(t, db, activityID)
 
 		// Start session on device 1
-		session1, err := service.StartActivitySession(ctx, activityID, device1ID, staffID)
+		session1, err := service.StartActivitySession(ctx, activityID, device1ID, staffID, nil)
 		require.NoError(t, err)
 		assert.NotNil(t, session1)
 
@@ -112,7 +112,7 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		assert.Contains(t, conflict.ConflictMessage, "already active")
 
 		// Try to start session on device 2 - should fail
-		_, err = service.StartActivitySession(ctx, activityID, device2ID, staffID)
+		_, err = service.StartActivitySession(ctx, activityID, device2ID, staffID, nil)
 		assert.Error(t, err, "Expected error when starting session on conflicting device")
 		assert.Contains(t, err.Error(), "conflict")
 	})
@@ -126,12 +126,12 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		defer cleanupTestData(t, db, activity1ID, activity2ID)
 
 		// Start session for activity 1 on device
-		session1, err := service.StartActivitySession(ctx, activity1ID, deviceID, staffID)
+		session1, err := service.StartActivitySession(ctx, activity1ID, deviceID, staffID, nil)
 		require.NoError(t, err)
 		assert.NotNil(t, session1)
 
 		// Try to start activity 2 on same device - should fail
-		_, err = service.StartActivitySession(ctx, activity2ID, deviceID, staffID)
+		_, err = service.StartActivitySession(ctx, activity2ID, deviceID, staffID, nil)
 		assert.Error(t, err, "Expected error when device already running another activity")
 	})
 
@@ -144,12 +144,12 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		defer cleanupTestData(t, db, activityID)
 
 		// Start session on device 1
-		session1, err := service.StartActivitySession(ctx, activityID, device1ID, staffID)
+		session1, err := service.StartActivitySession(ctx, activityID, device1ID, staffID, nil)
 		require.NoError(t, err)
 		assert.NotNil(t, session1)
 
 		// Force start on device 2 - should succeed and end previous session
-		session2, err := service.ForceStartActivitySession(ctx, activityID, device2ID, staffID)
+		session2, err := service.ForceStartActivitySession(ctx, activityID, device2ID, staffID, nil)
 		require.NoError(t, err)
 		assert.NotNil(t, session2)
 		assert.Equal(t, activityID, session2.GroupID)
@@ -169,7 +169,7 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		defer cleanupTestData(t, db, activityID)
 
 		// Start session
-		session, err := service.StartActivitySession(ctx, activityID, deviceID, staffID)
+		session, err := service.StartActivitySession(ctx, activityID, deviceID, staffID, nil)
 		require.NoError(t, err)
 
 		// Get current session
@@ -210,7 +210,7 @@ func TestSessionLifecycle(t *testing.T) {
 		defer cleanupTestData(t, db, activityID)
 
 		// Start session
-		session, err := service.StartActivitySession(ctx, activityID, deviceID, staffID)
+		session, err := service.StartActivitySession(ctx, activityID, deviceID, staffID, nil)
 		require.NoError(t, err)
 		assert.NotNil(t, session)
 		assert.Nil(t, session.EndTime, "New session should not have end time")
@@ -300,13 +300,13 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 		results := make(chan error, 2)
 
 		go func() {
-			_, err := service.StartActivitySession(ctx, activityID, device1ID, staffID)
+			_, err := service.StartActivitySession(ctx, activityID, device1ID, staffID, nil)
 			results <- err
 		}()
 
 		go func() {
 			time.Sleep(10 * time.Millisecond) // Small delay to test race condition
-			_, err := service.StartActivitySession(ctx, activityID, device2ID, staffID)
+			_, err := service.StartActivitySession(ctx, activityID, device2ID, staffID, nil)
 			results <- err
 		}()
 
@@ -387,7 +387,7 @@ func BenchmarkConflictDetection(b *testing.B) {
 	staffID := int64(1)
 
 	// Start a session to create conflict scenario
-	_, err := service.StartActivitySession(ctx, activityID, deviceID, staffID)
+	_, err := service.StartActivitySession(ctx, activityID, deviceID, staffID, nil)
 	require.NoError(b, err)
 
 	defer cleanupTestDataBench(b, db, activityID)

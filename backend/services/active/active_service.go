@@ -11,6 +11,8 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/services/education"
+	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
 
@@ -30,6 +32,13 @@ type service struct {
 	educationGroupRepo educationModels.GroupRepository
 	personRepo         userModels.PersonRepository
 
+	// New dependencies for attendance tracking
+	attendanceRepo   active.AttendanceRepository
+	educationService education.Service
+	usersService     users.PersonService
+	teacherRepo      userModels.TeacherRepository
+	staffRepo        userModels.StaffRepository
+
 	db        *bun.DB
 	txHandler *base.TxHandler
 }
@@ -47,6 +56,11 @@ func NewService(
 	activityCatRepo activitiesModels.CategoryRepository,
 	educationGroupRepo educationModels.GroupRepository,
 	personRepo userModels.PersonRepository,
+	attendanceRepo active.AttendanceRepository,
+	educationService education.Service,
+	usersService users.PersonService,
+	teacherRepo userModels.TeacherRepository,
+	staffRepo userModels.StaffRepository,
 	db *bun.DB,
 ) Service {
 	return &service{
@@ -61,6 +75,11 @@ func NewService(
 		activityCatRepo:    activityCatRepo,
 		educationGroupRepo: educationGroupRepo,
 		personRepo:         personRepo,
+		attendanceRepo:     attendanceRepo,
+		educationService:   educationService,
+		usersService:       usersService,
+		teacherRepo:        teacherRepo,
+		staffRepo:          staffRepo,
 		db:                 db,
 		txHandler:          base.NewTxHandler(db),
 	}
@@ -80,6 +99,9 @@ func (s *service) WithTx(tx bun.Tx) interface{} {
 	var activityCatRepo = s.activityCatRepo
 	var educationGroupRepo = s.educationGroupRepo
 	var personRepo = s.personRepo
+	var attendanceRepo = s.attendanceRepo
+	var teacherRepo = s.teacherRepo
+	var staffRepo = s.staffRepo
 
 	// Try to cast repositories to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.groupRepo.(base.TransactionalRepository); ok {
@@ -115,6 +137,15 @@ func (s *service) WithTx(tx bun.Tx) interface{} {
 	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok {
 		personRepo = txRepo.WithTx(tx).(userModels.PersonRepository)
 	}
+	if txRepo, ok := s.attendanceRepo.(base.TransactionalRepository); ok {
+		attendanceRepo = txRepo.WithTx(tx).(active.AttendanceRepository)
+	}
+	if txRepo, ok := s.teacherRepo.(base.TransactionalRepository); ok {
+		teacherRepo = txRepo.WithTx(tx).(userModels.TeacherRepository)
+	}
+	if txRepo, ok := s.staffRepo.(base.TransactionalRepository); ok {
+		staffRepo = txRepo.WithTx(tx).(userModels.StaffRepository)
+	}
 
 	// Return a new service with the transaction
 	return &service{
@@ -129,6 +160,11 @@ func (s *service) WithTx(tx bun.Tx) interface{} {
 		activityCatRepo:    activityCatRepo,
 		educationGroupRepo: educationGroupRepo,
 		personRepo:         personRepo,
+		attendanceRepo:     attendanceRepo,
+		educationService:   s.educationService,
+		usersService:       s.usersService,
+		teacherRepo:        teacherRepo,
+		staffRepo:          staffRepo,
 		db:                 s.db,
 		txHandler:          s.txHandler.WithTx(tx),
 	}
@@ -1131,7 +1167,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 // Activity Session Management with Conflict Detection
 
 // StartActivitySession starts a new activity session on a device with conflict detection
-func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64) (*active.Group, error) {
+func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error) {
 	// First check for conflicts
 	conflictInfo, err := s.CheckActivityConflict(ctx, activityID, deviceID)
 	if err != nil {
@@ -1163,6 +1199,30 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 			return ErrDeviceAlreadyActive
 		}
 
+		// Determine room ID: priority is manual > planned > default
+		finalRoomID := int64(1) // Default fallback
+
+		if roomID != nil && *roomID > 0 {
+			// Manual room selection provided
+			finalRoomID = *roomID
+
+			// Check if the manually selected room has conflicts
+			hasRoomConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, finalRoomID, 0)
+			if err != nil {
+				return err
+			}
+			if hasRoomConflict {
+				return ErrRoomConflict
+			}
+		} else {
+			// Try to get room from activity configuration
+			activityGroup, err := s.activityGroupRepo.FindByID(ctx, activityID)
+			if err == nil && activityGroup != nil && activityGroup.PlannedRoomID != nil && *activityGroup.PlannedRoomID > 0 {
+				finalRoomID = *activityGroup.PlannedRoomID
+			}
+			// If no planned room, keep default (1)
+		}
+
 		// Create new active group session
 		now := time.Now()
 		newGroup = &active.Group{
@@ -1171,7 +1231,7 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 			TimeoutMinutes: 30,  // Default 30 minutes timeout
 			GroupID:        activityID,
 			DeviceID:       &deviceID,
-			RoomID:         1, // TODO: Get room from activity configuration
+			RoomID:         finalRoomID,
 		}
 
 		if err := s.groupRepo.Create(ctx, newGroup); err != nil {
@@ -1183,7 +1243,7 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 		if err != nil {
 			return err
 		}
-		
+
 		// Log the transfer for debugging
 		if transferredCount > 0 {
 			// Using fmt.Printf for now since we don't have a logger instance here
@@ -1202,7 +1262,7 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 }
 
 // ForceStartActivitySession starts an activity session with override capability
-func (s *service) ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64) (*active.Group, error) {
+func (s *service) ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error) {
 	// Use transaction to handle conflicts and cleanup
 	var newGroup *active.Group
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
@@ -1228,6 +1288,22 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 			}
 		}
 
+		// Determine room ID: priority is manual > planned > default
+		finalRoomID := int64(1) // Default fallback
+
+		if roomID != nil && *roomID > 0 {
+			// Manual room selection provided
+			finalRoomID = *roomID
+			// Note: For force start, we don't check room conflicts as we're overriding
+		} else {
+			// Try to get room from activity configuration
+			activityGroup, err := s.activityGroupRepo.FindByID(ctx, activityID)
+			if err == nil && activityGroup != nil && activityGroup.PlannedRoomID != nil && *activityGroup.PlannedRoomID > 0 {
+				finalRoomID = *activityGroup.PlannedRoomID
+			}
+			// If no planned room, keep default (1)
+		}
+
 		// Create new active group session
 		now := time.Now()
 		newGroup = &active.Group{
@@ -1236,7 +1312,7 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 			TimeoutMinutes: 30,  // Default 30 minutes timeout
 			GroupID:        activityID,
 			DeviceID:       &deviceID,
-			RoomID:         1, // TODO: Get room from activity configuration
+			RoomID:         finalRoomID,
 		}
 
 		if err := s.groupRepo.Create(ctx, newGroup); err != nil {
@@ -1248,7 +1324,7 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 		if err != nil {
 			return err
 		}
-		
+
 		// Log the transfer for debugging
 		if transferredCount > 0 {
 			fmt.Printf("Transferred %d active visits to new session %d (force start)\n", transferredCount, newGroup.ID)
@@ -1312,8 +1388,31 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 		return &ActiveError{Op: "EndActivitySession", Err: ErrActiveGroupAlreadyEnded}
 	}
 
-	// End the session
-	if err := s.groupRepo.EndSession(ctx, activeGroupID); err != nil {
+	// Use transaction to ensure atomic cleanup
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// End all active visits first
+		visits, err := s.visitRepo.FindByActiveGroupID(ctx, activeGroupID)
+		if err != nil {
+			return err
+		}
+
+		for _, visit := range visits {
+			if visit.IsActive() {
+				if err := s.visitRepo.EndVisit(ctx, visit.ID); err != nil {
+					return err
+				}
+			}
+		}
+
+		// End the session
+		if err := s.groupRepo.EndSession(ctx, activeGroupID); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		return &ActiveError{Op: "EndActivitySession", Err: err}
 	}
 
@@ -1485,4 +1584,159 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, olderThan time.D
 	}
 
 	return cleanedCount, nil
+}
+
+// Attendance tracking operations
+
+// GetStudentAttendanceStatus gets today's latest attendance record and determines status
+func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error) {
+	// Get today's latest attendance record
+	attendance, err := s.attendanceRepo.GetStudentCurrentStatus(ctx, studentID)
+	if err != nil {
+		// If no record found, return not_checked_in status
+		return &AttendanceStatus{
+			StudentID: studentID,
+			Status:    "not_checked_in",
+			Date:      time.Now().Truncate(24 * time.Hour),
+		}, nil
+	}
+
+	// Determine status based on CheckOutTime
+	status := "checked_in"
+	if attendance.CheckOutTime != nil {
+		status = "checked_out"
+	}
+
+	result := &AttendanceStatus{
+		StudentID:    studentID,
+		Status:       status,
+		Date:         attendance.Date,
+		CheckInTime:  &attendance.CheckInTime,
+		CheckOutTime: attendance.CheckOutTime,
+	}
+
+	// Load staff names for checked_in_by
+	if attendance.CheckedInBy > 0 {
+		staff, err := s.staffRepo.FindByID(ctx, attendance.CheckedInBy)
+		if err == nil && staff != nil {
+			person, err := s.usersService.Get(ctx, staff.PersonID)
+			if err == nil && person != nil {
+				result.CheckedInBy = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
+			}
+		}
+	}
+
+	// Load staff names for checked_out_by
+	if attendance.CheckedOutBy != nil && *attendance.CheckedOutBy > 0 {
+		staff, err := s.staffRepo.FindByID(ctx, *attendance.CheckedOutBy)
+		if err == nil && staff != nil {
+			person, err := s.usersService.Get(ctx, staff.PersonID)
+			if err == nil && person != nil {
+				result.CheckedOutBy = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// ToggleStudentAttendance toggles the attendance state (check-in or check-out)
+func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64) (*AttendanceResult, error) {
+	// Check teacher has access via CheckTeacherStudentAccess
+	hasAccess, err := s.CheckTeacherStudentAccess(ctx, staffID, studentID)
+	if err != nil {
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
+	}
+	if !hasAccess {
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("teacher does not have access to this student")}
+	}
+
+	// Get current status
+	currentStatus, err := s.GetStudentAttendanceStatus(ctx, studentID)
+	if err != nil {
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
+	}
+
+	now := time.Now()
+	today := now.Truncate(24 * time.Hour)
+
+	if currentStatus.Status == "not_checked_in" || currentStatus.Status == "checked_out" {
+		// Create new attendance record with check_in_time
+		attendance := &active.Attendance{
+			StudentID:   studentID,
+			Date:        today,
+			CheckInTime: now,
+			CheckedInBy: staffID,
+			DeviceID:    deviceID,
+		}
+
+		if err := s.attendanceRepo.Create(ctx, attendance); err != nil {
+			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
+		}
+
+		return &AttendanceResult{
+			Action:       "checked_in",
+			AttendanceID: attendance.ID,
+			StudentID:    studentID,
+			Timestamp:    now,
+		}, nil
+	} else {
+		// Student is currently checked in, so check them out
+		// Find today's latest record to update
+		attendance, err := s.attendanceRepo.GetStudentCurrentStatus(ctx, studentID)
+		if err != nil {
+			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
+		}
+
+		// Update record with check_out_time and checked_out_by
+		attendance.CheckOutTime = &now
+		attendance.CheckedOutBy = &staffID
+
+		if err := s.attendanceRepo.Update(ctx, attendance); err != nil {
+			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
+		}
+
+		return &AttendanceResult{
+			Action:       "checked_out",
+			AttendanceID: attendance.ID,
+			StudentID:    studentID,
+			Timestamp:    now,
+		}, nil
+	}
+}
+
+// CheckTeacherStudentAccess checks if a teacher has access to mark attendance for a student
+func (s *service) CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error) {
+	// Get teacher from staff ID
+	teacher, err := s.teacherRepo.FindByStaffID(ctx, teacherID)
+	if err != nil {
+		return false, &ActiveError{Op: "CheckTeacherStudentAccess", Err: err}
+	}
+	if teacher == nil {
+		return false, nil
+	}
+
+	// Get teacher's groups via educationService
+	teacherGroups, err := s.educationService.GetTeacherGroups(ctx, teacher.ID)
+	if err != nil {
+		return false, &ActiveError{Op: "CheckTeacherStudentAccess", Err: err}
+	}
+
+	// Get student info
+	student, err := s.studentRepo.FindByID(ctx, studentID)
+	if err != nil {
+		return false, &ActiveError{Op: "CheckTeacherStudentAccess", Err: err}
+	}
+	if student == nil || student.GroupID == nil {
+		return false, nil
+	}
+
+	// Check if student.GroupID is in teacher's groups
+	for _, group := range teacherGroups {
+		if group.ID == *student.GroupID {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }

@@ -66,10 +66,10 @@ type Service interface {
 	GetGroupMappingsByCombinedGroupID(ctx context.Context, combinedGroupID int64) ([]*active.GroupMapping, error)
 
 	// Activity Session Management with Conflict Detection
-	StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64) (*active.Group, error)
+	StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error)
 	CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*ActivityConflictInfo, error)
 	EndActivitySession(ctx context.Context, activeGroupID int64) error
-	ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64) (*active.Group, error)
+	ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error)
 	GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error)
 
 	// Session timeout operations
@@ -86,6 +86,11 @@ type Service interface {
 	GetRoomUtilization(ctx context.Context, roomID int64) (float64, error)
 	GetStudentAttendanceRate(ctx context.Context, studentID int64) (float64, error)
 	GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytics, error)
+
+	// Attendance tracking operations
+	GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error)
+	ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64) (*AttendanceResult, error)
+	CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error)
 }
 
 // DashboardAnalytics represents aggregated analytics for dashboard
@@ -183,13 +188,13 @@ type SessionTimeoutInfo struct {
 type CleanupService interface {
 	// CleanupExpiredVisits runs the cleanup process for all students
 	CleanupExpiredVisits(ctx context.Context) (*CleanupResult, error)
-	
+
 	// CleanupVisitsForStudent runs cleanup for a specific student
 	CleanupVisitsForStudent(ctx context.Context, studentID int64) (int64, error)
-	
+
 	// GetRetentionStatistics gets statistics about data that will be deleted
 	GetRetentionStatistics(ctx context.Context) (*RetentionStats, error)
-	
+
 	// PreviewCleanup shows what would be deleted without actually deleting
 	PreviewCleanup(ctx context.Context) (*CleanupPreview, error)
 }
@@ -221,7 +226,26 @@ type RetentionStats struct {
 
 // CleanupPreview shows what would be deleted
 type CleanupPreview struct {
-	StudentVisitCounts map[int64]int  // Student ID -> number of visits to delete
+	StudentVisitCounts map[int64]int // Student ID -> number of visits to delete
 	TotalVisits        int64
 	OldestVisit        *time.Time
+}
+
+// AttendanceStatus represents a student's current attendance status for the day
+type AttendanceStatus struct {
+	StudentID    int64      `json:"student_id"`
+	Status       string     `json:"status"` // "not_checked_in", "checked_in", "checked_out"
+	Date         time.Time  `json:"date"`
+	CheckInTime  *time.Time `json:"check_in_time"`
+	CheckOutTime *time.Time `json:"check_out_time"`
+	CheckedInBy  string     `json:"checked_in_by"`  // Formatted as "FirstName LastName"
+	CheckedOutBy string     `json:"checked_out_by"` // Formatted as "FirstName LastName"
+}
+
+// AttendanceResult represents the result of a student attendance toggle operation
+type AttendanceResult struct {
+	Action       string    `json:"action"` // "checked_in", "checked_out"
+	AttendanceID int64     `json:"attendance_id"`
+	StudentID    int64     `json:"student_id"`
+	Timestamp    time.Time `json:"timestamp"`
 }

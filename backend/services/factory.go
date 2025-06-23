@@ -22,23 +22,46 @@ import (
 
 // Factory provides access to all services
 type Factory struct {
-	Auth        auth.AuthService
-	Active      active.Service
+	Auth          auth.AuthService
+	Active        active.Service
 	ActiveCleanup active.CleanupService
-	Activities  activities.ActivityService
-	Education   education.Service
-	Facilities  facilities.Service
-	Feedback    feedback.Service
-	IoT         iot.Service
-	Config      config.Service
-	Schedule    schedule.Service
-	Users       users.PersonService
-	UserContext usercontext.UserContextService
-	Database    database.DatabaseService
+	Activities    activities.ActivityService
+	Education     education.Service
+	Facilities    facilities.Service
+	Feedback      feedback.Service
+	IoT           iot.Service
+	Config        config.Service
+	Schedule      schedule.Service
+	Users         users.PersonService
+	UserContext   usercontext.UserContextService
+	Database      database.DatabaseService
 }
 
 // NewFactory creates a new services factory
 func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
+
+	// Initialize education service first (needed for active service)
+	educationService := education.NewService(
+		repos.Group,
+		repos.GroupTeacher,
+		repos.GroupSubstitution,
+		repos.Room,
+		repos.Teacher,
+		repos.Staff,
+		db,
+	)
+
+	// Initialize users service first (needed for active service)
+	usersService := users.NewPersonService(
+		repos.Person,
+		repos.RFIDCard,
+		repos.Account,
+		repos.PersonGuardian,
+		repos.Student,
+		repos.Staff,
+		repos.Teacher,
+		db,
+	)
 
 	// Initialize active service
 	activeService := active.NewService(
@@ -53,15 +76,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.ActivityCategory,
 		repos.Group,
 		repos.Person,
-		db,
-	)
-
-	// Initialize education service
-	educationService := education.NewService(
-		repos.Group,
-		repos.GroupTeacher,
-		repos.GroupSubstitution,
-		repos.Room,
+		repos.Attendance,
+		educationService,
+		usersService,
 		repos.Teacher,
 		repos.Staff,
 		db,
@@ -109,18 +126,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.Dateframe,
 		repos.Timeframe,
 		repos.RecurrenceRule,
-		db,
-	)
-
-	// Initialize users service
-	usersService := users.NewPersonService(
-		repos.Person,
-		repos.RFIDCard,
-		repos.Account,
-		repos.PersonGuardian,
-		repos.Student,
-		repos.Staff,
-		repos.Teacher,
 		db,
 	)
 

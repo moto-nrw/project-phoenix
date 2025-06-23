@@ -21,8 +21,8 @@ import (
 
 // Resource defines the config API resource
 type Resource struct {
-	ConfigService   configSvc.Service
-	CleanupService  active.CleanupService
+	ConfigService  configSvc.Service
+	CleanupService active.CleanupService
 }
 
 // NewResource creates a new config resource
@@ -542,12 +542,12 @@ func (rs *Resource) getDefaultSettings(w http.ResponseWriter, r *http.Request) {
 
 // RetentionSettingsResponse represents the data retention settings response
 type RetentionSettingsResponse struct {
-	VisitRetentionDays    int    `json:"visit_retention_days"`
-	DefaultRetentionDays  int    `json:"default_retention_days"`
-	MinRetentionDays      int    `json:"min_retention_days"`
-	MaxRetentionDays      int    `json:"max_retention_days"`
-	LastCleanupRun        *time.Time `json:"last_cleanup_run,omitempty"`
-	NextScheduledCleanup  *time.Time `json:"next_scheduled_cleanup,omitempty"`
+	VisitRetentionDays   int        `json:"visit_retention_days"`
+	DefaultRetentionDays int        `json:"default_retention_days"`
+	MinRetentionDays     int        `json:"min_retention_days"`
+	MaxRetentionDays     int        `json:"max_retention_days"`
+	LastCleanupRun       *time.Time `json:"last_cleanup_run,omitempty"`
+	NextScheduledCleanup *time.Time `json:"next_scheduled_cleanup,omitempty"`
 }
 
 // RetentionSettingsRequest represents a request to update retention settings
@@ -558,7 +558,7 @@ type RetentionSettingsRequest struct {
 // Bind validates the retention settings request
 func (req *RetentionSettingsRequest) Bind(r *http.Request) error {
 	return validation.ValidateStruct(req,
-		validation.Field(&req.VisitRetentionDays, 
+		validation.Field(&req.VisitRetentionDays,
 			validation.Required,
 			validation.Min(1),
 			validation.Max(31),
@@ -675,8 +675,8 @@ func (rs *Resource) triggerRetentionCleanup(w http.ResponseWriter, r *http.Reque
 	lastCleanupSetting, _ := rs.ConfigService.GetSettingByKey(r.Context(), "last_retention_cleanup")
 	if lastCleanupSetting == nil {
 		lastCleanupSetting = &config.Setting{
-			Key:      "last_retention_cleanup",
-			Category: "privacy",
+			Key:         "last_retention_cleanup",
+			Category:    "privacy",
 			Description: "Timestamp of last retention cleanup run",
 		}
 	}
@@ -693,12 +693,12 @@ func (rs *Resource) triggerRetentionCleanup(w http.ResponseWriter, r *http.Reque
 
 	// Build response
 	response := map[string]interface{}{
-		"success":           result.Success,
+		"success":            result.Success,
 		"students_processed": result.StudentsProcessed,
-		"records_deleted":   result.RecordsDeleted,
-		"started_at":        result.StartedAt,
-		"completed_at":      result.CompletedAt,
-		"duration_seconds":  result.CompletedAt.Sub(result.StartedAt).Seconds(),
+		"records_deleted":    result.RecordsDeleted,
+		"started_at":         result.StartedAt,
+		"completed_at":       result.CompletedAt,
+		"duration_seconds":   result.CompletedAt.Sub(result.StartedAt).Seconds(),
 	}
 
 	if len(result.Errors) > 0 {

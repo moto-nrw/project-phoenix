@@ -14,6 +14,8 @@ var (
 	ErrInvalidAPIKeyFormat = errors.New("invalid API key format - use Bearer token")
 	ErrMissingPIN          = errors.New("staff PIN is required")
 	ErrInvalidPIN          = errors.New("invalid staff PIN")
+	ErrMissingStaffID      = errors.New("staff ID is required")
+	ErrInvalidStaffID      = errors.New("invalid staff ID format")
 	ErrDeviceInactive      = errors.New("device is not active")
 	ErrStaffAccountLocked  = errors.New("staff account is locked due to failed PIN attempts")
 	ErrDeviceOffline       = errors.New("device is offline")

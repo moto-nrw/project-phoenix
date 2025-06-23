@@ -185,6 +185,7 @@ export const authConfig = {
               sub?: string;
               username?: string;
               first_name?: string;
+              last_name?: string;
               roles?: string[];
               email?: string;
             };
@@ -203,8 +204,15 @@ export const authConfig = {
               );
             }
 
-            // Use username from JWT token as display name, with email as fallback
-            const displayName: string = payload.username ?? (credentials.email as string);
+            // Construct full name from JWT token, with fallbacks
+            let displayName: string;
+            if (payload.first_name && payload.last_name) {
+              displayName = `${payload.first_name} ${payload.last_name}`;
+            } else if (payload.first_name) {
+              displayName = payload.first_name;
+            } else {
+              displayName = payload.username ?? (credentials.email as string);
+            }
             console.log("Using display name:", displayName);
 
             // Using type assertions for credentials to satisfy TypeScript
@@ -423,6 +431,7 @@ export const authConfig = {
           user: {
             ...session.user,
             id: token.id as string || "",
+            email: token.email ?? "",
             token: "", // Empty token will cause API calls to fail with 401
             refreshToken: "",
             roles: [],
@@ -437,6 +446,7 @@ export const authConfig = {
         user: {
           ...session.user,
           id: token.id as string,
+          email: token.email ?? "",
           token: token.token as string,
           refreshToken: token.refreshToken as string,
           roles: token.roles as string[],

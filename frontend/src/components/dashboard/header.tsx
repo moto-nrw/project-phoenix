@@ -68,6 +68,8 @@ function getPageTitle(pathname: string): string {
 
 interface HeaderProps {
     userName?: string;
+    userEmail?: string;
+    userRole?: string;
 }
 
 // Logout Icon als React Component
@@ -92,7 +94,7 @@ const LogoutIcon = ({ className }: { className?: string }) => (
 
 
 
-export function Header({ userName = "Benutzer" }: HeaderProps) {
+export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }: HeaderProps) {
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
     const [isMobileNotificationOpen, setIsMobileNotificationOpen] = useState(false);
@@ -283,10 +285,10 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
                                 
                                 <div className="hidden md:block text-left">
                                     <div className="text-sm font-medium text-gray-900">
-                                        {userName.split(' ')[0]}
+                                        {userName}
                                     </div>
                                     <div className="text-xs text-gray-500">
-                                        Administrator
+                                        {userRole}
                                     </div>
                                 </div>
                                 
@@ -320,7 +322,7 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
                                         </div>
                                         <div>
                                             <div className="font-medium text-gray-900">{userName}</div>
-                                            <div className="text-sm text-gray-500">admin@moto.nrw</div>
+                                            <div className="text-sm text-gray-500">{userEmail}</div>
                                         </div>
                                     </div>
                                 </div>

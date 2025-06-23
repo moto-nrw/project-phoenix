@@ -24,6 +24,7 @@ import (
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -37,10 +38,11 @@ type Resource struct {
 	ActivitiesService activitiesSvc.ActivityService
 	ConfigService     configSvc.Service
 	FacilityService   facilitiesSvc.Service
+	EducationService  educationSvc.Service
 }
 
 // NewResource creates a new IoT resource
-func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activeService activeSvc.Service, activitiesService activitiesSvc.ActivityService, configService configSvc.Service, facilityService facilitiesSvc.Service) *Resource {
+func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activeService activeSvc.Service, activitiesService activitiesSvc.ActivityService, configService configSvc.Service, facilityService facilitiesSvc.Service, educationService educationSvc.Service) *Resource {
 	return &Resource{
 		IoTService:        iotService,
 		UsersService:      usersService,
@@ -48,6 +50,7 @@ func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService,
 		ActivitiesService: activitiesService,
 		ConfigService:     configService,
 		FacilityService:   facilityService,
+		EducationService:  educationService,
 	}
 }
 
@@ -114,6 +117,10 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/activities", rs.getTeacherActivities)
 		r.Get("/rooms/available", rs.getAvailableRoomsForDevice)
 		r.Get("/rfid/{tagId}", rs.checkRFIDTagAssignment)
+
+		// Attendance tracking endpoints
+		r.Get("/attendance/status/{rfid}", rs.getAttendanceStatus)
+		r.Post("/attendance/toggle", rs.toggleAttendance)
 
 		// Activity session management
 		r.Post("/session/start", rs.startActivitySession)
@@ -978,8 +985,8 @@ type DeviceRoomResponse struct {
 
 // RFIDTagAssignmentResponse represents RFID tag assignment status
 type RFIDTagAssignmentResponse struct {
-	Assigned bool                          `json:"assigned"`
-	Student  *RFIDTagAssignedStudent       `json:"student,omitempty"`
+	Assigned bool                    `json:"assigned"`
+	Student  *RFIDTagAssignedStudent `json:"student,omitempty"`
 }
 
 // RFIDTagAssignedStudent represents student info for assigned RFID tag
@@ -1011,9 +1018,14 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Log the start of check-in/check-out process
+	log.Printf("[CHECKIN] Starting process - Device: %s (ID: %d), Staff: %d",
+		deviceCtx.DeviceID, deviceCtx.ID, staffCtx.ID)
+
 	// Parse request
 	req := &CheckinRequest{}
 	if err := render.Bind(r, req); err != nil {
+		log.Printf("[CHECKIN] ERROR: Invalid request from device %s: %v", deviceCtx.DeviceID, err)
 		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
 			log.Printf("Render error: %v", err)
 		}
@@ -1021,8 +1033,10 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Find student by RFID tag
+	log.Printf("[CHECKIN] Looking up RFID tag: %s", req.StudentRFID)
 	person, err := rs.UsersService.FindByTagID(r.Context(), req.StudentRFID)
 	if err != nil {
+		log.Printf("[CHECKIN] ERROR: RFID tag %s not found: %v", req.StudentRFID, err)
 		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not found"))); err != nil {
 			log.Printf("Render error: %v", err)
 		}
@@ -1030,16 +1044,21 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if person == nil || person.TagID == nil {
+		log.Printf("[CHECKIN] ERROR: RFID tag %s not assigned to any person", req.StudentRFID)
 		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person"))); err != nil {
 			log.Printf("Render error: %v", err)
 		}
 		return
 	}
 
+	log.Printf("[CHECKIN] RFID tag %s belongs to person: %s %s (ID: %d)",
+		req.StudentRFID, person.FirstName, person.LastName, person.ID)
+
 	// Get student details from person
 	studentRepo := rs.UsersService.StudentRepository()
 	student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
 	if err != nil {
+		log.Printf("[CHECKIN] ERROR: Person %d is not a student: %v", person.ID, err)
 		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
 			log.Printf("Render error: %v", err)
 		}
@@ -1047,11 +1066,14 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if student == nil {
+		log.Printf("[CHECKIN] ERROR: Person %d is not registered as a student", person.ID)
 		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
 			log.Printf("Render error: %v", err)
 		}
 		return
 	}
+
+	log.Printf("[CHECKIN] Found student: ID %d, Class: %s", student.ID, student.SchoolClass)
 
 	// Load person details for student name
 	student.Person = person
@@ -1063,61 +1085,129 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error checking current visit: %v", err)
 	}
 
+	// If we have a current visit, load the active group with room information
+	if currentVisit != nil && currentVisit.ExitTime == nil {
+		activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), currentVisit.ActiveGroupID)
+		if err == nil && activeGroup != nil {
+			currentVisit.ActiveGroup = activeGroup
+			// Also try to load the room info
+			if activeGroup.RoomID > 0 {
+				room, err := rs.FacilityService.GetRoom(r.Context(), activeGroup.RoomID)
+				if err == nil && room != nil {
+					activeGroup.Room = room
+				}
+			}
+		}
+	}
+
 	now := time.Now()
 	var visitID *int64
 	var actionMsg string
 	var roomName string
+	var checkedOut bool
+	var previousRoomName string
+	var newVisitID *int64
 
-	// Debug logging to track the action field
-	log.Printf("RFID Request: action='%s', student_rfid='%s', room_id=%v", req.Action, req.StudentRFID, req.RoomID)
+	// Log the request details
+	log.Printf("[CHECKIN] Request details: action='%s', student_rfid='%s', room_id=%v", req.Action, req.StudentRFID, req.RoomID)
 
-	// Auto-determine action based on student's current status (ignore req.Action)
-	// If student has an active visit, perform checkout; otherwise perform checkin
+	// Step 1: Handle checkout if student has an active visit
 	if currentVisit != nil && currentVisit.ExitTime == nil {
 		// Student is currently checked in - perform CHECKOUT
-		log.Printf("Student %d has active visit %d - performing checkout", student.ID, currentVisit.ID)
-		
+		log.Printf("[CHECKIN] Student %s %s (ID: %d) has active visit %d - performing CHECKOUT",
+			person.FirstName, person.LastName, student.ID, currentVisit.ID)
+
+		// Store the previous room name for transfer message
+		if currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil {
+			previousRoomName = currentVisit.ActiveGroup.Room.Name
+			log.Printf("[CHECKIN] Previous room name from active group: %s (Room ID: %d)",
+				previousRoomName, currentVisit.ActiveGroup.RoomID)
+		} else {
+			log.Printf("[CHECKIN] Warning: Could not get previous room name - ActiveGroup: %v, Room: %v",
+				currentVisit.ActiveGroup != nil,
+				currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil)
+		}
+
 		// End current visit
 		if err := rs.ActiveService.EndVisit(r.Context(), currentVisit.ID); err != nil {
+			log.Printf("[CHECKIN] ERROR: Failed to end visit %d for student %d: %v",
+				currentVisit.ID, student.ID, err)
 			if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to end visit record"))); err != nil {
 				log.Printf("Render error: %v", err)
 			}
 			return
 		}
 
+		log.Printf("[CHECKIN] SUCCESS: Checked out student %s %s (ID: %d), ended visit %d",
+			person.FirstName, person.LastName, student.ID, currentVisit.ID)
 		visitID = &currentVisit.ID
-		actionMsg = "checked_out"
-	} else {
-		// Student is not currently checked in - perform CHECKIN
-		log.Printf("Student %d has no active visit - performing checkin", student.ID)
-		
+		checkedOut = true
+	}
+
+	// Step 2: Handle checkin if room_id is provided
+	// Check if we should skip checkin (same room checkout/checkin scenario)
+	var skipCheckin bool
+	if req.RoomID != nil && checkedOut && currentVisit != nil && currentVisit.ActiveGroup != nil {
+		// If student just checked out from the same room they're trying to check into, skip checkin
+		if currentVisit.ActiveGroup.RoomID == *req.RoomID {
+			skipCheckin = true
+			log.Printf("[CHECKIN] Student checked out from room %d, same as checkin room - skipping re-checkin", *req.RoomID)
+			// Set room name for the response
+			if currentVisit.ActiveGroup.Room != nil {
+				roomName = currentVisit.ActiveGroup.Room.Name
+			} else {
+				// Try to load the room info to get the actual name
+				room, err := rs.FacilityService.GetRoom(r.Context(), *req.RoomID)
+				if err == nil && room != nil {
+					roomName = room.Name
+				} else {
+					roomName = fmt.Sprintf("Room %d", *req.RoomID)
+				}
+			}
+		}
+	}
+
+	if req.RoomID != nil && !skipCheckin {
+		log.Printf("[CHECKIN] Student %s %s (ID: %d) - performing CHECK-IN to room %d",
+			person.FirstName, person.LastName, student.ID, *req.RoomID)
+
 		// Determine which active group to associate with
 		var activeGroupID int64
-		if req.RoomID != nil {
-			// Find active groups in the specified room
-			activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(r.Context(), *req.RoomID)
-			if err != nil {
-				if err := render.Render(w, r, ErrorInternalServer(errors.New("error finding active groups in room"))); err != nil {
-					log.Printf("Render error: %v", err)
-				}
-				return
-			}
-
-			if len(activeGroups) == 0 {
-				if err := render.Render(w, r, ErrorNotFound(errors.New("no active groups in specified room"))); err != nil {
-					log.Printf("Render error: %v", err)
-				}
-				return
-			}
-
-			// Use the first active group (in practice, there should typically be only one per room)
-			activeGroupID = activeGroups[0].ID
-			roomName = "Room " + string(rune(*req.RoomID)) // Simple room name - could be enhanced
-		} else {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("room_id is required for check-in"))); err != nil {
+		log.Printf("[CHECKIN] Looking for active groups in room %d", *req.RoomID)
+		// Find active groups in the specified room
+		activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(r.Context(), *req.RoomID)
+		if err != nil {
+			log.Printf("[CHECKIN] ERROR: Failed to find active groups in room %d: %v", *req.RoomID, err)
+			if err := render.Render(w, r, ErrorInternalServer(errors.New("error finding active groups in room"))); err != nil {
 				log.Printf("Render error: %v", err)
 			}
 			return
+		}
+
+		if len(activeGroups) == 0 {
+			log.Printf("[CHECKIN] ERROR: No active groups found in room %d", *req.RoomID)
+			if err := render.Render(w, r, ErrorNotFound(errors.New("no active groups in specified room"))); err != nil {
+				log.Printf("Render error: %v", err)
+			}
+			return
+		}
+
+		// Use the first active group (in practice, there should typically be only one per room)
+		activeGroupID = activeGroups[0].ID
+		log.Printf("[CHECKIN] Found %d active groups in room %d, using group %d",
+			len(activeGroups), *req.RoomID, activeGroupID)
+
+		// Get actual room name if possible
+		if activeGroups[0].Room != nil {
+			roomName = activeGroups[0].Room.Name
+		} else {
+			// Try to load the room info to get the actual name
+			room, err := rs.FacilityService.GetRoom(r.Context(), *req.RoomID)
+			if err == nil && room != nil {
+				roomName = room.Name
+			} else {
+				roomName = fmt.Sprintf("Room %d", *req.RoomID)
+			}
 		}
 
 		// Create new visit
@@ -1127,25 +1217,58 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 			EntryTime:     now,
 		}
 
+		log.Printf("[CHECKIN] Creating visit for student %d in active group %d", student.ID, activeGroupID)
 		if err := rs.ActiveService.CreateVisit(r.Context(), newVisit); err != nil {
+			log.Printf("[CHECKIN] ERROR: Failed to create visit for student %d: %v", student.ID, err)
 			if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to create visit record"))); err != nil {
 				log.Printf("Render error: %v", err)
 			}
 			return
 		}
 
-		visitID = &newVisit.ID
-		actionMsg = "checked_in"
+		log.Printf("[CHECKIN] SUCCESS: Checked in student %s %s (ID: %d), created visit %d in room %s",
+			person.FirstName, person.LastName, student.ID, newVisit.ID, roomName)
+		newVisitID = &newVisit.ID
+	} else if !checkedOut && !skipCheckin {
+		// No room_id provided and no previous checkout - this is an error
+		log.Printf("[CHECKIN] ERROR: Room ID is required for check-in")
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("room_id is required for check-in"))); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
 	}
 
-	// Generate German greeting message based on actual action performed
+	// Step 3: Determine action message and greeting based on what happened
 	studentName := person.FirstName + " " + person.LastName
 	var greetingMsg string
-	switch actionMsg {
-	case "checked_in":
-		greetingMsg = "Hallo " + person.FirstName + "!"
-	case "checked_out":
+
+	if checkedOut && newVisitID != nil {
+		// Student checked out and checked in
+		// Only treat as transfer if they actually moved to a different room
+		if previousRoomName != "" && previousRoomName != roomName {
+			// Actual room transfer
+			actionMsg = "transferred"
+			greetingMsg = fmt.Sprintf("Gewechselt von %s zu %s!", previousRoomName, roomName)
+			log.Printf("[CHECKIN] Student %s transferred from %s to %s", studentName, previousRoomName, roomName)
+		} else {
+			// Same room or previous room unknown - treat as regular check-in
+			actionMsg = "checked_in"
+			greetingMsg = "Hallo " + person.FirstName + "!"
+			log.Printf("[CHECKIN] Student %s re-entered room (previous: '%s', current: '%s')",
+				studentName, previousRoomName, roomName)
+		}
+		// Use the new visit ID for the response
+		visitID = newVisitID
+	} else if checkedOut {
+		// Only checked out
+		actionMsg = "checked_out"
 		greetingMsg = "Tschüss " + person.FirstName + "!"
+		// visitID already set from checkout
+	} else if newVisitID != nil {
+		// Only checked in (first time)
+		actionMsg = "checked_in"
+		greetingMsg = "Hallo " + person.FirstName + "!"
+		visitID = newVisitID
 	}
 
 	// Update session activity when student scans (for monitoring only)
@@ -1164,8 +1287,9 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Debug logging before sending response
-	log.Printf("RFID Response: action='%s', student='%s', message='%s'", actionMsg, studentName, greetingMsg)
+	// Log final response details
+	log.Printf("[CHECKIN] Final response: action='%s', student='%s', message='%s', visit_id=%v, room='%s'",
+		actionMsg, studentName, greetingMsg, visitID, roomName)
 
 	// Prepare response
 	response := map[string]interface{}{
@@ -1177,6 +1301,11 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		"processed_at": now,
 		"message":      greetingMsg,
 		"status":       "success",
+	}
+
+	// Add previous room info for transfers
+	if actionMsg == "transferred" && previousRoomName != "" {
+		response["previous_room"] = previousRoomName
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Student "+actionMsg+" successfully")
@@ -1384,8 +1513,9 @@ func (rs *Resource) getAvailableRoomsForDevice(w http.ResponseWriter, r *http.Re
 
 // SessionStartRequest represents a request to start an activity session
 type SessionStartRequest struct {
-	ActivityID int64 `json:"activity_id"`
-	Force      bool  `json:"force,omitempty"`
+	ActivityID int64  `json:"activity_id"`
+	RoomID     *int64 `json:"room_id,omitempty"` // Optional: Override the activity's planned room
+	Force      bool   `json:"force,omitempty"`
 }
 
 // SessionStartResponse represents the response when starting an activity session
@@ -1475,16 +1605,16 @@ type SessionTimeoutInfoResponse struct {
 
 // SessionCurrentResponse represents the current session information
 type SessionCurrentResponse struct {
-	ActiveGroupID   *int64     `json:"active_group_id,omitempty"`
-	ActivityID      *int64     `json:"activity_id,omitempty"`
-	ActivityName    *string    `json:"activity_name,omitempty"`
-	RoomID          *int64     `json:"room_id,omitempty"`
-	RoomName        *string    `json:"room_name,omitempty"`
-	DeviceID        int64      `json:"device_id"`
-	StartTime       *time.Time `json:"start_time,omitempty"`
-	Duration        *string    `json:"duration,omitempty"`
-	IsActive        bool       `json:"is_active"`
-	ActiveStudents  *int       `json:"active_students,omitempty"`
+	ActiveGroupID  *int64     `json:"active_group_id,omitempty"`
+	ActivityID     *int64     `json:"activity_id,omitempty"`
+	ActivityName   *string    `json:"activity_name,omitempty"`
+	RoomID         *int64     `json:"room_id,omitempty"`
+	RoomName       *string    `json:"room_name,omitempty"`
+	DeviceID       int64      `json:"device_id"`
+	StartTime      *time.Time `json:"start_time,omitempty"`
+	Duration       *string    `json:"duration,omitempty"`
+	IsActive       bool       `json:"is_active"`
+	ActiveStudents *int       `json:"active_students,omitempty"`
 }
 
 // Bind validates the session start request
@@ -1521,10 +1651,10 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 
 	if req.Force {
 		// Force start with override
-		activeGroup, err = rs.ActiveService.ForceStartActivitySession(r.Context(), req.ActivityID, deviceCtx.ID, staffCtx.ID)
+		activeGroup, err = rs.ActiveService.ForceStartActivitySession(r.Context(), req.ActivityID, deviceCtx.ID, staffCtx.ID, req.RoomID)
 	} else {
 		// Normal start with conflict detection
-		activeGroup, err = rs.ActiveService.StartActivitySession(r.Context(), req.ActivityID, deviceCtx.ID, staffCtx.ID)
+		activeGroup, err = rs.ActiveService.StartActivitySession(r.Context(), req.ActivityID, deviceCtx.ID, staffCtx.ID, req.RoomID)
 	}
 
 	if err != nil {
@@ -1930,7 +2060,7 @@ func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Reques
 		// Get student details using existing repository
 		studentRepo := rs.UsersService.StudentRepository()
 		student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
-		
+
 		// Handle case where person exists but is not a student (no error, just nil result)
 		if err != nil {
 			// Only treat as error if it's not a "no rows found" situation
@@ -1951,16 +2081,264 @@ func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Reques
 	common.Respond(w, r, http.StatusOK, response, "RFID tag assignment status retrieved")
 }
 
+// getAttendanceStatus handles checking a student's attendance status via RFID tag
+func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device and staff from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	staffCtx := device.StaffFromCtx(r.Context())
+
+	if deviceCtx == nil || staffCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Get RFID from URL parameter and normalize it
+	rfid := chi.URLParam(r, "rfid")
+	if rfid == "" {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("RFID parameter is required"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	normalizedRFID := normalizeTagID(rfid)
+
+	// Find person by RFID tag
+	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	if person == nil || person.TagID == nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get student from person
+	studentRepo := rs.UsersService.StudentRepository()
+	student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	if student == nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check teacher has access to student
+	hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(r.Context(), staffCtx.ID, student.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	if !hasAccess {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("teacher does not have access to this student"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get attendance status from service
+	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Load student's group info from education.groups (not SchoolClass)
+	var groupInfo *AttendanceGroupInfo
+	if student.GroupID != nil {
+		group, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
+		if err == nil && group != nil {
+			groupInfo = &AttendanceGroupInfo{
+				ID:   group.ID,
+				Name: group.Name,
+			}
+		}
+		// If error getting group, continue without group info (it's optional)
+	}
+
+	// Build and return response
+	response := AttendanceStatusResponse{
+		Student: AttendanceStudentInfo{
+			ID:        student.ID,
+			FirstName: person.FirstName,
+			LastName:  person.LastName,
+			Group:     groupInfo,
+		},
+		Attendance: AttendanceInfo{
+			Status:       attendanceStatus.Status,
+			Date:         attendanceStatus.Date,
+			CheckInTime:  attendanceStatus.CheckInTime,
+			CheckOutTime: attendanceStatus.CheckOutTime,
+			CheckedInBy:  attendanceStatus.CheckedInBy,
+			CheckedOutBy: attendanceStatus.CheckedOutBy,
+		},
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Student attendance status retrieved successfully")
+}
+
+// toggleAttendance handles toggling a student's attendance state via RFID tag
+func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device and staff from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	staffCtx := device.StaffFromCtx(r.Context())
+
+	if deviceCtx == nil || staffCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Parse request body
+	req := &AttendanceToggleRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Handle "cancel" action by returning cancelled response
+	if req.Action == "cancel" {
+		response := AttendanceToggleResponse{
+			Action:  "cancelled",
+			Message: "Attendance tracking cancelled",
+		}
+		common.Respond(w, r, http.StatusOK, response, "Attendance tracking cancelled")
+		return
+	}
+
+	normalizedRFID := normalizeTagID(req.RFID)
+
+	// Find person by RFID tag
+	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	if person == nil || person.TagID == nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to any person"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get student from person
+	studentRepo := rs.UsersService.StudentRepository()
+	student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	if student == nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Call ToggleStudentAttendance service
+	result, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, staffCtx.ID, deviceCtx.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get updated attendance status
+	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Load student's group info from education.groups (not SchoolClass)
+	var groupInfo *AttendanceGroupInfo
+	if student.GroupID != nil {
+		group, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
+		if err == nil && group != nil {
+			groupInfo = &AttendanceGroupInfo{
+				ID:   group.ID,
+				Name: group.Name,
+			}
+		}
+		// If error getting group, continue without group info (it's optional)
+	}
+
+	// Determine user-friendly message for RFID device display
+	var message string
+	switch result.Action {
+	case "checked_in":
+		message = fmt.Sprintf("Hallo %s!", person.FirstName)
+	case "checked_out":
+		message = fmt.Sprintf("Tschüss %s!", person.FirstName)
+	default:
+		message = fmt.Sprintf("Attendance %s for %s", result.Action, person.FirstName)
+	}
+
+	// Build and return response
+	response := AttendanceToggleResponse{
+		Action: result.Action,
+		Student: AttendanceStudentInfo{
+			ID:        student.ID,
+			FirstName: person.FirstName,
+			LastName:  person.LastName,
+			Group:     groupInfo,
+		},
+		Attendance: AttendanceInfo{
+			Status:       attendanceStatus.Status,
+			Date:         attendanceStatus.Date,
+			CheckInTime:  attendanceStatus.CheckInTime,
+			CheckOutTime: attendanceStatus.CheckOutTime,
+			CheckedInBy:  attendanceStatus.CheckedInBy,
+			CheckedOutBy: attendanceStatus.CheckedOutBy,
+		},
+		Message: message,
+	}
+
+	common.Respond(w, r, http.StatusOK, response, fmt.Sprintf("Student %s successfully", result.Action))
+}
+
 // normalizeTagID normalizes RFID tag ID format (same logic as in person repository)
 func normalizeTagID(tagID string) string {
 	// Trim spaces
 	tagID = strings.TrimSpace(tagID)
-	
+
 	// Remove common separators
 	tagID = strings.ReplaceAll(tagID, ":", "")
 	tagID = strings.ReplaceAll(tagID, "-", "")
 	tagID = strings.ReplaceAll(tagID, " ", "")
-	
+
 	// Convert to uppercase
 	return strings.ToUpper(tagID)
 }
