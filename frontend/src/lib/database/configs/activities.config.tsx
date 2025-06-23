@@ -265,6 +265,24 @@ export const activitiesConfig = defineEntityConfig<Activity>({
           if (name?.includes('umwelt') || name?.includes('recycl') || name?.includes('nachhaltig')) return '♻️';
           if (name?.includes('feuer') || name?.includes('pfadfinder')) return '🔥';
           
+          // Meal-related activities
+          if (name?.includes('mensa') || name?.includes('essen') || name?.includes('mittag') || category?.includes('mensa')) return '🍽️';
+          
+          // Outdoor activities
+          if (category?.includes('draußen')) return '🌳';
+          
+          // Group room activities
+          if (category?.includes('gruppenraum')) return '🏠';
+          
+          // Learning activities
+          if (category?.includes('lernen')) return '📖';
+          
+          // Creative activities by category
+          if (category?.includes('kreativ')) return '🎨';
+          
+          // Homework activities
+          if (category?.includes('hausaufgaben')) return '📝';
+          
           // Default fallback to first two letters
           return activity.name ? activity.name.substring(0, 2).toUpperCase() : 'AG';
         },
@@ -483,6 +501,24 @@ export const activitiesConfig = defineEntityConfig<Activity>({
           if (name?.includes('erste hilfe') || name?.includes('sanitäter')) return '🚑';
           if (name?.includes('umwelt') || name?.includes('recycl') || name?.includes('nachhaltig')) return '♻️';
           if (name?.includes('feuer') || name?.includes('pfadfinder')) return '🔥';
+          
+          // Meal-related activities
+          if (name?.includes('mensa') || name?.includes('essen') || name?.includes('mittag') || category?.includes('mensa')) return '🍽️';
+          
+          // Outdoor activities
+          if (category?.includes('draußen')) return '🌳';
+          
+          // Group room activities
+          if (category?.includes('gruppenraum')) return '🏠';
+          
+          // Learning activities
+          if (category?.includes('lernen')) return '📖';
+          
+          // Creative activities by category
+          if (category?.includes('kreativ')) return '🎨';
+          
+          // Homework activities
+          if (category?.includes('hausaufgaben')) return '📝';
           
           // Default fallback to first two letters
           return activity.name ? activity.name.substring(0, 2).toUpperCase() : 'AG';
