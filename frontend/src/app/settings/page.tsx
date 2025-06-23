@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -31,6 +31,9 @@ interface SettingsSection {
   badge?: string;
   warning?: boolean;
 }
+
+// Tailwind's lg breakpoint value
+const LG_BREAKPOINT = 1024;
 
 const settingsSections: SettingsSection[] = [
   {
@@ -73,20 +76,43 @@ function SettingsContent() {
   const [systemNotifications, setSystemNotifications] = useState(true);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
-  // Detect mobile on mount and set initial section accordingly
+  // Check if we're on mobile device
+  const checkMobile = useCallback(() => {
+    return typeof window !== 'undefined' && window.innerWidth < LG_BREAKPOINT;
+  }, []);
+
+  // Set initial section based on device type
   useEffect(() => {
-    const checkMobile = () => {
-      const mobile = window.innerWidth < 1024; // lg breakpoint
-      // On mobile, start with no section selected (show menu)
-      // On desktop, keep "general" section
-      if (mobile) {
+    const isMobile = checkMobile();
+    // On mobile, start with menu; on desktop, start with general section
+    if (isMobile) {
+      setActiveSection(null);
+    }
+  }, [checkMobile]); // Only run on mount
+
+  // Handle window resize events
+  useEffect(() => {
+    const handleResize = () => {
+      const isMobile = checkMobile();
+      // Only reset to menu/general when crossing the breakpoint
+      if (isMobile && activeSection === "general") {
+        // Moving from desktop to mobile while on default section
         setActiveSection(null);
+      } else if (!isMobile && activeSection === null) {
+        // Moving from mobile to desktop while on menu
+        setActiveSection("general");
       }
+      // Otherwise, keep the current section
     };
 
-    // Only run on mount
-    checkMobile();
-  }, []);
+    // Add resize listener for dynamic responsiveness
+    window.addEventListener('resize', handleResize);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [activeSection, checkMobile]);
 
   if (status === "loading") {
     return (
