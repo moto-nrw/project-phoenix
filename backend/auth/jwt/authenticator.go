@@ -118,7 +118,7 @@ func AuthenticateRefreshJWT(next http.Handler) http.Handler {
 		}
 
 		// Parse and validate claims to ensure token integrity
-		var c AppClaims
+		var c RefreshClaims
 		err = c.ParseClaims(claims)
 		if err != nil {
 			logging.GetLogEntry(r).Error("Failed to parse refresh token claims:", err)
@@ -136,9 +136,8 @@ func AuthenticateRefreshJWT(next http.Handler) http.Handler {
 			tokenString = authHeader[7:]
 		}
 
-		// Set both the validated claims and the token string on context
-		ctx := context.WithValue(r.Context(), CtxClaims, c)
-		ctx = context.WithValue(ctx, CtxRefreshToken, tokenString)
+		// Set the token string on context (refresh claims not needed in context)
+		ctx := context.WithValue(r.Context(), CtxRefreshToken, tokenString)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
