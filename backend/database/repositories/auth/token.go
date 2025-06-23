@@ -294,7 +294,6 @@ func (r *TokenRepository) FindByFamilyID(ctx context.Context, familyID string) (
 	
 	err := r.db.NewSelect().
 		Model(&tokens).
-		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".family_id = ?`, familyID).
 		Order(`"token".generation DESC`).
 		Scan(ctx)
@@ -333,7 +332,6 @@ func (r *TokenRepository) GetLatestTokenInFamily(ctx context.Context, familyID s
 	
 	err := r.db.NewSelect().
 		Model(&token).
-		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".family_id = ?`, familyID).
 		Order(`"token".generation DESC`).
 		Limit(1).
