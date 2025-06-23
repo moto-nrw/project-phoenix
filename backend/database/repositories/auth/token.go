@@ -51,7 +51,8 @@ func (r *TokenRepository) FindByAccountID(ctx context.Context, accountID int64) 
 	var tokens []*auth.Token
 	err := r.db.NewSelect().
 		Model(&tokens).
-		Where("account_id = ?", accountID).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".account_id = ?`, accountID).
 		Scan(ctx)
 
 	if err != nil {
@@ -69,7 +70,8 @@ func (r *TokenRepository) FindByAccountIDAndIdentifier(ctx context.Context, acco
 	token := new(auth.Token)
 	err := r.db.NewSelect().
 		Model(token).
-		Where("account_id = ? AND identifier = ?", accountID, identifier).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".account_id = ? AND "token".identifier = ?`, accountID, identifier).
 		Scan(ctx)
 
 	if err != nil {
@@ -160,7 +162,8 @@ func (r *TokenRepository) FindValidTokens(ctx context.Context, filters map[strin
 	var tokens []*auth.Token
 	query := r.db.NewSelect().
 		Model(&tokens).
-		Where("expiry > ?", time.Now())
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".expiry > ?`, time.Now())
 
 	// Apply additional filters
 	for field, value := range filters {
@@ -183,24 +186,26 @@ func (r *TokenRepository) FindValidTokens(ctx context.Context, filters map[strin
 // List retrieves tokens matching the provided filters
 func (r *TokenRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.Token, error) {
 	var tokens []*auth.Token
-	query := r.db.NewSelect().Model(&tokens)
+	query := r.db.NewSelect().
+		Model(&tokens).
+		ModelTableExpr(`auth.tokens AS "token"`)
 
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
 			switch field {
 			case "mobile":
-				query = query.Where("mobile = ?", value)
+				query = query.Where(`"token".mobile = ?`, value)
 			case "active":
 				if val, ok := value.(bool); ok && val {
-					query = query.Where("expiry > ?", time.Now())
+					query = query.Where(`"token".expiry > ?`, time.Now())
 				}
 			case "expired":
 				if val, ok := value.(bool); ok && val {
-					query = query.Where("expiry <= ?", time.Now())
+					query = query.Where(`"token".expiry <= ?`, time.Now())
 				}
 			default:
-				query = query.Where("? = ?", bun.Ident(field), value)
+				query = query.Where(`"token".? = ?`, bun.Ident(field), value)
 			}
 		}
 	}
@@ -221,6 +226,7 @@ func (r *TokenRepository) FindTokensWithAccount(ctx context.Context, filters map
 	var tokens []*auth.Token
 	query := r.db.NewSelect().
 		Model(&tokens).
+		ModelTableExpr(`auth.tokens AS "token"`).
 		Relation("Account")
 
 	// Apply filters
@@ -250,7 +256,7 @@ func (r *TokenRepository) CleanupOldTokensForAccount(ctx context.Context, accoun
 		Model(&tokens).
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".account_id = ?`, accountID).
-		Order(`"token".id DESC`). // Assuming ID is auto-incrementing, so higher ID = newer
+		OrderExpr(`"token".id DESC`). // Assuming ID is auto-incrementing, so higher ID = newer
 		Scan(ctx)
 
 	if err != nil {
@@ -294,8 +300,9 @@ func (r *TokenRepository) FindByFamilyID(ctx context.Context, familyID string) (
 	
 	err := r.db.NewSelect().
 		Model(&tokens).
+		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".family_id = ?`, familyID).
-		Order(`"token".generation DESC`).
+		OrderExpr(`"token".generation DESC`).
 		Scan(ctx)
 
 	if err != nil {
@@ -332,8 +339,9 @@ func (r *TokenRepository) GetLatestTokenInFamily(ctx context.Context, familyID s
 	
 	err := r.db.NewSelect().
 		Model(&token).
+		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".family_id = ?`, familyID).
-		Order(`"token".generation DESC`).
+		OrderExpr(`"token".generation DESC`).
 		Limit(1).
 		Scan(ctx)
 
