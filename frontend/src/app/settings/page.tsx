@@ -423,7 +423,7 @@ function SettingsContent() {
                     <Button
                       onClick={handleSave}
                       variant="success"
-                      className="relative min-w-[140px] overflow-hidden"
+                      className="relative min-w-[140px] overflow-hidden group"
                     >
                       {/* Gradient overlay that moves on hover */}
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out" />
