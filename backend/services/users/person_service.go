@@ -579,6 +579,76 @@ func (s *personService) ValidateStaffPIN(ctx context.Context, pin string) (*user
 	return nil, &UsersError{Op: "validate staff PIN", Err: ErrInvalidPIN}
 }
 
+// ValidateStaffPINForSpecificStaff validates a PIN for a specific staff member
+func (s *personService) ValidateStaffPINForSpecificStaff(ctx context.Context, staffID int64, pin string) (*userModels.Staff, error) {
+	if pin == "" {
+		return nil, &UsersError{Op: "validate staff PIN for specific staff", Err: errors.New("PIN cannot be empty")}
+	}
+
+	// Get the specific staff member
+	staff, err := s.staffRepo.FindByID(ctx, staffID)
+	if err != nil {
+		return nil, &UsersError{Op: "validate staff PIN for specific staff - find staff", Err: err}
+	}
+	if staff == nil {
+		return nil, &UsersError{Op: "validate staff PIN for specific staff", Err: errors.New("staff member not found")}
+	}
+
+	// Get the person associated with this staff member
+	person, err := s.personRepo.FindByID(ctx, staff.PersonID)
+	if err != nil {
+		return nil, &UsersError{Op: "validate staff PIN for specific staff - find person", Err: err}
+	}
+	if person == nil {
+		return nil, &UsersError{Op: "validate staff PIN for specific staff", Err: errors.New("person not found for staff member")}
+	}
+
+	// Check if person has an account
+	if person.AccountID == nil {
+		return nil, &UsersError{Op: "validate staff PIN for specific staff", Err: errors.New("staff member has no account")}
+	}
+
+	// Get the account
+	account, err := s.accountRepo.FindByID(ctx, *person.AccountID)
+	if err != nil {
+		return nil, &UsersError{Op: "validate staff PIN for specific staff - find account", Err: err}
+	}
+	if account == nil {
+		return nil, &UsersError{Op: "validate staff PIN for specific staff", Err: errors.New("account not found")}
+	}
+
+	// Check if account has PIN and is not locked
+	if !account.HasPIN() {
+		return nil, &UsersError{Op: "validate staff PIN for specific staff", Err: errors.New("staff member has no PIN set")}
+	}
+	if account.IsPINLocked() {
+		return nil, &UsersError{Op: "validate staff PIN for specific staff", Err: errors.New("account is locked")}
+	}
+
+	// Verify the PIN
+	if !account.VerifyPIN(pin) {
+		// Increment failed attempts
+		account.IncrementPINAttempts()
+		if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
+			// Log error but don't fail the authentication check
+			_ = updateErr
+		}
+		return nil, &UsersError{Op: "validate staff PIN for specific staff", Err: ErrInvalidPIN}
+	}
+
+	// PIN is valid - reset attempts
+	account.ResetPINAttempts()
+	if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
+		// Log error but don't fail authentication
+		_ = updateErr
+	}
+
+	// Load the person relation for the authenticated staff
+	staff.Person = person
+
+	return staff, nil
+}
+
 // GetStudentsByTeacher retrieves students supervised by a teacher (through group assignments)
 func (s *personService) GetStudentsByTeacher(ctx context.Context, teacherID int64) ([]*userModels.Student, error) {
 	// First verify the teacher exists

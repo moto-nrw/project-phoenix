@@ -191,6 +191,14 @@ func (m *SimpleMockUserService) GetStudentsWithGroupsByTeacher(ctx context.Conte
 	return args.Get(0).([]usersSvc.StudentWithGroup), args.Error(1)
 }
 
+func (m *SimpleMockUserService) ValidateStaffPINForSpecificStaff(ctx context.Context, staffID int64, pin string) (*userModels.Staff, error) {
+	args := m.Called(ctx, staffID, pin)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*userModels.Staff), args.Error(1)
+}
+
 func (m *SimpleMockUserService) WithTx(tx bun.Tx) interface{} {
 	// Required by base.TransactionalService
 	return m
@@ -220,6 +228,28 @@ func (m *SimpleMockActiveService) GetDashboardAnalytics(ctx context.Context) (*a
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*activeSvc.DashboardAnalytics), args.Error(1)
+}
+
+// Add missing methods for attendance tracking
+func (m *SimpleMockActiveService) GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*activeSvc.AttendanceStatus, error) {
+	args := m.Called(ctx, studentID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*activeSvc.AttendanceStatus), args.Error(1)
+}
+
+func (m *SimpleMockActiveService) ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64) (*activeSvc.AttendanceResult, error) {
+	args := m.Called(ctx, studentID, staffID, deviceID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*activeSvc.AttendanceResult), args.Error(1)
+}
+
+func (m *SimpleMockActiveService) CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error) {
+	args := m.Called(ctx, teacherID, studentID)
+	return args.Bool(0), args.Error(1)
 }
 
 // Simplified mock repositories
@@ -1032,7 +1062,7 @@ func (m *SimpleMockActiveService) GetStudentAttendanceRate(ctx context.Context, 
 }
 
 // Activity Session Management with Conflict Detection
-func (m *SimpleMockActiveService) StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64) (*active.Group, error) {
+func (m *SimpleMockActiveService) StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error) {
 	return nil, nil
 }
 
@@ -1044,7 +1074,7 @@ func (m *SimpleMockActiveService) EndActivitySession(ctx context.Context, active
 	return nil
 }
 
-func (m *SimpleMockActiveService) ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64) (*active.Group, error) {
+func (m *SimpleMockActiveService) ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error) {
 	return nil, nil
 }
 

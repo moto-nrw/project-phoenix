@@ -127,9 +127,7 @@ export const authConfig = {
         try {
           // Improved error handling with more detailed logging
           // Use server URL in server context (Docker environment)
-          const apiUrl = process.env.NODE_ENV === 'production' || process.env.DOCKER_ENV
-            ? 'http://server:8080'
-            : env.NEXT_PUBLIC_API_URL;
+          const apiUrl = env.NEXT_PUBLIC_API_URL;
           console.log(
             `Attempting login with API URL: ${apiUrl}/auth/login`,
           );
@@ -185,6 +183,7 @@ export const authConfig = {
               sub?: string;
               username?: string;
               first_name?: string;
+              last_name?: string;
               roles?: string[];
               email?: string;
             };
@@ -203,8 +202,15 @@ export const authConfig = {
               );
             }
 
-            // Use username from JWT token as display name, with email as fallback
-            const displayName: string = payload.username ?? (credentials.email as string);
+            // Construct full name from JWT token, with fallbacks
+            let displayName: string;
+            if (payload.first_name && payload.last_name) {
+              displayName = `${payload.first_name} ${payload.last_name}`;
+            } else if (payload.first_name) {
+              displayName = payload.first_name;
+            } else {
+              displayName = payload.username ?? (credentials.email as string);
+            }
             console.log("Using display name:", displayName);
 
             // Using type assertions for credentials to satisfy TypeScript
@@ -330,9 +336,7 @@ export const authConfig = {
           
           // Attempt to refresh the token
           // Use server URL in server context (Docker environment)
-          const apiUrl = process.env.NODE_ENV === 'production' || process.env.DOCKER_ENV
-            ? 'http://server:8080'
-            : env.NEXT_PUBLIC_API_URL;
+          const apiUrl = env.NEXT_PUBLIC_API_URL;
           const response = await fetch(`${apiUrl}/auth/refresh`, {
             method: "POST",
             headers: { 
@@ -423,6 +427,7 @@ export const authConfig = {
           user: {
             ...session.user,
             id: token.id as string || "",
+            email: token.email ?? "",
             token: "", // Empty token will cause API calls to fail with 401
             refreshToken: "",
             roles: [],
@@ -437,6 +442,7 @@ export const authConfig = {
         user: {
           ...session.user,
           id: token.id as string,
+          email: token.email ?? "",
           token: token.token as string,
           refreshToken: token.refreshToken as string,
           roles: token.roles as string[],

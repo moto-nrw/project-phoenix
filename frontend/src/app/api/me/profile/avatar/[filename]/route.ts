@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { handleApiError } from "~/lib/api-helpers";
+import { env } from "~/env";
 
 // GET handler for fetching avatar images
 // Note: This doesn't use createGetHandler because we need to return raw image data
@@ -38,7 +39,7 @@ export const GET = async (
     }
 
     // Fetch from backend
-    const backendUrl = `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'}/api/me/profile/avatar/${filename}`;
+    const backendUrl = `${env.NEXT_PUBLIC_API_URL}/api/me/profile/avatar/${filename}`;
     const response = await fetch(backendUrl, {
       headers: {
         'Authorization': `Bearer ${session.user.token}`,

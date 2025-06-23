@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { createFileUploadHandler } from "~/lib/file-upload-wrapper";
 import { createDeleteHandler } from "~/lib/route-wrapper";
 import type { BackendProfile } from "~/lib/profile-helpers";
+import { env } from "~/env";
 
 interface ProfileResponse {
   success: boolean;
@@ -75,7 +76,7 @@ export const POST = createFileUploadHandler<BackendProfile>(
     validatedFormData.append('avatar', validatedFile);
 
     // Forward the request to backend
-    const backendUrl = `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'}/api/me/profile/avatar`;
+    const backendUrl = `${env.NEXT_PUBLIC_API_URL}/api/me/profile/avatar`;
     const response = await fetch(backendUrl, {
       method: 'POST',
       headers: {
@@ -104,7 +105,7 @@ export const POST = createFileUploadHandler<BackendProfile>(
 // DELETE handler for removing avatar
 export const DELETE = createDeleteHandler(async (request: NextRequest, token: string) => {
   // Forward the request to backend
-  const backendUrl = `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080'}/api/me/profile/avatar`;
+  const backendUrl = `${env.NEXT_PUBLIC_API_URL}/api/me/profile/avatar`;
   const response = await fetch(backendUrl, {
     method: 'DELETE',
     headers: {

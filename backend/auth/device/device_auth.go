@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/render"
@@ -76,6 +77,21 @@ func DeviceAuthenticator(iotService iotSvc.Service, usersService usersSvc.Person
 				return
 			}
 
+			// Extract staff ID from X-Staff-ID header
+			staffIDStr := r.Header.Get("X-Staff-ID")
+			if staffIDStr == "" {
+				logging.GetLogEntry(r).Warn("Device authentication failed: missing X-Staff-ID header")
+				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrMissingStaffID))
+				return
+			}
+
+			staffID, err := strconv.ParseInt(staffIDStr, 10, 64)
+			if err != nil {
+				logging.GetLogEntry(r).Warn("Device authentication failed: invalid X-Staff-ID format:", err)
+				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidStaffID))
+				return
+			}
+
 			// Validate API key and get device
 			device, err := iotService.GetDeviceByAPIKey(r.Context(), apiKey)
 			if err != nil {
@@ -97,8 +113,8 @@ func DeviceAuthenticator(iotService iotSvc.Service, usersService usersSvc.Person
 				return
 			}
 
-			// Validate staff PIN
-			staff, err := usersService.ValidateStaffPIN(r.Context(), staffPIN)
+			// Validate staff PIN for the specific staff member
+			staff, err := usersService.ValidateStaffPINForSpecificStaff(r.Context(), staffID, staffPIN)
 			if err != nil {
 				logging.GetLogEntry(r).Warn("Device authentication failed: staff PIN validation error:", err)
 				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN))

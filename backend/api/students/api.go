@@ -27,13 +27,13 @@ import (
 
 // Resource defines the students API resource
 type Resource struct {
-	PersonService        userService.PersonService
-	StudentRepo          users.StudentRepository
-	EducationService     educationService.Service
-	UserContextService   userContextService.UserContextService
-	ActiveService        activeService.Service
-	IoTService           iotSvc.Service
-	PrivacyConsentRepo   users.PrivacyConsentRepository
+	PersonService      userService.PersonService
+	StudentRepo        users.StudentRepository
+	EducationService   educationService.Service
+	UserContextService userContextService.UserContextService
+	ActiveService      activeService.Service
+	IoTService         iotSvc.Service
+	PrivacyConsentRepo users.PrivacyConsentRepository
 }
 
 // NewResource creates a new students resource
@@ -1137,7 +1137,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 	// Admin users have full access
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	isAdmin := hasAdminPermissions(userPermissions)
-	
+
 	if !isAdmin {
 		// Check if user is a staff member who supervises the student's group
 		student, err := rs.StudentRepo.FindByID(r.Context(), id)
@@ -1147,7 +1147,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 			}
 			return
 		}
-		
+
 		if student.GroupID != nil {
 			// Check if current user supervises this group
 			staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
@@ -1157,7 +1157,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 				}
 				return
 			}
-			
+
 			// Check if staff supervises the student's group
 			educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
 			if err != nil {
@@ -1166,7 +1166,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 				}
 				return
 			}
-			
+
 			hasAccess := false
 			for _, group := range educationGroups {
 				if group.ID == *student.GroupID {
@@ -1174,7 +1174,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 					break
 				}
 			}
-			
+
 			if !hasAccess {
 				if err := render.Render(w, r, ErrorForbidden(errors.New("you do not supervise this student's group"))); err != nil {
 					log.Printf("Error rendering error response: %v", err)
@@ -1250,7 +1250,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 	// Admin users have full access
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	isAdmin := hasAdminPermissions(userPermissions)
-	
+
 	if !isAdmin {
 		// Check if user is a staff member who supervises the student's group
 		if student.GroupID != nil {
@@ -1262,7 +1262,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 				}
 				return
 			}
-			
+
 			// Check if staff supervises the student's group
 			educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
 			if err != nil {
@@ -1271,7 +1271,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 				}
 				return
 			}
-			
+
 			hasAccess := false
 			for _, group := range educationGroups {
 				if group.ID == *student.GroupID {
@@ -1279,7 +1279,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 					break
 				}
 			}
-			
+
 			if !hasAccess {
 				if err := render.Render(w, r, ErrorForbidden(errors.New("you do not supervise this student's group"))); err != nil {
 					log.Printf("Error rendering error response: %v", err)

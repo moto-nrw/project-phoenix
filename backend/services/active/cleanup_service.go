@@ -14,12 +14,12 @@ import (
 
 // cleanupService implements the CleanupService interface
 type cleanupService struct {
-	visitRepo            active.VisitRepository
-	privacyConsentRepo   userModels.PrivacyConsentRepository
-	dataDeletionRepo     audit.DataDeletionRepository
-	db                   *bun.DB
-	txHandler            *base.TxHandler
-	batchSize            int
+	visitRepo          active.VisitRepository
+	privacyConsentRepo userModels.PrivacyConsentRepository
+	dataDeletionRepo   audit.DataDeletionRepository
+	db                 *bun.DB
+	txHandler          *base.TxHandler
+	batchSize          int
 }
 
 // NewCleanupService creates a new cleanup service instance
@@ -64,12 +64,12 @@ func (s *cleanupService) CleanupExpiredVisits(ctx context.Context) (*CleanupResu
 
 		batch := students[i:end]
 		batchResult := s.processBatch(ctx, batch)
-		
+
 		// Aggregate results
 		result.StudentsProcessed += batchResult.processed
 		result.RecordsDeleted += batchResult.deleted
 		result.Errors = append(result.Errors, batchResult.errors...)
-		
+
 		if len(batchResult.errors) > 0 {
 			result.Success = false
 		}
@@ -171,10 +171,10 @@ func (s *cleanupService) GetRetentionStatistics(ctx context.Context) (*Retention
 		WHERE v.exit_time IS NOT NULL
 			AND v.created_at < NOW() - (pc.data_retention_days || ' days')::INTERVAL
 	`).Scan(ctx, &oldestVisit)
-	
+
 	if err == nil && !oldestVisit.CreatedAt.IsZero() {
 		stats.OldestExpiredVisit = &oldestVisit.CreatedAt
-		
+
 		// Get monthly breakdown
 		var monthlyStats []struct {
 			Month string `bun:"month"`
@@ -191,7 +191,7 @@ func (s *cleanupService) GetRetentionStatistics(ctx context.Context) (*Retention
 			GROUP BY TO_CHAR(v.created_at, 'YYYY-MM')
 			ORDER BY month
 		`).Scan(ctx, &monthlyStats)
-		
+
 		if err == nil {
 			for _, ms := range monthlyStats {
 				stats.ExpiredVisitsByMonth[ms.Month] = ms.Count
@@ -215,7 +215,7 @@ func (s *cleanupService) PreviewCleanup(ctx context.Context) (*CleanupPreview, e
 	}
 
 	preview.StudentVisitCounts = studentStats
-	
+
 	// Calculate total
 	var total int64
 	for _, count := range studentStats {
@@ -234,7 +234,7 @@ func (s *cleanupService) PreviewCleanup(ctx context.Context) (*CleanupPreview, e
 		WHERE v.exit_time IS NOT NULL
 			AND v.created_at < NOW() - (pc.data_retention_days || ' days')::INTERVAL
 	`).Scan(ctx, &oldestVisit)
-	
+
 	if err == nil && !oldestVisit.CreatedAt.IsZero() {
 		preview.OldestVisit = &oldestVisit.CreatedAt
 	}
@@ -251,7 +251,7 @@ type studentWithConsent struct {
 
 func (s *cleanupService) getStudentsWithRetentionSettings(ctx context.Context) ([]studentWithConsent, error) {
 	var students []studentWithConsent
-	
+
 	err := s.db.NewRaw(`
 		SELECT DISTINCT 
 			pc.student_id,
@@ -260,11 +260,11 @@ func (s *cleanupService) getStudentsWithRetentionSettings(ctx context.Context) (
 		WHERE pc.accepted = true
 		ORDER BY pc.student_id
 	`).Scan(ctx, &students)
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return students, nil
 }
 
@@ -281,7 +281,7 @@ func (s *cleanupService) processBatch(ctx context.Context, students []studentWit
 
 	for _, student := range students {
 		result.processed++
-		
+
 		// Process each student
 		deleted, err := s.processStudent(ctx, student)
 		if err != nil {
@@ -300,7 +300,7 @@ func (s *cleanupService) processBatch(ctx context.Context, students []studentWit
 
 func (s *cleanupService) processStudent(ctx context.Context, student studentWithConsent) (int64, error) {
 	var deletedCount int64
-	
+
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		// Delete expired visits
 		count, err := s.visitRepo.DeleteExpiredVisits(ctx, student.StudentID, student.DataRetentionDays)

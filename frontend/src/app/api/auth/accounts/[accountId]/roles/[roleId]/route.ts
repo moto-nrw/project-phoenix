@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@/server/auth";
+import { env } from "~/env";
 
 // Custom POST handler to handle 204 No Content responses
 export const POST = async (request: NextRequest, context: { params: Promise<Record<string, string | string[] | undefined>> }) => {
@@ -18,7 +19,7 @@ export const POST = async (request: NextRequest, context: { params: Promise<Reco
         console.log(`Assigning role ${roleId} to account ${accountId}`);
         
         // Call the API endpoint
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/roles/${roleId}`, {
+        const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/roles/${roleId}`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -85,7 +86,7 @@ export const DELETE = async (request: NextRequest, context: { params: Promise<Re
         console.log(`Removing role ${roleId} from account ${accountId}`);
         
         // Call the API endpoint
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/roles/${roleId}`, {
+        const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/roles/${roleId}`, {
             method: "DELETE",
             headers: {
                 "Content-Type": "application/json",

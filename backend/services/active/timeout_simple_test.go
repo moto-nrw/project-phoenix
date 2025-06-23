@@ -74,6 +74,7 @@ func (m *SimpleGroupRepo) EndSession(ctx context.Context, id int64) error { retu
 func (m *SimpleGroupRepo) FindBySourceIDs(ctx context.Context, sourceIDs []int64, sourceType string) ([]*active.Group, error) {
 	return nil, nil
 }
+
 // FindWithRelations - missing method from interface
 func (m *SimpleGroupRepo) FindWithRelations(ctx context.Context, id int64) (*active.Group, error) {
 	return nil, nil
