@@ -359,6 +359,8 @@ cd ../../..
 - **SQL Debugging**: Set `DB_DEBUG=true` to see queries
 - **Schema-qualified tables**: Always use `ModelTableExpr` with quoted aliases in repository methods
 - **"missing FROM-clause entry" errors**: Ensure table aliases are quoted in `ModelTableExpr`
+- **Student location data**: Use `active.visits` and `active.attendance` tables, NOT deprecated boolean flags
+- **Rebuild requirement**: Docker backend container must be rebuilt after Go code changes (`docker compose build server`)
 
 ### Frontend Issues
 - **API Connection**: Verify `NEXT_PUBLIC_API_URL` points to backend
@@ -614,6 +616,13 @@ export default function Page() {
 - Supervisor assignments for active groups
 - Combined groups can contain multiple regular groups
 - Device tracking: `device_id` is now optional in `active.groups` (for RFID integration)
+
+**CRITICAL - Student Location Tracking System Status:**
+- **Real tracking system**: `active.visits` + `active.attendance` tables (CORRECT, functional)
+- **Deprecated system**: Manual boolean flags in `users.students` (`in_house`, `wc`, `school_yard`) (BROKEN, being phased out)
+- **Current issue**: Frontend still displays deprecated flags instead of real tracking data
+- **Bus flag meaning**: Administrative permission flag only ("Buskind"), NOT location
+- **Transition needed**: Student API must use `active.visits` for current location, not deprecated flags
 
 ### Education Domain
 - Groups have teachers and representatives
