@@ -1,6 +1,7 @@
 package students
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -66,6 +68,8 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listStudents)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}", rs.getStudent)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/in-group-room", rs.getStudentInGroupRoom)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/current-visit", rs.getStudentCurrentVisit)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/visit-history", rs.getStudentVisitHistory)
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createStudent)
@@ -242,7 +246,7 @@ func (req *RFIDAssignmentRequest) Bind(r *http.Request) error {
 
 // newStudentResponse creates a student response from a student and person model
 // includeLocation determines whether to include sensitive location data
-func newStudentResponse(student *users.Student, person *users.Person, group *education.Group, includeLocation bool) StudentResponse {
+func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, includeLocation bool, activeService activeService.Service) StudentResponse {
 	response := StudentResponse{
 		ID:              student.ID,
 		PersonID:        student.PersonID,
@@ -254,17 +258,29 @@ func newStudentResponse(student *users.Student, person *users.Person, group *edu
 		UpdatedAt:       student.UpdatedAt,
 	}
 
-	// Always show if student is at home or at OGS for all staff
-	if student.InHouse || student.WC || student.SchoolYard {
-		// Student is at OGS
+	// Use real tracking data instead of deprecated flags
+	// Get current visit to determine real location
+	currentVisit, err := activeService.GetStudentCurrentVisit(ctx, student.ID)
+	if err == nil && currentVisit != nil {
+		// Student has an active visit - they are present and in a specific activity
 		if includeLocation {
-			response.Location = student.GetLocation() // Full location details for authorized
+			// Supervisors see detailed location/activity information
+			// TODO: Get room and activity names from the visit data
+			response.Location = "Anwesend - Aktivität" // Placeholder for now
 		} else {
-			response.Location = "In House" // Generic "in house" for all staff
+			// Non-supervisors see generic attendance status
+			response.Location = "Anwesend"
 		}
 	} else {
-		// If none of the OGS location flags are set, student is at home
-		response.Location = "Home"
+		// No active visit - check daily attendance status
+		attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, student.ID)
+		if err == nil && attendanceStatus != nil && attendanceStatus.CheckOutTime == nil {
+			// Student is checked in but has no active visit
+			response.Location = "Anwesend"
+		} else {
+			// Student is not checked in or has checked out
+			response.Location = "Abwesend"
+		}
 	}
 
 	if person != nil {
@@ -454,7 +470,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		responses = append(responses, newStudentResponse(student, person, group, canAccessLocation))
+		responses = append(responses, newStudentResponse(r.Context(), student, person, group, canAccessLocation, rs.ActiveService))
 	}
 
 	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, totalCount, "Students retrieved successfully")
@@ -522,7 +538,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare response
 	response := StudentDetailResponse{
-		StudentResponse: newStudentResponse(student, person, group, hasFullAccess),
+		StudentResponse: newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService),
 		HasFullAccess:   hasFullAccess,
 	}
 
@@ -647,7 +663,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	canAccessLocation := hasAdminPermissions(userPermissions)
 
 	// Return the created student with person data
-	common.Respond(w, r, http.StatusCreated, newStudentResponse(student, person, group, canAccessLocation), "Student created successfully")
+	common.Respond(w, r, http.StatusCreated, newStudentResponse(r.Context(), student, person, group, canAccessLocation, rs.ActiveService), "Student created successfully")
 }
 
 // updateStudent handles updating an existing student
@@ -773,7 +789,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	canAccessLocation := hasAdminPermissions(userPermissions)
 
 	// Return the updated student with person data
-	common.Respond(w, r, http.StatusOK, newStudentResponse(updatedStudent, person, group, canAccessLocation), "Student updated successfully")
+	common.Respond(w, r, http.StatusOK, newStudentResponse(r.Context(), updatedStudent, person, group, canAccessLocation, rs.ActiveService), "Student updated successfully")
 }
 
 // deleteStudent handles deleting a student and their associated person record
@@ -1349,4 +1365,66 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 	}
 
 	common.Respond(w, r, http.StatusOK, newPrivacyConsentResponse(consent), "Privacy consent updated successfully")
+}
+
+// getStudentCurrentVisit handles getting a student's current visit
+func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Request) {
+	// Parse student ID from URL
+	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get current visit
+	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), studentID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	if currentVisit == nil {
+		common.Respond(w, r, http.StatusOK, nil, "Student has no current visit")
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, currentVisit, "Current visit retrieved successfully")
+}
+
+// getStudentVisitHistory handles getting a student's visit history for today
+func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Request) {
+	// Parse student ID from URL
+	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get all visits for this student
+	visits, err := rs.ActiveService.FindVisitsByStudentID(r.Context(), studentID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Filter to today's visits only
+	today := time.Now().Truncate(24 * time.Hour)
+	tomorrow := today.Add(24 * time.Hour)
+	
+	var todaysVisits []*active.Visit
+	for _, visit := range visits {
+		if visit.EntryTime.After(today) && visit.EntryTime.Before(tomorrow) {
+			todaysVisits = append(todaysVisits, visit)
+		}
+	}
+
+	common.Respond(w, r, http.StatusOK, todaysVisits, "Visit history retrieved successfully")
 }

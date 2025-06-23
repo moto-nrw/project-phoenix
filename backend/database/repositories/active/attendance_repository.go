@@ -37,7 +37,7 @@ func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, student
 		Model(&attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id = ? AND "attendance".date = ?`, studentID, dateOnly).
-		Order(`"attendance".check_in_time ASC`).
+		Order(`check_in_time ASC`).
 		Scan(ctx)
 
 	if err != nil {

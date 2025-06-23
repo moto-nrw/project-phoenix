@@ -97,9 +97,9 @@ type Service interface {
 type DashboardAnalytics struct {
 	// Student Overview
 	StudentsPresent      int
-	StudentsEnrolled     int
+	StudentsInTransit    int // Students present but not in any active visit
 	StudentsOnPlayground int
-	StudentsInTransit    int
+	StudentsInRooms      int // Students in indoor rooms (excluding playground)
 
 	// Activities & Rooms
 	ActiveActivities    int

@@ -126,13 +126,9 @@ function SearchPageContent() {
     // Apply attendance filter
     if (attendanceFilter === "all") {
       // No attendance filtering
-    } else if (attendanceFilter === "in_house" && !student.in_house) {
+    } else if (attendanceFilter === "anwesend" && student.current_location !== "Anwesend") {
       return false;
-    } else if (attendanceFilter === "wc" && student.wc !== true) {
-      return false;
-    } else if (attendanceFilter === "school_yard" && student.school_yard !== true) {
-      return false;
-    } else if (attendanceFilter === "bus" && student.current_location !== "Home" && (student.in_house || student.wc || student.school_yard)) {
+    } else if (attendanceFilter === "abwesend" && student.current_location !== "Abwesend") {
       return false;
     }
 
@@ -166,16 +162,14 @@ function SearchPageContent() {
     }
   };
 
-  // Helper function to get location status
+  // Helper function to get attendance status
   const getLocationStatus = (student: Student) => {
-    if (student.in_house === true) return { label: "Im Haus", color: "bg-green-500 text-green-50" };
-    if (student.wc === true) return { label: "Toilette", color: "bg-blue-500 text-blue-50" };
-    if (student.school_yard === true) return { label: "Schulhof", color: "bg-yellow-500 text-yellow-50" };
-    // Student is at home when current_location is "Home" or all location flags are false
-    if (student.current_location === "Home" || (!student.in_house && !student.wc && !student.school_yard)) {
-      return { label: "Zuhause", color: "bg-orange-500 text-orange-50" };
+    if (student.current_location === "Anwesend") {
+      return { label: "Anwesend", color: "bg-green-500 text-green-50" };
     }
-    if (student.current_location === "Bus") return { label: "Unterwegs", color: "bg-purple-500 text-purple-50" };
+    if (student.current_location === "Abwesend") {
+      return { label: "Abwesend", color: "bg-orange-500 text-orange-50" };
+    }
     return { label: "Unbekannt", color: "bg-gray-500 text-gray-50" };
   };
 
@@ -307,10 +301,8 @@ function SearchPageContent() {
                   className="mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 text-base shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8"
                 >
                   <option value="all">Alle</option>
-                  <option value="in_house">In Räumen</option>
-                  <option value="wc">Toilette</option>
-                  <option value="school_yard">Schulhof</option>
-                  <option value="bus">Zuhause</option>
+                  <option value="anwesend">Anwesend</option>
+                  <option value="abwesend">Abwesend</option>
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
                   <svg className="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">

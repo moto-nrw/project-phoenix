@@ -233,9 +233,9 @@ type AnalyticsResponse struct {
 type DashboardAnalyticsResponse struct {
 	// Student Overview
 	StudentsPresent      int `json:"students_present"`
-	StudentsEnrolled     int `json:"students_enrolled"`
+	StudentsInTransit    int `json:"students_in_transit"`    // Students present but not in any active visit
 	StudentsOnPlayground int `json:"students_on_playground"`
-	StudentsInTransit    int `json:"students_in_transit"`
+	StudentsInRooms      int `json:"students_in_rooms"`      // Students in indoor rooms (excluding playground)
 
 	// Activities & Rooms
 	ActiveActivities    int     `json:"active_activities"`
@@ -1944,9 +1944,9 @@ func (rs *Resource) getDashboardAnalytics(w http.ResponseWriter, r *http.Request
 	// Build response
 	response := DashboardAnalyticsResponse{
 		StudentsPresent:      analytics.StudentsPresent,
-		StudentsEnrolled:     analytics.StudentsEnrolled,
-		StudentsOnPlayground: analytics.StudentsOnPlayground,
 		StudentsInTransit:    analytics.StudentsInTransit,
+		StudentsOnPlayground: analytics.StudentsOnPlayground,
+		StudentsInRooms:      analytics.StudentsInRooms,
 		ActiveActivities:     analytics.ActiveActivities,
 		FreeRooms:            analytics.FreeRooms,
 		TotalRooms:           analytics.TotalRooms,

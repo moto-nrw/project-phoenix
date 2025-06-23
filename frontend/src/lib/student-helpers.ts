@@ -68,8 +68,8 @@ export interface PrivacyConsent {
     updatedAt: Date;
 }
 
-// Student location enum
-export type StudentLocation = "Home" | "In House" | "WC" | "School Yard" | "Bus" | "Unknown";
+// Student attendance status enum (updated to use attendance-based terminology)
+export type StudentLocation = "Abwesend" | "Anwesend" | "Unknown";
 
 // Frontend types (mapped from backend)
 export interface Student {
@@ -82,15 +82,15 @@ export interface Student {
     studentId?: string;
     group_name?: string;
     group_id?: string;
-    // Current location of student
+    // Current attendance status of student
     current_location: StudentLocation;
-    // Transportation method (separate from location)
+    // Transportation method (separate from attendance)
     takes_bus?: boolean;
     // Legacy boolean fields for backward compatibility (derived from current_location)
-    in_house: boolean;
-    wc?: boolean;
-    school_yard?: boolean;
-    bus?: boolean; // This will be deprecated in favor of takes_bus
+    in_house: boolean; // Now maps to "Anwesend" status
+    wc?: boolean; // Deprecated - no longer used
+    school_yard?: boolean; // Deprecated - no longer used
+    bus?: boolean; // Administrative permission flag (Buskind), not attendance status
     name_lg?: string;
     contact_lg?: string;
     custom_users_id?: string;
@@ -111,9 +111,13 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student {
     const lastName = backendStudent.last_name || '';
     const name = `${firstName} ${lastName}`.trim();
     
-    // Map backend location to our enum, with fallback for unknown values
-    const current_location: StudentLocation = 
-        (backendStudent.location as StudentLocation) || "Unknown";
+    // Map backend attendance status to our new enum
+    let current_location: StudentLocation = "Unknown";
+    if (backendStudent.location && (backendStudent.location === "Anwesend" || backendStudent.location.startsWith("Anwesend"))) {
+        current_location = "Anwesend";
+    } else if (backendStudent.location === "Abwesend") {
+        current_location = "Abwesend";
+    }
     
     const mapped = {
         id: String(backendStudent.id),
@@ -125,14 +129,14 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student {
         studentId: backendStudent.tag_id,
         group_name: backendStudent.group_name,
         group_id: backendStudent.group_id ? String(backendStudent.group_id) : undefined,
-        // New location system
+        // New attendance-based system
         current_location: current_location,
         takes_bus: undefined, // TODO: Map from backend when available
-        // Legacy boolean fields for backward compatibility (derived from current_location)
-        in_house: current_location === "In House",
-        wc: current_location === "WC",
-        school_yard: current_location === "School Yard",
-        bus: backendStudent.bus, // Now properly mapped from backend
+        // Legacy boolean fields for backward compatibility (derived from attendance status)
+        in_house: current_location === "Anwesend",
+        wc: false, // Deprecated - no longer used
+        school_yard: false, // Deprecated - no longer used
+        bus: backendStudent.bus, // Administrative permission flag (Buskind)
         name_lg: backendStudent.guardian_name,
         contact_lg: backendStudent.guardian_contact,
         custom_users_id: undefined, // Not provided by backend
