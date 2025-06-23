@@ -102,6 +102,14 @@ func AuthenticateRefreshJWT(next http.Handler) http.Handler {
 			return
 		}
 
+		if token == nil {
+			logging.GetLogEntry(r).Warn("No token found in context")
+			if renderErr := render.Render(w, r, ErrUnauthorized(ErrTokenUnauthorized)); renderErr != nil {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			}
+			return
+		}
+
 		if err := jwt.Validate(token); err != nil {
 			if renderErr := render.Render(w, r, ErrUnauthorized(ErrTokenExpired)); renderErr != nil {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -109,18 +117,28 @@ func AuthenticateRefreshJWT(next http.Handler) http.Handler {
 			return
 		}
 
-		// Token is authenticated, parse refresh token string
-		var c RefreshClaims
+		// Parse and validate claims to ensure token integrity
+		var c AppClaims
 		err = c.ParseClaims(claims)
 		if err != nil {
-			logging.GetLogEntry(r).Error(err)
-			if renderErr := render.Render(w, r, ErrUnauthorized(ErrInvalidRefreshToken)); renderErr != nil {
+			logging.GetLogEntry(r).Error("Failed to parse refresh token claims:", err)
+			if renderErr := render.Render(w, r, ErrUnauthorized(ErrInvalidAccessToken)); renderErr != nil {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			}
 			return
 		}
-		// Set refresh token string on context
-		ctx := context.WithValue(r.Context(), CtxRefreshToken, c.Token)
+
+		// Get the raw token string from the Authorization header
+		// This is needed for the auth service to look up the token in the database
+		authHeader := r.Header.Get("Authorization")
+		tokenString := ""
+		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+			tokenString = authHeader[7:]
+		}
+
+		// Set both the validated claims and the token string on context
+		ctx := context.WithValue(r.Context(), CtxClaims, c)
+		ctx = context.WithValue(ctx, CtxRefreshToken, tokenString)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

@@ -89,10 +89,29 @@ type RefreshClaims struct {
 
 // ParseClaims parses the JWT claims into RefreshClaims.
 func (c *RefreshClaims) ParseClaims(claims map[string]any) error {
+	// Parse ID field
+	id, ok := claims["id"]
+	if !ok {
+		return errors.New("could not parse claim id")
+	}
+	// Handle type assertion for numeric ID
+	switch v := id.(type) {
+	case float64:
+		c.ID = int(v)
+	case int:
+		c.ID = v
+	case int64:
+		c.ID = int(v)
+	default:
+		return errors.New("invalid type for claim id")
+	}
+
+	// Parse token field
 	token, ok := claims["token"]
 	if !ok {
 		return errors.New("could not parse claim token")
 	}
 	c.Token = token.(string)
+	
 	return nil
 }

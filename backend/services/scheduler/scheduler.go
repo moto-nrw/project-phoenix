@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,6 +16,7 @@ import (
 // Scheduler manages scheduled tasks
 type Scheduler struct {
 	cleanupService active.CleanupService
+	authService    interface{} // Using interface to avoid circular dependency
 	tasks          map[string]*ScheduledTask
 	mu             sync.RWMutex
 	ctx            context.Context
@@ -33,10 +35,11 @@ type ScheduledTask struct {
 }
 
 // NewScheduler creates a new scheduler
-func NewScheduler(cleanupService active.CleanupService) *Scheduler {
+func NewScheduler(cleanupService active.CleanupService, authService interface{}) *Scheduler {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Scheduler{
 		cleanupService: cleanupService,
+		authService:    authService,
 		tasks:          make(map[string]*ScheduledTask),
 		ctx:            ctx,
 		cancel:         cancel,
@@ -49,6 +52,9 @@ func (s *Scheduler) Start() {
 
 	// Schedule daily cleanup at 2 AM
 	s.scheduleCleanupTask()
+	
+	// Schedule token cleanup every hour
+	s.scheduleTokenCleanupTask()
 }
 
 // Stop gracefully stops the scheduler
@@ -222,4 +228,90 @@ func (s *Scheduler) GetTaskStatus() map[string]interface{} {
 	}
 
 	return status
+}
+
+// scheduleTokenCleanupTask schedules hourly token cleanup
+func (s *Scheduler) scheduleTokenCleanupTask() {
+	task := &ScheduledTask{
+		Name:     "token-cleanup",
+		Schedule: "1h", // Run every hour
+	}
+	
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+	
+	s.wg.Add(1)
+	go s.runTokenCleanupTask(task)
+}
+
+// runTokenCleanupTask runs the token cleanup task on schedule
+func (s *Scheduler) runTokenCleanupTask(task *ScheduledTask) {
+	defer s.wg.Done()
+	
+	log.Println("Token cleanup task scheduled to run every hour")
+	
+	// Run immediately on startup
+	s.executeTokenCleanup(task)
+	
+	// Then run every hour
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	
+	for {
+		select {
+		case <-ticker.C:
+			s.executeTokenCleanup(task)
+		case <-s.ctx.Done():
+			return
+		}
+	}
+}
+
+// executeTokenCleanup executes the token cleanup task
+func (s *Scheduler) executeTokenCleanup(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.LastRun = time.Now()
+	task.mu.Unlock()
+	
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.NextRun = time.Now().Add(time.Hour)
+		task.mu.Unlock()
+	}()
+	
+	log.Println("Running scheduled token cleanup...")
+	startTime := time.Now()
+	
+	// Use reflection to call CleanupExpiredTokens method
+	if s.authService != nil {
+		method := reflect.ValueOf(s.authService).MethodByName("CleanupExpiredTokens")
+		if method.IsValid() {
+			ctx := context.Background()
+			ctxValue := reflect.ValueOf(ctx)
+			results := method.Call([]reflect.Value{ctxValue})
+			
+			if len(results) == 2 {
+				count := results[0].Int()
+				errInterface := results[1].Interface()
+				
+				if errInterface != nil {
+					if err, ok := errInterface.(error); ok && err != nil {
+						log.Printf("ERROR: Token cleanup failed: %v", err)
+						return
+					}
+				}
+				
+				duration := time.Since(startTime)
+				log.Printf("Token cleanup completed in %v: deleted %d expired tokens",
+					duration.Round(time.Millisecond), count)
+			}
+		}
+	}
 }

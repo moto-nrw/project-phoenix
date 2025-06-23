@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -82,10 +84,7 @@ func (r *TokenRepository) FindByAccountIDAndIdentifier(ctx context.Context, acco
 
 // DeleteExpiredTokens removes all expired tokens
 func (r *TokenRepository) DeleteExpiredTokens(ctx context.Context) (int, error) {
-	res, err := r.db.NewDelete().
-		Model((*auth.Token)(nil)).
-		Where("expiry < ?", time.Now()).
-		Exec(ctx)
+	res, err := r.db.ExecContext(ctx, "DELETE FROM auth.tokens WHERE expiry < ?", time.Now())
 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
@@ -109,7 +108,8 @@ func (r *TokenRepository) DeleteExpiredTokens(ctx context.Context) (int, error) 
 func (r *TokenRepository) DeleteByAccountID(ctx context.Context, accountID int64) error {
 	_, err := r.db.NewDelete().
 		Model((*auth.Token)(nil)).
-		Where("account_id = ?", accountID).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".account_id = ?`, accountID).
 		Exec(ctx)
 
 	if err != nil {
@@ -126,7 +126,8 @@ func (r *TokenRepository) DeleteByAccountID(ctx context.Context, accountID int64
 func (r *TokenRepository) DeleteByAccountIDAndIdentifier(ctx context.Context, accountID int64, identifier string) error {
 	_, err := r.db.NewDelete().
 		Model((*auth.Token)(nil)).
-		Where("account_id = ? AND identifier = ?", accountID, identifier).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".account_id = ? AND "token".identifier = ?`, accountID, identifier).
 		Exec(ctx)
 
 	if err != nil {
@@ -238,4 +239,118 @@ func (r *TokenRepository) FindTokensWithAccount(ctx context.Context, filters map
 	}
 
 	return tokens, nil
+}
+
+// CleanupOldTokensForAccount keeps only the most recent N tokens for an account
+// This is useful to allow multiple sessions while preventing unlimited token accumulation
+func (r *TokenRepository) CleanupOldTokensForAccount(ctx context.Context, accountID int64, keepCount int) error {
+	// First, get all tokens for the account ordered by creation date (newest first)
+	var tokens []*auth.Token
+	err := r.db.NewSelect().
+		Model(&tokens).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".account_id = ?`, accountID).
+		Order(`"token".id DESC`). // Assuming ID is auto-incrementing, so higher ID = newer
+		Scan(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "find tokens for cleanup",
+			Err: err,
+		}
+	}
+
+	// If we have more tokens than we want to keep, delete the old ones
+	if len(tokens) > keepCount {
+		// Get the IDs of tokens to delete (all except the most recent keepCount)
+		var idsToDelete []int64
+		for i := keepCount; i < len(tokens); i++ {
+			idsToDelete = append(idsToDelete, tokens[i].ID)
+		}
+
+		// Delete the old tokens
+		if len(idsToDelete) > 0 {
+			_, err = r.db.NewDelete().
+				Model((*auth.Token)(nil)).
+				ModelTableExpr(`auth.tokens AS "token"`).
+				Where(`"token".id IN (?)`, bun.In(idsToDelete)).
+				Exec(ctx)
+
+			if err != nil {
+				return &modelBase.DatabaseError{
+					Op:  "delete old tokens",
+					Err: err,
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// FindByFamilyID finds all tokens belonging to a specific family
+func (r *TokenRepository) FindByFamilyID(ctx context.Context, familyID string) ([]*auth.Token, error) {
+	var tokens []*auth.Token
+	
+	err := r.db.NewSelect().
+		Model(&tokens).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".family_id = ?`, familyID).
+		Order(`"token".generation DESC`).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find tokens by family ID",
+			Err: err,
+		}
+	}
+
+	return tokens, nil
+}
+
+// DeleteByFamilyID deletes all tokens in a specific family
+func (r *TokenRepository) DeleteByFamilyID(ctx context.Context, familyID string) error {
+	_, err := r.db.NewDelete().
+		Model((*auth.Token)(nil)).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".family_id = ?`, familyID).
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "delete tokens by family ID",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+// GetLatestTokenInFamily gets the token with the highest generation in a family
+func (r *TokenRepository) GetLatestTokenInFamily(ctx context.Context, familyID string) (*auth.Token, error) {
+	var token auth.Token
+	
+	err := r.db.NewSelect().
+		Model(&token).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".family_id = ?`, familyID).
+		Order(`"token".generation DESC`).
+		Limit(1).
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &modelBase.DatabaseError{
+				Op:  "get latest token in family",
+				Err: errors.New("token not found"),
+			}
+		}
+		return nil, &modelBase.DatabaseError{
+			Op:  "get latest token in family",
+			Err: err,
+		}
+	}
+
+	return &token, nil
 }

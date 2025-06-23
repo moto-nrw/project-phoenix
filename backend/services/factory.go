@@ -141,6 +141,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.RolePermission,     // Add this
 		repos.PasswordResetToken, // Add this
 		repos.Person,             // Add this for first name
+		repos.AuthEvent,          // Add for audit logging
 		db,
 	)
 	if err != nil {
