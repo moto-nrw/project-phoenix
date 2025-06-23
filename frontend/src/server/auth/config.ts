@@ -127,9 +127,7 @@ export const authConfig = {
         try {
           // Improved error handling with more detailed logging
           // Use server URL in server context (Docker environment)
-          const apiUrl = process.env.NODE_ENV === 'production' || process.env.DOCKER_ENV
-            ? 'http://server:8080'
-            : env.NEXT_PUBLIC_API_URL;
+          const apiUrl = env.NEXT_PUBLIC_API_URL;
           console.log(
             `Attempting login with API URL: ${apiUrl}/auth/login`,
           );
@@ -338,9 +336,7 @@ export const authConfig = {
           
           // Attempt to refresh the token
           // Use server URL in server context (Docker environment)
-          const apiUrl = process.env.NODE_ENV === 'production' || process.env.DOCKER_ENV
-            ? 'http://server:8080'
-            : env.NEXT_PUBLIC_API_URL;
+          const apiUrl = env.NEXT_PUBLIC_API_URL;
           const response = await fetch(`${apiUrl}/auth/refresh`, {
             method: "POST",
             headers: { 

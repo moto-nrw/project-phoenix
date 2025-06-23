@@ -23,9 +23,7 @@ export async function POST(_request: NextRequest) {
 
     // Send refresh token request to backend
     // Use server URL in server context (Docker environment)
-    const apiUrl = process.env.NODE_ENV === 'production' || process.env.DOCKER_ENV
-      ? 'http://server:8080'
-      : env.NEXT_PUBLIC_API_URL;
+    const apiUrl = env.NEXT_PUBLIC_API_URL;
     
     // The backend expects the refresh token in Authorization header
     const backendResponse = await fetch(

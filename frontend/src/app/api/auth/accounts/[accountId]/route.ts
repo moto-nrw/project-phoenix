@@ -1,4 +1,5 @@
 import { createGetHandler } from "@/lib/route-wrapper";
+import { env } from "~/env";
 
 interface UserData {
   account_id?: string;
@@ -25,7 +26,7 @@ export const GET = createGetHandler(async (request, token, params) => {
     // No need to try the auth API which we know will fail with 405
     // First, try to get account data from the user profile
     try {
-      const userApiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/users/${accountId}`;
+      const userApiUrl = `${env.NEXT_PUBLIC_API_URL}/api/users/${accountId}`;
       
       const userResponse = await fetch(userApiUrl, {
         method: "GET",
