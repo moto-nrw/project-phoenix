@@ -44,6 +44,19 @@ declare module "next-auth" {
   }
 }
 
+function parseDurationToMs(duration: string): number {
+  const regex = /^(\d+)([hm])$/;
+  const match = regex.exec(duration);
+  if (!match) return 12 * 60 * 60 * 1000; // 12h default
+  const amount = match[1]!;
+  const unit = match[2]!;
+  const num = parseInt(amount, 10);
+  return unit === 'h' ? num * 60 * 60 * 1000 : num * 60 * 1000;
+}
+
+// Get refresh expiry from environment
+const refreshTokenExpiry = parseDurationToMs(env.AUTH_JWT_REFRESH_EXPIRY);
+
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
  *
@@ -261,8 +274,8 @@ export const authConfig = {
         token.firstName = user.firstName;
         // Store token expiry (15 minutes from now)
         token.tokenExpiry = Date.now() + 15 * 60 * 1000; // 15 minutes
-        // Store refresh token expiry (24 hours from now - matching backend)
-        token.refreshTokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+        // Store refresh token expiry (matching backend)
+        token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
         // Clear any previous error states
         token.error = undefined;
         token.needsRefresh = undefined;
@@ -270,8 +283,8 @@ export const authConfig = {
         // Log token configuration for debugging
         console.log("=== Authentication Token Configuration ===");
         console.log(`Access Token Expiry: 15 minutes (expires at ${new Date(token.tokenExpiry as number).toLocaleString()})`);
-        console.log(`Refresh Token Expiry: 24 hours (expires at ${new Date(token.refreshTokenExpiry as number).toLocaleString()})`);
-        console.log(`NextAuth Session Length: 24 hours`);
+        console.log(`Refresh Token Expiry: ${env.AUTH_JWT_REFRESH_EXPIRY} (expires at ${new Date(token.refreshTokenExpiry as number).toLocaleString()})`);
+        console.log(`NextAuth Session Length: ${env.AUTH_JWT_REFRESH_EXPIRY}`);
         console.log(`Proactive Refresh: Tokens refresh after 5 minutes of use`);
         console.log("========================================");
       }
@@ -364,7 +377,7 @@ export const authConfig = {
             token.token = refreshData.access_token;
             token.refreshToken = refreshData.refresh_token;
             token.tokenExpiry = Date.now() + 15 * 60 * 1000; // Reset access token expiry (15 minutes)
-            token.refreshTokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // Reset refresh token expiry (24 hours)
+            token.refreshTokenExpiry = Date.now() + refreshTokenExpiry; // Reset refresh token expiry
             
             // Clear error states and reset retry count on successful refresh
             token.error = undefined;
@@ -373,7 +386,7 @@ export const authConfig = {
             token.lastRefreshAttempt = undefined;
             token.isRefreshing = false;
             console.log(`New Access Token Expiry: 15 minutes (expires at ${new Date(token.tokenExpiry as number).toLocaleString()})`);
-            console.log(`New Refresh Token Expiry: 24 hours (expires at ${new Date(token.refreshTokenExpiry as number).toLocaleString()})`);
+            console.log(`New Refresh Token Expiry: ${env.AUTH_JWT_REFRESH_EXPIRY} (expires at ${new Date(token.refreshTokenExpiry as number).toLocaleString()})`);
             console.log("================================");
           } else {
             console.error(`Failed to refresh token: ${response.status}`);
@@ -456,6 +469,6 @@ export const authConfig = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60, // 24 hours
+    maxAge: Math.floor(refreshTokenExpiry / 1000), // Match refresh token expiry
   },
 } satisfies NextAuthConfig;

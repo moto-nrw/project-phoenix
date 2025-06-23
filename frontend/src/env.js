@@ -9,6 +9,7 @@ export const env = createEnv({
   server: {
     // Remove AUTH_SECRET or make it fully optional
     AUTH_SECRET: z.string().optional(),
+    AUTH_JWT_REFRESH_EXPIRY: z.string().default("12h"),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -35,6 +36,7 @@ export const env = createEnv({
    */
   runtimeEnv: {
     AUTH_SECRET: process.env.AUTH_SECRET,
+    AUTH_JWT_REFRESH_EXPIRY: process.env.AUTH_JWT_REFRESH_EXPIRY,
     NODE_ENV: process.env.NODE_ENV,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,

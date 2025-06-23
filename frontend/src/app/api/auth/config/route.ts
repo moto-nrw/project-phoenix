@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { env } from "~/env";
 
 /**
  * Endpoint to check the current authentication configuration
@@ -7,8 +8,12 @@ import { NextResponse } from "next/server";
 export async function GET() {
   const config = {
     accessTokenExpiry: "15 minutes",
-    refreshTokenExpiry: "24 hours",
-    nextAuthSessionLength: "24 hours",
+    refreshTokenExpiry: /^(\d+)[hm]$/.test(env.AUTH_JWT_REFRESH_EXPIRY) 
+      ? env.AUTH_JWT_REFRESH_EXPIRY 
+      : "12h (fallback)",
+    nextAuthSessionLength: /^(\d+)[hm]$/.test(env.AUTH_JWT_REFRESH_EXPIRY) 
+      ? env.AUTH_JWT_REFRESH_EXPIRY 
+      : "12h (fallback)",
     proactiveRefreshWindow: "10 minutes before expiry",
     refreshCooldown: "30 seconds between attempts",
     maxRefreshRetries: 3,
