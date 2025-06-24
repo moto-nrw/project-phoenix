@@ -2,7 +2,6 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { usePathname } from "next/navigation";
 
 interface SupervisionState {
   // Group supervision
@@ -28,7 +27,6 @@ const SupervisionContext = createContext<SupervisionContextType | undefined>(und
  */
 export function SupervisionProvider({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
-  const pathname = usePathname();
   
   const [state, setState] = useState<SupervisionState>({
     hasGroups: false,
@@ -38,10 +36,21 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
     supervisedRoomName: undefined,
     isLoadingSupervision: true,
   });
+  
+  // Debounce mechanism to prevent rapid successive calls
+  const [, setIsRefreshing] = useState(false);
+  
+  // Store token in ref to avoid dependency loops
+  const tokenRef = React.useRef<string | undefined>(session?.user?.token);
+  tokenRef.current = session?.user?.token;
+  
+  // Use a ref for the refresh function to break dependency cycles
+  const refreshRef = React.useRef<(() => Promise<void>) | null>(null);
 
   // Check if user has any groups (as teacher or representative)
   const checkGroups = useCallback(async () => {
-    if (!session?.user?.token) {
+    const token = tokenRef.current;
+    if (!token) {
       setState(prev => ({
         ...prev,
         hasGroups: false,
@@ -55,6 +64,8 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
         headers: {
           "Content-Type": "application/json",
         },
+        // Add cache control to reduce redundant requests
+        cache: "no-store",
       });
 
       if (response.ok) {
@@ -78,11 +89,12 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
         isLoadingGroups: false,
       }));
     }
-  }, [session?.user?.token]);
+  }, []); // No dependencies - uses ref
 
   // Check if user is supervising an active room
   const checkSupervision = useCallback(async () => {
-    if (!session?.user?.token) {
+    const token = tokenRef.current;
+    if (!token) {
       setState(prev => ({
         ...prev,
         isSupervising: false,
@@ -98,6 +110,8 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
         headers: {
           "Content-Type": "application/json",
         },
+        // Add cache control to reduce redundant requests
+        cache: "no-store",
       });
 
       if (response.ok) {
@@ -132,32 +146,58 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
         isLoadingSupervision: false,
       }));
     }
-  }, [session?.user?.token]);
+  }, []); // No dependencies - uses ref
 
-  // Refresh all supervision states
+  // Refresh all supervision states with debouncing
   const refresh = useCallback(async () => {
-    setState(prev => ({
-      ...prev,
-      isLoadingGroups: true,
-      isLoadingSupervision: true,
-    }));
-    
-    await Promise.all([checkGroups(), checkSupervision()]);
+    setIsRefreshing(prev => {
+      if (prev) return prev; // Already refreshing, don't start another
+      
+      // Start the refresh process
+      setState(s => ({
+        ...s,
+        isLoadingGroups: true,
+        isLoadingSupervision: true,
+      }));
+      
+      void Promise.all([checkGroups(), checkSupervision()])
+        .finally(() => setIsRefreshing(false));
+      
+      return true;
+    });
   }, [checkGroups, checkSupervision]);
+  
+  // Store the refresh function in ref
+  refreshRef.current = refresh;
 
-  // Initial load and refresh on session/route changes
+  // Initial load and refresh on session changes only
   useEffect(() => {
-    void refresh();
-  }, [session, pathname, refresh]);
+    // Only refresh when session actually changes (not on every render)
+    if (session?.user?.token) {
+      void refreshRef.current?.();
+    } else {
+      // Clear state when no session
+      setState({
+        hasGroups: false,
+        isLoadingGroups: false,
+        isSupervising: false,
+        supervisedRoomId: undefined,
+        supervisedRoomName: undefined,
+        isLoadingSupervision: false,
+      });
+    }
+  }, [session?.user?.token]); // Only depend on token
 
-  // Periodic refresh every 60 seconds
+  // Periodic refresh every 5 minutes (less aggressive)
   useEffect(() => {
+    if (!session?.user?.token) return;
+    
     const interval = setInterval(() => {
-      void refresh();
-    }, 60000);
+      void refreshRef.current?.();
+    }, 300000); // 5 minutes instead of 1 minute
 
     return () => clearInterval(interval);
-  }, [refresh]);
+  }, [session?.user?.token]); // Only depend on token
 
   return (
     <SupervisionContext.Provider value={{ ...state, refresh }}>
