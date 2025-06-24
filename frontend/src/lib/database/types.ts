@@ -153,6 +153,9 @@ export interface EntityConfig<T = Record<string, unknown>> {
   // Theme
   theme: DatabaseTheme;
   
+  // Navigation
+  backUrl?: string;
+  
   // API configuration
   api: ApiConfig;
   
