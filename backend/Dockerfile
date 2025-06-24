@@ -20,7 +20,8 @@ RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
 
 # Multi-Stage production build
 FROM alpine AS production
-RUN apk --no-cache add ca-certificates bash
+RUN apk --no-cache add ca-certificates bash tzdata
+ENV TZ=Europe/Berlin
 
 WORKDIR /app
 # Retrieve the binary from the previous stage

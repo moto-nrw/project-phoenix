@@ -115,6 +115,22 @@ func (p *StudentVisitPolicy) Evaluate(ctx context.Context, authCtx *policy.Conte
 		}
 	}
 
+	// Also check if staff is currently supervising any active groups
+	// that the student is participating in
+	activeSupervisors, err := p.activeService.FindSupervisorsByStaffID(ctx, staff.ID)
+	if err == nil && len(activeSupervisors) > 0 {
+		// Get student's current visit to see which active group they're in
+		currentVisit, err := p.activeService.GetStudentCurrentVisit(ctx, studentID)
+		if err == nil && currentVisit != nil {
+			// Check if staff is supervising the active group the student is visiting
+			for _, supervisor := range activeSupervisors {
+				if supervisor.GroupID == currentVisit.ActiveGroupID {
+					return true, nil // Staff is supervising student's current activity
+				}
+			}
+		}
+	}
+
 	return false, nil
 }
 

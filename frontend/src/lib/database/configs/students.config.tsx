@@ -140,7 +140,7 @@ export const studentsConfig = defineEntityConfig<Student>({
       return {
         ...data,
         name: `${data.first_name} ${data.second_name}`,
-        current_location: 'Home' as const,
+        current_location: 'Abwesend' as const,
       };
     },
   },

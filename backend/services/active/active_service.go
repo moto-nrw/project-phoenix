@@ -338,6 +338,7 @@ func (s *service) GetVisit(ctx context.Context, id int64) (*active.Visit, error)
 	return visit, nil
 }
 
+
 func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 	if err := visit.Validate(); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: ErrInvalidData}
@@ -849,35 +850,86 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		LastUpdated: time.Now(),
 	}
 
-	// Get active visits count (students present)
+	// Get students currently present (checked in but not checked out)
+	// Use UTC-based date calculation to match repository methods
+	now := time.Now().UTC()
+	today := now.Truncate(24 * time.Hour)
+	
+	// Get active visits first for presence calculation
 	activeVisits, err := s.visitRepo.List(ctx, nil)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
 	}
 
-	// Create maps to track students and their locations
-	studentLocationMap := make(map[int64]string) // studentID -> location
-	roomVisitsMap := make(map[int64]int)         // roomID -> visit count
-	recentCheckouts := make(map[int64]time.Time) // studentID -> checkout time
-
-	studentsPresent := 0
+	// Create set of students with active visits
+	studentsWithActiveVisits := make(map[int64]bool)
 	for _, visit := range activeVisits {
 		if visit.IsActive() {
-			studentsPresent++
+			studentsWithActiveVisits[visit.StudentID] = true
+		}
+	}
+
+	// Count students who are currently present (attendance records OR active visits)
+	allStudents, err := s.studentRepo.List(ctx, nil)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
+	}
+	
+	// Use a single map to track all present students (union of attendance + visits)
+	studentsPresent := make(map[int64]bool)
+	studentsWithAttendance := make(map[int64]bool)
+	
+	// First collect students with attendance records for today
+	for _, student := range allStudents {
+		// Check if this student has active attendance (checked in but not out) for today
+		attendance, err := s.attendanceRepo.FindByStudentAndDate(ctx, student.ID, today)
+		if err == nil {
+			// Check if any attendance record shows student is still present (no check-out time)
+			for _, record := range attendance {
+				if record.CheckOutTime == nil {
+					studentsWithAttendance[student.ID] = true
+					studentsPresent[student.ID] = true
+					break // Count each student only once
+				}
+			}
+		}
+	}
+	
+	// Add students with active visits (union, not sum)
+	for studentID := range studentsWithActiveVisits {
+		studentsPresent[studentID] = true
+	}
+	
+	analytics.StudentsPresent = len(studentsPresent)
+
+	// Create maps to track students and their locations
+	studentLocationMap := make(map[int64]string) // studentID -> location
+	recentCheckouts := make(map[int64]time.Time) // studentID -> checkout time
+
+	// Track active visits for room calculations
+	for _, visit := range activeVisits {
+		if visit.IsActive() {
 			studentLocationMap[visit.StudentID] = "active"
 		} else if visit.ExitTime != nil {
 			// Track recent checkouts for transit calculation
 			recentCheckouts[visit.StudentID] = *visit.ExitTime
 		}
 	}
-	analytics.StudentsPresent = studentsPresent
 
-	// Get total enrolled students
-	allStudents, err := s.studentRepo.List(ctx, nil)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
+	// Get total enrolled students (use same allStudents variable)
+	// allStudents already declared above for attendance check
+	// Calculate students who are present but have no active visits (in transit)
+	// Present students = those with attendance OR active visits
+	// In transit = present students WITHOUT active visits
+	studentsInTransitCount := 0
+	
+	// Count students with attendance who don't have active visits
+	for studentID := range studentsWithAttendance {
+		if !studentsWithActiveVisits[studentID] {
+			studentsInTransitCount++
+		}
 	}
-	analytics.StudentsEnrolled = len(allStudents)
+	analytics.StudentsInTransit = studentsInTransitCount
 
 	// Get all rooms
 	allRooms, err := s.roomRepo.List(ctx, nil)
@@ -906,20 +958,29 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	activeGroupsCount := 0
 	ogsGroupsCount := 0
 	occupiedRooms := make(map[int64]bool)
-	studentsInRooms := 0
+	roomStudentsMap := make(map[int64]map[int64]struct{}) // roomID -> set of unique student IDs
+	uniqueStudentsInRoomsOverall := make(map[int64]struct{}) // Track unique students across all rooms
 
 	for _, group := range activeGroups {
+		// Count all active groups regardless of start date - if they're active, they should be counted
 		if group.IsActive() {
 			activeGroupsCount++
 			occupiedRooms[group.RoomID] = true
 
-			// Count visits for this group
+			// Initialize room student set if not exists
+			if roomStudentsMap[group.RoomID] == nil {
+				roomStudentsMap[group.RoomID] = make(map[int64]struct{})
+			}
+
+			// Count unique students for this group
 			groupVisits, err := s.visitRepo.FindByActiveGroupID(ctx, group.ID)
 			if err == nil {
 				for _, visit := range groupVisits {
 					if visit.IsActive() {
-						roomVisitsMap[group.RoomID]++
-						studentsInRooms++
+						// Add student to room's unique student set (prevents double-counting within room)
+						roomStudentsMap[group.RoomID][visit.StudentID] = struct{}{}
+						// Add student to overall unique students set (prevents double-counting overall)
+						uniqueStudentsInRoomsOverall[visit.StudentID] = struct{}{}
 					}
 				}
 			}
@@ -938,7 +999,8 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	// Calculate free rooms
 	analytics.FreeRooms = analytics.TotalRooms - len(occupiedRooms)
 
-	// Calculate capacity utilization
+	// Calculate capacity utilization using unique student count
+	studentsInRooms := len(uniqueStudentsInRoomsOverall)
 	if roomCapacityTotal > 0 {
 		analytics.CapacityUtilization = float64(studentsInRooms) / float64(roomCapacityTotal)
 	}
@@ -950,7 +1012,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	}
 
 	supervisorMap := make(map[int64]bool)
-	today := time.Now().Truncate(24 * time.Hour)
+	// today variable already declared earlier in function
 	for _, supervisor := range supervisors {
 		if supervisor.IsActive() || (supervisor.StartDate.After(today) && supervisor.StartDate.Before(time.Now())) {
 			supervisorMap[supervisor.StaffID] = true
@@ -981,57 +1043,54 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 
 	// Calculate students by location
 	studentsOnPlayground := 0
-	studentsInTransit := 0
 	studentsInGroupRooms := 0
 	studentsInHomeRoom := 0
-	studentsInWC := 0
-	studentsInSchoolYard := 0
 
-	// Process room visits to categorize students
-	for roomID, visitCount := range roomVisitsMap {
+	// Process room visits to categorize students using unique student counts
+	for roomID, studentSet := range roomStudentsMap {
+		uniqueStudentCount := len(studentSet)
 		if room, ok := roomByID[roomID]; ok {
 			// Check for playground/school yard by category
 			switch room.Category {
 			case "Schulhof", "Playground", "school_yard":
-				studentsOnPlayground += visitCount
-				studentsInSchoolYard += visitCount
-			case "WC", "Toilette", "Restroom", "wc":
-				// Track students in WC
-				studentsInWC += visitCount
+				studentsOnPlayground += uniqueStudentCount
 			}
 
 			// Check if this room belongs to an educational group
 			if educationGroupRooms[roomID] {
-				studentsInGroupRooms += visitCount
+				studentsInGroupRooms += uniqueStudentCount
 				// For now, consider all students in group rooms as in their home room
 				studentsInHomeRoom = studentsInGroupRooms
 			}
 		}
 	}
 
-	// Calculate students in transit: students with in_house=true but not in any room/WC/schoolyard
-	// First, get all students who are in_house (in OGS)
-	studentsInOGS := 0
-	ogsStudentIDs := make(map[int64]bool)
-	for _, student := range allStudents {
-		if student.InHouse {
-			studentsInOGS++
-			ogsStudentIDs[student.ID] = true
+	// Calculate students in rooms: count unique students with active visits EXCLUDING playground/outdoor areas
+	uniqueStudentsInRooms := make(map[int64]struct{})
+	for _, visit := range activeVisits {
+		if visit.IsActive() {
+			// Find the room for this visit to check if it's indoor
+			for _, group := range activeGroups {
+				if group.ID == visit.ActiveGroupID && group.IsActive() {
+					if room, ok := roomByID[group.RoomID]; ok {
+						// Exclude playground/outdoor areas from "In Räumen" count
+						switch room.Category {
+						case "Schulhof", "Playground", "school_yard":
+							// Don't count playground visits as "in rooms"
+						default:
+							// Add student ID to the set for indoor rooms (prevents double-counting)
+							uniqueStudentsInRooms[visit.StudentID] = struct{}{}
+						}
+					}
+					break
+				}
+			}
 		}
 	}
-
-	// Now check which OGS students are NOT in any location
-	studentsInTransit = 0
-	for studentID := range ogsStudentIDs {
-		// Check if this OGS student has an active visit (is in a room)
-		if _, hasActiveVisit := studentLocationMap[studentID]; !hasActiveVisit {
-			// This OGS student is not in any room/location
-			studentsInTransit++
-		}
-	}
+	studentsInRoomsTotal := len(uniqueStudentsInRooms)
 
 	analytics.StudentsOnPlayground = studentsOnPlayground
-	analytics.StudentsInTransit = studentsInTransit
+	analytics.StudentsInRooms = studentsInRoomsTotal    // Students in indoor rooms (excluding playground)
 	analytics.StudentsInGroupRooms = studentsInGroupRooms
 	analytics.StudentsInHomeRoom = studentsInHomeRoom
 
@@ -1062,8 +1121,11 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 				roomName = room.Name
 			}
 
-			// Count active visits for this group
-			visitCount := roomVisitsMap[group.RoomID]
+			// Count unique students for this group
+			visitCount := 0
+			if studentSet, ok := roomStudentsMap[group.RoomID]; ok {
+				visitCount = len(studentSet)
+			}
 
 			activity := RecentActivity{
 				Type:      "group_start",
@@ -1095,7 +1157,9 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			for _, group := range activeGroups {
 				if group.IsActive() && group.GroupID == actGroup.ID {
 					hasActiveSession = true
-					participantCount = roomVisitsMap[group.RoomID]
+					if studentSet, ok := roomStudentsMap[group.RoomID]; ok {
+						participantCount = len(studentSet)
+					}
 					break
 				}
 			}
@@ -1149,10 +1213,16 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			location = room.Name
 		}
 
+		// Get unique student count for this room
+		studentCount := 0
+		if studentSet, ok := roomStudentsMap[group.RoomID]; ok {
+			studentCount = len(studentSet)
+		}
+
 		groupInfo := ActiveGroupInfo{
 			Name:         groupName,
 			Type:         groupType,
-			StudentCount: roomVisitsMap[group.RoomID],
+			StudentCount: studentCount,
 			Location:     location,
 			Status:       "active",
 		}
@@ -1739,4 +1809,62 @@ func (s *service) CheckTeacherStudentAccess(ctx context.Context, teacherID, stud
 	}
 
 	return false, nil
+}
+
+// EndDailySessions ends all active sessions at the end of the day
+func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupResult, error) {
+	result := &DailySessionCleanupResult{
+		ExecutedAt: time.Now(),
+		Success:    true,
+		Errors:     make([]string, 0),
+	}
+
+	// Get all active groups
+	activeGroups, err := s.groupRepo.List(ctx, nil)
+	if err != nil {
+		result.Success = false
+		return result, &ActiveError{Op: "EndDailySessions", Err: ErrDatabaseOperation}
+	}
+
+	// Process each active group
+	for _, group := range activeGroups {
+		if !group.IsActive() {
+			continue // Skip already ended groups
+		}
+
+		// End all visits for this group first
+		visits, err := s.visitRepo.FindByActiveGroupID(ctx, group.ID)
+		if err != nil {
+			errMsg := fmt.Sprintf("Failed to get visits for group %d: %v", group.ID, err)
+			result.Errors = append(result.Errors, errMsg)
+			result.Success = false
+			continue
+		}
+
+		// End active visits
+		for _, visit := range visits {
+			if visit.IsActive() {
+				visit.EndVisit()
+				if err := s.visitRepo.Update(ctx, visit); err != nil {
+					errMsg := fmt.Sprintf("Failed to end visit %d: %v", visit.ID, err)
+					result.Errors = append(result.Errors, errMsg)
+					result.Success = false
+				} else {
+					result.VisitsEnded++
+				}
+			}
+		}
+
+		// End the group session
+		group.EndSession()
+		if err := s.groupRepo.Update(ctx, group); err != nil {
+			errMsg := fmt.Sprintf("Failed to end group session %d: %v", group.ID, err)
+			result.Errors = append(result.Errors, errMsg)
+			result.Success = false
+		} else {
+			result.SessionsEnded++
+		}
+	}
+
+	return result, nil
 }

@@ -30,14 +30,14 @@ func NewAttendanceRepository(db *bun.DB) active.AttendanceRepository {
 func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, studentID int64, date time.Time) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance
 
-	// Extract date only (ignore time component)
-	dateOnly := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	// Extract date only (ignore time component) - use UTC to match other methods
+	dateOnly := date.Truncate(24 * time.Hour)
 
 	err := r.db.NewSelect().
 		Model(&attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id = ? AND "attendance".date = ?`, studentID, dateOnly).
-		Order(`"attendance".check_in_time ASC`).
+		Order(`check_in_time ASC`).
 		Scan(ctx)
 
 	if err != nil {
@@ -77,8 +77,8 @@ func (r *AttendanceRepository) FindLatestByStudent(ctx context.Context, studentI
 func (r *AttendanceRepository) GetStudentCurrentStatus(ctx context.Context, studentID int64) (*active.Attendance, error) {
 	attendance := new(active.Attendance)
 
-	// Get today's date only
-	today := time.Now().Truncate(24 * time.Hour)
+	// Get today's date only - use UTC to match database
+	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	err := r.db.NewSelect().
 		Model(attendance).

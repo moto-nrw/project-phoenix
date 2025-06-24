@@ -52,15 +52,15 @@ const StudentStats: React.FC<StudentStatsProps> = ({ data, isLoading }) => (
     <InfoCard title="Schülerübersicht" href="/students/search">
         <div className="grid grid-cols-2 gap-2 md:gap-4">
             <div className="rounded-lg bg-blue-50 p-2 md:p-3">
-                <p className="text-xs md:text-sm text-blue-800">Anwesend heute</p>
+                <p className="text-xs md:text-sm text-blue-800">Anwesend</p>
                 <p className="text-xl md:text-2xl font-bold text-blue-900">
                     {isLoading ? "..." : data?.studentsPresent ?? 0}
                 </p>
             </div>
-            <div className="rounded-lg bg-green-50 p-2 md:p-3">
-                <p className="text-xs md:text-sm text-green-800">Gesamt eingeschrieben</p>
-                <p className="text-xl md:text-2xl font-bold text-green-900">
-                    {isLoading ? "..." : data?.studentsEnrolled ?? 0}
+            <div className="rounded-lg bg-orange-50 p-2 md:p-3">
+                <p className="text-xs md:text-sm text-orange-800">Unterwegs</p>
+                <p className="text-xl md:text-2xl font-bold text-orange-900">
+                    {isLoading ? "..." : data?.studentsInTransit ?? 0}
                 </p>
             </div>
             <div className="rounded-lg bg-amber-50 p-2 md:p-3">
@@ -70,9 +70,9 @@ const StudentStats: React.FC<StudentStatsProps> = ({ data, isLoading }) => (
                 </p>
             </div>
             <div className="rounded-lg bg-purple-50 p-2 md:p-3">
-                <p className="text-xs md:text-sm text-purple-800">Unterwegs</p>
+                <p className="text-xs md:text-sm text-purple-800">In Räumen</p>
                 <p className="text-xl md:text-2xl font-bold text-purple-900">
-                    {isLoading ? "..." : data?.studentsInTransit ?? 0}
+                    {isLoading ? "..." : data?.studentsInRooms ?? 0}
                 </p>
             </div>
         </div>
