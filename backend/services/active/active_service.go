@@ -904,7 +904,6 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 
 	// Create maps to track students and their locations
 	studentLocationMap := make(map[int64]string) // studentID -> location
-	roomVisitsMap := make(map[int64]int)         // roomID -> visit count
 	recentCheckouts := make(map[int64]time.Time) // studentID -> checkout time
 
 	// Track active visits for room calculations
@@ -959,7 +958,8 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	activeGroupsCount := 0
 	ogsGroupsCount := 0
 	occupiedRooms := make(map[int64]bool)
-	studentsInRooms := 0
+	roomStudentsMap := make(map[int64]map[int64]struct{}) // roomID -> set of unique student IDs
+	uniqueStudentsInRoomsOverall := make(map[int64]struct{}) // Track unique students across all rooms
 
 	for _, group := range activeGroups {
 		// Count all active groups regardless of start date - if they're active, they should be counted
@@ -967,13 +967,20 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			activeGroupsCount++
 			occupiedRooms[group.RoomID] = true
 
-			// Count visits for this group
+			// Initialize room student set if not exists
+			if roomStudentsMap[group.RoomID] == nil {
+				roomStudentsMap[group.RoomID] = make(map[int64]struct{})
+			}
+
+			// Count unique students for this group
 			groupVisits, err := s.visitRepo.FindByActiveGroupID(ctx, group.ID)
 			if err == nil {
 				for _, visit := range groupVisits {
 					if visit.IsActive() {
-						roomVisitsMap[group.RoomID]++
-						studentsInRooms++
+						// Add student to room's unique student set (prevents double-counting within room)
+						roomStudentsMap[group.RoomID][visit.StudentID] = struct{}{}
+						// Add student to overall unique students set (prevents double-counting overall)
+						uniqueStudentsInRoomsOverall[visit.StudentID] = struct{}{}
 					}
 				}
 			}
@@ -992,7 +999,8 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	// Calculate free rooms
 	analytics.FreeRooms = analytics.TotalRooms - len(occupiedRooms)
 
-	// Calculate capacity utilization
+	// Calculate capacity utilization using unique student count
+	studentsInRooms := len(uniqueStudentsInRoomsOverall)
 	if roomCapacityTotal > 0 {
 		analytics.CapacityUtilization = float64(studentsInRooms) / float64(roomCapacityTotal)
 	}
@@ -1038,26 +1046,27 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	studentsInGroupRooms := 0
 	studentsInHomeRoom := 0
 
-	// Process room visits to categorize students
-	for roomID, visitCount := range roomVisitsMap {
+	// Process room visits to categorize students using unique student counts
+	for roomID, studentSet := range roomStudentsMap {
+		uniqueStudentCount := len(studentSet)
 		if room, ok := roomByID[roomID]; ok {
 			// Check for playground/school yard by category
 			switch room.Category {
 			case "Schulhof", "Playground", "school_yard":
-				studentsOnPlayground += visitCount
+				studentsOnPlayground += uniqueStudentCount
 			}
 
 			// Check if this room belongs to an educational group
 			if educationGroupRooms[roomID] {
-				studentsInGroupRooms += visitCount
+				studentsInGroupRooms += uniqueStudentCount
 				// For now, consider all students in group rooms as in their home room
 				studentsInHomeRoom = studentsInGroupRooms
 			}
 		}
 	}
 
-	// Calculate students in rooms: count students with active visits EXCLUDING playground/outdoor areas
-	studentsInRoomsTotal := 0
+	// Calculate students in rooms: count unique students with active visits EXCLUDING playground/outdoor areas
+	uniqueStudentsInRooms := make(map[int64]struct{})
 	for _, visit := range activeVisits {
 		if visit.IsActive() {
 			// Find the room for this visit to check if it's indoor
@@ -1069,8 +1078,8 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 						case "Schulhof", "Playground", "school_yard":
 							// Don't count playground visits as "in rooms"
 						default:
-							// Count all other room visits as "in rooms"
-							studentsInRoomsTotal++
+							// Add student ID to the set for indoor rooms (prevents double-counting)
+							uniqueStudentsInRooms[visit.StudentID] = struct{}{}
 						}
 					}
 					break
@@ -1078,6 +1087,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			}
 		}
 	}
+	studentsInRoomsTotal := len(uniqueStudentsInRooms)
 
 	analytics.StudentsOnPlayground = studentsOnPlayground
 	analytics.StudentsInRooms = studentsInRoomsTotal    // Students in indoor rooms (excluding playground)
@@ -1111,8 +1121,11 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 				roomName = room.Name
 			}
 
-			// Count active visits for this group
-			visitCount := roomVisitsMap[group.RoomID]
+			// Count unique students for this group
+			visitCount := 0
+			if studentSet, ok := roomStudentsMap[group.RoomID]; ok {
+				visitCount = len(studentSet)
+			}
 
 			activity := RecentActivity{
 				Type:      "group_start",
@@ -1144,7 +1157,9 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			for _, group := range activeGroups {
 				if group.IsActive() && group.GroupID == actGroup.ID {
 					hasActiveSession = true
-					participantCount = roomVisitsMap[group.RoomID]
+					if studentSet, ok := roomStudentsMap[group.RoomID]; ok {
+						participantCount = len(studentSet)
+					}
 					break
 				}
 			}
@@ -1198,10 +1213,16 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			location = room.Name
 		}
 
+		// Get unique student count for this room
+		studentCount := 0
+		if studentSet, ok := roomStudentsMap[group.RoomID]; ok {
+			studentCount = len(studentSet)
+		}
+
 		groupInfo := ActiveGroupInfo{
 			Name:         groupName,
 			Type:         groupType,
-			StudentCount: roomVisitsMap[group.RoomID],
+			StudentCount: studentCount,
 			Location:     location,
 			Status:       "active",
 		}
