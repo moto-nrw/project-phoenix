@@ -30,6 +30,9 @@ func (r *AccountRoleRepository) FindByAccountID(ctx context.Context, accountID i
 	err := r.db.NewSelect().
 		Model(&accountRoles).
 		ModelTableExpr(`auth.account_roles AS "account_role"`).
+		Join(`LEFT JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
+		ColumnExpr(`"account_role".*`).
+		ColumnExpr(`"role".id AS "role__id", "role".created_at AS "role__created_at", "role".updated_at AS "role__updated_at", "role".name AS "role__name", "role".description AS "role__description"`).
 		Where(`"account_role".account_id = ?`, accountID).
 		Scan(ctx)
 

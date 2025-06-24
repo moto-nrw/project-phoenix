@@ -161,7 +161,11 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
   const filteredMainItems = mainNavItems.filter(item => {
     if (item.alwaysShow) return true;
     if (item.requiresAdmin && !isAdmin(session)) return false;
-    if (item.requiresGroups && (!hasGroups || isLoadingGroups)) return false;
+    if (item.requiresGroups) {
+      // Only show for users who are actively supervising groups, not admins
+      if (isAdmin(session)) return false;
+      if (!hasGroups || isLoadingGroups) return false;
+    }
     if (item.requiresSupervision && (!isSupervising || isLoadingSupervision)) return false;
     return true;
   });

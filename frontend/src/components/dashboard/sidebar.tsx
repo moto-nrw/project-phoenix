@@ -119,6 +119,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
         // Check group requirement
         if (item.requiresGroups) {
+            // Only show for users who are actively supervising groups, not admins
+            if (isAdmin(session)) {
+                return false;
+            }
             // Use the new supervision context
             return !isLoadingGroups && hasGroups;
         }
