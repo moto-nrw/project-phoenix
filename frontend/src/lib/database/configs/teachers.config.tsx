@@ -84,6 +84,8 @@ export const teachersConfig = defineEntityConfig<Teacher>({
   
   theme: databaseThemes.teachers,
   
+  backUrl: '/database',
+  
   api: {
     basePath: '/api/staff',
   },

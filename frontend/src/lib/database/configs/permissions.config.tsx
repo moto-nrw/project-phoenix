@@ -61,6 +61,8 @@ export const permissionsConfig = defineEntityConfig<Permission>({
   
   theme: permissionsTheme,
   
+  backUrl: '/database',
+  
   api: {
     basePath: '/api/auth/permissions',
   },

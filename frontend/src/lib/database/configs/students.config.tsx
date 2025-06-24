@@ -22,6 +22,8 @@ export const studentsConfig = defineEntityConfig<Student>({
   
   theme: databaseThemes.students,
   
+  backUrl: '/database',
+  
   api: {
     basePath: '/api/students',
     // No listParams needed - the API route handles pagination internally

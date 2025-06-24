@@ -16,6 +16,8 @@ export const activitiesConfig = defineEntityConfig<Activity>({
   
   theme: databaseThemes.activities,
   
+  backUrl: '/database',
+  
   api: {
     basePath: '/api/activities',
   },

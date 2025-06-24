@@ -13,6 +13,7 @@ export interface DatabaseListPageProps<T = unknown> {
   // Header
   title: string;
   description: string;
+  backUrl?: string;
   
   // List section
   listTitle: string;
@@ -71,6 +72,7 @@ export function DatabaseListPage<T = unknown>({
   userName: _userName,
   title,
   description,
+  backUrl,
   listTitle,
   searchPlaceholder,
   searchValue,
@@ -95,6 +97,7 @@ export function DatabaseListPage<T = unknown>({
     return (
       <ResponsiveLayout>
         <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 pb-24 lg:pb-8">
+          <DatabasePageHeader title={title} description={description} backUrl={backUrl} />
           <div className="flex flex-col items-center justify-center py-12 md:py-16">
             <div className="flex flex-col items-center gap-4">
               <div className="h-10 w-10 md:h-12 md:w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
@@ -111,6 +114,7 @@ export function DatabaseListPage<T = unknown>({
     return (
       <ResponsiveLayout>
         <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 pb-24 lg:pb-8">
+          <DatabasePageHeader title={title} description={description} backUrl={backUrl} />
           <div className="flex flex-col items-center justify-center py-8 md:py-12">
             <div className="max-w-md w-full rounded-lg bg-red-50 p-4 md:p-6 text-red-800 shadow-md">
               <h2 className="mb-2 text-lg md:text-xl font-semibold">Fehler</h2>
@@ -143,7 +147,7 @@ export function DatabaseListPage<T = unknown>({
   return (
     <ResponsiveLayout>
       <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8 pb-24 lg:pb-8">
-        <DatabasePageHeader title={title} description={description} />
+        <DatabasePageHeader title={title} description={description} backUrl={backUrl} />
         
         <SearchFilter
           searchPlaceholder={searchPlaceholder}
