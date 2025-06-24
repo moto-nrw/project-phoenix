@@ -8,6 +8,17 @@ import { Alert } from "~/components/ui/alert";
 import { userContextService } from "~/lib/usercontext-api";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
+import type { StudentLocation } from "~/lib/student-helpers";
+
+// Location constants to ensure type safety
+const LOCATIONS = {
+    HOME: "Home" as StudentLocation,
+    IN_HOUSE: "In House" as StudentLocation,
+    WC: "WC" as StudentLocation,
+    SCHOOL_YARD: "School Yard" as StudentLocation,
+    BUS: "Bus" as StudentLocation,
+    UNKNOWN: "Unknown" as StudentLocation,
+} as const;
 
 // Define OGSGroup type based on EducationalGroup with additional fields
 interface OGSGroup {
@@ -187,15 +198,15 @@ function OGSGroupPageContent() {
                     break;
                 case "in_house":
                     // Check both the in_house flag and current_location
-                    if (!student.in_house && student.current_location !== ("In House" as const)) return false;
+                    if (!student.in_house && student.current_location !== LOCATIONS.IN_HOUSE) return false;
                     break;
                 case "school_yard":
-                    if (!student.school_yard && student.current_location !== ("School Yard" as const)) return false;
+                    if (!student.school_yard && student.current_location !== LOCATIONS.SCHOOL_YARD) return false;
                     break;
                 case "at_home":
                     // Student is at home if no location flags are set OR current_location is "Home"
                     const isAtHome = (!student.in_house && !student.wc && !student.school_yard && !studentRoomStatus?.in_group_room) ||
-                                    student.current_location === ("Home" as const);
+                                    student.current_location === LOCATIONS.HOME;
                     if (!isAtHome) return false;
                     break;
             }
@@ -247,7 +258,7 @@ function OGSGroupPageContent() {
         }
         
         // Check for in transit/movement
-        if (student.in_house === true || student.current_location === ("Bus" as const)) {
+        if (student.in_house === true || student.current_location === LOCATIONS.BUS) {
             return { 
                 label: "Unterwegs", 
                 badgeColor: "text-white backdrop-blur-sm",
