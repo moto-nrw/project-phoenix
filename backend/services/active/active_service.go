@@ -338,32 +338,6 @@ func (s *service) GetVisit(ctx context.Context, id int64) (*active.Visit, error)
 	return visit, nil
 }
 
-// ensureAttendanceExists creates an attendance record for a student if they don't have one for today
-// This ensures that students with active visits are also marked as present
-func (s *service) ensureAttendanceExists(ctx context.Context, studentID int64, entryTime time.Time, deviceID int64) error {
-	// Use local timezone consistently for date calculations
-	now := entryTime
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	
-	// Check if student already has attendance for today
-	existingAttendance, err := s.attendanceRepo.FindByStudentAndDate(ctx, studentID, today)
-	if err == nil && len(existingAttendance) > 0 {
-		// Student already has attendance for today, no need to create
-		return nil
-	}
-	
-	// Create new attendance record with check-in time from visit entry
-	attendance := &active.Attendance{
-		StudentID:     studentID,
-		Date:          today,
-		CheckInTime:   entryTime,
-		CheckOutTime:  nil, // Still present
-		CheckedInBy:   1,   // System/admin user (could be made configurable)
-		DeviceID:      deviceID,
-	}
-	
-	return s.attendanceRepo.Create(ctx, attendance)
-}
 
 func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 	if err := visit.Validate(); err != nil {
