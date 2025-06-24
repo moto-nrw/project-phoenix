@@ -75,6 +75,16 @@ All cleanup actions are logged in the audit.data_deletions table for compliance.
 	RunE: runCleanupAttendance,
 }
 
+// cleanupSessionsCmd represents the sessions subcommand
+var cleanupSessionsCmd = &cobra.Command{
+	Use:   "sessions",
+	Short: "Clean up abandoned active sessions",
+	Long: `Clean up abandoned active sessions and end daily sessions.
+This command provides manual control over session cleanup that normally runs automatically.
+It can clean up sessions that have exceeded their timeout or end all active sessions.`,
+	RunE: runCleanupSessions,
+}
+
 func init() {
 	RootCmd.AddCommand(cleanupCmd)
 	cleanupCmd.AddCommand(cleanupVisitsCmd)
@@ -82,6 +92,7 @@ func init() {
 	cleanupCmd.AddCommand(cleanupStatsCmd)
 	cleanupCmd.AddCommand(cleanupTokensCmd)
 	cleanupCmd.AddCommand(cleanupAttendanceCmd)
+	cleanupCmd.AddCommand(cleanupSessionsCmd)
 
 	// Flags for cleanup visits command
 	cleanupVisitsCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be deleted without deleting")
@@ -98,6 +109,12 @@ func init() {
 	// Flags for attendance command
 	cleanupAttendanceCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be cleaned without cleaning")
 	cleanupAttendanceCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed information")
+
+	// Flags for sessions command
+	cleanupSessionsCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be cleaned without cleaning")
+	cleanupSessionsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed information")
+	cleanupSessionsCmd.Flags().String("mode", "abandoned", "Cleanup mode: 'abandoned' (timeout-based) or 'daily' (end all sessions)")
+	cleanupSessionsCmd.Flags().Duration("threshold", 2*time.Hour, "Threshold for abandoned session cleanup (only used with --mode=abandoned)")
 }
 
 func runCleanupVisits(cmd *cobra.Command, args []string) error {
@@ -522,6 +539,84 @@ func runCleanupAttendance(cmd *cobra.Command, args []string) error {
 				fmt.Printf("  - %s\n", errMsg)
 			}
 		}
+	}
+
+	return nil
+}
+
+func runCleanupSessions(cmd *cobra.Command, args []string) error {
+	// Get flags
+	mode, _ := cmd.Flags().GetString("mode")
+	threshold, _ := cmd.Flags().GetDuration("threshold")
+
+	log.Printf("Starting session cleanup process (mode: %s)...", mode)
+
+	// Initialize database
+	db, err := database.InitDB()
+	if err != nil {
+		return fmt.Errorf("failed to initialize database: %w", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("failed to close database: %v", err)
+		}
+	}()
+
+	// Create repository and service factories
+	repoFactory := repositories.NewFactory(db)
+	serviceFactory, err := services.NewFactory(repoFactory, db)
+	if err != nil {
+		return fmt.Errorf("failed to create service factory: %w", err)
+	}
+
+	ctx := context.Background()
+
+	switch mode {
+	case "abandoned":
+		// Clean up abandoned sessions using threshold
+		if dryRun {
+			log.Printf("DRY RUN MODE - Would clean up sessions abandoned for more than %v", threshold)
+			return nil
+		}
+
+		count, err := serviceFactory.Active.CleanupAbandonedSessions(ctx, threshold)
+		if err != nil {
+			return fmt.Errorf("abandoned session cleanup failed: %w", err)
+		}
+
+		fmt.Printf("\nAbandoned Session Cleanup Summary:\n")
+		fmt.Printf("Threshold: %v\n", threshold)
+		fmt.Printf("Sessions cleaned: %d\n", count)
+		fmt.Printf("Status: SUCCESS\n")
+
+	case "daily":
+		// End all active sessions (daily session end)
+		if dryRun {
+			log.Println("DRY RUN MODE - Would end all active sessions")
+			return nil
+		}
+
+		result, err := serviceFactory.Active.EndDailySessions(ctx)
+		if err != nil {
+			return fmt.Errorf("daily session cleanup failed: %w", err)
+		}
+
+		fmt.Printf("\nDaily Session Cleanup Summary:\n")
+		fmt.Printf("Sessions ended: %d\n", result.SessionsEnded)
+		fmt.Printf("Visits ended: %d\n", result.VisitsEnded)
+		fmt.Printf("Status: %s\n", getStatusString(result.Success))
+
+		if len(result.Errors) > 0 {
+			fmt.Printf("Errors: %d\n", len(result.Errors))
+			if verbose {
+				for _, errMsg := range result.Errors {
+					fmt.Printf("  - %s\n", errMsg)
+				}
+			}
+		}
+
+	default:
+		return fmt.Errorf("invalid mode: %s (must be 'abandoned' or 'daily')", mode)
 	}
 
 	return nil
