@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -31,6 +31,9 @@ interface SettingsSection {
   badge?: string;
   warning?: boolean;
 }
+
+// Tailwind's lg breakpoint value
+const LG_BREAKPOINT = 1024;
 
 const settingsSections: SettingsSection[] = [
   {
@@ -73,6 +76,44 @@ function SettingsContent() {
   const [systemNotifications, setSystemNotifications] = useState(true);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
+  // Check if we're on mobile device
+  const checkMobile = useCallback(() => {
+    return typeof window !== 'undefined' && window.innerWidth < LG_BREAKPOINT;
+  }, []);
+
+  // Set initial section based on device type
+  useEffect(() => {
+    const isMobile = checkMobile();
+    // On mobile, start with menu; on desktop, start with general section
+    if (isMobile) {
+      setActiveSection(null);
+    }
+  }, [checkMobile]); // Only run on mount
+
+  // Handle window resize events
+  useEffect(() => {
+    const handleResize = () => {
+      const isMobile = checkMobile();
+      // Only reset to menu/general when crossing the breakpoint
+      if (isMobile && activeSection === "general") {
+        // Moving from desktop to mobile while on default section
+        setActiveSection(null);
+      } else if (!isMobile && activeSection === null) {
+        // Moving from mobile to desktop while on menu
+        setActiveSection("general");
+      }
+      // Otherwise, keep the current section
+    };
+
+    // Add resize listener for dynamic responsiveness
+    window.addEventListener('resize', handleResize);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [activeSection, checkMobile]);
+
   if (status === "loading") {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
@@ -103,7 +144,7 @@ function SettingsContent() {
       return (
         <Link
           href={section.href}
-          className={`block w-full rounded-lg border p-4 text-left transition-all duration-200 hover:shadow-md ${isActive
+          className={`block w-full rounded-lg border p-4 text-left transition-all duration-200 hover:shadow-md active:scale-[0.98] ${isActive
               ? "border-gray-900 bg-gray-50 shadow-md"
               : "border-gray-200 bg-white hover:border-gray-300"
             }`}
@@ -131,7 +172,7 @@ function SettingsContent() {
     return (
       <button
         onClick={onClick ?? (() => setActiveSection(section.id))}
-        className={`w-full rounded-lg border p-4 text-left transition-all duration-200 hover:shadow-md ${isActive
+        className={`w-full rounded-lg border p-4 text-left transition-all duration-200 hover:shadow-md active:scale-[0.98] ${isActive
             ? "border-gray-900 bg-gray-50 shadow-md"
             : "border-gray-200 bg-white hover:border-gray-300"
           }`}
@@ -172,7 +213,7 @@ function SettingsContent() {
               {/* Profile Management Link */}
               <Link
                 href="/profile"
-                className="block rounded-lg border border-gray-200 p-4 transition-all hover:border-gray-300 hover:shadow-md group"
+                className="block rounded-lg border border-gray-200 p-4 transition-all hover:border-gray-300 hover:shadow-md group active:scale-[0.98]"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
@@ -197,13 +238,13 @@ function SettingsContent() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Design</label>
                 <div className="grid grid-cols-2 gap-4">
                   <button
-                    className="rounded-lg border-2 p-4 text-center transition-colors border-gray-900 bg-gray-50"
+                    className="rounded-lg border-2 p-4 text-center transition-all border-gray-900 bg-gray-50 cursor-default"
                   >
                     <Icon path="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" className="mx-auto h-6 w-6 text-[#F78C10]" />
                     <span className="mt-2 block text-sm font-medium text-gray-900">Hell</span>
                   </button>
                   <button
-                    className="rounded-lg border-2 p-4 text-center transition-colors border-gray-200 hover:border-gray-300"
+                    className="rounded-lg border-2 p-4 text-center transition-all border-gray-200 hover:border-gray-300 active:scale-[0.98]"
                   >
                     <Icon path="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" className="mx-auto h-6 w-6 text-gray-600" />
                     <span className="mt-2 block text-sm font-medium text-gray-900">Dunkel</span>
@@ -279,7 +320,7 @@ function SettingsContent() {
             <div className="space-y-6">
               <button
                 onClick={() => setShowPasswordModal(true)}
-                className="w-full flex items-center justify-between rounded-lg border border-gray-200 p-4 transition-colors hover:bg-gray-50"
+                className="w-full flex items-center justify-between rounded-lg border border-gray-200 p-4 transition-all hover:bg-gray-50 active:scale-[0.98]"
               >
                 <div className="flex items-center space-x-3">
                   <Icon path="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1 1 21 9z" className="h-5 w-5 text-gray-600" />
@@ -352,15 +393,64 @@ function SettingsContent() {
           </div>
         ) : (
           <div>
-            <button
-              onClick={() => setActiveSection(null)}
-              className="mb-4 flex items-center text-sm text-gray-600 hover:text-gray-900"
-            >
-              Zurück zu Einstellungen
-            </button>
+            {/* Enhanced mobile header for better navigation */}
+            <div className="sticky top-0 z-10 -mx-4 sm:-mx-6 -mt-6 mb-6">
+              <div className="bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm">
+                <div className="flex items-center px-4 py-3">
+                  <button
+                    onClick={() => setActiveSection(null)}
+                    className="group flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-all"
+                    aria-label="Zurück zu Einstellungen"
+                  >
+                    <svg className="w-6 h-6 text-gray-700 group-hover:text-gray-900 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <h2 className="ml-3 text-lg font-semibold text-gray-900 truncate">
+                    {settingsSections.find(s => s.id === activeSection)?.title}
+                  </h2>
+                </div>
+              </div>
+            </div>
+            
             <div className="rounded-lg border border-gray-200 bg-white p-4 md:p-6">
               {renderSectionContent()}
+              
+              {/* Mobile save button for applicable sections */}
+              {(activeSection === "general" || activeSection === "notifications") && (
+                <div className="mt-6 border-t border-gray-100 pt-6 lg:hidden">
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleSave}
+                      variant="success"
+                      className="relative min-w-[140px] overflow-hidden group"
+                    >
+                      {/* Gradient overlay that moves on hover */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out" />
+
+                      {/* Button content */}
+                      <span className="relative flex items-center gap-2.5">
+                        <span className="relative flex items-center justify-center">
+                          {/* Animated ring around icon */}
+                          <span className="absolute h-7 w-7 rounded-full bg-white/20 scale-0 group-hover:scale-110 transition-transform duration-300 ease-out" />
+                          <Icon
+                            path="M5 13l4 4L19 7"
+                            className="relative h-5 w-5 transition-transform duration-200"
+                          />
+                        </span>
+                        <span className="font-medium tracking-wide">Speichern</span>
+                      </span>
+
+                      {/* Subtle pulse on hover */}
+                      <span className="absolute inset-0 rounded-lg ring-2 ring-[#83CD2D] ring-opacity-0 group-hover:ring-opacity-30 transition-all duration-300 group-hover:scale-105 pointer-events-none" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
+            
+            {/* Add bottom padding on mobile for better scrolling */}
+            <div className="h-24 lg:hidden" />
           </div>
         )}
       </div>
@@ -388,7 +478,7 @@ function SettingsContent() {
                   <Button
                     onClick={handleSave}
                     variant="success"
-                    className="relative min-w-[200px] overflow-hidden"
+                    className="relative min-w-[140px] md:min-w-[200px] overflow-hidden"
                   >
                     {/* Gradient overlay that moves on hover */}
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out" />
@@ -403,7 +493,8 @@ function SettingsContent() {
                           className="relative h-5 w-5 transition-transform duration-200"
                         />
                       </span>
-                      <span className="font-medium tracking-wide">Änderungen speichern</span>
+                      <span className="font-medium tracking-wide hidden sm:inline">Änderungen speichern</span>
+                      <span className="font-medium tracking-wide sm:hidden">Speichern</span>
                     </span>
 
                     {/* Subtle pulse on hover */}
