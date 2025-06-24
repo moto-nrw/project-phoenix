@@ -82,7 +82,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
       const mappedStaff = response
         .filter((staff: BackendStaffResponse) => staff.is_teacher) // Only include teachers
         .map((staff: BackendStaffResponse) => ({
-          id: String(staff.id), // Use staff id consistently
+          id: staff.teacher_id ? String(staff.teacher_id) : String(staff.id), // Use teacher_id for teachers, staff_id for others
           name: staff.person ? `${staff.person.first_name} ${staff.person.last_name}` : "",
           first_name: staff.person?.first_name ?? "",
           last_name: staff.person?.last_name ?? "",
@@ -107,7 +107,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
       const mappedStaff = response.data
         .filter((staff: BackendStaffResponse) => staff.is_teacher) // Only include teachers
         .map((staff: BackendStaffResponse) => ({
-          id: String(staff.id), // Use staff id consistently
+          id: staff.teacher_id ? String(staff.teacher_id) : String(staff.id), // Use teacher_id for teachers, staff_id for others
           name: staff.person ? `${staff.person.first_name} ${staff.person.last_name}` : "",
           first_name: staff.person?.first_name ?? "",
           last_name: staff.person?.last_name ?? "",
@@ -176,7 +176,7 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
       // Map the response to match the Teacher interface from teacher-api.ts
       return {
         ...response,
-        id: String(response.id), // Use staff id consistently
+        id: response.teacher_id ? String(response.teacher_id) : String(response.id), // Use teacher_id for teachers, staff_id for others
         name: response.person ? `${response.person.first_name} ${response.person.last_name}` : "",
         first_name: response.person?.first_name ?? "",
         last_name: response.person?.last_name ?? "",
