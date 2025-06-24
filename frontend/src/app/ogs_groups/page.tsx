@@ -187,15 +187,15 @@ function OGSGroupPageContent() {
                     break;
                 case "in_house":
                     // Check both the in_house flag and current_location
-                    if (!student.in_house && student.current_location !== "In House") return false;
+                    if (!student.in_house && student.current_location !== ("In House" as const)) return false;
                     break;
                 case "school_yard":
-                    if (!student.school_yard && student.current_location !== "School Yard") return false;
+                    if (!student.school_yard && student.current_location !== ("School Yard" as const)) return false;
                     break;
                 case "at_home":
                     // Student is at home if no location flags are set OR current_location is "Home"
                     const isAtHome = (!student.in_house && !student.wc && !student.school_yard && !studentRoomStatus?.in_group_room) ||
-                                    student.current_location === "Home";
+                                    student.current_location === ("Home" as const);
                     if (!isAtHome) return false;
                     break;
             }
@@ -247,7 +247,7 @@ function OGSGroupPageContent() {
         }
         
         // Check for in transit/movement
-        if (student.in_house === true || student.current_location === "Bus") {
+        if (student.in_house === true || student.current_location === ("Bus" as const)) {
             return { 
                 label: "Unterwegs", 
                 badgeColor: "text-white backdrop-blur-sm",
