@@ -8,7 +8,7 @@ import { apiGet } from "~/lib/api-client";
 export const GET = createGetHandler(async (_request, token) => {
   try {
     // Fetch user's groups from the usercontext endpoint
-    const response = await apiGet("/api/usercontext/groups", token);
+    const response = await apiGet("/api/me/groups", token);
     
     return {
       groups: response.data ?? [],

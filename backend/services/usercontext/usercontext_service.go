@@ -18,6 +18,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// SupervisionStatus represents the current user's supervision status
+type SupervisionStatus struct {
+	IsSupervising bool    `json:"is_supervising"`
+	RoomID        *int64  `json:"room_id,omitempty"`
+	RoomName      *string `json:"room_name,omitempty"`
+	GroupID       *int64  `json:"group_id,omitempty"`
+	GroupName     *string `json:"group_name,omitempty"`
+}
+
 // userContextService implements the UserContextService interface
 type userContextService struct {
 	accountRepo        auth.AccountRepository
@@ -745,4 +754,53 @@ func (s *userContextService) UpdateAvatar(ctx context.Context, avatarURL string)
 
 	// Return updated profile
 	return s.GetCurrentProfile(ctx)
+}
+
+// GetCurrentSupervision retrieves the current user's active supervision status
+func (s *userContextService) GetCurrentSupervision(ctx context.Context) (*SupervisionStatus, error) {
+	// Get current staff member
+	staff, err := s.GetCurrentStaff(ctx)
+	if err != nil {
+		return nil, &UserContextError{Op: "get current supervision", Err: err}
+	}
+
+	// Get active supervisions for this staff member
+	activeSupervisions, err := s.supervisorRepo.FindActiveByStaffID(ctx, staff.ID)
+	if err != nil {
+		return nil, &UserContextError{Op: "get active supervisions", Err: err}
+	}
+
+	// If no active supervisions, return empty status
+	if len(activeSupervisions) == 0 {
+		return &SupervisionStatus{
+			IsSupervising: false,
+		}, nil
+	}
+
+	// For now, return the first active supervision
+	// In the future, we might want to handle multiple supervisions
+	supervision := activeSupervisions[0]
+
+	// Build response with basic information
+	status := &SupervisionStatus{
+		IsSupervising: true,
+		GroupID:       &supervision.GroupID,
+	}
+
+	// Load active group with room and group details for additional information
+	activeGroup, err := s.activeGroupRepo.FindWithRelations(ctx, supervision.GroupID)
+	if err == nil && activeGroup != nil {
+		if activeGroup.RoomID != 0 {
+			status.RoomID = &activeGroup.RoomID
+		}
+		if activeGroup.Room != nil {
+			status.RoomName = &activeGroup.Room.Name
+		}
+		// Add group name from the source group
+		if activeGroup.ActualGroup != nil {
+			status.GroupName = &activeGroup.ActualGroup.Name
+		}
+	}
+
+	return status, nil
 }

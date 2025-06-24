@@ -62,6 +62,7 @@ func NewResource(service usercontext.UserContextService) *Resource {
 	r.router.Get("/profile/avatar/{filename}", r.serveAvatar)
 	r.router.Get("/staff", r.getCurrentStaff)
 	r.router.Get("/teacher", r.getCurrentTeacher)
+	r.router.Get("/supervision", r.getCurrentSupervision)
 
 	// Group endpoints - authenticated users can access their own groups
 	r.router.Route("/groups", func(router chi.Router) {
@@ -634,4 +635,28 @@ func generateRandomString(length int) (string, error) {
 		b[i] = charset[b[i]%byte(len(charset))]
 	}
 	return string(b), nil
+}
+
+// getCurrentSupervision returns the current user's active supervision status
+func (res *Resource) getCurrentSupervision(w http.ResponseWriter, r *http.Request) {
+	supervision, err := res.service.GetCurrentSupervision(r.Context())
+	if err != nil {
+		// If no supervision found, return empty supervision status (not an error)
+		render.Status(r, http.StatusOK)
+		if err := render.Render(w, r, common.NewResponse(map[string]interface{}{
+			"is_supervising": false,
+			"room_id":        nil,
+			"room_name":      nil,
+			"group_id":       nil,
+			"group_name":     nil,
+		}, "No active supervision found")); err != nil {
+			log.Printf("Error rendering response: %v", err)
+		}
+		return
+	}
+	
+	render.Status(r, http.StatusOK)
+	if err := render.Render(w, r, common.NewResponse(supervision, "Current supervision status retrieved successfully")); err != nil {
+		log.Printf("Error rendering response: %v", err)
+	}
 }
