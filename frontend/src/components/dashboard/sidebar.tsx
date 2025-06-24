@@ -18,6 +18,7 @@ interface NavItem {
     requiresAdmin?: boolean;
     requiresGroups?: boolean;
     requiresSupervision?: boolean;
+    requiresActiveSupervision?: boolean;
     alwaysShow?: boolean;
 }
 
@@ -39,13 +40,13 @@ const NAV_ITEMS: NavItem[] = [
         href: "/room",
         label: "Raum",
         icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
-        requiresSupervision: true
+        requiresActiveSupervision: true
     },
     {
         href: "/students/search",
         label: "Schüler",
         icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
-        alwaysShow: true
+        requiresSupervision: true
     },
     {
         href: "/rooms",
@@ -127,9 +128,21 @@ function SidebarContent({ className = "" }: SidebarProps) {
             return !isLoadingGroups && hasGroups;
         }
 
-        // Check supervision requirement (for room menu)
+        // Check supervision requirement (for student search - groups OR room supervision)
         if (item.requiresSupervision) {
-            return !isLoadingSupervision && isSupervising;
+            // Show for users supervising groups OR rooms, but not for admins or regular users
+            if (isAdmin(session)) return false;
+            const hasGroupSupervision = !isLoadingGroups && hasGroups;
+            const hasRoomSupervision = !isLoadingSupervision && isSupervising;
+            return hasGroupSupervision || hasRoomSupervision;
+        }
+
+        // Check active supervision requirement (for room menu - only active room supervision)
+        if (item.requiresActiveSupervision) {
+            // Show only for users actively supervising a room, not for admins or group-only supervisors
+            if (isAdmin(session)) return false;
+            const hasRoomSupervision = !isLoadingSupervision && isSupervising;
+            return hasRoomSupervision;
         }
 
         return true;

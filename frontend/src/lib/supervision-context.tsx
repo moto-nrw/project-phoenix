@@ -115,17 +115,21 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
       });
 
       if (response.ok) {
-        const data = await response.json() as {
-          isSupervising: boolean;
-          roomId?: string;
-          roomName?: string;
+        const response_data = await response.json() as {
+          success: boolean;
+          message: string;
+          data: {
+            isSupervising: boolean;
+            roomId?: string;
+            roomName?: string;
+          };
         };
         
         setState(prev => ({
           ...prev,
-          isSupervising: data.isSupervising,
-          supervisedRoomId: data.roomId,
-          supervisedRoomName: data.roomName,
+          isSupervising: response_data.data.isSupervising,
+          supervisedRoomId: response_data.data.roomId,
+          supervisedRoomName: response_data.data.roomName,
           isLoadingSupervision: false,
         }));
       } else {
