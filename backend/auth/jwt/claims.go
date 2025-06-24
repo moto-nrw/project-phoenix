@@ -20,6 +20,9 @@ type AppClaims struct {
 	LastName    string   `json:"last_name,omitempty"`
 	Roles       []string `json:"roles,omitempty"`
 	Permissions []string `json:"permissions,omitempty"` // Added permissions field
+	// Static role flags for quick access
+	IsAdmin   bool `json:"is_admin,omitempty"`
+	IsTeacher bool `json:"is_teacher,omitempty"`
 	CommonClaims
 }
 
@@ -75,6 +78,17 @@ func (c *AppClaims) ParseClaims(claims map[string]any) error {
 		c.Permissions = permissions
 	} else {
 		c.Permissions = []string{} // Initialize as empty array if not present
+	}
+
+	// Parse static role flags
+	isAdmin, ok := claims["is_admin"]
+	if ok && isAdmin != nil {
+		c.IsAdmin = isAdmin.(bool)
+	}
+
+	isTeacher, ok := claims["is_teacher"]
+	if ok && isTeacher != nil {
+		c.IsTeacher = isTeacher.(bool)
 	}
 
 	return nil

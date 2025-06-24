@@ -2,6 +2,7 @@
 
 import { SessionProvider } from "next-auth/react";
 import { ModalProvider } from "@/components/dashboard/modal-context";
+import { SupervisionProvider } from "~/lib/supervision-context";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -12,9 +13,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       // Also refetch when window regains focus
       refetchOnWindowFocus={true}
     >
-      <ModalProvider>
-        {children}
-      </ModalProvider>
+      <SupervisionProvider>
+        <ModalProvider>
+          {children}
+        </ModalProvider>
+      </SupervisionProvider>
     </SessionProvider>
   );
 }
