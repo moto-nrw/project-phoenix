@@ -15,6 +15,7 @@ import (
 
 // Scheduler manages scheduled tasks
 type Scheduler struct {
+	activeService  active.Service
 	cleanupService active.CleanupService
 	authService    interface{} // Using interface to avoid circular dependency
 	tasks          map[string]*ScheduledTask
@@ -35,9 +36,10 @@ type ScheduledTask struct {
 }
 
 // NewScheduler creates a new scheduler
-func NewScheduler(cleanupService active.CleanupService, authService interface{}) *Scheduler {
+func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService interface{}) *Scheduler {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Scheduler{
+		activeService:  activeService,
 		cleanupService: cleanupService,
 		authService:    authService,
 		tasks:          make(map[string]*ScheduledTask),
@@ -425,13 +427,41 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 	log.Println("Starting scheduled session end...")
 	startTime := time.Now()
 
-	// Log that this feature needs to be integrated with active service
-	// For now, this is a placeholder that demonstrates the scheduling framework
-	log.Println("Session end scheduler is running but needs active service integration")
-	log.Printf("Would end all active sessions at %s", task.Schedule)
+	// Get timeout from env or default to 10 minutes
+	timeoutMinutes := 10
+	if timeoutStr := os.Getenv("SESSION_END_TIMEOUT_MINUTES"); timeoutStr != "" {
+		if parsed, err := strconv.Atoi(timeoutStr); err == nil && parsed > 0 {
+			timeoutMinutes = parsed
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMinutes)*time.Minute)
+	defer cancel()
+
+	// Call the active service to end all daily sessions
+	result, err := s.activeService.EndDailySessions(ctx)
+	if err != nil {
+		log.Printf("ERROR: Scheduled session end failed: %v", err)
+		return
+	}
 
 	duration := time.Since(startTime)
-	log.Printf("Session end task completed in %v (integration pending)",
+	log.Printf("Scheduled session end completed in %v: ended %d sessions, %d visits, success: %v",
 		duration.Round(time.Second),
+		result.SessionsEnded,
+		result.VisitsEnded,
+		result.Success,
 	)
+
+	if len(result.Errors) > 0 {
+		log.Printf("Session end completed with %d errors", len(result.Errors))
+		for i, errMsg := range result.Errors {
+			if i < 10 { // Log first 10 errors
+				log.Printf("  - Error %d: %s", i+1, errMsg)
+			}
+		}
+		if len(result.Errors) > 10 {
+			log.Printf("  ... and %d more errors", len(result.Errors)-10)
+		}
+	}
 }
