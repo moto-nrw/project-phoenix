@@ -47,9 +47,9 @@ export function AnimatedBackground() {
       ballsRef.current.push({
         x: canvas.width * 0.2,
         y: canvas.height * 0.2,
-        radius: Math.min(canvas.width, canvas.height) * 0.25,
-        dx: 0.1,
-        dy: 0.08,
+        radius: Math.min(canvas.width, canvas.height) * 0.4,
+        dx: 0.05,
+        dy: 0.04,
         color: colors[0] ?? "#FF8080",
         blur: 40,
       });
@@ -58,9 +58,9 @@ export function AnimatedBackground() {
       ballsRef.current.push({
         x: canvas.width * 0.8,
         y: canvas.height * 0.2,
-        radius: Math.min(canvas.width, canvas.height) * 0.2,
-        dx: -0.12,
-        dy: 0.09,
+        radius: Math.min(canvas.width, canvas.height) * 0.35,
+        dx: -0.06,
+        dy: 0.045,
         color: colors[1] ?? "#80D8FF",
         blur: 35,
       });
@@ -69,9 +69,9 @@ export function AnimatedBackground() {
       ballsRef.current.push({
         x: canvas.width * 0.25,
         y: canvas.height * 0.8,
-        radius: Math.min(canvas.width, canvas.height) * 0.22,
-        dx: 0.08,
-        dy: -0.1,
+        radius: Math.min(canvas.width, canvas.height) * 0.38,
+        dx: 0.04,
+        dy: -0.05,
         color: colors[2] ?? "#A5D6A7",
         blur: 45,
       });
@@ -80,22 +80,11 @@ export function AnimatedBackground() {
       ballsRef.current.push({
         x: canvas.width * 0.8,
         y: canvas.height * 0.85,
-        radius: Math.min(canvas.width, canvas.height) * 0.28,
-        dx: -0.07,
-        dy: -0.06,
+        radius: Math.min(canvas.width, canvas.height) * 0.45,
+        dx: -0.035,
+        dy: -0.03,
         color: colors[3] ?? "#FFA726",
         blur: 50,
-      });
-
-      // Add one in the center
-      ballsRef.current.push({
-        x: canvas.width * 0.5,
-        y: canvas.height * 0.5,
-        radius: Math.min(canvas.width, canvas.height) * 0.15,
-        dx: 0.05,
-        dy: -0.04,
-        color: "#9575CD", // purple
-        blur: 30,
       });
     };
 
@@ -104,7 +93,7 @@ export function AnimatedBackground() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // Apply blur to the whole canvas
-      ctx.filter = "blur(30px)";
+      ctx.filter = "blur(40px)";
 
       // Draw and update each ball
       ballsRef.current.forEach((ball) => {
@@ -124,7 +113,7 @@ export function AnimatedBackground() {
         ctx.beginPath();
         ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
         ctx.fillStyle = gradient;
-        ctx.globalAlpha = 0.7;
+        ctx.globalAlpha = 0.35;
         ctx.fill();
 
         // Bounce off walls with padding

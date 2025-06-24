@@ -374,7 +374,8 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Get students - show all for search functionality
 	if len(allowedGroupIDs) > 0 {
 		// Specific group filter requested
-		students, err := rs.StudentRepo.FindByGroupIDs(r.Context(), allowedGroupIDs)
+		var err error
+		students, err = rs.StudentRepo.FindByGroupIDs(r.Context(), allowedGroupIDs)
 		if err != nil {
 			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 				log.Printf("Error rendering error response: %v", err)
