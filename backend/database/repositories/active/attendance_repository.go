@@ -77,8 +77,8 @@ func (r *AttendanceRepository) FindLatestByStudent(ctx context.Context, studentI
 func (r *AttendanceRepository) GetStudentCurrentStatus(ctx context.Context, studentID int64) (*active.Attendance, error) {
 	attendance := new(active.Attendance)
 
-	// Get today's date only
-	today := time.Now().Truncate(24 * time.Hour)
+	// Get today's date only - use UTC to match database
+	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	err := r.db.NewSelect().
 		Model(attendance).

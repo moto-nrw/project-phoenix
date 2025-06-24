@@ -331,3 +331,150 @@ func (s *cleanupService) processStudent(ctx context.Context, student studentWith
 
 	return deletedCount, err
 }
+
+// CleanupStaleAttendance closes attendance records from previous days that lack check-out times
+func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*AttendanceCleanupResult, error) {
+	result := &AttendanceCleanupResult{
+		StartedAt: time.Now(),
+		Success:   true,
+		Errors:    make([]string, 0),
+	}
+
+	// Get today's date at midnight (start of day) - use UTC to match database
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	// Find all attendance records from before today that don't have check-out times
+	var staleRecords []struct {
+		ID        int64     `bun:"id"`
+		StudentID int64     `bun:"student_id"`
+		Date      time.Time `bun:"date"`
+	}
+
+	err := s.db.NewSelect().
+		Table("active.attendance").
+		Column("id", "student_id", "date").
+		Where("date < ?", today).
+		Where("check_out_time IS NULL").
+		Scan(ctx, &staleRecords)
+
+	if err != nil {
+		result.Success = false
+		result.CompletedAt = time.Now()
+		return result, fmt.Errorf("failed to find stale attendance records: %w", err)
+	}
+
+	if len(staleRecords) == 0 {
+		result.CompletedAt = time.Now()
+		return result, nil
+	}
+
+	// Track statistics
+	studentsAffected := make(map[int64]bool)
+	var oldestRecord *time.Time
+
+	// Close each stale record by setting check-out time to end of that day
+	for _, record := range staleRecords {
+		// Set check-out time to 11:59:59 PM of the record's date
+		endOfDay := time.Date(
+			record.Date.Year(), record.Date.Month(), record.Date.Day(),
+			23, 59, 59, 0, record.Date.Location(),
+		)
+
+		// Update the record
+		_, err := s.db.NewUpdate().
+			Table("active.attendance").
+			Set("check_out_time = ?", endOfDay).
+			Set("updated_at = ?", now).
+			Where("id = ?", record.ID).
+			Exec(ctx)
+
+		if err != nil {
+			errMsg := fmt.Sprintf("Failed to close attendance record %d: %v", record.ID, err)
+			result.Errors = append(result.Errors, errMsg)
+			result.Success = false
+			continue
+		}
+
+		result.RecordsClosed++
+		studentsAffected[record.StudentID] = true
+
+		// Track oldest record
+		if oldestRecord == nil || record.Date.Before(*oldestRecord) {
+			oldestRecord = &record.Date
+		}
+	}
+
+	result.StudentsAffected = len(studentsAffected)
+	result.OldestRecordDate = oldestRecord
+	result.CompletedAt = time.Now()
+
+	// Create audit log entry
+	if result.RecordsClosed > 0 {
+		deletion := audit.NewDataDeletion(
+			0, // No specific student (affects multiple)
+			"attendance_cleanup",
+			result.RecordsClosed,
+			"system",
+		)
+		deletion.DeletionReason = fmt.Sprintf("Automated cleanup of stale attendance records from before %s", today.Format("2006-01-02"))
+		deletion.SetMetadata("students_affected", result.StudentsAffected)
+		deletion.SetMetadata("oldest_record", oldestRecord)
+
+		if err := s.dataDeletionRepo.Create(ctx, deletion); err != nil {
+			// Log error but don't fail the cleanup
+			errMsg := fmt.Sprintf("Failed to create audit record: %v", err)
+			result.Errors = append(result.Errors, errMsg)
+		}
+	}
+
+	return result, nil
+}
+
+// PreviewAttendanceCleanup shows what attendance records would be cleaned
+func (s *cleanupService) PreviewAttendanceCleanup(ctx context.Context) (*AttendanceCleanupPreview, error) {
+	preview := &AttendanceCleanupPreview{
+		StudentRecords: make(map[int64]int),
+		RecordsByDate:  make(map[string]int),
+	}
+
+	// Get today's date at midnight - use UTC to match database
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	// Find all stale attendance records
+	var staleRecords []struct {
+		StudentID int64     `bun:"student_id"`
+		Date      time.Time `bun:"date"`
+	}
+
+	err := s.db.NewSelect().
+		Table("active.attendance").
+		Column("student_id", "date").
+		Where("date < ?", today).
+		Where("check_out_time IS NULL").
+		Scan(ctx, &staleRecords)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to preview stale attendance records: %w", err)
+	}
+
+	preview.TotalRecords = len(staleRecords)
+
+	// Build statistics
+	for _, record := range staleRecords {
+		// Track per-student counts
+		preview.StudentRecords[record.StudentID]++
+
+		// Track per-date counts
+		dateStr := record.Date.Format("2006-01-02")
+		preview.RecordsByDate[dateStr]++
+
+		// Track oldest record
+		if preview.OldestRecord == nil || record.Date.Before(*preview.OldestRecord) {
+			preview.OldestRecord = &record.Date
+		}
+	}
+
+	return preview, nil
+}

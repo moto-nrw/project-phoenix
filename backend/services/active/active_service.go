@@ -878,7 +878,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 
 	// Get students currently present (checked in but not checked out)
 	// Use UTC-based date calculation to match repository methods
-	now := time.Now()
+	now := time.Now().UTC()
 	today := now.Truncate(24 * time.Hour)
 	
 	// Get active visits first for presence calculation
@@ -901,10 +901,11 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
 	}
 	
-	studentsPresent := 0
+	// Use a single map to track all present students (union of attendance + visits)
+	studentsPresent := make(map[int64]bool)
 	studentsWithAttendance := make(map[int64]bool)
 	
-	// First count students with attendance records for today
+	// First collect students with attendance records for today
 	for _, student := range allStudents {
 		// Check if this student has active attendance (checked in but not out) for today
 		attendance, err := s.attendanceRepo.FindByStudentAndDate(ctx, student.ID, today)
@@ -913,21 +914,19 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			for _, record := range attendance {
 				if record.CheckOutTime == nil {
 					studentsWithAttendance[student.ID] = true
-					studentsPresent++
+					studentsPresent[student.ID] = true
 					break // Count each student only once
 				}
 			}
 		}
 	}
 	
-	// Add students with active visits who don't have attendance records
+	// Add students with active visits (union, not sum)
 	for studentID := range studentsWithActiveVisits {
-		if !studentsWithAttendance[studentID] {
-			studentsPresent++
-		}
+		studentsPresent[studentID] = true
 	}
 	
-	analytics.StudentsPresent = studentsPresent
+	analytics.StudentsPresent = len(studentsPresent)
 
 	// Create maps to track students and their locations
 	studentLocationMap := make(map[int64]string) // studentID -> location
@@ -989,6 +988,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	studentsInRooms := 0
 
 	for _, group := range activeGroups {
+		// Count all active groups regardless of start date - if they're active, they should be counted
 		if group.IsActive() {
 			activeGroupsCount++
 			occupiedRooms[group.RoomID] = true
@@ -1814,4 +1814,62 @@ func (s *service) CheckTeacherStudentAccess(ctx context.Context, teacherID, stud
 	}
 
 	return false, nil
+}
+
+// EndDailySessions ends all active sessions at the end of the day
+func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupResult, error) {
+	result := &DailySessionCleanupResult{
+		ExecutedAt: time.Now(),
+		Success:    true,
+		Errors:     make([]string, 0),
+	}
+
+	// Get all active groups
+	activeGroups, err := s.groupRepo.List(ctx, nil)
+	if err != nil {
+		result.Success = false
+		return result, &ActiveError{Op: "EndDailySessions", Err: ErrDatabaseOperation}
+	}
+
+	// Process each active group
+	for _, group := range activeGroups {
+		if !group.IsActive() {
+			continue // Skip already ended groups
+		}
+
+		// End all visits for this group first
+		visits, err := s.visitRepo.FindByActiveGroupID(ctx, group.ID)
+		if err != nil {
+			errMsg := fmt.Sprintf("Failed to get visits for group %d: %v", group.ID, err)
+			result.Errors = append(result.Errors, errMsg)
+			result.Success = false
+			continue
+		}
+
+		// End active visits
+		for _, visit := range visits {
+			if visit.IsActive() {
+				visit.EndVisit()
+				if err := s.visitRepo.Update(ctx, visit); err != nil {
+					errMsg := fmt.Sprintf("Failed to end visit %d: %v", visit.ID, err)
+					result.Errors = append(result.Errors, errMsg)
+					result.Success = false
+				} else {
+					result.VisitsEnded++
+				}
+			}
+		}
+
+		// End the group session
+		group.EndSession()
+		if err := s.groupRepo.Update(ctx, group); err != nil {
+			errMsg := fmt.Sprintf("Failed to end group session %d: %v", group.ID, err)
+			result.Errors = append(result.Errors, errMsg)
+			result.Success = false
+		} else {
+			result.SessionsEnded++
+		}
+	}
+
+	return result, nil
 }

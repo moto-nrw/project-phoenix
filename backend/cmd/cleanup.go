@@ -65,12 +65,23 @@ This helps maintain database performance and security by removing tokens that ca
 	RunE: runCleanupTokens,
 }
 
+// cleanupAttendanceCmd represents the attendance subcommand
+var cleanupAttendanceCmd = &cobra.Command{
+	Use:   "attendance",
+	Short: "Clean up stale attendance records from previous days",
+	Long: `Clean up attendance records from previous days that don't have check-out times.
+This fixes dashboard counting issues by closing attendance records that should have been checked out.
+All cleanup actions are logged in the audit.data_deletions table for compliance.`,
+	RunE: runCleanupAttendance,
+}
+
 func init() {
 	RootCmd.AddCommand(cleanupCmd)
 	cleanupCmd.AddCommand(cleanupVisitsCmd)
 	cleanupCmd.AddCommand(cleanupPreviewCmd)
 	cleanupCmd.AddCommand(cleanupStatsCmd)
 	cleanupCmd.AddCommand(cleanupTokensCmd)
+	cleanupCmd.AddCommand(cleanupAttendanceCmd)
 
 	// Flags for cleanup visits command
 	cleanupVisitsCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be deleted without deleting")
@@ -83,6 +94,10 @@ func init() {
 
 	// Flags for stats command
 	cleanupStatsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed statistics")
+
+	// Flags for attendance command
+	cleanupAttendanceCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be cleaned without cleaning")
+	cleanupAttendanceCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed information")
 }
 
 func runCleanupVisits(cmd *cobra.Command, args []string) error {
@@ -412,5 +427,102 @@ func runCleanupTokens(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Successfully deleted %d expired tokens\n", deletedCount)
+	return nil
+}
+
+func runCleanupAttendance(cmd *cobra.Command, args []string) error {
+	// Initialize database
+	db, err := database.InitDB()
+	if err != nil {
+		return fmt.Errorf("failed to initialize database: %w", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("failed to close database: %v", err)
+		}
+	}()
+
+	// Create repository factory
+	repoFactory := repositories.NewFactory(db)
+
+	// Create cleanup service
+	cleanupService := active.NewCleanupService(
+		repoFactory.ActiveVisit,
+		repoFactory.PrivacyConsent,
+		repoFactory.DataDeletion,
+		db,
+	)
+
+	ctx := context.Background()
+
+	// If dry run, show preview instead
+	if dryRun {
+		fmt.Println("DRY RUN MODE - No data will be modified")
+		preview, err := cleanupService.PreviewAttendanceCleanup(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to preview attendance cleanup: %w", err)
+		}
+
+		fmt.Println("\nAttendance Cleanup Preview:")
+		fmt.Printf("Total stale records: %d\n", preview.TotalRecords)
+		if preview.OldestRecord != nil {
+			fmt.Printf("Oldest record: %s (%.0f days ago)\n",
+				preview.OldestRecord.Format("2006-01-02"),
+				time.Since(*preview.OldestRecord).Hours()/24)
+		}
+		fmt.Printf("Students affected: %d\n", len(preview.StudentRecords))
+
+		if verbose && len(preview.StudentRecords) > 0 {
+			fmt.Println("\nPer-student breakdown:")
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			_, _ = fmt.Fprintln(w, "Student ID\tStale Records")
+			for studentID, count := range preview.StudentRecords {
+				_, _ = fmt.Fprintf(w, "%d\t%d\n", studentID, count)
+			}
+			if err := w.Flush(); err != nil {
+				log.Printf("failed to flush writer: %v", err)
+			}
+
+			if len(preview.RecordsByDate) > 0 {
+				fmt.Println("\nPer-date breakdown:")
+				w2 := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+				_, _ = fmt.Fprintln(w2, "Date\tRecords")
+				for date, count := range preview.RecordsByDate {
+					_, _ = fmt.Fprintf(w2, "%s\t%d\n", date, count)
+				}
+				if err := w2.Flush(); err != nil {
+					log.Printf("failed to flush writer: %v", err)
+				}
+			}
+		}
+
+		return nil
+	}
+
+	// Run actual cleanup
+	result, err := cleanupService.CleanupStaleAttendance(ctx)
+	if err != nil {
+		return fmt.Errorf("attendance cleanup failed: %w", err)
+	}
+
+	// Print summary
+	fmt.Println("\nAttendance Cleanup Summary:")
+	fmt.Printf("Duration: %s\n", result.CompletedAt.Sub(result.StartedAt))
+	fmt.Printf("Records closed: %d\n", result.RecordsClosed)
+	fmt.Printf("Students affected: %d\n", result.StudentsAffected)
+	if result.OldestRecordDate != nil {
+		fmt.Printf("Oldest record: %s\n", result.OldestRecordDate.Format("2006-01-02"))
+	}
+	fmt.Printf("Status: %s\n", getStatusString(result.Success))
+
+	if len(result.Errors) > 0 {
+		fmt.Printf("Errors: %d\n", len(result.Errors))
+		if verbose {
+			for _, errMsg := range result.Errors {
+				fmt.Printf("  - %s\n", errMsg)
+			}
+		}
+	}
+
 	return nil
 }

@@ -50,8 +50,11 @@ func NewScheduler(cleanupService active.CleanupService, authService interface{})
 func (s *Scheduler) Start() {
 	log.Println("Starting scheduler service...")
 
-	// Schedule daily cleanup at 2 AM
+	// Schedule daily data cleanup at 2 AM
 	s.scheduleCleanupTask()
+	
+	// Schedule daily session end at configurable time (default 6 PM)
+	s.scheduleSessionEndTask()
 	
 	// Schedule token cleanup every hour
 	s.scheduleTokenCleanupTask()
@@ -314,4 +317,121 @@ func (s *Scheduler) executeTokenCleanup(task *ScheduledTask) {
 			}
 		}
 	}
+}
+
+// scheduleSessionEndTask schedules the daily session end task
+func (s *Scheduler) scheduleSessionEndTask() {
+	// Check if session end is enabled (default enabled)
+	if enabled := os.Getenv("SESSION_END_SCHEDULER_ENABLED"); enabled == "false" {
+		log.Println("Session end scheduler is disabled (set SESSION_END_SCHEDULER_ENABLED=true to enable)")
+		return
+	}
+
+	// Get scheduled time from env or default to 6 PM
+	scheduledTime := os.Getenv("SESSION_END_TIME")
+	if scheduledTime == "" {
+		scheduledTime = "18:00"
+	}
+
+	task := &ScheduledTask{
+		Name:     "session-end",
+		Schedule: scheduledTime,
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	s.wg.Add(1)
+	go s.runSessionEndTask(task)
+}
+
+// runSessionEndTask runs the session end task on schedule
+func (s *Scheduler) runSessionEndTask(task *ScheduledTask) {
+	defer s.wg.Done()
+
+	// Parse scheduled time
+	parts := strings.Split(task.Schedule, ":")
+	if len(parts) != 2 {
+		log.Printf("Invalid session end time format: %s (expected HH:MM)", task.Schedule)
+		return
+	}
+
+	hour, err := strconv.Atoi(parts[0])
+	if err != nil || hour < 0 || hour > 23 {
+		log.Printf("Invalid hour in session end time: %s", task.Schedule)
+		return
+	}
+
+	minute, err := strconv.Atoi(parts[1])
+	if err != nil || minute < 0 || minute > 59 {
+		log.Printf("Invalid minute in session end time: %s", task.Schedule)
+		return
+	}
+
+	// Calculate time until scheduled time
+	now := time.Now()
+	nextRun := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
+	if now.After(nextRun) {
+		// If it's already past scheduled time today, schedule for tomorrow
+		nextRun = nextRun.Add(24 * time.Hour)
+	}
+
+	// Wait until first run
+	initialWait := time.Until(nextRun)
+	log.Printf("Scheduled session end task will run in %v (at %v)", initialWait.Round(time.Minute), nextRun.Format("2006-01-02 15:04:05"))
+
+	select {
+	case <-time.After(initialWait):
+		// Run immediately at scheduled time
+		s.executeSessionEnd(task)
+	case <-s.ctx.Done():
+		return
+	}
+
+	// Then run every 24 hours
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.executeSessionEnd(task)
+		case <-s.ctx.Done():
+			return
+		}
+	}
+}
+
+// executeSessionEnd executes the session end task
+func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		log.Println("Session end task already running, skipping...")
+		return
+	}
+	task.Running = true
+	task.LastRun = time.Now()
+	task.mu.Unlock()
+
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.NextRun = time.Now().Add(24 * time.Hour)
+		task.mu.Unlock()
+	}()
+
+	log.Println("Starting scheduled session end...")
+	startTime := time.Now()
+
+	// Log that this feature needs to be integrated with active service
+	// For now, this is a placeholder that demonstrates the scheduling framework
+	log.Println("Session end scheduler is running but needs active service integration")
+	log.Printf("Would end all active sessions at %s", task.Schedule)
+
+	duration := time.Since(startTime)
+	log.Printf("Session end task completed in %v (integration pending)",
+		duration.Round(time.Second),
+	)
 }
