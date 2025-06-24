@@ -106,8 +106,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
     // Check if user has educational groups (keeping existing hook for compatibility)
     // const { hasEducationalGroups, isLoading } = useHasEducationalGroups();
 
+    // Check if user has any supervision (groups or active room)
+    const hasAnySupervision = (!isLoadingGroups && hasGroups) || (!isLoadingSupervision && isSupervising);
+    
     // Filter navigation items based on permissions
-    const filteredNavItems = NAV_ITEMS.filter(item => {
+    const baseFilteredNavItems = NAV_ITEMS.filter(item => {
         // Always show items marked as alwaysShow
         if (item.alwaysShow) {
             return true;
@@ -130,7 +133,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
         // Check supervision requirement (for student search - groups OR room supervision)
         if (item.requiresSupervision) {
-            // Show for users supervising groups OR rooms, but not for admins or regular users
+            // Only show if user has supervision (will be handled by dynamic logic below)
             if (isAdmin(session)) return false;
             const hasGroupSupervision = !isLoadingGroups && hasGroups;
             const hasRoomSupervision = !isLoadingSupervision && isSupervising;
@@ -147,6 +150,19 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
         return true;
     });
+
+    // If user has no supervision and is not admin, add student search to main nav
+    const filteredNavItems = !hasAnySupervision && !isAdmin(session)
+        ? [
+            ...baseFilteredNavItems,
+            {
+                href: "/students/search",
+                label: "Schüler",
+                icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
+                alwaysShow: true
+            }
+          ]
+        : baseFilteredNavItems;
 
     // Funktion zur Überprüfung, ob ein Link aktiv ist
     const isActiveLink = (href: string) => {
