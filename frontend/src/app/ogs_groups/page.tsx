@@ -4,7 +4,6 @@ import { useState, useEffect, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
-import { Input } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
 import { userContextService } from "~/lib/usercontext-api";
 import { studentService } from "~/lib/api";
@@ -161,10 +160,10 @@ function OGSGroupPageContent() {
         if (searchTerm) {
             const searchLower = searchTerm.toLowerCase();
             const matchesSearch = 
-                student.name?.toLowerCase().includes(searchLower) ||
-                student.first_name?.toLowerCase().includes(searchLower) ||
-                student.second_name?.toLowerCase().includes(searchLower) ||
-                student.school_class?.toLowerCase().includes(searchLower);
+                (student.name?.toLowerCase().includes(searchLower) ?? false) ||
+                (student.first_name?.toLowerCase().includes(searchLower) ?? false) ||
+                (student.second_name?.toLowerCase().includes(searchLower) ?? false) ||
+                (student.school_class?.toLowerCase().includes(searchLower) ?? false);
             
             if (!matchesSearch) return false;
         }
@@ -205,22 +204,6 @@ function OGSGroupPageContent() {
         return true;
     });
 
-    // Helper function to determine the school year
-    const getSchoolYear = (schoolClass: string): number => {
-        const yearMatch = /^(\d)/.exec(schoolClass);
-        return yearMatch?.[1] ? parseInt(yearMatch[1], 10) : 0;
-    };
-
-    // Determine color for year dot
-    const getYearColor = (year: number): string => {
-        switch (year) {
-            case 1: return "bg-blue-500";
-            case 2: return "bg-green-500";
-            case 3: return "bg-yellow-500";
-            case 4: return "bg-purple-500";
-            default: return "bg-gray-400";
-        }
-    };
 
 
     // Helper function to get location status with enhanced design
@@ -306,8 +289,8 @@ function OGSGroupPageContent() {
     return (
         <ResponsiveLayout>
             <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                <div className="mb-4 md:mb-8">
+                {/* Simple Header */}
+                <div className="mb-6 md:mb-8">
                     <div className="flex items-center justify-between">
                         <h1 className="text-3xl md:text-4xl font-bold text-gray-900">{ogsGroup?.name}</h1>
                         <div className="flex items-center gap-3 px-4 py-3 bg-gray-100 rounded-full">
@@ -319,67 +302,24 @@ function OGSGroupPageContent() {
                     </div>
                 </div>
 
-                {/* Mobile Search - Minimalist Design */}
-                <div className="mb-6 md:hidden">
-                    <div className="relative">
-                        <div className="absolute inset-y-0 left-0 flex items-center pl-4">
-                            <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                        </div>
+                {/* Mobile Search - Minimalistic Design */}
+                <div className="mb-4 md:hidden">
+                    {/* Search Input */}
+                    <div className="relative mb-3">
+                        <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
                         <input
                             type="text"
                             placeholder="Schüler suchen..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full rounded-lg border-0 bg-white py-4 pl-12 pr-12 text-base text-gray-900 placeholder-gray-400 shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                            className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors text-base"
                         />
-                        {searchTerm && (
-                            <button
-                                onClick={() => setSearchTerm("")}
-                                className="absolute inset-y-0 right-0 flex items-center pr-4"
-                                aria-label="Suche löschen"
-                            >
-                                <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        )}
                     </div>
-                    
-                    {/* Simple Filter Pills - Only show if needed */}
-                    {(selectedYear !== "all" || attendanceFilter !== "all") && (
-                        <div className="flex gap-2 mt-3">
-                            {selectedYear !== "all" && (
-                                <button
-                                    onClick={() => setSelectedYear("all")}
-                                    className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-700"
-                                >
-                                    Jahr {selectedYear}
-                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            )}
-                            {attendanceFilter !== "all" && (
-                                <button
-                                    onClick={() => setAttendanceFilter("all")}
-                                    className="inline-flex items-center gap-1 rounded-full bg-green-100 px-3 py-1 text-sm text-green-700"
-                                >
-                                    {attendanceFilter === "in_room" && "Im Raum"}
-                                    {attendanceFilter === "in_house" && "Im Haus"}
-                                    {attendanceFilter === "school_yard" && "Schulhof"}
-                                    {attendanceFilter === "at_home" && "Zuhause"}
-                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            )}
-                        </div>
-                    )}
-                    
-                    {/* Minimalist Filter Access */}
-                    <div className="flex justify-between items-center mt-2">
+
+                    {/* Filter Toggle Button */}
+                    <div className="flex justify-between items-center mb-3">
                         <button
                             onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
                             className="flex items-center gap-2 text-base text-blue-600 font-medium py-2"
@@ -387,7 +327,7 @@ function OGSGroupPageContent() {
                             <svg className={`h-5 w-5 transition-transform duration-200 ${isMobileFiltersOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                             </svg>
-                            {isMobileFiltersOpen ? 'Filter ausblenden' : 'Filter'}
+                            {isMobileFiltersOpen ? 'Filter ausblenden' : 'Filter anzeigen'}
                         </button>
                         {(selectedYear !== "all" || attendanceFilter !== "all") && (
                             <button
@@ -401,159 +341,189 @@ function OGSGroupPageContent() {
                             </button>
                         )}
                     </div>
-                </div>
 
-                {/* Search Panel - Desktop always visible, Mobile collapsible */}
-                <div className={`mb-6 overflow-hidden rounded-xl bg-white shadow-md transition-all duration-300 ${
-                    isMobileFiltersOpen ? 'block' : 'hidden md:block'
-                }`}>
-                    <div className="p-4 md:p-6">
-                        <h2 className="mb-4 text-lg md:text-xl font-bold text-gray-800">Suchkriterien</h2>
-
-                        <div className="grid grid-cols-1 gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
-                            {/* Name Search - Desktop only (mobile has quick search above) */}
-                            <div className="hidden md:block">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Name
-                                </label>
-                                <div className="relative">
-                                    <input
-                                        type="text"
-                                        name="searchTerm"
-                                        placeholder="Vor- oder Nachname"
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="block w-full rounded-lg border-0 px-4 py-3 h-12 text-base text-gray-900 bg-white shadow-sm ring-1 ring-inset ring-gray-200 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-500 transition-all duration-200 pr-10"
-                                    />
-                                    {searchTerm && (
-                                        <button
-                                            onClick={() => setSearchTerm("")}
-                                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
-                                            aria-label="Suche löschen"
-                                        >
-                                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* School Year Filter */}
+                    {/* Collapsible Filter Dropdowns */}
+                    {isMobileFiltersOpen && (
+                        <div className="grid grid-cols-2 gap-3 mb-3">
                             <div className="relative">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Jahrgangsstufe
-                                </label>
                                 <select
                                     value={selectedYear}
                                     onChange={(e) => setSelectedYear(e.target.value)}
-                                    className="mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 text-base shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8"
+                                    className="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base appearance-none"
                                 >
-                                    <option value="all">Alle Jahrgänge</option>
-                                    <option value="1">Jahrgang 1</option>
-                                    <option value="2">Jahrgang 2</option>
-                                    <option value="3">Jahrgang 3</option>
-                                    <option value="4">Jahrgang 4</option>
+                                    <option value="all">Alle Jahre</option>
+                                    <option value="1">Jahr 1</option>
+                                    <option value="2">Jahr 2</option>
+                                    <option value="3">Jahr 3</option>
+                                    <option value="4">Jahr 4</option>
                                 </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                                    <svg className="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                                    <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                                     </svg>
                                 </div>
                             </div>
 
-                            {/* Attendance Status */}
                             <div className="relative">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Anwesenheitsstatus
-                                </label>
                                 <select
                                     value={attendanceFilter}
                                     onChange={(e) => setAttendanceFilter(e.target.value)}
-                                    className="mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 text-base shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8"
+                                    className="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base appearance-none"
                                 >
-                                    <option value="all">Alle</option>
+                                    <option value="all">Alle Orte</option>
                                     <option value="in_room">Im Gruppenraum</option>
                                     <option value="in_house">Unterwegs</option>
                                     <option value="school_yard">Schulhof</option>
                                     <option value="at_home">Zuhause</option>
                                 </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                                    <svg className="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                                    <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                                     </svg>
                                 </div>
                             </div>
                         </div>
+                    )}
 
-                        {/* Active filters indicator and clear option */}
-                        {(selectedYear !== "all" || attendanceFilter !== "all") && (
-                            <div className="mt-4 flex items-center justify-between">
-                                <p className="text-sm text-gray-600">
-                                    {(() => {
-                                        let activeFilters = 0;
-                                        if (selectedYear !== "all") activeFilters++;
-                                        if (attendanceFilter !== "all") activeFilters++;
-                                        return `${activeFilters} ${activeFilters === 1 ? 'Filter aktiv' : 'Filter aktiv'}`;
-                                    })()}
-                                </p>
-                                <button
-                                    onClick={() => {
-                                        setSearchTerm("");
-                                        setSelectedYear("all");
-                                        setAttendanceFilter("all");
-                                        setIsMobileFiltersOpen(false);
-                                    }}
-                                    className="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors"
-                                >
-                                    Alle Filter löschen
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                    {/* Active Filters Bar */}
+                    {(searchTerm || selectedYear !== "all" || attendanceFilter !== "all") && (
+                        <div className="flex items-center justify-between text-sm text-gray-600">
+                            <span>
+                                {(() => {
+                                    const activeFilters = [];
+                                    if (searchTerm) activeFilters.push(`Suche: "${searchTerm}"`);
+                                    if (selectedYear !== "all") activeFilters.push(`Jahr ${selectedYear}`);
+                                    if (attendanceFilter !== "all") {
+                                        const statusLabels: Record<string, string> = {
+                                            "in_room": "Im Gruppenraum",
+                                            "in_house": "Unterwegs", 
+                                            "school_yard": "Schulhof",
+                                            "at_home": "Zuhause"
+                                        };
+                                        activeFilters.push(statusLabels[attendanceFilter] ?? attendanceFilter);
+                                    }
+                                    
+                                    if (activeFilters.length === 1) {
+                                        return `1 Filter aktiv: ${activeFilters[0]}`;
+                                    } else {
+                                        return `${activeFilters.length} Filter aktiv: ${activeFilters.join(", ")}`;
+                                    }
+                                })()}
+                            </span>
+                            <button
+                                onClick={() => {
+                                    setSearchTerm("");
+                                    setSelectedYear("all");
+                                    setAttendanceFilter("all");
+                                }}
+                                className="text-blue-600 hover:text-blue-700 font-medium"
+                            >
+                                Zurücksetzen
+                            </button>
+                        </div>
+                    )}
                 </div>
 
-                {/* Desktop Results Header - Hidden on mobile */}
-                <div className="hidden md:block mb-6 rounded-xl bg-white shadow-md overflow-hidden">
-                    <div className="p-6">
-                        <div className="flex justify-between items-center mb-6">
-                            <div>
-                                <h2 className="text-xl font-bold text-gray-800">
-                                    Schüler in dieser Gruppe
-                                </h2>
-                                <p className="text-sm text-gray-600 mt-1">
-                                    {filteredStudents.length} {filteredStudents.length === 1 ? 'Schüler' : 'Schüler'}
-                                </p>
-                            </div>
-                            
-                            {/* Year Legend */}
-                            <div className="flex items-center space-x-4">
-                                <div className="flex items-center">
-                                    <span className="inline-block h-3 w-3 rounded-full bg-blue-500 mr-1"></span>
-                                    <span className="text-xs text-gray-600">Jahr 1</span>
-                                </div>
-                                <div className="flex items-center">
-                                    <span className="inline-block h-3 w-3 rounded-full bg-green-500 mr-1"></span>
-                                    <span className="text-xs text-gray-600">Jahr 2</span>
-                                </div>
-                                <div className="flex items-center">
-                                    <span className="inline-block h-3 w-3 rounded-full bg-yellow-500 mr-1"></span>
-                                    <span className="text-xs text-gray-600">Jahr 3</span>
-                                </div>
-                                <div className="flex items-center">
-                                    <span className="inline-block h-3 w-3 rounded-full bg-purple-500 mr-1"></span>
-                                    <span className="text-xs text-gray-600">Jahr 4</span>
-                                </div>
+                {/* Desktop Search & Filter - Minimalistic */}
+                <div className="hidden md:block mb-4">
+                    <div className="flex items-center gap-3">
+                        {/* Search Input */}
+                        <div className="flex-1">
+                            <div className="relative">
+                                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                                <input
+                                    type="text"
+                                    placeholder="Schüler suchen..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                />
                             </div>
                         </div>
 
-                        {error && (
-                            <div className="mb-6">
-                                <Alert type="error" message={error} />
+                        {/* Filter Dropdowns */}
+                        <div className="relative">
+                            <select
+                                value={selectedYear}
+                                onChange={(e) => setSelectedYear(e.target.value)}
+                                className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm min-w-[120px] appearance-none"
+                            >
+                                <option value="all">Alle Jahre</option>
+                                <option value="1">Jahr 1</option>
+                                <option value="2">Jahr 2</option>
+                                <option value="3">Jahr 3</option>
+                                <option value="4">Jahr 4</option>
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                                <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
                             </div>
-                        )}
+                        </div>
+
+                        <div className="relative">
+                            <select
+                                value={attendanceFilter}
+                                onChange={(e) => setAttendanceFilter(e.target.value)}
+                                className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm min-w-[140px] appearance-none"
+                            >
+                                <option value="all">Alle Orte</option>
+                                <option value="in_room">Im Gruppenraum</option>
+                                <option value="in_house">Unterwegs</option>
+                                <option value="school_yard">Schulhof</option>
+                                <option value="at_home">Zuhause</option>
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                                <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
+                            </div>
+                        </div>
                     </div>
+
+                    {/* Active Filters Bar */}
+                    {(searchTerm || selectedYear !== "all" || attendanceFilter !== "all") && (
+                        <div className="mt-3 flex items-center justify-between text-sm text-gray-600">
+                            <div className="flex items-center gap-2">
+                                <span>
+                                    {(() => {
+                                        const activeFilters = [];
+                                        if (searchTerm) activeFilters.push(`Suche: "${searchTerm}"`);
+                                        if (selectedYear !== "all") activeFilters.push(`Jahr ${selectedYear}`);
+                                        if (attendanceFilter !== "all") {
+                                            const statusLabels: Record<string, string> = {
+                                                "in_room": "Im Gruppenraum",
+                                                "in_house": "Unterwegs", 
+                                                "school_yard": "Schulhof",
+                                                "at_home": "Zuhause"
+                                            };
+                                            activeFilters.push(statusLabels[attendanceFilter] ?? attendanceFilter);
+                                        }
+                                        
+                                        if (activeFilters.length === 1) {
+                                            return `1 Filter aktiv: ${activeFilters[0]}`;
+                                        } else {
+                                            return `${activeFilters.length} Filter aktiv: ${activeFilters.join(", ")}`;
+                                        }
+                                    })()}
+                                </span>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setSearchTerm("");
+                                    setSelectedYear("all");
+                                    setAttendanceFilter("all");
+                                }}
+                                className="text-blue-600 hover:text-blue-700 font-medium"
+                            >
+                                Filter zurücksetzen
+                            </button>
+                        </div>
+                    )}
                 </div>
+
 
                 {/* Mobile Error Display */}
                 {error && (
