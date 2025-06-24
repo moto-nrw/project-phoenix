@@ -14,19 +14,15 @@ export function DatabasePageHeader({
   className = "" 
 }: DatabasePageHeaderProps) {
   return (
-    <div className={`mb-4 md:mb-6 lg:mb-8 ${className}`}>
-      <div className="flex items-center justify-between">
-        <div className="flex-grow">
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{title}</h1>
-          <p className="mt-1 text-sm md:text-base text-gray-600">{description}</p>
-        </div>
-        {backUrl && (
+    <>
+      {backUrl && (
+        <div className="mb-6">
           <Link 
             href={backUrl}
-            className="ml-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 touch-manipulation min-h-[44px]"
+            className="flex items-center text-gray-600 hover:text-blue-600 transition-colors"
           >
             <svg
-              className="w-4 h-4"
+              className="h-5 w-5 mr-1"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -38,10 +34,14 @@ export function DatabasePageHeader({
                 d="M10 19l-7-7m0 0l7-7m-7 7h18"
               />
             </svg>
-            <span className="hidden sm:inline">Zurück</span>
+            Zurück
           </Link>
-        )}
+        </div>
+      )}
+      <div className={`mb-4 md:mb-6 lg:mb-8 ${className}`}>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{title}</h1>
+        <p className="mt-1 text-sm md:text-base text-gray-600">{description}</p>
       </div>
-    </div>
+    </>
   );
 }
