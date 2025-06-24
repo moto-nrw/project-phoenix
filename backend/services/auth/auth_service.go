@@ -252,22 +252,15 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 
 	// Retrieve account roles if not loaded
 	if len(account.Roles) == 0 {
-		log.Printf("DEBUG: Loading roles for account ID %d", account.ID)
 		accountRoles, err := s.accountRoleRepo.FindByAccountID(ctx, account.ID)
 		if err != nil {
-			log.Printf("DEBUG: Error loading roles: %v", err)
 			// Continue even if role retrieval fails, just log the error
 			// In a real implementation, you would log this error
 		} else {
-			log.Printf("DEBUG: Found %d account roles", len(accountRoles))
 			// Extract roles from account roles
-			for i, ar := range accountRoles {
-				log.Printf("DEBUG: AccountRole %d: Role=%v", i, ar.Role)
+			for _, ar := range accountRoles {
 				if ar.Role != nil {
-					log.Printf("DEBUG: Adding role: %s", ar.Role.Name)
 					account.Roles = append(account.Roles, ar.Role)
-				} else {
-					log.Printf("DEBUG: AccountRole %d has nil Role", i)
 				}
 			}
 		}

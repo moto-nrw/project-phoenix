@@ -59,8 +59,6 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
 
       if (response.ok) {
         const data = await response.json() as { data?: { groups?: unknown[] } };
-        console.log("DEBUG: Supervision context groups data:", data);
-        console.log("DEBUG: Setting hasGroups to:", data?.data?.groups ? data.data.groups.length > 0 : false);
         setState(prev => ({
           ...prev,
           hasGroups: data?.data?.groups ? data.data.groups.length > 0 : false,
@@ -73,8 +71,7 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
           isLoadingGroups: false,
         }));
       }
-    } catch (error) {
-      console.error("Error checking groups:", error);
+    } catch {
       setState(prev => ({
         ...prev,
         hasGroups: false,
@@ -126,8 +123,7 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
           isLoadingSupervision: false,
         }));
       }
-    } catch (error) {
-      console.error("Error checking supervision:", error);
+    } catch {
       setState(prev => ({
         ...prev,
         isSupervising: false,
