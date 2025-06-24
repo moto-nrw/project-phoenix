@@ -877,17 +877,34 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	}
 
 	// Get students currently present (checked in but not checked out)
-	// Use local timezone consistently for date calculations
+	// Use UTC-based date calculation to match repository methods
 	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	today := now.Truncate(24 * time.Hour)
 	
-	// Count students who are currently checked in (no check-out time)
+	// Get active visits first for presence calculation
+	activeVisits, err := s.visitRepo.List(ctx, nil)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
+	}
+
+	// Create set of students with active visits
+	studentsWithActiveVisits := make(map[int64]bool)
+	for _, visit := range activeVisits {
+		if visit.IsActive() {
+			studentsWithActiveVisits[visit.StudentID] = true
+		}
+	}
+
+	// Count students who are currently present (attendance records OR active visits)
 	allStudents, err := s.studentRepo.List(ctx, nil)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
 	}
 	
 	studentsPresent := 0
+	studentsWithAttendance := make(map[int64]bool)
+	
+	// First count students with attendance records for today
 	for _, student := range allStudents {
 		// Check if this student has active attendance (checked in but not out) for today
 		attendance, err := s.attendanceRepo.FindByStudentAndDate(ctx, student.ID, today)
@@ -895,19 +912,22 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			// Check if any attendance record shows student is still present (no check-out time)
 			for _, record := range attendance {
 				if record.CheckOutTime == nil {
+					studentsWithAttendance[student.ID] = true
 					studentsPresent++
 					break // Count each student only once
 				}
 			}
 		}
 	}
-	analytics.StudentsPresent = studentsPresent
-
-	// Get active visits for room tracking
-	activeVisits, err := s.visitRepo.List(ctx, nil)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
+	
+	// Add students with active visits who don't have attendance records
+	for studentID := range studentsWithActiveVisits {
+		if !studentsWithAttendance[studentID] {
+			studentsPresent++
+		}
 	}
+	
+	analytics.StudentsPresent = studentsPresent
 
 	// Create maps to track students and their locations
 	studentLocationMap := make(map[int64]string) // studentID -> location
@@ -927,32 +947,14 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	// Get total enrolled students (use same allStudents variable)
 	// allStudents already declared above for attendance check
 	// Calculate students who are present but have no active visits (in transit)
+	// Present students = those with attendance OR active visits
+	// In transit = present students WITHOUT active visits
 	studentsInTransitCount := 0
-	for _, student := range allStudents {
-		// Check if this student has active attendance (checked in but not out) for today
-		hasAttendance := false
-		attendance, err := s.attendanceRepo.FindByStudentAndDate(ctx, student.ID, today)
-		if err == nil {
-			for _, record := range attendance {
-				if record.CheckOutTime == nil {
-					hasAttendance = true
-					break
-				}
-			}
-		}
-		
-		// If student has attendance but no active visit, they are "in transit"
-		if hasAttendance {
-			hasActiveVisit := false
-			for _, visit := range activeVisits {
-				if visit.StudentID == student.ID && visit.IsActive() {
-					hasActiveVisit = true
-					break
-				}
-			}
-			if !hasActiveVisit {
-				studentsInTransitCount++
-			}
+	
+	// Count students with attendance who don't have active visits
+	for studentID := range studentsWithAttendance {
+		if !studentsWithActiveVisits[studentID] {
+			studentsInTransitCount++
 		}
 	}
 	analytics.StudentsInTransit = studentsInTransitCount
