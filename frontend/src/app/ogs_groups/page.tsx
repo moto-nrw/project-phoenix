@@ -98,6 +98,7 @@ function OGSGroupPageContent() {
 
                 // Calculate statistics from real data (only if we have valid array data)
                 const validStudents = Array.isArray(studentsData) ? studentsData : [];
+                setStudents(validStudents);
 
                 // Update group with actual student count
                 setOGSGroup(prev => prev ? { ...prev, student_count: validStudents.length } : null);
@@ -134,7 +135,6 @@ function OGSGroupPageContent() {
                     }
                 } catch (roomStatusErr) {
                     console.error("Failed to fetch room status:", roomStatusErr);
-                    // Don't fail the whole page if room status fails
                 }
 
                 setError(null);
@@ -190,9 +190,6 @@ function OGSGroupPageContent() {
                     // Check both the in_house flag and current_location
                     if (!student.in_house && student.current_location !== "In House") return false;
                     break;
-                case "wc":
-                    if (!student.wc && student.current_location !== "WC") return false;
-                    break;
                 case "school_yard":
                     if (!student.school_yard && student.current_location !== "School Yard") return false;
                     break;
@@ -225,17 +222,68 @@ function OGSGroupPageContent() {
         }
     };
 
-    // Helper function to get location status
+
+    // Helper function to get location status with enhanced design
     const getLocationStatus = (student: Student) => {
-        if (student.in_house === true) return { label: "Im Haus", color: "bg-green-500 text-green-50" };
-        if (student.wc === true) return { label: "Toilette", color: "bg-blue-500 text-blue-50" };
-        if (student.school_yard === true) return { label: "Schulhof", color: "bg-yellow-500 text-yellow-50" };
-        // Student is at home when current_location is "Home" or all location flags are false
-        if (student.current_location === "Home" || (!student.in_house && !student.wc && !student.school_yard)) {
-            return { label: "Zuhause", color: "bg-orange-500 text-orange-50" };
+        const studentRoomStatus = roomStatus[student.id.toString()];
+        
+        // Check if student is in group room
+        if (studentRoomStatus?.in_group_room) {
+            return { 
+                label: "Im Gruppenraum", 
+                badgeColor: "text-white backdrop-blur-sm",
+                cardGradient: "from-emerald-50/80 to-green-100/80",
+                glowColor: "ring-emerald-200/50 shadow-emerald-100/50",
+                customBgColor: "#83CD2D",
+                customShadow: "0 8px 25px rgba(131, 205, 45, 0.4)"
+            };
         }
-        if (student.current_location === "Bus") return { label: "Unterwegs", color: "bg-purple-500 text-purple-50" };
-        return { label: "Unbekannt", color: "bg-gray-500 text-gray-50" };
+        
+        // Check if student is in a specific room (not group room)
+        if (studentRoomStatus?.current_room_id && !studentRoomStatus.in_group_room) {
+            return { 
+                label: `Raum ${studentRoomStatus.current_room_id}`, 
+                badgeColor: "text-white backdrop-blur-sm",
+                cardGradient: "from-blue-50/80 to-cyan-100/80",
+                glowColor: "ring-blue-200/50 shadow-blue-100/50",
+                customBgColor: "#5080D8",
+                customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)"
+            };
+        }
+        
+        // Check for schoolyard
+        if (student.school_yard === true) {
+            return { 
+                label: "Schulhof", 
+                badgeColor: "text-white backdrop-blur-sm",
+                cardGradient: "from-amber-50/80 to-yellow-100/80",
+                glowColor: "ring-amber-200/50 shadow-amber-100/50",
+                customBgColor: "#F78C10",
+                customShadow: "0 8px 25px rgba(247, 140, 16, 0.4)"
+            };
+        }
+        
+        // Check for in transit/movement
+        if (student.in_house === true || student.current_location === "Bus") {
+            return { 
+                label: "Unterwegs", 
+                badgeColor: "text-white backdrop-blur-sm",
+                cardGradient: "from-fuchsia-50/80 to-pink-100/80",
+                glowColor: "ring-fuchsia-200/50 shadow-fuchsia-100/50",
+                customBgColor: "#D946EF",
+                customShadow: "0 8px 25px rgba(217, 70, 239, 0.4)"
+            };
+        }
+        
+        // Default to at home
+        return { 
+            label: "Zuhause", 
+            badgeColor: "text-white backdrop-blur-sm",
+            cardGradient: "from-red-50/80 to-rose-100/80",
+            glowColor: "ring-red-200/50 shadow-red-100/50",
+            customBgColor: "#FF3130",
+            customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)"
+        };
     };
 
     if (status === "loading" || isLoading || hasAccess === null) {
@@ -271,49 +319,88 @@ function OGSGroupPageContent() {
                     </div>
                 </div>
 
-                {/* Mobile Search Bar - Always Visible */}
-                <div className="mb-4 md:hidden">
+                {/* Mobile Search - Minimalist Design */}
+                <div className="mb-6 md:hidden">
                     <div className="relative">
-                        <Input
-                            label="Schnellsuche"
-                            name="searchTerm"
+                        <div className="absolute inset-y-0 left-0 flex items-center pl-4">
+                            <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                        <input
+                            type="text"
                             placeholder="Schüler suchen..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="text-base pr-10" // Prevent iOS zoom, add padding for clear button
+                            className="w-full rounded-lg border-0 bg-white py-4 pl-12 pr-12 text-base text-gray-900 placeholder-gray-400 shadow-sm ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
                         />
                         {searchTerm && (
                             <button
                                 onClick={() => setSearchTerm("")}
-                                className="absolute right-2 top-[38px] p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                                className="absolute inset-y-0 right-0 flex items-center pr-4"
                                 aria-label="Suche löschen"
                             >
-                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                             </button>
                         )}
                     </div>
-                </div>
-
-                {/* Mobile Filter Toggle */}
-                <div className="mb-4 md:hidden">
-                    <button
-                        onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
-                        className="flex w-full items-center justify-between rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-gray-200 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    >
-                        <span className="text-sm font-medium text-gray-700">
-                            Filter & Erweiterte Suche
-                        </span>
-                        <svg 
-                            className={`h-5 w-5 text-gray-400 transition-transform ${isMobileFiltersOpen ? 'rotate-180' : ''}`} 
-                            fill="none" 
-                            viewBox="0 0 24 24" 
-                            stroke="currentColor"
+                    
+                    {/* Simple Filter Pills - Only show if needed */}
+                    {(selectedYear !== "all" || attendanceFilter !== "all") && (
+                        <div className="flex gap-2 mt-3">
+                            {selectedYear !== "all" && (
+                                <button
+                                    onClick={() => setSelectedYear("all")}
+                                    className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-700"
+                                >
+                                    Jahr {selectedYear}
+                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            )}
+                            {attendanceFilter !== "all" && (
+                                <button
+                                    onClick={() => setAttendanceFilter("all")}
+                                    className="inline-flex items-center gap-1 rounded-full bg-green-100 px-3 py-1 text-sm text-green-700"
+                                >
+                                    {attendanceFilter === "in_room" && "Im Raum"}
+                                    {attendanceFilter === "in_house" && "Im Haus"}
+                                    {attendanceFilter === "school_yard" && "Schulhof"}
+                                    {attendanceFilter === "at_home" && "Zuhause"}
+                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
+                    )}
+                    
+                    {/* Minimalist Filter Access */}
+                    <div className="flex justify-between items-center mt-2">
+                        <button
+                            onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
+                            className="flex items-center gap-2 text-base text-blue-600 font-medium py-2"
                         >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </button>
+                            <svg className={`h-5 w-5 transition-transform duration-200 ${isMobileFiltersOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                            </svg>
+                            {isMobileFiltersOpen ? 'Filter ausblenden' : 'Filter'}
+                        </button>
+                        {(selectedYear !== "all" || attendanceFilter !== "all") && (
+                            <button
+                                onClick={() => {
+                                    setSelectedYear("all");
+                                    setAttendanceFilter("all");
+                                }}
+                                className="text-sm text-gray-500"
+                            >
+                                Alle löschen
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {/* Search Panel - Desktop always visible, Mobile collapsible */}
@@ -387,8 +474,7 @@ function OGSGroupPageContent() {
                                 >
                                     <option value="all">Alle</option>
                                     <option value="in_room">Im Gruppenraum</option>
-                                    <option value="in_house">Im Raumwechsel</option>
-                                    <option value="wc">Toilette</option>
+                                    <option value="in_house">Unterwegs</option>
                                     <option value="school_yard">Schulhof</option>
                                     <option value="at_home">Zuhause</option>
                                 </select>
@@ -427,13 +513,12 @@ function OGSGroupPageContent() {
                     </div>
                 </div>
 
-                {/* Results Section */}
-                <div className="rounded-xl bg-white shadow-md overflow-hidden">
-                    <div className="p-4 md:p-6">
-                        {/* Results Header - Mobile Optimized */}
-                        <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 md:mb-6 gap-4">
+                {/* Desktop Results Header - Hidden on mobile */}
+                <div className="hidden md:block mb-6 rounded-xl bg-white shadow-md overflow-hidden">
+                    <div className="p-6">
+                        <div className="flex justify-between items-center mb-6">
                             <div>
-                                <h2 className="text-lg md:text-xl font-bold text-gray-800">
+                                <h2 className="text-xl font-bold text-gray-800">
                                     Schüler in dieser Gruppe
                                 </h2>
                                 <p className="text-sm text-gray-600 mt-1">
@@ -441,8 +526,8 @@ function OGSGroupPageContent() {
                                 </p>
                             </div>
                             
-                            {/* Year Legend - Hidden on mobile, shown on tablet+ */}
-                            <div className="hidden md:flex items-center space-x-4">
+                            {/* Year Legend */}
+                            <div className="flex items-center space-x-4">
                                 <div className="flex items-center">
                                     <span className="inline-block h-3 w-3 rounded-full bg-blue-500 mr-1"></span>
                                     <span className="text-xs text-gray-600">Jahr 1</span>
@@ -467,96 +552,134 @@ function OGSGroupPageContent() {
                                 <Alert type="error" message={error} />
                             </div>
                         )}
-
-                        {/* Student Grid - Mobile Optimized */}
-                        {students.length === 0 ? (
-                            <div className="py-12 text-center">
-                                <div className="flex flex-col items-center gap-4">
-                                    <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                                    </svg>
-                                    <div>
-                                        <h3 className="text-lg font-medium text-gray-900">Keine Schüler in dieser Gruppe</h3>
-                                        <p className="text-gray-600">
-                                            Es wurden noch keine Schüler zu dieser OGS-Gruppe hinzugefügt.
-                                        </p>
-                                        <p className="text-sm text-gray-500 mt-2">
-                                            Gesamtzahl gefundener Schüler: {students.length}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        ) : filteredStudents.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {filteredStudents.map((student) => {
-                                    const year = getSchoolYear(student.school_class ?? '');
-                                    const yearColor = getYearColor(year);
-                                    const locationStatus = getLocationStatus(student);
-
-                                    return (
-                                        <div
-                                            key={student.id}
-                                            onClick={() => router.push(`/students/${student.id}?from=/ogs_groups`)}
-                                            className="group cursor-pointer rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-all duration-200 hover:border-blue-300 hover:shadow-md active:scale-[0.98]"
-                                        >
-                                            <div className="flex items-start justify-between mb-3">
-                                                <div className="flex-1 min-w-0">
-                                                    <h3 className="font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
-                                                        {student.first_name} {student.second_name}
-                                                    </h3>
-                                                    <div className="flex items-center mt-1 gap-2">
-                                                        <span className="text-sm text-gray-500">
-                                                            Klasse {student.school_class}
-                                                        </span>
-                                                        <span className={`inline-block h-2 w-2 rounded-full ${yearColor}`} />
-                                                    </div>
-                                                </div>
-                                                <svg className="h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                </svg>
-                                            </div>
-
-                                            <div className="space-y-2">
-                                                {student.group_name && (
-                                                    <div className="flex items-center text-sm text-gray-600">
-                                                        <svg className="h-4 w-4 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                                        </svg>
-                                                        Gruppe: {student.group_name}
-                                                    </div>
-                                                )}
-
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-sm text-gray-500">Status:</span>
-                                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${locationStatus.color}`}>
-                                                        {locationStatus.label}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <div className="py-12 text-center">
-                                <div className="flex flex-col items-center gap-4">
-                                    <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                    </svg>
-                                    <div>
-                                        <h3 className="text-lg font-medium text-gray-900">Keine Schüler gefunden</h3>
-                                        <p className="text-gray-600">
-                                            Versuche deine Suchkriterien anzupassen.
-                                        </p>
-                                        <p className="text-sm text-gray-500 mt-2">
-                                            {students.length} Schüler insgesamt, {filteredStudents.length} nach Filtern
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
                     </div>
                 </div>
+
+                {/* Mobile Error Display */}
+                {error && (
+                    <div className="mb-4 md:hidden">
+                        <Alert type="error" message={error} />
+                    </div>
+                )}
+
+                {/* Student Grid - Mobile Optimized */}
+                {students.length === 0 ? (
+                    <div className="py-12 text-center">
+                        <div className="flex flex-col items-center gap-4">
+                            <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                            </svg>
+                            <div>
+                                <h3 className="text-lg font-medium text-gray-900">Keine Schüler in dieser Gruppe</h3>
+                                <p className="text-gray-600">
+                                    Es wurden noch keine Schüler zu dieser OGS-Gruppe hinzugefügt.
+                                </p>
+                                <p className="text-sm text-gray-500 mt-2">
+                                    Gesamtzahl gefundener Schüler: {students.length}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                ) : filteredStudents.length > 0 ? (
+                    <div>
+                        {/* Add floating animation keyframes */}
+                        <style jsx>{`
+                            @keyframes float {
+                                0%, 100% { transform: translateY(0px) rotate(var(--rotation)); }
+                                50% { transform: translateY(-4px) rotate(var(--rotation)); }
+                            }
+                        `}</style>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filteredStudents.map((student, index) => {
+                            const locationStatus = getLocationStatus(student);
+
+                            return (
+                                <div
+                                    key={student.id}
+                                    onClick={() => router.push(`/students/${student.id}?from=/ogs_groups`)}
+                                    className={`group cursor-pointer relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.03] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-3 active:scale-[0.97] md:hover:border-blue-200/50`}
+                                    style={{
+                                        transform: `rotate(${(index % 3 - 1) * 0.8}deg)`,
+                                        animation: `float 8s ease-in-out infinite ${index * 0.7}s`
+                                    }}
+                                >
+                                    {/* Modern gradient overlay */}
+                                    <div className={`absolute inset-0 bg-gradient-to-br ${locationStatus.cardGradient} opacity-[0.03] rounded-3xl`}></div>
+                                    {/* Subtle inner glow */}
+                                    <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                                    {/* Modern border highlight */}
+                                    <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 md:group-hover:ring-blue-200/60 transition-all duration-300"></div>
+                                    
+
+                                    <div className="relative p-5">
+                                        {/* Header with student name */}
+                                        <div className="flex items-center justify-between mb-2">
+                                            {/* Student Name */}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="text-lg font-bold text-gray-800 truncate md:group-hover:text-blue-600 transition-colors duration-300">
+                                                        {student.first_name}
+                                                    </h3>
+                                                    {/* Subtle integrated arrow */}
+                                                    <svg className="w-4 h-4 text-gray-300 md:group-hover:text-blue-500 md:group-hover:translate-x-1 transition-all duration-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                    </svg>
+                                                </div>
+                                                <p className="text-sm font-semibold text-gray-700 truncate md:group-hover:text-blue-500 transition-colors duration-300">
+                                                    {student.second_name}
+                                                </p>
+                                            </div>
+                                            
+                                            {/* Status Badge */}
+                                            <span 
+                                                className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${locationStatus.badgeColor} ml-3`}
+                                                style={{ 
+                                                    backgroundColor: locationStatus.customBgColor,
+                                                    boxShadow: locationStatus.customShadow
+                                                }}
+                                            >
+                                                <span className="w-1.5 h-1.5 bg-white/80 rounded-full mr-2 animate-pulse"></span>
+                                                {locationStatus.label}
+                                            </span>
+                                        </div>
+
+                                        {/* Bottom row with click hint */}
+                                        <div className="flex justify-start">
+                                            <p className="text-xs text-gray-400 md:group-hover:text-blue-400 transition-colors duration-300">
+                                                Tippen für mehr Infos
+                                            </p>
+                                        </div>
+
+                                        {/* Decorative elements */}
+                                        <div className="absolute top-3 left-3 w-5 h-5 bg-white/20 rounded-full animate-ping"></div>
+                                        <div className="absolute bottom-3 right-3 w-3 h-3 bg-white/30 rounded-full"></div>
+                                    </div>
+
+                                    {/* Glowing border effect */}
+                                    <div className="absolute inset-0 rounded-3xl opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent via-blue-100/30 to-transparent"></div>
+                                </div>
+                            );
+                        })}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="py-12 text-center">
+                        <div className="flex flex-col items-center gap-4">
+                            <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <div>
+                                <h3 className="text-lg font-medium text-gray-900">Keine Schüler gefunden</h3>
+                                <p className="text-gray-600">
+                                    Versuche deine Suchkriterien anzupassen.
+                                </p>
+                                <p className="text-sm text-gray-500 mt-2">
+                                    {students.length} Schüler insgesamt, {filteredStudents.length} nach Filtern
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </ResponsiveLayout>
     );
