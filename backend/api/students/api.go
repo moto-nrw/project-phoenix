@@ -274,7 +274,7 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 	} else {
 		// No active visit - check daily attendance status
 		attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, student.ID)
-		if err == nil && attendanceStatus != nil && attendanceStatus.CheckOutTime == nil {
+		if err == nil && attendanceStatus != nil && attendanceStatus.Status == "checked_in" {
 			// Student is checked in but has no active visit
 			response.Location = "Anwesend"
 		} else {
