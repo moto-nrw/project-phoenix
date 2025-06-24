@@ -21,6 +21,8 @@ export const devicesConfig = defineEntityConfig<Device>({
   
   theme: databaseThemes.devices,
   
+  backUrl: '/database',
+  
   api: {
     basePath: '/api/iot',
   },

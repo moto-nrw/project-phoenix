@@ -13,6 +13,8 @@ export const groupsConfig = defineEntityConfig<Group>({
   
   theme: databaseThemes.groups,
   
+  backUrl: '/database',
+  
   api: {
     basePath: '/api/groups',
   },

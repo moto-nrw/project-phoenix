@@ -485,6 +485,7 @@ export function DatabasePage<T extends { id: string }>({
         userName={session?.user?.name ?? "Benutzer"}
         title={`${config.name.singular} auswählen`}
         description={config.list.description}
+        backUrl={config.backUrl}
         listTitle={`${config.name.singular}liste`}
         searchPlaceholder={config.list.searchPlaceholder}
         searchValue={searchFilter}

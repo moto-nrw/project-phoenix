@@ -13,6 +13,8 @@ export const roomsConfig = defineEntityConfig<Room>({
   
   theme: databaseThemes.rooms,
   
+  backUrl: '/database',
+  
   api: {
     basePath: '/api/rooms',
   },

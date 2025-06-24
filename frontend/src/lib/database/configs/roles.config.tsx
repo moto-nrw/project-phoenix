@@ -15,6 +15,8 @@ export const rolesConfig = defineEntityConfig<Role>({
   
   theme: databaseThemes.roles, // Will add this theme next
   
+  backUrl: '/database',
+  
   api: {
     basePath: '/api/auth/roles',
   },
