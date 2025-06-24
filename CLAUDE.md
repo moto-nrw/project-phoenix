@@ -92,10 +92,31 @@ go test -v ./api/auth           # Run specific package with verbose output
 go test -race ./...             # Run tests with race condition detection
 go test ./api/auth -run TestLogin  # Run specific test
 
-# Documentation
+# Documentation and API Discovery
 go run main.go gendoc           # Generate both routes.md and OpenAPI spec
 go run main.go gendoc --routes  # Generate only routes documentation
 go run main.go gendoc --openapi # Generate only OpenAPI specification
+
+# Advanced API Documentation System
+# The gendoc command provides powerful API extraction and documentation capabilities:
+
+# 1. Route Discovery and Analysis
+go run main.go gendoc --routes  # Creates routes.md with complete API surface mapping
+# - Shows all available endpoints with their HTTP methods
+# - Displays middleware chains and permission requirements
+# - Reveals handler function mappings for each route
+# - Useful for understanding the complete API architecture
+
+# 2. OpenAPI Specification Generation  
+go run main.go gendoc --openapi # Creates docs/openapi.yaml for external tools
+# - Generates OpenAPI 3.0.3 specification from live router
+# - Includes authentication schemes (Bearer JWT + API keys)
+# - Extracts path parameters automatically from route patterns
+# - Can be used with Swagger UI, Postman, or other API tools
+
+# 3. API Testing Integration
+# Generated documentation integrates with Bruno API testing:
+cd bruno && ./dev-test.sh examples  # Test endpoints from gendoc output
 
 # Code Quality
 go fmt ./...                    # Format code
@@ -281,6 +302,181 @@ authService := serviceFactory.NewAuthService()
 // Repository factory in database/repositories/factory.go
 repoFactory := repositories.NewFactory(db)
 userRepo := repoFactory.NewUserRepository()
+```
+
+## API Architecture and Documentation Patterns
+
+### Chi Router Organization
+The project uses Chi router with domain-based route mounting for clear API organization:
+
+```go
+// In api/base.go - Domain-based route mounting
+r.Route("/api", func(r chi.Router) {
+    r.Mount("/auth", a.Auth.Router())           // Authentication endpoints
+    r.Mount("/active", a.Active.Router())       // Real-time session management
+    r.Mount("/groups", a.Groups.Router())       // Educational group management
+    r.Mount("/users", a.Users.Router())         // User management
+    r.Mount("/iot", a.IoT.Router())            // RFID device integration
+    // ... other domain routers
+})
+```
+
+### Route Documentation Generation
+The `gendoc` command uses Chi's router introspection to extract API documentation:
+
+```bash
+# Generate complete route documentation showing:
+go run main.go gendoc --routes
+# - All HTTP endpoints with methods (GET, POST, PUT, DELETE)
+# - Middleware chains per route (auth, permissions, rate limiting)
+# - Handler function mappings
+# - Path parameter extraction from patterns like /users/{id}
+
+# Example generated route structure:
+# /api/active/analytics/dashboard
+#   - _GET_
+#     - [RequiresPermission(GroupsRead)]
+#     - [getDashboardAnalytics]
+```
+
+### OpenAPI Specification Features
+The auto-generated OpenAPI spec provides machine-readable API documentation:
+
+```yaml
+# Generated in docs/openapi.yaml
+paths:
+  /api/active/analytics/dashboard:
+    get:
+      summary: "GET /api/active/analytics/dashboard"
+      tags: ["Active"]
+      security:
+        - bearerAuth: []
+      parameters: []
+      responses:
+        200:
+          description: "Successful operation"
+```
+
+**Key Features:**
+- **Automatic Path Parameter Detection**: Extracts `{id}` patterns from routes
+- **Security Scheme Integration**: Includes JWT Bearer and API Key authentication
+- **Tag Generation**: Organizes endpoints by domain (Active, Users, Groups, etc.)
+- **Response Schema**: Basic HTTP status code responses
+
+### API Development Workflow
+
+**1. API Discovery and Understanding:**
+```bash
+# Start with route generation to understand API surface
+go run main.go gendoc --routes
+# Review routes.md to see:
+# - Available endpoints and their purposes
+# - Permission requirements per endpoint
+# - Handler function names for code navigation
+```
+
+**2. Testing API Endpoints:**
+```bash
+# Use Bruno API tests with generated documentation
+cd bruno
+./dev-test.sh examples          # Test key endpoints
+./dev-test.sh all              # Comprehensive API testing (~252ms)
+
+# Test specific domains discovered from routes.md:
+./dev-test.sh groups           # Educational group endpoints
+./dev-test.sh students         # Student management endpoints
+```
+
+**3. Schema Enhancement:**
+The base OpenAPI generation can be enhanced by:
+- Adding response schema definitions in `cmd/gendoc.go`
+- Implementing request/response models in API handlers
+- Using Go struct tags for automatic schema generation
+
+**4. Permission-Based Route Analysis:**
+```bash
+# Routes.md shows permission requirements like:
+# [RequiresPermission(permissions.GroupsRead)]
+# Use this to understand:
+# - Which endpoints require authentication
+# - What permission levels are needed
+# - How to test with appropriate user roles
+```
+
+### Integration with Development Tools
+
+**Bruno API Testing Integration:**
+- Generated routes map directly to Bruno test collections
+- Authentication examples use tokens compatible with gendoc endpoints
+- Test timing (~252ms for full suite) enables rapid development feedback
+
+**External Tool Integration:**
+```bash
+# Use generated OpenAPI spec with external tools:
+# - Import docs/openapi.yaml into Postman
+# - Serve with Swagger UI for interactive documentation
+# - Generate client SDKs using OpenAPI generators
+```
+
+### Understanding API Endpoints Through gendoc
+
+**Key API Endpoints Discovered:**
+```bash
+# Dashboard and Analytics (Real-time data)
+/api/active/analytics/dashboard       # GET - Main dashboard metrics
+/api/active/analytics/counts          # GET - Basic counts
+/api/active/analytics/room/{roomId}/utilization  # GET - Room utilization
+/api/active/analytics/student/{studentId}/attendance  # GET - Student attendance
+
+# Session Management
+/api/active/sessions                  # GET, POST - Active session management
+/api/active/visits                    # GET, POST - Student visit tracking
+/api/active/combined                  # POST - Combined group operations
+
+# Authentication and Authorization
+/auth/login                          # POST - JWT token generation
+/auth/refresh                        # POST - Token refresh
+/auth/logout                         # POST - Session termination
+
+# RFID Device Integration
+/iot/devices/{deviceId}/ping         # POST - Device health check
+/iot/checkin                         # POST - Student check-in via RFID
+/iot/checkout                        # POST - Student check-out via RFID
+```
+
+**API Response Pattern Analysis:**
+```json
+// Standard API response structure (from gendoc analysis)
+{
+  "status": "success|error",
+  "data": { /* actual response data */ },
+  "message": "Human-readable message"
+}
+
+// Dashboard analytics example:
+{
+  "status": "success",
+  "data": {
+    "students_present": 3,
+    "students_in_rooms": 0,
+    "capacity_utilization": 0.0,
+    "active_activities": 0,
+    // ... other metrics
+  },
+  "message": "Dashboard analytics retrieved successfully"
+}
+```
+
+**Authentication Pattern:**
+```bash
+# Get JWT token for API testing
+curl -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"Test1234%"}'
+
+# Use token in subsequent requests  
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/active/analytics/dashboard
 ```
 
 #### Important BUN ORM Pattern for Schema-Qualified Tables
@@ -589,24 +785,31 @@ export default function Page() {
 4. Create service interface in `services/{domain}/interface.go`
 5. Implement service business logic
 6. Create API handlers in `api/{domain}/`
-7. Write tests for repository and service layers
-8. Run linter: `golangci-lint run --timeout 10m`
-9. Test with seed data: `go run main.go seed`
+7. **Generate API documentation**: `go run main.go gendoc --routes`
+8. **Test API endpoints**: `cd bruno && ./dev-test.sh {domain}`
+9. Write tests for repository and service layers
+10. Run linter: `golangci-lint run --timeout 10m`
+11. Test with seed data: `go run main.go seed`
 
 ### Frontend Development Flow
-1. Define TypeScript interfaces in `lib/{domain}-helpers.ts`
-2. Create API client in `lib/{domain}-api.ts`
-3. Implement service layer in `lib/{domain}-service.ts`
-4. Create UI components in `components/{domain}/`
-5. Build pages in `app/{domain}/`
-6. Always run `npm run check` before committing
+1. **Review API endpoints**: Check `routes.md` for available backend endpoints
+2. Define TypeScript interfaces in `lib/{domain}-helpers.ts`
+3. Create API client in `lib/{domain}-api.ts`
+4. **Test API integration**: Use Bruno or curl with generated documentation
+5. Implement service layer in `lib/{domain}-service.ts`
+6. Create UI components in `components/{domain}/`
+7. Build pages in `app/{domain}/`
+8. Always run `npm run check` before committing
 
 ### Creating New Features
 1. Create feature branch from `development`: `git checkout -b feature/feature-name`
-2. Implement backend first if API changes needed
-3. Update frontend to consume new/changed APIs
-4. Test end-to-end with both services running
-5. Create PR targeting `development` branch (NEVER `main`)
+2. **Analyze existing APIs**: `go run main.go gendoc --routes` to understand current endpoints
+3. Implement backend first if API changes needed
+4. **Update API documentation**: Re-run `gendoc` after backend changes
+5. Update frontend to consume new/changed APIs
+6. **Test integration**: Use Bruno tests to verify API functionality
+7. Test end-to-end with both services running
+8. Create PR targeting `development` branch (NEVER `main`)
 
 ## Domain-Specific Details
 
