@@ -313,25 +313,21 @@ func (s *userContextService) GetMyActiveGroups(ctx context.Context) ([]*active.G
 		activityGroupIDs = append(activityGroupIDs, group.ID)
 	}
 
-	// Get active groups related to the staff's educational and activity groups
+	// Get active groups related to the staff's activity groups
 	var activeGroups []*active.Group
 
-	// Get active groups from educational group IDs
-	if len(educationalGroupIDs) > 0 {
-		eduActiveGroups, err := s.activeGroupRepo.FindBySourceIDs(ctx, educationalGroupIDs, "education_group")
-		if err != nil {
-			return nil, &UserContextError{Op: "get my active groups - education active", Err: err}
-		}
-		activeGroups = append(activeGroups, eduActiveGroups...)
-	}
+	// Note: Educational groups don't directly create active sessions
+	// Active groups are only created from activity groups via the group_id column
 
 	// Get active groups from activity group IDs
 	if len(activityGroupIDs) > 0 {
-		activityActiveGroups, err := s.activeGroupRepo.FindBySourceIDs(ctx, activityGroupIDs, "activity_group")
-		if err != nil {
-			return nil, &UserContextError{Op: "get my active groups - activity active", Err: err}
+		for _, groupID := range activityGroupIDs {
+			activityActiveGroups, err := s.activeGroupRepo.FindActiveByGroupID(ctx, groupID)
+			if err != nil {
+				return nil, &UserContextError{Op: "get my active groups - activity active", Err: err}
+			}
+			activeGroups = append(activeGroups, activityActiveGroups...)
 		}
-		activeGroups = append(activeGroups, activityActiveGroups...)
 	}
 
 	// Also include any active groups this staff member is currently supervising
