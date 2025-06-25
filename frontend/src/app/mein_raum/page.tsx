@@ -7,18 +7,13 @@ import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { userContextService } from "~/lib/usercontext-api";
 import { activeService } from "~/lib/active-api";
+import { fetchStudent } from "~/lib/student-api";
+import type { Student } from "~/lib/student-helpers";
 
-// Define student interface for displayed students (based on active visits)
-interface StudentFromVisit {
-    id: string;
-    name: string;
-    first_name: string;
-    second_name: string;
-    studentId: string;
+// Extended student interface that includes visit information
+interface StudentWithVisit extends Student {
     activeGroupId: string;
     checkInTime: Date;
-    group_name?: string;
-    group_id?: string;
 }
 
 // Define ActiveRoom type based on ActiveGroup with additional fields
@@ -29,7 +24,7 @@ interface ActiveRoom {
     room_id?: string;
     student_count?: number;
     supervisor_name?: string;
-    students?: StudentFromVisit[];
+    students?: StudentWithVisit[];
 }
 
 function MeinRaumPageContent() {
@@ -46,9 +41,8 @@ function MeinRaumPageContent() {
 
     // State variables
     const [activeRoom, setActiveRoom] = useState<ActiveRoom | null>(null);
-    const [students, setStudents] = useState<StudentFromVisit[]>([]);
+    const [students, setStudents] = useState<StudentWithVisit[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
-    const [selectedYear, setSelectedYear] = useState("all");
     const [groupFilter, setGroupFilter] = useState("all");
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -129,26 +123,44 @@ function MeinRaumPageContent() {
                 // Filter only active visits (students currently checked in)
                 const currentlyCheckedIn = activeVisits.filter(visit => visit.isActive);
                 
-                // Convert visits to student data for the UI
-                const studentsFromVisits: StudentFromVisit[] = currentlyCheckedIn.map(visit => {
-                    // Split student name into first and last name
-                    const nameParts = visit.studentName?.split(' ') ?? ['', ''];
-                    const firstName = nameParts[0] ?? '';
-                    const lastName = nameParts.slice(1).join(' ') ?? '';
-                    
-                    return {
-                        id: visit.studentId,
-                        name: visit.studentName ?? '',
-                        first_name: firstName,
-                        second_name: lastName,
-                        studentId: visit.studentId,
-                        activeGroupId: visit.activeGroupId,
-                        checkInTime: visit.checkInTime,
-                        group_name: visit.activeGroupName ?? activeGroup.name,
-                        group_id: activeGroup.id
-                    };
+                // Fetch complete student data using student IDs from visits
+                const studentPromises = currentlyCheckedIn.map(async (visit) => {
+                    try {
+                        // Fetch full student record using the student ID
+                        const studentData = await fetchStudent(visit.studentId);
+                        
+                        // Add visit-specific information to the student data
+                        return {
+                            ...studentData,
+                            activeGroupId: visit.activeGroupId,
+                            checkInTime: visit.checkInTime,
+                            group_name: visit.activeGroupName ?? activeGroup.name,
+                            group_id: activeGroup.id
+                        };
+                    } catch (error) {
+                        console.error(`Error fetching student ${visit.studentId}:`, error);
+                        // Fallback to parsing student name if API call fails
+                        const nameParts = visit.studentName?.split(' ') ?? ['', ''];
+                        const firstName = nameParts[0] ?? '';
+                        const lastName = nameParts.slice(1).join(' ') ?? '';
+                        
+                        return {
+                            id: visit.studentId,
+                            name: visit.studentName ?? '',
+                            first_name: firstName,
+                            second_name: lastName,
+                            school_class: '',
+                            current_location: 'Anwesend' as const,
+                            in_house: true,
+                            group_name: visit.activeGroupName ?? activeGroup.name,
+                            group_id: activeGroup.id,
+                            activeGroupId: visit.activeGroupId,
+                            checkInTime: visit.checkInTime
+                        };
+                    }
                 });
 
+                const studentsFromVisits = await Promise.all(studentPromises);
                 setStudents(studentsFromVisits);
 
                 // Update room with actual student count
@@ -218,7 +230,7 @@ function MeinRaumPageContent() {
     )).sort();
 
     // Helper function to get group status with enhanced design
-    const getGroupStatus = (student: StudentFromVisit) => {
+    const getGroupStatus = (student: StudentWithVisit) => {
         const studentGroupInfo = studentGroups[student.id];
         const groupName = studentGroupInfo?.group_name ?? "Unbekannt";
         
@@ -310,10 +322,9 @@ function MeinRaumPageContent() {
                             </svg>
                             {isMobileFiltersOpen ? 'Filter ausblenden' : 'Filter anzeigen'}
                         </button>
-                        {(selectedYear !== "all" || groupFilter !== "all") && (
+                        {groupFilter !== "all" && (
                             <button
                                 onClick={() => {
-                                    setSelectedYear("all");
                                     setGroupFilter("all");
                                 }}
                                 className="text-sm text-gray-500"
@@ -325,23 +336,7 @@ function MeinRaumPageContent() {
 
                     {/* Collapsible Filter Dropdowns */}
                     {isMobileFiltersOpen && (
-                        <div className="grid grid-cols-2 gap-3 mb-3">
-                            <div className="relative">
-                                <select
-                                    value={selectedYear}
-                                    onChange={(e) => setSelectedYear(e.target.value)}
-                                    disabled
-                                    className="w-full pl-3 pr-8 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-500 cursor-not-allowed text-base appearance-none"
-                                >
-                                    <option value="all">Alle Jahre</option>
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                                    <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                    </svg>
-                                </div>
-                            </div>
-
+                        <div className="mb-3">
                             <div className="relative">
                                 <select
                                     value={groupFilter}
@@ -363,13 +358,12 @@ function MeinRaumPageContent() {
                     )}
 
                     {/* Active Filters Bar */}
-                    {(searchTerm || selectedYear !== "all" || groupFilter !== "all") && (
+                    {(searchTerm || groupFilter !== "all") && (
                         <div className="flex items-center justify-between text-sm text-gray-600">
                             <span>
                                 {(() => {
                                     const activeFilters = [];
                                     if (searchTerm) activeFilters.push(`Suche: "${searchTerm}"`);
-                                    if (selectedYear !== "all") activeFilters.push(`Jahr ${selectedYear}`);
                                     if (groupFilter !== "all") activeFilters.push(`Gruppe: ${groupFilter}`);
                                     
                                     if (activeFilters.length === 1) {
@@ -382,7 +376,6 @@ function MeinRaumPageContent() {
                             <button
                                 onClick={() => {
                                     setSearchTerm("");
-                                    setSelectedYear("all");
                                     setGroupFilter("all");
                                 }}
                                 className="text-blue-600 hover:text-blue-700 font-medium"
@@ -412,23 +405,7 @@ function MeinRaumPageContent() {
                             </div>
                         </div>
 
-                        {/* Filter Dropdowns */}
-                        <div className="relative">
-                            <select
-                                value={selectedYear}
-                                onChange={(e) => setSelectedYear(e.target.value)}
-                                disabled
-                                className="pl-3 pr-8 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-500 cursor-not-allowed text-sm min-w-[120px] appearance-none"
-                            >
-                                <option value="all">Alle Jahre</option>
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                                <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                </svg>
-                            </div>
-                        </div>
-
+                        {/* Filter Dropdown */}
                         <div className="relative">
                             <select
                                 value={groupFilter}
@@ -449,15 +426,14 @@ function MeinRaumPageContent() {
                     </div>
 
                     {/* Active Filters Bar */}
-                    {(searchTerm || selectedYear !== "all" || groupFilter !== "all") && (
+                    {(searchTerm || groupFilter !== "all") && (
                         <div className="mt-3 flex items-center justify-between text-sm text-gray-600">
                             <div className="flex items-center gap-2">
                                 <span>
                                     {(() => {
                                         const activeFilters = [];
                                         if (searchTerm) activeFilters.push(`Suche: "${searchTerm}"`);
-                                        if (selectedYear !== "all") activeFilters.push(`Jahr ${selectedYear}`);
-                                        if (groupFilter !== "all") activeFilters.push(`Gruppe: ${groupFilter}`);
+                                            if (groupFilter !== "all") activeFilters.push(`Gruppe: ${groupFilter}`);
                                         
                                         if (activeFilters.length === 1) {
                                             return `1 Filter aktiv: ${activeFilters[0]}`;
@@ -470,7 +446,6 @@ function MeinRaumPageContent() {
                             <button
                                 onClick={() => {
                                     setSearchTerm("");
-                                    setSelectedYear("all");
                                     setGroupFilter("all");
                                 }}
                                 className="text-blue-600 hover:text-blue-700 font-medium"
