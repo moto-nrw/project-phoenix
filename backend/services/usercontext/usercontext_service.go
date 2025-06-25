@@ -284,23 +284,9 @@ func (s *userContextService) GetMyActiveGroups(ctx context.Context) ([]*active.G
 		return []*active.Group{}, nil
 	}
 
-	// First, get the educational groups this staff member is associated with
-	teacher, err := s.GetCurrentTeacher(ctx)
-	var educationalGroupIDs []int64
-
-	// Only proceed with teacher checks if the user is a teacher
-	if err == nil && teacher != nil {
-		// Get the teacher's educational groups
-		educationGroups, err := s.educationGroupRepo.FindByTeacher(ctx, teacher.ID)
-		if err != nil {
-			return nil, &UserContextError{Op: "get my active groups - education groups", Err: err}
-		}
-
-		// Extract IDs for filtering
-		for _, group := range educationGroups {
-			educationalGroupIDs = append(educationalGroupIDs, group.ID)
-		}
-	}
+	// Note: Educational groups don't directly create active sessions
+	// Active groups are only created from activity groups via the group_id column
+	// So we skip checking educational groups here
 
 	// Get activity groups where the staff is a supervisor
 	activityGroups, err := s.activityGroupRepo.FindByStaffSupervisor(ctx, staff.ID)
@@ -313,25 +299,18 @@ func (s *userContextService) GetMyActiveGroups(ctx context.Context) ([]*active.G
 		activityGroupIDs = append(activityGroupIDs, group.ID)
 	}
 
-	// Get active groups related to the staff's educational and activity groups
+	// Get active groups related to the staff's activity groups
 	var activeGroups []*active.Group
-
-	// Get active groups from educational group IDs
-	if len(educationalGroupIDs) > 0 {
-		eduActiveGroups, err := s.activeGroupRepo.FindBySourceIDs(ctx, educationalGroupIDs, "education_group")
-		if err != nil {
-			return nil, &UserContextError{Op: "get my active groups - education active", Err: err}
-		}
-		activeGroups = append(activeGroups, eduActiveGroups...)
-	}
 
 	// Get active groups from activity group IDs
 	if len(activityGroupIDs) > 0 {
-		activityActiveGroups, err := s.activeGroupRepo.FindBySourceIDs(ctx, activityGroupIDs, "activity_group")
-		if err != nil {
-			return nil, &UserContextError{Op: "get my active groups - activity active", Err: err}
+		for _, groupID := range activityGroupIDs {
+			activityActiveGroups, err := s.activeGroupRepo.FindActiveByGroupID(ctx, groupID)
+			if err != nil {
+				return nil, &UserContextError{Op: "get my active groups - activity active", Err: err}
+			}
+			activeGroups = append(activeGroups, activityActiveGroups...)
 		}
-		activeGroups = append(activeGroups, activityActiveGroups...)
 	}
 
 	// Also include any active groups this staff member is currently supervising

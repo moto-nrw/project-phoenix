@@ -23,14 +23,21 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
   const queryParams = extractParams(request, params);
   
   // Construct query string
-  let endpoint = '/active/visits';
+  let endpoint = '/api/active/visits';
   const queryString = new URLSearchParams(queryParams).toString();
   if (queryString) {
     endpoint += `?${queryString}`;
   }
   
   // Fetch visits from the API
-  return await apiGet(endpoint, token);
+  const response = await apiGet(endpoint, token);
+  
+  // Extract data from backend response structure {status, data, message}
+  if (response && typeof response === 'object' && 'data' in response) {
+    return response.data;
+  }
+  
+  return response;
 });
 
 /**
@@ -40,6 +47,6 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
 export const POST = createPostHandler<unknown, VisitCreateRequest>(
   async (_request: NextRequest, body: VisitCreateRequest, token: string, _params) => {
     // Create a new visit via the API
-    return await apiPost('/active/visits', token, body);
+    return await apiPost('/api/active/visits', token, body);
   }
 );
