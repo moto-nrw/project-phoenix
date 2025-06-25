@@ -230,29 +230,19 @@ function MeinRaumPageContent() {
     const getGroupStatus = (student: StudentWithVisit) => {
         const groupName = student.group_name ?? "Unbekannt";
         
-        // Different colors for different groups
-        const groupColors = [
-            { bg: "#83CD2D", shadow: "0 8px 25px rgba(131, 205, 45, 0.4)" },
-            { bg: "#5080D8", shadow: "0 8px 25px rgba(80, 128, 216, 0.4)" },
-            { bg: "#F78C10", shadow: "0 8px 25px rgba(247, 140, 16, 0.4)" },
-            { bg: "#D946EF", shadow: "0 8px 25px rgba(217, 70, 239, 0.4)" },
-            { bg: "#FF3130", shadow: "0 8px 25px rgba(255, 49, 48, 0.4)" }
-        ];
-        
-        // Simple hash function to assign consistent colors to groups
-        const groupHash = groupName.split('').reduce((hash, char) => {
-            return ((hash << 5) - hash + char.charCodeAt(0)) & 0xffffffff;
-        }, 0);
-        const colorIndex = Math.abs(groupHash) % groupColors.length;
-        const colors = groupColors[colorIndex];
+        // Single color for all groups - clean and consistent
+        const groupColor = { 
+            bg: "#5080D8", 
+            shadow: "0 8px 25px rgba(80, 128, 216, 0.4)" 
+        };
         
         return { 
             label: groupName, 
             badgeColor: "text-white backdrop-blur-sm",
             cardGradient: "from-blue-50/80 to-cyan-100/80",
             glowColor: "ring-blue-200/50 shadow-blue-100/50",
-            customBgColor: colors?.bg ?? "#5080D8",
-            customShadow: colors?.shadow ?? "0 8px 25px rgba(80, 128, 216, 0.4)"
+            customBgColor: groupColor.bg,
+            customShadow: groupColor.shadow
         };
     };
 
@@ -493,7 +483,7 @@ function MeinRaumPageContent() {
                             return (
                                 <div
                                     key={student.id}
-                                    onClick={() => router.push(`/students/${student.id}?from=/mein_raum`)}
+                                    onClick={() => router.push(`/students/${student.id}?from=/myroom`)}
                                     className={`group cursor-pointer relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.03] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-3 active:scale-[0.97] md:hover:border-blue-200/50`}
                                     style={{
                                         transform: `rotate(${(index % 3 - 1) * 0.8}deg)`,

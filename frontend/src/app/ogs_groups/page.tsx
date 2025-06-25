@@ -224,7 +224,7 @@ function OGSGroupPageContent() {
         // Check if student is in group room
         if (studentRoomStatus?.in_group_room) {
             return { 
-                label: "Im Gruppenraum", 
+                label: "Gruppenraum", 
                 badgeColor: "text-white backdrop-blur-sm",
                 cardGradient: "from-emerald-50/80 to-green-100/80",
                 glowColor: "ring-emerald-200/50 shadow-emerald-100/50",
@@ -382,7 +382,7 @@ function OGSGroupPageContent() {
                                     className="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base appearance-none"
                                 >
                                     <option value="all">Alle Orte</option>
-                                    <option value="in_room">Im Gruppenraum</option>
+                                    <option value="in_room">Gruppenraum</option>
                                     <option value="in_house">Unterwegs</option>
                                     <option value="school_yard">Schulhof</option>
                                     <option value="at_home">Zuhause</option>
@@ -406,7 +406,7 @@ function OGSGroupPageContent() {
                                     if (selectedYear !== "all") activeFilters.push(`Jahr ${selectedYear}`);
                                     if (attendanceFilter !== "all") {
                                         const statusLabels: Record<string, string> = {
-                                            "in_room": "Im Gruppenraum",
+                                            "in_room": "Gruppenraum",
                                             "in_house": "Unterwegs", 
                                             "school_yard": "Schulhof",
                                             "at_home": "Zuhause"
@@ -481,7 +481,7 @@ function OGSGroupPageContent() {
                                 className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm min-w-[140px] appearance-none"
                             >
                                 <option value="all">Alle Orte</option>
-                                <option value="in_room">Im Gruppenraum</option>
+                                <option value="in_room">Gruppenraum</option>
                                 <option value="in_house">Unterwegs</option>
                                 <option value="school_yard">Schulhof</option>
                                 <option value="at_home">Zuhause</option>
@@ -505,7 +505,7 @@ function OGSGroupPageContent() {
                                         if (selectedYear !== "all") activeFilters.push(`Jahr ${selectedYear}`);
                                         if (attendanceFilter !== "all") {
                                             const statusLabels: Record<string, string> = {
-                                                "in_room": "Im Gruppenraum",
+                                                "in_room": "Gruppenraum",
                                                 "in_house": "Unterwegs", 
                                                 "school_yard": "Schulhof",
                                                 "at_home": "Zuhause"
