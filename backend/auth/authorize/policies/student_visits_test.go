@@ -1102,3 +1102,11 @@ func (m *SimpleMockActiveService) GetSessionTimeoutInfo(ctx context.Context, dev
 func (m *SimpleMockActiveService) CleanupAbandonedSessions(ctx context.Context, olderThan time.Duration) (int, error) {
 	return 0, nil
 }
+
+func (m *SimpleMockActiveService) EndDailySessions(ctx context.Context) (*activeSvc.DailySessionCleanupResult, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*activeSvc.DailySessionCleanupResult), args.Error(1)
+}

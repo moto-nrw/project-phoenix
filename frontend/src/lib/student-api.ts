@@ -189,13 +189,14 @@ export async function fetchStudent(id: string): Promise<Student> {
                 throw new Error(`API error (${response.status}): ${response.statusText}`);
             }
 
-            const responseData = await response.json() as ApiResponse<BackendStudentDetail> | BackendStudentDetail;
+            const responseData = await response.json() as ApiResponse<Student> | Student;
             
-            // Extract the data from the response wrapper if needed
+            // The route handler already maps the response to frontend format
+            // So we just need to extract the data, not map it again
             if (responseData && typeof responseData === 'object' && 'data' in responseData) {
-                return mapStudentDetailResponse(responseData.data);
+                return responseData.data;
             }
-            return mapStudentDetailResponse(responseData);
+            return responseData;
         } else {
             const response = await api.get<ApiResponse<BackendStudentDetail>>(url);
             return mapStudentDetailResponse(response.data.data);

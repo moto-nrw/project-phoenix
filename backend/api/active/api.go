@@ -233,9 +233,9 @@ type AnalyticsResponse struct {
 type DashboardAnalyticsResponse struct {
 	// Student Overview
 	StudentsPresent      int `json:"students_present"`
-	StudentsEnrolled     int `json:"students_enrolled"`
+	StudentsInTransit    int `json:"students_in_transit"` // Students present but not in any active visit
 	StudentsOnPlayground int `json:"students_on_playground"`
-	StudentsInTransit    int `json:"students_in_transit"`
+	StudentsInRooms      int `json:"students_in_rooms"` // Students in indoor rooms (excluding playground)
 
 	// Activities & Rooms
 	ActiveActivities    int     `json:"active_activities"`
@@ -852,11 +852,20 @@ func (rs *Resource) listVisits(w http.ResponseWriter, r *http.Request) {
 	// Get query parameters
 	queryOptions := base.NewQueryOptions()
 
+	// Set table alias to match repository implementation
+	queryOptions.Filter.WithTableAlias("visit")
+
 	// Get active status filter
 	activeStr := r.URL.Query().Get("active")
 	if activeStr != "" {
 		isActive := activeStr == "true" || activeStr == "1"
-		queryOptions.Filter.Equal("is_active", isActive)
+		if isActive {
+			// For active visits, exit_time should be NULL
+			queryOptions.Filter.IsNull("exit_time")
+		} else {
+			// For inactive visits, exit_time should NOT be NULL
+			queryOptions.Filter.IsNotNull("exit_time")
+		}
 	}
 
 	// Get visits
@@ -1944,9 +1953,9 @@ func (rs *Resource) getDashboardAnalytics(w http.ResponseWriter, r *http.Request
 	// Build response
 	response := DashboardAnalyticsResponse{
 		StudentsPresent:      analytics.StudentsPresent,
-		StudentsEnrolled:     analytics.StudentsEnrolled,
-		StudentsOnPlayground: analytics.StudentsOnPlayground,
 		StudentsInTransit:    analytics.StudentsInTransit,
+		StudentsOnPlayground: analytics.StudentsOnPlayground,
+		StudentsInRooms:      analytics.StudentsInRooms,
 		ActiveActivities:     analytics.ActiveActivities,
 		FreeRooms:            analytics.FreeRooms,
 		TotalRooms:           analytics.TotalRooms,

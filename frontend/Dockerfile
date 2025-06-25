@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1
 FROM node:20-alpine AS base
 
+# Install timezone data for proper timezone support
+RUN apk add --no-cache tzdata
+
 # Install dependencies needed for all stages
 FROM base AS deps
 WORKDIR /app

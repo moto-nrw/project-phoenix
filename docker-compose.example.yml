@@ -19,6 +19,7 @@ services:
             - backend/*.log
             - backend/tmp/
     environment:
+      TZ: ${TZ:-Europe/Berlin}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
       LOG_TEXTLOGGING: ${LOG_TEXTLOGGING:-"true"}
       PORT: ${PORT:-8080}
@@ -54,6 +55,8 @@ services:
     ports:
       - "3000:3000"
     environment:
+      TZ: ${TZ:-Europe/Berlin}
+      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-12h}
       # API URL for both client and server-side calls
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-"http://server:8080"}
       # NextAuth configuration
@@ -96,6 +99,7 @@ services:
       - ./config/ssl/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
       - ./config/ssl/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     environment:
+      TZ: ${TZ:-Europe/Berlin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     command:
       [

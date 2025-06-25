@@ -78,6 +78,9 @@ type Service interface {
 	ValidateSessionTimeout(ctx context.Context, deviceID int64, timeoutMinutes int) error
 	GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*SessionTimeoutInfo, error)
 	CleanupAbandonedSessions(ctx context.Context, olderThan time.Duration) (int, error)
+	
+	// Daily session management
+	EndDailySessions(ctx context.Context) (*DailySessionCleanupResult, error)
 
 	// Analytics and statistics
 	GetActiveGroupsCount(ctx context.Context) (int, error)
@@ -97,9 +100,9 @@ type Service interface {
 type DashboardAnalytics struct {
 	// Student Overview
 	StudentsPresent      int
-	StudentsEnrolled     int
+	StudentsInTransit    int // Students present but not in any active visit
 	StudentsOnPlayground int
-	StudentsInTransit    int
+	StudentsInRooms      int // Students in indoor rooms (excluding playground)
 
 	// Activities & Rooms
 	ActiveActivities    int
@@ -197,6 +200,12 @@ type CleanupService interface {
 
 	// PreviewCleanup shows what would be deleted without actually deleting
 	PreviewCleanup(ctx context.Context) (*CleanupPreview, error)
+
+	// CleanupStaleAttendance closes attendance records from previous days
+	CleanupStaleAttendance(ctx context.Context) (*AttendanceCleanupResult, error)
+
+	// PreviewAttendanceCleanup shows what attendance records would be cleaned
+	PreviewAttendanceCleanup(ctx context.Context) (*AttendanceCleanupPreview, error)
 }
 
 // CleanupResult represents the result of a cleanup operation
@@ -248,4 +257,32 @@ type AttendanceResult struct {
 	AttendanceID int64     `json:"attendance_id"`
 	StudentID    int64     `json:"student_id"`
 	Timestamp    time.Time `json:"timestamp"`
+}
+
+// DailySessionCleanupResult represents the result of ending daily sessions
+type DailySessionCleanupResult struct {
+	SessionsEnded    int       `json:"sessions_ended"`
+	VisitsEnded      int       `json:"visits_ended"`
+	ExecutedAt       time.Time `json:"executed_at"`
+	Success          bool      `json:"success"`
+	Errors           []string  `json:"errors,omitempty"`
+}
+
+// AttendanceCleanupResult represents the result of cleaning stale attendance records
+type AttendanceCleanupResult struct {
+	StartedAt         time.Time `json:"started_at"`
+	CompletedAt       time.Time `json:"completed_at"`
+	RecordsClosed     int       `json:"records_closed"`
+	StudentsAffected  int       `json:"students_affected"`
+	OldestRecordDate  *time.Time `json:"oldest_record_date,omitempty"`
+	Success           bool       `json:"success"`
+	Errors            []string   `json:"errors,omitempty"`
+}
+
+// AttendanceCleanupPreview shows what attendance records would be cleaned
+type AttendanceCleanupPreview struct {
+	TotalRecords     int                      `json:"total_records"`
+	StudentRecords   map[int64]int           `json:"student_records"` // studentID -> count
+	OldestRecord     *time.Time              `json:"oldest_record,omitempty"`
+	RecordsByDate    map[string]int          `json:"records_by_date"` // date -> count
 }

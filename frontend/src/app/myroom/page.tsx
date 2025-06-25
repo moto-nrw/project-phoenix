@@ -6,32 +6,28 @@ import { redirect, useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { userContextService } from "~/lib/usercontext-api";
-import { studentService } from "~/lib/api";
-import type { Student } from "~/lib/api";
-import type { StudentLocation } from "~/lib/student-helpers";
+import { activeService } from "~/lib/active-api";
+import { fetchStudent } from "~/lib/student-api";
+import type { Student } from "~/lib/student-helpers";
 
-// Location constants to ensure type safety
-const LOCATIONS = {
-    HOME: "Home" as StudentLocation,
-    IN_HOUSE: "In House" as StudentLocation,
-    WC: "WC" as StudentLocation,
-    SCHOOL_YARD: "School Yard" as StudentLocation,
-    BUS: "Bus" as StudentLocation,
-    UNKNOWN: "Unknown" as StudentLocation,
-} as const;
+// Extended student interface that includes visit information
+interface StudentWithVisit extends Student {
+    activeGroupId: string;
+    checkInTime: Date;
+}
 
-// Define OGSGroup type based on EducationalGroup with additional fields
-interface OGSGroup {
+// Define ActiveRoom type based on ActiveGroup with additional fields
+interface ActiveRoom {
     id: string;
     name: string;
     room_name?: string;
     room_id?: string;
     student_count?: number;
     supervisor_name?: string;
-    students?: Student[];
+    students?: StudentWithVisit[];
 }
 
-function OGSGroupPageContent() {
+function MeinRaumPageContent() {
     const { data: session, status } = useSession({
         required: true,
         onUnauthenticated() {
@@ -40,39 +36,31 @@ function OGSGroupPageContent() {
     });
     const router = useRouter();
 
-    // Check if user has access to OGS groups
+    // Check if user has access to active rooms
     const [hasAccess, setHasAccess] = useState<boolean | null>(null);
 
     // State variables
-    const [ogsGroup, setOGSGroup] = useState<OGSGroup | null>(null);
-    const [students, setStudents] = useState<Student[]>([]);
+    const [activeRoom, setActiveRoom] = useState<ActiveRoom | null>(null);
+    const [students, setStudents] = useState<StudentWithVisit[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
-    const [selectedYear, setSelectedYear] = useState("all");
-    const [attendanceFilter, setAttendanceFilter] = useState("all");
+    const [groupFilter, setGroupFilter] = useState("all");
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [roomStatus, setRoomStatus] = useState<Record<string, { 
-        in_group_room: boolean; 
-        current_room_id?: number;
-        first_name?: string;
-        last_name?: string;
-        reason?: string;
-    }>>({});
     
     // Mobile-specific state
     const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
-    // Check access and fetch OGS group data
+    // Check access and fetch active room data
     useEffect(() => {
         const checkAccessAndFetchData = async () => {
             try {
                 setIsLoading(true);
 
-                // First check if user has any educational groups (OGS groups)
-                const myGroups = await userContextService.getMyEducationalGroups();
+                // First check if user has any active groups (active activities)
+                const myActiveGroups = await userContextService.getMyActiveGroups();
                 
-                if (myGroups.length === 0) {
-                    // User has no OGS groups, redirect to dashboard
+                if (myActiveGroups.length === 0) {
+                    // User has no active groups, redirect to dashboard
                     setHasAccess(false);
                     redirect("/dashboard");
                     return;
@@ -80,80 +68,120 @@ function OGSGroupPageContent() {
 
                 setHasAccess(true);
 
-                // Use the first group as the OGS group (assuming user has access to one OGS group)
-                const educationalGroup = myGroups[0];
+                // Use the first active group as the active room
+                const activeGroup = myActiveGroups[0];
                 
-                if (!educationalGroup) {
-                    throw new Error('No educational group found');
+                if (!activeGroup) {
+                    throw new Error('No active group found');
+                }
+
+                // Get room information from the active group
+                let roomName = activeGroup.room?.name;
+                
+                // If room name is not provided, fetch it separately using the room_id
+                if (!roomName && activeGroup.room_id) {
+                    try {
+                        // Fetch room information from the rooms API
+                        const roomResponse = await fetch(`/api/rooms/${activeGroup.room_id}`, {
+                            headers: {
+                                Authorization: `Bearer ${session?.user?.token}`,
+                                "Content-Type": "application/json",
+                            },
+                        });
+                        
+                        if (roomResponse.ok) {
+                            const roomData: { data?: { name?: string } } = await roomResponse.json() as { data?: { name?: string } };
+                            roomName = roomData.data?.name;
+                        }
+                    } catch (error) {
+                        console.error("Error fetching room name:", error);
+                    }
                 }
                 
-                const ogsGroupData: OGSGroup = {
-                    id: educationalGroup.id,
-                    name: educationalGroup.name,
-                    room_name: educationalGroup.room?.name,
-                    room_id: educationalGroup.room_id,
-                    student_count: 0, // Will be calculated from actual students
+                const activeRoomData: ActiveRoom = {
+                    id: activeGroup.id,
+                    name: activeGroup.name,
+                    room_name: roomName,
+                    room_id: activeGroup.room_id,
+                    student_count: 0, // Will be calculated from actual visits
                     supervisor_name: undefined // Will be fetched separately if needed
                 };
 
-                setOGSGroup(ogsGroupData);
+                setActiveRoom(activeRoomData);
 
-                // Fetch students for this group using the same service as students/search
-                const studentsResponse = await studentService.getStudents({
-                    groupId: educationalGroup.id
-                });
+                // Fetch current visits for this active group to get students actually checked in
+                // Use getVisits with active filter instead of getActiveGroupVisits (which doesn't exist)
+                const allActiveVisits = await activeService.getVisits({ active: true });
                 
-                const studentsData = studentsResponse.students || [];
-                setStudents(studentsData);
-
-                // Calculate statistics from real data (only if we have valid array data)
-                const validStudents = Array.isArray(studentsData) ? studentsData : [];
-                setStudents(validStudents);
-
-                // Update group with actual student count
-                setOGSGroup(prev => prev ? { ...prev, student_count: validStudents.length } : null);
-
-                // Fetch room status for all students in the group
-                try {
-                    const roomStatusResponse = await fetch(`/api/groups/${educationalGroup.id}/students/room-status`, {
-                        headers: {
-                            'Authorization': `Bearer ${session?.user?.token}`,
-                            'Content-Type': 'application/json'
-                        }
-                    });
-
-                    if (roomStatusResponse.ok) {
-                        const response = await roomStatusResponse.json() as {
-                            success: boolean;
-                            message: string;
-                            data: {
-                                group_has_room: boolean;
-                                group_room_id?: number;
-                                student_room_status: Record<string, { 
-                                    in_group_room: boolean; 
-                                    current_room_id?: number;
-                                    first_name?: string;
-                                    last_name?: string;
-                                    reason?: string;
-                                }>;
-                            };
-                        };
+                // Filter visits for this specific active group
+                const activeVisits = allActiveVisits.filter(visit => visit.activeGroupId === activeGroup.id);
+                
+                // Filter only active visits (students currently checked in)
+                const currentlyCheckedIn = activeVisits.filter(visit => visit.isActive);
+                
+                // Fetch complete student data using student IDs from visits
+                const studentPromises = currentlyCheckedIn.map(async (visit) => {
+                    try {
+                        // Fetch full student record using the student ID
+                        const studentData = await fetchStudent(visit.studentId);
                         
-                        if (response.data?.student_room_status) {
-                            setRoomStatus(response.data.student_room_status);
-                        }
+                        // Add visit-specific information to the student data
+                        // Keep the student's actual OGS group info (group_name, group_id)
+                        return {
+                            ...studentData,
+                            activeGroupId: visit.activeGroupId,
+                            checkInTime: visit.checkInTime
+                            // Don't override group_name and group_id - keep student's OGS group
+                        };
+                    } catch (error) {
+                        console.error(`Error fetching student ${visit.studentId}:`, error);
+                        // Fallback to parsing student name if API call fails
+                        const nameParts = visit.studentName?.split(' ') ?? ['', ''];
+                        const firstName = nameParts[0] ?? '';
+                        const lastName = nameParts.slice(1).join(' ') ?? '';
+                        
+                        return {
+                            id: visit.studentId,
+                            name: visit.studentName ?? '',
+                            first_name: firstName,
+                            second_name: lastName,
+                            school_class: '',
+                            current_location: 'Anwesend' as const,
+                            in_house: true,
+                            // No OGS group info available in fallback
+                            activeGroupId: visit.activeGroupId,
+                            checkInTime: visit.checkInTime
+                        };
                     }
-                } catch (roomStatusErr) {
-                    console.error("Failed to fetch room status:", roomStatusErr);
+                });
+
+                const studentsFromVisits = await Promise.all(studentPromises);
+                
+                // Debug: Log the first student to check group info
+                if (studentsFromVisits.length > 0) {
+                    const firstStudent = studentsFromVisits[0];
+                    if (firstStudent) {
+                        console.log('Student OGS group info:', {
+                            name: firstStudent.name,
+                            group_name: firstStudent.group_name,
+                            group_id: firstStudent.group_id
+                        });
+                    }
                 }
+                
+                setStudents(studentsFromVisits);
+
+                // Update room with actual student count
+                setActiveRoom(prev => prev ? { ...prev, student_count: studentsFromVisits.length } : null);
 
                 setError(null);
             } catch (err) {
                 if (err instanceof Error && err.message.includes("403")) {
-                    setError("Sie haben keine Berechtigung für den Zugriff auf OGS-Gruppendaten.");
+                    setError("Sie haben keine Berechtigung für den Zugriff auf Aktivitätsdaten.");
                     setHasAccess(false);
                 } else {
-                    setError("Fehler beim Laden der OGS-Gruppendaten.");
+                    setError("Fehler beim Laden der Aktivitätsdaten.");
+                    console.error("Error loading room data:", err);
                 }
             } finally {
                 setIsLoading(false);
@@ -173,110 +201,48 @@ function OGSGroupPageContent() {
             const matchesSearch = 
                 (student.name?.toLowerCase().includes(searchLower) ?? false) ||
                 (student.first_name?.toLowerCase().includes(searchLower) ?? false) ||
-                (student.second_name?.toLowerCase().includes(searchLower) ?? false) ||
-                (student.school_class?.toLowerCase().includes(searchLower) ?? false);
+                (student.second_name?.toLowerCase().includes(searchLower) ?? false);
             
             if (!matchesSearch) return false;
         }
 
-        // Apply year filter
-        if (selectedYear !== "all") {
-            const yearMatch = /^(\d)/.exec(student.school_class ?? '');
-            const studentYear = yearMatch ? yearMatch[1] : null;
-            if (studentYear !== selectedYear) {
-                return false;
-            }
-        }
+        // Apply year filter (skip since we don't have school_class in visits)
+        // Year filtering would require additional student data lookup
 
-        // Apply attendance filter
-        if (attendanceFilter !== "all") {
-            const studentRoomStatus = roomStatus[student.id.toString()];
+        // Apply group filter
+        if (groupFilter !== "all") {
+            const studentGroupName = student.group_name ?? "Unbekannt";
             
-            switch (attendanceFilter) {
-                case "in_room":
-                    if (!studentRoomStatus?.in_group_room) return false;
-                    break;
-                case "in_house":
-                    // Check both the in_house flag and current_location
-                    if (!student.in_house && student.current_location !== LOCATIONS.IN_HOUSE) return false;
-                    break;
-                case "school_yard":
-                    if (!student.school_yard && student.current_location !== LOCATIONS.SCHOOL_YARD) return false;
-                    break;
-                case "at_home":
-                    // Student is at home if no location flags are set OR current_location is "Home"
-                    const isAtHome = (!student.in_house && !student.wc && !student.school_yard && !studentRoomStatus?.in_group_room) ||
-                                    student.current_location === LOCATIONS.HOME;
-                    if (!isAtHome) return false;
-                    break;
+            if (studentGroupName !== groupFilter) {
+                return false;
             }
         }
 
         return true;
     });
 
+    // Get unique group names for filter dropdown
+    const availableGroups = Array.from(new Set(
+        students.map(student => student.group_name).filter(Boolean)
+    )).sort();
 
-
-    // Helper function to get location status with enhanced design
-    const getLocationStatus = (student: Student) => {
-        const studentRoomStatus = roomStatus[student.id.toString()];
+    // Helper function to get group status with enhanced design
+    const getGroupStatus = (student: StudentWithVisit) => {
+        const groupName = student.group_name ?? "Unbekannt";
         
-        // Check if student is in group room
-        if (studentRoomStatus?.in_group_room) {
-            return { 
-                label: "Gruppenraum", 
-                badgeColor: "text-white backdrop-blur-sm",
-                cardGradient: "from-emerald-50/80 to-green-100/80",
-                glowColor: "ring-emerald-200/50 shadow-emerald-100/50",
-                customBgColor: "#83CD2D",
-                customShadow: "0 8px 25px rgba(131, 205, 45, 0.4)"
-            };
-        }
+        // Single color for all groups - clean and consistent
+        const groupColor = { 
+            bg: "#5080D8", 
+            shadow: "0 8px 25px rgba(80, 128, 216, 0.4)" 
+        };
         
-        // Check if student is in a specific room (not group room)
-        if (studentRoomStatus?.current_room_id && !studentRoomStatus.in_group_room) {
-            return { 
-                label: `Raum ${studentRoomStatus.current_room_id}`, 
-                badgeColor: "text-white backdrop-blur-sm",
-                cardGradient: "from-blue-50/80 to-cyan-100/80",
-                glowColor: "ring-blue-200/50 shadow-blue-100/50",
-                customBgColor: "#5080D8",
-                customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)"
-            };
-        }
-        
-        // Check for schoolyard
-        if (student.school_yard === true) {
-            return { 
-                label: "Schulhof", 
-                badgeColor: "text-white backdrop-blur-sm",
-                cardGradient: "from-amber-50/80 to-yellow-100/80",
-                glowColor: "ring-amber-200/50 shadow-amber-100/50",
-                customBgColor: "#F78C10",
-                customShadow: "0 8px 25px rgba(247, 140, 16, 0.4)"
-            };
-        }
-        
-        // Check for in transit/movement
-        if (student.in_house === true || student.current_location === LOCATIONS.BUS) {
-            return { 
-                label: "Unterwegs", 
-                badgeColor: "text-white backdrop-blur-sm",
-                cardGradient: "from-fuchsia-50/80 to-pink-100/80",
-                glowColor: "ring-fuchsia-200/50 shadow-fuchsia-100/50",
-                customBgColor: "#D946EF",
-                customShadow: "0 8px 25px rgba(217, 70, 239, 0.4)"
-            };
-        }
-        
-        // Default to at home
         return { 
-            label: "Zuhause", 
+            label: groupName, 
             badgeColor: "text-white backdrop-blur-sm",
-            cardGradient: "from-red-50/80 to-rose-100/80",
-            glowColor: "ring-red-200/50 shadow-red-100/50",
-            customBgColor: "#FF3130",
-            customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)"
+            cardGradient: "from-blue-50/80 to-cyan-100/80",
+            glowColor: "ring-blue-200/50 shadow-blue-100/50",
+            customBgColor: groupColor.bg,
+            customShadow: groupColor.shadow
         };
     };
 
@@ -303,12 +269,14 @@ function OGSGroupPageContent() {
                 {/* Simple Header */}
                 <div className="mb-6 md:mb-8">
                     <div className="flex items-center justify-between">
-                        <h1 className="text-3xl md:text-4xl font-bold text-gray-900">{ogsGroup?.name}</h1>
+                        <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
+                            {activeRoom?.room_name ?? activeRoom?.name ?? "Mein Raum"}
+                        </h1>
                         <div className="flex items-center gap-3 px-4 py-3 bg-gray-100 rounded-full">
                             <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                             </svg>
-                            <span className="text-sm font-medium text-gray-700">{ogsGroup?.student_count ?? 0}</span>
+                            <span className="text-sm font-medium text-gray-700">{activeRoom?.student_count ?? 0}</span>
                         </div>
                     </div>
                 </div>
@@ -340,11 +308,10 @@ function OGSGroupPageContent() {
                             </svg>
                             {isMobileFiltersOpen ? 'Filter ausblenden' : 'Filter anzeigen'}
                         </button>
-                        {(selectedYear !== "all" || attendanceFilter !== "all") && (
+                        {groupFilter !== "all" && (
                             <button
                                 onClick={() => {
-                                    setSelectedYear("all");
-                                    setAttendanceFilter("all");
+                                    setGroupFilter("all");
                                 }}
                                 className="text-sm text-gray-500"
                             >
@@ -355,37 +322,17 @@ function OGSGroupPageContent() {
 
                     {/* Collapsible Filter Dropdowns */}
                     {isMobileFiltersOpen && (
-                        <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div className="mb-3">
                             <div className="relative">
                                 <select
-                                    value={selectedYear}
-                                    onChange={(e) => setSelectedYear(e.target.value)}
+                                    value={groupFilter}
+                                    onChange={(e) => setGroupFilter(e.target.value)}
                                     className="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base appearance-none"
                                 >
-                                    <option value="all">Alle Jahre</option>
-                                    <option value="1">Jahr 1</option>
-                                    <option value="2">Jahr 2</option>
-                                    <option value="3">Jahr 3</option>
-                                    <option value="4">Jahr 4</option>
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                                    <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                    </svg>
-                                </div>
-                            </div>
-
-                            <div className="relative">
-                                <select
-                                    value={attendanceFilter}
-                                    onChange={(e) => setAttendanceFilter(e.target.value)}
-                                    className="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base appearance-none"
-                                >
-                                    <option value="all">Alle Orte</option>
-                                    <option value="in_room">Gruppenraum</option>
-                                    <option value="in_house">Unterwegs</option>
-                                    <option value="school_yard">Schulhof</option>
-                                    <option value="at_home">Zuhause</option>
+                                    <option value="all">Alle Gruppen</option>
+                                    {availableGroups.map(groupName => (
+                                        <option key={groupName} value={groupName}>{groupName}</option>
+                                    ))}
                                 </select>
                                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
                                     <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
@@ -397,22 +344,13 @@ function OGSGroupPageContent() {
                     )}
 
                     {/* Active Filters Bar */}
-                    {(searchTerm || selectedYear !== "all" || attendanceFilter !== "all") && (
+                    {(searchTerm || groupFilter !== "all") && (
                         <div className="flex items-center justify-between text-sm text-gray-600">
                             <span>
                                 {(() => {
                                     const activeFilters = [];
                                     if (searchTerm) activeFilters.push(`Suche: "${searchTerm}"`);
-                                    if (selectedYear !== "all") activeFilters.push(`Jahr ${selectedYear}`);
-                                    if (attendanceFilter !== "all") {
-                                        const statusLabels: Record<string, string> = {
-                                            "in_room": "Gruppenraum",
-                                            "in_house": "Unterwegs", 
-                                            "school_yard": "Schulhof",
-                                            "at_home": "Zuhause"
-                                        };
-                                        activeFilters.push(statusLabels[attendanceFilter] ?? attendanceFilter);
-                                    }
+                                    if (groupFilter !== "all") activeFilters.push(`Gruppe: ${groupFilter}`);
                                     
                                     if (activeFilters.length === 1) {
                                         return `1 Filter aktiv: ${activeFilters[0]}`;
@@ -424,8 +362,7 @@ function OGSGroupPageContent() {
                             <button
                                 onClick={() => {
                                     setSearchTerm("");
-                                    setSelectedYear("all");
-                                    setAttendanceFilter("all");
+                                    setGroupFilter("all");
                                 }}
                                 className="text-blue-600 hover:text-blue-700 font-medium"
                             >
@@ -454,37 +391,17 @@ function OGSGroupPageContent() {
                             </div>
                         </div>
 
-                        {/* Filter Dropdowns */}
+                        {/* Filter Dropdown */}
                         <div className="relative">
                             <select
-                                value={selectedYear}
-                                onChange={(e) => setSelectedYear(e.target.value)}
-                                className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm min-w-[120px] appearance-none"
-                            >
-                                <option value="all">Alle Jahre</option>
-                                <option value="1">Jahr 1</option>
-                                <option value="2">Jahr 2</option>
-                                <option value="3">Jahr 3</option>
-                                <option value="4">Jahr 4</option>
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                                <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                </svg>
-                            </div>
-                        </div>
-
-                        <div className="relative">
-                            <select
-                                value={attendanceFilter}
-                                onChange={(e) => setAttendanceFilter(e.target.value)}
+                                value={groupFilter}
+                                onChange={(e) => setGroupFilter(e.target.value)}
                                 className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm min-w-[140px] appearance-none"
                             >
-                                <option value="all">Alle Orte</option>
-                                <option value="in_room">Gruppenraum</option>
-                                <option value="in_house">Unterwegs</option>
-                                <option value="school_yard">Schulhof</option>
-                                <option value="at_home">Zuhause</option>
+                                <option value="all">Alle Gruppen</option>
+                                {availableGroups.map(groupName => (
+                                    <option key={groupName} value={groupName}>{groupName}</option>
+                                ))}
                             </select>
                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
                                 <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
@@ -495,23 +412,14 @@ function OGSGroupPageContent() {
                     </div>
 
                     {/* Active Filters Bar */}
-                    {(searchTerm || selectedYear !== "all" || attendanceFilter !== "all") && (
+                    {(searchTerm || groupFilter !== "all") && (
                         <div className="mt-3 flex items-center justify-between text-sm text-gray-600">
                             <div className="flex items-center gap-2">
                                 <span>
                                     {(() => {
                                         const activeFilters = [];
                                         if (searchTerm) activeFilters.push(`Suche: "${searchTerm}"`);
-                                        if (selectedYear !== "all") activeFilters.push(`Jahr ${selectedYear}`);
-                                        if (attendanceFilter !== "all") {
-                                            const statusLabels: Record<string, string> = {
-                                                "in_room": "Gruppenraum",
-                                                "in_house": "Unterwegs", 
-                                                "school_yard": "Schulhof",
-                                                "at_home": "Zuhause"
-                                            };
-                                            activeFilters.push(statusLabels[attendanceFilter] ?? attendanceFilter);
-                                        }
+                                            if (groupFilter !== "all") activeFilters.push(`Gruppe: ${groupFilter}`);
                                         
                                         if (activeFilters.length === 1) {
                                             return `1 Filter aktiv: ${activeFilters[0]}`;
@@ -524,8 +432,7 @@ function OGSGroupPageContent() {
                             <button
                                 onClick={() => {
                                     setSearchTerm("");
-                                    setSelectedYear("all");
-                                    setAttendanceFilter("all");
+                                    setGroupFilter("all");
                                 }}
                                 className="text-blue-600 hover:text-blue-700 font-medium"
                             >
@@ -534,7 +441,6 @@ function OGSGroupPageContent() {
                         </div>
                     )}
                 </div>
-
 
                 {/* Mobile Error Display */}
                 {error && (
@@ -551,9 +457,9 @@ function OGSGroupPageContent() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                             </svg>
                             <div>
-                                <h3 className="text-lg font-medium text-gray-900">Keine Schüler in dieser Gruppe</h3>
+                                <h3 className="text-lg font-medium text-gray-900">Keine Schüler in diesem Raum</h3>
                                 <p className="text-gray-600">
-                                    Es wurden noch keine Schüler zu dieser OGS-Gruppe hinzugefügt.
+                                    Es wurden noch keine Schüler zu dieser Aktivität eingecheckt.
                                 </p>
                                 <p className="text-sm text-gray-500 mt-2">
                                     Gesamtzahl gefundener Schüler: {students.length}
@@ -572,12 +478,12 @@ function OGSGroupPageContent() {
                         `}</style>
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6 max-w-5xl mx-auto">
                         {filteredStudents.map((student, index) => {
-                            const locationStatus = getLocationStatus(student);
+                            const groupStatus = getGroupStatus(student);
 
                             return (
                                 <div
                                     key={student.id}
-                                    onClick={() => router.push(`/students/${student.id}?from=/ogs_groups`)}
+                                    onClick={() => router.push(`/students/${student.id}?from=/myroom`)}
                                     className={`group cursor-pointer relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.03] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-3 active:scale-[0.97] md:hover:border-blue-200/50`}
                                     style={{
                                         transform: `rotate(${(index % 3 - 1) * 0.8}deg)`,
@@ -585,7 +491,7 @@ function OGSGroupPageContent() {
                                     }}
                                 >
                                     {/* Modern gradient overlay */}
-                                    <div className={`absolute inset-0 bg-gradient-to-br ${locationStatus.cardGradient} opacity-[0.03] rounded-3xl`}></div>
+                                    <div className={`absolute inset-0 bg-gradient-to-br ${groupStatus.cardGradient} opacity-[0.03] rounded-3xl`}></div>
                                     {/* Subtle inner glow */}
                                     <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
                                     {/* Modern border highlight */}
@@ -594,11 +500,11 @@ function OGSGroupPageContent() {
 
                                     <div className="relative p-6">
                                         {/* Header with student name */}
-                                        <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center justify-between mb-3">
                                             {/* Student Name */}
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <h3 className="text-lg font-bold text-gray-800 break-words md:group-hover:text-blue-600 transition-colors duration-300">
+                                                    <h3 className="text-lg font-bold text-gray-800 md:group-hover:text-blue-600 transition-colors duration-300 break-words">
                                                         {student.first_name}
                                                     </h3>
                                                     {/* Subtle integrated arrow */}
@@ -606,21 +512,21 @@ function OGSGroupPageContent() {
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                                     </svg>
                                                 </div>
-                                                <p className="text-base font-semibold text-gray-700 break-words md:group-hover:text-blue-500 transition-colors duration-300">
+                                                <p className="text-base font-semibold text-gray-700 md:group-hover:text-blue-500 transition-colors duration-300 break-words">
                                                     {student.second_name}
                                                 </p>
                                             </div>
                                             
-                                            {/* Status Badge */}
+                                            {/* Group Badge */}
                                             <span 
-                                                className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${locationStatus.badgeColor} ml-3`}
+                                                className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${groupStatus.badgeColor} ml-3`}
                                                 style={{ 
-                                                    backgroundColor: locationStatus.customBgColor,
-                                                    boxShadow: locationStatus.customShadow
+                                                    backgroundColor: groupStatus.customBgColor,
+                                                    boxShadow: groupStatus.customShadow
                                                 }}
                                             >
                                                 <span className="w-1.5 h-1.5 bg-white/80 rounded-full mr-2 animate-pulse"></span>
-                                                {locationStatus.label}
+                                                {groupStatus.label}
                                             </span>
                                         </div>
 
@@ -667,14 +573,14 @@ function OGSGroupPageContent() {
 }
 
 // Main component with Suspense wrapper
-export default function OGSGroupPage() {
+export default function MeinRaumPage() {
     return (
         <Suspense fallback={
             <div className="flex min-h-screen items-center justify-center">
                 <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
             </div>
         }>
-            <OGSGroupPageContent />
+            <MeinRaumPageContent />
         </Suspense>
     );
 }

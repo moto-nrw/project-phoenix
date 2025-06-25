@@ -2,9 +2,9 @@
 export interface DashboardAnalytics {
   // Student Overview
   studentsPresent: number;
-  studentsEnrolled: number;
+  studentsInTransit: number;    // Students present but not in any active visit
   studentsOnPlayground: number;
-  studentsInTransit: number;
+  studentsInRooms: number;      // Students in indoor rooms (excluding playground)
 
   // Activities & Rooms
   activeActivities: number;
@@ -59,9 +59,9 @@ export interface ActiveGroupInfo {
 // Backend response types
 export interface DashboardAnalyticsResponse {
   students_present: number;
-  students_enrolled: number;
+  students_in_transit: number;    // Students present but not in any active visit
   students_on_playground: number;
-  students_in_transit: number;
+  students_in_rooms: number;      // Students in indoor rooms (excluding playground)
   active_activities: number;
   free_rooms: number;
   total_rooms: number;
@@ -101,9 +101,9 @@ export function mapDashboardAnalyticsResponse(
 ): DashboardAnalytics {
   return {
     studentsPresent: data.students_present,
-    studentsEnrolled: data.students_enrolled,
-    studentsOnPlayground: data.students_on_playground,
     studentsInTransit: data.students_in_transit,
+    studentsOnPlayground: data.students_on_playground,
+    studentsInRooms: data.students_in_rooms,
     activeActivities: data.active_activities,
     freeRooms: data.free_rooms,
     totalRooms: data.total_rooms,

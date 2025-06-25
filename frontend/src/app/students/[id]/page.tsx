@@ -133,16 +133,10 @@ export default function StudentDetailPage() {
 
     // Helper function to determine status label and color
     const getStatusDetails = () => {
-        if (student?.in_house) {
-            return { label: student.current_room ?? "Im Haus", bgColor: "bg-green-500", textColor: "text-green-800", bgLight: "bg-green-100" };
-        } else if (student?.wc) {
-            return { label: "Toilette", bgColor: "bg-blue-500", textColor: "text-blue-800", bgLight: "bg-blue-100" };
-        } else if (student?.school_yard) {
-            return { label: "Schulhof", bgColor: "bg-yellow-500", textColor: "text-yellow-800", bgLight: "bg-yellow-100" };
-        } else if (student?.current_location === "Home" || (!student?.in_house && !student?.wc && !student?.school_yard)) {
-            return { label: "Zuhause", bgColor: "bg-orange-500", textColor: "text-orange-800", bgLight: "bg-orange-100" };
-        } else if (student?.current_location === "Bus") {
-            return { label: "Unterwegs", bgColor: "bg-purple-500", textColor: "text-purple-800", bgLight: "bg-purple-100" };
+        if (student?.current_location === "Anwesend") {
+            return { label: "Anwesend", bgColor: "bg-green-500", textColor: "text-green-800", bgLight: "bg-green-100" };
+        } else if (student?.current_location === "Abwesend") {
+            return { label: "Abwesend", bgColor: "bg-orange-500", textColor: "text-orange-800", bgLight: "bg-orange-100" };
         }
         return { label: "Unbekannt", bgColor: "bg-gray-500", textColor: "text-gray-800", bgLight: "bg-gray-100" };
     };
