@@ -284,23 +284,9 @@ func (s *userContextService) GetMyActiveGroups(ctx context.Context) ([]*active.G
 		return []*active.Group{}, nil
 	}
 
-	// First, get the educational groups this staff member is associated with
-	teacher, err := s.GetCurrentTeacher(ctx)
-	var educationalGroupIDs []int64
-
-	// Only proceed with teacher checks if the user is a teacher
-	if err == nil && teacher != nil {
-		// Get the teacher's educational groups
-		educationGroups, err := s.educationGroupRepo.FindByTeacher(ctx, teacher.ID)
-		if err != nil {
-			return nil, &UserContextError{Op: "get my active groups - education groups", Err: err}
-		}
-
-		// Extract IDs for filtering
-		for _, group := range educationGroups {
-			educationalGroupIDs = append(educationalGroupIDs, group.ID)
-		}
-	}
+	// Note: Educational groups don't directly create active sessions
+	// Active groups are only created from activity groups via the group_id column
+	// So we skip checking educational groups here
 
 	// Get activity groups where the staff is a supervisor
 	activityGroups, err := s.activityGroupRepo.FindByStaffSupervisor(ctx, staff.ID)
@@ -315,9 +301,6 @@ func (s *userContextService) GetMyActiveGroups(ctx context.Context) ([]*active.G
 
 	// Get active groups related to the staff's activity groups
 	var activeGroups []*active.Group
-
-	// Note: Educational groups don't directly create active sessions
-	// Active groups are only created from activity groups via the group_id column
 
 	// Get active groups from activity group IDs
 	if len(activityGroupIDs) > 0 {
