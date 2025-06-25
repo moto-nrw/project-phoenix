@@ -29,7 +29,6 @@ export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
   useEffect(() => {
     // Only redirect if user is authenticated and supervision data is ready
     if (status === "authenticated" && session?.user?.token && isReady) {
-      console.log(`Smart redirect: User will be redirected to ${redirectPath}`);
       
       if (onRedirect) {
         onRedirect(redirectPath);
@@ -48,7 +47,7 @@ export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
  * Hook version for use in components that need the redirect path without automatic redirect
  */
 export function useSmartRedirect() {
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   const { hasGroups, isLoadingGroups, isSupervising, isLoadingSupervision } = useSupervision();
   
   return useSmartRedirectPath(session, {

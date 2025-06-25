@@ -94,9 +94,7 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
   // Check if user is supervising an active room
   const checkSupervision = useCallback(async () => {
     const token = tokenRef.current;
-    console.log("[SupervisionContext] checkSupervision called, token available:", !!token);
     if (!token) {
-      console.log("[SupervisionContext] No token, skipping supervision check");
       setState(prev => ({
         ...prev,
         isSupervising: false,
@@ -108,7 +106,6 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
     }
 
     try {
-      console.log("[SupervisionContext] Calling /api/me/groups/supervised directly");
       const response = await fetch("/api/me/groups/supervised", {
         headers: {
           "Content-Type": "application/json",
@@ -116,8 +113,6 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
         // Add cache control to reduce redundant requests
         cache: "no-store",
       });
-      
-      console.log("[SupervisionContext] API response status:", response.status);
 
       if (response.ok) {
         const response_data = await response.json() as {
@@ -138,24 +133,18 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
           }>;
         };
         
-        console.log("[SupervisionContext] Backend response:", response_data);
-        
         // Check if user has any supervised groups (indicating room supervision)
         const supervisedGroups = response_data.data ?? [];
         const hasSupervision = supervisedGroups.length > 0;
         
-        console.log("[SupervisionContext] Supervised groups count:", supervisedGroups.length);
-        console.log("[SupervisionContext] Has supervision:", hasSupervision);
-        
-        if (hasSupervision) {
+        if (hasSupervision && supervisedGroups[0]) {
           const firstGroup = supervisedGroups[0];
-          console.log("[SupervisionContext] First supervised group:", firstGroup);
           
           setState(prev => ({
             ...prev,
             isSupervising: true,
             supervisedRoomId: firstGroup.room_id?.toString(),
-            supervisedRoomName: firstGroup.room?.name ?? `Room ${firstGroup.room_id}`,
+            supervisedRoomName: firstGroup.room?.name ?? (firstGroup.room_id ? `Room ${firstGroup.room_id}` : undefined),
             isLoadingSupervision: false,
           }));
         } else {
