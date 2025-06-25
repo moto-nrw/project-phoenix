@@ -1308,6 +1308,19 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 			return err
 		}
 
+		// Assign the authenticated staff member as supervisor
+		supervisor := &active.GroupSupervisor{
+			StaffID:   staffID,
+			GroupID:   newGroup.ID,
+			Role:      "Supervisor",
+			StartDate: now,
+		}
+		if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
+			// Log warning but don't fail the session start
+			fmt.Printf("Warning: Failed to assign supervisor %d to session %d: %v\n", 
+				staffID, newGroup.ID, err)
+		}
+
 		// Transfer any active visits from recent ended sessions on the same device
 		transferredCount, err := s.visitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
 		if err != nil {
@@ -1387,6 +1400,19 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 
 		if err := s.groupRepo.Create(ctx, newGroup); err != nil {
 			return err
+		}
+
+		// Assign the authenticated staff member as supervisor
+		supervisor := &active.GroupSupervisor{
+			StaffID:   staffID,
+			GroupID:   newGroup.ID,
+			Role:      "Supervisor",
+			StartDate: now,
+		}
+		if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
+			// Log warning but don't fail the session start
+			fmt.Printf("Warning: Failed to assign supervisor %d to session %d: %v\n", 
+				staffID, newGroup.ID, err)
 		}
 
 		// Transfer any active visits from recent ended sessions on the same device
