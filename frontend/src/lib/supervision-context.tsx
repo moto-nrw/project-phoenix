@@ -155,7 +155,7 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
             ...prev,
             isSupervising: true,
             supervisedRoomId: firstGroup.room_id?.toString(),
-            supervisedRoomName: firstGroup.room?.name || `Room ${firstGroup.room_id}`,
+            supervisedRoomName: firstGroup.room?.name ?? `Room ${firstGroup.room_id}`,
             isLoadingSupervision: false,
           }));
         } else {
@@ -227,13 +227,13 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
     }
   }, [session?.user?.token]); // Only depend on token
 
-  // Periodic refresh every 5 minutes (less aggressive)
+  // Periodic refresh every minute for timely supervision updates
   useEffect(() => {
     if (!session?.user?.token) return;
     
     const interval = setInterval(() => {
       void refreshRef.current?.();
-    }, 300000); // 5 minutes instead of 1 minute
+    }, 60000); // 1 minute - ensures supervision changes are reflected quickly
 
     return () => clearInterval(interval);
   }, [session?.user?.token]); // Only depend on token

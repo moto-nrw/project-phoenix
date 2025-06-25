@@ -55,7 +55,7 @@ const mainNavItems: NavItem[] = [
     requiresGroups: true,
   },
   {
-    href: "/room",
+    href: "/myroom",
     label: "Mein Raum",
     icon: (
       <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

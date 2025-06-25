@@ -41,7 +41,7 @@ export function getSmartRedirectPath(
 
   // Users actively supervising a room go to room page
   if (supervisionState.isSupervising) {
-    return "/room";
+    return "/myroom";
   }
 
   // Regular users without groups or supervision go to student search
