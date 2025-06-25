@@ -43,11 +43,6 @@ const NAV_ITEMS: NavItem[] = [
         requiresActiveSupervision: true
     },
     {
-        href: "/myroom",
-        label: "Mein Raum",
-        icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"
-    },
-    {
         href: "/students/search",
         label: "Schüler",
         icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
