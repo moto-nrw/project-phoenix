@@ -300,6 +300,18 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 		lastName = person.LastName
 	}
 
+	// Check for static role flags
+	isAdmin := false
+	isTeacher := false
+	for _, roleName := range roleNames {
+		if roleName == "admin" {
+			isAdmin = true
+		}
+		if roleName == "teacher" {
+			isTeacher = true
+		}
+	}
+
 	// Generate token pair
 	// Create JWT claims
 	appClaims := jwt.AppClaims{
@@ -310,6 +322,8 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 		LastName:    lastName,
 		Roles:       roleNames,
 		Permissions: permissionStrs, // Use string array here
+		IsAdmin:     isAdmin,
+		IsTeacher:   isTeacher,
 	}
 
 	refreshClaims := jwt.RefreshClaims{
@@ -611,13 +625,38 @@ func (s *Service) RefreshTokenWithAudit(ctx context.Context, refreshTokenStr, ip
 		username = *account.Username
 	}
 
+	// Get person info for first/last name
+	firstName := ""
+	lastName := ""
+	person, err := s.personRepo.FindByAccountID(ctx, account.ID)
+	if err == nil && person != nil {
+		firstName = person.FirstName
+		lastName = person.LastName
+	}
+
+	// Check for static role flags
+	isAdmin := false
+	isTeacher := false
+	for _, roleName := range roleNames {
+		if roleName == "admin" {
+			isAdmin = true
+		}
+		if roleName == "teacher" {
+			isTeacher = true
+		}
+	}
+
 	// Generate token pair
 	appClaims := jwt.AppClaims{
 		ID:          int(account.ID),
 		Sub:         account.Email,
 		Username:    username,
+		FirstName:   firstName,
+		LastName:    lastName,
 		Roles:       roleNames,
 		Permissions: permissionStrs, // Use string array here
+		IsAdmin:     isAdmin,
+		IsTeacher:   isTeacher,
 	}
 
 	newRefreshClaims := jwt.RefreshClaims{

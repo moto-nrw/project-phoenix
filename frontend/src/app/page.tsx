@@ -13,6 +13,8 @@ import {
 } from "~/components/ui";
 import { Suspense } from "react";
 import { refreshToken } from "~/lib/auth-api";
+import { SmartRedirect } from "~/components/auth/smart-redirect";
+import { SupervisionProvider } from "~/lib/supervision-context";
 
 function LoginForm() {
   const [email, setEmail] = useState("");
@@ -21,17 +23,19 @@ function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  const [awaitingRedirect, setAwaitingRedirect] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
   
-  // Check for valid session and redirect to dashboard
+  // Check for valid session
   useEffect(() => {
     const checkAndRedirect = async () => {
-      // If we have a valid session with access token, redirect immediately
+      // If we have a valid session with access token, set up for redirect
       if (status === "authenticated" && session?.user?.token) {
-        console.log("Valid session found, redirecting to dashboard");
-        router.push("/dashboard");
+        console.log("Valid session found, preparing smart redirect");
+        setAwaitingRedirect(true);
+        setCheckingAuth(false);
         return;
       }
       
@@ -50,8 +54,9 @@ function LoginForm() {
             });
             
             if (!result?.error) {
-              console.log("Token refreshed successfully, redirecting to dashboard");
-              router.push("/dashboard");
+              console.log("Token refreshed successfully");
+              setAwaitingRedirect(true);
+              setCheckingAuth(false);
               return;
             }
           }
@@ -67,7 +72,7 @@ function LoginForm() {
     };
     
     void checkAndRedirect();
-  }, [status, session, router]);
+  }, [status, session]);
   
   // Check for session errors in URL
   useEffect(() => {
@@ -79,14 +84,23 @@ function LoginForm() {
     }
   }, [searchParams]);
   
-  // Show loading while checking authentication
-  if (checkingAuth || status === "loading") {
+  // Show loading while checking authentication or awaiting redirect
+  if (checkingAuth || status === "loading" || (awaitingRedirect && status === "authenticated")) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Überprüfe Anmeldestatus...</p>
+          <p className="text-gray-600">
+            {awaitingRedirect ? "Weiterleitung..." : "Überprüfe Anmeldestatus..."}
+          </p>
         </div>
+        {/* Smart redirect component when awaiting redirect */}
+        {awaitingRedirect && status === "authenticated" && session?.user?.token && (
+          <SmartRedirect onRedirect={(path) => {
+            console.log(`Redirecting to ${path} based on user permissions`);
+            router.push(path);
+          }} />
+        )}
       </div>
     );
   }
@@ -218,11 +232,10 @@ function LoginForm() {
         }
         setError("Ungültige E-Mail oder Passwort");
       } else {
-        // Shorter redirect time - just enough to see confetti
-        setTimeout(() => {
-          router.push("/dashboard");
-          router.refresh();
-        }, 0);
+        // Set flag to indicate we're awaiting redirect
+        setAwaitingRedirect(true);
+        // Refresh the router to update session state
+        router.refresh();
       }
     } catch (error) {
       // Clear confetti if there's an error
@@ -367,7 +380,9 @@ function LoginForm() {
 export default function HomePage() {
   return (
     <Suspense fallback={<div className="flex min-h-screen flex-col items-center justify-center p-4">Loading...</div>}>
-      <LoginForm />
+      <SupervisionProvider>
+        <LoginForm />
+      </SupervisionProvider>
     </Suspense>
   );
 }

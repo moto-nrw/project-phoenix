@@ -17,6 +17,8 @@ declare module "next-auth" {
       refreshToken?: string;
       roles?: string[];
       firstName?: string;
+      isAdmin?: boolean;
+      isTeacher?: boolean;
     } & DefaultSession["user"];
     error?: "RefreshTokenExpired" | "RefreshTokenError";
   }
@@ -26,6 +28,8 @@ declare module "next-auth" {
     refreshToken?: string;
     roles?: string[];
     firstName?: string;
+    isAdmin?: boolean;
+    isTeacher?: boolean;
   }
   
   interface JWT {
@@ -34,6 +38,8 @@ declare module "next-auth" {
     refreshToken?: string;
     roles?: string[];
     firstName?: string;
+    isAdmin?: boolean;
+    isTeacher?: boolean;
     tokenExpiry?: number;
     refreshTokenExpiry?: number;
     error?: "RefreshTokenExpired" | "RefreshTokenError";
@@ -106,6 +112,8 @@ export const authConfig = {
               last_name?: string;
               email?: string;
               roles?: string[];
+              is_admin?: boolean;
+              is_teacher?: boolean;
             };
             
             // Extract email and roles from token
@@ -127,6 +135,8 @@ export const authConfig = {
               refreshToken: creds.refreshToken,
               roles: roles,
               firstName: payload.first_name,
+              isAdmin: payload.is_admin ?? false,
+              isTeacher: payload.is_teacher ?? false,
             };
           } catch (e) {
             console.error("Error parsing JWT during refresh:", e);
@@ -199,6 +209,8 @@ export const authConfig = {
               last_name?: string;
               roles?: string[];
               email?: string;
+              is_admin?: boolean;
+              is_teacher?: boolean;
             };
             console.log("Token payload:", payload);
 
@@ -235,6 +247,8 @@ export const authConfig = {
               refreshToken: responseData.refresh_token,
               roles: roles,
               firstName: payload.first_name,
+              isAdmin: payload.is_admin ?? false,
+              isTeacher: payload.is_teacher ?? false,
             };
           } catch (e) {
             console.error("Error parsing JWT:", e);
@@ -272,6 +286,8 @@ export const authConfig = {
         token.refreshToken = user.refreshToken ?? "";
         token.roles = user.roles;
         token.firstName = user.firstName;
+        token.isAdmin = user.isAdmin;
+        token.isTeacher = user.isTeacher;
         // Store token expiry (15 minutes from now)
         token.tokenExpiry = Date.now() + 15 * 60 * 1000; // 15 minutes
         // Store refresh token expiry (matching backend)
@@ -445,6 +461,8 @@ export const authConfig = {
             refreshToken: "",
             roles: [],
             firstName: token.firstName as string || "",
+            isAdmin: false,
+            isTeacher: false,
           },
           error: token.error,
         };
@@ -460,6 +478,8 @@ export const authConfig = {
           refreshToken: token.refreshToken as string,
           roles: token.roles as string[],
           firstName: token.firstName as string,
+          isAdmin: token.isAdmin as boolean ?? false,
+          isTeacher: token.isTeacher as boolean ?? false,
         },
       };
     },

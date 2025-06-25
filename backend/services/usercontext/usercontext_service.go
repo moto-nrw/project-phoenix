@@ -342,49 +342,40 @@ func (s *userContextService) GetMyActiveGroups(ctx context.Context) ([]*active.G
 
 // GetMySupervisedGroups retrieves active groups supervised by the current user
 func (s *userContextService) GetMySupervisedGroups(ctx context.Context) ([]*active.Group, error) {
-	// Try to get the current staff
+	// Get current staff member
 	staff, err := s.GetCurrentStaff(ctx)
 	if err != nil {
 		if !errors.Is(err, ErrUserNotLinkedToStaff) && !errors.Is(err, ErrUserNotLinkedToPerson) {
 			return nil, err
 		}
-
-		// User is not staff or not linked to person, return empty list
+		// User is not staff, return empty list
 		return []*active.Group{}, nil
 	}
 
-	// Get active groups where the staff is actively supervising
-	supervisorEntries, err := s.supervisorRepo.FindActiveByStaffID(ctx, staff.ID)
+	// Find active supervisions for this staff member
+	supervisions, err := s.supervisorRepo.FindActiveByStaffID(ctx, staff.ID)
 	if err != nil {
-		return nil, &UserContextError{Op: "get my supervised groups", Err: err}
+		return nil, &UserContextError{Op: "get supervised groups", Err: err}
 	}
 
-	// Extract group IDs from supervisor entries
-	groupIDs := make([]int64, 0, len(supervisorEntries))
-	for _, entry := range supervisorEntries {
-		if entry.EndDate == nil { // Only include active supervision entries
-			groupIDs = append(groupIDs, entry.GroupID)
-		}
-	}
-
-	// If no groups are supervised, return empty list
-	if len(groupIDs) == 0 {
+	if len(supervisions) == 0 {
 		return []*active.Group{}, nil
 	}
 
-	// Get active groups by IDs
-	var groups []*active.Group
-	for _, id := range groupIDs {
-		group, err := s.activeGroupRepo.FindByID(ctx, id)
+	// Get the active groups for these supervisions
+	var supervisedGroups []*active.Group
+	for _, supervision := range supervisions {
+		group, err := s.activeGroupRepo.FindByID(ctx, supervision.GroupID)
 		if err != nil {
-			return nil, &UserContextError{Op: "get my supervised groups", Err: err}
+			return nil, &UserContextError{Op: "get supervised groups", Err: err}
 		}
-		if group != nil {
-			groups = append(groups, group)
+		// Only include groups that are still active (not ended)
+		if group != nil && group.IsActive() {
+			supervisedGroups = append(supervisedGroups, group)
 		}
 	}
 
-	return groups, nil
+	return supervisedGroups, nil
 }
 
 // checkGroupAccess is a helper function to check if the current user has access to a specific group

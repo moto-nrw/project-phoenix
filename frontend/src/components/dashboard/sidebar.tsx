@@ -4,14 +4,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { UserContextProvider, useHasEducationalGroups } from "~/lib/usercontext-context";
+import { useSession } from "next-auth/react";
+import { UserContextProvider } from "~/lib/usercontext-context";
 import { QuickCreateActivityModal } from "~/components/activities/quick-create-modal";
+import { useSupervision } from "~/lib/supervision-context";
+import { isAdmin } from "~/lib/auth-utils";
 
 // Type für Navigation Items
 interface NavItem {
     href: string;
     label: string;
     icon: string;
+    requiresAdmin?: boolean;
+    requiresGroups?: boolean;
+    requiresSupervision?: boolean;
+    requiresActiveSupervision?: boolean;
+    alwaysShow?: boolean;
 }
 
 // Navigation Items
@@ -19,52 +27,62 @@ const NAV_ITEMS: NavItem[] = [
     {
         href: "/dashboard",
         label: "Home",
-        icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"
+        icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
+        requiresAdmin: true
     },
     {
         href: "/ogs_groups",
         label: "Meine Gruppe",
-        icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+        icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
+        requiresGroups: true
     },
     {
         href: "/myroom",
         label: "Mein Raum",
-        icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"
+        icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
+        requiresActiveSupervision: true
     },
     {
         href: "/students/search",
         label: "Schüler",
-        icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+        icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
+        requiresSupervision: true
     },
     {
         href: "/rooms",
         label: "Räume",
-        icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+        icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
+        requiresAdmin: true
     },
     {
         href: "/activities",
         label: "Aktivitäten",
-        icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+        icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+        requiresAdmin: true
     },
     {
         href: "/statistics",
         label: "Statistiken",
-        icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+        icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
+        requiresAdmin: true
     },
     {
         href: "/substitutions",
         label: "Vertretungen",
-        icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+        icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
+        requiresAdmin: true
     },
     {
         href: "/database",
         label: "Datenverwaltung",
-        icon: "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
+        icon: "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4",
+        requiresAdmin: true
     },
     {
         href: "/settings",
         label: "Einstellungen",
-        icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+        icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z",
+        alwaysShow: true
     }
 ];
 
@@ -79,19 +97,72 @@ function SidebarContent({ className = "" }: SidebarProps) {
     // Quick create activity modal state
     const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
 
-    // Check if user has educational groups
-    const { hasEducationalGroups, isLoading } = useHasEducationalGroups();
+    // Get session for role checking
+    const { data: session } = useSession();
 
-    // Filter navigation items based on user's educational groups
-    const filteredNavItems = NAV_ITEMS.filter(item => {
-        // Always show all items except "OGS Gruppe"
-        if (item.href !== "/ogs_groups") {
+    // Get supervision state
+    const { hasGroups, isSupervising, isLoadingGroups, isLoadingSupervision } = useSupervision();
+
+    // Check if user has educational groups (keeping existing hook for compatibility)
+    // const { hasEducationalGroups, isLoading } = useHasEducationalGroups();
+
+    // Check if user has any supervision (groups or active room)
+    const hasAnySupervision = (!isLoadingGroups && hasGroups) || (!isLoadingSupervision && isSupervising);
+    
+    // Filter navigation items based on permissions
+    const baseFilteredNavItems = NAV_ITEMS.filter(item => {
+        // Always show items marked as alwaysShow
+        if (item.alwaysShow) {
             return true;
         }
-        // Only show "OGS Gruppe" if user has educational groups
-        // Don't show it while loading to avoid flickering
-        return !isLoading && hasEducationalGroups;
+
+        // Check admin requirement
+        if (item.requiresAdmin && !isAdmin(session)) {
+            return false;
+        }
+
+        // Check group requirement
+        if (item.requiresGroups) {
+            // Only show for users who are actively supervising groups, not admins
+            if (isAdmin(session)) {
+                return false;
+            }
+            // Use the new supervision context
+            return !isLoadingGroups && hasGroups;
+        }
+
+        // Check supervision requirement (for student search - groups OR room supervision)
+        if (item.requiresSupervision) {
+            // Only show if user has supervision (will be handled by dynamic logic below)
+            if (isAdmin(session)) return false;
+            const hasGroupSupervision = !isLoadingGroups && hasGroups;
+            const hasRoomSupervision = !isLoadingSupervision && isSupervising;
+            return hasGroupSupervision || hasRoomSupervision;
+        }
+
+        // Check active supervision requirement (for room menu - only active room supervision)
+        if (item.requiresActiveSupervision) {
+            // Show only for users actively supervising a room, not for admins or group-only supervisors
+            if (isAdmin(session)) return false;
+            const hasRoomSupervision = !isLoadingSupervision && isSupervising;
+            return hasRoomSupervision;
+        }
+
+        return true;
     });
+
+    // If user has no supervision and is not admin, add student search to main nav
+    const filteredNavItems = !hasAnySupervision && !isAdmin(session)
+        ? [
+            ...baseFilteredNavItems,
+            {
+                href: "/students/search",
+                label: "Schüler",
+                icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
+                alwaysShow: true
+            }
+          ]
+        : baseFilteredNavItems;
 
     // Funktion zur Überprüfung, ob ein Link aktiv ist
     const isActiveLink = (href: string) => {
