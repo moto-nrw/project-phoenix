@@ -570,7 +570,7 @@ function OGSGroupPageContent() {
                                 50% { transform: translateY(-4px) rotate(var(--rotation)); }
                             }
                         `}</style>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6 max-w-5xl mx-auto">
                         {filteredStudents.map((student, index) => {
                             const locationStatus = getLocationStatus(student);
 
@@ -592,13 +592,13 @@ function OGSGroupPageContent() {
                                     <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 md:group-hover:ring-blue-200/60 transition-all duration-300"></div>
                                     
 
-                                    <div className="relative p-5">
+                                    <div className="relative p-6">
                                         {/* Header with student name */}
                                         <div className="flex items-center justify-between mb-2">
                                             {/* Student Name */}
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <h3 className="text-lg font-bold text-gray-800 truncate md:group-hover:text-blue-600 transition-colors duration-300">
+                                                    <h3 className="text-lg font-bold text-gray-800 break-words md:group-hover:text-blue-600 transition-colors duration-300">
                                                         {student.first_name}
                                                     </h3>
                                                     {/* Subtle integrated arrow */}
@@ -606,7 +606,7 @@ function OGSGroupPageContent() {
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                                     </svg>
                                                 </div>
-                                                <p className="text-sm font-semibold text-gray-700 truncate md:group-hover:text-blue-500 transition-colors duration-300">
+                                                <p className="text-base font-semibold text-gray-700 break-words md:group-hover:text-blue-500 transition-colors duration-300">
                                                     {student.second_name}
                                                 </p>
                                             </div>

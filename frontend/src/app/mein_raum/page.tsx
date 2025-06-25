@@ -46,10 +46,6 @@ function MeinRaumPageContent() {
     const [groupFilter, setGroupFilter] = useState("all");
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [studentGroups, setStudentGroups] = useState<Record<string, {
-        group_name?: string;
-        group_id?: string;
-    }>>({});
     
     // Mobile-specific state
     const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
@@ -130,12 +126,12 @@ function MeinRaumPageContent() {
                         const studentData = await fetchStudent(visit.studentId);
                         
                         // Add visit-specific information to the student data
+                        // Keep the student's actual OGS group info (group_name, group_id)
                         return {
                             ...studentData,
                             activeGroupId: visit.activeGroupId,
-                            checkInTime: visit.checkInTime,
-                            group_name: visit.activeGroupName ?? activeGroup.name,
-                            group_id: activeGroup.id
+                            checkInTime: visit.checkInTime
+                            // Don't override group_name and group_id - keep student's OGS group
                         };
                     } catch (error) {
                         console.error(`Error fetching student ${visit.studentId}:`, error);
@@ -152,8 +148,7 @@ function MeinRaumPageContent() {
                             school_class: '',
                             current_location: 'Anwesend' as const,
                             in_house: true,
-                            group_name: visit.activeGroupName ?? activeGroup.name,
-                            group_id: activeGroup.id,
+                            // No OGS group info available in fallback
                             activeGroupId: visit.activeGroupId,
                             checkInTime: visit.checkInTime
                         };
@@ -161,20 +156,23 @@ function MeinRaumPageContent() {
                 });
 
                 const studentsFromVisits = await Promise.all(studentPromises);
+                
+                // Debug: Log the first student to check group info
+                if (studentsFromVisits.length > 0) {
+                    const firstStudent = studentsFromVisits[0];
+                    if (firstStudent) {
+                        console.log('Student OGS group info:', {
+                            name: firstStudent.name,
+                            group_name: firstStudent.group_name,
+                            group_id: firstStudent.group_id
+                        });
+                    }
+                }
+                
                 setStudents(studentsFromVisits);
 
                 // Update room with actual student count
                 setActiveRoom(prev => prev ? { ...prev, student_count: studentsFromVisits.length } : null);
-
-                // Get student group information for filtering
-                const groupInfo: Record<string, { group_name?: string; group_id?: string }> = {};
-                studentsFromVisits.forEach(student => {
-                    groupInfo[student.id] = {
-                        group_name: student.group_name ?? "Unbekannt",
-                        group_id: student.group_id
-                    };
-                });
-                setStudentGroups(groupInfo);
 
                 setError(null);
             } catch (err) {
@@ -213,8 +211,7 @@ function MeinRaumPageContent() {
 
         // Apply group filter
         if (groupFilter !== "all") {
-            const studentGroupInfo = studentGroups[student.id];
-            const studentGroupName = studentGroupInfo?.group_name ?? "Unbekannt";
+            const studentGroupName = student.group_name ?? "Unbekannt";
             
             if (studentGroupName !== groupFilter) {
                 return false;
@@ -226,13 +223,12 @@ function MeinRaumPageContent() {
 
     // Get unique group names for filter dropdown
     const availableGroups = Array.from(new Set(
-        Object.values(studentGroups).map(info => info.group_name).filter(Boolean)
+        students.map(student => student.group_name).filter(Boolean)
     )).sort();
 
     // Helper function to get group status with enhanced design
     const getGroupStatus = (student: StudentWithVisit) => {
-        const studentGroupInfo = studentGroups[student.id];
-        const groupName = studentGroupInfo?.group_name ?? "Unbekannt";
+        const groupName = student.group_name ?? "Unbekannt";
         
         // Different colors for different groups
         const groupColors = [
@@ -490,7 +486,7 @@ function MeinRaumPageContent() {
                                 50% { transform: translateY(-4px) rotate(var(--rotation)); }
                             }
                         `}</style>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6 max-w-5xl mx-auto">
                         {filteredStudents.map((student, index) => {
                             const groupStatus = getGroupStatus(student);
 
@@ -512,13 +508,13 @@ function MeinRaumPageContent() {
                                     <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 md:group-hover:ring-blue-200/60 transition-all duration-300"></div>
                                     
 
-                                    <div className="relative p-5">
+                                    <div className="relative p-6">
                                         {/* Header with student name */}
-                                        <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center justify-between mb-3">
                                             {/* Student Name */}
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <h3 className="text-lg font-bold text-gray-800 truncate md:group-hover:text-blue-600 transition-colors duration-300">
+                                                    <h3 className="text-lg font-bold text-gray-800 md:group-hover:text-blue-600 transition-colors duration-300 break-words">
                                                         {student.first_name}
                                                     </h3>
                                                     {/* Subtle integrated arrow */}
@@ -526,7 +522,7 @@ function MeinRaumPageContent() {
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                                     </svg>
                                                 </div>
-                                                <p className="text-sm font-semibold text-gray-700 truncate md:group-hover:text-blue-500 transition-colors duration-300">
+                                                <p className="text-base font-semibold text-gray-700 md:group-hover:text-blue-500 transition-colors duration-300 break-words">
                                                     {student.second_name}
                                                 </p>
                                             </div>
