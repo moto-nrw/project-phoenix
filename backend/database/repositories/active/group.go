@@ -150,10 +150,8 @@ func (r *GroupRepository) FindWithRelations(ctx context.Context, id int64) (*act
 	group := new(active.Group)
 	err := r.db.NewSelect().
 		Model(group).
-		Relation("ActualGroup").
-		Relation("Device").
-		Relation("Room").
-		Where("id = ?", id).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {

@@ -94,7 +94,9 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
   // Check if user is supervising an active room
   const checkSupervision = useCallback(async () => {
     const token = tokenRef.current;
+    console.log("[SupervisionContext] checkSupervision called, token available:", !!token);
     if (!token) {
+      console.log("[SupervisionContext] No token, skipping supervision check");
       setState(prev => ({
         ...prev,
         isSupervising: false,
@@ -106,32 +108,65 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
     }
 
     try {
-      const response = await fetch("/api/active/supervision", {
+      console.log("[SupervisionContext] Calling /api/me/groups/supervised directly");
+      const response = await fetch("/api/me/groups/supervised", {
         headers: {
           "Content-Type": "application/json",
         },
         // Add cache control to reduce redundant requests
         cache: "no-store",
       });
+      
+      console.log("[SupervisionContext] API response status:", response.status);
 
       if (response.ok) {
         const response_data = await response.json() as {
           success: boolean;
           message: string;
-          data: {
-            isSupervising: boolean;
-            roomId?: string;
-            roomName?: string;
-          };
+          data: Array<{
+            id: number;
+            room_id?: number;
+            group_id: number;
+            room?: {
+              id: number;
+              name: string;
+            };
+            actual_group?: {
+              id: number;
+              name: string;
+            };
+          }>;
         };
         
-        setState(prev => ({
-          ...prev,
-          isSupervising: response_data.data.isSupervising,
-          supervisedRoomId: response_data.data.roomId,
-          supervisedRoomName: response_data.data.roomName,
-          isLoadingSupervision: false,
-        }));
+        console.log("[SupervisionContext] Backend response:", response_data);
+        
+        // Check if user has any supervised groups (indicating room supervision)
+        const supervisedGroups = response_data.data ?? [];
+        const hasSupervision = supervisedGroups.length > 0;
+        
+        console.log("[SupervisionContext] Supervised groups count:", supervisedGroups.length);
+        console.log("[SupervisionContext] Has supervision:", hasSupervision);
+        
+        if (hasSupervision) {
+          const firstGroup = supervisedGroups[0];
+          console.log("[SupervisionContext] First supervised group:", firstGroup);
+          
+          setState(prev => ({
+            ...prev,
+            isSupervising: true,
+            supervisedRoomId: firstGroup.room_id?.toString(),
+            supervisedRoomName: firstGroup.room?.name || `Room ${firstGroup.room_id}`,
+            isLoadingSupervision: false,
+          }));
+        } else {
+          setState(prev => ({
+            ...prev,
+            isSupervising: false,
+            supervisedRoomId: undefined,
+            supervisedRoomName: undefined,
+            isLoadingSupervision: false,
+          }));
+        }
       } else {
         setState(prev => ({
           ...prev,

@@ -18,15 +18,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// SupervisionStatus represents the current user's supervision status
-type SupervisionStatus struct {
-	IsSupervising bool    `json:"is_supervising"`
-	RoomID        *int64  `json:"room_id,omitempty"`
-	RoomName      *string `json:"room_name,omitempty"`
-	GroupID       *int64  `json:"group_id,omitempty"`
-	GroupName     *string `json:"group_name,omitempty"`
-}
-
 // userContextService implements the UserContextService interface
 type userContextService struct {
 	accountRepo        auth.AccountRepository
@@ -372,49 +363,40 @@ func (s *userContextService) GetMyActiveGroups(ctx context.Context) ([]*active.G
 
 // GetMySupervisedGroups retrieves active groups supervised by the current user
 func (s *userContextService) GetMySupervisedGroups(ctx context.Context) ([]*active.Group, error) {
-	// Try to get the current staff
+	// Get current staff member
 	staff, err := s.GetCurrentStaff(ctx)
 	if err != nil {
 		if !errors.Is(err, ErrUserNotLinkedToStaff) && !errors.Is(err, ErrUserNotLinkedToPerson) {
 			return nil, err
 		}
-
-		// User is not staff or not linked to person, return empty list
+		// User is not staff, return empty list
 		return []*active.Group{}, nil
 	}
 
-	// Get active groups where the staff is actively supervising
-	supervisorEntries, err := s.supervisorRepo.FindActiveByStaffID(ctx, staff.ID)
+	// Find active supervisions for this staff member
+	supervisions, err := s.supervisorRepo.FindActiveByStaffID(ctx, staff.ID)
 	if err != nil {
-		return nil, &UserContextError{Op: "get my supervised groups", Err: err}
+		return nil, &UserContextError{Op: "get supervised groups", Err: err}
 	}
 
-	// Extract group IDs from supervisor entries
-	groupIDs := make([]int64, 0, len(supervisorEntries))
-	for _, entry := range supervisorEntries {
-		if entry.EndDate == nil { // Only include active supervision entries
-			groupIDs = append(groupIDs, entry.GroupID)
-		}
-	}
-
-	// If no groups are supervised, return empty list
-	if len(groupIDs) == 0 {
+	if len(supervisions) == 0 {
 		return []*active.Group{}, nil
 	}
 
-	// Get active groups by IDs
-	var groups []*active.Group
-	for _, id := range groupIDs {
-		group, err := s.activeGroupRepo.FindByID(ctx, id)
+	// Get the active groups for these supervisions
+	var supervisedGroups []*active.Group
+	for _, supervision := range supervisions {
+		group, err := s.activeGroupRepo.FindByID(ctx, supervision.GroupID)
 		if err != nil {
-			return nil, &UserContextError{Op: "get my supervised groups", Err: err}
+			return nil, &UserContextError{Op: "get supervised groups", Err: err}
 		}
-		if group != nil {
-			groups = append(groups, group)
+		// Only include groups that are still active (not ended)
+		if group != nil && group.IsActive() {
+			supervisedGroups = append(supervisedGroups, group)
 		}
 	}
 
-	return groups, nil
+	return supervisedGroups, nil
 }
 
 // checkGroupAccess is a helper function to check if the current user has access to a specific group
@@ -754,53 +736,4 @@ func (s *userContextService) UpdateAvatar(ctx context.Context, avatarURL string)
 
 	// Return updated profile
 	return s.GetCurrentProfile(ctx)
-}
-
-// GetCurrentSupervision retrieves the current user's active supervision status
-func (s *userContextService) GetCurrentSupervision(ctx context.Context) (*SupervisionStatus, error) {
-	// Get current staff member
-	staff, err := s.GetCurrentStaff(ctx)
-	if err != nil {
-		return nil, &UserContextError{Op: "get current supervision", Err: err}
-	}
-
-	// Get active supervisions for this staff member
-	activeSupervisions, err := s.supervisorRepo.FindActiveByStaffID(ctx, staff.ID)
-	if err != nil {
-		return nil, &UserContextError{Op: "get active supervisions", Err: err}
-	}
-
-	// If no active supervisions, return empty status
-	if len(activeSupervisions) == 0 {
-		return &SupervisionStatus{
-			IsSupervising: false,
-		}, nil
-	}
-
-	// For now, return the first active supervision
-	// In the future, we might want to handle multiple supervisions
-	supervision := activeSupervisions[0]
-
-	// Build response with basic information
-	status := &SupervisionStatus{
-		IsSupervising: true,
-		GroupID:       &supervision.GroupID,
-	}
-
-	// Load active group with room and group details for additional information
-	activeGroup, err := s.activeGroupRepo.FindWithRelations(ctx, supervision.GroupID)
-	if err == nil && activeGroup != nil {
-		if activeGroup.RoomID != 0 {
-			status.RoomID = &activeGroup.RoomID
-		}
-		if activeGroup.Room != nil {
-			status.RoomName = &activeGroup.Room.Name
-		}
-		// Add group name from the source group
-		if activeGroup.ActualGroup != nil {
-			status.GroupName = &activeGroup.ActualGroup.Name
-		}
-	}
-
-	return status, nil
 }

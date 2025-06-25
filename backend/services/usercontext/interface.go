@@ -53,7 +53,4 @@ type UserContextService interface {
 
 	// UpdateAvatar updates the current user's avatar
 	UpdateAvatar(ctx context.Context, avatarURL string) (map[string]interface{}, error)
-
-	// GetCurrentSupervision retrieves the current user's active supervision status
-	GetCurrentSupervision(ctx context.Context) (*SupervisionStatus, error)
 }
