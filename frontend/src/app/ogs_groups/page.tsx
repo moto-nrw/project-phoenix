@@ -9,6 +9,8 @@ import { userContextService } from "~/lib/usercontext-api";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
 import type { StudentLocation } from "~/lib/student-helpers";
+import { fetchRooms } from "~/lib/rooms-api";
+import { createRoomIdToNameMap } from "~/lib/rooms-helpers";
 
 // Location constants to ensure type safety
 const LOCATIONS = {
@@ -58,6 +60,7 @@ function OGSGroupPageContent() {
         last_name?: string;
         reason?: string;
     }>>({});
+    const [roomIdToNameMap, setRoomIdToNameMap] = useState<Record<string, string>>({});
     
     // Mobile-specific state
     const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
@@ -145,6 +148,15 @@ function OGSGroupPageContent() {
                     }
                 } catch (roomStatusErr) {
                     console.error("Failed to fetch room status:", roomStatusErr);
+                }
+
+                // Fetch all rooms to get their names
+                try {
+                    const rooms = await fetchRooms(session?.user?.token);
+                    const roomMap = createRoomIdToNameMap(rooms);
+                    setRoomIdToNameMap(roomMap);
+                } catch (roomErr) {
+                    console.error("Failed to fetch rooms:", roomErr);
                 }
 
                 setError(null);
@@ -235,8 +247,9 @@ function OGSGroupPageContent() {
         
         // Check if student is in a specific room (not group room)
         if (studentRoomStatus?.current_room_id && !studentRoomStatus.in_group_room) {
+            const roomName = roomIdToNameMap[studentRoomStatus.current_room_id.toString()] ?? `Raum ${studentRoomStatus.current_room_id}`;
             return { 
-                label: `Raum ${studentRoomStatus.current_room_id}`, 
+                label: roomName, 
                 badgeColor: "text-white backdrop-blur-sm",
                 cardGradient: "from-blue-50/80 to-cyan-100/80",
                 glowColor: "ring-blue-200/50 shadow-blue-100/50",
