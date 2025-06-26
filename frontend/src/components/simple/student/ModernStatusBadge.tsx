@@ -12,9 +12,9 @@ export function ModernStatusBadge({ location }: ModernStatusBadgeProps) {
         shadow: "0 8px 25px rgba(131, 205, 45, 0.4)",
         badgeColor: "text-white backdrop-blur-sm"
       };
-    } else if (location === "Abwesend") {
+    } else if (location === "Zuhause") {
       return { 
-        label: "Abwesend", 
+        label: "Zuhause", 
         bgColor: "#FF3130", // Zuhause red
         shadow: "0 8px 25px rgba(255, 49, 48, 0.4)",
         badgeColor: "text-white backdrop-blur-sm"

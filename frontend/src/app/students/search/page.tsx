@@ -103,7 +103,7 @@ function SearchPageContent() {
       // No attendance filtering
     } else if (attendanceFilter === "anwesend" && student.current_location !== "Anwesend") {
       return false;
-    } else if (attendanceFilter === "abwesend" && student.current_location !== "Abwesend") {
+    } else if (attendanceFilter === "abwesend" && student.current_location !== "Zuhause") {
       return false;
     }
 
@@ -131,9 +131,9 @@ function SearchPageContent() {
         customShadow: "0 8px 25px rgba(131, 205, 45, 0.4)"
       };
     }
-    if (student.current_location === "Abwesend") {
+    if (student.current_location === "Zuhause") {
       return { 
-        label: "Abwesend", 
+        label: "Zuhause", 
         badgeColor: "text-white backdrop-blur-sm",
         cardGradient: "from-amber-50/80 to-yellow-100/80",
         glowColor: "ring-amber-200/50 shadow-amber-100/50",
@@ -164,7 +164,7 @@ function SearchPageContent() {
 
   return (
     <ResponsiveLayout>
-      <div className="max-w-7xl mx-auto">
+      <div className="w-full">
         {/* Simple Header */}
         <div className="mb-6 md:mb-8">
           <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Schülersuche</h1>
@@ -259,7 +259,7 @@ function SearchPageContent() {
                 >
                   <option value="all">Alle Status</option>
                   <option value="anwesend">Anwesend</option>
-                  <option value="abwesend">Abwesend</option>
+                  <option value="abwesend">Zuhause</option>
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
                   <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
@@ -285,7 +285,7 @@ function SearchPageContent() {
                   if (attendanceFilter !== "all") {
                     const statusLabels: Record<string, string> = {
                       "anwesend": "Anwesend",
-                      "abwesend": "Abwesend"
+                      "abwesend": "Zuhause"
                     };
                     activeFilters.push(statusLabels[attendanceFilter] ?? attendanceFilter);
                   }
@@ -377,7 +377,7 @@ function SearchPageContent() {
               >
                 <option value="all">Alle Status</option>
                 <option value="anwesend">Anwesend</option>
-                <option value="abwesend">Abwesend</option>
+                <option value="abwesend">Zuhause</option>
               </select>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
                 <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
@@ -403,7 +403,7 @@ function SearchPageContent() {
                     if (attendanceFilter !== "all") {
                       const statusLabels: Record<string, string> = {
                         "anwesend": "Anwesend",
-                        "abwesend": "Abwesend"
+                        "abwesend": "Zuhause"
                       };
                       activeFilters.push(statusLabels[attendanceFilter] ?? attendanceFilter);
                     }
@@ -467,7 +467,7 @@ function SearchPageContent() {
                 50% { transform: translateY(-4px) rotate(var(--rotation)); }
               }
             `}</style>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6 max-w-5xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3 gap-6">
               {filteredStudents.map((student, index) => {
                 const locationStatus = getLocationStatus(student);
 
@@ -475,18 +475,18 @@ function SearchPageContent() {
                   <div
                     key={student.id}
                     onClick={() => router.push(`/students/${student.id}?from=/students/search`)}
-                    className={`group cursor-pointer relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.03] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-3 active:scale-[0.97] md:hover:border-blue-200/50`}
+                    className={`group cursor-pointer relative overflow-hidden rounded-2xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.03] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-3 active:scale-[0.97] md:hover:border-blue-200/50`}
                     style={{
                       transform: `rotate(${(index % 3 - 1) * 0.8}deg)`,
                       animation: `float 8s ease-in-out infinite ${index * 0.7}s`
                     }}
                   >
                     {/* Modern gradient overlay */}
-                    <div className={`absolute inset-0 bg-gradient-to-br ${locationStatus.cardGradient} opacity-[0.03] rounded-3xl`}></div>
+                    <div className={`absolute inset-0 bg-gradient-to-br ${locationStatus.cardGradient} opacity-[0.03] rounded-2xl`}></div>
                     {/* Subtle inner glow */}
-                    <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                    <div className="absolute inset-px rounded-2xl bg-gradient-to-br from-white/80 to-white/20"></div>
                     {/* Modern border highlight */}
-                    <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 md:group-hover:ring-blue-200/60 transition-all duration-300"></div>
+                    <div className="absolute inset-0 rounded-2xl ring-1 ring-white/20 md:group-hover:ring-blue-200/60 transition-all duration-300"></div>
                     
 
                     <div className="relative p-6">
@@ -495,7 +495,7 @@ function SearchPageContent() {
                         {/* Student Name */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <h3 className="text-lg font-bold text-gray-800 break-words md:group-hover:text-blue-600 transition-colors duration-300">
+                            <h3 className="text-lg font-bold text-gray-800 whitespace-nowrap overflow-hidden text-ellipsis md:group-hover:text-blue-600 transition-colors duration-300">
                               {student.first_name}
                             </h3>
                             {/* Subtle integrated arrow */}
@@ -503,7 +503,7 @@ function SearchPageContent() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
                           </div>
-                          <p className="text-base font-semibold text-gray-700 break-words md:group-hover:text-blue-500 transition-colors duration-300">
+                          <p className="text-base font-semibold text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis md:group-hover:text-blue-500 transition-colors duration-300">
                             {student.second_name}
                           </p>
                         </div>
@@ -549,7 +549,7 @@ function SearchPageContent() {
                     </div>
 
                     {/* Glowing border effect */}
-                    <div className="absolute inset-0 rounded-3xl opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent via-blue-100/30 to-transparent"></div>
+                    <div className="absolute inset-0 rounded-2xl opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent via-blue-100/30 to-transparent"></div>
                   </div>
                 );
               })}

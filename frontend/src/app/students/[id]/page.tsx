@@ -155,10 +155,10 @@ export default function StudentDetailPage() {
     return (
         <ResponsiveLayout>
             {/* Desktop Back Button (visible only on larger screens) */}
-            <div className="hidden sm:block mb-4 sm:mb-6 px-4 sm:px-6 lg:px-8 py-2 sm:py-3">
+            <div className="hidden sm:block mb-2 sm:mb-3 px-4 sm:px-6 lg:px-8 py-1">
                 <button
                     onClick={() => router.push(referrer)}
-                    className="group flex items-center min-h-[44px] px-3 py-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-white/60 transition-all duration-200"
+                    className="group flex items-center min-h-[36px] px-3 py-1 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-white/60 transition-all duration-200"
                 >
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -178,11 +178,11 @@ export default function StudentDetailPage() {
                 </button>
             </div>
 
-            {/* Mobile Back Button - positioned outside main container */}
-            <div className="block sm:hidden sticky top-[66px] z-40">
+            {/* Mobile Back Button - centered between header and student profile */}
+            <div className="block sm:hidden sticky top-[67px] z-40 mb-2">
                 <button
                     onClick={() => router.push(referrer)}
-                    className="flex items-center gap-1 pl-1 pr-2 py-1.5 transition-all duration-200 hover:opacity-70"
+                    className="flex items-center gap-1 pl-1 pr-2 py-1 transition-all duration-200 hover:opacity-70"
                 >
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -206,7 +206,7 @@ export default function StudentDetailPage() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 
                 {/* Mobile Sticky Container for Student Profile */}
-                <div className="block sm:hidden sticky top-[100px] z-40 -mx-4">
+                <div className="block sm:hidden sticky top-[95px] z-40 -mx-4">
                     <div className="px-4 pb-2">
 
                     {/* Check if user has limited access */}

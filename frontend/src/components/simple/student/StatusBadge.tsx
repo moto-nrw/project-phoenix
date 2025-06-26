@@ -12,9 +12,9 @@ export function StatusBadge({ location }: StatusBadgeProps) {
         textColor: "text-green-800", 
         bgLight: "bg-green-100" 
       };
-    } else if (location === "Abwesend") {
+    } else if (location === "Zuhause") {
       return { 
-        label: "Abwesend", 
+        label: "Zuhause", 
         bgColor: "bg-orange-500", 
         textColor: "text-orange-800", 
         bgLight: "bg-orange-100" 

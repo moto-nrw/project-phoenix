@@ -69,7 +69,7 @@ export function ModernStudentProfile({
               style={{ 
                 backgroundColor: (() => {
                   if (student.current_location === "Anwesend" || student.current_location === "In House") return "#83CD2D";
-                  if (student.current_location === "Abwesend") return "#FF3130";
+                  if (student.current_location === "Zuhause") return "#FF3130";
                   if (student.current_location === "WC") return "#5080D8";
                   if (student.current_location === "School Yard") return "#F78C10";
                   if (student.current_location === "Bus") return "#D946EF";
@@ -80,7 +80,7 @@ export function ModernStudentProfile({
               <span className="w-1.5 h-1.5 bg-white/80 rounded-full mr-1.5"></span>
               {(() => {
                 if (student.current_location === "Anwesend" || student.current_location === "In House") return "Anwesend";
-                if (student.current_location === "Abwesend") return "Abwesend";
+                if (student.current_location === "Zuhause") return "Zuhause";
                 if (student.current_location === "WC") return "WC";
                 if (student.current_location === "School Yard") return "Schulhof";
                 if (student.current_location === "Bus") return "Bus";

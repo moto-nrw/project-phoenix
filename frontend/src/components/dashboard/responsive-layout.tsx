@@ -57,7 +57,7 @@ export default function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
         <Sidebar className="hidden lg:block" />
         
         {/* Main content with bottom padding on mobile for bottom navigation */}
-        <main className="flex-1 p-4 md:p-8 pb-24 lg:pb-8">
+        <main className="flex-1 p-2 md:p-8 pb-24 lg:pb-8">
           {children}
         </main>
       </div>
