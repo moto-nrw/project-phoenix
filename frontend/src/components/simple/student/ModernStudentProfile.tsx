@@ -12,9 +12,19 @@ interface ModernStudentProfileProps {
     current_location?: string;
   };
   index?: number;
+  onBack?: () => void;
+  backButtonStyle?: 'integrated' | 'floating' | 'thin-row';
+  backDestination?: string;
 }
 
-export function ModernStudentProfile({ student, index = 0 }: ModernStudentProfileProps) {
+export function ModernStudentProfile({ 
+  student, 
+  index = 0, 
+  onBack,
+  backButtonStyle = 'floating',
+  backDestination = 'Meine Gruppe'
+}: ModernStudentProfileProps) {
+
   // Get year from class for color indicator
   const getYear = (schoolClass: string): number => {
     const yearMatch = /^(\d)/.exec(schoolClass);
@@ -37,13 +47,13 @@ export function ModernStudentProfile({ student, index = 0 }: ModernStudentProfil
 
   return (
     <>
-      {/* Mobile Sticky Header (visible only on mobile) */}
-      <div className="block sm:hidden bg-white/95 backdrop-blur-md border border-gray-200/50 shadow-sm rounded-2xl sticky top-0 z-50 mt-2 mb-4">
+      {/* Mobile Header (visible only on mobile) */}
+      <div className="block sm:hidden bg-white/95 backdrop-blur-md border border-gray-200/50 shadow-sm rounded-2xl mb-2">
         <div className="flex items-center justify-between px-4 py-3">
-          {/* Left: Name - Matching ogs_group styling */}
+          {/* Name - Now takes full width */}
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-bold text-gray-800 break-words leading-tight">
+              <h3 className="text-2xl font-bold text-gray-800 break-words leading-tight">
                 {student.first_name}
               </h3>
               <p className="text-base font-semibold text-gray-700 break-words">
@@ -80,6 +90,7 @@ export function ModernStudentProfile({ student, index = 0 }: ModernStudentProfil
           </div>
         </div>
       </div>
+      
 
       {/* Desktop Header (visible only on larger screens) */}
       <div 
@@ -100,11 +111,11 @@ export function ModernStudentProfile({ student, index = 0 }: ModernStudentProfil
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-6">
             {/* Student Info */}
             <div className="flex-1 min-w-0">
-              {/* Name Section with Subtle Background */}
-              <div className="bg-gradient-to-r from-gray-50/80 to-transparent rounded-lg px-3 py-2 mb-3">
+              {/* Name Section */}
+              <div className="mb-3">
                 <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800 transition-colors duration-300 leading-tight">
-                  <span className="block sm:inline">{student.first_name}</span>
-                  <span className="block sm:inline sm:ml-2 text-gray-600">{student.second_name}</span>
+                  <span>{student.first_name}</span>
+                  <span className="ml-2">{student.second_name}</span>
                 </h1>
               </div>
               

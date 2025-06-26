@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ResponsiveLayout } from "@/components/dashboard";
+import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { useSession } from "next-auth/react";
@@ -40,7 +40,7 @@ export default function StudentDetailPage() {
     const searchParams = useSearchParams();
     const studentId = params.id as string;
     const referrer = searchParams.get("from") ?? "/students/search";
-    const { } = useSession();
+    const { data: session } = useSession();
 
     const [student, setStudent] = useState<ExtendedStudent | null>(null);
     const [loading, setLoading] = useState(true);
@@ -57,74 +57,54 @@ export default function StudentDetailPage() {
             try {
                 const response = await studentService.getStudent(studentId);
                 
-                // Debug logging (only in development)
-                if (process.env.NODE_ENV !== "production") {
-                    console.log("Student API Response:", response);
-                }
-                
-                // Extract the actual student data from the wrapped response
+                // The API route handler already maps the response correctly
+                // Extract the student data directly without re-mapping
                 interface WrappedResponse {
                     data?: unknown;
                     success?: boolean;
                     message?: string;
                 }
                 const wrappedResponse = response as WrappedResponse;
-                const fetchedStudent = wrappedResponse.data ?? response;
+                const studentData = wrappedResponse.data ?? response;
                 
-                // Check if the response has the detailed format with proper typing
-                interface DetailedStudentResponse {
-                    id?: number;
-                    first_name?: string;
-                    last_name?: string;
-                    name?: string;
-                    school_class?: string;
-                    group_id?: number;
-                    group_name?: string;
-                    location?: string;
+                // Cast to Student type since API route already mapped correctly
+                const mappedStudent = studentData as Student & {
+                    has_full_access?: boolean;
+                    group_supervisors?: SupervisorContact[];
                     guardian_name?: string;
                     guardian_contact?: string;
                     guardian_phone?: string;
-                    guardian_email?: string;
-                    has_full_access?: boolean;
-                    group_supervisors?: SupervisorContact[];
-                }
-                const detailedResponse = fetchedStudent as DetailedStudentResponse;
-                const hasAccess = detailedResponse.has_full_access ?? true;
-                const groupSupervisors = detailedResponse.group_supervisors ?? [];
+                };
                 
-                // Debug logging (only in development)
-                if (process.env.NODE_ENV !== "production") {
-                    console.log("Extracted Student Data:", fetchedStudent);
-                    console.log("Has Full Access:", hasAccess);
-                    console.log("Supervisors:", groupSupervisors);
-                }
+                const hasAccess = mappedStudent.has_full_access ?? true;
+                const groupSupervisors = mappedStudent.group_supervisors ?? [];
                 
-                // Map the API response to the expected format
-                // Backend returns snake_case fields, frontend expects different names
-                const mappedStudent: ExtendedStudent = {
-                    id: String(detailedResponse.id ?? ""),
-                    first_name: detailedResponse.first_name ?? "",
-                    second_name: detailedResponse.last_name ?? "", // Backend uses last_name
-                    name: detailedResponse.name ?? `${detailedResponse.first_name ?? ""} ${detailedResponse.last_name ?? ""}`,
-                    school_class: detailedResponse.school_class ?? "",
-                    group_id: String(detailedResponse.group_id ?? ""),
-                    group_name: detailedResponse.group_name ?? "",
-                    current_location: (detailedResponse.location as StudentLocation) ?? "Unknown",
-                    in_house: detailedResponse.location === "In House",
-                    wc: detailedResponse.location === "WC",
-                    school_yard: detailedResponse.location === "School Yard",
-                    bus: detailedResponse.location === "Bus",
+                
+                // Create ExtendedStudent with the properly mapped data
+                const extendedStudent: ExtendedStudent = {
+                    id: mappedStudent.id,
+                    first_name: mappedStudent.first_name ?? "",
+                    second_name: mappedStudent.second_name ?? "",
+                    name: mappedStudent.name,
+                    school_class: mappedStudent.school_class,
+                    group_id: mappedStudent.group_id ?? "",
+                    group_name: mappedStudent.group_name ?? "",
+                    current_location: mappedStudent.current_location,
+                    in_house: mappedStudent.in_house,
+                    wc: mappedStudent.wc ?? false,
+                    school_yard: mappedStudent.school_yard ?? false,
+                    bus: mappedStudent.bus ?? false,
                     current_room: undefined, // Not available from API yet
-                    guardian_name: hasAccess ? (detailedResponse.guardian_name ?? "") : "",
-                    guardian_contact: hasAccess ? (detailedResponse.guardian_contact ?? "") : "",
-                    guardian_phone: hasAccess ? (detailedResponse.guardian_phone ?? "") : "",
+                    guardian_name: hasAccess ? (mappedStudent.guardian_name ?? "") : "",
+                    guardian_contact: hasAccess ? (mappedStudent.guardian_contact ?? "") : "",
+                    guardian_phone: hasAccess ? (mappedStudent.guardian_phone ?? "") : "",
                     birthday: undefined, // Not available from API yet
                     notes: undefined, // Not available from API yet
-                    buskind: undefined, // Not available from API yet
+                    buskind: mappedStudent.bus, // Use bus field for buskind
                     attendance_rate: undefined // Not available from API yet
                 };
 
-                setStudent(mappedStudent);
+                setStudent(extendedStudent);
                 setHasFullAccess(hasAccess);
                 setSupervisors(groupSupervisors);
                 setLoading(false);
@@ -174,11 +154,11 @@ export default function StudentDetailPage() {
 
     return (
         <ResponsiveLayout>
-            {/* Minimalistic Back Button Header */}
-            <div className="mb-4 sm:mb-6 px-4 sm:px-6 lg:px-8 py-2 sm:py-3">
+            {/* Desktop Back Button (visible only on larger screens) */}
+            <div className="hidden sm:block mb-4 sm:mb-6 px-4 sm:px-6 lg:px-8 py-2 sm:py-3">
                 <button
                     onClick={() => router.push(referrer)}
-                    className="group flex items-center min-h-[44px] px-3 py-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-white/60 transition-all duration-200 touch-manipulation"
+                    className="group flex items-center min-h-[44px] px-3 py-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-white/60 transition-all duration-200"
                 >
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -198,27 +178,162 @@ export default function StudentDetailPage() {
                 </button>
             </div>
 
+            {/* Mobile Back Button - positioned outside main container */}
+            <div className="block sm:hidden sticky top-[66px] z-40">
+                <button
+                    onClick={() => router.push(referrer)}
+                    className="flex items-center gap-1 pl-1 pr-2 py-1.5 transition-all duration-200 hover:opacity-70"
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-5 w-5 text-gray-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 19l-7-7 7-7"
+                        />
+                    </svg>
+                    <span className="text-sm font-medium text-gray-700">Meine Gruppe</span>
+                </button>
+            </div>
+
             {/* Main content container */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                
+                {/* Mobile Sticky Container for Student Profile */}
+                <div className="block sm:hidden sticky top-[100px] z-40 -mx-4">
+                    <div className="px-4 pb-2">
 
-                            {/* Check if user has limited access */}
-                            {!hasFullAccess ? (
-                                // Limited Access View
-                                <>
-                                    {/* Mobile-Optimized Student Profile */}
-                                    <div className="mb-6 sm:mb-8">
-                                        <ModernStudentProfile 
-                                            student={{
-                                                first_name: student.first_name ?? '',
-                                                second_name: student.second_name ?? '',
-                                                name: student.name ?? '',
-                                                school_class: student.school_class ?? '',
-                                                group_name: student.group_name,
-                                                current_location: student.current_location
-                                            }}
-                                            index={0}
-                                        />
+                    {/* Check if user has limited access */}
+                    {!hasFullAccess ? (
+                        // Limited Access View
+                        <>
+                            {/* Mobile-Optimized Student Profile */}
+                            <ModernStudentProfile 
+                                student={{
+                                    first_name: student.first_name ?? '',
+                                    second_name: student.second_name ?? '',
+                                    name: student.name ?? '',
+                                    school_class: student.school_class ?? '',
+                                    group_name: student.group_name,
+                                    current_location: student.current_location
+                                }}
+                                index={0}
+                            />
+                        </>
+                    ) : (
+                        // Full Access View
+                        <>
+                            {/* Mobile-Optimized Student Profile */}
+                            <ModernStudentProfile 
+                                student={{
+                                    first_name: student.first_name ?? '',
+                                    second_name: student.second_name ?? '',
+                                    name: student.name ?? '',
+                                    school_class: student.school_class ?? '',
+                                    group_name: student.group_name,
+                                    current_location: student.current_location
+                                }}
+                                index={0}
+                            />
+                        </>
+                    )}
+                    </div>
+                </div>
+
+                {/* Content wrapper with margin to prevent overlap with sticky header on mobile */}
+                <div className="sm:mt-0">
+                    {/* Content that appears on both mobile and desktop */}
+                    {!hasFullAccess ? (
+                            // Limited Access View
+                            <>
+                                {/* Mobile-Optimized Limited Access Notice */}
+                                <div className="mb-6 rounded-lg bg-yellow-50 border border-yellow-200 p-4">
+                                    <div className="flex items-start">
+                                        <svg className="h-6 w-6 text-yellow-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                        <div>
+                                            <h3 className="text-lg font-medium text-yellow-800">Eingeschränkter Zugriff</h3>
+                                            <p className="mt-2 text-yellow-700">
+                                                Sie haben keinen Zugriff auf die vollständigen Schülerdaten, da Sie nicht die Gruppe dieses Schülers betreuen.
+                                            </p>
+                                        </div>
                                     </div>
+                                </div>
+
+                                {/* Mobile-Optimized Group Supervisors Contact */}
+                                {supervisors.length > 0 && (
+                                    <div className="rounded-lg bg-white p-4 shadow-sm">
+                                        <h2 className="mb-4 text-xl font-bold text-gray-800">
+                                            Ansprechpartner für diesen Schüler
+                                        </h2>
+                                        <p className="mb-4 text-gray-600">
+                                            Bitte kontaktieren Sie eine der folgenden Personen für weitere Informationen:
+                                        </p>
+                                        <div className="space-y-3">
+                                            {supervisors.map((supervisor) => (
+                                                <div key={supervisor.id} className="border rounded-lg p-4 bg-gray-50">
+                                                    <div className="flex items-center justify-between">
+                                                        <div>
+                                                            <p className="font-medium text-gray-900">
+                                                                {supervisor.first_name} {supervisor.last_name}
+                                                            </p>
+                                                            <p className="text-sm text-gray-500 capitalize">{supervisor.role}</p>
+                                                            {supervisor.email && (
+                                                                <p className="text-sm text-gray-600 mt-1">{supervisor.email}</p>
+                                                            )}
+                                                        </div>
+                                                        {supervisor.email && (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    window.location.href = `mailto:${supervisor.email}?subject=Anfrage zu ${student.name}`;
+                                                                }}
+                                                            >
+                                                                E-Mail senden
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            // Full Access View
+                            <>
+                                {/* Rest of mobile content... */}
+                            </>
+                        )}
+
+                {/* Desktop only - Back button and Student Profile */}
+                <div className="hidden sm:block">
+                    {/* Check if user has limited access */}
+                    {!hasFullAccess ? (
+                        // Limited Access View
+                        <>
+                            {/* Student Profile */}
+                            <div className="mb-6 sm:mb-8">
+                                <ModernStudentProfile 
+                                    student={{
+                                        first_name: student.first_name ?? '',
+                                        second_name: student.second_name ?? '',
+                                        name: student.name ?? '',
+                                        school_class: student.school_class ?? '',
+                                        group_name: student.group_name,
+                                        current_location: student.current_location
+                                    }}
+                                    index={0}
+                                />
+                            </div>
 
                                     {/* Mobile-Optimized Limited Access Notice */}
                                     <div className="mb-6 sm:mb-8 rounded-lg bg-yellow-50 border border-yellow-200 p-4 sm:p-6">
@@ -274,24 +389,24 @@ export default function StudentDetailPage() {
                                             </div>
                                         </div>
                                     )}
-                                </>
-                            ) : (
-                                // Full Access View (existing content)
-                                <>
-                                    {/* Mobile-Optimized Student Profile */}
-                                    <div className="mb-6 sm:mb-8">
-                                        <ModernStudentProfile 
-                                            student={{
-                                                first_name: student.first_name ?? '',
-                                                second_name: student.second_name ?? '',
-                                                name: student.name ?? '',
-                                                school_class: student.school_class ?? '',
-                                                group_name: student.group_name,
-                                                current_location: student.current_location
-                                            }}
-                                            index={0}
-                                        />
-                                    </div>
+                        </>
+                    ) : (
+                        // Full Access View
+                        <>
+                            {/* Student Profile */}
+                            <div className="mb-6 sm:mb-8">
+                                <ModernStudentProfile 
+                                    student={{
+                                        first_name: student.first_name ?? '',
+                                        second_name: student.second_name ?? '',
+                                        name: student.name ?? '',
+                                        school_class: student.school_class ?? '',
+                                        group_name: student.group_name,
+                                        current_location: student.current_location
+                                    }}
+                                    index={0}
+                                />
+                            </div>
 
                                     {/* History Navigation Container */}
                                     <div className="mb-6 sm:mb-8">
@@ -511,9 +626,296 @@ export default function StudentDetailPage() {
                                             />
                                         </ModernInfoCard>
                                     </div>
-                                </>
-                            )}
+                        </>
+                    )}
+                </div>
+                
+                {/* Mobile specific content */}
+                <div className="sm:hidden">
+                    {!hasFullAccess ? (
+                    // Limited Access Content
+                    <>
+                        {/* Mobile-Optimized Limited Access Notice */}
+                        <div className="mb-6 sm:mb-8 rounded-lg bg-yellow-50 border border-yellow-200 p-4 sm:p-6">
+                            <div className="flex items-start">
+                                <svg className="h-6 w-6 text-yellow-600 mt-0.5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                <div>
+                                    <h3 className="text-lg font-medium text-yellow-800">Eingeschränkter Zugriff</h3>
+                                    <p className="mt-2 text-yellow-700">
+                                        Sie haben keinen Zugriff auf die vollständigen Schülerdaten, da Sie nicht die Gruppe dieses Schülers betreuen.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
-                    </ResponsiveLayout>
-                );
-            }
+
+                        {/* Mobile-Optimized Group Supervisors Contact */}
+                        {supervisors.length > 0 && (
+                            <div className="rounded-lg bg-white p-4 sm:p-6 shadow-sm">
+                                <h2 className="mb-4 text-xl font-bold text-gray-800">
+                                    Ansprechpartner für diesen Schüler
+                                </h2>
+                                <p className="mb-4 text-gray-600">
+                                    Bitte kontaktieren Sie eine der folgenden Personen für weitere Informationen:
+                                </p>
+                                <div className="space-y-3">
+                                    {supervisors.map((supervisor) => (
+                                        <div key={supervisor.id} className="border rounded-lg p-4 bg-gray-50">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="font-medium text-gray-900">
+                                                        {supervisor.first_name} {supervisor.last_name}
+                                                    </p>
+                                                    <p className="text-sm text-gray-500 capitalize">{supervisor.role}</p>
+                                                    {supervisor.email && (
+                                                        <p className="text-sm text-gray-600 mt-1">{supervisor.email}</p>
+                                                    )}
+                                                </div>
+                                                {supervisor.email && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            window.location.href = `mailto:${supervisor.email}?subject=Anfrage zu ${student.name}`;
+                                                        }}
+                                                    >
+                                                        E-Mail senden
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    // Full Access Content
+                    <>
+                        {/* History Navigation Container */}
+                        <div className="mb-6 sm:mb-8">
+                            <ModernInfoCard 
+                                title="Historien" 
+                                icon={
+                                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                }
+                                iconColor="text-white"
+                                iconBg="bg-[#6366F1]"
+                                index={2}
+                                disableHover={true}
+                            >
+                                {/* Modern Navigation Grid */}
+                                <div className="grid grid-cols-1 gap-3">
+                                    {/* Room History Button */}
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            router.push(`/students/${studentId}/room-history?from=${referrer}`);
+                                        }}
+                                        className="group/btn cursor-pointer flex items-center justify-between p-4 rounded-xl bg-gray-50/80 hover:bg-[#5080D8]/15 border border-gray-100/50 hover:border-[#5080D8]/30 transition-all duration-300 touch-manipulation hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] z-10 relative"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-8 w-8 rounded-lg bg-[#5080D8] flex items-center justify-center shadow-sm group-hover/btn:shadow-[#5080D8]/30 group-hover/btn:shadow-lg transition-all duration-300">
+                                                <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                                </svg>
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="font-semibold text-gray-900 group-hover/btn:text-[#5080D8] transition-colors duration-300">Raumverlauf</p>
+                                                <p className="text-xs text-gray-500 group-hover/btn:text-gray-600">Verlauf der Raumbesuche</p>
+                                            </div>
+                                        </div>
+                                        <svg className="h-4 w-4 text-gray-400 group-hover/btn:text-[#5080D8] group-hover/btn:translate-x-1 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </button>
+
+                                    {/* Feedback History Button */}
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            router.push(`/students/${studentId}/feedback-history?from=${referrer}`);
+                                        }}
+                                        className="group/btn cursor-pointer flex items-center justify-between p-4 rounded-xl bg-gray-50/80 hover:bg-[#83CD2D]/15 border border-gray-100/50 hover:border-[#83CD2D]/30 transition-all duration-300 touch-manipulation hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] z-10 relative"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-8 w-8 rounded-lg bg-[#83CD2D] flex items-center justify-center shadow-sm group-hover/btn:shadow-[#83CD2D]/30 group-hover/btn:shadow-lg transition-all duration-300">
+                                                <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                                                </svg>
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="font-semibold text-gray-900 group-hover/btn:text-[#83CD2D] transition-colors duration-300">Feedbackhistorie</p>
+                                                <p className="text-xs text-gray-500 group-hover/btn:text-gray-600">Feedback und Bewertungen</p>
+                                            </div>
+                                        </div>
+                                        <svg className="h-4 w-4 text-gray-400 group-hover/btn:text-[#83CD2D] group-hover/btn:translate-x-1 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </button>
+
+                                    {/* Mensa History Button */}
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            router.push(`/students/${studentId}/mensa-history?from=${referrer}`);
+                                        }}
+                                        className="group/btn cursor-pointer flex items-center justify-between p-4 rounded-xl bg-gray-50/80 hover:bg-[#F78C10]/15 border border-gray-100/50 hover:border-[#F78C10]/30 transition-all duration-300 touch-manipulation hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] z-10 relative"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-8 w-8 rounded-lg bg-[#F78C10] flex items-center justify-center shadow-sm group-hover/btn:shadow-[#F78C10]/30 group-hover/btn:shadow-lg transition-all duration-300">
+                                                <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.5 3v18M7 3v3.5M10 3v3.5M7 10h3M15.5 3v3c0 1-2 2-2 2v13" />
+                                                </svg>
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="font-semibold text-gray-900 group-hover/btn:text-[#F78C10] transition-colors duration-300">Mensaverlauf</p>
+                                                <p className="text-xs text-gray-500 group-hover/btn:text-gray-600">Mahlzeiten und Bestellungen</p>
+                                            </div>
+                                        </div>
+                                        <svg className="h-4 w-4 text-gray-400 group-hover/btn:text-[#F78C10] group-hover/btn:translate-x-1 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </ModernInfoCard>
+                        </div>
+
+                        {/* Mobile-Optimized Student Information */}
+                        <div className="space-y-6 sm:space-y-8">
+                            {/* Personal Information */}
+                            <ModernInfoCard 
+                                title="Persönliche Informationen" 
+                                icon={
+                                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                }
+                                iconColor="text-white"
+                                iconBg="bg-[#5080D8]"
+                                index={0}
+                                disableHover={true}
+                            >
+                                <ModernInfoItem 
+                                    label="Vollständiger Name" 
+                                    value={student.name}
+                                    icon={
+                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    }
+                                />
+                                <ModernInfoItem 
+                                    label="Klasse" 
+                                    value={student.school_class}
+                                    icon={
+                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                        </svg>
+                                    }
+                                />
+                                <ModernInfoItem 
+                                    label="Gruppe" 
+                                    value={student.group_name ?? 'Nicht zugewiesen'}
+                                    icon={
+                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                        </svg>
+                                    }
+                                />
+                                <ModernInfoItem 
+                                    label="Geburtsdatum" 
+                                    value={student.birthday ? new Date(student.birthday).toLocaleDateString('de-DE') : 'Nicht angegeben'}
+                                    icon={
+                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                    }
+                                />
+                                <ModernInfoItem 
+                                    label="Buskind" 
+                                    value={student.buskind ? 'Ja' : 'Nein'}
+                                    icon={
+                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    }
+                                />
+                                {student.notes && (
+                                    <ModernInfoItem 
+                                        label="Notizen" 
+                                        value={student.notes}
+                                        icon={
+                                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                            </svg>
+                                        }
+                                    />
+                                )}
+                            </ModernInfoCard>
+
+                            {/* Guardian Information */}
+                            <ModernInfoCard 
+                                title="Erziehungsberechtigte" 
+                                icon={
+                                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                    </svg>
+                                }
+                                iconColor="text-white"
+                                iconBg="bg-[#D946EF]"
+                                index={1}
+                                disableHover={true}
+                            >
+                                <ModernInfoItem 
+                                    label="Name" 
+                                    value={student.guardian_name}
+                                    icon={
+                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                        </svg>
+                                    }
+                                />
+                                <ModernInfoItem 
+                                    label="E-Mail" 
+                                    value={student.guardian_contact}
+                                    icon={
+                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
+                                    }
+                                />
+                                <ModernInfoItem 
+                                    label="Telefonnummer" 
+                                    value={student.guardian_phone ?? 'Nicht angegeben'}
+                                    icon={
+                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                        </svg>
+                                    }
+                                />
+                                
+                                <ModernContactActions 
+                                    email={student.guardian_contact} 
+                                    phone={student.guardian_phone}
+                                    studentName={student.name}
+                                />
+                            </ModernInfoCard>
+                        </div>
+                    </>
+                )}
+                </div>
+                </div>
+            </div>
+        </ResponsiveLayout>
+    );
+}
