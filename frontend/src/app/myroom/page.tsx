@@ -55,7 +55,7 @@ function MeinRaumPageContent() {
     const [showRoomSelection, setShowRoomSelection] = useState(true);
     
     // Get current selected room
-    const currentRoom = allRooms[selectedRoomIndex] || null;
+    const currentRoom = allRooms[selectedRoomIndex] ?? null;
 
     // Check access and fetch active room data
     useEffect(() => {
@@ -385,7 +385,7 @@ function MeinRaumPageContent() {
                                 
                                 {/* Room Name */}
                                 <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-[#5080D8]">
-                                    {room.room_name || room.name}
+                                    {room.room_name ?? room.name}
                                 </h3>
                                 
                                 {/* Activity Name */}
@@ -399,7 +399,7 @@ function MeinRaumPageContent() {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                                               d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                                     </svg>
-                                    <span className="font-medium">{room.student_count || '...'} Schüler</span>
+                                    <span className="font-medium">{room.student_count ?? '...'} Schüler</span>
                                 </div>
                             </button>
                         ))}
@@ -443,7 +443,7 @@ function MeinRaumPageContent() {
                                                 }
                                             `}
                                         >
-                                            <span>{room.room_name || room.name}</span>
+                                            <span>{room.room_name ?? room.name}</span>
                                             <div className={`
                                                 flex items-center gap-1.5 sm:gap-2 rounded-full
                                                 ${index === selectedRoomIndex
@@ -457,7 +457,7 @@ function MeinRaumPageContent() {
                                                           d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                                                 </svg>
                                                 <span className={`font-bold ${index === selectedRoomIndex ? 'text-sm sm:text-base' : 'text-xs'} text-gray-700`}>
-                                                    {room.student_count || 0}
+                                                    {room.student_count ?? 0}
                                                 </span>
                                             </div>
                                         </button>
@@ -469,7 +469,7 @@ function MeinRaumPageContent() {
                         /* Single room or 5+ rooms - show simple header */
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                             <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
-                                {currentRoom?.room_name || currentRoom?.name || "Mein Raum"}
+                                {currentRoom?.room_name ?? currentRoom?.name ?? "Mein Raum"}
                             </h1>
                             <div className="flex items-center gap-3">
                                 {allRooms.length >= 5 && (

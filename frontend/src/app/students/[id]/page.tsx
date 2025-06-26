@@ -7,13 +7,12 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { useSession } from "next-auth/react";
 import { studentService } from "~/lib/api";
-import type { Student, SupervisorContact, StudentLocation } from "~/lib/student-helpers";
+import type { Student, SupervisorContact } from "~/lib/student-helpers";
 import { 
   ModernStudentProfile,
   ModernInfoCard, 
   ModernInfoItem, 
-  ModernContactActions, 
-  ModernNavCard 
+  ModernContactActions
 } from "~/components/simple/student";
 
 
@@ -40,7 +39,7 @@ export default function StudentDetailPage() {
     const searchParams = useSearchParams();
     const studentId = params.id as string;
     const referrer = searchParams.get("from") ?? "/students/search";
-    const { data: session } = useSession();
+    useSession();
 
     const [student, setStudent] = useState<ExtendedStudent | null>(null);
     const [loading, setLoading] = useState(true);

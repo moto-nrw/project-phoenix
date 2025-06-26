@@ -67,7 +67,7 @@ function OGSGroupPageContent() {
     const [showGroupSelection, setShowGroupSelection] = useState(true);
     
     // Get current selected group
-    const currentGroup = allGroups[selectedGroupIndex] || null;
+    const currentGroup = allGroups[selectedGroupIndex] ?? null;
 
     // Check access and fetch OGS group data
     useEffect(() => {
@@ -88,7 +88,7 @@ function OGSGroupPageContent() {
                 setHasAccess(true);
 
                 // Convert all groups to OGSGroup format
-                let ogsGroups: OGSGroup[] = myGroups.map(group => ({
+                const ogsGroups: OGSGroup[] = myGroups.map(group => ({
                     id: group.id,
                     name: group.name,
                     room_name: group.room?.name,
@@ -236,7 +236,7 @@ function OGSGroupPageContent() {
             }
             
             setError(null);
-        } catch (err) {
+        } catch {
             setError("Fehler beim Laden der Gruppendaten.");
         } finally {
             setIsLoading(false);
@@ -417,7 +417,7 @@ function OGSGroupPageContent() {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                                               d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                                     </svg>
-                                    <span className="font-medium">{group.student_count || '...'} Schüler</span>
+                                    <span className="font-medium">{group.student_count ?? '...'} Schüler</span>
                                 </div>
                                 
                                 {/* Room Info if available */}
@@ -482,7 +482,7 @@ function OGSGroupPageContent() {
                                                           d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                                                 </svg>
                                                 <span className={`font-bold ${index === selectedGroupIndex ? 'text-sm sm:text-base' : 'text-xs'} text-gray-700`}>
-                                                    {group.student_count || 0}
+                                                    {group.student_count ?? 0}
                                                 </span>
                                             </div>
                                         </button>
@@ -765,7 +765,7 @@ function OGSGroupPageContent() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                             </svg>
                             <div>
-                                <h3 className="text-lg font-medium text-gray-900">Keine Schüler in {currentGroup?.name || 'dieser Gruppe'}</h3>
+                                <h3 className="text-lg font-medium text-gray-900">Keine Schüler in {currentGroup?.name ?? 'dieser Gruppe'}</h3>
                                 <p className="text-gray-600">
                                     Es wurden noch keine Schüler zu dieser OGS-Gruppe hinzugefügt.
                                 </p>

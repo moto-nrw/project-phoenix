@@ -62,8 +62,16 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     const typedResponse = response as { data: unknown };
     
     
+    // Define type for backend student data
+    interface BackendStudentData {
+        last_name?: string;
+        name?: string;
+        first_name?: string;
+        [key: string]: unknown;
+    }
+    
     // Map the backend response to frontend format
-    const studentData = typedResponse.data as any; // Remove type casting to see actual structure
+    const studentData = typedResponse.data as BackendStudentData;
     
     // Check if we need to extract last_name from the name field
     if (!studentData.last_name && studentData.name) {
@@ -77,7 +85,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
         }
     }
     
-    const mappedStudent = mapStudentResponse(studentData as BackendStudent);
+    const mappedStudent = mapStudentResponse(studentData as unknown as BackendStudent);
     
     // Fetch privacy consent data
     try {

@@ -20,30 +20,11 @@ interface ModernStudentProfileProps {
 export function ModernStudentProfile({ 
   student, 
   index = 0, 
-  onBack,
-  backButtonStyle = 'floating',
-  backDestination = 'Meine Gruppe'
+  onBack: _onBack,
+  backButtonStyle: _backButtonStyle = 'floating',
+  backDestination: _backDestination = 'Meine Gruppe'
 }: ModernStudentProfileProps) {
 
-  // Get year from class for color indicator
-  const getYear = (schoolClass: string): number => {
-    const yearMatch = /^(\d)/.exec(schoolClass);
-    return yearMatch?.[1] ? parseInt(yearMatch[1], 10) : 0;
-  };
-
-  const getYearColor = (year: number): string => {
-    // Using neutral academic colors that don't conflict with status colors
-    switch (year) {
-      case 1: return "#3B82F6"; // Standard blue
-      case 2: return "#10B981"; // Standard emerald
-      case 3: return "#F59E0B"; // Standard amber
-      case 4: return "#D946EF"; // Purple/fuchsia
-      default: return "#6B7280"; // Gray for unknown
-    }
-  };
-
-  const year = getYear(student.school_class);
-  const yearColor = getYearColor(year);
 
   return (
     <>
