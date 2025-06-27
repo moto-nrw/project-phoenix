@@ -45,8 +45,9 @@ function OGSGroupPageContent() {
     // Check if user has access to OGS groups
     const [hasAccess, setHasAccess] = useState<boolean | null>(null);
 
-    // State variables
-    const [ogsGroup, setOGSGroup] = useState<OGSGroup | null>(null);
+    // State variables for multiple groups
+    const [allGroups, setAllGroups] = useState<OGSGroup[]>([]);
+    const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
     const [students, setStudents] = useState<Student[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedYear, setSelectedYear] = useState("all");
@@ -64,6 +65,12 @@ function OGSGroupPageContent() {
     
     // Mobile-specific state
     const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+    
+    // State for showing group selection (for 5+ groups)
+    const [showGroupSelection, setShowGroupSelection] = useState(true);
+    
+    // Get current selected group
+    const currentGroup = allGroups[selectedGroupIndex] ?? null;
 
     // Check access and fetch OGS group data
     useEffect(() => {
@@ -83,30 +90,32 @@ function OGSGroupPageContent() {
 
                 setHasAccess(true);
 
-                // Use the first group as the OGS group (assuming user has access to one OGS group)
-                const educationalGroup = myGroups[0];
-                
-                if (!educationalGroup) {
-                    throw new Error('No educational group found');
-                }
-                
-                const ogsGroupData: OGSGroup = {
-                    id: educationalGroup.id,
-                    name: educationalGroup.name,
-                    room_name: educationalGroup.room?.name,
-                    room_id: educationalGroup.room_id,
+                // Convert all groups to OGSGroup format
+                const ogsGroups: OGSGroup[] = myGroups.map(group => ({
+                    id: group.id,
+                    name: group.name,
+                    room_name: group.room?.name,
+                    room_id: group.room_id,
                     student_count: 0, // Will be calculated from actual students
                     supervisor_name: undefined // Will be fetched separately if needed
-                };
+                }));
 
-                setOGSGroup(ogsGroupData);
 
-                // Fetch students for this group using the same service as students/search
-                const studentsResponse = await studentService.getStudents({
-                    groupId: educationalGroup.id
-                });
+                setAllGroups(ogsGroups);
+
+                // Use the first group by default
+                const firstGroup = ogsGroups[0];
                 
+                if (!firstGroup) {
+                    throw new Error('No educational group found');
+                }
+
+                // Fetch students for the first group
+                const studentsResponse = await studentService.getStudents({
+                    groupId: firstGroup.id
+                });
                 const studentsData = studentsResponse.students || [];
+                
                 setStudents(studentsData);
 
                 // Calculate statistics from real data (only if we have valid array data)
@@ -114,11 +123,13 @@ function OGSGroupPageContent() {
                 setStudents(validStudents);
 
                 // Update group with actual student count
-                setOGSGroup(prev => prev ? { ...prev, student_count: validStudents.length } : null);
+                setAllGroups(prev => prev.map((group, idx) => 
+                    idx === 0 ? { ...group, student_count: validStudents.length } : group
+                ));
 
                 // Fetch room status for all students in the group
                 try {
-                    const roomStatusResponse = await fetch(`/api/groups/${educationalGroup.id}/students/room-status`, {
+                    const roomStatusResponse = await fetch(`/api/groups/${firstGroup.id}/students/room-status`, {
                         headers: {
                             'Authorization': `Bearer ${session?.user?.token}`,
                             'Content-Type': 'application/json'
@@ -176,6 +187,73 @@ function OGSGroupPageContent() {
             void checkAccessAndFetchData();
         }
     }, [session?.user?.token]);
+
+    // Function to switch between groups
+    const switchToGroup = async (groupIndex: number) => {
+        if (groupIndex === selectedGroupIndex || !allGroups[groupIndex]) return;
+        
+        setIsLoading(true);
+        setSelectedGroupIndex(groupIndex);
+        setStudents([]); // Clear current students
+        setRoomStatus({}); // Clear room status
+        
+        try {
+            const selectedGroup = allGroups[groupIndex];
+            
+            // Fetch students for the selected group
+            const studentsResponse = await studentService.getStudents({
+                groupId: selectedGroup.id
+            });
+            const studentsData = studentsResponse.students || [];
+            
+            setStudents(studentsData);
+            
+            // Update group with actual student count
+            setAllGroups(prev => prev.map((group, idx) => 
+                idx === groupIndex ? { ...group, student_count: studentsData.length } : group
+            ));
+            
+            // Fetch room status for the selected group
+            try {
+                const roomStatusResponse = await fetch(`/api/groups/${selectedGroup.id}/students/room-status`, {
+                    headers: {
+                        'Authorization': `Bearer ${session?.user?.token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (roomStatusResponse.ok) {
+                    const response = await roomStatusResponse.json() as {
+                        success: boolean;
+                        message: string;
+                        data: {
+                            group_has_room: boolean;
+                            group_room_id?: number;
+                            student_room_status: Record<string, { 
+                                in_group_room: boolean; 
+                                current_room_id?: number;
+                                first_name?: string;
+                                last_name?: string;
+                                reason?: string;
+                            }>;
+                        };
+                    };
+                    
+                    if (response.data?.student_room_status) {
+                        setRoomStatus(response.data.student_room_status);
+                    }
+                }
+            } catch (roomStatusErr) {
+                console.error("Failed to fetch room status:", roomStatusErr);
+            }
+            
+            setError(null);
+        } catch {
+            setError("Fehler beim Laden der Gruppendaten.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     // Apply filters to students (ensure students is an array)
     const filteredStudents = (Array.isArray(students) ? students : []).filter((student) => {
@@ -310,20 +388,149 @@ function OGSGroupPageContent() {
         return null;
     }
 
+    // Show group selection screen for 5+ groups
+    if (allGroups.length >= 5 && showGroupSelection) {
+        return (
+            <ResponsiveLayout>
+                <div className="w-full max-w-6xl mx-auto px-4">
+                    <div className="mb-8">
+                        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">Wählen Sie Ihre Gruppe</h1>
+                        <p className="text-lg text-gray-600">Sie haben Zugriff auf {allGroups.length} Gruppen</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {allGroups.map((group, index) => (
+                            <button
+                                key={group.id}
+                                onClick={async () => {
+                                    await switchToGroup(index);
+                                    setShowGroupSelection(false);
+                                }}
+                                className="group bg-white rounded-2xl border-2 border-gray-200 p-6 
+                                         hover:border-[#5080D8] hover:shadow-lg transition-all duration-200
+                                         active:scale-95 text-left"
+                            >
+                                {/* Group Icon */}
+                                <div className="w-16 h-16 bg-gradient-to-br from-[#5080D8] to-[#83CD2D] 
+                                              rounded-xl mb-4 flex items-center justify-center
+                                              group-hover:scale-110 transition-transform duration-200">
+                                    <span className="text-2xl font-bold text-white">
+                                        {group.name.charAt(0)}
+                                    </span>
+                                </div>
+                                
+                                {/* Group Name */}
+                                <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-[#5080D8]">
+                                    {group.name}
+                                </h3>
+                                
+                                {/* Student Count */}
+                                <div className="flex items-center gap-2 text-gray-600">
+                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                              d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                    </svg>
+                                    <span className="font-medium">{group.student_count ?? '...'} Schüler</span>
+                                </div>
+                                
+                                {/* Room Info if available */}
+                                {group.room_name && (
+                                    <div className="mt-2 text-sm text-gray-500">
+                                        Raum: {group.room_name}
+                                    </div>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </ResponsiveLayout>
+        );
+    }
+
     return (
         <ResponsiveLayout>
-            <div className="max-w-7xl mx-auto">
-                {/* Simple Header */}
+            <div className="w-full">
+                {/* Header with Tab Navigation for Multiple Groups */}
                 <div className="mb-6 md:mb-8">
-                    <div className="flex items-center justify-between">
-                        <h1 className="text-3xl md:text-4xl font-bold text-gray-900">{ogsGroup?.name}</h1>
-                        <div className="flex items-center gap-3 px-4 py-3 bg-gray-100 rounded-full">
-                            <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                            </svg>
-                            <span className="text-sm font-medium text-gray-700">{ogsGroup?.student_count ?? 0}</span>
+                    {/* Show tabs only if there are 2-4 groups */}
+                    {allGroups.length >= 2 && allGroups.length <= 4 ? (
+                        <>
+                            {/* Tab Navigation - Responsive Design */}
+                            <div className="mb-6">
+                                <style jsx>{`
+                                    .scrollbar-hide {
+                                        -ms-overflow-style: none;
+                                        scrollbar-width: none;
+                                    }
+                                    .scrollbar-hide::-webkit-scrollbar {
+                                        display: none;
+                                    }
+                                `}</style>
+                                <nav className="flex flex-col sm:flex-row gap-2 sm:gap-7 overflow-x-auto scrollbar-hide sm:px-4 sm:py-1">
+                                    {allGroups.map((group, index) => (
+                                        <button
+                                            key={group.id}
+                                            onClick={() => switchToGroup(index)}
+                                            className={`
+                                                flex items-center gap-3 rounded-2xl sm:rounded-2xl
+                                                font-semibold transition-all duration-200 
+                                                whitespace-nowrap flex-shrink-0 w-full sm:w-auto justify-between sm:justify-center
+                                                ${index === selectedGroupIndex
+                                                    ? 'px-4 sm:px-7 py-3 sm:py-4.5 text-lg sm:text-2xl bg-white text-gray-900 border-2 border-gray-300 shadow-sm sm:drop-shadow-sm sm:transform sm:scale-110 min-h-[52px] sm:min-h-[68px]'
+                                                    : 'px-4 py-2.5 sm:py-2 text-base bg-gray-50 border sm:border-2 border-gray-200 text-gray-600 sm:text-gray-500 hover:bg-gray-100 hover:border-gray-300 hover:text-gray-700 min-h-[44px] sm:min-h-[40px]'
+                                                }
+                                            `}
+                                        >
+                                            <span>{group.name}</span>
+                                            <div className={`
+                                                flex items-center gap-1.5 sm:gap-2 rounded-full
+                                                ${index === selectedGroupIndex
+                                                    ? 'px-3 sm:px-3.5 py-1 sm:py-1.5 bg-gray-100'
+                                                    : 'px-2.5 py-1 bg-gray-100 sm:bg-white'
+                                                }
+                                            `}>
+                                                <svg className={`${index === selectedGroupIndex ? 'h-4 w-4 sm:h-5 sm:w-5' : 'h-3.5 w-3.5'} text-gray-600`} 
+                                                     fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                                          d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                                </svg>
+                                                <span className={`font-bold ${index === selectedGroupIndex ? 'text-sm sm:text-base' : 'text-xs'} text-gray-700`}>
+                                                    {group.student_count ?? 0}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </nav>
+                            </div>
+                        </>
+                    ) : (
+                        /* Single group or 5+ groups - show simple header */
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <h1 className="text-3xl md:text-4xl font-bold text-gray-900">{currentGroup?.name}</h1>
+                            <div className="flex items-center gap-3">
+                                {allGroups.length >= 5 && (
+                                    <button
+                                        onClick={() => setShowGroupSelection(true)}
+                                        className="px-4 py-2 bg-white border border-gray-300 rounded-lg 
+                                                 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200
+                                                 flex items-center gap-2 text-gray-700"
+                                    >
+                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                                  d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                        </svg>
+                                        <span className="font-medium">Gruppe wechseln</span>
+                                    </button>
+                                )}
+                                <div className="flex items-center gap-3 px-4 py-3 bg-gray-100 rounded-full">
+                                    <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                    </svg>
+                                    <span className="text-sm font-medium text-gray-700">{currentGroup?.student_count ?? 0}</span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 {/* Mobile Search - Minimalistic Design */}
@@ -338,7 +545,7 @@ function OGSGroupPageContent() {
                             placeholder="Schüler suchen..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors text-base"
+                            className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors text-base"
                         />
                     </div>
 
@@ -373,7 +580,7 @@ function OGSGroupPageContent() {
                                 <select
                                     value={selectedYear}
                                     onChange={(e) => setSelectedYear(e.target.value)}
-                                    className="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base appearance-none"
+                                    className="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-2xl text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base appearance-none"
                                 >
                                     <option value="all">Alle Jahre</option>
                                     <option value="1">Jahr 1</option>
@@ -392,7 +599,7 @@ function OGSGroupPageContent() {
                                 <select
                                     value={attendanceFilter}
                                     onChange={(e) => setAttendanceFilter(e.target.value)}
-                                    className="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base appearance-none"
+                                    className="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-2xl text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base appearance-none"
                                 >
                                     <option value="all">Alle Orte</option>
                                     <option value="in_room">Gruppenraum</option>
@@ -449,7 +656,7 @@ function OGSGroupPageContent() {
                 </div>
 
                 {/* Desktop Search & Filter - Minimalistic */}
-                <div className="hidden md:block mb-4">
+                <div className="hidden md:block mb-6">
                     <div className="flex items-center gap-3">
                         {/* Search Input */}
                         <div className="flex-1">
@@ -462,7 +669,7 @@ function OGSGroupPageContent() {
                                     placeholder="Schüler suchen..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                    className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                                 />
                             </div>
                         </div>
@@ -472,7 +679,7 @@ function OGSGroupPageContent() {
                             <select
                                 value={selectedYear}
                                 onChange={(e) => setSelectedYear(e.target.value)}
-                                className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm min-w-[120px] appearance-none"
+                                className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-2xl text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm min-w-[120px] appearance-none"
                             >
                                 <option value="all">Alle Jahre</option>
                                 <option value="1">Jahr 1</option>
@@ -491,7 +698,7 @@ function OGSGroupPageContent() {
                             <select
                                 value={attendanceFilter}
                                 onChange={(e) => setAttendanceFilter(e.target.value)}
-                                className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm min-w-[140px] appearance-none"
+                                className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-2xl text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm min-w-[140px] appearance-none"
                             >
                                 <option value="all">Alle Orte</option>
                                 <option value="in_room">Gruppenraum</option>
@@ -557,20 +764,29 @@ function OGSGroupPageContent() {
                 )}
 
                 {/* Student Grid - Mobile Optimized */}
-                {students.length === 0 ? (
+                {isLoading && selectedGroupIndex > 0 ? (
+                    <div className="py-12 text-center">
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-[#5080D8]"></div>
+                            <p className="text-gray-600">Gruppe wird geladen...</p>
+                        </div>
+                    </div>
+                ) : students.length === 0 ? (
                     <div className="py-12 text-center">
                         <div className="flex flex-col items-center gap-4">
                             <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                             </svg>
                             <div>
-                                <h3 className="text-lg font-medium text-gray-900">Keine Schüler in dieser Gruppe</h3>
+                                <h3 className="text-lg font-medium text-gray-900">Keine Schüler in {currentGroup?.name ?? 'dieser Gruppe'}</h3>
                                 <p className="text-gray-600">
                                     Es wurden noch keine Schüler zu dieser OGS-Gruppe hinzugefügt.
                                 </p>
-                                <p className="text-sm text-gray-500 mt-2">
-                                    Gesamtzahl gefundener Schüler: {students.length}
-                                </p>
+                                {allGroups.length > 1 && (
+                                    <p className="text-sm text-gray-500 mt-2">
+                                        Versuchen Sie eine andere Gruppe auszuwählen.
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -583,7 +799,7 @@ function OGSGroupPageContent() {
                                 50% { transform: translateY(-4px) rotate(var(--rotation)); }
                             }
                         `}</style>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6 max-w-5xl mx-auto">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3 gap-6">
                         {filteredStudents.map((student, index) => {
                             const locationStatus = getLocationStatus(student);
 
@@ -611,7 +827,7 @@ function OGSGroupPageContent() {
                                             {/* Student Name */}
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <h3 className="text-lg font-bold text-gray-800 break-words md:group-hover:text-blue-600 transition-colors duration-300">
+                                                    <h3 className="text-lg font-bold text-gray-800 whitespace-nowrap overflow-hidden text-ellipsis md:group-hover:text-blue-600 transition-colors duration-300">
                                                         {student.first_name}
                                                     </h3>
                                                     {/* Subtle integrated arrow */}
@@ -619,7 +835,7 @@ function OGSGroupPageContent() {
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                                     </svg>
                                                 </div>
-                                                <p className="text-base font-semibold text-gray-700 break-words md:group-hover:text-blue-500 transition-colors duration-300">
+                                                <p className="text-base font-semibold text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis md:group-hover:text-blue-500 transition-colors duration-300">
                                                     {student.second_name}
                                                 </p>
                                             </div>

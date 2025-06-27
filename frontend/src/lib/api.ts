@@ -436,15 +436,16 @@ export const studentService = {
         // Type assertion to avoid unsafe assignment
         const responseData = await response.json() as unknown;
         
-        // The route handler returns the raw backend data which needs mapping
+        // The route handler already maps the response to frontend format
+        // DO NOT call mapStudentDetailResponse as it would double-map the data
         if (responseData && typeof responseData === 'object') {
           // Check if it's wrapped in an ApiResponse
           if ('data' in responseData) {
-            const wrapped = responseData as { data: BackendStudentDetail };
-            return mapStudentDetailResponse(wrapped.data);
+            const wrapped = responseData as { data: Student };
+            return wrapped.data;
           } else {
-            // Direct response
-            return mapStudentDetailResponse(responseData as BackendStudentDetail);
+            // Direct response - already mapped by API route
+            return responseData as Student;
           }
         }
         

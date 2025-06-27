@@ -432,7 +432,7 @@ export const NAVIGATION_HELP: Record<string, { title: string; content: ReactNode
                         </div>
                         <div className="flex items-center space-x-2">
                             <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
-                            <span><strong>Zuhause:</strong> Kind wurde abgeholt oder ist abgemeldet</span>
+                            <span><strong>Zuhause:</strong> Kind wurde abgeholt oder ist zuhause</span>
                         </div>
                     </div>
                 </div>

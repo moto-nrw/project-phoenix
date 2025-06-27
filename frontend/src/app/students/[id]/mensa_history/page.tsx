@@ -114,7 +114,7 @@ export default function StudentMensaHistoryPage() {
                         id: "4",
                         date: "2025-05-11T12:00:00",
                         has_eaten: false,
-                        comment: "War an diesem Tag abwesend"
+                        comment: "War an diesem Tag zuhause"
                     },
                     {
                         id: "5",

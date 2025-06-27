@@ -69,7 +69,7 @@ export interface PrivacyConsent {
 }
 
 // Student attendance status enum (updated to use attendance-based terminology)
-export type StudentLocation = "Abwesend" | "Anwesend" | "Unknown";
+export type StudentLocation = "Zuhause" | "Anwesend" | "Unknown";
 
 // Frontend types (mapped from backend)
 export interface Student {
@@ -115,8 +115,8 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student {
     let current_location: StudentLocation = "Unknown";
     if (backendStudent.location && (backendStudent.location === "Anwesend" || backendStudent.location.startsWith("Anwesend"))) {
         current_location = "Anwesend";
-    } else if (backendStudent.location === "Abwesend") {
-        current_location = "Abwesend";
+    } else if (backendStudent.location === "Zuhause") {
+        current_location = "Zuhause";
     }
     
     const mapped = {
@@ -303,7 +303,7 @@ export function formatStudentStatus(student: Student): string {
     if (student.wc) return 'Toilette';
     if (student.school_yard) return 'Schulhof';
     if (student.bus) return 'Bus';
-    return 'Abwesend';
+    return 'Zuhause';
 }
 
 export function getStatusColor(student: Student): string {
