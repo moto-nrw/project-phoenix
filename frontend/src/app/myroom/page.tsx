@@ -311,7 +311,7 @@ function MeinRaumPageContent() {
 
     // Get unique group names for filter dropdown
     const availableGroups = Array.from(new Set(
-        students.map(student => student.group_name).filter(Boolean)
+        students.map(student => student.group_name).filter((name): name is string => Boolean(name))
     )).sort();
 
     // Helper function to get group status with enhanced design
