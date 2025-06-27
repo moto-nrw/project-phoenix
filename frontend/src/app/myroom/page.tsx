@@ -39,8 +39,9 @@ function MeinRaumPageContent() {
     // Check if user has access to active rooms
     const [hasAccess, setHasAccess] = useState<boolean | null>(null);
 
-    // State variables
-    const [activeRoom, setActiveRoom] = useState<ActiveRoom | null>(null);
+    // State variables for multiple rooms
+    const [allRooms, setAllRooms] = useState<ActiveRoom[]>([]);
+    const [selectedRoomIndex, setSelectedRoomIndex] = useState(0);
     const [students, setStudents] = useState<StudentWithVisit[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [groupFilter, setGroupFilter] = useState("all");
@@ -49,6 +50,12 @@ function MeinRaumPageContent() {
     
     // Mobile-specific state
     const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+    
+    // State for showing room selection (for 5+ rooms)
+    const [showRoomSelection, setShowRoomSelection] = useState(true);
+    
+    // Get current selected room
+    const currentRoom = allRooms[selectedRoomIndex] ?? null;
 
     // Check access and fetch active room data
     useEffect(() => {
@@ -68,53 +75,57 @@ function MeinRaumPageContent() {
 
                 setHasAccess(true);
 
-                // Use the first active group as the active room
-                const activeGroup = myActiveGroups[0];
-                
-                if (!activeGroup) {
-                    throw new Error('No active group found');
-                }
-
-                // Get room information from the active group
-                let roomName = activeGroup.room?.name;
-                
-                // If room name is not provided, fetch it separately using the room_id
-                if (!roomName && activeGroup.room_id) {
-                    try {
-                        // Fetch room information from the rooms API
-                        const roomResponse = await fetch(`/api/rooms/${activeGroup.room_id}`, {
-                            headers: {
-                                Authorization: `Bearer ${session?.user?.token}`,
-                                "Content-Type": "application/json",
-                            },
-                        });
-                        
-                        if (roomResponse.ok) {
-                            const roomData: { data?: { name?: string } } = await roomResponse.json() as { data?: { name?: string } };
-                            roomName = roomData.data?.name;
+                // Convert all active groups to ActiveRoom format
+                const activeRooms: ActiveRoom[] = await Promise.all(myActiveGroups.map(async (activeGroup) => {
+                    // Get room information from the active group
+                    let roomName = activeGroup.room?.name;
+                    
+                    // If room name is not provided, fetch it separately using the room_id
+                    if (!roomName && activeGroup.room_id) {
+                        try {
+                            // Fetch room information from the rooms API
+                            const roomResponse = await fetch(`/api/rooms/${activeGroup.room_id}`, {
+                                headers: {
+                                    Authorization: `Bearer ${session?.user?.token}`,
+                                    "Content-Type": "application/json",
+                                },
+                            });
+                            
+                            if (roomResponse.ok) {
+                                const roomData: { data?: { name?: string } } = await roomResponse.json() as { data?: { name?: string } };
+                                roomName = roomData.data?.name;
+                            }
+                        } catch (error) {
+                            console.error("Error fetching room name:", error);
                         }
-                    } catch (error) {
-                        console.error("Error fetching room name:", error);
                     }
-                }
-                
-                const activeRoomData: ActiveRoom = {
-                    id: activeGroup.id,
-                    name: activeGroup.name,
-                    room_name: roomName,
-                    room_id: activeGroup.room_id,
-                    student_count: 0, // Will be calculated from actual visits
-                    supervisor_name: undefined // Will be fetched separately if needed
-                };
+                    
+                    return {
+                        id: activeGroup.id,
+                        name: activeGroup.name,
+                        room_name: roomName,
+                        room_id: activeGroup.room_id,
+                        student_count: 0, // Will be calculated from actual visits
+                        supervisor_name: undefined // Will be fetched separately if needed
+                    };
+                }));
 
-                setActiveRoom(activeRoomData);
+
+                setAllRooms(activeRooms);
+
+                // Use the first active room
+                const firstRoom = activeRooms[0];
+                
+                if (!firstRoom) {
+                    throw new Error('No active room found');
+                }
 
                 // Fetch current visits for this active group to get students actually checked in
                 // Use getVisits with active filter instead of getActiveGroupVisits (which doesn't exist)
                 const allActiveVisits = await activeService.getVisits({ active: true });
                 
                 // Filter visits for this specific active group
-                const activeVisits = allActiveVisits.filter(visit => visit.activeGroupId === activeGroup.id);
+                const activeVisits = allActiveVisits.filter(visit => visit.activeGroupId === firstRoom.id);
                 
                 // Filter only active visits (students currently checked in)
                 const currentlyCheckedIn = activeVisits.filter(visit => visit.isActive);
@@ -172,7 +183,9 @@ function MeinRaumPageContent() {
                 setStudents(studentsFromVisits);
 
                 // Update room with actual student count
-                setActiveRoom(prev => prev ? { ...prev, student_count: studentsFromVisits.length } : null);
+                setAllRooms(prev => prev.map((room, idx) => 
+                    idx === 0 ? { ...room, student_count: studentsFromVisits.length } : room
+                ));
 
                 setError(null);
             } catch (err) {
@@ -192,6 +205,81 @@ function MeinRaumPageContent() {
             void checkAccessAndFetchData();
         }
     }, [session?.user?.token]);
+
+    // Function to switch between rooms
+    const switchToRoom = async (roomIndex: number) => {
+        if (roomIndex === selectedRoomIndex || !allRooms[roomIndex]) return;
+        
+        setIsLoading(true);
+        setSelectedRoomIndex(roomIndex);
+        setStudents([]); // Clear current students
+        
+        try {
+            const selectedRoom = allRooms[roomIndex];
+            
+            if (!selectedRoom) {
+                throw new Error('No active room found');
+            }
+            
+            // Fetch current visits for the selected room
+            const allActiveVisits = await activeService.getVisits({ active: true });
+            
+            // Filter visits for this specific active room
+            const activeVisits = allActiveVisits.filter(visit => visit.activeGroupId === selectedRoom.id);
+            
+            // Filter only active visits (students currently checked in)
+            const currentlyCheckedIn = activeVisits.filter(visit => visit.isActive);
+            
+            // Fetch complete student data using student IDs from visits
+            const studentPromises = currentlyCheckedIn.map(async (visit) => {
+                try {
+                    // Fetch full student record using the student ID
+                    const studentData = await fetchStudent(visit.studentId);
+                    
+                    // Add visit-specific information to the student data
+                    return {
+                        ...studentData,
+                        activeGroupId: visit.activeGroupId,
+                        checkInTime: visit.checkInTime
+                    };
+                } catch (error) {
+                    console.error(`Error fetching student ${visit.studentId}:`, error);
+                    // Fallback to parsing student name if API call fails
+                    const nameParts = visit.studentName?.split(' ') ?? ['', ''];
+                    const firstName = nameParts[0] ?? '';
+                    const lastName = nameParts.slice(1).join(' ') ?? '';
+                    
+                    return {
+                        id: visit.studentId,
+                        name: visit.studentName ?? '',
+                        first_name: firstName,
+                        second_name: lastName,
+                        school_class: '',
+                        current_location: 'Anwesend' as const,
+                        in_house: true,
+                        activeGroupId: visit.activeGroupId,
+                        checkInTime: visit.checkInTime
+                    };
+                }
+            });
+
+            const studentsFromVisits = await Promise.all(studentPromises);
+            
+            setStudents(studentsFromVisits);
+
+            // Update room with actual student count
+            setAllRooms(prev => prev.map((room, idx) => 
+                idx === roomIndex ? { ...room, student_count: studentsFromVisits.length } : room
+            ));
+
+            setError(null);
+        } catch (err) {
+            setError("Fehler beim Laden der Raumdaten.");
+            console.error("Error loading room data:", err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     // Apply filters to students (ensure students is an array)
     const filteredStudents = (Array.isArray(students) ? students : []).filter((student) => {
@@ -263,22 +351,150 @@ function MeinRaumPageContent() {
         return null;
     }
 
+    // Show room selection screen for 5+ rooms
+    if (allRooms.length >= 5 && showRoomSelection) {
+        return (
+            <ResponsiveLayout>
+                <div className="w-full max-w-6xl mx-auto px-4">
+                    <div className="mb-8">
+                        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">Wählen Sie Ihren Raum</h1>
+                        <p className="text-lg text-gray-600">Sie haben {allRooms.length} aktive Räume</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {allRooms.map((room, index) => (
+                            <button
+                                key={room.id}
+                                onClick={async () => {
+                                    await switchToRoom(index);
+                                    setShowRoomSelection(false);
+                                }}
+                                className="group bg-white rounded-2xl border-2 border-gray-200 p-6 
+                                         hover:border-[#5080D8] hover:shadow-lg transition-all duration-200
+                                         active:scale-95 text-left"
+                            >
+                                {/* Room Icon */}
+                                <div className="w-16 h-16 bg-gradient-to-br from-[#5080D8] to-[#83CD2D] 
+                                              rounded-xl mb-4 flex items-center justify-center
+                                              group-hover:scale-110 transition-transform duration-200">
+                                    <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                    </svg>
+                                </div>
+                                
+                                {/* Room Name */}
+                                <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-[#5080D8]">
+                                    {room.room_name ?? room.name}
+                                </h3>
+                                
+                                {/* Activity Name */}
+                                <div className="text-sm text-gray-600 mb-2">
+                                    Aktivität: {room.name}
+                                </div>
+                                
+                                {/* Student Count */}
+                                <div className="flex items-center gap-2 text-gray-600">
+                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                              d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                    </svg>
+                                    <span className="font-medium">{room.student_count ?? '...'} Schüler</span>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </ResponsiveLayout>
+        );
+    }
+
     return (
         <ResponsiveLayout>
-            <div className="max-w-7xl mx-auto">
-                {/* Simple Header */}
+            <div className="w-full">
+                {/* Header with Tab Navigation for Multiple Rooms */}
                 <div className="mb-6 md:mb-8">
-                    <div className="flex items-center justify-between">
-                        <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
-                            {activeRoom?.room_name ?? activeRoom?.name ?? "Mein Raum"}
-                        </h1>
-                        <div className="flex items-center gap-3 px-4 py-3 bg-gray-100 rounded-full">
-                            <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                            </svg>
-                            <span className="text-sm font-medium text-gray-700">{activeRoom?.student_count ?? 0}</span>
+                    {/* Show tabs only if there are 2-4 rooms */}
+                    {allRooms.length >= 2 && allRooms.length <= 4 ? (
+                        <>
+                            {/* Tab Navigation - Responsive Design */}
+                            <div className="mb-6">
+                                <style jsx>{`
+                                    .scrollbar-hide {
+                                        -ms-overflow-style: none;
+                                        scrollbar-width: none;
+                                    }
+                                    .scrollbar-hide::-webkit-scrollbar {
+                                        display: none;
+                                    }
+                                `}</style>
+                                <nav className="flex flex-col sm:flex-row gap-2 sm:gap-7 overflow-x-auto scrollbar-hide sm:px-4 sm:py-1">
+                                    {allRooms.map((room, index) => (
+                                        <button
+                                            key={room.id}
+                                            onClick={() => switchToRoom(index)}
+                                            className={`
+                                                flex items-center gap-3 rounded-2xl sm:rounded-2xl
+                                                font-semibold transition-all duration-200 
+                                                whitespace-nowrap flex-shrink-0 w-full sm:w-auto justify-between sm:justify-center
+                                                ${index === selectedRoomIndex
+                                                    ? 'px-4 sm:px-7 py-3 sm:py-4.5 text-lg sm:text-2xl bg-white text-gray-900 border-2 border-gray-300 shadow-sm sm:drop-shadow-sm sm:transform sm:scale-110 min-h-[52px] sm:min-h-[68px]'
+                                                    : 'px-4 py-2.5 sm:py-2 text-base bg-gray-50 border sm:border-2 border-gray-200 text-gray-600 sm:text-gray-500 hover:bg-gray-100 hover:border-gray-300 hover:text-gray-700 min-h-[44px] sm:min-h-[40px]'
+                                                }
+                                            `}
+                                        >
+                                            <span>{room.room_name ?? room.name}</span>
+                                            <div className={`
+                                                flex items-center gap-1.5 sm:gap-2 rounded-full
+                                                ${index === selectedRoomIndex
+                                                    ? 'px-3 sm:px-3.5 py-1 sm:py-1.5 bg-gray-100'
+                                                    : 'px-2.5 py-1 bg-gray-100 sm:bg-white'
+                                                }
+                                            `}>
+                                                <svg className={`${index === selectedRoomIndex ? 'h-4 w-4 sm:h-5 sm:w-5' : 'h-3.5 w-3.5'} text-gray-600`} 
+                                                     fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                                          d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                                </svg>
+                                                <span className={`font-bold ${index === selectedRoomIndex ? 'text-sm sm:text-base' : 'text-xs'} text-gray-700`}>
+                                                    {room.student_count ?? 0}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </nav>
+                            </div>
+                        </>
+                    ) : (
+                        /* Single room or 5+ rooms - show simple header */
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
+                                {currentRoom?.room_name ?? currentRoom?.name ?? "Mein Raum"}
+                            </h1>
+                            <div className="flex items-center gap-3">
+                                {allRooms.length >= 5 && (
+                                    <button
+                                        onClick={() => setShowRoomSelection(true)}
+                                        className="px-4 py-2 bg-white border border-gray-300 rounded-lg 
+                                                 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200
+                                                 flex items-center gap-2 text-gray-700"
+                                    >
+                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                                  d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                        </svg>
+                                        <span className="font-medium">Raum wechseln</span>
+                                    </button>
+                                )}
+                                <div className="flex items-center gap-3 px-4 py-3 bg-gray-100 rounded-full">
+                                    <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                    </svg>
+                                    <span className="text-sm font-medium text-gray-700">{currentRoom?.student_count ?? 0}</span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 {/* Mobile Search - Minimalistic Design */}
@@ -476,7 +692,7 @@ function MeinRaumPageContent() {
                                 50% { transform: translateY(-4px) rotate(var(--rotation)); }
                             }
                         `}</style>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-6 max-w-5xl mx-auto">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3 gap-6">
                         {filteredStudents.map((student, index) => {
                             const groupStatus = getGroupStatus(student);
 
@@ -484,18 +700,18 @@ function MeinRaumPageContent() {
                                 <div
                                     key={student.id}
                                     onClick={() => router.push(`/students/${student.id}?from=/myroom`)}
-                                    className={`group cursor-pointer relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.03] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-3 active:scale-[0.97] md:hover:border-blue-200/50`}
+                                    className={`group cursor-pointer relative overflow-hidden rounded-2xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.03] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-3 active:scale-[0.97] md:hover:border-blue-200/50`}
                                     style={{
                                         transform: `rotate(${(index % 3 - 1) * 0.8}deg)`,
                                         animation: `float 8s ease-in-out infinite ${index * 0.7}s`
                                     }}
                                 >
                                     {/* Modern gradient overlay */}
-                                    <div className={`absolute inset-0 bg-gradient-to-br ${groupStatus.cardGradient} opacity-[0.03] rounded-3xl`}></div>
+                                    <div className={`absolute inset-0 bg-gradient-to-br ${groupStatus.cardGradient} opacity-[0.03] rounded-2xl`}></div>
                                     {/* Subtle inner glow */}
-                                    <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                                    <div className="absolute inset-px rounded-2xl bg-gradient-to-br from-white/80 to-white/20"></div>
                                     {/* Modern border highlight */}
-                                    <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 md:group-hover:ring-blue-200/60 transition-all duration-300"></div>
+                                    <div className="absolute inset-0 rounded-2xl ring-1 ring-white/20 md:group-hover:ring-blue-200/60 transition-all duration-300"></div>
                                     
 
                                     <div className="relative p-6">
@@ -504,7 +720,7 @@ function MeinRaumPageContent() {
                                             {/* Student Name */}
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <h3 className="text-lg font-bold text-gray-800 md:group-hover:text-blue-600 transition-colors duration-300 break-words">
+                                                    <h3 className="text-lg font-bold text-gray-800 md:group-hover:text-blue-600 transition-colors duration-300 whitespace-nowrap overflow-hidden text-ellipsis">
                                                         {student.first_name}
                                                     </h3>
                                                     {/* Subtle integrated arrow */}
@@ -512,7 +728,7 @@ function MeinRaumPageContent() {
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                                     </svg>
                                                 </div>
-                                                <p className="text-base font-semibold text-gray-700 md:group-hover:text-blue-500 transition-colors duration-300 break-words">
+                                                <p className="text-base font-semibold text-gray-700 md:group-hover:text-blue-500 transition-colors duration-300 whitespace-nowrap overflow-hidden text-ellipsis">
                                                     {student.second_name}
                                                 </p>
                                             </div>
@@ -543,7 +759,7 @@ function MeinRaumPageContent() {
                                     </div>
 
                                     {/* Glowing border effect */}
-                                    <div className="absolute inset-0 rounded-3xl opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent via-blue-100/30 to-transparent"></div>
+                                    <div className="absolute inset-0 rounded-2xl opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent via-blue-100/30 to-transparent"></div>
                                 </div>
                             );
                         })}

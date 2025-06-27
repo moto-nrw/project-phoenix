@@ -118,6 +118,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	// Initialize facilities service
 	facilitiesService := facilities.NewService(
 		repos.Room,
+		repos.ActiveGroup,
 		db,
 	)
 

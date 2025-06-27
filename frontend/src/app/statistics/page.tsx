@@ -314,7 +314,7 @@ export default function StatisticsPage() {
                                             </svg>
                                         </div>
                                         <p className="text-2xl font-bold text-red-800">{schoolStats?.absentStudents}</p>
-                                        <p className="text-sm text-red-700">Abwesend</p>
+                                        <p className="text-sm text-red-700">Zuhause</p>
                                     </div>
                                 </div>
 
@@ -445,7 +445,7 @@ export default function StatisticsPage() {
                                         <circle cx="600" cy="30" r="4" fill="#4F46E5" />
                                         <text x="610" y="34" fill="#111827" fontSize="12">Anwesend</text>
                                         <circle cx="680" cy="30" r="4" fill="#EF4444" />
-                                        <text x="690" y="34" fill="#111827" fontSize="12">Abwesend</text>
+                                        <text x="690" y="34" fill="#111827" fontSize="12">Zuhause</text>
                                     </svg>
                                 </div>
                             </div>

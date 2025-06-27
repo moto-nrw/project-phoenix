@@ -19,7 +19,7 @@ const statusConfig: Record<StatusType, {
   },
   absent: {
     variant: "gray",
-    defaultLabel: "Abwesend",
+    defaultLabel: "Zuhause",
   },
   account: {
     variant: "green",

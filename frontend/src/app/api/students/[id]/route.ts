@@ -42,6 +42,7 @@ interface StudentResponseFromBackend {
 export const GET = createGetHandler(async (_request: NextRequest, token: string, params: Record<string, unknown>) => {
   const id = params.id as string;
   
+  
   if (!id) {
     throw new Error('Student ID is required');
   }
@@ -51,6 +52,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     // Using unknown type and will validate structure
     const response = await apiGet<unknown>(`/api/students/${id}`, token);
     
+    
     // Type guard to check response structure
     if (!response || typeof response !== 'object' || !('data' in response)) {
       console.warn("API returned invalid response for student");
@@ -59,9 +61,31 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     
     const typedResponse = response as { data: unknown };
     
+    
+    // Define type for backend student data
+    interface BackendStudentData {
+        last_name?: string;
+        name?: string;
+        first_name?: string;
+        [key: string]: unknown;
+    }
+    
     // Map the backend response to frontend format
-    const studentData = typedResponse.data as BackendStudent;
-    const mappedStudent = mapStudentResponse(studentData);
+    const studentData = typedResponse.data as BackendStudentData;
+    
+    // Check if we need to extract last_name from the name field
+    if (!studentData.last_name && studentData.name) {
+        // Split the name to extract first and last name
+        const nameParts = studentData.name.split(' ');
+        if (nameParts.length > 1) {
+            // If first_name matches the first part, the rest is the last name
+            if (studentData.first_name === nameParts[0]) {
+                studentData.last_name = nameParts.slice(1).join(' ');
+            }
+        }
+    }
+    
+    const mappedStudent = mapStudentResponse(studentData as unknown as BackendStudent);
     
     // Fetch privacy consent data
     try {
@@ -81,7 +105,6 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       // No privacy consent found, use defaults
     }
     
-    // Return student with default privacy consent values if not found
     return {
       ...mappedStudent,
       privacy_consent_accepted: false,

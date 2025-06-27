@@ -974,13 +974,14 @@ type DeviceActivityResponse struct {
 
 // DeviceRoomResponse represents a room available for RFID device selection
 type DeviceRoomResponse struct {
-	ID       int64  `json:"id"`
-	Name     string `json:"name"`
-	Building string `json:"building,omitempty"`
-	Floor    int    `json:"floor"`
-	Capacity int    `json:"capacity"`
-	Category string `json:"category"`
-	Color    string `json:"color"`
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	Building   string `json:"building,omitempty"`
+	Floor      int    `json:"floor"`
+	Capacity   int    `json:"capacity"`
+	Category   string `json:"category"`
+	Color      string `json:"color"`
+	IsOccupied bool   `json:"is_occupied"`
 }
 
 // RFIDTagAssignmentResponse represents RFID tag assignment status
@@ -1491,8 +1492,8 @@ func (rs *Resource) getAvailableRoomsForDevice(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	// Get available rooms from facility service
-	rooms, err := rs.FacilityService.GetAvailableRooms(r.Context(), capacity)
+	// Get available rooms with occupancy status from facility service
+	roomsWithOccupancy, err := rs.FacilityService.GetAvailableRoomsWithOccupancy(r.Context(), capacity)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1501,9 +1502,11 @@ func (rs *Resource) getAvailableRoomsForDevice(w http.ResponseWriter, r *http.Re
 	}
 
 	// Convert to device response format
-	responses := make([]DeviceRoomResponse, 0, len(rooms))
-	for _, room := range rooms {
-		responses = append(responses, newDeviceRoomResponse(room))
+	responses := make([]DeviceRoomResponse, 0, len(roomsWithOccupancy))
+	for _, roomWithOccupancy := range roomsWithOccupancy {
+		response := newDeviceRoomResponse(roomWithOccupancy.Room)
+		response.IsOccupied = roomWithOccupancy.IsOccupied
+		responses = append(responses, response)
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Available rooms retrieved successfully")

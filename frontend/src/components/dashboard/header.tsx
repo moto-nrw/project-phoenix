@@ -47,7 +47,7 @@ function getPageTitle(pathname: string): string {
         case "/students":
             return "Schüler";
         case "/students/search":
-            return "Schüler Suche";
+            return "Suche";
         case "/rooms":
             return "Räume";
         case "/activities":
