@@ -56,7 +56,9 @@ function FilterControl({ filter }: { filter: FilterConfig }) {
 
 function DropdownFilter({ filter, showIcons = false }: { filter: FilterConfig; showIcons?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState<'left' | 'right'>('left');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -69,11 +71,28 @@ function DropdownFilter({ filter, showIcons = false }: { filter: FilterConfig; s
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Calculate dropdown position when opening
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const buttonRect = buttonRef.current.getBoundingClientRect();
+      const dropdownWidth = 192; // w-48 = 12rem = 192px
+      const windowWidth = window.innerWidth;
+      
+      // Check if dropdown would overflow on the right
+      if (buttonRect.left + dropdownWidth > windowWidth - 16) { // 16px margin
+        setDropdownPosition('right');
+      } else {
+        setDropdownPosition('left');
+      }
+    }
+  }, [isOpen]);
+
   const selectedOption = filter.options.find(opt => opt.value === filter.value);
 
   return (
     <div className="relative" ref={dropdownRef}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={`
@@ -101,7 +120,9 @@ function DropdownFilter({ filter, showIcons = false }: { filter: FilterConfig; s
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50">
+        <div className={`absolute top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50 ${
+          dropdownPosition === 'right' ? 'right-0' : 'left-0'
+        }`}>
           {filter.options.map((option) => (
             <button
               key={option.value}

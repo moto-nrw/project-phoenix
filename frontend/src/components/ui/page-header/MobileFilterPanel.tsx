@@ -65,6 +65,33 @@ export function MobileFilterPanel({
           </div>
         );
 
+      case 'dropdown':
+        return (
+          <div className="space-y-1">
+            {filter.options.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => filter.onChange(option.value)}
+                className={`
+                  w-full text-left py-2 px-3 rounded-lg text-sm font-medium transition-all
+                  ${filter.value === option.value 
+                    ? 'bg-gray-900 text-white' 
+                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                  }
+                `}
+              >
+                {option.label}
+                {option.count !== undefined && (
+                  <span className={`ml-2 text-xs ${filter.value === option.value ? 'text-gray-300' : 'text-gray-500'}`}>
+                    ({option.count})
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        );
+
       default:
         return null;
     }
