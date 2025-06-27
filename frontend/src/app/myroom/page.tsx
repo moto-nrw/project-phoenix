@@ -688,7 +688,7 @@ function MeinRaumPageContent() {
                             <div className="flex gap-2 flex-wrap">
                                 {searchTerm && (
                                     <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                                        "{searchTerm}"
+                                        &quot;{searchTerm}&quot;
                                         <button onClick={() => setSearchTerm("")} className="hover:text-blue-900">
                                             <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

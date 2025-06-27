@@ -238,7 +238,7 @@ function SearchPageContent() {
                   onClick={() => setSelectedGroup("")}
                   className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium"
                 >
-                  {groups.find(g => g.id === selectedGroup)?.name || selectedGroup}
+                  {groups.find(g => g.id === selectedGroup)?.name ?? selectedGroup}
                   <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -464,7 +464,7 @@ function SearchPageContent() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                   <span className="text-sm font-medium">
-                    {selectedGroup ? groups.find(g => g.id === selectedGroup)?.name || "Gruppe" : "Alle Gruppen"}
+                    {selectedGroup ? groups.find(g => g.id === selectedGroup)?.name ?? "Gruppe" : "Alle Gruppen"}
                   </span>
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -577,7 +577,7 @@ function SearchPageContent() {
               <div className="flex gap-2 flex-wrap">
                 {searchTerm && (
                   <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                    "{searchTerm}"
+                    &quot;{searchTerm}&quot;
                     <button onClick={() => setSearchTerm("")} className="hover:text-blue-900">
                       <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -587,7 +587,7 @@ function SearchPageContent() {
                 )}
                 {selectedGroup && (
                   <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                    {groups.find(g => g.id === selectedGroup)?.name || "Gruppe"}
+                    {groups.find(g => g.id === selectedGroup)?.name ?? "Gruppe"}
                     <button onClick={() => setSelectedGroup("")} className="hover:text-blue-900">
                       <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
