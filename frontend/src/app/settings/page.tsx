@@ -167,9 +167,10 @@ function SettingsContent() {
   return (
     <>
       {/* Header */}
-      <div className="mb-6 md:mb-8">
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Einstellungen</h1>
-        <p className="mt-2 text-gray-600">Persönliche Einstellungen verwalten</p>
+      <div className="mb-6">
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-[1.625rem] md:text-3xl font-bold text-gray-900">Einstellungen</h1>
+        </div>
       </div>
 
       {/* Mobile: Accordion Style */}

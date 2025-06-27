@@ -165,257 +165,457 @@ function SearchPageContent() {
   return (
     <ResponsiveLayout>
       <div className="w-full">
-        {/* Simple Header */}
-        <div className="mb-6 md:mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Schülersuche</h1>
-        </div>
-
-        {/* Mobile Search - Minimalistic Design */}
-        <div className="mb-4 md:hidden">
-          {/* Search Input */}
-          <div className="relative mb-3">
-            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Schüler suchen..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors text-base"
-            />
-          </div>
-
-          {/* Filter Toggle Button */}
-          <div className="flex justify-between items-center mb-3">
-            <button
-              onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
-              className="flex items-center gap-2 text-base text-blue-600 font-medium py-2"
-            >
-              <svg className={`h-5 w-5 transition-transform duration-200 ${isMobileFiltersOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-              {isMobileFiltersOpen ? 'Filter ausblenden' : 'Filter anzeigen'}
-            </button>
-            {(selectedGroup || selectedYear !== "all" || attendanceFilter !== "all") && (
-              <button
-                onClick={() => {
-                  setSelectedGroup("");
-                  setSelectedYear("all");
-                  setAttendanceFilter("all");
-                }}
-                className="text-sm text-gray-500"
-              >
-                Alle löschen
-              </button>
-            )}
-          </div>
-
-          {/* Collapsible Filter Dropdowns */}
-          {isMobileFiltersOpen && (
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div className="relative">
-                <select
-                  value={selectedGroup}
-                  onChange={(e) => setSelectedGroup(e.target.value)}
-                  className="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base appearance-none"
-                >
-                  <option value="">Alle Gruppen</option>
-                  {groups.map(group => (
-                    <option key={group.id} value={group.id}>{group.name}</option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                  <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-
-              <div className="relative">
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base appearance-none"
-                >
-                  <option value="all">Alle Jahre</option>
-                  <option value="1">Jahr 1</option>
-                  <option value="2">Jahr 2</option>
-                  <option value="3">Jahr 3</option>
-                  <option value="4">Jahr 4</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                  <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-
-              <div className="relative col-span-2">
-                <select
-                  value={attendanceFilter}
-                  onChange={(e) => setAttendanceFilter(e.target.value)}
-                  className="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base appearance-none"
-                >
-                  <option value="all">Alle Status</option>
-                  <option value="anwesend">Anwesend</option>
-                  <option value="abwesend">Zuhause</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                  <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Active Filters Bar */}
-          {(searchTerm || selectedGroup || selectedYear !== "all" || attendanceFilter !== "all") && (
-            <div className="flex items-center justify-between text-sm text-gray-600">
-              <span>
-                {(() => {
-                  const activeFilters = [];
-                  if (searchTerm) activeFilters.push(`Suche: "${searchTerm}"`);
-                  if (selectedGroup) {
-                    const groupName = groups.find(g => g.id === selectedGroup)?.name;
-                    activeFilters.push(`Gruppe: ${groupName ?? selectedGroup}`);
-                  }
-                  if (selectedYear !== "all") activeFilters.push(`Jahr ${selectedYear}`);
-                  if (attendanceFilter !== "all") {
-                    const statusLabels: Record<string, string> = {
-                      "anwesend": "Anwesend",
-                      "abwesend": "Zuhause"
-                    };
-                    activeFilters.push(statusLabels[attendanceFilter] ?? attendanceFilter);
-                  }
-                  
-                  if (activeFilters.length === 1) {
-                    return `1 Filter aktiv: ${activeFilters[0]}`;
-                  } else {
-                    return `${activeFilters.length} Filter aktiv: ${activeFilters.join(", ")}`;
-                  }
-                })()}
-              </span>
-              <button
-                onClick={() => {
-                  setSearchTerm("");
-                  setSelectedGroup("");
-                  setSelectedYear("all");
-                  setAttendanceFilter("all");
-                }}
-                className="text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Zurücksetzen
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Desktop Search & Filter - Minimalistic */}
-        <div className="hidden md:block mb-4">
-          <div className="flex items-center gap-3">
-            {/* Search Input */}
-            <div className="flex-1">
-              <div className="relative">
-                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        {/* Modern Header with Clean Navigation */}
+        <div className="mb-6">
+          {/* Title Section */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between gap-4">
+              <h1 className="text-[1.625rem] md:text-3xl font-bold text-gray-900">
+                Schülersuche
+              </h1>
+              {/* Result Count Badge */}
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
+                <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                        d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
-                <input
-                  type="text"
-                  placeholder="Schüler suchen..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                />
-              </div>
-            </div>
-
-            {/* Filter Dropdowns */}
-            <div className="relative">
-              <select
-                value={selectedGroup}
-                onChange={(e) => setSelectedGroup(e.target.value)}
-                className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm min-w-[140px] appearance-none"
-              >
-                <option value="">Alle Gruppen</option>
-                {groups.map(group => (
-                  <option key={group.id} value={group.id}>{group.name}</option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </div>
-            </div>
-
-            <div className="relative">
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm min-w-[120px] appearance-none"
-              >
-                <option value="all">Alle Jahre</option>
-                <option value="1">Jahr 1</option>
-                <option value="2">Jahr 2</option>
-                <option value="3">Jahr 3</option>
-                <option value="4">Jahr 4</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </div>
-            </div>
-
-            <div className="relative">
-              <select
-                value={attendanceFilter}
-                onChange={(e) => setAttendanceFilter(e.target.value)}
-                className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm min-w-[130px] appearance-none"
-              >
-                <option value="all">Alle Status</option>
-                <option value="anwesend">Anwesend</option>
-                <option value="abwesend">Zuhause</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          {/* Active Filters Bar */}
-          {(searchTerm || selectedGroup || selectedYear !== "all" || attendanceFilter !== "all") && (
-            <div className="mt-3 flex items-center justify-between text-sm text-gray-600">
-              <div className="flex items-center gap-2">
-                <span>
-                  {(() => {
-                    const activeFilters = [];
-                    if (searchTerm) activeFilters.push(`Suche: "${searchTerm}"`);
-                    if (selectedGroup) {
-                      const groupName = groups.find(g => g.id === selectedGroup)?.name;
-                      activeFilters.push(`Gruppe: ${groupName ?? selectedGroup}`);
-                    }
-                    if (selectedYear !== "all") activeFilters.push(`Jahr ${selectedYear}`);
-                    if (attendanceFilter !== "all") {
-                      const statusLabels: Record<string, string> = {
-                        "anwesend": "Anwesend",
-                        "abwesend": "Zuhause"
-                      };
-                      activeFilters.push(statusLabels[attendanceFilter] ?? attendanceFilter);
-                    }
-                    
-                    if (activeFilters.length === 1) {
-                      return `1 Filter aktiv: ${activeFilters[0]}`;
-                    } else {
-                      return `${activeFilters.length} Filter aktiv: ${activeFilters.join(", ")}`;
-                    }
-                  })()}
+                <span className="text-sm font-medium text-gray-700">
+                  {filteredStudents.length}
                 </span>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Search & Filters - Modern Minimal Design */}
+        <div className="mb-6 md:hidden">
+          {/* Search Input with Integrated Filter Button */}
+          <div className="flex gap-2 mb-3">
+            <div className="relative flex-1">
+              <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Name suchen..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <svg className="h-3.5 w-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
+              className={`
+                p-2.5 rounded-2xl transition-all duration-200
+                ${isMobileFiltersOpen 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                }
+                ${(selectedGroup || selectedYear !== "all" || attendanceFilter !== "all") ? 'ring-2 ring-blue-500 ring-offset-1' : ''}
+              `}
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            </button>
+          </div>
+
+          {/* Active Filter Chips */}
+          {(selectedGroup || selectedYear !== "all" || attendanceFilter !== "all") && (
+            <div className="flex gap-2 mb-3 flex-wrap">
+              {selectedGroup && (
+                <button
+                  onClick={() => setSelectedGroup("")}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium"
+                >
+                  {groups.find(g => g.id === selectedGroup)?.name || selectedGroup}
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+              {selectedYear !== "all" && (
+                <button
+                  onClick={() => setSelectedYear("all")}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium"
+                >
+                  Jahr {selectedYear}
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+              {attendanceFilter !== "all" && (
+                <button
+                  onClick={() => setAttendanceFilter("all")}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium"
+                >
+                  {attendanceFilter === "anwesend" ? "Anwesend" : "Zuhause"}
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Expandable Filter Panel */}
+          {isMobileFiltersOpen && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-3 shadow-sm">
+              <div className="space-y-3">
+                {/* Year Filter */}
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1.5 block">Klassenstufe</label>
+                  <div className="grid grid-cols-5 gap-1.5">
+                    <button
+                      onClick={() => setSelectedYear("all")}
+                      className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+                        selectedYear === "all" 
+                          ? 'bg-gray-900 text-white' 
+                          : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      Alle
+                    </button>
+                    {['1', '2', '3', '4'].map((year) => (
+                      <button
+                        key={year}
+                        onClick={() => setSelectedYear(year)}
+                        className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+                          selectedYear === year 
+                            ? 'bg-gray-900 text-white' 
+                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        {year}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Group Filter */}
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1.5 block">Gruppe</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setSelectedGroup("")}
+                      className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+                        selectedGroup === "" 
+                          ? 'bg-gray-900 text-white' 
+                          : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      Alle Gruppen
+                    </button>
+                    {groups.slice(0, 5).map((group) => (
+                      <button
+                        key={group.id}
+                        onClick={() => setSelectedGroup(group.id)}
+                        className={`py-2 px-3 rounded-lg text-sm font-medium transition-all text-left ${
+                          selectedGroup === group.id 
+                            ? 'bg-gray-900 text-white' 
+                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        {group.name}
+                      </button>
+                    ))}
+                    {groups.length > 5 && (
+                      <div className="col-span-2 text-center text-xs text-gray-500 py-1">
+                        +{groups.length - 5} weitere Gruppen
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Status Filter */}
+                <div>
+                  <label className="text-xs font-medium text-gray-600 mb-1.5 block">Anwesenheit</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => setAttendanceFilter("all")}
+                      className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+                        attendanceFilter === "all" 
+                          ? 'bg-gray-900 text-white' 
+                          : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      Alle
+                    </button>
+                    <button
+                      onClick={() => setAttendanceFilter("anwesend")}
+                      className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+                        attendanceFilter === "anwesend" 
+                          ? 'bg-gray-900 text-white' 
+                          : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      Anwesend
+                    </button>
+                    <button
+                      onClick={() => setAttendanceFilter("abwesend")}
+                      className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+                        attendanceFilter === "abwesend" 
+                          ? 'bg-gray-900 text-white' 
+                          : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      Zuhause
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filter Actions */}
+              <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
+                <button
+                  onClick={() => {
+                    setSelectedGroup("");
+                    setSelectedYear("all");
+                    setAttendanceFilter("all");
+                  }}
+                  className="flex-1 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  Zurücksetzen
+                </button>
+                <button
+                  onClick={() => setIsMobileFiltersOpen(false)}
+                  className="flex-1 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors"
+                >
+                  Fertig
+                </button>
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* Desktop Search & Filter - Modern Minimal Design */}
+        <div className="hidden md:block mb-6">
+          <div className="flex items-center gap-3 mb-3">
+            {/* Search Input */}
+            <div className="flex-1 relative">
+              <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Name suchen..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* Filter Buttons */}
+            <div className="flex gap-2">
+              {/* Year Filter */}
+              <div className="flex bg-white rounded-xl p-1 shadow-sm h-10">
+                {['all', '1', '2', '3', '4'].map((year) => (
+                  <button
+                    key={year}
+                    onClick={() => setSelectedYear(year)}
+                    className={`
+                      px-3 rounded-lg text-sm font-medium transition-all
+                      ${selectedYear === year 
+                        ? 'bg-gray-900 text-white' 
+                        : 'text-gray-600 hover:text-gray-900'
+                      }
+                    `}
+                  >
+                    {year === 'all' ? 'Alle' : year}
+                  </button>
+                ))}
+              </div>
+
+              {/* Group Filter Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
+                  className={`
+                    flex items-center gap-2 px-4 h-10 rounded-xl transition-all shadow-sm
+                    ${selectedGroup !== "" 
+                      ? 'bg-gray-900 text-white' 
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }
+                  `}
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  <span className="text-sm font-medium">
+                    {selectedGroup ? groups.find(g => g.id === selectedGroup)?.name || "Gruppe" : "Alle Gruppen"}
+                  </span>
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {/* Dropdown Menu */}
+                {isMobileFiltersOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-10 max-h-80 overflow-y-auto">
+                    <button
+                      onClick={() => {
+                        setSelectedGroup("");
+                        setIsMobileFiltersOpen(false);
+                      }}
+                      className={`
+                        w-full text-left px-4 py-2 text-sm transition-colors
+                        ${selectedGroup === "" 
+                          ? 'bg-gray-100 text-gray-900 font-medium' 
+                          : 'text-gray-700 hover:bg-gray-50'
+                        }
+                      `}
+                    >
+                      Alle Gruppen
+                    </button>
+                    {groups.map(group => (
+                      <button
+                        key={group.id}
+                        onClick={() => {
+                          setSelectedGroup(group.id);
+                          setIsMobileFiltersOpen(false);
+                        }}
+                        className={`
+                          w-full text-left px-4 py-2 text-sm transition-colors
+                          ${selectedGroup === group.id 
+                            ? 'bg-gray-100 text-gray-900 font-medium' 
+                            : 'text-gray-700 hover:bg-gray-50'
+                          }
+                        `}
+                      >
+                        {group.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Status Filter Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    // Toggle a separate state for attendance dropdown
+                    const element = document.getElementById('attendance-dropdown');
+                    if (element) {
+                      element.classList.toggle('hidden');
+                    }
+                  }}
+                  className={`
+                    flex items-center gap-2 px-4 h-10 rounded-xl transition-all shadow-sm
+                    ${attendanceFilter !== "all" 
+                      ? 'bg-gray-900 text-white' 
+                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }
+                  `}
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm font-medium">
+                    {attendanceFilter === "all" && "Alle Status"}
+                    {attendanceFilter === "anwesend" && "Anwesend"}
+                    {attendanceFilter === "abwesend" && "Zuhause"}
+                  </span>
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {/* Dropdown Menu */}
+                <div id="attendance-dropdown" className="hidden absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-10">
+                  {[
+                    { value: "all", label: "Alle Status" },
+                    { value: "anwesend", label: "Anwesend" },
+                    { value: "abwesend", label: "Zuhause" }
+                  ].map((status) => (
+                    <button
+                      key={status.value}
+                      onClick={() => {
+                        setAttendanceFilter(status.value);
+                        document.getElementById('attendance-dropdown')?.classList.add('hidden');
+                      }}
+                      className={`
+                        w-full text-left px-4 py-2 text-sm transition-colors
+                        ${attendanceFilter === status.value 
+                          ? 'bg-gray-100 text-gray-900 font-medium' 
+                          : 'text-gray-700 hover:bg-gray-50'
+                        }
+                      `}
+                    >
+                      {status.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Active Filter Chips */}
+          {(searchTerm || selectedGroup || selectedYear !== "all" || attendanceFilter !== "all") && (
+            <div className="flex items-center justify-between">
+              <div className="flex gap-2 flex-wrap">
+                {searchTerm && (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                    "{searchTerm}"
+                    <button onClick={() => setSearchTerm("")} className="hover:text-blue-900">
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                )}
+                {selectedGroup && (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                    {groups.find(g => g.id === selectedGroup)?.name || "Gruppe"}
+                    <button onClick={() => setSelectedGroup("")} className="hover:text-blue-900">
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                )}
+                {selectedYear !== "all" && (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                    Jahr {selectedYear}
+                    <button onClick={() => setSelectedYear("all")} className="hover:text-blue-900">
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                )}
+                {attendanceFilter !== "all" && (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                    {attendanceFilter === "anwesend" ? "Anwesend" : "Zuhause"}
+                    <button onClick={() => setAttendanceFilter("all")} className="hover:text-blue-900">
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                )}
+              </div>
               <button
                 onClick={() => {
                   setSearchTerm("");
@@ -423,9 +623,9 @@ function SearchPageContent() {
                   setSelectedYear("all");
                   setAttendanceFilter("all");
                 }}
-                className="text-blue-600 hover:text-blue-700 font-medium"
+                className="text-sm text-gray-500 hover:text-gray-700 font-medium transition-colors"
               >
-                Filter zurücksetzen
+                Alle zurücksetzen
               </button>
             </div>
           )}

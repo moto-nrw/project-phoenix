@@ -412,247 +412,309 @@ function MeinRaumPageContent() {
     return (
         <ResponsiveLayout>
             <div className="w-full">
-                {/* Header with Tab Navigation for Multiple Rooms */}
-                <div className="mb-6 md:mb-8">
-                    {/* Show tabs only if there are 2-4 rooms */}
-                    {allRooms.length >= 2 && allRooms.length <= 4 ? (
-                        <>
-                            {/* Tab Navigation - Responsive Design */}
-                            <div className="mb-6">
-                                <style jsx>{`
-                                    .scrollbar-hide {
-                                        -ms-overflow-style: none;
-                                        scrollbar-width: none;
-                                    }
-                                    .scrollbar-hide::-webkit-scrollbar {
-                                        display: none;
-                                    }
-                                `}</style>
-                                <nav className="flex flex-col sm:flex-row gap-2 sm:gap-7 overflow-x-auto scrollbar-hide sm:px-4 sm:py-1">
-                                    {allRooms.map((room, index) => (
-                                        <button
-                                            key={room.id}
-                                            onClick={() => switchToRoom(index)}
-                                            className={`
-                                                flex items-center gap-3 rounded-2xl sm:rounded-2xl
-                                                font-semibold transition-all duration-200 
-                                                whitespace-nowrap flex-shrink-0 w-full sm:w-auto justify-between sm:justify-center
-                                                ${index === selectedRoomIndex
-                                                    ? 'px-4 sm:px-7 py-3 sm:py-4.5 text-lg sm:text-2xl bg-white text-gray-900 border-2 border-gray-300 shadow-sm sm:drop-shadow-sm sm:transform sm:scale-110 min-h-[52px] sm:min-h-[68px]'
-                                                    : 'px-4 py-2.5 sm:py-2 text-base bg-gray-50 border sm:border-2 border-gray-200 text-gray-600 sm:text-gray-500 hover:bg-gray-100 hover:border-gray-300 hover:text-gray-700 min-h-[44px] sm:min-h-[40px]'
-                                                }
-                                            `}
-                                        >
-                                            <span>{room.room_name ?? room.name}</span>
-                                            <div className={`
-                                                flex items-center gap-1.5 sm:gap-2 rounded-full
-                                                ${index === selectedRoomIndex
-                                                    ? 'px-3 sm:px-3.5 py-1 sm:py-1.5 bg-gray-100'
-                                                    : 'px-2.5 py-1 bg-gray-100 sm:bg-white'
-                                                }
-                                            `}>
-                                                <svg className={`${index === selectedRoomIndex ? 'h-4 w-4 sm:h-5 sm:w-5' : 'h-3.5 w-3.5'} text-gray-600`} 
-                                                     fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                                                          d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                                                </svg>
-                                                <span className={`font-bold ${index === selectedRoomIndex ? 'text-sm sm:text-base' : 'text-xs'} text-gray-700`}>
-                                                    {room.student_count ?? 0}
-                                                </span>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </nav>
-                            </div>
-                        </>
-                    ) : (
-                        /* Single room or 5+ rooms - show simple header */
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                            <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
+                {/* Modern Header with Clean Navigation */}
+                <div className="mb-6">
+                    {/* Title Section */}
+                    <div className="mb-4">
+                        <div className="flex items-center justify-between gap-4">
+                            <h1 className="text-[1.625rem] md:text-3xl font-bold text-gray-900">
                                 {currentRoom?.room_name ?? currentRoom?.name ?? "Mein Raum"}
                             </h1>
-                            <div className="flex items-center gap-3">
+                            {/* Student Count Badge */}
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
+                                <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                          d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                </svg>
+                                <span className="text-sm font-medium text-gray-700">
+                                    {currentRoom?.student_count ?? 0}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Room Navigation */}
+                    {allRooms.length > 1 && (
+                        <div className="mb-4">
+                            <nav className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                {/* Show room buttons for 2-4 rooms */}
+                                {allRooms.length <= 4 && allRooms.map((room, index) => (
+                                    <button
+                                        key={room.id}
+                                        onClick={() => switchToRoom(index)}
+                                        className={`
+                                            px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200
+                                            whitespace-nowrap flex-shrink-0
+                                            ${index === selectedRoomIndex 
+                                                ? 'bg-gray-900 text-white shadow-sm' 
+                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                                            }
+                                        `}
+                                    >
+                                        {room.room_name ?? room.name}
+                                    </button>
+                                ))}
+                                {/* Show More Button for 5+ Rooms */}
                                 {allRooms.length >= 5 && (
                                     <button
                                         onClick={() => setShowRoomSelection(true)}
-                                        className="px-4 py-2 bg-white border border-gray-300 rounded-lg 
-                                                 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200
-                                                 flex items-center gap-2 text-gray-700"
+                                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl
+                                                 bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900
+                                                 text-sm font-medium transition-all duration-200
+                                                 whitespace-nowrap flex-shrink-0"
                                     >
-                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                                                   d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                                         </svg>
-                                        <span className="font-medium">Raum wechseln</span>
+                                        <span>Raum wechseln</span>
                                     </button>
                                 )}
-                                <div className="flex items-center gap-3 px-4 py-3 bg-gray-100 rounded-full">
-                                    <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                                    </svg>
-                                    <span className="text-sm font-medium text-gray-700">{currentRoom?.student_count ?? 0}</span>
-                                </div>
-                            </div>
+                            </nav>
                         </div>
                     )}
                 </div>
 
-                {/* Mobile Search - Minimalistic Design */}
-                <div className="mb-4 md:hidden">
-                    {/* Search Input */}
-                    <div className="relative mb-3">
-                        <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                        <input
-                            type="text"
-                            placeholder="Schüler suchen..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors text-base"
-                        />
-                    </div>
-
-                    {/* Filter Toggle Button */}
-                    <div className="flex justify-between items-center mb-3">
+                {/* Mobile Search & Filters - Modern Minimal Design */}
+                <div className="mb-6 md:hidden">
+                    {/* Search Input with Integrated Filter Button */}
+                    <div className="flex gap-2 mb-3">
+                        <div className="relative flex-1">
+                            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <input
+                                type="text"
+                                placeholder="Name suchen..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
+                            />
+                            {searchTerm && (
+                                <button
+                                    onClick={() => setSearchTerm("")}
+                                    className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                                >
+                                    <svg className="h-3.5 w-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
                         <button
                             onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
-                            className="flex items-center gap-2 text-base text-blue-600 font-medium py-2"
+                            className={`
+                                p-2.5 rounded-2xl transition-all duration-200
+                                ${isMobileFiltersOpen 
+                                    ? 'bg-blue-500 text-white' 
+                                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                                }
+                                ${groupFilter !== "all" ? 'ring-2 ring-blue-500 ring-offset-1' : ''}
+                            `}
                         >
-                            <svg className={`h-5 w-5 transition-transform duration-200 ${isMobileFiltersOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                             </svg>
-                            {isMobileFiltersOpen ? 'Filter ausblenden' : 'Filter anzeigen'}
                         </button>
-                        {groupFilter !== "all" && (
-                            <button
-                                onClick={() => {
-                                    setGroupFilter("all");
-                                }}
-                                className="text-sm text-gray-500"
-                            >
-                                Alle löschen
-                            </button>
-                        )}
                     </div>
 
-                    {/* Collapsible Filter Dropdowns */}
-                    {isMobileFiltersOpen && (
-                        <div className="mb-3">
-                            <div className="relative">
-                                <select
-                                    value={groupFilter}
-                                    onChange={(e) => setGroupFilter(e.target.value)}
-                                    className="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base appearance-none"
-                                >
-                                    <option value="all">Alle Gruppen</option>
-                                    {availableGroups.map(groupName => (
-                                        <option key={groupName} value={groupName}>{groupName}</option>
-                                    ))}
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                                    <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                    </svg>
-                                </div>
-                            </div>
+                    {/* Active Filter Chips */}
+                    {groupFilter !== "all" && (
+                        <div className="flex gap-2 mb-3 flex-wrap">
+                            <button
+                                onClick={() => setGroupFilter("all")}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium"
+                            >
+                                Gruppe: {groupFilter}
+                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
                         </div>
                     )}
 
-                    {/* Active Filters Bar */}
-                    {(searchTerm || groupFilter !== "all") && (
-                        <div className="flex items-center justify-between text-sm text-gray-600">
-                            <span>
-                                {(() => {
-                                    const activeFilters = [];
-                                    if (searchTerm) activeFilters.push(`Suche: "${searchTerm}"`);
-                                    if (groupFilter !== "all") activeFilters.push(`Gruppe: ${groupFilter}`);
-                                    
-                                    if (activeFilters.length === 1) {
-                                        return `1 Filter aktiv: ${activeFilters[0]}`;
-                                    } else {
-                                        return `${activeFilters.length} Filter aktiv: ${activeFilters.join(", ")}`;
-                                    }
-                                })()}
-                            </span>
-                            <button
-                                onClick={() => {
-                                    setSearchTerm("");
-                                    setGroupFilter("all");
-                                }}
-                                className="text-blue-600 hover:text-blue-700 font-medium"
-                            >
-                                Zurücksetzen
-                            </button>
+                    {/* Expandable Filter Panel */}
+                    {isMobileFiltersOpen && (
+                        <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-3 shadow-sm">
+                            <div className="space-y-3">
+                                {/* Group Filter */}
+                                <div>
+                                    <label className="text-xs font-medium text-gray-600 mb-1.5 block">Gruppe filtern</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            onClick={() => setGroupFilter("all")}
+                                            className={`
+                                                py-2 px-3 rounded-lg text-sm font-medium transition-all
+                                                ${groupFilter === "all" 
+                                                    ? 'bg-gray-900 text-white' 
+                                                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                                                }
+                                            `}
+                                        >
+                                            Alle Gruppen
+                                        </button>
+                                        {availableGroups.map((groupName) => (
+                                            <button
+                                                key={groupName}
+                                                onClick={() => setGroupFilter(groupName)}
+                                                className={`
+                                                    py-2 px-3 rounded-lg text-sm font-medium transition-all
+                                                    ${groupFilter === groupName 
+                                                        ? 'bg-gray-900 text-white' 
+                                                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                                                    }
+                                                `}
+                                            >
+                                                {groupName}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Filter Actions */}
+                            <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">
+                                <button
+                                    onClick={() => setGroupFilter("all")}
+                                    className="flex-1 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                                >
+                                    Zurücksetzen
+                                </button>
+                                <button
+                                    onClick={() => setIsMobileFiltersOpen(false)}
+                                    className="flex-1 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors"
+                                >
+                                    Fertig
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
 
-                {/* Desktop Search & Filter - Minimalistic */}
-                <div className="hidden md:block mb-4">
-                    <div className="flex items-center gap-3">
+                {/* Desktop Search & Filter - Modern Minimal Design */}
+                <div className="hidden md:block mb-6">
+                    <div className="flex items-center gap-3 mb-3">
                         {/* Search Input */}
-                        <div className="flex-1">
-                            <div className="relative">
-                                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
-                                <input
-                                    type="text"
-                                    placeholder="Schüler suchen..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                                />
-                            </div>
+                        <div className="flex-1 relative">
+                            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <input
+                                type="text"
+                                placeholder="Name suchen..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                            />
+                            {searchTerm && (
+                                <button
+                                    onClick={() => setSearchTerm("")}
+                                    className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                                >
+                                    <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            )}
                         </div>
 
-                        {/* Filter Dropdown */}
+                        {/* Group Filter Dropdown */}
                         <div className="relative">
-                            <select
-                                value={groupFilter}
-                                onChange={(e) => setGroupFilter(e.target.value)}
-                                className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm min-w-[140px] appearance-none"
+                            <button
+                                onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
+                                className={`
+                                    flex items-center gap-2 px-4 h-10 rounded-xl transition-all shadow-sm
+                                    ${groupFilter !== "all" 
+                                        ? 'bg-gray-900 text-white' 
+                                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                                    }
+                                `}
                             >
-                                <option value="all">Alle Gruppen</option>
-                                {availableGroups.map(groupName => (
-                                    <option key={groupName} value={groupName}>{groupName}</option>
-                                ))}
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                                <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                 </svg>
-                            </div>
+                                <span className="text-sm font-medium">
+                                    {groupFilter === "all" ? "Alle Gruppen" : groupFilter}
+                                </span>
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            
+                            {/* Dropdown Menu */}
+                            {isMobileFiltersOpen && (
+                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-10">
+                                    <button
+                                        onClick={() => {
+                                            setGroupFilter("all");
+                                            setIsMobileFiltersOpen(false);
+                                        }}
+                                        className={`
+                                            w-full text-left px-4 py-2 text-sm transition-colors
+                                            ${groupFilter === "all" 
+                                                ? 'bg-gray-100 text-gray-900 font-medium' 
+                                                : 'text-gray-700 hover:bg-gray-50'
+                                            }
+                                        `}
+                                    >
+                                        Alle Gruppen
+                                    </button>
+                                    {availableGroups.map(groupName => (
+                                        <button
+                                            key={groupName}
+                                            onClick={() => {
+                                                setGroupFilter(groupName);
+                                                setIsMobileFiltersOpen(false);
+                                            }}
+                                            className={`
+                                                w-full text-left px-4 py-2 text-sm transition-colors
+                                                ${groupFilter === groupName 
+                                                    ? 'bg-gray-100 text-gray-900 font-medium' 
+                                                    : 'text-gray-700 hover:bg-gray-50'
+                                                }
+                                            `}
+                                        >
+                                            {groupName}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    {/* Active Filters Bar */}
+                    {/* Active Filter Chips */}
                     {(searchTerm || groupFilter !== "all") && (
-                        <div className="mt-3 flex items-center justify-between text-sm text-gray-600">
-                            <div className="flex items-center gap-2">
-                                <span>
-                                    {(() => {
-                                        const activeFilters = [];
-                                        if (searchTerm) activeFilters.push(`Suche: "${searchTerm}"`);
-                                            if (groupFilter !== "all") activeFilters.push(`Gruppe: ${groupFilter}`);
-                                        
-                                        if (activeFilters.length === 1) {
-                                            return `1 Filter aktiv: ${activeFilters[0]}`;
-                                        } else {
-                                            return `${activeFilters.length} Filter aktiv: ${activeFilters.join(", ")}`;
-                                        }
-                                    })()}
-                                </span>
+                        <div className="flex items-center justify-between">
+                            <div className="flex gap-2 flex-wrap">
+                                {searchTerm && (
+                                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                                        "{searchTerm}"
+                                        <button onClick={() => setSearchTerm("")} className="hover:text-blue-900">
+                                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </span>
+                                )}
+                                {groupFilter !== "all" && (
+                                    <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                                        Gruppe: {groupFilter}
+                                        <button onClick={() => setGroupFilter("all")} className="hover:text-blue-900">
+                                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </span>
+                                )}
                             </div>
                             <button
                                 onClick={() => {
                                     setSearchTerm("");
                                     setGroupFilter("all");
                                 }}
-                                className="text-blue-600 hover:text-blue-700 font-medium"
+                                className="text-sm text-gray-500 hover:text-gray-700 font-medium transition-colors"
                             >
-                                Filter zurücksetzen
+                                Alle zurücksetzen
                             </button>
                         </div>
                     )}
