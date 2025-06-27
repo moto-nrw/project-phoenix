@@ -53,8 +53,6 @@ function getPageTitle(pathname: string): string {
             return "Mein Raum";
         case "/students":
             return "Schüler";
-        case "/students/search":
-            return "Suche";
         case "/rooms":
             return "Räume";
         case "/activities":

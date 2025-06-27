@@ -214,6 +214,7 @@ function SearchPageContent() {
               )}
             </div>
             <button
+              type="button"
               onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
               className={`
                 p-2.5 rounded-2xl transition-all duration-200
