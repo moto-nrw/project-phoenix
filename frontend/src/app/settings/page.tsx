@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PasswordChangeModal } from "~/components/ui";
+import { PageHeader } from "~/components/ui/page-header";
 import { PINManagement } from "~/components/staff";
 import { SettingsCard, SimpleToggle, SimpleAlert } from "~/components/simple";
 
@@ -167,10 +168,7 @@ function SettingsContent() {
   return (
     <>
       {/* Header */}
-      <div className="mb-6 md:mb-8">
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Einstellungen</h1>
-        <p className="mt-2 text-gray-600">Persönliche Einstellungen verwalten</p>
-      </div>
+      <PageHeader title="Einstellungen" />
 
       {/* Mobile: Accordion Style */}
       <div className="lg:hidden space-y-3">

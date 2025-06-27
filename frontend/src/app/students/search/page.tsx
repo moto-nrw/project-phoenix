@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
+import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { studentService, groupService } from "~/lib/api";
 import type { Student, Group } from "~/lib/api";
 
@@ -24,9 +26,6 @@ function SearchPageContent() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Mobile-specific state
-  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
   const fetchStudentsData = useCallback(async (filters?: {
     search?: string;
@@ -95,6 +94,91 @@ function SearchPageContent() {
     void fetchStudentsData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedGroup]);
+
+  // Prepare filter configurations for PageHeaderWithSearch
+  const filterConfigs: FilterConfig[] = useMemo(() => [
+    {
+      id: 'year',
+      label: 'Klassenstufe',
+      type: 'buttons',
+      value: selectedYear,
+      onChange: (value) => setSelectedYear(value as string),
+      options: [
+        { value: 'all', label: 'Alle' },
+        { value: '1', label: '1' },
+        { value: '2', label: '2' },
+        { value: '3', label: '3' },
+        { value: '4', label: '4' }
+      ]
+    },
+    {
+      id: 'group',
+      label: 'Gruppe',
+      type: 'dropdown',
+      value: selectedGroup,
+      onChange: (value) => setSelectedGroup(value as string),
+      options: [
+        { value: '', label: 'Alle Gruppen' },
+        ...groups.map(group => ({ value: group.id, label: group.name }))
+      ]
+    },
+    {
+      id: 'attendance',
+      label: 'Anwesenheit',
+      type: 'dropdown',
+      value: attendanceFilter,
+      onChange: (value) => setAttendanceFilter(value as string),
+      options: [
+        { value: 'all', label: 'Alle Status' },
+        { value: 'anwesend', label: 'Anwesend' },
+        { value: 'abwesend', label: 'Zuhause' }
+      ]
+    }
+  ], [selectedYear, selectedGroup, attendanceFilter, groups]);
+
+  // Prepare active filters for display
+  const activeFilters: ActiveFilter[] = useMemo(() => {
+    const filters: ActiveFilter[] = [];
+    
+    if (searchTerm) {
+      filters.push({
+        id: 'search',
+        label: `"${searchTerm}"`,
+        onRemove: () => setSearchTerm("")
+      });
+    }
+    
+    if (selectedYear !== "all") {
+      filters.push({
+        id: 'year',
+        label: `Jahr ${selectedYear}`,
+        onRemove: () => setSelectedYear("all")
+      });
+    }
+    
+    if (selectedGroup) {
+      const groupName = groups.find(g => g.id === selectedGroup)?.name ?? "Gruppe";
+      filters.push({
+        id: 'group',
+        label: groupName,
+        onRemove: () => setSelectedGroup("")
+      });
+    }
+    
+    if (attendanceFilter !== "all") {
+      const statusLabels: Record<string, string> = {
+        "anwesend": "Anwesend",
+        "abwesend": "Zuhause"
+      };
+      filters.push({
+        id: 'attendance',
+        label: statusLabels[attendanceFilter] ?? attendanceFilter,
+        onRemove: () => setAttendanceFilter("all")
+      });
+    }
+    
+    return filters;
+  }, [searchTerm, selectedYear, selectedGroup, attendanceFilter, groups]);
 
   // Apply additional client-side filtering for attendance statuses and year
   const filteredStudents = students.filter((student) => {
@@ -165,271 +249,32 @@ function SearchPageContent() {
   return (
     <ResponsiveLayout>
       <div className="w-full">
-        {/* Simple Header */}
-        <div className="mb-6 md:mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Schülersuche</h1>
-        </div>
-
-        {/* Mobile Search - Minimalistic Design */}
-        <div className="mb-4 md:hidden">
-          {/* Search Input */}
-          <div className="relative mb-3">
-            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Schüler suchen..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors text-base"
-            />
-          </div>
-
-          {/* Filter Toggle Button */}
-          <div className="flex justify-between items-center mb-3">
-            <button
-              onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
-              className="flex items-center gap-2 text-base text-blue-600 font-medium py-2"
-            >
-              <svg className={`h-5 w-5 transition-transform duration-200 ${isMobileFiltersOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+        {/* Modern Header with PageHeaderWithSearch component */}
+        <PageHeaderWithSearch
+          title="Schülersuche"
+          badge={{
+            icon: (
+              <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
-              {isMobileFiltersOpen ? 'Filter ausblenden' : 'Filter anzeigen'}
-            </button>
-            {(selectedGroup || selectedYear !== "all" || attendanceFilter !== "all") && (
-              <button
-                onClick={() => {
-                  setSelectedGroup("");
-                  setSelectedYear("all");
-                  setAttendanceFilter("all");
-                }}
-                className="text-sm text-gray-500"
-              >
-                Alle löschen
-              </button>
-            )}
-          </div>
-
-          {/* Collapsible Filter Dropdowns */}
-          {isMobileFiltersOpen && (
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div className="relative">
-                <select
-                  value={selectedGroup}
-                  onChange={(e) => setSelectedGroup(e.target.value)}
-                  className="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base appearance-none"
-                >
-                  <option value="">Alle Gruppen</option>
-                  {groups.map(group => (
-                    <option key={group.id} value={group.id}>{group.name}</option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                  <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-
-              <div className="relative">
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base appearance-none"
-                >
-                  <option value="all">Alle Jahre</option>
-                  <option value="1">Jahr 1</option>
-                  <option value="2">Jahr 2</option>
-                  <option value="3">Jahr 3</option>
-                  <option value="4">Jahr 4</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                  <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-
-              <div className="relative col-span-2">
-                <select
-                  value={attendanceFilter}
-                  onChange={(e) => setAttendanceFilter(e.target.value)}
-                  className="w-full pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-base appearance-none"
-                >
-                  <option value="all">Alle Status</option>
-                  <option value="anwesend">Anwesend</option>
-                  <option value="abwesend">Zuhause</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                  <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Active Filters Bar */}
-          {(searchTerm || selectedGroup || selectedYear !== "all" || attendanceFilter !== "all") && (
-            <div className="flex items-center justify-between text-sm text-gray-600">
-              <span>
-                {(() => {
-                  const activeFilters = [];
-                  if (searchTerm) activeFilters.push(`Suche: "${searchTerm}"`);
-                  if (selectedGroup) {
-                    const groupName = groups.find(g => g.id === selectedGroup)?.name;
-                    activeFilters.push(`Gruppe: ${groupName ?? selectedGroup}`);
-                  }
-                  if (selectedYear !== "all") activeFilters.push(`Jahr ${selectedYear}`);
-                  if (attendanceFilter !== "all") {
-                    const statusLabels: Record<string, string> = {
-                      "anwesend": "Anwesend",
-                      "abwesend": "Zuhause"
-                    };
-                    activeFilters.push(statusLabels[attendanceFilter] ?? attendanceFilter);
-                  }
-                  
-                  if (activeFilters.length === 1) {
-                    return `1 Filter aktiv: ${activeFilters[0]}`;
-                  } else {
-                    return `${activeFilters.length} Filter aktiv: ${activeFilters.join(", ")}`;
-                  }
-                })()}
-              </span>
-              <button
-                onClick={() => {
-                  setSearchTerm("");
-                  setSelectedGroup("");
-                  setSelectedYear("all");
-                  setAttendanceFilter("all");
-                }}
-                className="text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Zurücksetzen
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Desktop Search & Filter - Minimalistic */}
-        <div className="hidden md:block mb-4">
-          <div className="flex items-center gap-3">
-            {/* Search Input */}
-            <div className="flex-1">
-              <div className="relative">
-                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Schüler suchen..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                />
-              </div>
-            </div>
-
-            {/* Filter Dropdowns */}
-            <div className="relative">
-              <select
-                value={selectedGroup}
-                onChange={(e) => setSelectedGroup(e.target.value)}
-                className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm min-w-[140px] appearance-none"
-              >
-                <option value="">Alle Gruppen</option>
-                {groups.map(group => (
-                  <option key={group.id} value={group.id}>{group.name}</option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </div>
-            </div>
-
-            <div className="relative">
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm min-w-[120px] appearance-none"
-              >
-                <option value="all">Alle Jahre</option>
-                <option value="1">Jahr 1</option>
-                <option value="2">Jahr 2</option>
-                <option value="3">Jahr 3</option>
-                <option value="4">Jahr 4</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </div>
-            </div>
-
-            <div className="relative">
-              <select
-                value={attendanceFilter}
-                onChange={(e) => setAttendanceFilter(e.target.value)}
-                className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm min-w-[130px] appearance-none"
-              >
-                <option value="all">Alle Status</option>
-                <option value="anwesend">Anwesend</option>
-                <option value="abwesend">Zuhause</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          {/* Active Filters Bar */}
-          {(searchTerm || selectedGroup || selectedYear !== "all" || attendanceFilter !== "all") && (
-            <div className="mt-3 flex items-center justify-between text-sm text-gray-600">
-              <div className="flex items-center gap-2">
-                <span>
-                  {(() => {
-                    const activeFilters = [];
-                    if (searchTerm) activeFilters.push(`Suche: "${searchTerm}"`);
-                    if (selectedGroup) {
-                      const groupName = groups.find(g => g.id === selectedGroup)?.name;
-                      activeFilters.push(`Gruppe: ${groupName ?? selectedGroup}`);
-                    }
-                    if (selectedYear !== "all") activeFilters.push(`Jahr ${selectedYear}`);
-                    if (attendanceFilter !== "all") {
-                      const statusLabels: Record<string, string> = {
-                        "anwesend": "Anwesend",
-                        "abwesend": "Zuhause"
-                      };
-                      activeFilters.push(statusLabels[attendanceFilter] ?? attendanceFilter);
-                    }
-                    
-                    if (activeFilters.length === 1) {
-                      return `1 Filter aktiv: ${activeFilters[0]}`;
-                    } else {
-                      return `${activeFilters.length} Filter aktiv: ${activeFilters.join(", ")}`;
-                    }
-                  })()}
-                </span>
-              </div>
-              <button
-                onClick={() => {
-                  setSearchTerm("");
-                  setSelectedGroup("");
-                  setSelectedYear("all");
-                  setAttendanceFilter("all");
-                }}
-                className="text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Filter zurücksetzen
-              </button>
-            </div>
-          )}
-        </div>
+            ),
+            count: filteredStudents.length
+          }}
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: "Name suchen..."
+          }}
+          filters={filterConfigs}
+          activeFilters={activeFilters}
+          onClearAllFilters={() => {
+            setSearchTerm("");
+            setSelectedGroup("");
+            setSelectedYear("all");
+            setAttendanceFilter("all");
+          }}
+        />
 
         {/* Mobile Error Display */}
         {error && (

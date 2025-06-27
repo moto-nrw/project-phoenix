@@ -16,6 +16,11 @@ import { useSession } from "next-auth/react";
 
 // Function to get page title based on pathname
 function getPageTitle(pathname: string): string {
+    // Check for /students/search first before other /students/ paths
+    if (pathname === "/students/search") {
+        return "Suche";
+    }
+    
     // Handle specific routes with dynamic segments
     if (pathname.startsWith("/students/") && pathname !== "/students") {
         if (pathname.includes("/feedback_history")) return "Feedback Historie";
@@ -43,11 +48,11 @@ function getPageTitle(pathname: string): string {
         case "/":
             return "Home";
         case "/ogs_groups":
-            return "OGS Gruppen";
+            return "Meine Gruppe";
+        case "/myroom":
+            return "Mein Raum";
         case "/students":
             return "Schüler";
-        case "/students/search":
-            return "Suche";
         case "/rooms":
             return "Räume";
         case "/activities":
@@ -57,9 +62,11 @@ function getPageTitle(pathname: string): string {
         case "/substitutions":
             return "Vertretungen";
         case "/database":
-            return "Datenbank";
+            return "Datenverwaltung";
         case "/settings":
             return "Einstellungen";
+        case "/borndal_feedback":
+            return "Borndal Feedback";
         default:
             return "Home";
     }
