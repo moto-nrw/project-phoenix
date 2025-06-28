@@ -383,33 +383,6 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 }
 
 // CheckActivityDeviceConflict checks if an activity is already running on another device
-func (r *GroupRepository) CheckActivityDeviceConflict(ctx context.Context, activityID, excludeDeviceID int64) (bool, *active.Group, error) {
-	var group active.Group
-	query := r.db.NewSelect().
-		Model(&group).
-		ModelTableExpr(`active.groups AS "group"`).
-		Where("group_id = ? AND end_time IS NULL", activityID)
-
-	// Exclude the requesting device if specified
-	if excludeDeviceID > 0 {
-		query = query.Where("device_id != ? OR device_id IS NULL", excludeDeviceID)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
-			return false, nil, nil // No conflict found
-		}
-		return false, nil, &modelBase.DatabaseError{
-			Op:  "check activity device conflict",
-			Err: err,
-		}
-	}
-
-	// Conflict found
-	return true, &group, nil
-}
-
 // CheckRoomConflict checks if a room is already occupied by another active group
 func (r *GroupRepository) CheckRoomConflict(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *active.Group, error) {
 	var group active.Group

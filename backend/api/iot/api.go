@@ -1662,7 +1662,7 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 
 	if err != nil {
 		// Check if this is a conflict error and provide conflict info
-		if errors.Is(err, activeSvc.ErrSessionConflict) || errors.Is(err, activeSvc.ErrActivityAlreadyActive) || errors.Is(err, activeSvc.ErrDeviceAlreadyActive) {
+		if errors.Is(err, activeSvc.ErrSessionConflict) || errors.Is(err, activeSvc.ErrDeviceAlreadyActive) {
 			// Get conflict details
 			conflictInfo, conflictErr := rs.ActiveService.CheckActivityConflict(r.Context(), req.ActivityID, deviceCtx.ID)
 			if conflictErr == nil && conflictInfo.HasConflict {

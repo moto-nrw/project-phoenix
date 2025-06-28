@@ -25,7 +25,7 @@ var (
 	ErrInvalidData               = errors.New("invalid data provided")
 	ErrDatabaseOperation         = errors.New("database operation failed")
 	// Activity session management errors
-	ErrActivityAlreadyActive  = errors.New("activity is already active on another device")
+	// ErrActivityAlreadyActive  = errors.New("activity is already active on another device") // No longer used - activities can have multiple sessions
 	ErrDeviceAlreadyActive    = errors.New("device is already running an activity session")
 	ErrNoActiveSession        = errors.New("no active session found")
 	ErrSessionConflict        = errors.New("session conflict detected")
