@@ -78,7 +78,7 @@ import type { NextRequest } from "next/server";
         } catch (handlerError) {
           // Check if it's a 401 error from the backend
           if (handlerError instanceof Error && handlerError.message.includes("API error (401)")) {
-            const callerId = `route-wrapper-get-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            const callerId = `route-wrapper-get-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
             console.log(`\n[${callerId}] Route wrapper GET: Caught 401 error`);
             // Try to get updated session in case it was refreshed
             const updatedSession = await auth();
