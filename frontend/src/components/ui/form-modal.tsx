@@ -88,22 +88,36 @@ export function FormModal({
 
   const modalContent = (
     <div
-      className={`fixed inset-0 z-[9999] flex items-end md:items-center justify-center md:p-6 transition-all duration-200 ${
+      className={`fixed inset-0 z-[9999] flex items-end md:items-center justify-center md:p-6 transition-all duration-400 ease-out ${
         isAnimating && !isExiting 
           ? 'bg-black/40' 
           : 'bg-black/0'
       }`}
       onClick={handleBackdropClick}
+      style={{ 
+        position: 'fixed', 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0,
+        animation: isAnimating && !isExiting ? 'backdropEnter 400ms ease-out' : undefined
+      }}
     >
       <div
-        className={`relative w-full ${sizeClasses[size]} h-full md:h-auto max-h-[90vh] md:max-h-[85vh] rounded-t-2xl md:rounded-xl shadow-lg md:shadow-xl border border-gray-200 bg-white overflow-hidden transform transition-all duration-200 ${
+        className={`relative w-full ${sizeClasses[size]} h-full md:h-auto max-h-[90vh] md:max-h-[85vh] rounded-t-2xl md:rounded-2xl shadow-2xl border border-gray-200/50 overflow-hidden transform ${
           isAnimating && !isExiting
-            ? 'translate-y-0 md:scale-100 md:opacity-100' 
+            ? 'animate-modalEnter' 
             : isExiting
-            ? 'translate-y-full md:translate-y-0 md:scale-95 md:opacity-0'
-            : 'translate-y-full md:translate-y-0 md:scale-95 md:opacity-0'
+            ? 'animate-modalExit'
+            : 'scale-75 opacity-0 translate-y-8 -rotate-1'
         }`}
         onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)',
+          backdropFilter: 'blur(20px)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 8px 16px -8px rgba(80, 128, 216, 0.15)',
+          animationFillMode: 'both'
+        }}
       >
         {/* Header with close button */}
         <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-100">
@@ -112,9 +126,10 @@ export function FormModal({
           )}
           <button
             onClick={handleClose}
-            className="group relative flex-shrink-0 h-10 w-10 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-all duration-200 hover:scale-105 active:scale-[0.98]"
+            className="group relative flex-shrink-0 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95"
             aria-label="Modal schließen"
           >
+            {/* Animated X icon */}
             <svg 
               className="w-5 h-5 transition-transform duration-200 group-hover:rotate-90" 
               fill="none" 
@@ -124,21 +139,29 @@ export function FormModal({
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
+            
+            {/* Subtle hover glow */}
+            <div 
+              className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+              style={{
+                boxShadow: '0 0 12px rgba(80,128,216,0.3)'
+              }}
+            />
           </button>
         </div>
 
-        {/* Content area */}
-        <div className="max-h-[60vh] md:max-h-[70vh] overflow-y-auto">
-          <div className={`p-4 md:p-6 text-gray-700 ${
-            isAnimating && !isExiting ? 'opacity-100' : 'opacity-0'
-          } transition-opacity duration-200`}>
+        {/* Content area with custom scrollbar and reveal animation */}
+        <div className="max-h-[60vh] md:max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+          <div className={`p-4 md:p-6 text-gray-700 leading-relaxed ${
+            isAnimating && !isExiting ? 'animate-contentReveal' : 'opacity-0'
+          }`}>
             {children}
           </div>
         </div>
 
         {/* Footer if provided */}
         {footer && (
-          <div className="flex justify-end gap-3 p-4 md:p-6 border-t border-gray-100 bg-gray-50">
+          <div className="flex justify-end gap-3 p-4 md:p-6 border-t border-gray-100 bg-gray-50/50">
             {footer}
           </div>
         )}
