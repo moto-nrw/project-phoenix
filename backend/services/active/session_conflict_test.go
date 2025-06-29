@@ -263,7 +263,6 @@ func TestConflictInfoStructure(t *testing.T) {
 func TestErrorTypes(t *testing.T) {
 	// Test that error constants are defined
 	errors := []error{
-		activeSvc.ErrActivityAlreadyActive,
 		activeSvc.ErrDeviceAlreadyActive,
 		activeSvc.ErrNoActiveSession,
 		activeSvc.ErrSessionConflict,
