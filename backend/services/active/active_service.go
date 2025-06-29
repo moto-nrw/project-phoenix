@@ -1251,15 +1251,6 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 	// Use transaction to ensure atomicity
 	var newGroup *active.Group
 	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Double-check for conflicts within transaction (race condition prevention)
-		hasConflict, _, err := s.groupRepo.CheckActivityDeviceConflict(ctx, activityID, deviceID)
-		if err != nil {
-			return err
-		}
-		if hasConflict {
-			return ErrActivityAlreadyActive
-		}
-
 		// Check if device is already running another session
 		existingSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
 		if err != nil {
@@ -1349,17 +1340,6 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 	// Use transaction to handle conflicts and cleanup
 	var newGroup *active.Group
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// End any existing session for this activity
-		existingGroups, err := s.groupRepo.FindActiveByGroupID(ctx, activityID)
-		if err != nil {
-			return err
-		}
-		for _, group := range existingGroups {
-			if err := s.groupRepo.EndSession(ctx, group.ID); err != nil {
-				return err
-			}
-		}
-
 		// End any existing session for this device
 		existingDeviceSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
 		if err != nil {
@@ -1438,33 +1418,20 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 
 // CheckActivityConflict checks for conflicts before starting an activity session
 func (s *service) CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*ActivityConflictInfo, error) {
-	// Check if activity is already running on another device
-	hasActivityConflict, conflictingGroup, err := s.groupRepo.CheckActivityDeviceConflict(ctx, activityID, deviceID)
-	if err != nil {
-		return nil, &ActiveError{Op: "CheckActivityConflict", Err: err}
-	}
-
-	// Check if device is already running another session
+	// Only check if device is already running another session
 	existingDeviceSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
 	if err != nil {
 		return nil, &ActiveError{Op: "CheckActivityConflict", Err: err}
 	}
 
 	conflictInfo := &ActivityConflictInfo{
-		HasConflict: hasActivityConflict || existingDeviceSession != nil,
+		HasConflict: existingDeviceSession != nil,
 		CanOverride: true, // Administrative override is always possible
 	}
 
-	if hasActivityConflict {
-		conflictInfo.ConflictingGroup = conflictingGroup
-		conflictInfo.ConflictMessage = fmt.Sprintf("Activity %d is already active on another device", activityID)
-		if conflictingGroup.DeviceID != nil {
-			deviceIDStr := fmt.Sprintf("%d", *conflictingGroup.DeviceID)
-			conflictInfo.ConflictingDevice = &deviceIDStr
-		}
-	} else if existingDeviceSession != nil {
+	if existingDeviceSession != nil {
 		conflictInfo.ConflictingGroup = existingDeviceSession
-		conflictInfo.ConflictMessage = fmt.Sprintf("Device %d is already running activity %d", deviceID, existingDeviceSession.GroupID)
+		conflictInfo.ConflictMessage = fmt.Sprintf("Device %d is already running another session", deviceID)
 		deviceIDStr := fmt.Sprintf("%d", deviceID)
 		conflictInfo.ConflictingDevice = &deviceIDStr
 	}
