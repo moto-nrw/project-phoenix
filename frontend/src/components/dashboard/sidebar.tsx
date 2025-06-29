@@ -211,16 +211,16 @@ function SidebarContent({ className = "" }: SidebarProps) {
                     <div className="mt-6 pt-4 border-t border-gray-100">
                         <button
                             onClick={() => setIsQuickCreateOpen(true)}
-                            className="w-full flex items-center justify-center gap-2.5 px-4 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm transition-all duration-200 group"
+                            className="w-full flex items-center justify-center gap-2.5 px-4 py-3 text-sm font-medium text-gray-700 bg-gradient-to-r from-[#83CD2D]/10 to-[#70B525]/10 border border-[#83CD2D]/30 rounded-xl hover:from-[#83CD2D]/20 hover:to-[#70B525]/20 hover:border-[#83CD2D]/50 hover:shadow-md hover:shadow-[#83CD2D]/20 transition-all duration-300 group transform hover:scale-[1.02] active:scale-[0.98]"
                         >
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center group-hover:from-blue-100 group-hover:to-indigo-100 transition-colors duration-200">
-                                <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#83CD2D] to-[#70B525] flex items-center justify-center shadow-sm group-hover:shadow-md group-hover:shadow-[#83CD2D]/30 transition-all duration-300 group-hover:rotate-90">
+                                <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                                 </svg>
                             </div>
-                            <span className="flex-1 text-left">Aktivität erstellen</span>
-                            <svg className="h-4 w-4 text-gray-400 group-hover:text-gray-600 group-hover:translate-x-0.5 transition-all duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            <span className="flex-1 text-left font-semibold text-gray-800">Aktivität erstellen</span>
+                            <svg className="h-4 w-4 text-[#83CD2D] group-hover:translate-x-1 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                             </svg>
                         </button>
                     </div>
