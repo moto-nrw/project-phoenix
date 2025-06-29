@@ -2,6 +2,7 @@
 import { getSession } from "next-auth/react";
 import { env } from "~/env";
 import api from "./api";
+import { fetchWithAuth } from "./fetch-with-auth";
 import {
     mapEducationalGroupResponse,
     mapActivityGroupResponse,
@@ -41,7 +42,7 @@ export const userContextService = {
         try {
             if (useProxyApi) {
                 const session = await getSession();
-                const response = await fetch(url, {
+                const response = await fetchWithAuth(url, {
                     headers: {
                         Authorization: `Bearer ${session?.user?.token}`,
                         "Content-Type": "application/json",
@@ -76,7 +77,7 @@ export const userContextService = {
         try {
             if (useProxyApi) {
                 const session = await getSession();
-                const response = await fetch(url, {
+                const response = await fetchWithAuth(url, {
                     headers: {
                         Authorization: `Bearer ${session?.user?.token}`,
                         "Content-Type": "application/json",
@@ -111,7 +112,7 @@ export const userContextService = {
         try {
             if (useProxyApi) {
                 const session = await getSession();
-                const response = await fetch(url, {
+                const response = await fetchWithAuth(url, {
                     headers: {
                         Authorization: `Bearer ${session?.user?.token}`,
                         "Content-Type": "application/json",
@@ -146,7 +147,7 @@ export const userContextService = {
         try {
             if (useProxyApi) {
                 const session = await getSession();
-                const response = await fetch(url, {
+                const response = await fetchWithAuth(url, {
                     headers: {
                         Authorization: `Bearer ${session?.user?.token}`,
                         "Content-Type": "application/json",
@@ -189,7 +190,7 @@ export const userContextService = {
         try {
             if (useProxyApi) {
                 const session = await getSession();
-                const response = await fetch(url, {
+                const response = await fetchWithAuth(url, {
                     headers: {
                         Authorization: `Bearer ${session?.user?.token}`,
                         "Content-Type": "application/json",
@@ -224,7 +225,7 @@ export const userContextService = {
         try {
             if (useProxyApi) {
                 const session = await getSession();
-                const response = await fetch(url, {
+                const response = await fetchWithAuth(url, {
                     headers: {
                         Authorization: `Bearer ${session?.user?.token}`,
                         "Content-Type": "application/json",
@@ -259,7 +260,7 @@ export const userContextService = {
         try {
             if (useProxyApi) {
                 const session = await getSession();
-                const response = await fetch(url, {
+                const response = await fetchWithAuth(url, {
                     headers: {
                         Authorization: `Bearer ${session?.user?.token}`,
                         "Content-Type": "application/json",

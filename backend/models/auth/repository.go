@@ -119,6 +119,7 @@ type TokenRepository interface {
 	Delete(ctx context.Context, id interface{}) error
 	List(ctx context.Context, filters map[string]interface{}) ([]*Token, error)
 	FindByToken(ctx context.Context, token string) (*Token, error)
+	FindByTokenForUpdate(ctx context.Context, token string) (*Token, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Token, error)
 	FindByAccountIDAndIdentifier(ctx context.Context, accountID int64, identifier string) (*Token, error)
 	DeleteExpiredTokens(ctx context.Context) (int, error)

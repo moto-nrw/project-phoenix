@@ -60,7 +60,8 @@ function parseDurationToMs(duration: string): number {
   return unit === 'h' ? num * 60 * 60 * 1000 : num * 60 * 1000;
 }
 
-// Get refresh expiry from environment
+// Get token expiries from environment
+const accessTokenExpiry = parseDurationToMs(env.AUTH_JWT_EXPIRY);
 const refreshTokenExpiry = parseDurationToMs(env.AUTH_JWT_REFRESH_EXPIRY);
 
 /**
@@ -272,10 +273,15 @@ export const authConfig = {
   ],
   callbacks: {
     jwt: async ({ token, user }) => {
-      console.log("=== JWT Callback Invoked ===");
-      console.log(`Has user object: ${!!user}`);
-      console.log(`Current refresh token: ${token.refreshToken ? (token.refreshToken as string).substring(0, 50) + '...' : 'none'}`);
-      console.log(`Token expiry: ${token.tokenExpiry ? new Date(token.tokenExpiry as number).toLocaleString() : 'not set'}`);
+      const callerId = `jwt-callback-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const stack = new Error().stack;
+      const caller = stack?.split('\n')[3]?.trim() ?? 'Unknown caller';
+      console.log(`\n=== [${callerId}] JWT Callback Invoked ===`);
+      console.log(`[${callerId}] Triggered by: NextAuth internal (server-side session access)`);
+      console.log(`[${callerId}] Stack trace hint: ${caller}`);
+      console.log(`[${callerId}] Has user object: ${!!user}`);
+      console.log(`[${callerId}] Current refresh token: ${token.refreshToken ? (token.refreshToken as string).substring(0, 50) + '...' : 'none'}`);
+      console.log(`[${callerId}] Token expiry: ${token.tokenExpiry ? new Date(token.tokenExpiry as number).toISOString() : 'not set'}`)
       
       // Initial sign in
       if (user) {
@@ -288,8 +294,8 @@ export const authConfig = {
         token.firstName = user.firstName;
         token.isAdmin = user.isAdmin;
         token.isTeacher = user.isTeacher;
-        // Store token expiry (15 minutes from now)
-        token.tokenExpiry = Date.now() + 15 * 60 * 1000; // 15 minutes
+        // Store token expiry from environment
+        token.tokenExpiry = Date.now() + accessTokenExpiry;
         // Store refresh token expiry (matching backend)
         token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
         // Clear any previous error states
@@ -298,10 +304,10 @@ export const authConfig = {
         
         // Log token configuration for debugging
         console.log("=== Authentication Token Configuration ===");
-        console.log(`Access Token Expiry: 15 minutes (expires at ${new Date(token.tokenExpiry as number).toLocaleString()})`);
-        console.log(`Refresh Token Expiry: ${env.AUTH_JWT_REFRESH_EXPIRY} (expires at ${new Date(token.refreshTokenExpiry as number).toLocaleString()})`);
+        console.log(`Access Token Expiry: ${env.AUTH_JWT_EXPIRY} (expires at ${new Date(token.tokenExpiry as number).toISOString()})`);
+        console.log(`Refresh Token Expiry: ${env.AUTH_JWT_REFRESH_EXPIRY} (expires at ${new Date(token.refreshTokenExpiry as number).toISOString()})`);
         console.log(`NextAuth Session Length: ${env.AUTH_JWT_REFRESH_EXPIRY}`);
-        console.log(`Proactive Refresh: Tokens refresh after 5 minutes of use`);
+        console.log(`Token Refresh: Handled by axios interceptor on 401 errors`);
         console.log("========================================");
       }
 
@@ -313,135 +319,11 @@ export const authConfig = {
         // Keep user data for graceful degradation
         return token;
       }
-
-      // Check if access token needs refresh (with 10 minute buffer for proactive refresh)
-      // This gives us plenty of time to refresh before the token actually expires
-      // Since access tokens are 15 minutes, this refreshes after 5 minutes
-      if (token.tokenExpiry && Date.now() > (token.tokenExpiry as number) - 10 * 60 * 1000) {
-        // Rate limiting: Check if we've attempted refresh recently
-        const lastRefreshAttempt = token.lastRefreshAttempt as number | undefined;
-        const refreshCooldown = 30 * 1000; // 30 seconds cooldown between attempts
-        
-        if (lastRefreshAttempt && Date.now() - lastRefreshAttempt < refreshCooldown) {
-          console.log("Skipping refresh - cooldown period active");
-          return token;
-        }
-        
-        // Retry tracking: Check if we've failed too many times
-        const refreshRetries = (token.refreshRetries as number) || 0;
-        const maxRetries = 3;
-        
-        if (refreshRetries >= maxRetries) {
-          console.error("Max refresh retries exceeded");
-          token.error = "RefreshTokenExpired";
-          token.needsRefresh = true;
-          return token;
-        }
-        
-        const timeUntilExpiry = Math.round(((token.tokenExpiry as number) - Date.now()) / 1000);
-        console.log(`Access token expiring in ${timeUntilExpiry} seconds, attempting refresh...`);
-        
-        // Ensure refresh token exists before attempting refresh
-        if (!token.refreshToken || typeof token.refreshToken !== 'string') {
-          console.error("No refresh token available");
-          token.error = "RefreshTokenExpired";
-          token.needsRefresh = true;
-          return token;
-        }
-        
-        // Check if we're already in the process of refreshing
-        // This helps prevent concurrent refresh attempts with the same token
-        if (token.isRefreshing) {
-          console.log("Token refresh already in progress, skipping");
-          return token;
-        }
-        
-        try {
-          // Mark that we're refreshing
-          token.isRefreshing = true;
-          
-          // Update last refresh attempt timestamp
-          token.lastRefreshAttempt = Date.now();
-          
-          // Attempt to refresh the token
-          // Use server URL in server context (Docker environment)
-          const apiUrl = env.NEXT_PUBLIC_API_URL;
-          const response = await fetch(`${apiUrl}/auth/refresh`, {
-            method: "POST",
-            headers: { 
-              "Authorization": `Bearer ${token.refreshToken}`,
-              "Content-Type": "application/json"
-            },
-          });
-
-          if (response.ok) {
-            const refreshData = (await response.json()) as {
-              access_token: string;
-              refresh_token: string;
-            };
-            
-            // Store old token for logging before updating
-            const oldRefreshToken = token.refreshToken;
-            
-            console.log("=== Token Refresh Successful ===");
-            console.log(`Old refresh token: ${oldRefreshToken.substring(0, 50)}...`);
-            console.log(`New access token: ${refreshData.access_token.substring(0, 50)}...`);
-            console.log(`New refresh token: ${refreshData.refresh_token.substring(0, 50)}...`);
-            console.log(`Tokens are different: ${oldRefreshToken !== refreshData.refresh_token}`);
-            
-            // Update tokens
-            token.token = refreshData.access_token;
-            token.refreshToken = refreshData.refresh_token;
-            token.tokenExpiry = Date.now() + 15 * 60 * 1000; // Reset access token expiry (15 minutes)
-            token.refreshTokenExpiry = Date.now() + refreshTokenExpiry; // Reset refresh token expiry
-            
-            // Clear error states and reset retry count on successful refresh
-            token.error = undefined;
-            token.needsRefresh = undefined;
-            token.refreshRetries = 0;
-            token.lastRefreshAttempt = undefined;
-            token.isRefreshing = false;
-            console.log(`New Access Token Expiry: 15 minutes (expires at ${new Date(token.tokenExpiry as number).toLocaleString()})`);
-            console.log(`New Refresh Token Expiry: ${env.AUTH_JWT_REFRESH_EXPIRY} (expires at ${new Date(token.refreshTokenExpiry as number).toLocaleString()})`);
-            console.log("================================");
-          } else {
-            console.error(`Failed to refresh token: ${response.status}`);
-            
-            // Increment retry count
-            token.refreshRetries = ((token.refreshRetries as number) || 0) + 1;
-            
-            // Distinguish between different error types
-            if (response.status === 401 || response.status === 403) {
-              // Refresh token is invalid or expired
-              console.error("Refresh token is invalid or expired");
-              token.error = "RefreshTokenExpired";
-              token.needsRefresh = true;
-            } else {
-              // Other API errors (500, network issues, etc.)
-              console.error("API error during refresh, keeping session but marking as needs refresh");
-              token.error = "RefreshTokenError";
-              token.needsRefresh = true;
-            }
-            
-            // Keep existing user data for graceful degradation
-            token.isRefreshing = false;
-            return token;
-          }
-        } catch (error) {
-          // Network errors or other exceptions
-          console.error("Network error refreshing token:", error);
-          
-          // Increment retry count
-          token.refreshRetries = ((token.refreshRetries as number) || 0) + 1;
-          
-          token.error = "RefreshTokenError";
-          token.needsRefresh = true;
-          token.isRefreshing = false;
-          
-          // Keep existing user data for graceful degradation
-          return token;
-        }
-      }
+      
+      // JWT callback no longer handles token refresh
+      // All token refresh is now handled by the axios interceptor when it receives 401 errors
+      // This eliminates race conditions from multiple concurrent refresh attempts
+      console.log(`[${callerId}] JWT callback completed - no refresh attempted (handled by axios interceptor)`);
       
       return token;
     },

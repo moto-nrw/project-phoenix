@@ -212,39 +212,56 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 		Generation: 0, // First token in family
 	}
 
-	// Execute in transaction using txHandler
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
-		txService := s.WithTx(tx).(AuthService)
+	// Execute in transaction using txHandler with retry for concurrent logins
+	maxRetries := 3
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+			// Get transactional service
+			txService := s.WithTx(tx).(AuthService)
 
-		// Clean up existing tokens for this account
-		// This prevents token accumulation while allowing multiple active sessions
-		// 
-		// Option 2: Keep only the N most recent tokens (multiple sessions)
-		// This allows frontend sessions to remain active while cleaning up old tokens
-		const maxTokensPerAccount = 5
-		if err := txService.(*Service).tokenRepo.CleanupOldTokensForAccount(ctx, account.ID, maxTokensPerAccount); err != nil {
-			log.Printf("Warning: failed to clean up old tokens for account %d: %v", account.ID, err)
+			// Clean up existing tokens for this account
+			// This prevents token accumulation while allowing multiple active sessions
+			// 
+			// Option 2: Keep only the N most recent tokens (multiple sessions)
+			// This allows frontend sessions to remain active while cleaning up old tokens
+			const maxTokensPerAccount = 5
+			if err := txService.(*Service).tokenRepo.CleanupOldTokensForAccount(ctx, account.ID, maxTokensPerAccount); err != nil {
+				log.Printf("Warning: failed to clean up old tokens for account %d: %v", account.ID, err)
+			}
+			
+			// Option 1 (Alternative): Delete ALL existing tokens (single session only)
+			// Uncomment below and comment out Option 2 to enforce single session
+			// if err := txService.(*Service).tokenRepo.DeleteByAccountID(ctx, account.ID); err != nil {
+			//     // Log the error but don't fail the login
+			//     // This ensures users can still login even if cleanup fails
+			//     log.Printf("Warning: failed to clean up existing tokens for account %d: %v", account.ID, err)
+			// }
+
+			// Create token using the transaction-aware repositories
+			if err := txService.(*Service).tokenRepo.Create(ctx, token); err != nil {
+				// Check if it's a duplicate key error on family_id/generation
+				if strings.Contains(err.Error(), "uk_tokens_family_generation") {
+					// Another concurrent login is happening, regenerate family ID
+					token.FamilyID = uuid.Must(uuid.NewV4()).String()
+					return err // Will retry with new family ID
+				}
+				return err
+			}
+
+			// Update last login
+			loginTime := time.Now()
+			account.LastLogin = &loginTime
+			return txService.(*Service).accountRepo.Update(ctx, account)
+		})
+		
+		// If successful or non-retryable error, break
+		if err == nil || !strings.Contains(err.Error(), "uk_tokens_family_generation") {
+			break
 		}
 		
-		// Option 1 (Alternative): Delete ALL existing tokens (single session only)
-		// Uncomment below and comment out Option 2 to enforce single session
-		// if err := txService.(*Service).tokenRepo.DeleteByAccountID(ctx, account.ID); err != nil {
-		//     // Log the error but don't fail the login
-		//     // This ensures users can still login even if cleanup fails
-		//     log.Printf("Warning: failed to clean up existing tokens for account %d: %v", account.ID, err)
-		// }
-
-		// Create token using the transaction-aware repositories
-		if err := txService.(*Service).tokenRepo.Create(ctx, token); err != nil {
-			return err
-		}
-
-		// Update last login
-		loginTime := time.Now()
-		account.LastLogin = &loginTime
-		return txService.(*Service).accountRepo.Update(ctx, account)
-	})
+		// Log retry attempt
+		log.Printf("Login race condition detected for account %d, retrying (attempt %d/%d)", account.ID, attempt+1, maxRetries)
+	}
 
 	if err != nil {
 		return "", "", &AuthError{Op: "login transaction", Err: err}
@@ -497,90 +514,95 @@ func (s *Service) RefreshTokenWithAudit(ctx context.Context, refreshTokenStr, ip
 		return "", "", &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
 	}
 
-	// Get token from database using token string from claims
-	dbToken, err := s.tokenRepo.FindByToken(ctx, refreshClaims.Token)
-	if err != nil {
-		return "", "", &AuthError{Op: "get token", Err: ErrTokenNotFound}
-	}
+	var dbToken *auth.Token
+	var account *auth.Account
+	var newToken *auth.Token
 
-	// Check if token is expired
-	if time.Now().After(dbToken.Expiry) {
-		// Delete expired token
-		_ = s.tokenRepo.Delete(ctx, dbToken.ID)
-		// Log expired token attempt
-		if ipAddress != "" && dbToken.AccountID > 0 {
-			s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeTokenExpired, false, ipAddress, userAgent, "Token expired")
-		}
-		return "", "", &AuthError{Op: "check token expiry", Err: ErrTokenExpired}
-	}
-
-	// Token family tracking - detect potential token theft
-	if dbToken.FamilyID != "" {
-		// Check if this is the latest token in the family
-		latestToken, err := s.tokenRepo.GetLatestTokenInFamily(ctx, dbToken.FamilyID)
-		if err == nil && latestToken != nil && latestToken.Generation > dbToken.Generation {
-			// This token has already been refreshed - potential theft detected!
-			// Delete entire token family to force re-authentication
-			_ = s.tokenRepo.DeleteByFamilyID(ctx, dbToken.FamilyID)
-			
-			// Log security event
-			if ipAddress != "" {
-				s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Token theft detected - family invalidated")
-			}
-			
-			return "", "", &AuthError{Op: "token theft detection", Err: ErrInvalidToken}
-		}
-	}
-
-	// Get account
-	account, err := s.accountRepo.FindByID(ctx, dbToken.AccountID)
-	if err != nil {
-		return "", "", &AuthError{Op: "get account", Err: ErrAccountNotFound}
-	}
-
-	// Check if account is active
-	if !account.Active {
-		// Log failed refresh attempt
-		if ipAddress != "" {
-			s.logAuthEvent(ctx, account.ID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Account inactive")
-		}
-		return "", "", &AuthError{Op: "check account status", Err: ErrAccountInactive}
-	}
-
-	// Generate new refresh token in the same family
-	newTokenStr := uuid.Must(uuid.NewV4()).String()
-	now := time.Now()
-
-	// Create new token with incremented generation
-	newToken := &auth.Token{
-		Token:      newTokenStr,
-		AccountID:  account.ID,
-		Expiry:     now.Add(s.jwtRefreshExpiry),
-		Mobile:     dbToken.Mobile,
-		Identifier: dbToken.Identifier,
-		FamilyID:   dbToken.FamilyID,
-		Generation: dbToken.Generation + 1, // Increment generation
-	}
-
-	// Execute in transaction using txHandler
+	// Execute token lookup and validation in transaction with row lock
 	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
-		txService := s.WithTx(tx).(AuthService)
+		// Context already has the transaction from RunInTx
+
+		// Get token from database with row lock
+		var lookupErr error
+		dbToken, lookupErr = s.tokenRepo.FindByTokenForUpdate(ctx, refreshClaims.Token)
+		if lookupErr != nil {
+			return &AuthError{Op: "get token", Err: ErrTokenNotFound}
+		}
+
+		// Check if token is expired
+		if time.Now().After(dbToken.Expiry) {
+			// Delete expired token
+			_ = s.tokenRepo.Delete(ctx, dbToken.ID)
+			// Log expired token attempt
+			if ipAddress != "" && dbToken.AccountID > 0 {
+				s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeTokenExpired, false, ipAddress, userAgent, "Token expired")
+			}
+			return &AuthError{Op: "check token expiry", Err: ErrTokenExpired}
+		}
+
+		// Token family tracking - detect potential token theft
+		if dbToken.FamilyID != "" {
+			// Check if this is the latest token in the family
+			latestToken, err := s.tokenRepo.GetLatestTokenInFamily(ctx, dbToken.FamilyID)
+			if err == nil && latestToken != nil && latestToken.Generation > dbToken.Generation {
+				// This token has already been refreshed - potential theft detected!
+				// Delete entire token family to force re-authentication
+				_ = s.tokenRepo.DeleteByFamilyID(ctx, dbToken.FamilyID)
+				
+				// Log security event
+				if ipAddress != "" {
+					s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Token theft detected - family invalidated")
+				}
+				
+				return &AuthError{Op: "token theft detection", Err: ErrInvalidToken}
+			}
+		}
+
+		// Get account
+		var accountErr error
+		account, accountErr = s.accountRepo.FindByID(ctx, dbToken.AccountID)
+		if accountErr != nil {
+			return &AuthError{Op: "get account", Err: ErrAccountNotFound}
+		}
+
+		// Check if account is active
+		if !account.Active {
+			// Log failed refresh attempt
+			if ipAddress != "" {
+				s.logAuthEvent(ctx, account.ID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Account inactive")
+			}
+			return &AuthError{Op: "check account status", Err: ErrAccountInactive}
+		}
+
+		// Generate new refresh token in the same family
+		newTokenStr := uuid.Must(uuid.NewV4()).String()
+		now := time.Now()
+
+		// Create new token with incremented generation
+		newToken = &auth.Token{
+			Token:      newTokenStr,
+			AccountID:  account.ID,
+			Expiry:     now.Add(s.jwtRefreshExpiry),
+			Mobile:     dbToken.Mobile,
+			Identifier: dbToken.Identifier,
+			FamilyID:   dbToken.FamilyID,
+			Generation: dbToken.Generation + 1, // Increment generation
+		}
 
 		// Delete the old token
-		if err := txService.(*Service).tokenRepo.Delete(ctx, dbToken.ID); err != nil {
+		if err := s.tokenRepo.Delete(ctx, dbToken.ID); err != nil {
 			return err
 		}
 
 		// Create the new token
-		if err := txService.(*Service).tokenRepo.Create(ctx, newToken); err != nil {
+		if err := s.tokenRepo.Create(ctx, newToken); err != nil {
 			return err
 		}
 
 		// Update last login
 		loginTime := time.Now()
 		account.LastLogin = &loginTime
-		return txService.(*Service).accountRepo.Update(ctx, account)
+		return s.accountRepo.Update(ctx, account)
 	})
 
 	if err != nil {

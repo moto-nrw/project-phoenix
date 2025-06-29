@@ -14,33 +14,25 @@ export async function fetchWithAuth(
 ): Promise<Response> {
   const { retry = true, ...fetchOptions } = options;
   
-  console.log(`fetchWithAuth: Making request to ${url}`);
-  
   // Make the initial request
   const response = await fetch(url, fetchOptions);
   
-  console.log(`fetchWithAuth: Response status ${response.status} from ${url}`);
-  
   // If we get a 401 and haven't retried yet, attempt token refresh
   if (response.status === 401 && retry) {
-    console.log("fetchWithAuth: Received 401, attempting token refresh");
-    
-    try {
-      // Try to refresh the token and update the session
-      const refreshSuccessful = await handleAuthFailure();
-      
-      if (refreshSuccessful) {
-        console.log("Token refresh successful, retrying request");
+    // Only attempt token refresh on the client side
+    if (typeof window !== "undefined") {
+      try {
+        // Try to refresh the token and update the session
+        const refreshSuccessful = await handleAuthFailure();
         
-        // Retry the request with retry=false to prevent infinite loops
-        return fetchWithAuth(url, { ...fetchOptions, retry: false });
+        if (refreshSuccessful) {
+          // Retry the request with retry=false to prevent infinite loops
+          return fetchWithAuth(url, { ...fetchOptions, retry: false });
+        }
+      } catch (error) {
+        console.error("Token refresh failed:", error);
       }
-    } catch (error) {
-      console.error("Token refresh failed:", error);
     }
-    
-    // handleAuthFailure will handle the redirect if needed
-    console.log("Token refresh failed");
   }
   
   return response;
