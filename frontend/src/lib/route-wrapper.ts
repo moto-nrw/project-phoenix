@@ -100,7 +100,7 @@ import type { NextRequest } from "next/server";
                   : { success: true, message: "Success", data: retryData };
                 
                 return NextResponse.json(retryResponse);
-              } catch (retryError) {
+              } catch {
                 // If retry also fails, return 401
                 return NextResponse.json(
                   { error: "Token expired", code: "TOKEN_EXPIRED" },
@@ -216,7 +216,7 @@ import type { NextRequest } from "next/server";
                   : { success: true, message: "Success", data: retryData };
                 
                 return NextResponse.json(retryResponse);
-              } catch (retryError) {
+              } catch {
                 // If retry also fails, return 401
                 return NextResponse.json(
                   { error: "Token expired", code: "TOKEN_EXPIRED" },
@@ -332,7 +332,7 @@ import type { NextRequest } from "next/server";
                   : { success: true, message: "Success", data: retryData };
                 
                 return NextResponse.json(retryResponse);
-              } catch (retryError) {
+              } catch {
                 // If retry also fails, return 401
                 return NextResponse.json(
                   { error: "Token expired", code: "TOKEN_EXPIRED" },
@@ -449,7 +449,7 @@ import type { NextRequest } from "next/server";
                   : { success: true, message: "Success", data: retryData };
                 
                 return NextResponse.json(retryResponse);
-              } catch (retryError) {
+              } catch {
                 // If retry also fails, return 401
                 return NextResponse.json(
                   { error: "Token expired", code: "TOKEN_EXPIRED" },
