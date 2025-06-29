@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FormModal, Notification } from "~/components/ui";
-import { useNotification } from "~/lib/use-notification";
+import { FormModal } from "~/components/ui";
+import { SimpleAlert } from "~/components/simple/SimpleAlert";
 import { authService } from "~/lib/auth-service";
 import type { Permission } from "~/lib/auth-helpers";
 import type { Teacher } from "~/lib/teacher-api";
@@ -20,7 +20,12 @@ export function TeacherPermissionManagementModal({
   teacher,
   onUpdate,
 }: TeacherPermissionManagementModalProps) {
-  const { notification, showSuccess, showError, showWarning } = useNotification();
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [showErrorAlert, setShowErrorAlert] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [showWarningAlert, setShowWarningAlert] = useState(false);
+  const [warningMessage, setWarningMessage] = useState("");
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
   const [accountPermissions, setAccountPermissions] = useState<Permission[]>([]);
   const [directPermissions, setDirectPermissions] = useState<Permission[]>([]);
@@ -29,6 +34,21 @@ export function TeacherPermissionManagementModal({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"all" | "direct" | "available">("all");
+
+  const showSuccess = (message: string) => {
+    setSuccessMessage(message);
+    setShowSuccessAlert(true);
+  };
+
+  const showError = (message: string) => {
+    setErrorMessage(message);
+    setShowErrorAlert(true);
+  };
+
+  const showWarning = (message: string) => {
+    setWarningMessage(message);
+    setShowWarningAlert(true);
+  };
 
   // Fetch all permissions and account permissions
   const fetchPermissions = async () => {
@@ -183,9 +203,6 @@ export function TeacherPermissionManagementModal({
 
   return (
     <>
-      {/* Notification for success/error messages */}
-      <Notification notification={notification} className="fixed top-4 right-4 z-[10000] max-w-sm" />
-      
       <FormModal
         isOpen={isOpen}
         onClose={onClose}
@@ -367,6 +384,30 @@ export function TeacherPermissionManagementModal({
           )}
         </div>
       </FormModal>
+      
+      {/* Alert components */}
+      {showSuccessAlert && (
+        <SimpleAlert
+          type="success"
+          message={successMessage}
+          onClose={() => setShowSuccessAlert(false)}
+          autoClose
+        />
+      )}
+      {showErrorAlert && (
+        <SimpleAlert
+          type="error"
+          message={errorMessage}
+          onClose={() => setShowErrorAlert(false)}
+        />
+      )}
+      {showWarningAlert && (
+        <SimpleAlert
+          type="warning"
+          message={warningMessage}
+          onClose={() => setShowWarningAlert(false)}
+        />
+      )}
     </>
   );
 }

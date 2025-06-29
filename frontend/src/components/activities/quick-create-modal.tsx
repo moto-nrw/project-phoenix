@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { FormModal } from "~/components/ui/form-modal";
 import { getCategories, type ActivityCategory } from "~/lib/activity-api";
+import { SimpleAlert } from "~/components/simple/SimpleAlert";
+import { getDbOperationMessage } from "~/lib/use-notification";
 
 interface QuickCreateActivityModalProps {
   isOpen: boolean;
@@ -21,6 +23,8 @@ export function QuickCreateActivityModal({
   onClose,
   onSuccess
 }: QuickCreateActivityModalProps) {
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const [form, setForm] = useState<QuickCreateForm>({
     name: "",
     category_id: "",
@@ -118,10 +122,16 @@ export function QuickCreateActivityModal({
 
       await response.json();
       
+      // Show success notification
+      setSuccessMessage(getDbOperationMessage('create', 'Aktivität', form.name.trim()));
+      setShowSuccessAlert(true);
+      
       // Handle success
       if (onSuccess) {
         onSuccess();
       }
+      
+      // Close modal
       onClose();
     } catch (err) {
       console.error("Error creating activity:", err);
@@ -157,7 +167,7 @@ export function QuickCreateActivityModal({
       <button
         type="button"
         onClick={onClose}
-        className="px-6 py-2.5 rounded-xl text-gray-700 font-medium bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 disabled:opacity-50"
+        className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-colors duration-150 disabled:opacity-50"
         disabled={isSubmitting}
       >
         Abbrechen
@@ -167,29 +177,37 @@ export function QuickCreateActivityModal({
         type="submit"
         form="quick-create-form"
         disabled={isSubmitting || loading}
-        className="px-6 py-2.5 rounded-xl font-medium bg-gradient-to-r from-[#83CD2D] to-[#70B525] hover:from-[#90D83D] hover:to-[#83CD2D] text-white shadow-sm hover:shadow-md hover:shadow-[#83CD2D]/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98]"
+        className="px-5 py-2 rounded-lg text-sm font-medium bg-[#83CD2D] text-white hover:bg-[#78BE29] transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
       >
         {isSubmitting ? (
-          <span className="flex items-center gap-2">
+          <>
             <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            Erstellen...
-          </span>
-        ) : "Aktivität erstellen"}
+            <span>Wird erstellt...</span>
+          </>
+        ) : (
+          <>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            <span>Aktivität erstellen</span>
+          </>
+        )}
       </button>
     </>
   );
 
   return (
-    <FormModal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Aktivität erstellen"
-      size="sm"
-      footer={footer}
-    >
+    <>
+      <FormModal
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Aktivität erstellen"
+        size="sm"
+        footer={footer}
+      >
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4">
@@ -214,12 +232,12 @@ export function QuickCreateActivityModal({
           )}
 
           {/* Activity Name Card */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50/50 to-indigo-50/50 p-5 border border-blue-100/50">
-            <div className="absolute top-2 right-2 w-16 h-16 bg-blue-100/20 rounded-full blur-2xl"></div>
-            <div className="absolute bottom-2 left-2 w-12 h-12 bg-indigo-100/20 rounded-full blur-xl"></div>
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-5 border border-gray-200/50">
+            <div className="absolute top-2 right-2 w-16 h-16 bg-gray-100/20 rounded-full blur-2xl"></div>
+            <div className="absolute bottom-2 left-2 w-12 h-12 bg-slate-100/20 rounded-full blur-xl"></div>
             <div className="relative">
               <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                <div className="w-5 h-5 rounded bg-gradient-to-br from-blue-400 to-indigo-400 flex items-center justify-center">
+                <div className="w-5 h-5 rounded bg-gradient-to-br from-gray-600 to-gray-700 flex items-center justify-center">
                   <span className="text-white text-xs font-bold">1</span>
                 </div>
                 Aktivitätsname
@@ -229,19 +247,19 @@ export function QuickCreateActivityModal({
                 name="name"
                 value={form.name}
                 onChange={handleInputChange}
-                placeholder="z.B. Bastelstunde, Fußball, Musikkreis..."
-                className="block w-full rounded-xl border-0 px-4 py-3.5 text-base text-gray-900 bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-inset ring-gray-200/50 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-500 focus:bg-white transition-all duration-200"
+                placeholder="z.B. Hausaufgaben, Malen, Basteln..."
+                className="block w-full rounded-xl border-0 px-4 py-3.5 text-base text-gray-900 bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-inset ring-gray-200/50 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-gray-700 focus:bg-white transition-all duration-200"
                 required
               />
             </div>
           </div>
 
           {/* Category Card */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-50/50 to-teal-50/50 p-5 border border-emerald-100/50">
-            <div className="absolute top-2 left-2 w-14 h-14 bg-emerald-100/20 rounded-full blur-2xl"></div>
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-5 border border-gray-200/50">
+            <div className="absolute top-2 left-2 w-14 h-14 bg-gray-100/20 rounded-full blur-2xl"></div>
             <div className="relative">
               <label htmlFor="category_id" className="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                <div className="w-5 h-5 rounded bg-gradient-to-br from-emerald-400 to-teal-400 flex items-center justify-center">
+                <div className="w-5 h-5 rounded bg-gradient-to-br from-gray-600 to-gray-700 flex items-center justify-center">
                   <span className="text-white text-xs font-bold">2</span>
                 </div>
                 Kategorie
@@ -252,10 +270,20 @@ export function QuickCreateActivityModal({
                   name="category_id"
                   value={form.category_id}
                   onChange={handleInputChange}
-                  className="block w-full appearance-none rounded-xl border-0 px-4 py-3.5 pr-10 text-base text-gray-900 bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-inset ring-gray-200/50 focus:ring-2 focus:ring-inset focus:ring-emerald-500 focus:bg-white transition-all duration-200 cursor-pointer"
+                  className="block w-full appearance-none rounded-xl border-0 px-4 py-3.5 pr-10 text-base text-gray-900 bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-inset ring-gray-200/50 focus:ring-2 focus:ring-inset focus:ring-gray-700 focus:bg-white transition-all duration-200 cursor-pointer"
                   required
                 >
                   <option value="">Kategorie wählen...</option>
+                  {/* Categories are fetched from backend. Expected values:
+                      - Gruppenraum
+                      - Hausaufgaben
+                      - Kreatives/Musik
+                      - Bewegen/Entspannen
+                      - Natur
+                      - HW/Technik
+                      - Spielen
+                      - Lernen
+                  */}
                   {categories.map((category) => (
                     <option key={category.id} value={category.id}>
                       {category.name}
@@ -272,11 +300,11 @@ export function QuickCreateActivityModal({
           </div>
 
           {/* Participants Card */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50/50 to-orange-50/50 p-5 border border-amber-100/50">
-            <div className="absolute bottom-2 right-2 w-20 h-20 bg-amber-100/20 rounded-full blur-2xl"></div>
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-5 border border-gray-200/50">
+            <div className="absolute bottom-2 right-2 w-20 h-20 bg-gray-100/20 rounded-full blur-2xl"></div>
             <div className="relative">
               <label htmlFor="max_participants" className="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                <div className="w-5 h-5 rounded bg-gradient-to-br from-amber-400 to-orange-400 flex items-center justify-center">
+                <div className="w-5 h-5 rounded bg-gradient-to-br from-gray-600 to-gray-700 flex items-center justify-center">
                   <span className="text-white text-xs font-bold">3</span>
                 </div>
                 Maximale Teilnehmerzahl
@@ -290,7 +318,7 @@ export function QuickCreateActivityModal({
                       setForm(prev => ({ ...prev, max_participants: (current - 1).toString() }));
                     }
                   }}
-                  className="absolute left-0 z-10 h-full w-14 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-white/50 rounded-l-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="absolute left-0 z-10 h-full w-14 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-white/50 rounded-l-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
                   disabled={parseInt(form.max_participants) <= 1}
                   aria-label="Teilnehmer reduzieren"
                 >
@@ -307,7 +335,7 @@ export function QuickCreateActivityModal({
                   onChange={handleInputChange}
                   min="1"
                   max="50"
-                  className="block w-full rounded-xl border-0 px-16 py-3.5 text-center text-lg font-semibold text-gray-900 bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-inset ring-gray-200/50 focus:ring-2 focus:ring-inset focus:ring-amber-500 focus:bg-white transition-all duration-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="block w-full rounded-xl border-0 px-16 py-3.5 text-center text-lg font-semibold text-gray-900 bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-inset ring-gray-200/50 focus:ring-2 focus:ring-inset focus:ring-gray-700 focus:bg-white transition-all duration-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   required
                 />
                 
@@ -319,7 +347,7 @@ export function QuickCreateActivityModal({
                       setForm(prev => ({ ...prev, max_participants: (current + 1).toString() }));
                     }
                   }}
-                  className="absolute right-0 z-10 h-full w-14 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-white/50 rounded-r-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="absolute right-0 z-10 h-full w-14 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-white/50 rounded-r-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
                   disabled={parseInt(form.max_participants) >= 50}
                   aria-label="Teilnehmer erhöhen"
                 >
@@ -328,7 +356,6 @@ export function QuickCreateActivityModal({
                   </svg>
                 </button>
               </div>
-              <p className="mt-2 text-xs text-gray-500 text-center">Zwischen 1 und 50 Teilnehmern</p>
             </div>
           </div>
 
@@ -350,5 +377,17 @@ export function QuickCreateActivityModal({
         </form>
       )}
     </FormModal>
+      
+      {/* Success Alert */}
+      {showSuccessAlert && (
+        <SimpleAlert
+          type="success"
+          message={successMessage}
+          autoClose
+          duration={3000}
+          onClose={() => setShowSuccessAlert(false)}
+        />
+      )}
+    </>
   );
 }

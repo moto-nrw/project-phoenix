@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Alert } from "~/components/ui";
+import { SimpleAlert } from "~/components/simple/SimpleAlert";
 
 interface PINStatus {
   has_pin: boolean;
@@ -16,7 +17,8 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
   const [pinStatus, setPinStatus] = useState<PINStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   
   // Form state
   const [currentPin, setCurrentPin] = useState("");
@@ -76,7 +78,6 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setSuccess(null);
 
     const validationError = validateForm();
     if (validationError) {
@@ -114,7 +115,8 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
       void loadPinStatus();
       
       // Show success message
-      setSuccess(pinStatus?.has_pin ? "PIN erfolgreich geändert" : "PIN erfolgreich erstellt");
+      setSuccessMessage(pinStatus?.has_pin ? "PIN erfolgreich geändert" : "PIN erfolgreich erstellt");
+      setShowSuccessAlert(true);
       
       // Call success callback
       onSuccess?.();
@@ -183,9 +185,8 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
         </div>
       </div>
 
-      {/* Error/Success Messages */}
+      {/* Error Messages */}
       {error && <Alert type="error" message={error} />}
-      {success && <Alert type="success" message={success} />}
 
       {/* PIN Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -260,6 +261,17 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
           </button>
         </div>
       </form>
+
+      {/* Success Alert */}
+      {showSuccessAlert && (
+        <SimpleAlert
+          type="success"
+          message={successMessage}
+          autoClose
+          duration={3000}
+          onClose={() => setShowSuccessAlert(false)}
+        />
+      )}
 
       {/* Simple Info Box */}
       <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
