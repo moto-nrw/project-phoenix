@@ -112,7 +112,7 @@ export function FormModal({
           )}
           <button
             onClick={handleClose}
-            className="group relative flex-shrink-0 min-h-[44px] min-w-[44px] p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-all duration-200 hover:scale-105 active:scale-[0.98]"
+            className="group relative flex-shrink-0 h-10 w-10 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-all duration-200 hover:scale-105 active:scale-[0.98]"
             aria-label="Modal schließen"
           >
             <svg 

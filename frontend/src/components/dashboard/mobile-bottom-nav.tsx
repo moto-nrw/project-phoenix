@@ -312,19 +312,24 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
             </button>
           </div>
 
-          {/* Quick Activity Button */}
+          {/* Create Activity Button */}
           <div className="px-6 pb-4">
             <button
               onClick={() => {
                 setIsQuickCreateOpen(true);
                 closeOverflowMenu();
               }}
-              className="w-full flex items-center justify-center px-4 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md transform active:scale-95"
+              className="w-full flex items-center gap-3 px-4 py-3.5 bg-white border border-gray-200 rounded-2xl hover:bg-gray-50 hover:border-gray-300 hover:shadow-sm transition-all duration-200 transform active:scale-[0.97] group"
             >
-              <svg className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center flex-shrink-0 group-active:from-blue-100 group-active:to-indigo-100 transition-colors duration-200">
+                <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </div>
+              <span className="flex-1 text-left font-medium text-gray-900">Aktivität erstellen</span>
+              <svg className="h-5 w-5 text-gray-400 group-active:translate-x-0.5 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
               </svg>
-              Schnell-Aktivität
             </button>
           </div>
 

@@ -179,7 +179,7 @@ export function QuickCreateActivityModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      title="Schnell-Aktivität erstellen"
+      title="Aktivität erstellen"
       size="sm"
       footer={footer}
     >
@@ -209,37 +209,86 @@ export function QuickCreateActivityModal({
             <label htmlFor="category_id" className="block text-sm font-medium text-gray-700 mb-2">
               Kategorie
             </label>
-            <select
-              id="category_id"
-              name="category_id"
-              value={form.category_id}
-              onChange={handleInputChange}
-              className="block w-full rounded-lg border-0 px-4 py-3 text-base text-gray-900 bg-white shadow-sm ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-inset focus:ring-gray-900 transition-all duration-200"
-              required
-            >
-              <option value="">Kategorie wählen...</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                id="category_id"
+                name="category_id"
+                value={form.category_id}
+                onChange={handleInputChange}
+                className="block w-full appearance-none rounded-lg border-0 px-4 py-3 pr-10 text-base text-gray-900 bg-white shadow-sm ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-inset focus:ring-gray-900 transition-all duration-200"
+                required
+              >
+                <option value="">Kategorie wählen...</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
           </div>
 
-          <Input
-            label="Max. Teilnehmer"
-            name="max_participants"
-            type="number"
-            value={form.max_participants}
-            onChange={handleInputChange}
-            min="1"
-            max="50"
-            required
-          />
+          <div>
+            <label htmlFor="max_participants" className="block text-sm font-medium text-gray-700 mb-2">
+              Max. Teilnehmer
+            </label>
+            <div className="relative flex items-center">
+              <button
+                type="button"
+                onClick={() => {
+                  const current = parseInt(form.max_participants);
+                  if (current > 1) {
+                    setForm(prev => ({ ...prev, max_participants: (current - 1).toString() }));
+                  }
+                }}
+                className="absolute left-0 h-full w-12 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-l-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={parseInt(form.max_participants) <= 1}
+                aria-label="Teilnehmer reduzieren"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" />
+                </svg>
+              </button>
+              
+              <input
+                id="max_participants"
+                name="max_participants"
+                type="number"
+                value={form.max_participants}
+                onChange={handleInputChange}
+                min="1"
+                max="50"
+                className="block w-full rounded-lg border-0 px-16 py-3 text-center text-base font-medium text-gray-900 bg-white shadow-sm ring-1 ring-inset ring-gray-200 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-gray-900 transition-all duration-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                required
+              />
+              
+              <button
+                type="button"
+                onClick={() => {
+                  const current = parseInt(form.max_participants);
+                  if (current < 50) {
+                    setForm(prev => ({ ...prev, max_participants: (current + 1).toString() }));
+                  }
+                }}
+                className="absolute right-0 h-full w-12 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-r-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={parseInt(form.max_participants) >= 50}
+                aria-label="Teilnehmer erhöhen"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </button>
+            </div>
+          </div>
 
           <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
             <p className="font-medium mb-1">Hinweis:</p>
-            <p>Sie werden automatisch als Betreuer der Aktivität zugewiesen. Die Aktivität ist sofort für RFID-Geräte verfügbar.</p>
+            <p>Die Aktivität ist sofort für NFC-Terminals verfügbar.</p>
           </div>
         </form>
       )}
