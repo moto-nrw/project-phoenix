@@ -1301,7 +1301,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, response, "Student "+actionMsg+" successfully")
 }
 
-// getTeacherStudents handles getting students supervised by the authenticated teacher (for RFID devices)
+// getTeacherStudents handles getting students supervised by the specified teachers (for RFID devices)
 func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
@@ -1313,11 +1313,86 @@ func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Without staff context, we cannot identify the teacher
-	// This endpoint requires staff authentication
-	if err := render.Render(w, r, ErrorNotFound(errors.New("teacher information not available without staff authentication"))); err != nil {
-		log.Printf("Error rendering error response: %v", err)
+	// Parse teacher IDs from query parameters
+	teacherIDsParam := r.URL.Query().Get("teacher_ids")
+	if teacherIDsParam == "" {
+		// Return empty array if no teacher IDs provided
+		common.Respond(w, r, http.StatusOK, []TeacherStudentResponse{}, "No teacher IDs provided")
+		return
 	}
+
+	// Split comma-separated teacher IDs and parse them
+	teacherIDStrings := strings.Split(teacherIDsParam, ",")
+	teacherIDs := make([]int64, 0, len(teacherIDStrings))
+	for _, idStr := range teacherIDStrings {
+		idStr = strings.TrimSpace(idStr)
+		if idStr == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid teacher ID: "+idStr))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+		teacherIDs = append(teacherIDs, id)
+	}
+
+	if len(teacherIDs) == 0 {
+		common.Respond(w, r, http.StatusOK, []TeacherStudentResponse{}, "No valid teacher IDs provided")
+		return
+	}
+
+	// Use a map to track unique students by ID
+	uniqueStudents := make(map[int64]usersSvc.StudentWithGroup)
+
+	// Fetch students for each teacher
+	for _, teacherID := range teacherIDs {
+		students, err := rs.UsersService.GetStudentsWithGroupsByTeacher(r.Context(), teacherID)
+		if err != nil {
+			log.Printf("Error fetching students for teacher %d: %v", teacherID, err)
+			// Continue with other teachers even if one fails
+			continue
+		}
+
+		// Add students to map (automatically handles duplicates)
+		for _, student := range students {
+			uniqueStudents[student.Student.ID] = student
+		}
+	}
+
+	// Convert map to slice for response
+	response := make([]TeacherStudentResponse, 0, len(uniqueStudents))
+	for _, swg := range uniqueStudents {
+		// Get person details
+		person, err := rs.UsersService.Get(r.Context(), swg.Student.PersonID)
+		if err != nil {
+			log.Printf("Error fetching person for student %d: %v", swg.Student.ID, err)
+			continue
+		}
+
+		// Get school class
+		schoolClass := swg.Student.SchoolClass
+
+		// Get RFID tag
+		rfidTag := ""
+		if person.TagID != nil {
+			rfidTag = *person.TagID
+		}
+
+		response = append(response, TeacherStudentResponse{
+			StudentID:   swg.Student.ID,
+			PersonID:    swg.Student.PersonID,
+			FirstName:   person.FirstName,
+			LastName:    person.LastName,
+			SchoolClass: schoolClass,
+			GroupName:   swg.GroupName,
+			RFIDTag:     rfidTag,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, response, fmt.Sprintf("Found %d unique students", len(response)))
 }
 
 // convertToDeviceActivityResponse converts an activity group to device response format
