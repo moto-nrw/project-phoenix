@@ -19,12 +19,8 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     // Use apiGet directly with the token instead of studentService which doesn't have auth in server context
     const studentResponse = await apiGet(`/api/students/${studentId}`, token);
     
-    console.log('Student response data:', JSON.stringify(studentResponse.data, null, 2));
-    
     // Extract the actual student data from the response
     const student = studentResponse.data?.data || studentResponse.data;
-    
-    console.log('Extracted student data:', JSON.stringify(student, null, 2));
     
     if (!student || !student.group_id) {
       return {
@@ -43,31 +39,26 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       // Extract the actual data (handle potential double-wrapping)
       const roomStatusData = roomStatusResponse.data?.data || roomStatusResponse.data;
       
-      console.log('Room status API response:', JSON.stringify(roomStatusData, null, 2));
-      console.log('Looking for student ID:', studentId);
-      console.log('Has student_room_status?', !!roomStatusData?.student_room_status);
-      console.log('Response data type:', typeof roomStatusData);
-      
       if (roomStatusData?.student_room_status) {
         const studentStatus = roomStatusData.student_room_status[studentId];
-        
-        console.log('Student status:', JSON.stringify(studentStatus, null, 2));
         
         // Check if student has any current room (not just their group's room)
         if (studentStatus && studentStatus.current_room_id) {
           // Get room details
           try {
             const roomResponse = await apiGet(`/api/rooms/${studentStatus.current_room_id}`, token);
-            if (roomResponse.data) {
+            // Handle potential double-wrapped response
+            const roomData = roomResponse.data?.data || roomResponse.data;
+            if (roomData) {
               return {
                 status: "present",
                 location: "Anwesend",
                 room: {
-                  id: roomResponse.data.id.toString(),
-                  name: roomResponse.data.name,
-                  roomNumber: roomResponse.data.number,
-                  building: roomResponse.data.building,
-                  floor: roomResponse.data.floor
+                  id: roomData.id?.toString() || studentStatus.current_room_id.toString(),
+                  name: roomData.name || `Raum ${studentStatus.current_room_id}`,
+                  roomNumber: roomData.number,
+                  building: roomData.building,
+                  floor: roomData.floor
                 },
                 group: {
                   id: student.group_id.toString(),

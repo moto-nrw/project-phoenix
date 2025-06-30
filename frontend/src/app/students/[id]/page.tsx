@@ -78,19 +78,14 @@ export default function StudentDetailPage() {
                     guardian_name?: string;
                     guardian_contact?: string;
                     guardian_phone?: string;
+                    guardian_email?: string;
                 };
                 
                 const hasAccess = mappedStudent.has_full_access ?? true;
                 const groupSupervisors = mappedStudent.group_supervisors ?? [];
                 
-                console.log('Student access check:', {
-                    studentId,
-                    hasFullAccess: mappedStudent.has_full_access,
-                    hasAccess,
-                    willFetchLocation: hasAccess
-                });
-                
                 // Create ExtendedStudent with the properly mapped data
+                
                 const extendedStudent: ExtendedStudent = {
                     id: mappedStudent.id,
                     first_name: mappedStudent.first_name ?? "",
@@ -105,9 +100,9 @@ export default function StudentDetailPage() {
                     school_yard: mappedStudent.school_yard ?? false,
                     bus: mappedStudent.bus ?? false,
                     current_room: undefined, // Not available from API yet
-                    guardian_name: hasAccess ? (mappedStudent.guardian_name ?? "") : "",
-                    guardian_contact: hasAccess ? (mappedStudent.guardian_contact ?? "") : "",
-                    guardian_phone: hasAccess ? (mappedStudent.guardian_phone ?? "") : "",
+                    guardian_name: hasAccess ? ((mappedStudent as any).name_lg ?? "") : "",
+                    guardian_contact: "", // Email - not provided in this API response
+                    guardian_phone: hasAccess ? ((mappedStudent as any).contact_lg ?? "") : "",
                     birthday: undefined, // Not available from API yet
                     notes: undefined, // Not available from API yet
                     buskind: mappedStudent.bus, // Use bus field for buskind
@@ -120,16 +115,13 @@ export default function StudentDetailPage() {
                 
                 // If user has full access (is a supervisor), fetch current location
                 if (hasAccess) {
-                    console.log('Fetching location for student:', studentId);
                     try {
                         const locationResponse = await fetch(`/api/students/${studentId}/current-location`);
                         if (locationResponse.ok) {
                             const response = await locationResponse.json();
-                            console.log('Location response received:', response);
                             
                             // Unwrap the response
                             const locationData = response.data || response;
-                            console.log('Location data:', locationData);
                             
                             setCurrentLocation(locationData);
                         } else {
