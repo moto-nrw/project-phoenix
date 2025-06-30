@@ -12,17 +12,6 @@ import {
     type ActivityCategory
 } from "~/lib/activity-helpers";
 
-// Kategorie-zu-Farbe Mapping (gleich wie bei Räumen)
-const categoryColors: Record<string, string> = {
-    "Gruppenraum": "#4F46E5", // Blau für Gruppenraum
-    "Lernen": "#10B981",      // Grün für Lernen
-    "Spielen": "#F59E0B",     // Orange für Spielen
-    "Bewegen/Ruhe": "#EC4899", // Pink für Bewegen/Ruhe
-    "Hauswirtschaft": "#EF4444", // Rot für Hauswirtschaft
-    "Natur": "#22C55E",       // Grün für Natur
-    "Kreatives/Musik": "#8B5CF6", // Lila für Kreatives/Musik
-    "NW/Technik": "#06B6D4",  // Türkis für NW/Technik
-};
 
 export default function ActivitiesPage() {
     const router = useRouter();
@@ -32,7 +21,6 @@ export default function ActivitiesPage() {
     const [categories, setCategories] = useState<ActivityCategory[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("all");
-    const [participationFilter, setParticipationFilter] = useState("all");
     const [filteredActivities, setFilteredActivities] = useState<Activity[]>([]);
 
     // Load activities and categories on mount
@@ -80,14 +68,9 @@ export default function ActivitiesPage() {
             filtered = filtered.filter(activity => activity.ag_category_id === categoryFilter);
         }
 
-        // Apply participation filter
-        if (participationFilter !== "all") {
-            const isOpen = participationFilter === "open";
-            filtered = filtered.filter(activity => activity.is_open_ags === isOpen);
-        }
 
         setFilteredActivities(filtered);
-    }, [searchTerm, categoryFilter, participationFilter, activities]);
+    }, [searchTerm, categoryFilter, activities]);
 
     // Handle activity selection
     const handleSelectActivity = (activity: Activity) => {
@@ -109,20 +92,8 @@ export default function ActivitiesPage() {
                     label: cat.name
                 }))
             ]
-        },
-        {
-            id: 'participation',
-            label: 'Teilnahme',
-            type: 'dropdown', 
-            value: participationFilter,
-            onChange: (value: string | string[]) => setParticipationFilter(value as string),
-            options: [
-                { value: "all", label: "Alle" },
-                { value: "open", label: "Aktiv" },
-                { value: "closed", label: "Geschlossen" }
-            ]
         }
-    ], [categoryFilter, participationFilter, categories]);
+    ], [categoryFilter, categories]);
 
     // Prepare active filters for display
     const activeFilters: ActiveFilter[] = useMemo(() => {
@@ -145,16 +116,9 @@ export default function ActivitiesPage() {
             });
         }
         
-        if (participationFilter !== "all") {
-            filters.push({
-                id: 'participation',
-                label: participationFilter === "open" ? "Aktiv" : "Geschlossen",
-                onRemove: () => setParticipationFilter("all")
-            });
-        }
         
         return filters;
-    }, [searchTerm, categoryFilter, participationFilter, categories]);
+    }, [searchTerm, categoryFilter, categories]);
 
     if (loading) {
         return (
@@ -186,7 +150,6 @@ export default function ActivitiesPage() {
                     onClearAllFilters={() => {
                         setSearchTerm("");
                         setCategoryFilter("all");
-                        setParticipationFilter("all");
                     }}
                     className="mb-6"
                 />
@@ -198,103 +161,115 @@ export default function ActivitiesPage() {
                     </div>
                 )}
 
-                {/* Activity Cards Grid */}
+                {/* Activity List - Modern Design */}
                 {filteredActivities.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {filteredActivities.map((activity) => {
-                            const categoryColor = categoryColors[activity.category_name ?? ""] ?? "#6B7280";
-                            const participantPercentage = activity.max_participant > 0 
-                                ? Math.min((activity.participant_count ?? 0) / activity.max_participant * 100, 100)
-                                : 0;
+                    <div className="space-y-3">
+                        {filteredActivities.map((activity, index) => {
+                            const isGruppenraum = activity.category_name === "Gruppenraum";
                             
                             return (
                                 <div
                                     key={activity.id}
                                     onClick={() => handleSelectActivity(activity)}
-                                    className="group cursor-pointer relative bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] overflow-hidden border border-gray-100"
+                                    className="group cursor-pointer relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.01] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-1 active:scale-[0.99] md:hover:border-blue-200/50"
+                                    style={{
+                                        animationDelay: `${index * 0.05}s`,
+                                        animation: 'fadeInUp 0.5s ease-out forwards',
+                                        opacity: 0
+                                    }}
                                 >
-                                    {/* Stack effect for document metaphor */}
-                                    <div className="absolute -bottom-1 left-2 right-2 h-full bg-gray-100 rounded-2xl -z-10 transform translate-y-1"></div>
-                                    <div className="absolute -bottom-2 left-4 right-4 h-full bg-gray-50 rounded-2xl -z-20 transform translate-y-2"></div>
+                                    {/* Modern gradient overlay */}
+                                    <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03] rounded-3xl"></div>
+                                    {/* Subtle inner glow */}
+                                    <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                                    {/* Modern border highlight */}
+                                    <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 md:group-hover:ring-blue-200/60 transition-all duration-300"></div>
                                     
-                                    {/* Main card content */}
-                                    <div className="relative bg-white rounded-2xl overflow-hidden">
-                                        {/* Category color sidebar */}
+                                    {/* Gruppenraum indicator - accent bar */}
+                                    {isGruppenraum && (
                                         <div 
-                                            className="absolute left-0 top-0 bottom-0 w-1 opacity-80 group-hover:opacity-100 transition-opacity"
-                                            style={{ backgroundColor: categoryColor }}
+                                            className="absolute left-0 top-0 bottom-0 w-1 rounded-l-3xl"
+                                            style={{ backgroundColor: "#83CD2D" }}
                                         ></div>
-                                        
-                                        {/* Content */}
-                                        <div className="p-6 pl-7">
-                                            {/* Header */}
-                                            <div className="mb-4">
-                                                <h3 className="text-lg font-semibold text-gray-900 mb-1 group-hover:text-[#5080D8] transition-colors line-clamp-2">
-                                                    {activity.name}
-                                                </h3>
-                                                <p className="text-sm text-gray-600">
-                                                    {formatSupervisorList(activity.supervisors)}
+                                    )}
+                                    
+                                    <div className={`relative flex items-center justify-between p-5 ${isGruppenraum ? 'pl-6' : ''}`}>
+                                        {/* Left content */}
+                                        <div className="flex-1 min-w-0">
+                                            {/* Activity Name */}
+                                            <h3 className="text-lg font-semibold text-gray-900 md:group-hover:text-blue-600 transition-colors duration-300">
+                                                {activity.name}
+                                            </h3>
+                                            
+                                            {/* Meta info row */}
+                                            <div className="flex items-center gap-4 mt-1">
+                                                {/* Creator info */}
+                                                <p className="text-sm text-gray-500">
+                                                    <span className="text-gray-400">Erstellt von:</span> {formatSupervisorList(activity.supervisors)}
                                                 </p>
-                                            </div>
-                                            
-                                            {/* Category badge */}
-                                            <div className="flex items-center gap-2 mb-4">
-                                                <span 
-                                                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                                    style={{
-                                                        backgroundColor: `${categoryColor}15`,
-                                                        color: categoryColor
-                                                    }}
-                                                >
-                                                    <span 
-                                                        className="w-1.5 h-1.5 rounded-full mr-1.5"
-                                                        style={{ backgroundColor: categoryColor }}
-                                                    ></span>
-                                                    {activity.category_name ?? "Keine Kategorie"}
-                                                </span>
                                                 
-                                                {/* Open/Closed status */}
-                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                    activity.is_open_ags 
-                                                        ? "bg-green-100 text-green-700" 
-                                                        : "bg-red-100 text-red-700"
-                                                }`}>
-                                                    {activity.is_open_ags ? "Aktiv" : "Geschlossen"}
-                                                </span>
-                                            </div>
-                                            
-                                            {/* Participant count and progress */}
-                                            {activity.max_participant > 0 && (
-                                                <div className="mt-auto">
-                                                    <div className="flex justify-between items-center mb-2">
-                                                        <span className="text-sm text-gray-600">Teilnehmer</span>
-                                                        <span className="text-sm font-medium text-gray-900">
-                                                            {activity.participant_count ?? 0} / {activity.max_participant}
+                                                {/* Gruppenraum indicator */}
+                                                {isGruppenraum && (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <div className="w-2 h-2 rounded-full bg-[#83CD2D] animate-pulse"></div>
+                                                        <span className="text-sm font-medium text-[#83CD2D]">
+                                                            Gruppenraum
                                                         </span>
                                                     </div>
-                                                    <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden">
-                                                        <div 
-                                                            className="absolute left-0 top-0 h-full transition-all duration-500 ease-out rounded-full"
-                                                            style={{
-                                                                width: `${participantPercentage}%`,
-                                                                backgroundColor: participantPercentage >= 90 ? "#EF4444" : participantPercentage >= 70 ? "#F59E0B" : "#83CD2D"
-                                                            }}
-                                                        ></div>
-                                                    </div>
-                                                </div>
-                                            )}
+                                                )}
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Right content - Edit button */}
+                                        <div className="flex items-center gap-3 ml-4">
+                                            {/* Desktop hint */}
+                                            <span className="hidden lg:block text-xs text-gray-400 group-hover:text-gray-600 transition-colors">
+                                                Bearbeiten
+                                            </span>
                                             
-                                            {/* Hover indicator */}
-                                            <div className="absolute bottom-6 right-6 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                                <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                </svg>
+                                            {/* Edit icon button */}
+                                            <div className="relative">
+                                                <div className="w-10 h-10 rounded-full bg-gray-100 md:group-hover:bg-blue-100 flex items-center justify-center transition-all duration-200 md:group-hover:scale-110">
+                                                    <svg 
+                                                        className="w-5 h-5 text-gray-600 md:group-hover:text-blue-600 transition-colors" 
+                                                        fill="none" 
+                                                        viewBox="0 0 24 24" 
+                                                        stroke="currentColor"
+                                                    >
+                                                        <path 
+                                                            strokeLinecap="round" 
+                                                            strokeLinejoin="round" 
+                                                            strokeWidth={2} 
+                                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
+                                                        />
+                                                    </svg>
+                                                </div>
+                                                
+                                                {/* Ripple effect on hover */}
+                                                <div className="absolute inset-0 rounded-full bg-blue-200/20 scale-0 md:group-hover:scale-100 transition-transform duration-300"></div>
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* Glowing border effect */}
+                                    <div className="absolute inset-0 rounded-3xl opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent via-blue-100/30 to-transparent"></div>
                                 </div>
                             );
                         })}
+                        
+                        {/* Add fadeInUp animation */}
+                        <style jsx>{`
+                            @keyframes fadeInUp {
+                                from {
+                                    opacity: 0;
+                                    transform: translateY(20px);
+                                }
+                                to {
+                                    opacity: 1;
+                                    transform: translateY(0);
+                                }
+                            }
+                        `}</style>
                     </div>
                 ) : (
                     <div className="flex min-h-[300px] items-center justify-center">
@@ -303,12 +278,12 @@ export default function ActivitiesPage() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                             </svg>
                             <h3 className="mt-4 text-lg font-medium text-gray-900">
-                                {searchTerm || categoryFilter !== "all" || participationFilter !== "all"
+                                {searchTerm || categoryFilter !== "all"
                                     ? "Keine Aktivitäten gefunden"
                                     : "Keine Aktivitäten vorhanden"}
                             </h3>
                             <p className="mt-2 text-sm text-gray-600">
-                                {searchTerm || categoryFilter !== "all" || participationFilter !== "all"
+                                {searchTerm || categoryFilter !== "all"
                                     ? "Versuchen Sie andere Suchkriterien oder Filter."
                                     : "Es wurden noch keine Aktivitäten erstellt."}
                             </p>
