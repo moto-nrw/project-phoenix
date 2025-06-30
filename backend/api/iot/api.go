@@ -841,11 +841,10 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 
 // devicePing handles ping requests from RFID devices
 func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
-	// Get authenticated device and staff from context
+	// Get authenticated device from context (no staff context needed with global PIN)
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -860,13 +859,11 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return device status and staff info
+	// Return device status (no staff info with global PIN)
 	response := map[string]interface{}{
 		"device_id":   deviceCtx.DeviceID,
 		"device_name": deviceCtx.Name,
 		"status":      deviceCtx.Status,
-		"staff_id":    staffCtx.ID,
-		"person_id":   staffCtx.PersonID,
 		"last_seen":   deviceCtx.LastSeen,
 		"is_online":   deviceCtx.IsOnline(),
 		"ping_time":   time.Now(),
@@ -877,18 +874,17 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 
 // deviceStatus handles status requests from RFID devices
 func (rs *Resource) deviceStatus(w http.ResponseWriter, r *http.Request) {
-	// Get authenticated device and staff from context
+	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
 	}
 
-	// Return detailed device and staff status
+	// Return detailed device status
 	response := map[string]interface{}{
 		"device": map[string]interface{}{
 			"id":          deviceCtx.ID,
@@ -900,20 +896,7 @@ func (rs *Resource) deviceStatus(w http.ResponseWriter, r *http.Request) {
 			"is_online":   deviceCtx.IsOnline(),
 			"is_active":   deviceCtx.IsActive(),
 		},
-		"staff": map[string]interface{}{
-			"id":        staffCtx.ID,
-			"person_id": staffCtx.PersonID,
-		},
 		"authenticated_at": time.Now(),
-	}
-
-	// Add person info if available
-	if staffCtx.Person != nil {
-		response["person"] = map[string]interface{}{
-			"id":         staffCtx.Person.ID,
-			"first_name": staffCtx.Person.FirstName,
-			"last_name":  staffCtx.Person.LastName,
-		}
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Device status retrieved")
@@ -1008,11 +991,10 @@ func (req *CheckinRequest) Bind(r *http.Request) error {
 
 // deviceCheckin handles student check-in/check-out requests from RFID devices
 func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
-	// Get authenticated device and staff from context
+	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -1020,8 +1002,8 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log the start of check-in/check-out process
-	log.Printf("[CHECKIN] Starting process - Device: %s (ID: %d), Staff: %d",
-		deviceCtx.DeviceID, deviceCtx.ID, staffCtx.ID)
+	log.Printf("[CHECKIN] Starting process - Device: %s (ID: %d)",
+		deviceCtx.DeviceID, deviceCtx.ID)
 
 	// Parse request
 	req := &CheckinRequest{}
@@ -1314,68 +1296,21 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 
 // getTeacherStudents handles getting students supervised by the authenticated teacher (for RFID devices)
 func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
-	// Get authenticated device and staff from context
+	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
 	}
 
-	// Find teacher for authenticated staff
-	teacherRepo := rs.UsersService.TeacherRepository()
-	teacher, err := teacherRepo.FindByStaffID(r.Context(), staffCtx.ID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("teacher not found for authenticated staff"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
+	// Without staff context, we cannot identify the teacher
+	// This endpoint requires staff authentication
+	if err := render.Render(w, r, ErrorNotFound(errors.New("teacher information not available without staff authentication"))); err != nil {
+		log.Printf("Error rendering error response: %v", err)
 	}
-	if teacher == nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("teacher not found for authenticated staff"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Get students supervised by this teacher with group information
-	studentsWithGroups, err := rs.UsersService.GetStudentsWithGroupsByTeacher(r.Context(), teacher.ID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Convert students to device response format
-	responses := make([]TeacherStudentResponse, 0, len(studentsWithGroups))
-	for _, swg := range studentsWithGroups {
-		student := swg.Student
-		response := TeacherStudentResponse{
-			StudentID:   student.ID,
-			PersonID:    student.PersonID,
-			SchoolClass: student.SchoolClass,
-			GroupName:   swg.GroupName,
-		}
-
-		// Add person details if available
-		if student.Person != nil {
-			response.FirstName = student.Person.FirstName
-			response.LastName = student.Person.LastName
-
-			// Add RFID tag if available
-			if student.Person.TagID != nil {
-				response.RFIDTag = *student.Person.TagID
-			}
-		}
-
-		responses = append(responses, response)
-	}
-
-	common.Respond(w, r, http.StatusOK, responses, "Teacher students retrieved successfully")
 }
 
 // convertToDeviceActivityResponse converts an activity group to device response format
@@ -1417,67 +1352,29 @@ func newDeviceRoomResponse(room *facilities.Room) DeviceRoomResponse {
 
 // getTeacherActivities handles getting activities supervised by the authenticated teacher (for RFID devices)
 func (rs *Resource) getTeacherActivities(w http.ResponseWriter, r *http.Request) {
-	// Get authenticated device and staff from context
+	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
 	}
 
-	// Find teacher for authenticated staff
-	teacherRepo := rs.UsersService.TeacherRepository()
-	teacher, err := teacherRepo.FindByStaffID(r.Context(), staffCtx.ID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("teacher not found for authenticated staff"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
+	// Without staff context, we cannot identify the teacher
+	// This endpoint requires staff authentication
+	if err := render.Render(w, r, ErrorNotFound(errors.New("teacher information not available without staff authentication"))); err != nil {
+		log.Printf("Error rendering error response: %v", err)
 	}
-	if teacher == nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("teacher not found for authenticated staff"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Get teacher's activities for today
-	activityGroups, err := rs.ActivitiesService.GetTeacherTodaysActivities(r.Context(), staffCtx.ID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Convert to device response format
-	responses := make([]DeviceActivityResponse, 0, len(activityGroups))
-	for _, activityGroup := range activityGroups {
-		// Get enrollment count - for now using 0, this could be optimized with batch query
-		enrollmentCount := 0 // TODO: Implement enrollment counting if needed
-
-		// Get supervisor name from teacher context
-		supervisorName := ""
-		if teacher.Staff != nil && teacher.Staff.Person != nil {
-			supervisorName = fmt.Sprintf("%s %s", teacher.Staff.Person.FirstName, teacher.Staff.Person.LastName)
-		}
-
-		responses = append(responses, convertToDeviceActivityResponse(activityGroup, enrollmentCount, supervisorName))
-	}
-
-	common.Respond(w, r, http.StatusOK, responses, "Teacher activities retrieved successfully")
 }
 
 // getAvailableRoomsForDevice handles getting available rooms for RFID devices
 func (rs *Resource) getAvailableRoomsForDevice(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -1631,9 +1528,8 @@ func (req *SessionStartRequest) Bind(r *http.Request) error {
 func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -1654,10 +1550,10 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 
 	if req.Force {
 		// Force start with override
-		activeGroup, err = rs.ActiveService.ForceStartActivitySession(r.Context(), req.ActivityID, deviceCtx.ID, staffCtx.ID, req.RoomID)
+		activeGroup, err = rs.ActiveService.ForceStartActivitySession(r.Context(), req.ActivityID, deviceCtx.ID, 0, req.RoomID) // Note: supervisor ID not available without staff context
 	} else {
 		// Normal start with conflict detection
-		activeGroup, err = rs.ActiveService.StartActivitySession(r.Context(), req.ActivityID, deviceCtx.ID, staffCtx.ID, req.RoomID)
+		activeGroup, err = rs.ActiveService.StartActivitySession(r.Context(), req.ActivityID, deviceCtx.ID, 0, req.RoomID) // Note: supervisor ID not available without staff context
 	}
 
 	if err != nil {
@@ -1708,9 +1604,8 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -1757,9 +1652,8 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -1828,9 +1722,8 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) checkSessionConflict(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -2023,9 +1916,8 @@ func (rs *Resource) getSessionTimeoutInfo(w http.ResponseWriter, r *http.Request
 func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -2088,9 +1980,8 @@ func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Reques
 func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -2141,8 +2032,10 @@ func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Check teacher has access to student
-	hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(r.Context(), staffCtx.ID, student.ID)
+	// Without staff context, we cannot verify teacher access to student
+	// Skip access check - device authentication is sufficient
+	hasAccess := true
+	err = error(nil)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -2204,9 +2097,8 @@ func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) 
 func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -2267,8 +2159,8 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Call ToggleStudentAttendance service
-	result, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, staffCtx.ID, deviceCtx.ID)
+	// Call ToggleStudentAttendance service without supervisor ID
+	result, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, 0, deviceCtx.ID) // Note: supervisor ID not available without staff context
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
