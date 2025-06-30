@@ -8,12 +8,12 @@ import {
   SelectFilter, 
   CreateFormModal, 
   DetailFormModal, 
-  Notification
 } from "@/components/ui";
 import { DatabaseForm } from "./database-form";
 import { DatabaseDetailView } from "./database-detail-view";
 import { DatabaseListItem } from "../database-list-item";
-import { useNotification, getDbOperationMessage } from "@/lib/use-notification";
+import { SimpleAlert } from "@/components/simple/SimpleAlert";
+import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import type { EntityConfig } from "@/lib/database/types";
 
@@ -26,7 +26,8 @@ export function DatabasePage<T extends { id: string }>({
   config,
   customListItem: CustomListItem
 }: DatabasePageProps<T>) {
-  const { notification, showSuccess } = useNotification();
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const [items, setItems] = useState<T[]>([]);
   const [allItems, setAllItems] = useState<T[]>([]); // For frontend search
   const [loading, setLoading] = useState(true);
@@ -282,7 +283,8 @@ export function DatabasePage<T extends { id: string }>({
       
       // Show success notification
       const displayName = config.list.item.title(newItem);
-      showSuccess(getDbOperationMessage('create', config.name.singular, displayName));
+      setSuccessMessage(getDbOperationMessage('create', config.name.singular, displayName));
+      setShowSuccessAlert(true);
       
       // Close modal and refresh list
       setShowCreateModal(false);
@@ -321,7 +323,8 @@ export function DatabasePage<T extends { id: string }>({
       await service.update(selectedItem.id, itemData);
       
       const displayName = config.list.item.title(selectedItem);
-      showSuccess(getDbOperationMessage('update', config.name.singular, displayName));
+      setSuccessMessage(getDbOperationMessage('update', config.name.singular, displayName));
+      setShowSuccessAlert(true);
       
       // Refresh the selected item data
       const refreshedItem = await service.getOne(selectedItem.id);
@@ -354,7 +357,8 @@ export function DatabasePage<T extends { id: string }>({
         await service.delete(selectedItem.id);
         
         const displayName = config.list.item.title(selectedItem);
-        showSuccess(getDbOperationMessage('delete', config.name.singular, displayName));
+        setSuccessMessage(getDbOperationMessage('delete', config.name.singular, displayName));
+        setShowSuccessAlert(true);
         
         // Close modal and refresh list
         setShowDetailModal(false);
@@ -478,9 +482,6 @@ export function DatabasePage<T extends { id: string }>({
 
   return (
     <>
-      {/* Notification for success/error messages */}
-      <Notification notification={notification} className="fixed top-4 right-4 z-50 max-w-sm" />
-      
       <DatabaseListPage
         userName={session?.user?.name ?? "Benutzer"}
         title={`${config.name.singular} auswählen`}
@@ -668,6 +669,17 @@ export function DatabasePage<T extends { id: string }>({
           />
         )}
       </DetailFormModal>
+      
+      {/* Success Alert */}
+      {showSuccessAlert && (
+        <SimpleAlert
+          type="success"
+          message={successMessage}
+          autoClose
+          duration={3000}
+          onClose={() => setShowSuccessAlert(false)}
+        />
+      )}
     </>
   );
 }

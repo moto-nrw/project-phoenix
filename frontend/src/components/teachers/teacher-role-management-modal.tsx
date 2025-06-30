@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FormModal, Notification } from "~/components/ui";
-import { useNotification } from "~/lib/use-notification";
+import { FormModal } from "~/components/ui";
+import { SimpleAlert } from "~/components/simple/SimpleAlert";
 import { authService } from "~/lib/auth-service";
 import type { Role } from "~/lib/auth-helpers";
 import type { Teacher } from "~/lib/teacher-api";
@@ -20,7 +20,12 @@ export function TeacherRoleManagementModal({
   teacher,
   onUpdate,
 }: TeacherRoleManagementModalProps) {
-  const { notification, showSuccess, showError, showWarning } = useNotification();
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [showErrorAlert, setShowErrorAlert] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [showWarningAlert, setShowWarningAlert] = useState(false);
+  const [warningMessage, setWarningMessage] = useState("");
   const [allRoles, setAllRoles] = useState<Role[]>([]);
   const [accountRoles, setAccountRoles] = useState<Role[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
@@ -28,6 +33,21 @@ export function TeacherRoleManagementModal({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"assigned" | "available">("assigned");
+
+  const showSuccess = (message: string) => {
+    setSuccessMessage(message);
+    setShowSuccessAlert(true);
+  };
+
+  const showError = (message: string) => {
+    setErrorMessage(message);
+    setShowErrorAlert(true);
+  };
+
+  const showWarning = (message: string) => {
+    setWarningMessage(message);
+    setShowWarningAlert(true);
+  };
 
 
   // Fetch all roles and account roles
@@ -168,9 +188,6 @@ export function TeacherRoleManagementModal({
 
   return (
     <>
-      {/* Notification for success/error messages */}
-      <Notification notification={notification} className="fixed top-4 right-4 z-[10000] max-w-sm" />
-      
       <FormModal
         isOpen={isOpen}
         onClose={onClose}
@@ -315,6 +332,30 @@ export function TeacherRoleManagementModal({
           )}
         </div>
       </FormModal>
+      
+      {/* Alert components */}
+      {showSuccessAlert && (
+        <SimpleAlert
+          type="success"
+          message={successMessage}
+          onClose={() => setShowSuccessAlert(false)}
+          autoClose
+        />
+      )}
+      {showErrorAlert && (
+        <SimpleAlert
+          type="error"
+          message={errorMessage}
+          onClose={() => setShowErrorAlert(false)}
+        />
+      )}
+      {showWarningAlert && (
+        <SimpleAlert
+          type="warning"
+          message={warningMessage}
+          onClose={() => setShowWarningAlert(false)}
+        />
+      )}
     </>
   );
 }

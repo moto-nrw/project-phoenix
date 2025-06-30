@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { FormModal, Notification } from "~/components/ui";
-import { useNotification } from "~/lib/use-notification";
+import { FormModal } from "~/components/ui";
+import { SimpleAlert } from "~/components/simple/SimpleAlert";
 import * as activityService from "~/lib/activity-api";
 import type { Activity, ActivitySchedule } from "~/lib/activity-helpers";
 
@@ -39,12 +39,32 @@ export function TimeManagementModal({
   activity,
   onUpdate,
 }: TimeManagementModalProps) {
-  const { notification, showSuccess, showError, showWarning } = useNotification();
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [showErrorAlert, setShowErrorAlert] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [showWarningAlert, setShowWarningAlert] = useState(false);
+  const [warningMessage, setWarningMessage] = useState("");
   const [schedules, setSchedules] = useState<ActivitySchedule[]>([]);
   const [timeframes, setTimeframes] = useState<AvailableTimeframe[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"schedules" | "add">("schedules");
+
+  const showSuccess = useCallback((message: string) => {
+    setSuccessMessage(message);
+    setShowSuccessAlert(true);
+  }, []);
+
+  const showError = useCallback((message: string) => {
+    setErrorMessage(message);
+    setShowErrorAlert(true);
+  }, []);
+
+  const showWarning = useCallback((message: string) => {
+    setWarningMessage(message);
+    setShowWarningAlert(true);
+  }, []);
   
   // Form state for adding new schedule
   const [newSchedule, setNewSchedule] = useState({
@@ -158,9 +178,6 @@ export function TimeManagementModal({
 
   return (
     <>
-      {/* Notification for success/error messages */}
-      <Notification notification={notification} className="fixed top-4 right-4 z-[10000] max-w-sm" />
-      
       <FormModal
         isOpen={isOpen}
         onClose={onClose}
@@ -296,6 +313,30 @@ export function TimeManagementModal({
           )}
         </div>
       </FormModal>
+      
+      {/* Alert components */}
+      {showSuccessAlert && (
+        <SimpleAlert
+          type="success"
+          message={successMessage}
+          onClose={() => setShowSuccessAlert(false)}
+          autoClose
+        />
+      )}
+      {showErrorAlert && (
+        <SimpleAlert
+          type="error"
+          message={errorMessage}
+          onClose={() => setShowErrorAlert(false)}
+        />
+      )}
+      {showWarningAlert && (
+        <SimpleAlert
+          type="warning"
+          message={warningMessage}
+          onClose={() => setShowWarningAlert(false)}
+        />
+      )}
     </>
   );
 }

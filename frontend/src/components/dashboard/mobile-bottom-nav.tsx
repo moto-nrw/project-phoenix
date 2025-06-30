@@ -312,19 +312,27 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
             </button>
           </div>
 
-          {/* Quick Activity Button */}
+          {/* Create Activity Button */}
           <div className="px-6 pb-4">
             <button
               onClick={() => {
                 setIsQuickCreateOpen(true);
                 closeOverflowMenu();
               }}
-              className="w-full flex items-center justify-center px-4 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md transform active:scale-95"
+              className="w-full flex items-center gap-3 px-4 py-4 bg-gradient-to-r from-[#83CD2D]/10 to-[#70B525]/10 border border-[#83CD2D]/30 rounded-2xl hover:from-[#83CD2D]/20 hover:to-[#70B525]/20 hover:border-[#83CD2D]/50 hover:shadow-lg hover:shadow-[#83CD2D]/20 transition-all duration-300 transform active:scale-[0.96] group"
             >
-              <svg className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Schnell-Aktivität
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#83CD2D] to-[#70B525] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#83CD2D]/30 transition-all duration-300 group-active:rotate-90">
+                <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </div>
+              <span className="flex-1 text-left font-semibold text-gray-800">Aktivität erstellen</span>
+              <div className="flex items-center gap-1">
+                <div className="w-1.5 h-1.5 bg-[#83CD2D] rounded-full animate-pulse"></div>
+                <svg className="h-5 w-5 text-[#83CD2D] group-active:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                </svg>
+              </div>
             </button>
           </div>
 

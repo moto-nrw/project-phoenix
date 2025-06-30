@@ -207,16 +207,21 @@ function SidebarContent({ className = "" }: SidebarProps) {
                         ))}
                     </nav>
                     
-                    {/* Quick Create Activity Button */}
-                    <div className="mt-6 pt-4 border-t border-gray-200">
+                    {/* Create Activity Button */}
+                    <div className="mt-6 pt-4 border-t border-gray-100">
                         <button
                             onClick={() => setIsQuickCreateOpen(true)}
-                            className="w-full flex items-center px-4 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md"
+                            className="w-full flex items-center justify-center gap-2.5 px-4 py-3 text-sm font-medium text-gray-700 bg-gradient-to-r from-[#83CD2D]/10 to-[#70B525]/10 border border-[#83CD2D]/30 rounded-xl hover:from-[#83CD2D]/20 hover:to-[#70B525]/20 hover:border-[#83CD2D]/50 hover:shadow-md hover:shadow-[#83CD2D]/20 transition-all duration-300 group transform hover:scale-[1.02] active:scale-[0.98]"
                         >
-                            <svg className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#83CD2D] to-[#70B525] flex items-center justify-center shadow-sm group-hover:shadow-md group-hover:shadow-[#83CD2D]/30 transition-all duration-300 group-hover:rotate-90">
+                                <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                </svg>
+                            </div>
+                            <span className="flex-1 text-left font-semibold text-gray-800">Aktivität erstellen</span>
+                            <svg className="h-4 w-4 text-[#83CD2D] group-hover:translate-x-1 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                             </svg>
-                            Schnell-Aktivität
                         </button>
                     </div>
                 </div>

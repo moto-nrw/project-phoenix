@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { FormModal } from "~/components/ui/form-modal";
-import { Input } from "~/components/ui/input";
 import { getCategories, type ActivityCategory } from "~/lib/activity-api";
+import { SimpleAlert } from "~/components/simple/SimpleAlert";
+import { getDbOperationMessage } from "~/lib/use-notification";
 
 interface QuickCreateActivityModalProps {
   isOpen: boolean;
@@ -22,6 +23,8 @@ export function QuickCreateActivityModal({
   onClose,
   onSuccess
 }: QuickCreateActivityModalProps) {
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const [form, setForm] = useState<QuickCreateForm>({
     name: "",
     category_id: "",
@@ -119,10 +122,16 @@ export function QuickCreateActivityModal({
 
       await response.json();
       
+      // Show success notification
+      setSuccessMessage(getDbOperationMessage('create', 'Aktivität', form.name.trim()));
+      setShowSuccessAlert(true);
+      
       // Handle success
       if (onSuccess) {
         onSuccess();
       }
+      
+      // Close modal
       onClose();
     } catch (err) {
       console.error("Error creating activity:", err);
@@ -158,7 +167,7 @@ export function QuickCreateActivityModal({
       <button
         type="button"
         onClick={onClose}
-        className="rounded-lg bg-gray-200 px-4 py-2 text-gray-800 transition-colors hover:bg-gray-300 disabled:opacity-50"
+        className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-colors duration-150 disabled:opacity-50"
         disabled={isSubmitting}
       >
         Abbrechen
@@ -168,81 +177,217 @@ export function QuickCreateActivityModal({
         type="submit"
         form="quick-create-form"
         disabled={isSubmitting || loading}
-        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-white transition-colors disabled:opacity-50"
+        className="px-5 py-2 rounded-lg text-sm font-medium bg-[#83CD2D] text-white hover:bg-[#78BE29] transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
       >
-        {isSubmitting ? "Erstellen..." : "Aktivität erstellen"}
+        {isSubmitting ? (
+          <>
+            <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Wird erstellt...</span>
+          </>
+        ) : (
+          <>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            <span>Aktivität erstellen</span>
+          </>
+        )}
       </button>
     </>
   );
 
   return (
-    <FormModal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Schnell-Aktivität erstellen"
-      size="sm"
-      footer={footer}
-    >
+    <>
+      <FormModal
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Aktivität erstellen"
+        size="sm"
+        footer={footer}
+      >
       {loading ? (
-        <div className="flex items-center justify-center py-8">
-          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-          <p className="ml-3 text-gray-600">Categories werden geladen...</p>
+        <div className="flex items-center justify-center py-12">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+            <p className="text-gray-600">Kategorien werden geladen...</p>
+          </div>
         </div>
       ) : (
-        <form id="quick-create-form" onSubmit={handleSubmit} className="space-y-4">
+        <form id="quick-create-form" onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="rounded-lg bg-red-50 p-4 text-red-800">
-              <p className="text-sm">{error}</p>
+            <div className="relative overflow-hidden rounded-2xl bg-red-50/80 backdrop-blur-sm border border-red-100 p-4">
+              <div className="absolute inset-0 bg-gradient-to-br from-red-50/50 to-pink-50/50 opacity-50"></div>
+              <div className="relative flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-4 h-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                  </svg>
+                </div>
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
             </div>
           )}
 
-          <Input
-            label="Aktivitätsname"
-            name="name"
-            value={form.name}
-            onChange={handleInputChange}
-            placeholder="z.B. Bastelstunde"
-            required
-          />
-
-          <div>
-            <label htmlFor="category_id" className="block text-sm font-medium text-gray-700 mb-2">
-              Kategorie
-            </label>
-            <select
-              id="category_id"
-              name="category_id"
-              value={form.category_id}
-              onChange={handleInputChange}
-              className="block w-full rounded-lg border-0 px-4 py-3 text-base text-gray-900 bg-white shadow-sm ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-inset focus:ring-gray-900 transition-all duration-200"
-              required
-            >
-              <option value="">Kategorie wählen...</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
+          {/* Activity Name Card */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-5 border border-gray-200/50">
+            <div className="absolute top-2 right-2 w-16 h-16 bg-gray-100/20 rounded-full blur-2xl"></div>
+            <div className="absolute bottom-2 left-2 w-12 h-12 bg-slate-100/20 rounded-full blur-xl"></div>
+            <div className="relative">
+              <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <div className="w-5 h-5 rounded bg-gradient-to-br from-gray-600 to-gray-700 flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">1</span>
+                </div>
+                Aktivitätsname
+              </label>
+              <input
+                id="name"
+                name="name"
+                value={form.name}
+                onChange={handleInputChange}
+                placeholder="z.B. Hausaufgaben, Malen, Basteln..."
+                className="block w-full rounded-xl border-0 px-4 py-3.5 text-base text-gray-900 bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-inset ring-gray-200/50 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-gray-700 focus:bg-white transition-all duration-200"
+                required
+              />
+            </div>
           </div>
 
-          <Input
-            label="Max. Teilnehmer"
-            name="max_participants"
-            type="number"
-            value={form.max_participants}
-            onChange={handleInputChange}
-            min="1"
-            max="50"
-            required
-          />
+          {/* Category Card */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-5 border border-gray-200/50">
+            <div className="absolute top-2 left-2 w-14 h-14 bg-gray-100/20 rounded-full blur-2xl"></div>
+            <div className="relative">
+              <label htmlFor="category_id" className="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <div className="w-5 h-5 rounded bg-gradient-to-br from-gray-600 to-gray-700 flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">2</span>
+                </div>
+                Kategorie
+              </label>
+              <div className="relative">
+                <select
+                  id="category_id"
+                  name="category_id"
+                  value={form.category_id}
+                  onChange={handleInputChange}
+                  className="block w-full appearance-none rounded-xl border-0 px-4 py-3.5 pr-10 text-base text-gray-900 bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-inset ring-gray-200/50 focus:ring-2 focus:ring-inset focus:ring-gray-700 focus:bg-white transition-all duration-200 cursor-pointer"
+                  required
+                >
+                  <option value="">Kategorie wählen...</option>
+                  {/* Categories are fetched from backend. Expected values:
+                      - Gruppenraum
+                      - Hausaufgaben
+                      - Kreatives/Musik
+                      - Bewegen/Entspannen
+                      - Natur
+                      - HW/Technik
+                      - Spielen
+                      - Lernen
+                  */}
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                  <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-            <p className="font-medium mb-1">Hinweis:</p>
-            <p>Sie werden automatisch als Betreuer der Aktivität zugewiesen. Die Aktivität ist sofort für RFID-Geräte verfügbar.</p>
+          {/* Participants Card */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-5 border border-gray-200/50">
+            <div className="absolute bottom-2 right-2 w-20 h-20 bg-gray-100/20 rounded-full blur-2xl"></div>
+            <div className="relative">
+              <label htmlFor="max_participants" className="block text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <div className="w-5 h-5 rounded bg-gradient-to-br from-gray-600 to-gray-700 flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">3</span>
+                </div>
+                Maximale Teilnehmerzahl
+              </label>
+              <div className="relative flex items-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const current = parseInt(form.max_participants);
+                    if (current > 1) {
+                      setForm(prev => ({ ...prev, max_participants: (current - 1).toString() }));
+                    }
+                  }}
+                  className="absolute left-0 z-10 h-full w-14 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-white/50 rounded-l-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                  disabled={parseInt(form.max_participants) <= 1}
+                  aria-label="Teilnehmer reduzieren"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12h-15" />
+                  </svg>
+                </button>
+                
+                <input
+                  id="max_participants"
+                  name="max_participants"
+                  type="number"
+                  value={form.max_participants}
+                  onChange={handleInputChange}
+                  min="1"
+                  max="50"
+                  className="block w-full rounded-xl border-0 px-16 py-3.5 text-center text-lg font-semibold text-gray-900 bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-inset ring-gray-200/50 focus:ring-2 focus:ring-inset focus:ring-gray-700 focus:bg-white transition-all duration-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  required
+                />
+                
+                <button
+                  type="button"
+                  onClick={() => {
+                    const current = parseInt(form.max_participants);
+                    if (current < 50) {
+                      setForm(prev => ({ ...prev, max_participants: (current + 1).toString() }));
+                    }
+                  }}
+                  className="absolute right-0 z-10 h-full w-14 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-white/50 rounded-r-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                  disabled={parseInt(form.max_participants) >= 50}
+                  aria-label="Teilnehmer erhöhen"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Info Card */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-50/80 to-slate-50/80 backdrop-blur-sm border border-gray-200/50 p-4">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-100/10 to-indigo-100/10 rounded-full blur-3xl"></div>
+            <div className="relative flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-100 to-slate-100 flex items-center justify-center flex-shrink-0">
+                <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-700 mb-1">Hinweis</p>
+                <p className="text-sm text-gray-600">Die Aktivität ist sofort für NFC-Terminals verfügbar.</p>
+              </div>
+            </div>
           </div>
         </form>
       )}
     </FormModal>
+      
+      {/* Success Alert */}
+      {showSuccessAlert && (
+        <SimpleAlert
+          type="success"
+          message={successMessage}
+          autoClose
+          duration={3000}
+          onClose={() => setShowSuccessAlert(false)}
+        />
+      )}
+    </>
   );
 }

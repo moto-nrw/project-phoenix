@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Input, PasswordChangeModal } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
+import { SimpleAlert } from "~/components/simple/SimpleAlert";
 import { fetchProfile, updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { Profile, ProfileUpdateRequest } from "~/lib/profile-helpers";
 
@@ -95,7 +96,8 @@ function ProfilePageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [hasLoadedProfile, setHasLoadedProfile] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -160,7 +162,6 @@ function ProfilePageContent() {
     try {
       setIsSaving(true);
       setError(null);
-      setSuccessMessage(null);
 
       // If no profile exists yet, firstName and lastName are required
       if ((!profile?.firstName || !profile?.lastName) && 
@@ -181,6 +182,7 @@ function ProfilePageContent() {
       setProfile(updatedProfile);
       setIsEditing(false);
       setSuccessMessage("Profil erfolgreich aktualisiert");
+      setShowSuccessAlert(true);
     } catch (err) {
       setError("Fehler beim Speichern des Profils");
       console.error(err);
@@ -210,7 +212,7 @@ function ProfilePageContent() {
       const updatedProfile = await uploadAvatar(file);
       setProfile(updatedProfile);
       setSuccessMessage("Profilbild erfolgreich aktualisiert");
-      setTimeout(() => setSuccessMessage(null), 3000);
+      setTimeout(() => setSuccessMessage(""), 3000);
     } catch (err) {
       console.error("Error uploading avatar:", err);
       setError(err instanceof Error ? err.message : "Fehler beim Hochladen des Profilbilds");
@@ -268,11 +270,6 @@ function ProfilePageContent() {
         {error && (
           <div className="mb-6">
             <Alert type="error" message={error} />
-          </div>
-        )}
-        {successMessage && (
-          <div className="mb-6">
-            <Alert type="success" message={successMessage} />
           </div>
         )}
 
@@ -508,9 +505,20 @@ function ProfilePageContent() {
         onClose={() => setShowPasswordModal(false)}
         onSuccess={() => {
           setSuccessMessage("Passwort erfolgreich geändert!");
-          setTimeout(() => setSuccessMessage(null), 3000);
+          setShowSuccessAlert(true);
         }}
       />
+      
+      {/* Success Alert */}
+      {showSuccessAlert && (
+        <SimpleAlert
+          type="success"
+          message={successMessage}
+          autoClose
+          duration={3000}
+          onClose={() => setShowSuccessAlert(false)}
+        />
+      )}
     </ResponsiveLayout>
   );
 }
