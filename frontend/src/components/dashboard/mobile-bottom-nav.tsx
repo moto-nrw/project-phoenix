@@ -327,12 +327,9 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
                 </svg>
               </div>
               <span className="flex-1 text-left font-semibold text-gray-800">Aktivität erstellen</span>
-              <div className="flex items-center gap-1">
-                <div className="w-1.5 h-1.5 bg-[#83CD2D] rounded-full animate-pulse"></div>
-                <svg className="h-5 w-5 text-[#83CD2D] group-active:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                </svg>
-              </div>
+              <svg className="h-5 w-5 text-[#83CD2D] group-active:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
             </button>
           </div>
 

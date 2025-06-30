@@ -56,9 +56,9 @@ export function SimpleAlert({
   return (
     <div
       className={`
-        fixed bottom-6 right-6 z-50 max-w-sm
+        fixed bottom-24 lg:bottom-6 right-6 z-50 max-w-sm
         ${styles.bg} ${styles.border} 
-        rounded-2xl border p-4 shadow-lg
+        rounded-2xl border p-4 shadow-lg backdrop-blur-sm
         animate-in slide-in-from-bottom-5 duration-300
       `}
     >

@@ -177,7 +177,11 @@ export function QuickCreateActivityModal({
         type="submit"
         form="quick-create-form"
         disabled={isSubmitting || loading}
-        className="px-5 py-2 rounded-lg text-sm font-medium bg-[#83CD2D] text-white hover:bg-[#78BE29] transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        className="relative px-5 py-2.5 rounded-lg text-sm font-medium text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2
+        bg-[#83CD2D] hover:bg-[#75BC28] focus:bg-[#75BC28]
+        shadow-sm hover:shadow-md focus:shadow-md
+        transform hover:-translate-y-0.5 active:translate-y-0
+        focus:outline-none focus:ring-2 focus:ring-[#83CD2D] focus:ring-offset-2"
       >
         {isSubmitting ? (
           <>
