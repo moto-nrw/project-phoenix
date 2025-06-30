@@ -1385,7 +1385,7 @@ func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Reques
 	// Filter to today's visits only
 	today := time.Now().Truncate(24 * time.Hour)
 	tomorrow := today.Add(24 * time.Hour)
-	
+
 	var todaysVisits []*active.Visit
 	for _, visit := range visits {
 		if visit.EntryTime.After(today) && visit.EntryTime.Before(tomorrow) {

@@ -113,7 +113,7 @@ func (r *GroupSupervisorRepository) Update(ctx context.Context, supervision *act
 	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
 		db = tx
 	}
-	
+
 	// Perform the update with proper table expression
 	_, err := db.NewUpdate().
 		Model(supervision).

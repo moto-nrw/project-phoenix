@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -1003,23 +1002,23 @@ func getStudentDailyCheckoutTime() (time.Time, error) {
 	if checkoutTimeStr == "" {
 		checkoutTimeStr = "15:00" // Default to 3:00 PM
 	}
-	
+
 	// Parse time in HH:MM format
 	parts := strings.Split(checkoutTimeStr, ":")
 	if len(parts) != 2 {
 		return time.Time{}, fmt.Errorf("invalid checkout time format: %s", checkoutTimeStr)
 	}
-	
+
 	hour, err := strconv.Atoi(parts[0])
 	if err != nil || hour < 0 || hour > 23 {
 		return time.Time{}, fmt.Errorf("invalid hour in checkout time: %s", checkoutTimeStr)
 	}
-	
+
 	minute, err := strconv.Atoi(parts[1])
 	if err != nil || minute < 0 || minute > 59 {
 		return time.Time{}, fmt.Errorf("invalid minute in checkout time: %s", checkoutTimeStr)
 	}
-	
+
 	now := time.Now()
 	checkoutTime := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
 	return checkoutTime, nil
@@ -1282,7 +1281,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		// Default checkout action
 		actionMsg = "checked_out"
 		greetingMsg = "Tschüss " + person.FirstName + "!"
-		
+
 		// Check if daily checkout is available
 		if student.GroupID != nil && currentVisit != nil && currentVisit.ActiveGroup != nil {
 			// Parse checkout time from environment
@@ -1441,30 +1440,6 @@ func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, response, fmt.Sprintf("Found %d unique students", len(response)))
 }
 
-// convertToDeviceActivityResponse converts an activity group to device response format
-func convertToDeviceActivityResponse(group *activities.Group, enrollmentCount int, supervisorName string) DeviceActivityResponse {
-	response := DeviceActivityResponse{
-		ID:              group.ID,
-		Name:            group.Name,
-		EnrollmentCount: enrollmentCount,
-		MaxParticipants: group.MaxParticipants,
-		HasSpots:        enrollmentCount < group.MaxParticipants,
-		SupervisorName:  supervisorName,
-		IsActive:        group.IsOpen,
-	}
-
-	if group.Category != nil {
-		response.CategoryName = group.Category.Name
-		response.CategoryColor = group.Category.Color
-	}
-
-	if group.PlannedRoom != nil {
-		response.RoomName = group.PlannedRoom.Name
-	}
-
-	return response
-}
-
 // newDeviceRoomResponse converts a facilities.Room to DeviceRoomResponse format
 func newDeviceRoomResponse(room *facilities.Room) DeviceRoomResponse {
 	return DeviceRoomResponse{
@@ -1561,7 +1536,7 @@ func (rs *Resource) getAvailableRoomsForDevice(w http.ResponseWriter, r *http.Re
 // SessionStartRequest represents a request to start an activity session
 type SessionStartRequest struct {
 	ActivityID    int64   `json:"activity_id"`
-	RoomID        *int64  `json:"room_id,omitempty"` // Optional: Override the activity's planned room
+	RoomID        *int64  `json:"room_id,omitempty"`        // Optional: Override the activity's planned room
 	SupervisorIDs []int64 `json:"supervisor_ids,omitempty"` // Multiple supervisors support
 	Force         bool    `json:"force,omitempty"`
 }
@@ -1570,22 +1545,22 @@ type SessionStartRequest struct {
 func (req *SessionStartRequest) Bind(r *http.Request) error {
 	// Log the raw values for debugging
 	log.Printf("DEBUG Bind - ActivityID: %d, SupervisorIDs: %v, Force: %v", req.ActivityID, req.SupervisorIDs, req.Force)
-	
+
 	// Validate request
 	if req.ActivityID <= 0 {
 		return errors.New("activity_id is required")
 	}
-	
+
 	return nil
 }
 
 // SupervisorInfo represents information about a supervisor
 type SupervisorInfo struct {
-	StaffID      int64  `json:"staff_id"`
-	FirstName    string `json:"first_name"`
-	LastName     string `json:"last_name"`
-	DisplayName  string `json:"display_name"`
-	Role         string `json:"role"`
+	StaffID     int64  `json:"staff_id"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	DisplayName string `json:"display_name"`
+	Role        string `json:"role"`
 }
 
 // SessionStartResponse represents the response when starting an activity session
@@ -1713,7 +1688,7 @@ type UpdateSupervisorsResponse struct {
 func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("=== startActivitySession handler called ===")
 	log.Printf("=== startActivitySession handler called ===")
-	
+
 	// Debug: Log raw request body
 	if r.Body != nil {
 		bodyBytes, _ := io.ReadAll(r.Body)
@@ -1722,7 +1697,7 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 		// Reset body for render.Bind to read
 		r.Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
 	}
-	
+
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
@@ -1741,9 +1716,9 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 		}
 		return
 	}
-	
+
 	// Additional debug - check what we got after binding
-	log.Printf("AFTER BIND - ActivityID: %d, SupervisorIDs: %v (len=%d), Force: %v", 
+	log.Printf("AFTER BIND - ActivityID: %d, SupervisorIDs: %v (len=%d), Force: %v",
 		req.ActivityID, req.SupervisorIDs, len(req.SupervisorIDs), req.Force)
 
 	var activeGroup *active.Group
@@ -1757,12 +1732,12 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 		// Use multi-supervisor methods
 		fmt.Printf("Using multi-supervisor methods with %d supervisors\n", len(req.SupervisorIDs))
 		log.Printf("Using multi-supervisor methods with %d supervisors", len(req.SupervisorIDs))
-		
+
 		// Debug each supervisor ID
 		for i, sid := range req.SupervisorIDs {
 			fmt.Printf("req.SupervisorIDs[%d] = %d\n", i, sid)
 		}
-		
+
 		if req.Force {
 			// Force start with override
 			fmt.Printf("Calling ForceStartActivitySessionWithSupervisors with supervisors: %v\n", req.SupervisorIDs)
@@ -1987,7 +1962,7 @@ func (rs *Resource) updateSessionSupervisors(w http.ResponseWriter, r *http.Requ
 		}
 		return
 	}
-	
+
 	// Get session ID from URL parameters
 	sessionIDStr := chi.URLParam(r, "sessionId")
 	sessionID, err := strconv.ParseInt(sessionIDStr, 10, 64)
@@ -1997,7 +1972,7 @@ func (rs *Resource) updateSessionSupervisors(w http.ResponseWriter, r *http.Requ
 		}
 		return
 	}
-	
+
 	// Parse request
 	req := &UpdateSupervisorsRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -2006,7 +1981,7 @@ func (rs *Resource) updateSessionSupervisors(w http.ResponseWriter, r *http.Requ
 		}
 		return
 	}
-	
+
 	// Update supervisors
 	updatedGroup, err := rs.ActiveService.UpdateActiveGroupSupervisors(r.Context(), sessionID, req.SupervisorIDs)
 	if err != nil {
@@ -2015,7 +1990,7 @@ func (rs *Resource) updateSessionSupervisors(w http.ResponseWriter, r *http.Requ
 		}
 		return
 	}
-	
+
 	// Load supervisor details for response
 	supervisors := make([]SupervisorInfo, 0, len(updatedGroup.Supervisors))
 	for _, gs := range updatedGroup.Supervisors {
@@ -2027,7 +2002,7 @@ func (rs *Resource) updateSessionSupervisors(w http.ResponseWriter, r *http.Requ
 				log.Printf("Failed to load staff details for ID %d: %v", gs.StaffID, err)
 				continue
 			}
-			
+
 			if staff.Person != nil {
 				supervisorInfo := SupervisorInfo{
 					StaffID:     staff.ID,
@@ -2040,7 +2015,7 @@ func (rs *Resource) updateSessionSupervisors(w http.ResponseWriter, r *http.Requ
 			}
 		}
 	}
-	
+
 	// Build response
 	response := UpdateSupervisorsResponse{
 		ActiveGroupID: updatedGroup.ID,
@@ -2048,7 +2023,7 @@ func (rs *Resource) updateSessionSupervisors(w http.ResponseWriter, r *http.Requ
 		Status:        "success",
 		Message:       "Supervisors updated successfully",
 	}
-	
+
 	common.Respond(w, r, http.StatusOK, response, "Supervisors updated successfully")
 }
 

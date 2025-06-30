@@ -40,7 +40,7 @@ func (s *service) WithTx(tx bun.Tx) interface{} {
 	if txRepo, ok := s.roomRepo.(base.TransactionalRepository); ok {
 		roomRepo = txRepo.WithTx(tx).(facilities.RoomRepository)
 	}
-	
+
 	if txRepo, ok := s.activeGroupRepo.(base.TransactionalRepository); ok {
 		activeGroupRepo = txRepo.WithTx(tx).(active.GroupRepository)
 	}
@@ -242,7 +242,7 @@ func (s *service) GetAvailableRoomsWithOccupancy(ctx context.Context, capacity i
 			if err != nil {
 				return nil, &FacilitiesError{Op: "check room occupancy", Err: err}
 			}
-			
+
 			roomWithOccupancy := RoomWithOccupancy{
 				Room:       room,
 				IsOccupied: len(activeGroups) > 0,

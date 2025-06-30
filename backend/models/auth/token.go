@@ -16,10 +16,10 @@ type Token struct {
 	Expiry     time.Time `bun:"expiry,notnull" json:"expiry"`
 	Mobile     bool      `bun:"mobile,notnull,default:false" json:"mobile"`
 	Identifier *string   `bun:"identifier" json:"identifier,omitempty"`
-	
+
 	// Token family tracking for detecting token theft
-	FamilyID   string    `bun:"family_id" json:"family_id,omitempty"`
-	Generation int       `bun:"generation,default:0" json:"generation"`
+	FamilyID   string `bun:"family_id" json:"family_id,omitempty"`
+	Generation int    `bun:"generation,default:0" json:"generation"`
 
 	// Relations
 	Account *Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
