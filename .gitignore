@@ -437,3 +437,9 @@ deployment/**/ssl/certs/
 # Bruno API testing collection
 /bruno
 /My API Tests
+
+# Test SQL files and scripts
+frontend/test-data*.sql
+frontend/fix-permissions.sql
+frontend/remove-admin-role.sql
+frontend/rebuild-and-test.sh

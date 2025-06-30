@@ -38,6 +38,25 @@ export function GroupListItem({ group, onClick }: GroupListItemProps) {
     );
   }
 
+  // Add supervisor count badge
+  if (group.supervisors && group.supervisors.length > 0) {
+    badges.push(
+      <Badge key="supervisors" variant="indigo" icon={
+        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      }>
+        {group.supervisors.length} Aufsicht{group.supervisors.length === 1 ? '' : 'en'}
+      </Badge>
+    );
+  } else {
+    badges.push(
+      <Badge key="no-supervisors" variant="gray">
+        Keine Aufsicht
+      </Badge>
+    );
+  }
+
   // Add student count badge
   if (group.student_count !== undefined) {
     badges.push(

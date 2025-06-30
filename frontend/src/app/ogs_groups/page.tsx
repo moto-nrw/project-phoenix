@@ -89,14 +89,27 @@ function OGSGroupPageContent() {
 
                 setHasAccess(true);
 
-                // Convert all groups to OGSGroup format
-                const ogsGroups: OGSGroup[] = myGroups.map(group => ({
-                    id: group.id,
-                    name: group.name,
-                    room_name: group.room?.name,
-                    room_id: group.room_id,
-                    student_count: 0, // Will be calculated from actual students
-                    supervisor_name: undefined // Will be fetched separately if needed
+                // Convert all groups to OGSGroup format and pre-load student counts
+                const ogsGroups: OGSGroup[] = await Promise.all(myGroups.map(async (group) => {
+                    // Pre-load student count for this group
+                    let studentCount = 0;
+                    try {
+                        const studentsResponse = await studentService.getStudents({
+                            groupId: group.id
+                        });
+                        studentCount = studentsResponse.students?.length || 0;
+                    } catch (error) {
+                        console.error("Error fetching student count for group:", error);
+                    }
+                    
+                    return {
+                        id: group.id,
+                        name: group.name,
+                        room_name: group.room?.name,
+                        room_id: group.room_id,
+                        student_count: studentCount, // Pre-loaded actual student count
+                        supervisor_name: undefined // Will be fetched separately if needed
+                    };
                 }));
 
 

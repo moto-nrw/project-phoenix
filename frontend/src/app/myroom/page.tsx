@@ -74,7 +74,10 @@ function MeinRaumPageContent() {
 
                 setHasAccess(true);
 
-                // Convert all active groups to ActiveRoom format
+                // Fetch all active visits once for efficiency
+                const prefetchedActiveVisits = await activeService.getVisits({ active: true });
+                
+                // Convert all active groups to ActiveRoom format and load student counts
                 const activeRooms: ActiveRoom[] = await Promise.all(myActiveGroups.map(async (activeGroup) => {
                     // Get room information from the active group
                     let roomName = activeGroup.room?.name;
@@ -99,12 +102,17 @@ function MeinRaumPageContent() {
                         }
                     }
                     
+                    // Pre-load student count for this room using the pre-fetched visits
+                    const activeVisits = prefetchedActiveVisits.filter(visit => visit.activeGroupId === activeGroup.id);
+                    const currentlyCheckedIn = activeVisits.filter(visit => visit.isActive);
+                    const studentCount = currentlyCheckedIn.length;
+                    
                     return {
                         id: activeGroup.id,
                         name: activeGroup.name,
                         room_name: roomName,
                         room_id: activeGroup.room_id,
-                        student_count: 0, // Will be calculated from actual visits
+                        student_count: studentCount, // Pre-loaded actual student count
                         supervisor_name: undefined // Will be fetched separately if needed
                     };
                 }));

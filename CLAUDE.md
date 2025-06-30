@@ -816,7 +816,8 @@ export default function Page() {
 ### Active Sessions (Real-time tracking)
 - Groups can have active sessions with room assignments
 - Visit tracking for students entering/leaving rooms
-- Supervisor assignments for active groups
+- **Multiple supervisor support**: Groups can have multiple supervisors assigned via `active.group_supervisors` table
+- Supervisor assignments for active groups with role-based assignments (supervisor, assistant, etc.)
 - Combined groups can contain multiple regular groups
 - Device tracking: `device_id` is now optional in `active.groups` (for RFID integration)
 

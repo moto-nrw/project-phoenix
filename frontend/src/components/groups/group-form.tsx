@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import type { Group, Room } from "@/lib/api";
 import { roomService } from "@/lib/api";
-import { teacherService } from "@/lib/teacher-api";
-import type { Teacher } from "@/lib/teacher-api";
+import { SupervisorMultiSelect } from "./supervisor-multi-select";
 
 interface GroupFormProps {
   initialData?: Partial<Group>;
@@ -26,13 +25,11 @@ export default function GroupForm({
   const [formData, setFormData] = useState({
     name: "",
     room_id: "",
-    representative_id: "",
     teacher_ids: [] as string[],
   });
 
   const [error, setError] = useState<string | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
@@ -40,26 +37,21 @@ export default function GroupForm({
       setFormData({
         name: initialData.name ?? "",
         room_id: initialData.room_id ?? "",
-        representative_id: initialData.representative_id ?? "",
         teacher_ids: initialData.supervisors?.map(s => s.id) ?? [],
       });
     }
   }, [initialData]);
 
-  // Fetch rooms and teachers on component mount
+  // Fetch rooms on component mount
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoadingData(true);
         
-        // Fetch rooms and teachers in parallel
-        const [roomsData, teachersData] = await Promise.all([
-          roomService.getRooms(),
-          teacherService.getTeachers()
-        ]);
+        // Fetch rooms
+        const roomsData = await roomService.getRooms();
         
         setRooms(roomsData);
-        setTeachers(teachersData);
         setError(null);
       } catch (err) {
         console.error("Error fetching data:", err);
@@ -84,12 +76,10 @@ export default function GroupForm({
     }));
   };
 
-  const handleTeacherToggle = (teacherId: string) => {
+  const handleSupervisorChange = (teacherIds: string[]) => {
     setFormData((prev) => ({
       ...prev,
-      teacher_ids: prev.teacher_ids.includes(teacherId)
-        ? prev.teacher_ids.filter(id => id !== teacherId)
-        : [...prev.teacher_ids, teacherId],
+      teacher_ids: teacherIds,
     }));
   };
 
@@ -109,7 +99,6 @@ export default function GroupForm({
       const submitData: Partial<Group> = {
         name: formData.name,
         room_id: formData.room_id || undefined,
-        representative_id: formData.representative_id || undefined,
         teacher_ids: formData.teacher_ids.length > 0 ? formData.teacher_ids : undefined,
       };
 
@@ -189,67 +178,18 @@ export default function GroupForm({
                 </p>
               </div>
 
-              {/* Representative ID field */}
-              <div>
-                <label
-                  htmlFor="representative_id"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Vertreter
-                </label>
-                <select
-                  id="representative_id"
-                  name="representative_id"
-                  value={formData.representative_id}
-                  onChange={handleChange}
-                  disabled={loadingData}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-gray-100"
-                >
-                  <option value="">Lehrer auswählen</option>
-                  {teachers.map((teacher) => (
-                    <option key={teacher.id} value={teacher.id}>
-                      {teacher.name}
-                      {teacher.specialization && ` (${teacher.specialization})`}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-gray-500">
-                  Legt den Hauptverantwortlichen für diese Gruppe fest
-                </p>
-              </div>
-
-              {/* Teacher Multi-Select field */}
+              {/* Supervisors Multi-Select field */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Lehrer/Aufsichtspersonen
+                  Aufsichtspersonen *
                 </label>
-                <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-300 rounded-lg p-3">
-                  {loadingData ? (
-                    <p className="text-sm text-gray-500">Lehrer werden geladen...</p>
-                  ) : teachers.length === 0 ? (
-                    <p className="text-sm text-gray-500">Keine Lehrer verfügbar</p>
-                  ) : (
-                    teachers.map((teacher) => (
-                      <label
-                        key={teacher.id}
-                        className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={formData.teacher_ids.includes(teacher.id)}
-                          onChange={() => handleTeacherToggle(teacher.id)}
-                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                        />
-                        <span className="text-sm">
-                          {teacher.name}
-                          {teacher.specialization && ` (${teacher.specialization})`}
-                        </span>
-                      </label>
-                    ))
-                  )}
-                </div>
+                <SupervisorMultiSelect
+                  selectedSupervisors={formData.teacher_ids}
+                  onSelectionChange={handleSupervisorChange}
+                  placeholder="Aufsichtspersonen auswählen..."
+                />
                 <p className="mt-1 text-xs text-gray-500">
-                  Wählen Sie die Lehrer aus, die dieser Gruppe zugeordnet werden sollen
+                  Wählen Sie eine oder mehrere Aufsichtspersonen für diese Gruppe aus
                 </p>
               </div>
             </div>

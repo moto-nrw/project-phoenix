@@ -1,13 +1,23 @@
 interface ModernStatusBadgeProps {
   location?: string;
+  roomName?: string;
 }
 
-export function ModernStatusBadge({ location }: ModernStatusBadgeProps) {
+export function ModernStatusBadge({ location, roomName }: ModernStatusBadgeProps) {
   // Status details using exact colors from ogs_groups, myroom, and search badges
   const getStatusDetails = () => {
-    if (location === "Anwesend" || location === "In House") {
+    if (location === "Anwesend" || location === "In House" || location?.startsWith("Anwesend")) {
+      // If we have a specific room name, use it
+      const label = roomName ?? (() => {
+        if (location?.startsWith("Anwesend in ")) {
+          // Extract room name from "Anwesend in Room Name" format
+          return location.substring(12);
+        }
+        return "Anwesend";
+      })();
+      
       return { 
-        label: "Anwesend", 
+        label, 
         bgColor: "#83CD2D", // Gruppenraum green
         shadow: "0 8px 25px rgba(131, 205, 45, 0.4)",
         badgeColor: "text-white backdrop-blur-sm"
