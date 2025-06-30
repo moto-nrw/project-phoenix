@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
-import { Alert } from "~/components/ui/alert";
+import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header/types";
 import { fetchActivities, getCategories } from "~/lib/activity-api";
 import { 
     formatSupervisorList, 
@@ -29,9 +30,9 @@ export default function ActivitiesPage() {
     const [error, setError] = useState<string | null>(null);
     const [activities, setActivities] = useState<Activity[]>([]);
     const [categories, setCategories] = useState<ActivityCategory[]>([]);
-    const [searchFilter, setSearchFilter] = useState("");
-    const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
-    const [openFilter, setOpenFilter] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [categoryFilter, setCategoryFilter] = useState("all");
+    const [participationFilter, setParticipationFilter] = useState("all");
     const [filteredActivities, setFilteredActivities] = useState<Activity[]>([]);
 
     // Load activities and categories on mount
@@ -58,13 +59,15 @@ export default function ActivitiesPage() {
         void loadData();
     }, []);
 
-    // Apply filters function
-    const applyFilters = () => {
-        let filtered = [...activities];
+    // Apply filters
+    useEffect(() => {
+        // Ensure activities is an array before filtering
+        const activityList = Array.isArray(activities) ? activities : [];
+        let filtered = [...activityList];
 
         // Apply search filter
-        if (searchFilter) {
-            const searchLower = searchFilter.toLowerCase();
+        if (searchTerm) {
+            const searchLower = searchTerm.toLowerCase();
             filtered = filtered.filter(activity =>
                 activity.name.toLowerCase().includes(searchLower) ||
                 formatSupervisorList(activity.supervisors).toLowerCase().includes(searchLower) ||
@@ -73,229 +76,241 @@ export default function ActivitiesPage() {
         }
 
         // Apply category filter
-        if (categoryFilter) {
+        if (categoryFilter !== "all") {
             filtered = filtered.filter(activity => activity.ag_category_id === categoryFilter);
         }
 
-        // Apply open filter
-        if (openFilter) {
-            const isOpen = openFilter === "open";
+        // Apply participation filter
+        if (participationFilter !== "all") {
+            const isOpen = participationFilter === "open";
             filtered = filtered.filter(activity => activity.is_open_ags === isOpen);
         }
 
         setFilteredActivities(filtered);
-    };
-
-    // Effect to apply filters when filter values change
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            applyFilters();
-        }, 300);
-
-        return () => clearTimeout(timer);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchFilter, categoryFilter, openFilter, activities]);
+    }, [searchTerm, categoryFilter, participationFilter, activities]);
 
     // Handle activity selection
     const handleSelectActivity = (activity: Activity) => {
         router.push(`/activities/${activity.id}`);
     };
 
-    // Reset all filters
-    const resetFilters = () => {
-        setSearchFilter("");
-        setCategoryFilter(null);
-        setOpenFilter(null);
-    };
+    // Prepare filters for PageHeaderWithSearch
+    const filters: FilterConfig[] = useMemo(() => [
+        {
+            id: 'category',
+            label: 'Kategorie',
+            type: 'dropdown',
+            value: categoryFilter,
+            onChange: (value: string | string[]) => setCategoryFilter(value as string),
+            options: [
+                { value: "all", label: "Alle Kategorien" },
+                ...categories.map(cat => ({
+                    value: cat.id.toString(),
+                    label: cat.name
+                }))
+            ]
+        },
+        {
+            id: 'participation',
+            label: 'Teilnahme',
+            type: 'dropdown', 
+            value: participationFilter,
+            onChange: (value: string | string[]) => setParticipationFilter(value as string),
+            options: [
+                { value: "all", label: "Alle" },
+                { value: "open", label: "Aktiv" },
+                { value: "closed", label: "Geschlossen" }
+            ]
+        }
+    ], [categoryFilter, participationFilter, categories]);
+
+    // Prepare active filters for display
+    const activeFilters: ActiveFilter[] = useMemo(() => {
+        const filters: ActiveFilter[] = [];
+        
+        if (searchTerm) {
+            filters.push({
+                id: 'search',
+                label: `"${searchTerm}"`,
+                onRemove: () => setSearchTerm("")
+            });
+        }
+        
+        if (categoryFilter !== "all") {
+            const category = categories.find(cat => cat.id.toString() === categoryFilter);
+            filters.push({
+                id: 'category',
+                label: category?.name ?? 'Kategorie',
+                onRemove: () => setCategoryFilter("all")
+            });
+        }
+        
+        if (participationFilter !== "all") {
+            filters.push({
+                id: 'participation',
+                label: participationFilter === "open" ? "Aktiv" : "Geschlossen",
+                onRemove: () => setParticipationFilter("all")
+            });
+        }
+        
+        return filters;
+    }, [searchTerm, categoryFilter, participationFilter, categories]);
 
     if (loading) {
         return (
             <ResponsiveLayout>
-                <div className="flex min-h-screen items-center justify-center">
+                <div className="flex min-h-[50vh] items-center justify-center">
                     <div className="flex flex-col items-center gap-4">
-                        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-                        <p className="text-gray-600">Daten werden geladen...</p>
+                        <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-[#5080D8]"></div>
+                        <p className="text-gray-600">Aktivitäten werden geladen...</p>
                     </div>
                 </div>
             </ResponsiveLayout>
         );
     }
 
-    // Common class for all dropdowns to ensure consistent height
-    const dropdownClass = "mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8";
-
     return (
         <ResponsiveLayout>
-            <div className="mx-auto max-w-7xl">
-                <h1 className="mb-8 text-4xl font-bold text-gray-900">Aktivitätenübersicht</h1>
-
-                {/* Search and Filter Panel */}
-                <div className="mb-8 overflow-hidden rounded-xl bg-white p-6 shadow-md">
-                    <h2 className="mb-4 text-xl font-bold text-gray-800">Filter</h2>
-
-                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {/* Search input */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                Suche
-                            </label>
-                            <div className="relative mt-1">
-                                <input
-                                    type="text"
-                                    placeholder="Aktivität, Betreuer, Kategorie..."
-                                    value={searchFilter}
-                                    onChange={(e) => setSearchFilter(e.target.value)}
-                                    className="block w-full rounded-lg border-0 px-4 py-3 pl-10 h-12 shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                />
-                                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className="h-5 w-5 text-gray-400"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                                        />
-                                    </svg>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Category Filter */}
-                        <div className="relative">
-                            <label className="block text-sm font-medium text-gray-700">
-                                Kategorie
-                            </label>
-                            <select
-                                value={categoryFilter ?? ""}
-                                onChange={(e) => setCategoryFilter(e.target.value || null)}
-                                className={dropdownClass}
-                            >
-                                <option value="">Alle Kategorien</option>
-                                {categories.map((category) => (
-                                    <option key={category.id} value={category.id}>
-                                        {category.name}
-                                    </option>
-                                ))}
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                                <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                </svg>
-                            </div>
-                        </div>
-
-                        {/* Open/Closed Filter */}
-                        <div className="relative">
-                            <label className="block text-sm font-medium text-gray-700">
-                                Teilnahme
-                            </label>
-                            <select
-                                value={openFilter ?? ""}
-                                onChange={(e) => setOpenFilter(e.target.value || null)}
-                                className={dropdownClass}
-                            >
-                                <option value="">Alle</option>
-                                <option value="open">Offen</option>
-                                <option value="closed">Geschlossen</option>
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                                <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                </svg>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Filter Actions */}
-                    <div className="mt-6 flex flex-wrap justify-end gap-3">
-                        <button
-                            onClick={resetFilters}
-                            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-                        >
-                            Zurücksetzen
-                        </button>
-                        <button
-                            onClick={applyFilters}
-                            className="rounded-lg bg-gradient-to-r from-teal-500 to-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm transition-all hover:from-teal-600 hover:to-blue-700 hover:shadow-md"
-                        >
-                            Filtern
-                        </button>
-                    </div>
-                </div>
+            <div className="w-full">
+                {/* Page Header with Search and Filters */}
+                <PageHeaderWithSearch
+                    title="Aktivitäten"
+                    badge={activities.length > 0 ? { count: activities.length, label: activities.length === 1 ? "Aktivität" : "Aktivitäten" } : undefined}
+                    search={{
+                        value: searchTerm,
+                        onChange: setSearchTerm,
+                        placeholder: "Aktivität, Betreuer oder Kategorie suchen..."
+                    }}
+                    filters={filters}
+                    activeFilters={activeFilters}
+                    onClearAllFilters={() => {
+                        setSearchTerm("");
+                        setCategoryFilter("all");
+                        setParticipationFilter("all");
+                    }}
+                    className="mb-6"
+                />
 
                 {/* Error Alert */}
-                {error && <Alert type="error" message={error} />}
+                {error && (
+                    <div className="mb-6 rounded-lg bg-red-50 border border-red-200 p-4">
+                        <p className="text-sm text-red-800">{error}</p>
+                    </div>
+                )}
 
                 {/* Activity Cards Grid */}
                 {filteredActivities.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {filteredActivities.map((activity) => (
-                            <div
-                                key={activity.id}
-                                onClick={() => handleSelectActivity(activity)}
-                                className="cursor-pointer overflow-hidden rounded-lg bg-white shadow-md transition-all duration-200 hover:translate-y-[-2px] hover:shadow-lg"
-                            >
-                                {/* Top colored bar based on activity category */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                        {filteredActivities.map((activity) => {
+                            const categoryColor = categoryColors[activity.category_name ?? ""] ?? "#6B7280";
+                            const participantPercentage = activity.max_participant > 0 
+                                ? Math.min((activity.participant_count ?? 0) / activity.max_participant * 100, 100)
+                                : 0;
+                            
+                            return (
                                 <div
-                                    className="h-2"
-                                    style={{ backgroundColor: categoryColors[activity.category_name ?? ""] ?? "#6B7280" }}
-                                />
-                                <div className="p-4">
-                                    <div className="mb-2 flex items-center justify-between">
-                                        <h3 className="text-lg font-semibold text-gray-800">{activity.name}</h3>
-                                    </div>
-                                    <div className="text-sm text-gray-600">
-                                        <p className="mb-1">Leitung: {formatSupervisorList(activity.supervisors)}</p>
-                                    </div>
-
-                                    <div className="mt-2 border-t border-gray-100 pt-2 text-sm font-medium text-gray-700">
-                                        <div className="flex items-center">
-                                            <span
-                                                className="inline-block h-3 w-3 rounded-full mr-1.5"
-                                                style={{ backgroundColor: categoryColors[activity.category_name ?? ""] ?? "#6B7280" }}
-                                            ></span>
-                                            Kategorie: {activity.category_name ?? "Unbekannt"}
-                                        </div>
-
-                                        <div className="mt-1 flex items-center">
-                                            <span className={`inline-block h-2 w-2 rounded-full mr-2 ${activity.is_open_ags ? "bg-green-500" : "bg-red-500"}`}></span>
-                                            {activity.is_open_ags ? "Offen für Teilnahme" : "Geschlossene Gruppe"}
-                                        </div>
-
-                                        {activity.participant_count !== undefined && activity.max_participant > 0 && (
-                                            <div className="mt-1">
-                                                <div>Teilnehmer: {activity.participant_count} / {activity.max_participant}</div>
-                                                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
-                                                    <div
-                                                        className="h-full bg-blue-600"
-                                                        style={{
-                                                            width: `${Math.min(
-                                                                (activity.participant_count / activity.max_participant) * 100,
-                                                                100
-                                                            )}%`,
-                                                        }}
-                                                    ></div>
-                                                </div>
+                                    key={activity.id}
+                                    onClick={() => handleSelectActivity(activity)}
+                                    className="group cursor-pointer relative bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] overflow-hidden border border-gray-100"
+                                >
+                                    {/* Stack effect for document metaphor */}
+                                    <div className="absolute -bottom-1 left-2 right-2 h-full bg-gray-100 rounded-2xl -z-10 transform translate-y-1"></div>
+                                    <div className="absolute -bottom-2 left-4 right-4 h-full bg-gray-50 rounded-2xl -z-20 transform translate-y-2"></div>
+                                    
+                                    {/* Main card content */}
+                                    <div className="relative bg-white rounded-2xl overflow-hidden">
+                                        {/* Category color sidebar */}
+                                        <div 
+                                            className="absolute left-0 top-0 bottom-0 w-1 opacity-80 group-hover:opacity-100 transition-opacity"
+                                            style={{ backgroundColor: categoryColor }}
+                                        ></div>
+                                        
+                                        {/* Content */}
+                                        <div className="p-6 pl-7">
+                                            {/* Header */}
+                                            <div className="mb-4">
+                                                <h3 className="text-lg font-semibold text-gray-900 mb-1 group-hover:text-[#5080D8] transition-colors line-clamp-2">
+                                                    {activity.name}
+                                                </h3>
+                                                <p className="text-sm text-gray-600">
+                                                    {formatSupervisorList(activity.supervisors)}
+                                                </p>
                                             </div>
-                                        )}
+                                            
+                                            {/* Category badge */}
+                                            <div className="flex items-center gap-2 mb-4">
+                                                <span 
+                                                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                                    style={{
+                                                        backgroundColor: `${categoryColor}15`,
+                                                        color: categoryColor
+                                                    }}
+                                                >
+                                                    <span 
+                                                        className="w-1.5 h-1.5 rounded-full mr-1.5"
+                                                        style={{ backgroundColor: categoryColor }}
+                                                    ></span>
+                                                    {activity.category_name ?? "Keine Kategorie"}
+                                                </span>
+                                                
+                                                {/* Open/Closed status */}
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                                    activity.is_open_ags 
+                                                        ? "bg-green-100 text-green-700" 
+                                                        : "bg-red-100 text-red-700"
+                                                }`}>
+                                                    {activity.is_open_ags ? "Aktiv" : "Geschlossen"}
+                                                </span>
+                                            </div>
+                                            
+                                            {/* Participant count and progress */}
+                                            {activity.max_participant > 0 && (
+                                                <div className="mt-auto">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <span className="text-sm text-gray-600">Teilnehmer</span>
+                                                        <span className="text-sm font-medium text-gray-900">
+                                                            {activity.participant_count ?? 0} / {activity.max_participant}
+                                                        </span>
+                                                    </div>
+                                                    <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden">
+                                                        <div 
+                                                            className="absolute left-0 top-0 h-full transition-all duration-500 ease-out rounded-full"
+                                                            style={{
+                                                                width: `${participantPercentage}%`,
+                                                                backgroundColor: participantPercentage >= 90 ? "#EF4444" : participantPercentage >= 70 ? "#F59E0B" : "#83CD2D"
+                                                            }}
+                                                        ></div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            
+                                            {/* Hover indicator */}
+                                            <div className="absolute bottom-6 right-6 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                                <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                </svg>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 ) : (
-                    <div className="flex h-40 items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-white p-6">
+                    <div className="flex min-h-[300px] items-center justify-center">
                         <div className="text-center">
-                            <p className="text-sm font-medium text-gray-500">
-                                {searchFilter || categoryFilter || openFilter
-                                    ? "Keine Aktivitäten gefunden, die Ihren Filterkriterien entsprechen."
-                                    : "Keine Aktivitäten verfügbar."}
+                            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                            </svg>
+                            <h3 className="mt-4 text-lg font-medium text-gray-900">
+                                {searchTerm || categoryFilter !== "all" || participationFilter !== "all"
+                                    ? "Keine Aktivitäten gefunden"
+                                    : "Keine Aktivitäten vorhanden"}
+                            </h3>
+                            <p className="mt-2 text-sm text-gray-600">
+                                {searchTerm || categoryFilter !== "all" || participationFilter !== "all"
+                                    ? "Versuchen Sie andere Suchkriterien oder Filter."
+                                    : "Es wurden noch keine Aktivitäten erstellt."}
                             </p>
                         </div>
                     </div>

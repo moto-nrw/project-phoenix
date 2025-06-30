@@ -120,19 +120,35 @@ export async function fetchActivities(filters?: ActivityFilter): Promise<Activit
             throw new Error(`API error: ${response.status}`);
         }
 
-        const responseData = await response.json() as ApiResponse<Activity[]> | Activity[];
+        const responseData = await response.json() as unknown;
         
-        // Extract the array from the response wrapper if needed
-        if (responseData && typeof responseData === 'object' && 'data' in responseData) {
-            return responseData.data;
+        // Handle paginated response from our API route
+        if (responseData && 
+            typeof responseData === 'object' && 
+            'data' in responseData && 
+            Array.isArray((responseData as { data: unknown }).data)) {
+            return (responseData as { data: Activity[] }).data;
         }
-        return responseData;
+        
+        // Handle direct array response
+        if (Array.isArray(responseData)) {
+            return responseData as Activity[];
+        }
+        
+        // Return empty array if response format is unexpected
+        console.warn('Unexpected response format:', responseData);
+        return [];
     } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get<ApiResponse<BackendActivity[]>>(url);
-        return Array.isArray(response.data.data)
-            ? response.data.data.map(mapActivityResponse)
-            : [];
+        
+        // Handle paginated response
+        if (response.data && 'data' in response.data && Array.isArray(response.data.data)) {
+            return response.data.data.map(mapActivityResponse);
+        }
+        
+        // Return empty array if no data
+        return [];
     }
 }
 
