@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -996,6 +997,34 @@ func (req *CheckinRequest) Bind(r *http.Request) error {
 	)
 }
 
+// getStudentDailyCheckoutTime parses the daily checkout time from environment variable
+func getStudentDailyCheckoutTime() (time.Time, error) {
+	checkoutTimeStr := os.Getenv("STUDENT_DAILY_CHECKOUT_TIME")
+	if checkoutTimeStr == "" {
+		checkoutTimeStr = "15:00" // Default to 3:00 PM
+	}
+	
+	// Parse time in HH:MM format
+	parts := strings.Split(checkoutTimeStr, ":")
+	if len(parts) != 2 {
+		return time.Time{}, fmt.Errorf("invalid checkout time format: %s", checkoutTimeStr)
+	}
+	
+	hour, err := strconv.Atoi(parts[0])
+	if err != nil || hour < 0 || hour > 23 {
+		return time.Time{}, fmt.Errorf("invalid hour in checkout time: %s", checkoutTimeStr)
+	}
+	
+	minute, err := strconv.Atoi(parts[1])
+	if err != nil || minute < 0 || minute > 59 {
+		return time.Time{}, fmt.Errorf("invalid minute in checkout time: %s", checkoutTimeStr)
+	}
+	
+	now := time.Now()
+	checkoutTime := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
+	return checkoutTime, nil
+}
+
 // deviceCheckin handles student check-in/check-out requests from RFID devices
 func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
@@ -1250,9 +1279,26 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		// Use the new visit ID for the response
 		visitID = newVisitID
 	} else if checkedOut {
-		// Only checked out
+		// Default checkout action
 		actionMsg = "checked_out"
 		greetingMsg = "Tschüss " + person.FirstName + "!"
+		
+		// Check if daily checkout is available
+		if student.GroupID != nil && currentVisit != nil && currentVisit.ActiveGroup != nil {
+			// Parse checkout time from environment
+			checkoutTime, err := getStudentDailyCheckoutTime()
+			if err == nil && time.Now().After(checkoutTime) {
+				// Get student's education group to check room
+				educationGroup, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
+				if err == nil && educationGroup != nil && educationGroup.RoomID != nil {
+					// Check if student is leaving their education group's room
+					if currentVisit.ActiveGroup.RoomID == *educationGroup.RoomID {
+						actionMsg = "checked_out_daily"
+						// Keep the same greeting message - client handles the modal
+					}
+				}
+			}
+		}
 		// visitID already set from checkout
 	} else if newVisitID != nil {
 		// Only checked in (first time)
