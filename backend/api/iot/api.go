@@ -3,6 +3,7 @@ package iot
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -1417,6 +1418,28 @@ type SessionStartRequest struct {
 	Force         bool    `json:"force,omitempty"`
 }
 
+// Bind implements render.Binder interface for SessionStartRequest
+func (req *SessionStartRequest) Bind(r *http.Request) error {
+	// Log the raw values for debugging
+	log.Printf("DEBUG Bind - ActivityID: %d, SupervisorIDs: %v, Force: %v", req.ActivityID, req.SupervisorIDs, req.Force)
+	
+	// Validate request
+	if req.ActivityID <= 0 {
+		return errors.New("activity_id is required")
+	}
+	
+	return nil
+}
+
+// SupervisorInfo represents information about a supervisor
+type SupervisorInfo struct {
+	StaffID      int64  `json:"staff_id"`
+	FirstName    string `json:"first_name"`
+	LastName     string `json:"last_name"`
+	DisplayName  string `json:"display_name"`
+	Role         string `json:"role"`
+}
+
 // SessionStartResponse represents the response when starting an activity session
 type SessionStartResponse struct {
 	ActiveGroupID int64                 `json:"active_group_id"`
@@ -1424,6 +1447,7 @@ type SessionStartResponse struct {
 	DeviceID      int64                 `json:"device_id"`
 	StartTime     time.Time             `json:"start_time"`
 	ConflictInfo  *ConflictInfoResponse `json:"conflict_info,omitempty"`
+	Supervisors   []SupervisorInfo      `json:"supervisors,omitempty"`
 	Status        string                `json:"status"`
 	Message       string                `json:"message"`
 }
@@ -1516,15 +1540,21 @@ type SessionCurrentResponse struct {
 	ActiveStudents *int       `json:"active_students,omitempty"`
 }
 
-// Bind validates the session start request
-func (req *SessionStartRequest) Bind(r *http.Request) error {
-	return validation.ValidateStruct(req,
-		validation.Field(&req.ActivityID, validation.Required, validation.Min(int64(1))),
-	)
-}
 
 // startActivitySession handles starting an activity session on a device
 func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("=== startActivitySession handler called ===")
+	log.Printf("=== startActivitySession handler called ===")
+	
+	// Debug: Log raw request body
+	if r.Body != nil {
+		bodyBytes, _ := io.ReadAll(r.Body)
+		fmt.Printf("DEBUG startActivitySession - Raw request body: %s\n", string(bodyBytes))
+		log.Printf("DEBUG startActivitySession - Raw request body: %s", string(bodyBytes))
+		// Reset body for render.Bind to read
+		r.Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
+	}
+	
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
@@ -1543,16 +1573,47 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 		}
 		return
 	}
+	
+	// Additional debug - check what we got after binding
+	log.Printf("AFTER BIND - ActivityID: %d, SupervisorIDs: %v (len=%d), Force: %v", 
+		req.ActivityID, req.SupervisorIDs, len(req.SupervisorIDs), req.Force)
 
 	var activeGroup *active.Group
 	var err error
 
-	if req.Force {
-		// Force start with override
-		activeGroup, err = rs.ActiveService.ForceStartActivitySession(r.Context(), req.ActivityID, deviceCtx.ID, 0, req.RoomID) // Note: supervisor ID not available without staff context
+	// Debug: Log request details
+	log.Printf("Session start request: ActivityID=%d, SupervisorIDs=%v, Force=%v", req.ActivityID, req.SupervisorIDs, req.Force)
+
+	// Check if supervisor IDs are provided
+	if len(req.SupervisorIDs) > 0 {
+		// Use multi-supervisor methods
+		fmt.Printf("Using multi-supervisor methods with %d supervisors\n", len(req.SupervisorIDs))
+		log.Printf("Using multi-supervisor methods with %d supervisors", len(req.SupervisorIDs))
+		
+		// Debug each supervisor ID
+		for i, sid := range req.SupervisorIDs {
+			fmt.Printf("req.SupervisorIDs[%d] = %d\n", i, sid)
+		}
+		
+		if req.Force {
+			// Force start with override
+			fmt.Printf("Calling ForceStartActivitySessionWithSupervisors with supervisors: %v\n", req.SupervisorIDs)
+			log.Printf("Calling ForceStartActivitySessionWithSupervisors with supervisors: %v", req.SupervisorIDs)
+			activeGroup, err = rs.ActiveService.ForceStartActivitySessionWithSupervisors(r.Context(), req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
+		} else {
+			// Normal start with conflict detection
+			fmt.Printf("Calling StartActivitySessionWithSupervisors with supervisors: %v\n", req.SupervisorIDs)
+			log.Printf("Calling StartActivitySessionWithSupervisors with supervisors: %v", req.SupervisorIDs)
+			activeGroup, err = rs.ActiveService.StartActivitySessionWithSupervisors(r.Context(), req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
+		}
 	} else {
-		// Normal start with conflict detection
-		activeGroup, err = rs.ActiveService.StartActivitySession(r.Context(), req.ActivityID, deviceCtx.ID, 0, req.RoomID) // Note: supervisor ID not available without staff context
+		// For backward compatibility or if no supervisors specified, use the old methods
+		// This should ideally return an error since we require at least one supervisor
+		log.Printf("No supervisor IDs provided in request")
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("at least one supervisor ID is required"))); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
 	}
 
 	if err != nil {
@@ -1594,6 +1655,37 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 		StartTime:     activeGroup.StartTime,
 		Status:        "started",
 		Message:       "Activity session started successfully",
+	}
+
+	// Fetch supervisor information
+	supervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupID(r.Context(), activeGroup.ID)
+	fmt.Printf("FindSupervisorsByActiveGroupID returned %d supervisors, err: %v\n", len(supervisors), err)
+	if err == nil && len(supervisors) > 0 {
+		supervisorInfos := make([]SupervisorInfo, 0, len(supervisors))
+		for _, supervisor := range supervisors {
+			fmt.Printf("Processing supervisor: StaffID=%d, Role=%s\n", supervisor.StaffID, supervisor.Role)
+			// Get staff details using the staff repository
+			staffRepo := rs.UsersService.StaffRepository()
+			staff, err := staffRepo.FindWithPerson(r.Context(), supervisor.StaffID)
+			fmt.Printf("staffRepo.FindWithPerson(%d) returned staff=%v, err=%v\n", supervisor.StaffID, staff != nil, err)
+			if err == nil && staff != nil && staff.Person != nil {
+				fmt.Printf("Staff has person: FirstName=%s, LastName=%s\n", staff.Person.FirstName, staff.Person.LastName)
+				supervisorInfo := SupervisorInfo{
+					StaffID:     supervisor.StaffID,
+					FirstName:   staff.Person.FirstName,
+					LastName:    staff.Person.LastName,
+					DisplayName: fmt.Sprintf("%s %s", staff.Person.FirstName, staff.Person.LastName),
+					Role:        supervisor.Role,
+				}
+				supervisorInfos = append(supervisorInfos, supervisorInfo)
+			} else {
+				fmt.Printf("Skipping supervisor %d: staff=%v, person=%v\n", supervisor.StaffID, staff != nil, staff != nil && staff.Person != nil)
+			}
+		}
+		fmt.Printf("Total supervisorInfos built: %d\n", len(supervisorInfos))
+		response.Supervisors = supervisorInfos
+	} else {
+		fmt.Printf("No supervisors to process: err=%v, len=%d\n", err, len(supervisors))
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Activity session started successfully")
