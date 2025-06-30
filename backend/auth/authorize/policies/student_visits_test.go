@@ -401,6 +401,14 @@ func (m *SimpleMockStaffRepository) UpdateNotes(ctx context.Context, id int64, n
 	return nil
 }
 
+func (m *SimpleMockStaffRepository) FindWithPerson(ctx context.Context, id int64) (*userModels.Staff, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*userModels.Staff), args.Error(1)
+}
+
 type SimpleMockTeacherRepository struct {
 	mock.Mock
 }
