@@ -814,10 +814,8 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 			continue // Skip if person not found
 		}
 
-		// Check if person has an account with a PIN set
-		if person.Account == nil || !person.Account.HasPIN() {
-			continue // Skip teachers without PINs
-		}
+		// With global PIN, we no longer need to check individual PINs
+		// All teachers are available for selection
 
 		// Create teacher response
 		response := DeviceTeacherResponse{
@@ -1413,9 +1411,10 @@ func (rs *Resource) getAvailableRoomsForDevice(w http.ResponseWriter, r *http.Re
 
 // SessionStartRequest represents a request to start an activity session
 type SessionStartRequest struct {
-	ActivityID int64  `json:"activity_id"`
-	RoomID     *int64 `json:"room_id,omitempty"` // Optional: Override the activity's planned room
-	Force      bool   `json:"force,omitempty"`
+	ActivityID    int64   `json:"activity_id"`
+	RoomID        *int64  `json:"room_id,omitempty"` // Optional: Override the activity's planned room
+	SupervisorIDs []int64 `json:"supervisor_ids,omitempty"` // Multiple supervisors support
+	Force         bool    `json:"force,omitempty"`
 }
 
 // SessionStartResponse represents the response when starting an activity session
