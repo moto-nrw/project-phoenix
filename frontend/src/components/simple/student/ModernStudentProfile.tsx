@@ -10,6 +10,7 @@ interface ModernStudentProfileProps {
     school_class: string;
     group_name?: string;
     current_location?: string;
+    current_room?: string; // New field for actual room name
   };
   index?: number;
   onBack?: () => void;
@@ -45,29 +46,9 @@ export function ModernStudentProfile({
           
           {/* Right: Status Badge */}
           <div className="flex-shrink-0 ml-3">
-            <span 
-              className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-bold text-white"
-              style={{ 
-                backgroundColor: (() => {
-                  if (student.current_location === "Anwesend" || student.current_location === "In House") return "#83CD2D";
-                  if (student.current_location === "Zuhause") return "#FF3130";
-                  if (student.current_location === "WC") return "#5080D8";
-                  if (student.current_location === "School Yard") return "#F78C10";
-                  if (student.current_location === "Bus") return "#D946EF";
-                  return "#6B7280";
-                })()
-              }}
-            >
-              <span className="w-1.5 h-1.5 bg-white/80 rounded-full mr-1.5"></span>
-              {(() => {
-                if (student.current_location === "Anwesend" || student.current_location === "In House") return "Anwesend";
-                if (student.current_location === "Zuhause") return "Zuhause";
-                if (student.current_location === "WC") return "WC";
-                if (student.current_location === "School Yard") return "Schulhof";
-                if (student.current_location === "Bus") return "Bus";
-                return "Unbekannt";
-              })()}
-            </span>
+            <div className="scale-75 origin-right">
+              <ModernStatusBadge location={student.current_location} roomName={student.current_room} />
+            </div>
           </div>
         </div>
       </div>
@@ -122,7 +103,7 @@ export function ModernStudentProfile({
             
             {/* Desktop Status Badge */}
             <div className="flex justify-center sm:justify-end">
-              <ModernStatusBadge location={student.current_location} />
+              <ModernStatusBadge location={student.current_location} roomName={student.current_room} />
             </div>
           </div>
 
