@@ -175,6 +175,9 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
     return true;
   });
 
+  // Check if user has any supervision (groups or active room)
+  const hasAnySupervision = (!isLoadingGroups && hasGroups) || (!isLoadingSupervision && isSupervising);
+
   // Filter additional navigation items based on permissions
   const filteredAdditionalItems = additionalNavItems.filter(item => {
     if (item.alwaysShow) return true;
@@ -194,16 +197,10 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
     }
     return true;
   });
-
-  // Check if any additional nav item is active
-  const isAnyAdditionalNavActive = filteredAdditionalItems.some(item => isActiveRoute(item.href));
-
-  // Check if user has any supervision (groups or active room)
-  const hasAnySupervision = (!isLoadingGroups && hasGroups) || (!isLoadingSupervision && isSupervising);
   
   // Dynamic layout based on available items and supervision status
   
-  // If user has no supervision, show student search and settings in main nav (no overflow needed)
+  // If user has no supervision, show only student search in main nav (settings and create activity go to overflow)
   const shouldShowInMainNav = !hasAnySupervision && !isAdmin(session);
   
   const displayMainItems: NavItem[] = shouldShowInMainNav
@@ -223,27 +220,20 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
             </svg>
           ),
           alwaysShow: true
-        },
-        { 
-          href: '/settings', 
-          label: 'Einstellungen',
-          icon: (
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.5 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            </svg>
-          ),
-          activeIcon: (
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.5 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            </svg>
-          ),
-          alwaysShow: true
         }
       ]
     : filteredMainItems;
   
-  // Show overflow menu only if user has supervision OR is admin (then they have additional items)
-  const showOverflowMenu = hasAnySupervision || isAdmin(session);
+  // Always show overflow menu (for users without supervision, it contains settings and create activity)
+  const showOverflowMenu = true;
+
+  // For users without supervision, ensure settings always appears in overflow menu
+  const displayAdditionalItems = shouldShowInMainNav
+    ? filteredAdditionalItems // Settings already included via alwaysShow: true
+    : filteredAdditionalItems;
+
+  // Check if any additional nav item is active
+  const isAnyAdditionalNavActive = displayAdditionalItems.some(item => isActiveRoute(item.href));
 
   return (
     <>
@@ -336,7 +326,7 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
           {/* Modern navigation grid aligned with header and bottom nav design */}
           <div className="relative px-6 pb-8">
             <div className="grid grid-cols-2 gap-3">
-              {filteredAdditionalItems.map((item) => (
+              {displayAdditionalItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
