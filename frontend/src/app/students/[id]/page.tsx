@@ -100,9 +100,9 @@ export default function StudentDetailPage() {
                     school_yard: mappedStudent.school_yard ?? false,
                     bus: mappedStudent.bus ?? false,
                     current_room: undefined, // Not available from API yet
-                    guardian_name: hasAccess ? ((mappedStudent as any).name_lg ?? "") : "",
+                    guardian_name: hasAccess ? (mappedStudent.name_lg ?? "") : "",
                     guardian_contact: "", // Email - not provided in this API response
-                    guardian_phone: hasAccess ? ((mappedStudent as any).contact_lg ?? "") : "",
+                    guardian_phone: hasAccess ? (mappedStudent.contact_lg ?? "") : "",
                     birthday: undefined, // Not available from API yet
                     notes: undefined, // Not available from API yet
                     buskind: mappedStudent.bus, // Use bus field for buskind
@@ -118,10 +118,14 @@ export default function StudentDetailPage() {
                     try {
                         const locationResponse = await fetch(`/api/students/${studentId}/current-location`);
                         if (locationResponse.ok) {
-                            const response = await locationResponse.json();
+                            const response = await locationResponse.json() as unknown;
                             
                             // Unwrap the response
-                            const locationData = response.data || response;
+                            const locationData = (response && typeof response === 'object' && 'data' in response ? response.data : response) as {
+                                status: string;
+                                location: string;
+                                room: { name: string } | null;
+                            };
                             
                             setCurrentLocation(locationData);
                         } else {
@@ -248,7 +252,7 @@ export default function StudentDetailPage() {
                                     name: student.name ?? '',
                                     school_class: student.school_class ?? '',
                                     group_name: student.group_name,
-                                    current_location: currentLocation?.location || student.current_location,
+                                    current_location: currentLocation?.location ?? student.current_location,
                                     current_room: currentLocation?.room?.name
                                 }}
                                 index={0}
@@ -265,7 +269,7 @@ export default function StudentDetailPage() {
                                     name: student.name ?? '',
                                     school_class: student.school_class ?? '',
                                     group_name: student.group_name,
-                                    current_location: currentLocation?.location || student.current_location,
+                                    current_location: currentLocation?.location ?? student.current_location,
                                     current_room: currentLocation?.room?.name
                                 }}
                                 index={0}
@@ -358,7 +362,7 @@ export default function StudentDetailPage() {
                                         name: student.name ?? '',
                                         school_class: student.school_class ?? '',
                                         group_name: student.group_name,
-                                        current_location: currentLocation?.location || student.current_location,
+                                        current_location: currentLocation?.location ?? student.current_location,
                                         current_room: currentLocation?.room?.name
                                     }}
                                     index={0}
@@ -432,7 +436,7 @@ export default function StudentDetailPage() {
                                         name: student.name ?? '',
                                         school_class: student.school_class ?? '',
                                         group_name: student.group_name,
-                                        current_location: currentLocation?.location || student.current_location,
+                                        current_location: currentLocation?.location ?? student.current_location,
                                         current_room: currentLocation?.room?.name
                                     }}
                                     index={0}

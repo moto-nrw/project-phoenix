@@ -2,6 +2,43 @@
 import type { NextRequest } from "next/server";
 import { createGetHandler } from "~/lib/route-wrapper";
 import { apiGet } from "~/lib/api-client";
+import type { BackendStudent } from "~/lib/student-helpers";
+import type { BackendRoom } from "~/lib/rooms-helpers";
+
+// Define proper types for the API responses
+interface StudentApiResponse {
+  data: BackendStudent;
+}
+
+interface RoomStatusApiResponse {
+  data: {
+    student_room_status: Record<string, {
+      current_room_id: number;
+      check_in_time?: string;
+    }>;
+  };
+}
+
+interface RoomApiResponse {
+  data: BackendRoom;
+}
+
+interface LocationResponse {
+  status: "present" | "not_present" | "unknown";
+  location: string;
+  room: {
+    id: string;
+    name: string;
+    roomNumber?: string;
+    building?: string;
+    floor?: number;
+  } | null;
+  group: {
+    id: string;
+    name: string;
+  } | null;
+  checkInTime: string | null;
+}
 
 /**
  * Handler for GET /api/students/[id]/current-location
@@ -16,56 +53,51 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
   
   try {
     // First, get the student details to find their group
-    // Use apiGet directly with the token instead of studentService which doesn't have auth in server context
-    const studentResponse = await apiGet(`/api/students/${studentId}`, token);
+    const studentResponse = await apiGet<StudentApiResponse>(`/api/students/${studentId}`, token);
+    const student = studentResponse.data.data;
     
-    // Extract the actual student data from the response
-    const student = studentResponse.data?.data || studentResponse.data;
-    
-    if (!student || !student.group_id) {
+    if (!student?.group_id) {
       return {
         status: "not_present",
         location: "Zuhause",
         room: null,
         group: null,
         checkInTime: null
-      };
+      } satisfies LocationResponse;
     }
     
     // Get the room status for the student's group
     try {
-      const roomStatusResponse = await apiGet(`/api/groups/${student.group_id}/students/room-status`, token);
-      
-      // Extract the actual data (handle potential double-wrapping)
-      const roomStatusData = roomStatusResponse.data?.data || roomStatusResponse.data;
+      const roomStatusResponse = await apiGet<RoomStatusApiResponse>(`/api/groups/${student.group_id}/students/room-status`, token);
+      const roomStatusData = roomStatusResponse.data.data;
       
       if (roomStatusData?.student_room_status) {
         const studentStatus = roomStatusData.student_room_status[studentId];
         
         // Check if student has any current room (not just their group's room)
-        if (studentStatus && studentStatus.current_room_id) {
+        if (studentStatus?.current_room_id) {
           // Get room details
           try {
-            const roomResponse = await apiGet(`/api/rooms/${studentStatus.current_room_id}`, token);
-            // Handle potential double-wrapped response
-            const roomData = roomResponse.data?.data || roomResponse.data;
+            const roomResponse = await apiGet<RoomApiResponse>(`/api/rooms/${studentStatus.current_room_id}`, token);
+            const roomData = roomResponse.data.data;
+            
             if (roomData) {
               return {
                 status: "present",
                 location: "Anwesend",
                 room: {
-                  id: roomData.id?.toString() || studentStatus.current_room_id.toString(),
-                  name: roomData.name || `Raum ${studentStatus.current_room_id}`,
-                  roomNumber: roomData.number,
+                  id: roomData.id.toString(),
+                  name: roomData.name ?? `Raum ${studentStatus.current_room_id}`,
+                  roomNumber: undefined,
                   building: roomData.building,
                   floor: roomData.floor
                 },
                 group: {
                   id: student.group_id.toString(),
-                  name: student.group_name || "Unknown Group"
+                  name: student.group_name ?? "Unknown Group"
                 },
-                checkInTime: null
-              };
+                checkInTime: studentStatus.check_in_time ?? null
+              } satisfies LocationResponse;
             }
           } catch (e) {
             console.error('Error fetching room details:', e);
@@ -76,16 +108,16 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
               room: {
                 id: studentStatus.current_room_id.toString(),
                 name: `Raum ${studentStatus.current_room_id}`,
-                roomNumber: null,
-                building: null,
-                floor: null
+                roomNumber: undefined,
+                building: undefined,
+                floor: undefined
               },
               group: {
                 id: student.group_id.toString(),
-                name: student.group_name || "Unknown Group"
+                name: student.group_name ?? "Unknown Group"
               },
-              checkInTime: null
-            };
+              checkInTime: studentStatus.check_in_time ?? null
+            } satisfies LocationResponse;
           }
         }
       }
@@ -100,7 +132,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       room: null,
       group: null,
       checkInTime: null
-    };
+    } satisfies LocationResponse;
     
   } catch (error) {
     console.error("Error fetching student current location:", error);
@@ -111,6 +143,6 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       room: null,
       group: null,
       checkInTime: null
-    };
+    } satisfies LocationResponse;
   }
 });

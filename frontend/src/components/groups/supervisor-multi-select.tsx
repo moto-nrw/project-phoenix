@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import type { Teacher } from "@/lib/teacher-api";
 import { teacherService } from "@/lib/teacher-api";
@@ -10,6 +10,7 @@ interface SupervisorMultiSelectProps {
   onSelectionChange: (supervisorIds: string[]) => void;
   placeholder?: string;
   className?: string;
+  onError?: (error: string) => void;
 }
 
 export function SupervisorMultiSelect({
@@ -17,41 +18,74 @@ export function SupervisorMultiSelect({
   onSelectionChange,
   placeholder = "Aufsichtspersonen auswählen...",
   className = "",
+  onError,
 }: SupervisorMultiSelectProps) {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch teachers on component mount
+  // Fetch teachers on component mount with cleanup
   useEffect(() => {
+    const controller = new AbortController();
+    
     const fetchTeachers = async () => {
       try {
         setLoading(true);
+        setError(null);
         const teachersData = await teacherService.getTeachers();
-        setTeachers(teachersData);
+        
+        if (!controller.signal.aborted) {
+          setTeachers(teachersData);
+        }
       } catch (error) {
-        console.error("Error fetching teachers:", error);
+        if (!controller.signal.aborted) {
+          const errorMessage = error instanceof Error ? error.message : "Fehler beim Laden der Lehrer";
+          setError(errorMessage);
+          onError?.(errorMessage);
+          console.error("Error fetching teachers:", error);
+        }
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     };
 
     void fetchTeachers();
-  }, []);
+    
+    return () => {
+      controller.abort();
+    };
+  }, [onError]);
 
-  // Filter teachers based on search term
-  const filteredTeachers = teachers.filter(teacher =>
-    teacher.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    teacher.specialization?.toLowerCase().includes(searchTerm.toLowerCase())
+  // Filter teachers based on search term (memoized for performance)
+  const filteredTeachers = useMemo(() => 
+    teachers.filter(teacher =>
+      teacher.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      teacher.specialization?.toLowerCase().includes(searchTerm.toLowerCase())
+    ),
+    [teachers, searchTerm]
   );
 
-  // Get selected teachers for display
-  const selectedTeachers = teachers.filter(teacher => 
-    selectedSupervisors.includes(teacher.id)
+  // Get selected teachers for display (memoized)
+  const selectedTeachers = useMemo(() => 
+    teachers.filter(teacher => 
+      selectedSupervisors.includes(teacher.id)
+    ),
+    [teachers, selectedSupervisors]
   );
 
   const handleTeacherToggle = (teacherId: string) => {
+    // Validate teacher ID exists
+    if (!teacherId || !teachers.find(t => t.id === teacherId)) {
+      console.error('Invalid teacher ID:', teacherId);
+      return;
+    }
+    
     const newSelection = selectedSupervisors.includes(teacherId)
       ? selectedSupervisors.filter(id => id !== teacherId)
       : [...selectedSupervisors, teacherId];
@@ -60,8 +94,25 @@ export function SupervisorMultiSelect({
   };
 
   const handleRemoveTeacher = (teacherId: string) => {
+    if (!teacherId) return;
     onSelectionChange(selectedSupervisors.filter(id => id !== teacherId));
   };
+
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isOpen]);
 
   return (
     <div className={`relative ${className}`}>
@@ -98,14 +149,14 @@ export function SupervisorMultiSelect({
       )}
 
       {/* Search input */}
-      <div className="relative">
+      <div className="relative" ref={dropdownRef}>
         <input
+          ref={inputRef}
           type="text"
           placeholder={placeholder}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           onFocus={() => setIsOpen(true)}
-          onBlur={() => setTimeout(() => setIsOpen(false), 200)}
           className="w-full rounded-lg border border-gray-300 px-4 py-2 pr-10 transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
         />
         <div className="absolute right-3 top-2.5 text-gray-400">
@@ -113,15 +164,18 @@ export function SupervisorMultiSelect({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </div>
-      </div>
-
-      {/* Dropdown */}
-      {isOpen && (
-        <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-300 bg-white shadow-lg">
+      
+        {/* Dropdown */}
+        {isOpen && (
+          <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-300 bg-white shadow-lg">
           <div className="max-h-60 overflow-y-auto">
             {loading ? (
               <div className="p-3 text-center text-sm text-gray-500">
                 Lehrer werden geladen...
+              </div>
+            ) : error ? (
+              <div className="p-3 text-center text-sm text-red-500">
+                Fehler: {error}
               </div>
             ) : filteredTeachers.length === 0 ? (
               <div className="p-3 text-center text-sm text-gray-500">
@@ -136,13 +190,17 @@ export function SupervisorMultiSelect({
                     className={`flex cursor-pointer items-center space-x-3 p-3 transition-colors hover:bg-gray-50 ${
                       isSelected ? 'bg-purple-50' : ''
                     }`}
-                    onClick={() => handleTeacherToggle(teacher.id)}
+                    onMouseDown={(e) => {
+                      e.preventDefault(); // Prevent blur
+                      handleTeacherToggle(teacher.id);
+                    }}
                   >
                     <div className="flex h-4 w-4 items-center">
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={() => handleTeacherToggle(teacher.id)}
+                        onChange={() => { /* Controlled by parent div */ }}
+                        onClick={(e) => e.stopPropagation()} // Prevent double toggle
                         className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                       />
                     </div>
@@ -170,6 +228,7 @@ export function SupervisorMultiSelect({
           </div>
         </div>
       )}
+      </div>
 
       {/* Helper text */}
       <p className="mt-1 text-xs text-gray-500">
