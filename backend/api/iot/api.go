@@ -955,6 +955,13 @@ type DeviceActivityResponse struct {
 	IsActive        bool   `json:"is_active"`
 }
 
+// TeacherActivityResponse represents an activity in the teacher's activity list
+type TeacherActivityResponse struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Category string `json:"category"`
+}
+
 // DeviceRoomResponse represents a room available for RFID device selection
 type DeviceRoomResponse struct {
 	ID         int64  `json:"id"`
@@ -1362,11 +1369,30 @@ func (rs *Resource) getTeacherActivities(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Without staff context, we cannot identify the teacher
-	// This endpoint requires staff authentication
-	if err := render.Render(w, r, ErrorNotFound(errors.New("teacher information not available without staff authentication"))); err != nil {
-		log.Printf("Error rendering error response: %v", err)
+	// Get all activities without filtering by teacher
+	activities, err := rs.ActivitiesService.ListGroups(r.Context(), nil)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
 	}
+
+	// Convert to response format
+	response := make([]TeacherActivityResponse, 0, len(activities))
+	for _, activity := range activities {
+		categoryName := ""
+		if activity.Category != nil {
+			categoryName = activity.Category.Name
+		}
+		response = append(response, TeacherActivityResponse{
+			ID:       activity.ID,
+			Name:     activity.Name,
+			Category: categoryName,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Activities fetched successfully")
 }
 
 // getAvailableRoomsForDevice handles getting available rooms for RFID devices
