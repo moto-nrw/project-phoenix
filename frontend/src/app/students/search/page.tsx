@@ -219,19 +219,20 @@ function SearchPageContent() {
       return { 
         label: "Zuhause", 
         badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-amber-50/80 to-yellow-100/80",
-        glowColor: "ring-amber-200/50 shadow-amber-100/50",
-        customBgColor: "#F78C10",
-        customShadow: "0 8px 25px rgba(247, 140, 16, 0.4)"
+        cardGradient: "from-red-50/80 to-rose-100/80",
+        glowColor: "ring-red-200/50 shadow-red-100/50",
+        customBgColor: "#FF3130",
+        customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)"
       };
     }
+    // Default to at home (consistent with OGS groups page)
     return { 
-      label: "Unbekannt", 
+      label: "Zuhause", 
       badgeColor: "text-white backdrop-blur-sm",
-      cardGradient: "from-gray-50/80 to-slate-100/80",
-      glowColor: "ring-gray-200/50 shadow-gray-100/50",
-      customBgColor: "#6B7280",
-      customShadow: "0 8px 25px rgba(107, 114, 128, 0.4)"
+      cardGradient: "from-red-50/80 to-rose-100/80",
+      glowColor: "ring-red-200/50 shadow-red-100/50",
+      customBgColor: "#FF3130",
+      customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)"
     };
   };
 

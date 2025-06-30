@@ -43,10 +43,17 @@ export function ModernStatusBadge({ location, roomName }: ModernStatusBadgeProps
         shadow: "0 8px 25px rgba(247, 140, 16, 0.4)",
         badgeColor: "text-white backdrop-blur-sm"
       };
+    } else if (location === "Unterwegs") {
+      return { 
+        label: "Unterwegs", 
+        bgColor: "#D946EF", // Unterwegs purple/fuchsia
+        shadow: "0 8px 25px rgba(217, 70, 239, 0.4)",
+        badgeColor: "text-white backdrop-blur-sm"
+      };
     } else if (location === "Bus") {
       return { 
         label: "Bus", 
-        bgColor: "#D946EF", // Unterwegs purple/fuchsia
+        bgColor: "#D946EF", // Bus purple/fuchsia (same as Unterwegs)
         shadow: "0 8px 25px rgba(217, 70, 239, 0.4)",
         badgeColor: "text-white backdrop-blur-sm"
       };
