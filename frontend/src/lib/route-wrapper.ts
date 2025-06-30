@@ -78,6 +78,37 @@ import type { NextRequest } from "next/server";
         } catch (handlerError) {
           // Check if it's a 401 error from the backend
           if (handlerError instanceof Error && handlerError.message.includes("API error (401)")) {
+            const callerId = `route-wrapper-get-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+            console.log(`\n[${callerId}] Route wrapper GET: Caught 401 error`);
+            // Try to get updated session in case it was refreshed
+            const updatedSession = await auth();
+            
+            // If we have an updated token, retry once
+            if (updatedSession?.user?.token && updatedSession.user.token !== session.user.token) {
+              console.log(`[${callerId}] Token was refreshed by another process, retrying request with new token`);
+              try {
+                const retryData = await handler(request, updatedSession.user.token, safeParams);
+                
+                // For the rooms endpoint, we need to pass the raw data directly
+                if (request.nextUrl.pathname === '/api/rooms') {
+                  return NextResponse.json(retryData);
+                }
+                
+                // Wrap the response in ApiResponse format if it's not already
+                const retryResponse: ApiResponse<T> = typeof retryData === 'object' && retryData !== null && 'success' in retryData
+                  ? (retryData as unknown as ApiResponse<T>)
+                  : { success: true, message: "Success", data: retryData };
+                
+                return NextResponse.json(retryResponse);
+              } catch {
+                // If retry also fails, return 401
+                return NextResponse.json(
+                  { error: "Token expired", code: "TOKEN_EXPIRED" },
+                  { status: 401 }
+                );
+              }
+            }
+            
             // Return 401 to client so it can handle token refresh
             return NextResponse.json(
               { error: "Token expired", code: "TOKEN_EXPIRED" },
@@ -170,6 +201,30 @@ import type { NextRequest } from "next/server";
         } catch (handlerError) {
           // Check if it's a 401 error from the backend
           if (handlerError instanceof Error && handlerError.message.includes("API error (401)")) {
+            // Try to get updated session in case it was refreshed
+            const updatedSession = await auth();
+            
+            // If we have an updated token, retry once
+            if (updatedSession?.user?.token && updatedSession.user.token !== session.user.token) {
+              console.log("Token was refreshed, retrying POST request with new token");
+              try {
+                const retryData = await handler(request, body, updatedSession.user.token, safeParams);
+                
+                // Wrap the response in ApiResponse format if it's not already
+                const retryResponse: ApiResponse<T> = typeof retryData === 'object' && retryData !== null && 'success' in retryData
+                  ? (retryData as unknown as ApiResponse<T>)
+                  : { success: true, message: "Success", data: retryData };
+                
+                return NextResponse.json(retryResponse);
+              } catch {
+                // If retry also fails, return 401
+                return NextResponse.json(
+                  { error: "Token expired", code: "TOKEN_EXPIRED" },
+                  { status: 401 }
+                );
+              }
+            }
+            
             // Return 401 to client so it can handle token refresh
             return NextResponse.json(
               { error: "Token expired", code: "TOKEN_EXPIRED" },
@@ -262,6 +317,30 @@ import type { NextRequest } from "next/server";
         } catch (handlerError) {
           // Check if it's a 401 error from the backend
           if (handlerError instanceof Error && handlerError.message.includes("API error (401)")) {
+            // Try to get updated session in case it was refreshed
+            const updatedSession = await auth();
+            
+            // If we have an updated token, retry once
+            if (updatedSession?.user?.token && updatedSession.user.token !== session.user.token) {
+              console.log("Token was refreshed, retrying POST request with new token");
+              try {
+                const retryData = await handler(request, body, updatedSession.user.token, safeParams);
+                
+                // Wrap the response in ApiResponse format if it's not already
+                const retryResponse: ApiResponse<T> = typeof retryData === 'object' && retryData !== null && 'success' in retryData
+                  ? (retryData as unknown as ApiResponse<T>)
+                  : { success: true, message: "Success", data: retryData };
+                
+                return NextResponse.json(retryResponse);
+              } catch {
+                // If retry also fails, return 401
+                return NextResponse.json(
+                  { error: "Token expired", code: "TOKEN_EXPIRED" },
+                  { status: 401 }
+                );
+              }
+            }
+            
             // Return 401 to client so it can handle token refresh
             return NextResponse.json(
               { error: "Token expired", code: "TOKEN_EXPIRED" },
@@ -350,6 +429,35 @@ import type { NextRequest } from "next/server";
         } catch (handlerError) {
           // Check if it's a 401 error from the backend
           if (handlerError instanceof Error && handlerError.message.includes("API error (401)")) {
+            // Try to get updated session in case it was refreshed
+            const updatedSession = await auth();
+            
+            // If we have an updated token, retry once
+            if (updatedSession?.user?.token && updatedSession.user.token !== session.user.token) {
+              console.log("Token was refreshed, retrying DELETE request with new token");
+              try {
+                const retryData = await handler(request, updatedSession.user.token, safeParams);
+                
+                // For delete operations with no content, return 204 status
+                if (retryData === null || retryData === undefined) {
+                  return new NextResponse(null, { status: 204 });
+                }
+                
+                // Wrap the response in ApiResponse format if it's not already
+                const retryResponse: ApiResponse<T> = typeof retryData === 'object' && retryData !== null && 'success' in retryData
+                  ? (retryData as unknown as ApiResponse<T>)
+                  : { success: true, message: "Success", data: retryData };
+                
+                return NextResponse.json(retryResponse);
+              } catch {
+                // If retry also fails, return 401
+                return NextResponse.json(
+                  { error: "Token expired", code: "TOKEN_EXPIRED" },
+                  { status: 401 }
+                );
+              }
+            }
+            
             // Return 401 to client so it can handle token refresh
             return NextResponse.json(
               { error: "Token expired", code: "TOKEN_EXPIRED" },

@@ -46,6 +46,33 @@ func (r *TokenRepository) FindByToken(ctx context.Context, token string) (*auth.
 	return authToken, nil
 }
 
+// FindByTokenForUpdate retrieves a token by its token value with a row lock
+// Must be called within a transaction
+func (r *TokenRepository) FindByTokenForUpdate(ctx context.Context, token string) (*auth.Token, error) {
+	// Get the database connection (or transaction if in context)
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	authToken := new(auth.Token)
+	err := db.NewSelect().
+		Model(authToken).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".token = ?`, token).
+		For("UPDATE").
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by token for update",
+			Err: err,
+		}
+	}
+
+	return authToken, nil
+}
+
 // FindByAccountID retrieves all tokens for an account
 func (r *TokenRepository) FindByAccountID(ctx context.Context, accountID int64) ([]*auth.Token, error) {
 	var tokens []*auth.Token
@@ -153,8 +180,48 @@ func (r *TokenRepository) Create(ctx context.Context, token *auth.Token) error {
 		return err
 	}
 
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, token)
+	// Get the database connection (or transaction if in context)
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	// Explicitly set the table name with schema
+	_, err := db.NewInsert().
+		Model(token).
+		ModelTableExpr(`auth.tokens`).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "create",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+// Delete overrides the base Delete method to support transactions
+func (r *TokenRepository) Delete(ctx context.Context, id interface{}) error {
+	// Get the database connection (or transaction if in context)
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	_, err := db.NewDelete().
+		Model((*auth.Token)(nil)).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".id = ?`, id).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "delete",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // FindValidTokens retrieves all valid (non-expired) tokens matching the filters
@@ -317,7 +384,13 @@ func (r *TokenRepository) FindByFamilyID(ctx context.Context, familyID string) (
 
 // DeleteByFamilyID deletes all tokens in a specific family
 func (r *TokenRepository) DeleteByFamilyID(ctx context.Context, familyID string) error {
-	_, err := r.db.NewDelete().
+	// Get the database connection (or transaction if in context)
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	_, err := db.NewDelete().
 		Model((*auth.Token)(nil)).
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".family_id = ?`, familyID).
@@ -335,9 +408,15 @@ func (r *TokenRepository) DeleteByFamilyID(ctx context.Context, familyID string)
 
 // GetLatestTokenInFamily gets the token with the highest generation in a family
 func (r *TokenRepository) GetLatestTokenInFamily(ctx context.Context, familyID string) (*auth.Token, error) {
+	// Get the database connection (or transaction if in context)
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
 	var token auth.Token
 	
-	err := r.db.NewSelect().
+	err := db.NewSelect().
 		Model(&token).
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".family_id = ?`, familyID).

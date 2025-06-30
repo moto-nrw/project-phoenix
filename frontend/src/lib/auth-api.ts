@@ -116,12 +116,32 @@ export async function handleAuthFailure(): Promise<boolean> {
 
     if (newTokens) {
       // Token refresh successful
-      console.log("Client-side token refresh successful");
       
       // Mark the time of successful refresh
       sessionStorage.setItem("lastSuccessfulRefresh", Date.now().toString());
       
-      // Return true to retry the original request
+      // IMPORTANT: Update the NextAuth session with new tokens
+      try {
+        // Use signIn with internalRefresh to update the session
+        const { signIn } = await import("next-auth/react");
+        
+        const result = await signIn("credentials", {
+          internalRefresh: "true",
+          token: newTokens.access_token,
+          refreshToken: newTokens.refresh_token,
+          redirect: false,
+        });
+        
+        if (result?.ok) {
+          console.log("Session updated with new tokens");
+        } else {
+          console.error("Failed to update session with new tokens:", result?.error);
+        }
+      } catch (sessionError) {
+        console.error("Error updating session:", sessionError);
+      }
+      
+      // Return true to retry the original request regardless of session update
       return true;
     }
 

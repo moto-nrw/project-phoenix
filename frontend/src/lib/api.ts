@@ -127,6 +127,8 @@ api.interceptors.response.use(
 
     // If the error is a 401 (Unauthorized) and we haven't retried yet
     if (error.response?.status === 401 && !originalRequest._retry) {
+      const callerId = `axios-interceptor-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      console.log(`\n[${callerId}] Axios interceptor: 401 error detected`);
       originalRequest._retry = true;
       originalRequest._retryCount = (originalRequest._retryCount ?? 0) + 1;
 
@@ -141,7 +143,7 @@ api.interceptors.response.use(
 
       // If we're already refreshing, queue this request
       if (isRefreshing) {
-        console.log("Token refresh already in progress, queueing request");
+        console.log(`[${callerId}] Token refresh already in progress, queueing request`);
         return new Promise((resolve) => {
           subscribeTokenRefresh((token: string) => {
             if (originalRequest.headers) {
@@ -153,6 +155,13 @@ api.interceptors.response.use(
       }
 
       console.log("Received 401 error, attempting to refresh token");
+      
+      // Only attempt token refresh on the client side
+      if (typeof window === "undefined") {
+        console.log("Running server-side, cannot refresh token");
+        return Promise.reject(error);
+      }
+      
       isRefreshing = true;
 
       try {
