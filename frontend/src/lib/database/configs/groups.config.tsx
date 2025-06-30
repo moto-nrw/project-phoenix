@@ -58,9 +58,9 @@ export const groupsConfig = defineEntityConfig<Group>({
             },
           },
           {
-            name: 'representative_id',
-            label: 'Gruppenleitung',
-            type: 'select',
+            name: 'teacher_ids',
+            label: 'Aufsichtspersonen',
+            type: 'multiselect',
             required: false,
             options: async () => {
               try {
@@ -68,30 +68,32 @@ export const groupsConfig = defineEntityConfig<Group>({
                 const response = await fetch('/api/staff?teachers_only=true');
                 const result = await response.json() as { 
                   data?: Array<{ 
-                    id: number; 
-                    name?: string; 
-                    first_name: string; 
-                    last_name: string; 
+                    id: string; 
+                    name: string;
+                    specialization?: string;
                   }> 
                 } | Array<{ 
-                  id: number; 
-                  name?: string; 
-                  first_name: string; 
-                  last_name: string; 
+                  id: string; 
+                  name: string;
+                  specialization?: string;
                 }>;
+                
+                // Handle both array and wrapped response formats
                 const teachers = Array.isArray(result) ? result : (result.data ?? []);
-                return [
-                  { value: '', label: 'Keine Leitung' },
-                  ...teachers.map((teacher) => ({
-                    value: teacher.id.toString(),
-                    label: teacher.name ?? `${teacher.first_name} ${teacher.last_name}`,
-                  }))
-                ];
+                
+                return teachers.map((teacher) => ({
+                  value: teacher.id.toString(),
+                  label: teacher.specialization 
+                    ? `${teacher.name} (${teacher.specialization})` 
+                    : teacher.name,
+                }));
               } catch (error) {
                 console.error('Failed to fetch teachers:', error);
-                return [{ value: '', label: 'Keine Leitung' }];
+                return [];
               }
             },
+            placeholder: 'Aufsichtspersonen auswählen...',
+            helperText: 'Wählen Sie eine oder mehrere Aufsichtspersonen für diese Gruppe aus',
           },
         ],
       },
@@ -102,7 +104,6 @@ export const groupsConfig = defineEntityConfig<Group>({
     transformBeforeSubmit: (data) => ({
       ...data,
       room_id: data.room_id ?? undefined,
-      representative_id: data.representative_id ?? undefined,
     }),
   },
   
@@ -126,9 +127,9 @@ export const groupsConfig = defineEntityConfig<Group>({
           showWhen: (group: Group) => !!group.room_name,
         },
         {
-          label: 'Leitung zugewiesen',
-          color: 'bg-purple-400/80',
-          showWhen: (group: Group) => !!group.representative_name,
+          label: (group: Group) => `${group.supervisors?.length ?? 0} Aufsichtsperson${(group.supervisors?.length ?? 0) === 1 ? '' : 'en'}`,
+          color: 'bg-indigo-400/80',
+          showWhen: (group: Group) => (group.supervisors?.length ?? 0) > 0,
         },
       ],
     },
@@ -147,8 +148,14 @@ export const groupsConfig = defineEntityConfig<Group>({
             value: (group: Group) => group.room_name ?? 'Kein Raum zugewiesen',
           },
           {
-            label: 'Gruppenleitung',
-            value: (group: Group) => group.representative_name ?? 'Keine Leitung zugewiesen',
+            label: 'Aufsichtspersonen',
+            value: (group: Group) => {
+              if (!group.supervisors || group.supervisors.length === 0) {
+                return 'Keine Aufsichtspersonen zugewiesen';
+              }
+              // Return supervisor names as a formatted string
+              return group.supervisors.map(supervisor => supervisor.name).join(', ');
+            },
           },
           {
             label: 'Anzahl Schüler',
@@ -162,8 +169,8 @@ export const groupsConfig = defineEntityConfig<Group>({
                 {group.room_id && (
                   <span>Raum: {group.room_id}</span>
                 )}
-                {group.representative_id && (
-                  <span>Leitung: {group.representative_id}</span>
+                {group.supervisors && group.supervisors.length > 0 && (
+                  <span>Aufsichtspersonen: {group.supervisors.map(s => s.id).join(', ')}</span>
                 )}
               </div>
             ),
@@ -180,7 +187,7 @@ export const groupsConfig = defineEntityConfig<Group>({
     
     // Frontend search configuration (loads all data at once)
     searchStrategy: 'frontend',
-    searchableFields: ['name', 'room_name', 'representative_name'],
+    searchableFields: ['name', 'room_name'],
     minSearchLength: 0, // Start searching immediately
     
     filters: [
@@ -190,17 +197,16 @@ export const groupsConfig = defineEntityConfig<Group>({
         type: 'select',
         options: 'dynamic', // Will extract from data
       },
-      {
-        id: 'representative_id',
-        label: 'Gruppenleitung',
-        type: 'select',
-        options: 'dynamic', // Will extract from data
-      },
     ],
     
     item: {
       title: (group: Group) => group.name,
-      subtitle: (group: Group) => group.representative_name ?? 'Keine Leitung',
+      subtitle: (group: Group) => {
+        const supervisorCount = group.supervisors?.length ?? 0;
+        return supervisorCount > 0 
+          ? `${supervisorCount} Aufsichtsperson${supervisorCount === 1 ? '' : 'en'}`
+          : 'Keine Aufsichtspersonen';
+      },
       description: (group: Group) => {
         const parts = [];
         if (group.room_name) parts.push(`Raum: ${group.room_name}`);
@@ -241,15 +247,8 @@ export const groupsConfig = defineEntityConfig<Group>({
         ...data,
         // Backend expects these as numbers, frontend stores as strings
         room_id: data.room_id ? parseInt(data.room_id) : undefined,
+        teacher_ids: data.teacher_ids?.map(id => parseInt(id)) ?? undefined,
       };
-      
-      // Backend expects teacher_ids array, not representative_id
-      if (data.representative_id) {
-        mapped.teacher_ids = [parseInt(data.representative_id)];
-      }
-      
-      // Remove frontend-only field
-      delete mapped.representative_id;
       
       return mapped;
     },

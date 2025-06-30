@@ -46,6 +46,11 @@ export default function StudentDetailPage() {
     const [error, setError] = useState<string | null>(null);
     const [hasFullAccess, setHasFullAccess] = useState(true);
     const [supervisors, setSupervisors] = useState<SupervisorContact[]>([]);
+    const [currentLocation, setCurrentLocation] = useState<{
+        status: string;
+        location: string;
+        room: { name: string } | null;
+    } | null>(null);
 
     // Fetch student data from API
     useEffect(() => {
@@ -73,13 +78,14 @@ export default function StudentDetailPage() {
                     guardian_name?: string;
                     guardian_contact?: string;
                     guardian_phone?: string;
+                    guardian_email?: string;
                 };
                 
                 const hasAccess = mappedStudent.has_full_access ?? true;
                 const groupSupervisors = mappedStudent.group_supervisors ?? [];
                 
-                
                 // Create ExtendedStudent with the properly mapped data
+                
                 const extendedStudent: ExtendedStudent = {
                     id: mappedStudent.id,
                     first_name: mappedStudent.first_name ?? "",
@@ -94,9 +100,9 @@ export default function StudentDetailPage() {
                     school_yard: mappedStudent.school_yard ?? false,
                     bus: mappedStudent.bus ?? false,
                     current_room: undefined, // Not available from API yet
-                    guardian_name: hasAccess ? (mappedStudent.guardian_name ?? "") : "",
-                    guardian_contact: hasAccess ? (mappedStudent.guardian_contact ?? "") : "",
-                    guardian_phone: hasAccess ? (mappedStudent.guardian_phone ?? "") : "",
+                    guardian_name: hasAccess ? (mappedStudent.name_lg ?? "") : "",
+                    guardian_contact: "", // Email - not provided in this API response
+                    guardian_phone: hasAccess ? (mappedStudent.contact_lg ?? "") : "",
                     birthday: undefined, // Not available from API yet
                     notes: undefined, // Not available from API yet
                     buskind: mappedStudent.bus, // Use bus field for buskind
@@ -106,6 +112,32 @@ export default function StudentDetailPage() {
                 setStudent(extendedStudent);
                 setHasFullAccess(hasAccess);
                 setSupervisors(groupSupervisors);
+                
+                // If user has full access (is a supervisor), fetch current location
+                if (hasAccess) {
+                    try {
+                        const locationResponse = await fetch(`/api/students/${studentId}/current-location`);
+                        if (locationResponse.ok) {
+                            const response = await locationResponse.json() as unknown;
+                            
+                            // Unwrap the response
+                            const locationData = (response && typeof response === 'object' && 'data' in response ? response.data : response) as {
+                                status: string;
+                                location: string;
+                                room: { name: string } | null;
+                            };
+                            
+                            setCurrentLocation(locationData);
+                        } else {
+                            console.error("Location response not ok:", locationResponse.status);
+                        }
+                    } catch (locationErr) {
+                        console.error("Error fetching student location:", locationErr);
+                    }
+                } else {
+                    console.log('Not fetching location - no access for student:', studentId);
+                }
+                
                 setLoading(false);
             } catch (err) {
                 console.error("Error fetching student:", err);
@@ -220,7 +252,8 @@ export default function StudentDetailPage() {
                                     name: student.name ?? '',
                                     school_class: student.school_class ?? '',
                                     group_name: student.group_name,
-                                    current_location: student.current_location
+                                    current_location: currentLocation?.location ?? student.current_location,
+                                    current_room: currentLocation?.room?.name
                                 }}
                                 index={0}
                             />
@@ -236,7 +269,8 @@ export default function StudentDetailPage() {
                                     name: student.name ?? '',
                                     school_class: student.school_class ?? '',
                                     group_name: student.group_name,
-                                    current_location: student.current_location
+                                    current_location: currentLocation?.location ?? student.current_location,
+                                    current_room: currentLocation?.room?.name
                                 }}
                                 index={0}
                             />
@@ -328,7 +362,8 @@ export default function StudentDetailPage() {
                                         name: student.name ?? '',
                                         school_class: student.school_class ?? '',
                                         group_name: student.group_name,
-                                        current_location: student.current_location
+                                        current_location: currentLocation?.location ?? student.current_location,
+                                        current_room: currentLocation?.room?.name
                                     }}
                                     index={0}
                                 />
@@ -401,7 +436,8 @@ export default function StudentDetailPage() {
                                         name: student.name ?? '',
                                         school_class: student.school_class ?? '',
                                         group_name: student.group_name,
-                                        current_location: student.current_location
+                                        current_location: currentLocation?.location ?? student.current_location,
+                                        current_room: currentLocation?.room?.name
                                     }}
                                     index={0}
                                 />
@@ -423,15 +459,11 @@ export default function StudentDetailPage() {
                                         >
                                             {/* Modern Navigation Grid */}
                                             <div className="grid grid-cols-1 gap-3">
-                                                {/* Room History Button */}
+                                                {/* Room History Button - Disabled */}
                                                 <button
                                                     type="button"
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        router.push(`/students/${studentId}/room-history?from=${referrer}`);
-                                                    }}
-                                                    className="group/btn cursor-pointer flex items-center justify-between p-4 rounded-xl bg-gray-50/80 hover:bg-[#5080D8]/15 border border-gray-100/50 hover:border-[#5080D8]/30 transition-all duration-300 touch-manipulation hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] z-10 relative"
+                                                    disabled
+                                                    className="group/btn cursor-not-allowed flex items-center justify-between p-4 rounded-xl bg-gray-50/50 border border-gray-100/30 opacity-50 z-10 relative"
                                                 >
                                                     <div className="flex items-center gap-3">
                                                         <div className="h-10 w-10 rounded-lg bg-[#5080D8] flex items-center justify-center shadow-sm group-hover/btn:shadow-[#5080D8]/30 group-hover/btn:shadow-lg transition-all duration-300">
@@ -444,20 +476,16 @@ export default function StudentDetailPage() {
                                                             <p className="text-xs text-gray-500 group-hover/btn:text-gray-600">Verlauf der Raumbesuche</p>
                                                         </div>
                                                     </div>
-                                                    <svg className="h-5 w-5 text-gray-400 group-hover/btn:text-[#5080D8] group-hover/btn:translate-x-1 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <svg className="h-5 w-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                                     </svg>
                                                 </button>
 
-                                                {/* Feedback History Button */}
+                                                {/* Feedback History Button - Disabled */}
                                                 <button
                                                     type="button"
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        router.push(`/students/${studentId}/feedback-history?from=${referrer}`);
-                                                    }}
-                                                    className="group/btn cursor-pointer flex items-center justify-between p-4 rounded-xl bg-gray-50/80 hover:bg-[#83CD2D]/15 border border-gray-100/50 hover:border-[#83CD2D]/30 transition-all duration-300 touch-manipulation hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] z-10 relative"
+                                                    disabled
+                                                    className="group/btn cursor-not-allowed flex items-center justify-between p-4 rounded-xl bg-gray-50/50 border border-gray-100/30 opacity-50 z-10 relative"
                                                 >
                                                     <div className="flex items-center gap-3">
                                                         <div className="h-10 w-10 rounded-lg bg-[#83CD2D] flex items-center justify-center shadow-sm group-hover/btn:shadow-[#83CD2D]/30 group-hover/btn:shadow-lg transition-all duration-300">
@@ -470,20 +498,16 @@ export default function StudentDetailPage() {
                                                             <p className="text-xs text-gray-500 group-hover/btn:text-gray-600">Feedback und Bewertungen</p>
                                                         </div>
                                                     </div>
-                                                    <svg className="h-5 w-5 text-gray-400 group-hover/btn:text-[#83CD2D] group-hover/btn:translate-x-1 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <svg className="h-5 w-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                                     </svg>
                                                 </button>
 
-                                                {/* Mensa History Button */}
+                                                {/* Mensa History Button - Disabled */}
                                                 <button
                                                     type="button"
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        router.push(`/students/${studentId}/mensa-history?from=${referrer}`);
-                                                    }}
-                                                    className="group/btn cursor-pointer flex items-center justify-between p-4 rounded-xl bg-gray-50/80 hover:bg-[#F78C10]/15 border border-gray-100/50 hover:border-[#F78C10]/30 transition-all duration-300 touch-manipulation hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] z-10 relative"
+                                                    disabled
+                                                    className="group/btn cursor-not-allowed flex items-center justify-between p-4 rounded-xl bg-gray-50/50 border border-gray-100/30 opacity-50 z-10 relative"
                                                 >
                                                     <div className="flex items-center gap-3">
                                                         <div className="h-10 w-10 rounded-lg bg-[#F78C10] flex items-center justify-center shadow-sm group-hover/btn:shadow-[#F78C10]/30 group-hover/btn:shadow-lg transition-all duration-300">
@@ -496,7 +520,7 @@ export default function StudentDetailPage() {
                                                             <p className="text-xs text-gray-500 group-hover/btn:text-gray-600">Mahlzeiten und Bestellungen</p>
                                                         </div>
                                                     </div>
-                                                    <svg className="h-5 w-5 text-gray-400 group-hover/btn:text-[#F78C10] group-hover/btn:translate-x-1 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <svg className="h-5 w-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                                     </svg>
                                                 </button>
@@ -708,15 +732,11 @@ export default function StudentDetailPage() {
                             >
                                 {/* Modern Navigation Grid */}
                                 <div className="grid grid-cols-1 gap-3">
-                                    {/* Room History Button */}
+                                    {/* Room History Button - Disabled */}
                                     <button
                                         type="button"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            router.push(`/students/${studentId}/room-history?from=${referrer}`);
-                                        }}
-                                        className="group/btn cursor-pointer flex items-center justify-between p-4 rounded-xl bg-gray-50/80 hover:bg-[#5080D8]/15 border border-gray-100/50 hover:border-[#5080D8]/30 transition-all duration-300 touch-manipulation hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] z-10 relative"
+                                        disabled
+                                        className="group/btn cursor-not-allowed flex items-center justify-between p-4 rounded-xl bg-gray-50/50 border border-gray-100/30 opacity-50 z-10 relative"
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className="h-8 w-8 rounded-lg bg-[#5080D8] flex items-center justify-center shadow-sm group-hover/btn:shadow-[#5080D8]/30 group-hover/btn:shadow-lg transition-all duration-300">
@@ -729,20 +749,16 @@ export default function StudentDetailPage() {
                                                 <p className="text-xs text-gray-500 group-hover/btn:text-gray-600">Verlauf der Raumbesuche</p>
                                             </div>
                                         </div>
-                                        <svg className="h-4 w-4 text-gray-400 group-hover/btn:text-[#5080D8] group-hover/btn:translate-x-1 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg className="h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                         </svg>
                                     </button>
 
-                                    {/* Feedback History Button */}
+                                    {/* Feedback History Button - Disabled */}
                                     <button
                                         type="button"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            router.push(`/students/${studentId}/feedback-history?from=${referrer}`);
-                                        }}
-                                        className="group/btn cursor-pointer flex items-center justify-between p-4 rounded-xl bg-gray-50/80 hover:bg-[#83CD2D]/15 border border-gray-100/50 hover:border-[#83CD2D]/30 transition-all duration-300 touch-manipulation hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] z-10 relative"
+                                        disabled
+                                        className="group/btn cursor-not-allowed flex items-center justify-between p-4 rounded-xl bg-gray-50/50 border border-gray-100/30 opacity-50 z-10 relative"
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className="h-8 w-8 rounded-lg bg-[#83CD2D] flex items-center justify-center shadow-sm group-hover/btn:shadow-[#83CD2D]/30 group-hover/btn:shadow-lg transition-all duration-300">
@@ -755,20 +771,16 @@ export default function StudentDetailPage() {
                                                 <p className="text-xs text-gray-500 group-hover/btn:text-gray-600">Feedback und Bewertungen</p>
                                             </div>
                                         </div>
-                                        <svg className="h-4 w-4 text-gray-400 group-hover/btn:text-[#83CD2D] group-hover/btn:translate-x-1 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg className="h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                         </svg>
                                     </button>
 
-                                    {/* Mensa History Button */}
+                                    {/* Mensa History Button - Disabled */}
                                     <button
                                         type="button"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            router.push(`/students/${studentId}/mensa-history?from=${referrer}`);
-                                        }}
-                                        className="group/btn cursor-pointer flex items-center justify-between p-4 rounded-xl bg-gray-50/80 hover:bg-[#F78C10]/15 border border-gray-100/50 hover:border-[#F78C10]/30 transition-all duration-300 touch-manipulation hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] z-10 relative"
+                                        disabled
+                                        className="group/btn cursor-not-allowed flex items-center justify-between p-4 rounded-xl bg-gray-50/50 border border-gray-100/30 opacity-50 z-10 relative"
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className="h-8 w-8 rounded-lg bg-[#F78C10] flex items-center justify-center shadow-sm group-hover/btn:shadow-[#F78C10]/30 group-hover/btn:shadow-lg transition-all duration-300">
@@ -781,7 +793,7 @@ export default function StudentDetailPage() {
                                                 <p className="text-xs text-gray-500 group-hover/btn:text-gray-600">Mahlzeiten und Bestellungen</p>
                                             </div>
                                         </div>
-                                        <svg className="h-4 w-4 text-gray-400 group-hover/btn:text-[#F78C10] group-hover/btn:translate-x-1 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg className="h-4 w-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                         </svg>
                                     </button>

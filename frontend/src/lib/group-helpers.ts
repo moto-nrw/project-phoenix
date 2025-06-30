@@ -156,6 +156,9 @@ export function mapGroupResponse(backendGroup: BackendGroup): Group {
             id: String(teacher.id),
             name: teacher.full_name
         }));
+        
+        // Extract teacher IDs for form population
+        group.teacher_ids = backendGroup.teachers.map(teacher => String(teacher.id));
     }
     
     return group;

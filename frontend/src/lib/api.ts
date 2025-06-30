@@ -254,7 +254,7 @@ export const studentService = {
     const useProxyApi = typeof window !== "undefined";
     let url = useProxyApi
       ? "/api/students"
-      : `${env.NEXT_PUBLIC_API_URL}/students`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/students`;
 
     try {
       // Build query string for API route
@@ -383,7 +383,7 @@ export const studentService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/students/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/students/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
 
     try {
       if (useProxyApi) {
@@ -493,7 +493,7 @@ export const studentService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/students`
-      : `${env.NEXT_PUBLIC_API_URL}/students`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/students`;
 
     try {
       if (useProxyApi) {
@@ -554,7 +554,7 @@ export const studentService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/students/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/students/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
 
     try {
       if (useProxyApi) {
@@ -618,7 +618,7 @@ export const studentService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/students/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/students/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
 
     try {
       if (useProxyApi) {
@@ -663,7 +663,7 @@ export const groupService = {
 
     // Use the nextjs api route which handles auth token properly
     const useProxyApi = typeof window !== "undefined";
-    let url = useProxyApi ? "/api/groups" : `${env.NEXT_PUBLIC_API_URL}/groups`;
+    let url = useProxyApi ? "/api/groups" : `${env.NEXT_PUBLIC_API_URL}/api/groups`;
 
     try {
       // Build query string for API route
@@ -761,7 +761,7 @@ export const groupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
 
     try {
       if (useProxyApi) {
@@ -888,7 +888,7 @@ export const groupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups`
-      : `${env.NEXT_PUBLIC_API_URL}/groups`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups`;
 
     try {
       if (useProxyApi) {
@@ -942,7 +942,7 @@ export const groupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
 
     try {
       if (useProxyApi) {
@@ -998,7 +998,7 @@ export const groupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1067,7 +1067,7 @@ export const groupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/${id}/students`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${id}/students`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}/students`;
 
     try {
       if (useProxyApi) {
@@ -1121,7 +1121,7 @@ export const groupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/${groupId}/supervisors`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${groupId}/supervisors`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/supervisors`;
 
     try {
       if (useProxyApi) {
@@ -1168,7 +1168,7 @@ export const groupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/${groupId}/supervisors/${supervisorId}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${groupId}/supervisors/${supervisorId}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/supervisors/${supervisorId}`;
 
     try {
       if (useProxyApi) {
@@ -1214,7 +1214,7 @@ export const groupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/${groupId}/representative`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${groupId}/representative`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/representative`;
 
     try {
       if (useProxyApi) {
@@ -1265,7 +1265,7 @@ export const combinedGroupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? "/api/groups/combined"
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined`;
 
     try {
       if (useProxyApi) {
@@ -1307,7 +1307,7 @@ export const combinedGroupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1362,7 +1362,7 @@ export const combinedGroupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/combined`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined`;
 
     try {
       if (useProxyApi) {
@@ -1412,7 +1412,7 @@ export const combinedGroupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1456,7 +1456,7 @@ export const combinedGroupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1499,7 +1499,7 @@ export const combinedGroupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/combined/${combinedGroupId}/groups`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined/${combinedGroupId}/groups`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${combinedGroupId}/groups`;
 
     try {
       if (useProxyApi) {
@@ -1546,7 +1546,7 @@ export const combinedGroupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/combined/${combinedGroupId}/groups/${groupId}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined/${combinedGroupId}/groups/${groupId}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${combinedGroupId}/groups/${groupId}`;
 
     try {
       if (useProxyApi) {
@@ -1605,7 +1605,7 @@ export const roomService = {
 
     // Use the nextjs api route which handles auth token properly
     const useProxyApi = typeof window !== "undefined";
-    let url = useProxyApi ? "/api/rooms" : `${env.NEXT_PUBLIC_API_URL}/rooms`;
+    let url = useProxyApi ? "/api/rooms" : `${env.NEXT_PUBLIC_API_URL}/api/rooms`;
 
     try {
       // Build query string for API route
@@ -1713,7 +1713,7 @@ export const roomService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/rooms/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/rooms/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1881,7 +1881,7 @@ export const roomService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/rooms`
-      : `${env.NEXT_PUBLIC_API_URL}/rooms`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/rooms`;
 
     try {
       if (useProxyApi) {
@@ -1935,7 +1935,7 @@ export const roomService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/rooms/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/rooms/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1991,7 +1991,7 @@ export const roomService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/rooms/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/rooms/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
 
     try {
       if (useProxyApi) {
@@ -2031,7 +2031,7 @@ export const roomService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? "/api/rooms/by-category"
-      : `${env.NEXT_PUBLIC_API_URL}/rooms/by-category`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/rooms/by-category`;
 
     try {
       if (useProxyApi) {

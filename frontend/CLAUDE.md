@@ -266,7 +266,8 @@ interface ApiResponse<T> {
 ## Domain-Specific Patterns
 
 ### Active Sessions (Real-time tracking)
-- Groups can have active sessions with supervisors
+- Groups can have active sessions with multiple supervisors
+- **Multiple supervisor management**: New `SupervisorMultiSelect` component for assigning multiple supervisors to groups
 - Students check in/out of rooms via RFID
 - Visit tracking includes start/end times
 - Combined groups can contain multiple regular groups
