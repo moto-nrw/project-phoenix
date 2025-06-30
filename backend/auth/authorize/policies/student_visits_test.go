@@ -252,6 +252,30 @@ func (m *SimpleMockActiveService) CheckTeacherStudentAccess(ctx context.Context,
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *SimpleMockActiveService) ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error) {
+	args := m.Called(ctx, activityID, deviceID, supervisorIDs, roomID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*active.Group), args.Error(1)
+}
+
+func (m *SimpleMockActiveService) StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error) {
+	args := m.Called(ctx, activityID, deviceID, supervisorIDs, roomID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*active.Group), args.Error(1)
+}
+
+func (m *SimpleMockActiveService) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupID int64, supervisorIDs []int64) (*active.Group, error) {
+	args := m.Called(ctx, activeGroupID, supervisorIDs)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*active.Group), args.Error(1)
+}
+
 // Simplified mock repositories
 type SimpleMockStudentRepository struct {
 	mock.Mock
@@ -375,6 +399,14 @@ func (m *SimpleMockStaffRepository) List(ctx context.Context, filters map[string
 
 func (m *SimpleMockStaffRepository) UpdateNotes(ctx context.Context, id int64, notes string) error {
 	return nil
+}
+
+func (m *SimpleMockStaffRepository) FindWithPerson(ctx context.Context, id int64) (*userModels.Staff, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*userModels.Staff), args.Error(1)
 }
 
 type SimpleMockTeacherRepository struct {

@@ -3,8 +3,10 @@ package iot
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -127,6 +128,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/session/end", rs.endActivitySession)
 		r.Get("/session/current", rs.getCurrentSession)
 		r.Post("/session/check-conflict", rs.checkSessionConflict)
+		r.Put("/session/{sessionId}/supervisors", rs.updateSessionSupervisors)
 
 		// Session timeout management
 		r.Post("/session/timeout", rs.processSessionTimeout)
@@ -814,10 +816,8 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 			continue // Skip if person not found
 		}
 
-		// Check if person has an account with a PIN set
-		if person.Account == nil || !person.Account.HasPIN() {
-			continue // Skip teachers without PINs
-		}
+		// With global PIN, we no longer need to check individual PINs
+		// All teachers are available for selection
 
 		// Create teacher response
 		response := DeviceTeacherResponse{
@@ -841,11 +841,10 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 
 // devicePing handles ping requests from RFID devices
 func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
-	// Get authenticated device and staff from context
+	// Get authenticated device from context (no staff context needed with global PIN)
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -860,13 +859,11 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return device status and staff info
+	// Return device status (no staff info with global PIN)
 	response := map[string]interface{}{
 		"device_id":   deviceCtx.DeviceID,
 		"device_name": deviceCtx.Name,
 		"status":      deviceCtx.Status,
-		"staff_id":    staffCtx.ID,
-		"person_id":   staffCtx.PersonID,
 		"last_seen":   deviceCtx.LastSeen,
 		"is_online":   deviceCtx.IsOnline(),
 		"ping_time":   time.Now(),
@@ -877,18 +874,17 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 
 // deviceStatus handles status requests from RFID devices
 func (rs *Resource) deviceStatus(w http.ResponseWriter, r *http.Request) {
-	// Get authenticated device and staff from context
+	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
 	}
 
-	// Return detailed device and staff status
+	// Return detailed device status
 	response := map[string]interface{}{
 		"device": map[string]interface{}{
 			"id":          deviceCtx.ID,
@@ -900,20 +896,7 @@ func (rs *Resource) deviceStatus(w http.ResponseWriter, r *http.Request) {
 			"is_online":   deviceCtx.IsOnline(),
 			"is_active":   deviceCtx.IsActive(),
 		},
-		"staff": map[string]interface{}{
-			"id":        staffCtx.ID,
-			"person_id": staffCtx.PersonID,
-		},
 		"authenticated_at": time.Now(),
-	}
-
-	// Add person info if available
-	if staffCtx.Person != nil {
-		response["person"] = map[string]interface{}{
-			"id":         staffCtx.Person.ID,
-			"first_name": staffCtx.Person.FirstName,
-			"last_name":  staffCtx.Person.LastName,
-		}
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Device status retrieved")
@@ -972,6 +955,13 @@ type DeviceActivityResponse struct {
 	IsActive        bool   `json:"is_active"`
 }
 
+// TeacherActivityResponse represents an activity in the teacher's activity list
+type TeacherActivityResponse struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Category string `json:"category"`
+}
+
 // DeviceRoomResponse represents a room available for RFID device selection
 type DeviceRoomResponse struct {
 	ID         int64  `json:"id"`
@@ -1006,13 +996,40 @@ func (req *CheckinRequest) Bind(r *http.Request) error {
 	)
 }
 
+// getStudentDailyCheckoutTime parses the daily checkout time from environment variable
+func getStudentDailyCheckoutTime() (time.Time, error) {
+	checkoutTimeStr := os.Getenv("STUDENT_DAILY_CHECKOUT_TIME")
+	if checkoutTimeStr == "" {
+		checkoutTimeStr = "15:00" // Default to 3:00 PM
+	}
+
+	// Parse time in HH:MM format
+	parts := strings.Split(checkoutTimeStr, ":")
+	if len(parts) != 2 {
+		return time.Time{}, fmt.Errorf("invalid checkout time format: %s", checkoutTimeStr)
+	}
+
+	hour, err := strconv.Atoi(parts[0])
+	if err != nil || hour < 0 || hour > 23 {
+		return time.Time{}, fmt.Errorf("invalid hour in checkout time: %s", checkoutTimeStr)
+	}
+
+	minute, err := strconv.Atoi(parts[1])
+	if err != nil || minute < 0 || minute > 59 {
+		return time.Time{}, fmt.Errorf("invalid minute in checkout time: %s", checkoutTimeStr)
+	}
+
+	now := time.Now()
+	checkoutTime := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
+	return checkoutTime, nil
+}
+
 // deviceCheckin handles student check-in/check-out requests from RFID devices
 func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
-	// Get authenticated device and staff from context
+	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -1020,8 +1037,8 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log the start of check-in/check-out process
-	log.Printf("[CHECKIN] Starting process - Device: %s (ID: %d), Staff: %d",
-		deviceCtx.DeviceID, deviceCtx.ID, staffCtx.ID)
+	log.Printf("[CHECKIN] Starting process - Device: %s (ID: %d)",
+		deviceCtx.DeviceID, deviceCtx.ID)
 
 	// Parse request
 	req := &CheckinRequest{}
@@ -1261,9 +1278,26 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		// Use the new visit ID for the response
 		visitID = newVisitID
 	} else if checkedOut {
-		// Only checked out
+		// Default checkout action
 		actionMsg = "checked_out"
 		greetingMsg = "Tschüss " + person.FirstName + "!"
+
+		// Check if daily checkout is available
+		if student.GroupID != nil && currentVisit != nil && currentVisit.ActiveGroup != nil {
+			// Parse checkout time from environment
+			checkoutTime, err := getStudentDailyCheckoutTime()
+			if err == nil && time.Now().After(checkoutTime) {
+				// Get student's education group to check room
+				educationGroup, err := rs.EducationService.GetGroup(r.Context(), *student.GroupID)
+				if err == nil && educationGroup != nil && educationGroup.RoomID != nil {
+					// Check if student is leaving their education group's room
+					if currentVisit.ActiveGroup.RoomID == *educationGroup.RoomID {
+						actionMsg = "checked_out_daily"
+						// Keep the same greeting message - client handles the modal
+					}
+				}
+			}
+		}
 		// visitID already set from checkout
 	} else if newVisitID != nil {
 		// Only checked in (first time)
@@ -1312,94 +1346,98 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, response, "Student "+actionMsg+" successfully")
 }
 
-// getTeacherStudents handles getting students supervised by the authenticated teacher (for RFID devices)
+// getTeacherStudents handles getting students supervised by the specified teachers (for RFID devices)
 func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
-	// Get authenticated device and staff from context
+	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
 	}
 
-	// Find teacher for authenticated staff
-	teacherRepo := rs.UsersService.TeacherRepository()
-	teacher, err := teacherRepo.FindByStaffID(r.Context(), staffCtx.ID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("teacher not found for authenticated staff"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-	if teacher == nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("teacher not found for authenticated staff"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+	// Parse teacher IDs from query parameters
+	teacherIDsParam := r.URL.Query().Get("teacher_ids")
+	if teacherIDsParam == "" {
+		// Return empty array if no teacher IDs provided
+		common.Respond(w, r, http.StatusOK, []TeacherStudentResponse{}, "No teacher IDs provided")
 		return
 	}
 
-	// Get students supervised by this teacher with group information
-	studentsWithGroups, err := rs.UsersService.GetStudentsWithGroupsByTeacher(r.Context(), teacher.ID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+	// Split comma-separated teacher IDs and parse them
+	teacherIDStrings := strings.Split(teacherIDsParam, ",")
+	teacherIDs := make([]int64, 0, len(teacherIDStrings))
+	for _, idStr := range teacherIDStrings {
+		idStr = strings.TrimSpace(idStr)
+		if idStr == "" {
+			continue
 		}
-		return
-	}
-
-	// Convert students to device response format
-	responses := make([]TeacherStudentResponse, 0, len(studentsWithGroups))
-	for _, swg := range studentsWithGroups {
-		student := swg.Student
-		response := TeacherStudentResponse{
-			StudentID:   student.ID,
-			PersonID:    student.PersonID,
-			SchoolClass: student.SchoolClass,
-			GroupName:   swg.GroupName,
-		}
-
-		// Add person details if available
-		if student.Person != nil {
-			response.FirstName = student.Person.FirstName
-			response.LastName = student.Person.LastName
-
-			// Add RFID tag if available
-			if student.Person.TagID != nil {
-				response.RFIDTag = *student.Person.TagID
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid teacher ID: "+idStr))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
 			}
+			return
+		}
+		teacherIDs = append(teacherIDs, id)
+	}
+
+	if len(teacherIDs) == 0 {
+		common.Respond(w, r, http.StatusOK, []TeacherStudentResponse{}, "No valid teacher IDs provided")
+		return
+	}
+
+	// Use a map to track unique students by ID
+	uniqueStudents := make(map[int64]usersSvc.StudentWithGroup)
+
+	// Fetch students for each teacher
+	for _, teacherID := range teacherIDs {
+		students, err := rs.UsersService.GetStudentsWithGroupsByTeacher(r.Context(), teacherID)
+		if err != nil {
+			log.Printf("Error fetching students for teacher %d: %v", teacherID, err)
+			// Continue with other teachers even if one fails
+			continue
 		}
 
-		responses = append(responses, response)
+		// Add students to map (automatically handles duplicates)
+		for _, student := range students {
+			uniqueStudents[student.Student.ID] = student
+		}
 	}
 
-	common.Respond(w, r, http.StatusOK, responses, "Teacher students retrieved successfully")
-}
+	// Convert map to slice for response
+	response := make([]TeacherStudentResponse, 0, len(uniqueStudents))
+	for _, swg := range uniqueStudents {
+		// Get person details
+		person, err := rs.UsersService.Get(r.Context(), swg.Student.PersonID)
+		if err != nil {
+			log.Printf("Error fetching person for student %d: %v", swg.Student.ID, err)
+			continue
+		}
 
-// convertToDeviceActivityResponse converts an activity group to device response format
-func convertToDeviceActivityResponse(group *activities.Group, enrollmentCount int, supervisorName string) DeviceActivityResponse {
-	response := DeviceActivityResponse{
-		ID:              group.ID,
-		Name:            group.Name,
-		EnrollmentCount: enrollmentCount,
-		MaxParticipants: group.MaxParticipants,
-		HasSpots:        enrollmentCount < group.MaxParticipants,
-		SupervisorName:  supervisorName,
-		IsActive:        group.IsOpen,
+		// Get school class
+		schoolClass := swg.Student.SchoolClass
+
+		// Get RFID tag
+		rfidTag := ""
+		if person.TagID != nil {
+			rfidTag = *person.TagID
+		}
+
+		response = append(response, TeacherStudentResponse{
+			StudentID:   swg.Student.ID,
+			PersonID:    swg.Student.PersonID,
+			FirstName:   person.FirstName,
+			LastName:    person.LastName,
+			SchoolClass: schoolClass,
+			GroupName:   swg.GroupName,
+			RFIDTag:     rfidTag,
+		})
 	}
 
-	if group.Category != nil {
-		response.CategoryName = group.Category.Name
-		response.CategoryColor = group.Category.Color
-	}
-
-	if group.PlannedRoom != nil {
-		response.RoomName = group.PlannedRoom.Name
-	}
-
-	return response
+	common.Respond(w, r, http.StatusOK, response, fmt.Sprintf("Found %d unique students", len(response)))
 }
 
 // newDeviceRoomResponse converts a facilities.Room to DeviceRoomResponse format
@@ -1417,35 +1455,18 @@ func newDeviceRoomResponse(room *facilities.Room) DeviceRoomResponse {
 
 // getTeacherActivities handles getting activities supervised by the authenticated teacher (for RFID devices)
 func (rs *Resource) getTeacherActivities(w http.ResponseWriter, r *http.Request) {
-	// Get authenticated device and staff from context
+	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
 		return
 	}
 
-	// Find teacher for authenticated staff
-	teacherRepo := rs.UsersService.TeacherRepository()
-	teacher, err := teacherRepo.FindByStaffID(r.Context(), staffCtx.ID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("teacher not found for authenticated staff"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-	if teacher == nil {
-		if err := render.Render(w, r, ErrorNotFound(errors.New("teacher not found for authenticated staff"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Get teacher's activities for today
-	activityGroups, err := rs.ActivitiesService.GetTeacherTodaysActivities(r.Context(), staffCtx.ID)
+	// Get all activities without filtering by teacher
+	activities, err := rs.ActivitiesService.ListGroups(r.Context(), nil)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1453,31 +1474,29 @@ func (rs *Resource) getTeacherActivities(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Convert to device response format
-	responses := make([]DeviceActivityResponse, 0, len(activityGroups))
-	for _, activityGroup := range activityGroups {
-		// Get enrollment count - for now using 0, this could be optimized with batch query
-		enrollmentCount := 0 // TODO: Implement enrollment counting if needed
-
-		// Get supervisor name from teacher context
-		supervisorName := ""
-		if teacher.Staff != nil && teacher.Staff.Person != nil {
-			supervisorName = fmt.Sprintf("%s %s", teacher.Staff.Person.FirstName, teacher.Staff.Person.LastName)
+	// Convert to response format
+	response := make([]TeacherActivityResponse, 0, len(activities))
+	for _, activity := range activities {
+		categoryName := ""
+		if activity.Category != nil {
+			categoryName = activity.Category.Name
 		}
-
-		responses = append(responses, convertToDeviceActivityResponse(activityGroup, enrollmentCount, supervisorName))
+		response = append(response, TeacherActivityResponse{
+			ID:       activity.ID,
+			Name:     activity.Name,
+			Category: categoryName,
+		})
 	}
 
-	common.Respond(w, r, http.StatusOK, responses, "Teacher activities retrieved successfully")
+	common.Respond(w, r, http.StatusOK, response, "Activities fetched successfully")
 }
 
 // getAvailableRoomsForDevice handles getting available rooms for RFID devices
 func (rs *Resource) getAvailableRoomsForDevice(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -1516,9 +1535,32 @@ func (rs *Resource) getAvailableRoomsForDevice(w http.ResponseWriter, r *http.Re
 
 // SessionStartRequest represents a request to start an activity session
 type SessionStartRequest struct {
-	ActivityID int64  `json:"activity_id"`
-	RoomID     *int64 `json:"room_id,omitempty"` // Optional: Override the activity's planned room
-	Force      bool   `json:"force,omitempty"`
+	ActivityID    int64   `json:"activity_id"`
+	RoomID        *int64  `json:"room_id,omitempty"`        // Optional: Override the activity's planned room
+	SupervisorIDs []int64 `json:"supervisor_ids,omitempty"` // Multiple supervisors support
+	Force         bool    `json:"force,omitempty"`
+}
+
+// Bind implements render.Binder interface for SessionStartRequest
+func (req *SessionStartRequest) Bind(r *http.Request) error {
+	// Log the raw values for debugging
+	log.Printf("DEBUG Bind - ActivityID: %d, SupervisorIDs: %v, Force: %v", req.ActivityID, req.SupervisorIDs, req.Force)
+
+	// Validate request
+	if req.ActivityID <= 0 {
+		return errors.New("activity_id is required")
+	}
+
+	return nil
+}
+
+// SupervisorInfo represents information about a supervisor
+type SupervisorInfo struct {
+	StaffID     int64  `json:"staff_id"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	DisplayName string `json:"display_name"`
+	Role        string `json:"role"`
 }
 
 // SessionStartResponse represents the response when starting an activity session
@@ -1528,6 +1570,7 @@ type SessionStartResponse struct {
 	DeviceID      int64                 `json:"device_id"`
 	StartTime     time.Time             `json:"start_time"`
 	ConflictInfo  *ConflictInfoResponse `json:"conflict_info,omitempty"`
+	Supervisors   []SupervisorInfo      `json:"supervisors,omitempty"`
 	Status        string                `json:"status"`
 	Message       string                `json:"message"`
 }
@@ -1620,20 +1663,45 @@ type SessionCurrentResponse struct {
 	ActiveStudents *int       `json:"active_students,omitempty"`
 }
 
-// Bind validates the session start request
-func (req *SessionStartRequest) Bind(r *http.Request) error {
-	return validation.ValidateStruct(req,
-		validation.Field(&req.ActivityID, validation.Required, validation.Min(int64(1))),
-	)
+// UpdateSupervisorsRequest represents a request to update supervisors for an active session
+type UpdateSupervisorsRequest struct {
+	SupervisorIDs []int64 `json:"supervisor_ids"`
+}
+
+// Bind validates the update supervisors request
+func (req *UpdateSupervisorsRequest) Bind(r *http.Request) error {
+	if len(req.SupervisorIDs) == 0 {
+		return errors.New("at least one supervisor is required")
+	}
+	return nil
+}
+
+// UpdateSupervisorsResponse represents the response when updating supervisors
+type UpdateSupervisorsResponse struct {
+	ActiveGroupID int64            `json:"active_group_id"`
+	Supervisors   []SupervisorInfo `json:"supervisors"`
+	Status        string           `json:"status"`
+	Message       string           `json:"message"`
 }
 
 // startActivitySession handles starting an activity session on a device
 func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("=== startActivitySession handler called ===")
+	log.Printf("=== startActivitySession handler called ===")
+
+	// Debug: Log raw request body
+	if r.Body != nil {
+		bodyBytes, _ := io.ReadAll(r.Body)
+		fmt.Printf("DEBUG startActivitySession - Raw request body: %s\n", string(bodyBytes))
+		log.Printf("DEBUG startActivitySession - Raw request body: %s", string(bodyBytes))
+		// Reset body for render.Bind to read
+		r.Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
+	}
+
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -1649,15 +1717,46 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Additional debug - check what we got after binding
+	log.Printf("AFTER BIND - ActivityID: %d, SupervisorIDs: %v (len=%d), Force: %v",
+		req.ActivityID, req.SupervisorIDs, len(req.SupervisorIDs), req.Force)
+
 	var activeGroup *active.Group
 	var err error
 
-	if req.Force {
-		// Force start with override
-		activeGroup, err = rs.ActiveService.ForceStartActivitySession(r.Context(), req.ActivityID, deviceCtx.ID, staffCtx.ID, req.RoomID)
+	// Debug: Log request details
+	log.Printf("Session start request: ActivityID=%d, SupervisorIDs=%v, Force=%v", req.ActivityID, req.SupervisorIDs, req.Force)
+
+	// Check if supervisor IDs are provided
+	if len(req.SupervisorIDs) > 0 {
+		// Use multi-supervisor methods
+		fmt.Printf("Using multi-supervisor methods with %d supervisors\n", len(req.SupervisorIDs))
+		log.Printf("Using multi-supervisor methods with %d supervisors", len(req.SupervisorIDs))
+
+		// Debug each supervisor ID
+		for i, sid := range req.SupervisorIDs {
+			fmt.Printf("req.SupervisorIDs[%d] = %d\n", i, sid)
+		}
+
+		if req.Force {
+			// Force start with override
+			fmt.Printf("Calling ForceStartActivitySessionWithSupervisors with supervisors: %v\n", req.SupervisorIDs)
+			log.Printf("Calling ForceStartActivitySessionWithSupervisors with supervisors: %v", req.SupervisorIDs)
+			activeGroup, err = rs.ActiveService.ForceStartActivitySessionWithSupervisors(r.Context(), req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
+		} else {
+			// Normal start with conflict detection
+			fmt.Printf("Calling StartActivitySessionWithSupervisors with supervisors: %v\n", req.SupervisorIDs)
+			log.Printf("Calling StartActivitySessionWithSupervisors with supervisors: %v", req.SupervisorIDs)
+			activeGroup, err = rs.ActiveService.StartActivitySessionWithSupervisors(r.Context(), req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
+		}
 	} else {
-		// Normal start with conflict detection
-		activeGroup, err = rs.ActiveService.StartActivitySession(r.Context(), req.ActivityID, deviceCtx.ID, staffCtx.ID, req.RoomID)
+		// For backward compatibility or if no supervisors specified, use the old methods
+		// This should ideally return an error since we require at least one supervisor
+		log.Printf("No supervisor IDs provided in request")
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("at least one supervisor ID is required"))); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
 	}
 
 	if err != nil {
@@ -1701,6 +1800,37 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 		Message:       "Activity session started successfully",
 	}
 
+	// Fetch supervisor information
+	supervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupID(r.Context(), activeGroup.ID)
+	fmt.Printf("FindSupervisorsByActiveGroupID returned %d supervisors, err: %v\n", len(supervisors), err)
+	if err == nil && len(supervisors) > 0 {
+		supervisorInfos := make([]SupervisorInfo, 0, len(supervisors))
+		for _, supervisor := range supervisors {
+			fmt.Printf("Processing supervisor: StaffID=%d, Role=%s\n", supervisor.StaffID, supervisor.Role)
+			// Get staff details using the staff repository
+			staffRepo := rs.UsersService.StaffRepository()
+			staff, err := staffRepo.FindWithPerson(r.Context(), supervisor.StaffID)
+			fmt.Printf("staffRepo.FindWithPerson(%d) returned staff=%v, err=%v\n", supervisor.StaffID, staff != nil, err)
+			if err == nil && staff != nil && staff.Person != nil {
+				fmt.Printf("Staff has person: FirstName=%s, LastName=%s\n", staff.Person.FirstName, staff.Person.LastName)
+				supervisorInfo := SupervisorInfo{
+					StaffID:     supervisor.StaffID,
+					FirstName:   staff.Person.FirstName,
+					LastName:    staff.Person.LastName,
+					DisplayName: fmt.Sprintf("%s %s", staff.Person.FirstName, staff.Person.LastName),
+					Role:        supervisor.Role,
+				}
+				supervisorInfos = append(supervisorInfos, supervisorInfo)
+			} else {
+				fmt.Printf("Skipping supervisor %d: staff=%v, person=%v\n", supervisor.StaffID, staff != nil, staff != nil && staff.Person != nil)
+			}
+		}
+		fmt.Printf("Total supervisorInfos built: %d\n", len(supervisorInfos))
+		response.Supervisors = supervisorInfos
+	} else {
+		fmt.Printf("No supervisors to process: err=%v, len=%d\n", err, len(supervisors))
+	}
+
 	common.Respond(w, r, http.StatusOK, response, "Activity session started successfully")
 }
 
@@ -1708,9 +1838,8 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -1757,9 +1886,8 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -1824,13 +1952,87 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, response, "Current session retrieved successfully")
 }
 
+// updateSessionSupervisors handles updating the supervisors for an active session
+func (rs *Resource) updateSessionSupervisors(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	if deviceCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Get session ID from URL parameters
+	sessionIDStr := chi.URLParam(r, "sessionId")
+	sessionID, err := strconv.ParseInt(sessionIDStr, 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid session ID"))); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Parse request
+	req := &UpdateSupervisorsRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Update supervisors
+	updatedGroup, err := rs.ActiveService.UpdateActiveGroupSupervisors(r.Context(), sessionID, req.SupervisorIDs)
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Load supervisor details for response
+	supervisors := make([]SupervisorInfo, 0, len(updatedGroup.Supervisors))
+	for _, gs := range updatedGroup.Supervisors {
+		// Only include active supervisors (no end_date)
+		if gs.EndDate == nil && gs.StaffID > 0 {
+			// Get staff details with person info
+			staff, err := rs.UsersService.StaffRepository().FindWithPerson(r.Context(), gs.StaffID)
+			if err != nil {
+				log.Printf("Failed to load staff details for ID %d: %v", gs.StaffID, err)
+				continue
+			}
+
+			if staff.Person != nil {
+				supervisorInfo := SupervisorInfo{
+					StaffID:     staff.ID,
+					FirstName:   staff.Person.FirstName,
+					LastName:    staff.Person.LastName,
+					DisplayName: fmt.Sprintf("%s %s", staff.Person.FirstName, staff.Person.LastName),
+					Role:        gs.Role,
+				}
+				supervisors = append(supervisors, supervisorInfo)
+			}
+		}
+	}
+
+	// Build response
+	response := UpdateSupervisorsResponse{
+		ActiveGroupID: updatedGroup.ID,
+		Supervisors:   supervisors,
+		Status:        "success",
+		Message:       "Supervisors updated successfully",
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Supervisors updated successfully")
+}
+
 // checkSessionConflict handles checking for conflicts before starting a session
 func (rs *Resource) checkSessionConflict(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -2023,9 +2225,8 @@ func (rs *Resource) getSessionTimeoutInfo(w http.ResponseWriter, r *http.Request
 func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -2088,9 +2289,8 @@ func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Reques
 func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -2141,8 +2341,10 @@ func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Check teacher has access to student
-	hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(r.Context(), staffCtx.ID, student.ID)
+	// Without staff context, we cannot verify teacher access to student
+	// Skip access check - device authentication is sufficient
+	hasAccess := true
+	err = error(nil)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -2204,9 +2406,8 @@ func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) 
 func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
+	if deviceCtx == nil {
 		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
@@ -2267,8 +2468,8 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Call ToggleStudentAttendance service
-	result, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, staffCtx.ID, deviceCtx.ID)
+	// Call ToggleStudentAttendance service without supervisor ID
+	result, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, 0, deviceCtx.ID) // Note: supervisor ID not available without staff context
 	if err != nil {
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)

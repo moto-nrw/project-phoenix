@@ -1021,12 +1021,11 @@ func newPrivacyConsentResponse(consent *users.PrivacyConsent) PrivacyConsentResp
 
 // assignRFIDTag handles assigning an RFID tag to a student (device-authenticated endpoint)
 func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
-	// Get authenticated device and staff from context
+	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
-	staffCtx := device.StaffFromCtx(r.Context())
 
-	if deviceCtx == nil || staffCtx == nil {
-		if err := render.Render(w, r, ErrorUnauthorized(errors.New("device and staff authentication required"))); err != nil {
+	if deviceCtx == nil {
+		if err := render.Render(w, r, ErrorUnauthorized(errors.New("device authentication required"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -1068,41 +1067,8 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Authorization: Verify teacher can assign tags to this student
-	// Find teacher for authenticated staff
-	teacherRepo := rs.PersonService.TeacherRepository()
-	teacher, err := teacherRepo.FindByStaffID(r.Context(), staffCtx.ID)
-	if err != nil || teacher == nil {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("only teachers can assign RFID tags"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Check if teacher supervises this student
-	studentsWithGroups, err := rs.PersonService.GetStudentsWithGroupsByTeacher(r.Context(), teacher.ID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get supervised students"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Verify student is in teacher's supervised list
-	canAssignTag := false
-	for _, swg := range studentsWithGroups {
-		if swg.Student.ID == studentID {
-			canAssignTag = true
-			break
-		}
-	}
-
-	if !canAssignTag {
-		if err := render.Render(w, r, ErrorForbidden(errors.New("you can only assign RFID tags to students in your supervised groups"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
+	// With global PIN authentication, we trust the device to assign tags to any student
+	// No need to check teacher supervision rights
 
 	// Store previous tag for response
 	var previousTag *string
@@ -1133,8 +1099,8 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log assignment for audit trail
-	log.Printf("RFID tag assignment: device=%s, staff=%d, student=%d, tag=%s, previous_tag=%v",
-		deviceCtx.DeviceID, staffCtx.ID, studentID, req.RFIDTag, previousTag)
+	log.Printf("RFID tag assignment: device=%s, student=%d, tag=%s, previous_tag=%v",
+		deviceCtx.DeviceID, studentID, req.RFIDTag, previousTag)
 
 	common.Respond(w, r, http.StatusOK, response, response.Message)
 }
@@ -1419,7 +1385,7 @@ func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Reques
 	// Filter to today's visits only
 	today := time.Now().Truncate(24 * time.Hour)
 	tomorrow := today.Add(24 * time.Hour)
-	
+
 	var todaysVisits []*active.Visit
 	for _, visit := range visits {
 		if visit.EntryTime.After(today) && visit.EntryTime.Before(tomorrow) {

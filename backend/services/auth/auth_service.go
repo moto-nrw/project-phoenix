@@ -12,8 +12,8 @@ import (
 	jwx "github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
-	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -221,14 +221,14 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 
 			// Clean up existing tokens for this account
 			// This prevents token accumulation while allowing multiple active sessions
-			// 
+			//
 			// Option 2: Keep only the N most recent tokens (multiple sessions)
 			// This allows frontend sessions to remain active while cleaning up old tokens
 			const maxTokensPerAccount = 5
 			if err := txService.(*Service).tokenRepo.CleanupOldTokensForAccount(ctx, account.ID, maxTokensPerAccount); err != nil {
 				log.Printf("Warning: failed to clean up old tokens for account %d: %v", account.ID, err)
 			}
-			
+
 			// Option 1 (Alternative): Delete ALL existing tokens (single session only)
 			// Uncomment below and comment out Option 2 to enforce single session
 			// if err := txService.(*Service).tokenRepo.DeleteByAccountID(ctx, account.ID); err != nil {
@@ -253,12 +253,12 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 			account.LastLogin = &loginTime
 			return txService.(*Service).accountRepo.Update(ctx, account)
 		})
-		
+
 		// If successful or non-retryable error, break
 		if err == nil || !strings.Contains(err.Error(), "uk_tokens_family_generation") {
 			break
 		}
-		
+
 		// Log retry attempt
 		log.Printf("Login race condition detected for account %d, retrying (attempt %d/%d)", account.ID, attempt+1, maxRetries)
 	}
@@ -548,12 +548,12 @@ func (s *Service) RefreshTokenWithAudit(ctx context.Context, refreshTokenStr, ip
 				// This token has already been refreshed - potential theft detected!
 				// Delete entire token family to force re-authentication
 				_ = s.tokenRepo.DeleteByFamilyID(ctx, dbToken.FamilyID)
-				
+
 				// Log security event
 				if ipAddress != "" {
 					s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Token theft detected - family invalidated")
 				}
-				
+
 				return &AuthError{Op: "token theft detection", Err: ErrInvalidToken}
 			}
 		}

@@ -135,19 +135,34 @@ func (r *StaffRepository) ListWithOptions(ctx context.Context, options *modelBas
 
 // FindWithPerson retrieves a staff member with their associated person data
 func (r *StaffRepository) FindWithPerson(ctx context.Context, id int64) (*users.Staff, error) {
+	// First get the staff member
 	staff := new(users.Staff)
 	err := r.db.NewSelect().
 		Model(staff).
 		ModelTableExpr(`users.staff AS "staff"`).
-		Relation("Person").
 		Where(`"staff".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find with person",
+			Op:  "find with person - staff",
 			Err: err,
 		}
+	}
+
+	// Then get the person if exists
+	if staff.PersonID > 0 {
+		person := new(users.Person)
+		err = r.db.NewSelect().
+			Model(person).
+			ModelTableExpr(`users.persons AS "person"`).
+			Where(`"person".id = ?`, staff.PersonID).
+			Scan(ctx)
+
+		if err == nil {
+			staff.Person = person
+		}
+		// Ignore person not found errors
 	}
 
 	return staff, nil

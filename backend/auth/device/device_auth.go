@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"net/http"
-	"strconv"
+	"os"
 	"strings"
 
 	"github.com/go-chi/render"
@@ -40,9 +40,9 @@ func StaffFromCtx(ctx context.Context) *users.Staff {
 	return staff
 }
 
-// DeviceAuthenticator is a middleware that validates device API keys and staff PINs.
+// DeviceAuthenticator is a middleware that validates device API keys and the global OGS PIN.
 // It requires both Authorization: Bearer <api_key> and X-Staff-PIN: <pin> headers.
-// The middleware sets both device and staff contexts for downstream handlers.
+// The middleware sets device context for downstream handlers.
 func DeviceAuthenticator(iotService iotSvc.Service, usersService usersSvc.PersonService) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -77,18 +77,18 @@ func DeviceAuthenticator(iotService iotSvc.Service, usersService usersSvc.Person
 				return
 			}
 
-			// Extract staff ID from X-Staff-ID header
-			staffIDStr := r.Header.Get("X-Staff-ID")
-			if staffIDStr == "" {
-				logging.GetLogEntry(r).Warn("Device authentication failed: missing X-Staff-ID header")
-				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrMissingStaffID))
+			// Get global OGS PIN from environment
+			ogsPin := os.Getenv("OGS_DEVICE_PIN")
+			if ogsPin == "" {
+				logging.GetLogEntry(r).Error("OGS_DEVICE_PIN not configured in environment")
+				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN))
 				return
 			}
 
-			staffID, err := strconv.ParseInt(staffIDStr, 10, 64)
-			if err != nil {
-				logging.GetLogEntry(r).Warn("Device authentication failed: invalid X-Staff-ID format:", err)
-				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidStaffID))
+			// Validate PIN using constant-time comparison
+			if !SecureCompareStrings(staffPIN, ogsPin) {
+				logging.GetLogEntry(r).Warn("Device authentication failed: invalid PIN")
+				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN))
 				return
 			}
 
@@ -113,32 +113,12 @@ func DeviceAuthenticator(iotService iotSvc.Service, usersService usersSvc.Person
 				return
 			}
 
-			// Validate staff PIN for the specific staff member
-			staff, err := usersService.ValidateStaffPINForSpecificStaff(r.Context(), staffID, staffPIN)
-			if err != nil {
-				logging.GetLogEntry(r).Warn("Device authentication failed: staff PIN validation error:", err)
-				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN))
-				return
-			}
-
-			if staff == nil {
-				logging.GetLogEntry(r).Warn("Device authentication failed: staff not found for PIN")
-				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN))
-				return
-			}
-
-			// Account locking is now handled in ValidateStaffPIN via account-level validation
-			// No need for additional lock check here since ValidateStaffPIN already validates account lock status
-
-			// Authentication successful - set contexts
+			// Authentication successful - set device context only (no staff context needed)
 			ctx := context.WithValue(r.Context(), CtxDevice, device)
-			ctx = context.WithValue(ctx, CtxStaff, staff)
 
 			// Log successful authentication for audit trail
 			logging.GetLogEntry(r).Info("Device authentication successful",
-				"device_id", device.DeviceID,
-				"staff_id", staff.ID,
-				"person_id", staff.PersonID)
+				"device_id", device.DeviceID)
 
 			// Update device last seen time
 			device.UpdateLastSeen()

@@ -62,8 +62,8 @@ func (ae *AuthEvent) Validate() error {
 
 	// Validate event type
 	switch ae.EventType {
-	case EventTypeLogin, EventTypeLogout, EventTypeTokenRefresh, 
-		 EventTypeTokenExpired, EventTypePasswordReset, EventTypeAccountLocked:
+	case EventTypeLogin, EventTypeLogout, EventTypeTokenRefresh,
+		EventTypeTokenExpired, EventTypePasswordReset, EventTypeAccountLocked:
 		// Valid types
 	default:
 		return errors.New("invalid event type")

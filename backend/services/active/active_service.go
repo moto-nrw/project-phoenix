@@ -338,7 +338,6 @@ func (s *service) GetVisit(ctx context.Context, id int64) (*active.Visit, error)
 	return visit, nil
 }
 
-
 func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 	if err := visit.Validate(); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: ErrInvalidData}
@@ -854,7 +853,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	// Use UTC-based date calculation to match repository methods
 	now := time.Now().UTC()
 	today := now.Truncate(24 * time.Hour)
-	
+
 	// Get active visits first for presence calculation
 	activeVisits, err := s.visitRepo.List(ctx, nil)
 	if err != nil {
@@ -874,11 +873,11 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	if err != nil {
 		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
 	}
-	
+
 	// Use a single map to track all present students (union of attendance + visits)
 	studentsPresent := make(map[int64]bool)
 	studentsWithAttendance := make(map[int64]bool)
-	
+
 	// First collect students with attendance records for today
 	for _, student := range allStudents {
 		// Check if this student has active attendance (checked in but not out) for today
@@ -894,12 +893,12 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			}
 		}
 	}
-	
+
 	// Add students with active visits (union, not sum)
 	for studentID := range studentsWithActiveVisits {
 		studentsPresent[studentID] = true
 	}
-	
+
 	analytics.StudentsPresent = len(studentsPresent)
 
 	// Create maps to track students and their locations
@@ -922,7 +921,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	// Present students = those with attendance OR active visits
 	// In transit = present students WITHOUT active visits
 	studentsInTransitCount := 0
-	
+
 	// Count students with attendance who don't have active visits
 	for studentID := range studentsWithAttendance {
 		if !studentsWithActiveVisits[studentID] {
@@ -958,7 +957,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	activeGroupsCount := 0
 	ogsGroupsCount := 0
 	occupiedRooms := make(map[int64]bool)
-	roomStudentsMap := make(map[int64]map[int64]struct{}) // roomID -> set of unique student IDs
+	roomStudentsMap := make(map[int64]map[int64]struct{})    // roomID -> set of unique student IDs
 	uniqueStudentsInRoomsOverall := make(map[int64]struct{}) // Track unique students across all rooms
 
 	for _, group := range activeGroups {
@@ -1090,7 +1089,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	studentsInRoomsTotal := len(uniqueStudentsInRooms)
 
 	analytics.StudentsOnPlayground = studentsOnPlayground
-	analytics.StudentsInRooms = studentsInRoomsTotal    // Students in indoor rooms (excluding playground)
+	analytics.StudentsInRooms = studentsInRoomsTotal // Students in indoor rooms (excluding playground)
 	analytics.StudentsInGroupRooms = studentsInGroupRooms
 	analytics.StudentsInHomeRoom = studentsInHomeRoom
 
@@ -1308,7 +1307,7 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 		}
 		if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
 			// Log warning but don't fail the session start
-			fmt.Printf("Warning: Failed to assign supervisor %d to session %d: %v\n", 
+			fmt.Printf("Warning: Failed to assign supervisor %d to session %d: %v\n",
 				staffID, newGroup.ID, err)
 		}
 
@@ -1330,6 +1329,145 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 
 	if err != nil {
 		return nil, &ActiveError{Op: "StartActivitySession", Err: err}
+	}
+
+	return newGroup, nil
+}
+
+// validateSupervisorIDs validates that all supervisor IDs exist as staff members
+func (s *service) validateSupervisorIDs(ctx context.Context, supervisorIDs []int64) error {
+	if len(supervisorIDs) == 0 {
+		return &ActiveError{Op: "ValidateSupervisors", Err: fmt.Errorf("at least one supervisor is required")}
+	}
+
+	// Deduplicate supervisor IDs
+	uniqueIDs := make(map[int64]bool)
+	for _, id := range supervisorIDs {
+		uniqueIDs[id] = true
+	}
+
+	// Validate each unique supervisor ID exists
+	for id := range uniqueIDs {
+		_, err := s.staffRepo.FindByID(ctx, id)
+		if err != nil {
+			return &ActiveError{Op: "ValidateSupervisors", Err: fmt.Errorf("staff member with ID %d not found", id)}
+		}
+	}
+
+	return nil
+}
+
+// StartActivitySessionWithSupervisors starts an activity session with multiple supervisors
+func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error) {
+	// Validate supervisor IDs
+	if err := s.validateSupervisorIDs(ctx, supervisorIDs); err != nil {
+		return nil, err
+	}
+
+	// Check for conflicts
+	conflictInfo, err := s.CheckActivityConflict(ctx, activityID, deviceID)
+	if err != nil {
+		return nil, &ActiveError{Op: "StartActivitySessionWithSupervisors", Err: err}
+	}
+
+	if conflictInfo.HasConflict {
+		return nil, &ActiveError{Op: "StartActivitySessionWithSupervisors", Err: ErrSessionConflict}
+	}
+
+	// Use transaction to ensure atomicity
+	var newGroup *active.Group
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Check if device is already running another session
+		existingSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
+		if err != nil {
+			return err
+		}
+		if existingSession != nil {
+			return ErrDeviceAlreadyActive
+		}
+
+		// Determine room ID: priority is manual > planned > default
+		finalRoomID := int64(1) // Default fallback
+
+		if roomID != nil && *roomID > 0 {
+			// Manual room selection provided
+			finalRoomID = *roomID
+
+			// Check if the manually selected room has conflicts
+			hasRoomConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, finalRoomID, 0)
+			if err != nil {
+				return err
+			}
+			if hasRoomConflict {
+				return ErrRoomConflict
+			}
+		} else {
+			// Try to get room from activity configuration
+			activityGroup, err := s.activityGroupRepo.FindByID(ctx, activityID)
+			if err == nil && activityGroup != nil && activityGroup.PlannedRoomID != nil && *activityGroup.PlannedRoomID > 0 {
+				finalRoomID = *activityGroup.PlannedRoomID
+			}
+			// If no planned room, keep default (1)
+		}
+
+		// Create new active group session
+		now := time.Now()
+		newGroup = &active.Group{
+			StartTime:      now,
+			LastActivity:   now, // Initialize activity tracking
+			TimeoutMinutes: 30,  // Default 30 minutes timeout
+			GroupID:        activityID,
+			DeviceID:       &deviceID,
+			RoomID:         finalRoomID,
+		}
+
+		if err := s.groupRepo.Create(ctx, newGroup); err != nil {
+			return err
+		}
+
+		// Create supervisors - deduplicate IDs first
+		fmt.Printf("DEBUG: Received supervisor IDs: %v\n", supervisorIDs)
+		for i, id := range supervisorIDs {
+			fmt.Printf("DEBUG: supervisorIDs[%d] = %d\n", i, id)
+		}
+		uniqueSupervisors := make(map[int64]bool)
+		for _, id := range supervisorIDs {
+			uniqueSupervisors[id] = true
+		}
+
+		// Assign each supervisor
+		fmt.Printf("DEBUG: Unique supervisors map: %v\n", uniqueSupervisors)
+		for staffID := range uniqueSupervisors {
+			fmt.Printf("DEBUG: Creating supervisor for staff ID: %d\n", staffID)
+			supervisor := &active.GroupSupervisor{
+				StaffID:   staffID,
+				GroupID:   newGroup.ID,
+				Role:      "supervisor",
+				StartDate: now,
+			}
+			if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
+				// Log warning but don't fail the session start
+				fmt.Printf("Warning: Failed to assign supervisor %d to session %d: %v\n",
+					staffID, newGroup.ID, err)
+			}
+		}
+
+		// Transfer any active visits from recent ended sessions on the same device
+		transferredCount, err := s.visitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
+		if err != nil {
+			return err
+		}
+
+		// Log the transfer for debugging
+		if transferredCount > 0 {
+			fmt.Printf("Transferred %d active visits to new session %d\n", transferredCount, newGroup.ID)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, &ActiveError{Op: "StartActivitySessionWithSupervisors", Err: err}
 	}
 
 	return newGroup, nil
@@ -1391,7 +1529,7 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 		}
 		if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
 			// Log warning but don't fail the session start
-			fmt.Printf("Warning: Failed to assign supervisor %d to session %d: %v\n", 
+			fmt.Printf("Warning: Failed to assign supervisor %d to session %d: %v\n",
 				staffID, newGroup.ID, err)
 		}
 
@@ -1414,6 +1552,213 @@ func (s *service) ForceStartActivitySession(ctx context.Context, activityID, dev
 	}
 
 	return newGroup, nil
+}
+
+// ForceStartActivitySessionWithSupervisors starts an activity session with multiple supervisors and override capability
+func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error) {
+	// Debug logging
+	fmt.Printf("ForceStartActivitySessionWithSupervisors called with supervisorIDs: %v (len=%d)\n", supervisorIDs, len(supervisorIDs))
+
+	// Validate supervisor IDs
+	if err := s.validateSupervisorIDs(ctx, supervisorIDs); err != nil {
+		return nil, err
+	}
+
+	// Use transaction to handle conflicts and cleanup
+	var newGroup *active.Group
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// End any existing session for this device
+		existingDeviceSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
+		if err != nil {
+			return err
+		}
+
+		if existingDeviceSession != nil {
+			// End the existing session
+			if err := s.EndActivitySession(ctx, existingDeviceSession.ID); err != nil {
+				return err
+			}
+		}
+
+		// Determine room ID: priority is manual > planned > default
+		finalRoomID := int64(1) // Default fallback
+
+		if roomID != nil && *roomID > 0 {
+			// Manual room selection provided
+			finalRoomID = *roomID
+
+			// Check if the manually selected room has conflicts
+			hasRoomConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, finalRoomID, 0)
+			if err != nil {
+				return err
+			}
+			if hasRoomConflict {
+				// In force mode, we still override room conflicts
+				fmt.Printf("Warning: Overriding room conflict for room %d\n", finalRoomID)
+			}
+		} else {
+			// Try to get room from activity configuration
+			activityGroup, err := s.activityGroupRepo.FindByID(ctx, activityID)
+			if err == nil && activityGroup != nil && activityGroup.PlannedRoomID != nil && *activityGroup.PlannedRoomID > 0 {
+				finalRoomID = *activityGroup.PlannedRoomID
+			}
+			// If no planned room, keep default (1)
+		}
+
+		// Create new active group session
+		now := time.Now()
+		newGroup = &active.Group{
+			StartTime:      now,
+			LastActivity:   now, // Initialize activity tracking
+			TimeoutMinutes: 30,  // Default 30 minutes timeout
+			GroupID:        activityID,
+			DeviceID:       &deviceID,
+			RoomID:         finalRoomID,
+		}
+
+		if err := s.groupRepo.Create(ctx, newGroup); err != nil {
+			return err
+		}
+
+		// Create supervisors - deduplicate IDs first
+		fmt.Printf("DEBUG: Received supervisor IDs: %v\n", supervisorIDs)
+		for i, id := range supervisorIDs {
+			fmt.Printf("DEBUG: supervisorIDs[%d] = %d\n", i, id)
+		}
+		uniqueSupervisors := make(map[int64]bool)
+		for _, id := range supervisorIDs {
+			uniqueSupervisors[id] = true
+		}
+
+		// Assign each supervisor
+		fmt.Printf("DEBUG: Unique supervisors map: %v\n", uniqueSupervisors)
+		for staffID := range uniqueSupervisors {
+			fmt.Printf("DEBUG: Creating supervisor for staff ID: %d\n", staffID)
+			supervisor := &active.GroupSupervisor{
+				StaffID:   staffID,
+				GroupID:   newGroup.ID,
+				Role:      "supervisor",
+				StartDate: now,
+			}
+			if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
+				// Log warning but don't fail the session start
+				fmt.Printf("Warning: Failed to assign supervisor %d to session %d: %v\n",
+					staffID, newGroup.ID, err)
+			}
+		}
+
+		// Transfer any active visits from recent ended sessions on the same device
+		transferredCount, err := s.visitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
+		if err != nil {
+			return err
+		}
+
+		// Log the transfer for debugging
+		if transferredCount > 0 {
+			fmt.Printf("Transferred %d active visits to new session %d\n", transferredCount, newGroup.ID)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, &ActiveError{Op: "ForceStartActivitySessionWithSupervisors", Err: err}
+	}
+
+	return newGroup, nil
+}
+
+// UpdateActiveGroupSupervisors replaces all supervisors for an active group
+func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupID int64, supervisorIDs []int64) (*active.Group, error) {
+	// Validate the active group exists and is active
+	activeGroup, err := s.groupRepo.FindByID(ctx, activeGroupID)
+	if err != nil {
+		return nil, &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: ErrActiveGroupNotFound}
+	}
+
+	if !activeGroup.IsActive() {
+		return nil, &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: fmt.Errorf("cannot update supervisors for an ended session")}
+	}
+
+	// Validate supervisor IDs
+	if err := s.validateSupervisorIDs(ctx, supervisorIDs); err != nil {
+		return nil, err
+	}
+
+	// Deduplicate supervisor IDs
+	uniqueSupervisors := make(map[int64]bool)
+	for _, id := range supervisorIDs {
+		uniqueSupervisors[id] = true
+	}
+
+	// Use transaction for atomic update
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get current supervisors
+		currentSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, activeGroupID)
+		if err != nil {
+			return err
+		}
+
+		// End all current supervisors (soft delete by setting end_date)
+		now := time.Now()
+		for _, supervisor := range currentSupervisors {
+			if supervisor.EndDate == nil {
+				supervisor.EndDate = &now
+				if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
+					return err
+				}
+			}
+		}
+
+		// Create new supervisor records
+		for supervisorID := range uniqueSupervisors {
+			// Check if this supervisor already exists (even if ended)
+			// to avoid unique constraint violation
+			existingFound := false
+			for _, existing := range currentSupervisors {
+				if existing.StaffID == supervisorID && existing.Role == "supervisor" {
+					// Reactivate if it was ended
+					if existing.EndDate != nil {
+						existing.EndDate = nil
+						existing.StartDate = now
+						if err := s.supervisorRepo.Update(ctx, existing); err != nil {
+							return err
+						}
+						existingFound = true
+						break
+					}
+				}
+			}
+
+			// Only create if not found
+			if !existingFound {
+				supervisor := &active.GroupSupervisor{
+					StaffID:   supervisorID,
+					GroupID:   activeGroupID,
+					Role:      "supervisor",
+					StartDate: now,
+				}
+
+				if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
+					return err
+				}
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: err}
+	}
+
+	// Return the updated group with new supervisors
+	updatedGroup, err := s.groupRepo.FindWithSupervisors(ctx, activeGroupID)
+	if err != nil {
+		return nil, &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: err}
+	}
+
+	return updatedGroup, nil
 }
 
 // CheckActivityConflict checks for conflicts before starting an activity session
