@@ -3,6 +3,7 @@ package active
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -169,8 +170,9 @@ func (r *GroupRepository) FindWithVisits(ctx context.Context, id int64) (*active
 	group := new(active.Group)
 	err := r.db.NewSelect().
 		Model(group).
+		ModelTableExpr(`active.groups AS "group"`).
 		Relation("Visits").
-		Where("id = ?", id).
+		Where(`"group".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -185,20 +187,40 @@ func (r *GroupRepository) FindWithVisits(ctx context.Context, id int64) (*active
 
 // FindWithSupervisors retrieves a group with its associated supervisors
 func (r *GroupRepository) FindWithSupervisors(ctx context.Context, id int64) (*active.Group, error) {
+	// First get the group
 	group := new(active.Group)
 	err := r.db.NewSelect().
 		Model(group).
-		Relation("Supervisors").
-		Where("id = ?", id).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find with supervisors",
+			Op:  "find with supervisors - group",
 			Err: err,
 		}
 	}
 
+	// Then get the supervisors
+	var supervisors []*active.GroupSupervisor
+	err = r.db.NewSelect().
+		Model(&supervisors).
+		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
+		Where(`"group_supervisor".group_id = ?`, id).
+		Scan(ctx)
+
+	if err != nil {
+		// Don't fail if no supervisors found
+		if err != sql.ErrNoRows {
+			return nil, &modelBase.DatabaseError{
+				Op:  "find with supervisors - supervisors",
+				Err: err,
+			}
+		}
+	}
+
+	group.Supervisors = supervisors
 	return group, nil
 }
 

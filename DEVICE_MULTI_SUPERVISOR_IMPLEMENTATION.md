@@ -140,101 +140,58 @@ POST /api/iot/session/start
 
 ---
 
-### Objective 4: Backward Compatibility
-**Status**: PENDING
-**Target**: Ensure existing workflows continue to function
+### Objective 4: Backward Compatibility ❌
+**Status**: NOT NEEDED - Per user decision: "we do not need backwards compatibility as the device will also change!!"
+**Decision Date**: 2025-06-30
 
-**Acceptance Criteria**:
-- [ ] Existing Bruno tests pass without modification
-- [ ] Single supervisor mode still works
-- [ ] No breaking changes to existing endpoints
-
-**Implementation Tasks**:
-1. [ ] Make `supervisor_ids` optional in request
-2. [ ] Default behavior when field not provided
-3. [ ] Support both old and new patterns
-
-**Testing Checklist**:
-- [ ] Run existing Bruno test suite
-- [ ] Verify no regressions
-- [ ] Document any migration needs
+**Rationale**: 
+- Devices will be updated to use the new multi-supervisor API
+- No need to maintain backward compatibility
+- `supervisor_ids` is required in all session start requests
+- This is an intentional breaking change
 
 ---
 
-### Objective 5: Add Supervisors to Active Session
-**Status**: PENDING
-**Target**: Dynamic supervisor addition during active session
+### Objectives 5 & 6: Update Supervisors for Active Session ✅
+**Status**: COMPLETE - Merged into single PUT endpoint
+**Completed**: 2025-06-30
 
-**API Design**:
+**API Design** (Final Implementation):
 ```json
-POST /api/iot/session/{session_id}/supervisors
+PUT /api/iot/session/{session_id}/supervisors
 {
-  "supervisor_ids": [4, 5]  // Staff IDs to add
+  "supervisor_ids": [1, 4, 5]  // Complete new list of supervisors
 }
 ```
 
-**Acceptance Criteria**:
-- [ ] Validate session exists and is active
-- [ ] Validate supervisor IDs are valid staff
-- [ ] Create new `group_supervisors` records
-- [ ] Prevent duplicate assignments (idempotent)
-- [ ] Return updated supervisor list
+**Implementation Details**:
+- ✅ Single PUT endpoint replaces entire supervisor list (RESTful best practice)
+- ✅ Validates session exists and is active
+- ✅ Validates all supervisor IDs are valid staff members
+- ✅ Atomic transaction for all changes
+- ✅ Handles unique constraint by reactivating ended supervisors
+- ✅ Automatic deduplication of supervisor IDs
+- ✅ Returns updated supervisor list with full details
 
-**Implementation Tasks**:
-1. [ ] Create new endpoint in `api/iot/api.go`
-2. [ ] Add route to router
-3. [ ] Implement service method for adding supervisors
-4. [ ] Handle duplicate prevention logic
-5. [ ] Create response structure
+**Service Method**: `UpdateActiveGroupSupervisors(ctx, activeGroupID, supervisorIDs)`
 
-**Test Scenarios**:
-- [ ] Add single supervisor to active session
-- [ ] Add multiple supervisors in one request
-- [ ] Add already assigned supervisor (no error, idempotent)
-- [ ] Add to non-existent session → Error
-- [ ] Add invalid staff ID → Error
+**Key Implementation Challenges Solved**:
+1. **Schema-qualified tables**: Fixed repository Update method to use proper ModelTableExpr
+2. **Unique constraint handling**: Reactivates existing supervisors instead of creating duplicates
+3. **BUN ORM relations**: Manually load supervisors to avoid schema issues with relations
 
-**Testing Checklist**:
-- [ ] Create Bruno test `dev/device-supervisor-add.bru`
-- [ ] Test all scenarios
-- [ ] Verify database state after operations
+**Test Results**:
+- [x] Update supervisors (normal case): ✅ Works
+- [x] Empty supervisor list: ✅ Returns 400 error "at least one supervisor is required"
+- [x] Invalid supervisor ID: ✅ Returns error "staff member with ID 999999 not found"
+- [x] Duplicate IDs: ✅ Automatically deduplicated
+- [x] Non-existent session: ✅ Returns error
 
----
-
-### Objective 6: Remove Supervisors from Active Session
-**Status**: PENDING
-**Target**: Dynamic supervisor removal during active session
-
-**API Design**:
-```json
-DELETE /api/iot/session/{session_id}/supervisors
-{
-  "supervisor_ids": [2]  // Staff IDs to remove
-}
-```
-
-**Acceptance Criteria**:
-- [ ] Validate session exists and is active
-- [ ] Set end_date on `group_supervisors` records
-- [ ] Return remaining supervisor list
-- [ ] Handle removing non-existent supervisor gracefully
-
-**Implementation Tasks**:
-1. [ ] Create endpoint for supervisor removal
-2. [ ] Implement soft delete (set end_date)
-3. [ ] Check remaining supervisors count
-4. [ ] Handle edge cases
-
-**Test Scenarios**:
-- [ ] Remove one supervisor (others remain active)
-- [ ] Remove multiple supervisors
-- [ ] Remove non-assigned supervisor (no error)
-- [ ] Remove last supervisor (check business rules)
-
-**Testing Checklist**:
-- [ ] Create Bruno test `dev/device-supervisor-remove.bru`
-- [ ] Test all scenarios
-- [ ] Verify end_date set correctly
+**Bruno Tests Created**:
+- `dev/device-supervisor-update.bru` - Main update test
+- `dev/device-supervisor-update-edge.bru` - Edge case tests
+- `dev/device-supervisor-update-invalid.bru` - Invalid session test
+- `bruno/test-supervisor-update.sh` - Automated test script
 
 ---
 
@@ -267,16 +224,17 @@ DELETE /api/iot/session/{session_id}/supervisors
 
 ## Implementation Timeline
 
-### Phase 1: Core Implementation (Current)
+### Phase 1: Core Implementation (Completed)
 - [x] Global PIN authentication
-- [ ] Verify teacher list endpoint
-- [ ] Implement multi-supervisor session start
-- [ ] Ensure backward compatibility
+- [x] Verify teacher list endpoint
+- [x] Implement multi-supervisor session start
+- [x] ~~Ensure backward compatibility~~ (Not needed - devices will update)
 
-### Phase 2: Dynamic Management
-- [ ] Add supervisor endpoint
-- [ ] Remove supervisor endpoint
-- [ ] Edge case handling
+### Phase 2: Dynamic Management (Completed)
+- [x] ~~Add supervisor endpoint~~ → Merged into PUT endpoint
+- [x] ~~Remove supervisor endpoint~~ → Merged into PUT endpoint
+- [x] Update supervisors endpoint (PUT)
+- [x] Edge case handling
 
 ### Phase 3: Integration & Testing
 - [ ] Complete test suite
@@ -293,12 +251,14 @@ DELETE /api/iot/session/{session_id}/supervisors
 | List all teachers | | ✅ | | | | | |
 | Start with 1 supervisor | | | ✅ | | | | |
 | Start with 3 supervisors | | | ✅ | | | | |
-| Old API still works | | | | ⏳ | | | |
-| Add supervisor to session | | | | | ⏳ | | |
-| Remove supervisor | | | | | | ⏳ | |
+| Old API still works | | | | ❌ | | | |
+| Update supervisors (PUT) | | | | | ✅ | | |
+| Empty supervisor validation | | | | | ✅ | | |
+| Invalid supervisor validation | | | | | ✅ | | |
+| Duplicate handling | | | | | ✅ | | |
 | Multiple rooms per person | | | | | | | ⏳ |
 
-Legend: ✅ Complete | ⏳ Pending | ❌ Failed
+Legend: ✅ Complete | ⏳ Pending | ❌ Not Needed/Skipped
 
 ---
 
@@ -306,9 +266,12 @@ Legend: ✅ Complete | ⏳ Pending | ❌ Failed
 
 ### Backend Files Modified:
 - `backend/auth/device/device_auth.go` - Global PIN authentication
-- `backend/api/iot/api.go` - Device endpoints, multi-supervisor handling
+- `backend/api/iot/api.go` - Device endpoints, multi-supervisor handling, PUT update endpoint
 - `backend/services/active/interface.go` - Added multi-supervisor service methods
-- `backend/services/active/active_service.go` - Implemented multi-supervisor logic
+- `backend/services/active/active_service.go` - Implemented multi-supervisor logic and update method
+- `backend/database/repositories/active/group_supervisor.go` - Fixed Update method for schema-qualified tables
+- `backend/database/repositories/active/group.go` - Fixed FindWithSupervisors for manual loading
+- `backend/database/repositories/users/staff.go` - FindWithPerson implementation
 
 ### Environment Files:
 - `.env.example` - Added OGS_DEVICE_PIN
@@ -324,6 +287,10 @@ Legend: ✅ Complete | ⏳ Pending | ❌ Failed
 - `bruno/dev/device-teachers-list.bru` - Teacher list endpoint test
 - `bruno/dev/device-session-start-multi.bru` - Multi-supervisor session test
 - `bruno/dev/device-session-start-multi-edge.bru` - Edge case tests
+- `bruno/dev/device-supervisor-update.bru` - Supervisor update endpoint test
+- `bruno/dev/device-supervisor-update-edge.bru` - Update edge case tests
+- `bruno/dev/device-supervisor-update-invalid.bru` - Invalid session test
+- `bruno/test-supervisor-update.sh` - Automated test script for supervisor updates
 
 ---
 

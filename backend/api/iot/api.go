@@ -128,6 +128,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/session/end", rs.endActivitySession)
 		r.Get("/session/current", rs.getCurrentSession)
 		r.Post("/session/check-conflict", rs.checkSessionConflict)
+		r.Put("/session/{sessionId}/supervisors", rs.updateSessionSupervisors)
 
 		// Session timeout management
 		r.Post("/session/timeout", rs.processSessionTimeout)
@@ -1540,6 +1541,26 @@ type SessionCurrentResponse struct {
 	ActiveStudents *int       `json:"active_students,omitempty"`
 }
 
+// UpdateSupervisorsRequest represents a request to update supervisors for an active session
+type UpdateSupervisorsRequest struct {
+	SupervisorIDs []int64 `json:"supervisor_ids"`
+}
+
+// Bind validates the update supervisors request
+func (req *UpdateSupervisorsRequest) Bind(r *http.Request) error {
+	if len(req.SupervisorIDs) == 0 {
+		return errors.New("at least one supervisor is required")
+	}
+	return nil
+}
+
+// UpdateSupervisorsResponse represents the response when updating supervisors
+type UpdateSupervisorsResponse struct {
+	ActiveGroupID int64            `json:"active_group_id"`
+	Supervisors   []SupervisorInfo `json:"supervisors"`
+	Status        string           `json:"status"`
+	Message       string           `json:"message"`
+}
 
 // startActivitySession handles starting an activity session on a device
 func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request) {
@@ -1807,6 +1828,81 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Current session retrieved successfully")
+}
+
+// updateSessionSupervisors handles updating the supervisors for an active session
+func (rs *Resource) updateSessionSupervisors(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+	if deviceCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+	
+	// Get session ID from URL parameters
+	sessionIDStr := chi.URLParam(r, "sessionId")
+	sessionID, err := strconv.ParseInt(sessionIDStr, 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid session ID"))); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+	
+	// Parse request
+	req := &UpdateSupervisorsRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+	
+	// Update supervisors
+	updatedGroup, err := rs.ActiveService.UpdateActiveGroupSupervisors(r.Context(), sessionID, req.SupervisorIDs)
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+	
+	// Load supervisor details for response
+	supervisors := make([]SupervisorInfo, 0, len(updatedGroup.Supervisors))
+	for _, gs := range updatedGroup.Supervisors {
+		// Only include active supervisors (no end_date)
+		if gs.EndDate == nil && gs.StaffID > 0 {
+			// Get staff details with person info
+			staff, err := rs.UsersService.StaffRepository().FindWithPerson(r.Context(), gs.StaffID)
+			if err != nil {
+				log.Printf("Failed to load staff details for ID %d: %v", gs.StaffID, err)
+				continue
+			}
+			
+			if staff.Person != nil {
+				supervisorInfo := SupervisorInfo{
+					StaffID:     staff.ID,
+					FirstName:   staff.Person.FirstName,
+					LastName:    staff.Person.LastName,
+					DisplayName: fmt.Sprintf("%s %s", staff.Person.FirstName, staff.Person.LastName),
+					Role:        gs.Role,
+				}
+				supervisors = append(supervisors, supervisorInfo)
+			}
+		}
+	}
+	
+	// Build response
+	response := UpdateSupervisorsResponse{
+		ActiveGroupID: updatedGroup.ID,
+		Supervisors:   supervisors,
+		Status:        "success",
+		Message:       "Supervisors updated successfully",
+	}
+	
+	common.Respond(w, r, http.StatusOK, response, "Supervisors updated successfully")
 }
 
 // checkSessionConflict handles checking for conflicts before starting a session

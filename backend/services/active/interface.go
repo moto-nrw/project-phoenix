@@ -73,6 +73,9 @@ type Service interface {
 	ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error)
 	ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error)
 	GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error)
+	
+	// Dynamic Supervisor Management
+	UpdateActiveGroupSupervisors(ctx context.Context, activeGroupID int64, supervisorIDs []int64) (*active.Group, error)
 
 	// Session timeout operations
 	ProcessSessionTimeout(ctx context.Context, deviceID int64) (*TimeoutResult, error)

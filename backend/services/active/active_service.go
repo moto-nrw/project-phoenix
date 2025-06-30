@@ -1669,6 +1669,99 @@ func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, 
 	return newGroup, nil
 }
 
+// UpdateActiveGroupSupervisors replaces all supervisors for an active group
+func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupID int64, supervisorIDs []int64) (*active.Group, error) {
+	// Validate the active group exists and is active
+	activeGroup, err := s.groupRepo.FindByID(ctx, activeGroupID)
+	if err != nil {
+		return nil, &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: ErrActiveGroupNotFound}
+	}
+	
+	if !activeGroup.IsActive() {
+		return nil, &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: fmt.Errorf("cannot update supervisors for an ended session")}
+	}
+	
+	// Validate supervisor IDs
+	if err := s.validateSupervisorIDs(ctx, supervisorIDs); err != nil {
+		return nil, err
+	}
+	
+	// Deduplicate supervisor IDs
+	uniqueSupervisors := make(map[int64]bool)
+	for _, id := range supervisorIDs {
+		uniqueSupervisors[id] = true
+	}
+	
+	// Use transaction for atomic update
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Get current supervisors
+		currentSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, activeGroupID)
+		if err != nil {
+			return err
+		}
+		
+		// End all current supervisors (soft delete by setting end_date)
+		now := time.Now()
+		for _, supervisor := range currentSupervisors {
+			if supervisor.EndDate == nil {
+				supervisor.EndDate = &now
+				if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
+					return err
+				}
+			}
+		}
+		
+		// Create new supervisor records
+		for supervisorID := range uniqueSupervisors {
+			// Check if this supervisor already exists (even if ended)
+			// to avoid unique constraint violation
+			existingFound := false
+			for _, existing := range currentSupervisors {
+				if existing.StaffID == supervisorID && existing.Role == "supervisor" {
+					// Reactivate if it was ended
+					if existing.EndDate != nil {
+						existing.EndDate = nil
+						existing.StartDate = now
+						if err := s.supervisorRepo.Update(ctx, existing); err != nil {
+							return err
+						}
+						existingFound = true
+						break
+					}
+				}
+			}
+			
+			// Only create if not found
+			if !existingFound {
+				supervisor := &active.GroupSupervisor{
+					StaffID:   supervisorID,
+					GroupID:   activeGroupID,
+					Role:      "supervisor",
+					StartDate: now,
+				}
+				
+				if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
+					return err
+				}
+			}
+		}
+		
+		return nil
+	})
+	
+	if err != nil {
+		return nil, &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: err}
+	}
+	
+	// Return the updated group with new supervisors
+	updatedGroup, err := s.groupRepo.FindWithSupervisors(ctx, activeGroupID)
+	if err != nil {
+		return nil, &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: err}
+	}
+	
+	return updatedGroup, nil
+}
+
 // CheckActivityConflict checks for conflicts before starting an activity session
 func (s *service) CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*ActivityConflictInfo, error) {
 	// Only check if device is already running another session
