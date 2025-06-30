@@ -122,7 +122,17 @@ export async function fetchActivities(filters?: ActivityFilter): Promise<Activit
 
         const responseData = await response.json() as unknown;
         
-        // Handle paginated response from our API route
+        // Handle paginated response from our API route with nested data structure
+        if (responseData && 
+            typeof responseData === 'object' && 
+            'data' in responseData && 
+            typeof (responseData as { data: unknown }).data === 'object' &&
+            'data' in (responseData as { data: { data: unknown } }).data &&
+            Array.isArray((responseData as { data: { data: unknown } }).data.data)) {
+            return (responseData as { data: { data: Activity[] } }).data.data;
+        }
+        
+        // Handle direct data.data structure
         if (responseData && 
             typeof responseData === 'object' && 
             'data' in responseData && 
@@ -136,7 +146,6 @@ export async function fetchActivities(filters?: ActivityFilter): Promise<Activit
         }
         
         // Return empty array if response format is unexpected
-        console.warn('Unexpected response format:', responseData);
         return [];
     } else {
         // Server-side: use axios with the API URL directly

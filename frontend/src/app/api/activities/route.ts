@@ -10,6 +10,12 @@ interface ApiResponse<T> {
   data: T;
 }
 
+interface BackendResponse {
+  status?: string;
+  data?: BackendActivity[];
+  message?: string;
+}
+
 /**
  * Handler for GET /api/activities
  * Returns a list of activities, optionally filtered by query parameters
@@ -27,13 +33,42 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
   const endpoint = `/api/activities${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
   
   try {
-    const response = await apiGet<ApiResponse<BackendActivity[]>>(endpoint, token);
+    const response = await apiGet<BackendResponse>(endpoint, token);
     
-    // Handle response structure
-    if (response?.status === "success" && Array.isArray(response.data)) {
+    // Check for status: "success" wrapper (backend response format)
+    if (response?.status === "success" && response?.data && Array.isArray(response.data)) {
       const mappedData = response.data.map(mapActivityResponse);
       
-      // Return paginated response structure expected by DatabasePage
+      return {
+        data: mappedData,
+        pagination: {
+          current_page: 1,
+          page_size: mappedData.length,
+          total_pages: 1,
+          total_records: mappedData.length
+        }
+      };
+    }
+    
+    // Check if response has data property with activities array
+    if (response?.data && Array.isArray(response.data)) {
+      const mappedData = response.data.map(mapActivityResponse);
+      
+      return {
+        data: mappedData,
+        pagination: {
+          current_page: 1,
+          page_size: mappedData.length,
+          total_pages: 1,
+          total_records: mappedData.length
+        }
+      };
+    }
+    
+    // Check if response is directly an array of activities
+    if (Array.isArray(response)) {
+      const mappedData = (response as unknown as BackendActivity[]).map(mapActivityResponse);
+      
       return {
         data: mappedData,
         pagination: {
@@ -56,6 +91,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
       }
     };
   } catch (error) {
+    console.error('Error in activities route:', error);
     throw error; // Rethrow to see the real error
   }
 });
