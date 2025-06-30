@@ -115,7 +115,8 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student {
     let current_location: StudentLocation = "Unknown";
     if (backendStudent.location && (backendStudent.location === "Anwesend" || backendStudent.location.startsWith("Anwesend"))) {
         current_location = "Anwesend";
-    } else if (backendStudent.location === "Zuhause") {
+    } else if (backendStudent.location === "Zuhause" || backendStudent.location === "Abwesend") {
+        // Backend returns "Abwesend" for not checked in, map to "Zuhause" for frontend
         current_location = "Zuhause";
     }
     

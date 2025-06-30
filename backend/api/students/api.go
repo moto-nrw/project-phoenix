@@ -259,28 +259,32 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 	}
 
 	// Use real tracking data instead of deprecated flags
-	// Get current visit to determine real location
-	currentVisit, err := activeService.GetStudentCurrentVisit(ctx, student.ID)
-	if err == nil && currentVisit != nil {
-		// Student has an active visit - they are present and in a specific activity
-		if includeLocation {
-			// Supervisors see detailed location/activity information
-			// TODO: Get room and activity names from the visit data
-			response.Location = "Anwesend - Aktivität" // Placeholder for now
+	// Always check attendance status first - this is public information
+	attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, student.ID)
+	
+	if err == nil && attendanceStatus != nil && attendanceStatus.Status == "checked_in" {
+		// Student is checked in today
+		// Now check if they have an active visit (room assignment)
+		currentVisit, err := activeService.GetStudentCurrentVisit(ctx, student.ID)
+		
+		if err == nil && currentVisit != nil {
+			// Student has an active visit - they are present and in a specific activity
+			if includeLocation {
+				// Supervisors see detailed location/activity information
+				// TODO: Get room and activity names from the visit data
+				response.Location = "Anwesend - Aktivität" // Placeholder for now
+			} else {
+				// Non-supervisors see generic attendance status
+				response.Location = "Anwesend"
+			}
 		} else {
-			// Non-supervisors see generic attendance status
+			// Student is checked in but has no active visit (not in a specific room)
+			// This means they are "Unterwegs" (in transit/between activities)
 			response.Location = "Anwesend"
 		}
 	} else {
-		// No active visit - check daily attendance status
-		attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, student.ID)
-		if err == nil && attendanceStatus != nil && attendanceStatus.Status == "checked_in" {
-			// Student is checked in but has no active visit
-			response.Location = "Anwesend"
-		} else {
-			// Student is not checked in or has checked out
-			response.Location = "Abwesend"
-		}
+		// Student is not checked in or has checked out
+		response.Location = "Abwesend"
 	}
 
 	if person != nil {
@@ -570,7 +574,11 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		response.GroupSupervisors = supervisors
 
 		// Clear sensitive data for users without full access
-		response.Location = ""
+		// BUT keep basic attendance status (Anwesend/Abwesend) - this is public information
+		// Only clear if it contains detailed location info
+		if response.Location != "Anwesend" && response.Location != "Abwesend" {
+			response.Location = ""
+		}
 		response.GuardianContact = ""
 		response.GuardianEmail = ""
 		response.GuardianPhone = ""
