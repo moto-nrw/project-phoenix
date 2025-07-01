@@ -12,6 +12,7 @@ import {
     type ActivityCategory
 } from "~/lib/activity-helpers";
 import { ActivityManagementModal } from "~/components/activities/activity-management-modal";
+import { QuickCreateActivityModal } from "~/components/activities/quick-create-modal";
 import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
 
@@ -27,6 +28,7 @@ export default function ActivitiesPage() {
     const [filteredActivities, setFilteredActivities] = useState<Activity[]>([]);
     const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
     const [isManagementModalOpen, setIsManagementModalOpen] = useState(false);
+    const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
     const [currentStaff, setCurrentStaff] = useState<Staff | null>(null);
 
     // Load activities, categories and current user on mount
@@ -194,24 +196,69 @@ export default function ActivitiesPage() {
     return (
         <ResponsiveLayout>
             <div className="w-full">
-                {/* Page Header with Search and Filters */}
-                <PageHeaderWithSearch
-                    title="Aktivitäten"
-                    badge={activities.length > 0 ? { count: activities.length, label: activities.length === 1 ? "Aktivität" : "Aktivitäten" } : undefined}
-                    search={{
-                        value: searchTerm,
-                        onChange: setSearchTerm,
-                        placeholder: "Aktivität, Betreuer oder Kategorie suchen..."
-                    }}
-                    filters={filters}
-                    activeFilters={activeFilters}
-                    onClearAllFilters={() => {
-                        setSearchTerm("");
-                        setCategoryFilter("all");
-                        setMyActivitiesFilter(false);
-                    }}
-                    className="mb-6"
-                />
+                {/* Custom Page Header with Create Button */}
+                <div className="mb-6">
+                    {/* Header with Title and Create Button */}
+                    <div className="mb-6">
+                        <div className="flex items-center justify-between gap-4">
+                            <h1 className="text-[1.625rem] md:text-3xl font-bold text-gray-900">
+                                Aktivitäten
+                            </h1>
+                            
+                            {/* Create Activity Button - Desktop */}
+                            <button
+                                onClick={() => setIsQuickCreateOpen(true)}
+                                className="hidden md:flex items-center gap-2.5 px-5 py-2.5 bg-gradient-to-r from-white to-gray-50 hover:from-gray-50 hover:to-gray-100 text-gray-700 hover:text-gray-900 rounded-full border border-gray-200 hover:border-[#83CD2D]/30 shadow-sm hover:shadow-md transition-all duration-300 group relative overflow-hidden"
+                            >
+                                {/* Subtle gradient overlay on hover */}
+                                <div className="absolute inset-0 bg-gradient-to-r from-[#83CD2D]/0 to-[#70B525]/0 group-hover:from-[#83CD2D]/5 group-hover:to-[#70B525]/5 transition-all duration-300"></div>
+                                
+                                <div className="relative w-5 h-5 rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70B525] flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-sm group-hover:shadow-[#83CD2D]/30">
+                                    <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                    </svg>
+                                </div>
+                                <span className="relative font-semibold text-sm">Aktivität erstellen</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Search and Filters using PageHeaderWithSearch components */}
+                    <PageHeaderWithSearch
+                        title=""  
+                        search={{
+                            value: searchTerm,
+                            onChange: setSearchTerm,
+                            placeholder: "Aktivität, Betreuer oder Kategorie suchen..."
+                        }}
+                        filters={filters}
+                        activeFilters={activeFilters}
+                        onClearAllFilters={() => {
+                            setSearchTerm("");
+                            setCategoryFilter("all");
+                            setMyActivitiesFilter(false);
+                        }}
+                        className=""
+                    />
+                </div>
+
+                {/* Mobile FAB Create Button */}
+                <button
+                    onClick={() => setIsQuickCreateOpen(true)}
+                    className="md:hidden fixed bottom-24 right-4 z-40 w-14 h-14 bg-gradient-to-br from-[#83CD2D] to-[#70B525] text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(131,205,45,0.3)] transition-all duration-300 flex items-center justify-center group active:scale-95"
+                    aria-label="Aktivität erstellen"
+                >
+                    {/* Inner glow effect */}
+                    <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    
+                    {/* Plus icon */}
+                    <svg className="relative h-6 w-6 transition-transform duration-300 group-active:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    
+                    {/* Ripple effect on hover */}
+                    <div className="absolute inset-0 rounded-full bg-white/20 scale-0 group-hover:scale-100 transition-transform duration-500 opacity-0 group-hover:opacity-100"></div>
+                </button>
 
                 {/* Error Alert */}
                 {error && (
@@ -372,6 +419,16 @@ export default function ActivitiesPage() {
                     readOnly={!isActivityCreator(selectedActivity, currentStaff?.id)}
                 />
             )}
+            
+            {/* Quick Create Activity Modal */}
+            <QuickCreateActivityModal
+                isOpen={isQuickCreateOpen}
+                onClose={() => setIsQuickCreateOpen(false)}
+                onSuccess={() => {
+                    setIsQuickCreateOpen(false);
+                    void handleManagementSuccess(); // Reload activities
+                }}
+            />
         </ResponsiveLayout>
     );
 }
