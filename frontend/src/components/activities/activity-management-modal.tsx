@@ -11,6 +11,8 @@ interface ActivityManagementModalProps {
   onClose: () => void;
   onSuccess?: () => void;
   activity: Activity;
+  currentStaffId?: string | null;
+  readOnly?: boolean;
 }
 
 interface EditForm {
@@ -23,7 +25,9 @@ export function ActivityManagementModal({
   isOpen,
   onClose,
   onSuccess,
-  activity
+  activity,
+  currentStaffId: _currentStaffId,
+  readOnly = false
 }: ActivityManagementModalProps) {
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -203,7 +207,7 @@ export function ActivityManagementModal({
     <>
       <div className="flex items-center justify-between w-full">
         <div>
-          {!showDeleteConfirm && (
+          {!readOnly && !showDeleteConfirm && (
             <button
               type="button"
               onClick={() => setShowDeleteConfirm(true)}
@@ -216,7 +220,7 @@ export function ActivityManagementModal({
               Löschen
             </button>
           )}
-          {showDeleteConfirm && (
+          {!readOnly && showDeleteConfirm && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-red-600">Wirklich löschen?</span>
               <button
@@ -249,28 +253,29 @@ export function ActivityManagementModal({
             Schließen
           </button>
           
-          <button
-            type="submit"
-            form="activity-management-form"
-            disabled={isSubmitting || loading || isDeleting}
-            className="relative group overflow-hidden px-5 py-2.5 rounded-full text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2
-            bg-blue-600 hover:bg-blue-700 backdrop-blur-md
-            text-white
-            shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] hover:shadow-[0_10px_15px_-3px_rgba(59,130,246,0.5),0_4px_6px_-2px_rgba(59,130,246,0.25)]
-            border border-blue-200/50 hover:border-blue-200/60
-            ring-1 ring-white/20 hover:ring-blue-200/60
-            focus:outline-none focus:ring-2 focus:ring-blue-200/60 focus:ring-offset-2"
-            style={{ 
-              transform: 'translateY(0px)',
-              transition: 'box-shadow 50ms ease-out, transform 800ms cubic-bezier(0.4, 0, 0.2, 1), background-color 300ms ease-out, border-color 300ms ease-out' 
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-4px)';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0px)';
-            }}
-          >
+          {!readOnly && (
+            <button
+              type="submit"
+              form="activity-management-form"
+              disabled={isSubmitting || loading || isDeleting}
+              className="relative group overflow-hidden px-5 py-2.5 rounded-full text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2
+              bg-blue-600 hover:bg-blue-700 backdrop-blur-md
+              text-white
+              shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] hover:shadow-[0_10px_15px_-3px_rgba(59,130,246,0.5),0_4px_6px_-2px_rgba(59,130,246,0.25)]
+              border border-blue-200/50 hover:border-blue-200/60
+              ring-1 ring-white/20 hover:ring-blue-200/60
+              focus:outline-none focus:ring-2 focus:ring-blue-200/60 focus:ring-offset-2"
+              style={{ 
+                transform: 'translateY(0px)',
+                transition: 'box-shadow 50ms ease-out, transform 800ms cubic-bezier(0.4, 0, 0.2, 1), background-color 300ms ease-out, border-color 300ms ease-out' 
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-4px)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0px)';
+              }}
+            >
             
             {/* Content */}
             <div className="relative flex items-center gap-2">
@@ -299,7 +304,8 @@ export function ActivityManagementModal({
             
             {/* Animated background shine effect */}
             <div className="absolute inset-0 -top-2 h-full w-full rotate-12 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 group-hover:animate-[shine_1s_ease-in-out]"></div>
-          </button>
+            </button>
+          )}
         </div>
       </div>
     </>
@@ -310,14 +316,7 @@ export function ActivityManagementModal({
       <FormModal
         isOpen={isOpen}
         onClose={onClose}
-        title={
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Aktivität: {activity.name}</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Erstellt von: {activity.supervisors && activity.supervisors.length > 0 && activity.supervisors[0] ? (activity.supervisors[0].full_name ?? 'Unbekannt') : 'Unbekannt'}
-            </p>
-          </div>
-        }
+        title={`Aktivität: ${activity.name}`}
         size="sm"
         footer={footer}
       >
@@ -330,6 +329,13 @@ export function ActivityManagementModal({
         </div>
       ) : (
         <form id="activity-management-form" onSubmit={handleSubmit} className="space-y-4">
+          {/* Creator info - positioned at top */}
+          <div className="-mt-2 -mx-2 px-2 pb-3 mb-4 border-b border-gray-100">
+            <p className="text-sm text-gray-500">
+              Erstellt von: {activity.supervisors && activity.supervisors.length > 0 && activity.supervisors[0] ? (activity.supervisors[0].full_name ?? 'Unbekannt') : 'Unbekannt'}
+            </p>
+          </div>
+          
           {error && (
             <div className="relative overflow-hidden rounded-2xl bg-red-50/80 backdrop-blur-sm border border-red-100 p-4">
               <div className="absolute inset-0 bg-gradient-to-br from-red-50/50 to-pink-50/50 opacity-50"></div>
@@ -360,8 +366,9 @@ export function ActivityManagementModal({
                 value={form.name}
                 onChange={handleInputChange}
                 placeholder="z.B. Hausaufgaben, Malen, Basteln..."
-                className="block w-full rounded-lg border-0 px-3 py-2.5 text-sm text-gray-900 bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-inset ring-gray-200/50 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-[#5080D8] focus:bg-white transition-all duration-200"
+                className="block w-full rounded-lg border-0 px-3 py-2.5 text-sm text-gray-900 bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-inset ring-gray-200/50 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-[#5080D8] focus:bg-white transition-all duration-200 disabled:bg-gray-50 disabled:cursor-not-allowed"
                 required
+                disabled={readOnly}
               />
             </div>
           </div>
@@ -382,8 +389,9 @@ export function ActivityManagementModal({
                   name="category_id"
                   value={form.category_id}
                   onChange={handleInputChange}
-                  className="block w-full appearance-none rounded-lg border-0 px-3 py-2.5 pr-8 text-sm text-gray-900 bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-inset ring-gray-200/50 focus:ring-2 focus:ring-inset focus:ring-[#5080D8] focus:bg-white transition-all duration-200 cursor-pointer"
+                  className="block w-full appearance-none rounded-lg border-0 px-3 py-2.5 pr-8 text-sm text-gray-900 bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-inset ring-gray-200/50 focus:ring-2 focus:ring-inset focus:ring-[#5080D8] focus:bg-white transition-all duration-200 cursor-pointer disabled:bg-gray-50 disabled:cursor-not-allowed"
                   required
+                  disabled={readOnly}
                 >
                   <option value="">Kategorie wählen...</option>
                   {categories.map((category) => (
@@ -421,7 +429,7 @@ export function ActivityManagementModal({
                     }
                   }}
                   className="absolute left-0 z-10 h-full w-10 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-white/50 rounded-l-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#5080D8] disabled:opacity-30 disabled:cursor-not-allowed"
-                  disabled={parseInt(form.max_participants) <= 1}
+                  disabled={parseInt(form.max_participants) <= 1 || readOnly}
                   aria-label="Teilnehmer reduzieren"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -437,8 +445,9 @@ export function ActivityManagementModal({
                   onChange={handleInputChange}
                   min="1"
                   max="50"
-                  className="block w-full rounded-lg border-0 px-12 py-2.5 text-center text-base font-semibold text-gray-900 bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-inset ring-gray-200/50 focus:ring-2 focus:ring-inset focus:ring-[#5080D8] focus:bg-white transition-all duration-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="block w-full rounded-lg border-0 px-12 py-2.5 text-center text-base font-semibold text-gray-900 bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-inset ring-gray-200/50 focus:ring-2 focus:ring-inset focus:ring-[#5080D8] focus:bg-white transition-all duration-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:bg-gray-50 disabled:cursor-not-allowed"
                   required
+                  disabled={readOnly}
                 />
                 
                 <button
@@ -450,7 +459,7 @@ export function ActivityManagementModal({
                     }
                   }}
                   className="absolute right-0 z-10 h-full w-10 flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-white/50 rounded-r-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#5080D8] disabled:opacity-30 disabled:cursor-not-allowed"
-                  disabled={parseInt(form.max_participants) >= 50}
+                  disabled={parseInt(form.max_participants) >= 50 || readOnly}
                   aria-label="Teilnehmer erhöhen"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -467,7 +476,7 @@ export function ActivityManagementModal({
               <svg className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-xs text-gray-600">Änderungen werden sofort wirksam.</p>
+              <p className="text-xs text-gray-600">{readOnly ? 'Sie können nur Aktivitäten bearbeiten, die Sie selbst erstellt haben.' : 'Änderungen werden sofort wirksam.'}</p>
             </div>
           </div>
         </form>

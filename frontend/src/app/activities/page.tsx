@@ -7,10 +7,13 @@ import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header/typ
 import { fetchActivities, getCategories } from "~/lib/activity-api";
 import { 
     formatSupervisorList, 
+    isActivityCreator,
     type Activity, 
     type ActivityCategory
 } from "~/lib/activity-helpers";
 import { ActivityManagementModal } from "~/components/activities/activity-management-modal";
+import { userContextService } from "~/lib/usercontext-api";
+import type { Staff } from "~/lib/usercontext-helpers";
 
 
 export default function ActivitiesPage() {
@@ -20,22 +23,27 @@ export default function ActivitiesPage() {
     const [categories, setCategories] = useState<ActivityCategory[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("all");
+    const [myActivitiesFilter, setMyActivitiesFilter] = useState(false);
     const [filteredActivities, setFilteredActivities] = useState<Activity[]>([]);
     const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
     const [isManagementModalOpen, setIsManagementModalOpen] = useState(false);
+    const [currentStaff, setCurrentStaff] = useState<Staff | null>(null);
 
-    // Load activities and categories on mount
+    // Load activities, categories and current user on mount
     useEffect(() => {
         const loadData = async () => {
             try {
                 setLoading(true);
-                const [activitiesData, categoriesData] = await Promise.all([
+                // Load activities, categories and current user in parallel
+                const [activitiesData, categoriesData, staffData] = await Promise.all([
                     fetchActivities(),
-                    getCategories()
+                    getCategories(),
+                    userContextService.getCurrentStaff().catch(() => null) // Fail silently if not a staff member
                 ]);
                 setActivities(activitiesData);
                 setCategories(categoriesData);
                 setFilteredActivities(activitiesData);
+                setCurrentStaff(staffData);
                 setError(null);
             } catch (err) {
                 setError("Fehler beim Laden der Aktivitäten");
@@ -69,9 +77,13 @@ export default function ActivitiesPage() {
             filtered = filtered.filter(activity => activity.ag_category_id === categoryFilter);
         }
 
+        // Apply "My Activities" filter
+        if (myActivitiesFilter && currentStaff?.id) {
+            filtered = filtered.filter(activity => isActivityCreator(activity, currentStaff.id));
+        }
 
         setFilteredActivities(filtered);
-    }, [searchTerm, categoryFilter, activities]);
+    }, [searchTerm, categoryFilter, myActivitiesFilter, activities, currentStaff]);
 
     // Handle activity selection - open management modal
     const handleSelectActivity = (activity: Activity) => {
@@ -98,22 +110,41 @@ export default function ActivitiesPage() {
     };
 
     // Prepare filters for PageHeaderWithSearch
-    const filters: FilterConfig[] = useMemo(() => [
-        {
-            id: 'category',
-            label: 'Kategorie',
-            type: 'dropdown',
-            value: categoryFilter,
-            onChange: (value: string | string[]) => setCategoryFilter(value as string),
-            options: [
-                { value: "all", label: "Alle Kategorien" },
-                ...categories.map(cat => ({
-                    value: cat.id.toString(),
-                    label: cat.name
-                }))
-            ]
+    const filters: FilterConfig[] = useMemo(() => {
+        const baseFilters: FilterConfig[] = [
+            {
+                id: 'category',
+                label: 'Kategorie',
+                type: 'dropdown',
+                value: categoryFilter,
+                onChange: (value: string | string[]) => setCategoryFilter(value as string),
+                options: [
+                    { value: "all", label: "Alle Kategorien" },
+                    ...categories.map(cat => ({
+                        value: cat.id.toString(),
+                        label: cat.name
+                    }))
+                ]
+            }
+        ];
+
+        // Only show "My Activities" filter if user is a staff member
+        if (currentStaff) {
+            baseFilters.push({
+                id: 'myActivities',
+                label: 'Meine Aktivitäten',
+                type: 'buttons',
+                value: myActivitiesFilter ? 'my' : 'all',
+                onChange: (value: string | string[]) => setMyActivitiesFilter(value === 'my'),
+                options: [
+                    { value: 'all', label: 'Alle' },
+                    { value: 'my', label: 'Meine' }
+                ]
+            });
         }
-    ], [categoryFilter, categories]);
+
+        return baseFilters;
+    }, [categoryFilter, categories, myActivitiesFilter, currentStaff]);
 
     // Prepare active filters for display
     const activeFilters: ActiveFilter[] = useMemo(() => {
@@ -136,9 +167,16 @@ export default function ActivitiesPage() {
             });
         }
         
+        if (myActivitiesFilter) {
+            filters.push({
+                id: 'myActivities',
+                label: 'Meine Aktivitäten',
+                onRemove: () => setMyActivitiesFilter(false)
+            });
+        }
         
         return filters;
-    }, [searchTerm, categoryFilter, categories]);
+    }, [searchTerm, categoryFilter, myActivitiesFilter, categories]);
 
     if (loading) {
         return (
@@ -170,6 +208,7 @@ export default function ActivitiesPage() {
                     onClearAllFilters={() => {
                         setSearchTerm("");
                         setCategoryFilter("all");
+                        setMyActivitiesFilter(false);
                     }}
                     className="mb-6"
                 />
@@ -228,6 +267,7 @@ export default function ActivitiesPage() {
                                                     <span className="text-gray-400">Erstellt von:</span> {formatSupervisorList(activity.supervisors)}
                                                 </p>
                                                 
+                                                
                                                 {/* Gruppenraum indicator */}
                                                 {isGruppenraum && (
                                                     <div className="flex items-center gap-1.5">
@@ -240,39 +280,41 @@ export default function ActivitiesPage() {
                                             </div>
                                         </div>
                                         
-                                        {/* Right content - Edit button */}
-                                        <div className="flex items-center gap-3 ml-4">
-                                            {/* Desktop hint */}
-                                            <span className="hidden lg:block text-xs text-gray-400 group-hover:text-gray-600 transition-colors">
-                                                Bearbeiten
-                                            </span>
-                                            
-                                            {/* Edit icon button */}
-                                            <button
-                                                onClick={(e) => handleEditActivity(e, activity)}
-                                                className="relative"
-                                                aria-label="Aktivität bearbeiten"
-                                            >
-                                                <div className="w-10 h-10 rounded-full bg-gray-100 md:group-hover:bg-blue-100 flex items-center justify-center transition-all duration-200 md:group-hover:scale-110">
-                                                    <svg 
-                                                        className="w-5 h-5 text-gray-600 md:group-hover:text-blue-600 transition-colors" 
-                                                        fill="none" 
-                                                        viewBox="0 0 24 24" 
-                                                        stroke="currentColor"
-                                                    >
-                                                        <path 
-                                                            strokeLinecap="round" 
-                                                            strokeLinejoin="round" 
-                                                            strokeWidth={2} 
-                                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
-                                                        />
-                                                    </svg>
-                                                </div>
+                                        {/* Right content - Edit button (only for creators) */}
+                                        {isActivityCreator(activity, currentStaff?.id) && (
+                                            <div className="flex items-center gap-3 ml-4">
+                                                {/* Desktop hint */}
+                                                <span className="hidden lg:block text-xs text-gray-400 group-hover:text-gray-600 transition-colors">
+                                                    Bearbeiten
+                                                </span>
                                                 
-                                                {/* Ripple effect on hover */}
-                                                <div className="absolute inset-0 rounded-full bg-blue-200/20 scale-0 md:group-hover:scale-100 transition-transform duration-300"></div>
-                                            </button>
-                                        </div>
+                                                {/* Edit icon button */}
+                                                <button
+                                                    onClick={(e) => handleEditActivity(e, activity)}
+                                                    className="relative"
+                                                    aria-label="Aktivität bearbeiten"
+                                                >
+                                                    <div className="w-10 h-10 rounded-full bg-gray-100 md:group-hover:bg-blue-100 flex items-center justify-center transition-all duration-200 md:group-hover:scale-110">
+                                                        <svg 
+                                                            className="w-5 h-5 text-gray-600 md:group-hover:text-blue-600 transition-colors" 
+                                                            fill="none" 
+                                                            viewBox="0 0 24 24" 
+                                                            stroke="currentColor"
+                                                        >
+                                                            <path 
+                                                                strokeLinecap="round" 
+                                                                strokeLinejoin="round" 
+                                                                strokeWidth={2} 
+                                                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
+                                                            />
+                                                        </svg>
+                                                    </div>
+                                                    
+                                                    {/* Ripple effect on hover */}
+                                                    <div className="absolute inset-0 rounded-full bg-blue-200/20 scale-0 md:group-hover:scale-100 transition-transform duration-300"></div>
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Glowing border effect */}
@@ -326,6 +368,8 @@ export default function ActivitiesPage() {
                     }}
                     onSuccess={handleManagementSuccess}
                     activity={selectedActivity}
+                    currentStaffId={currentStaff?.id}
+                    readOnly={!isActivityCreator(selectedActivity, currentStaff?.id)}
                 />
             )}
         </ResponsiveLayout>
