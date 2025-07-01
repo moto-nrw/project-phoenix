@@ -201,15 +201,15 @@ export default function ActivitiesPage() {
                                     {/* Modern gradient overlay */}
                                     <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03] rounded-3xl"></div>
                                     {/* Subtle inner glow */}
-                                    <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                                    <div className={`absolute ${isGruppenraum ? 'top-px right-px bottom-px left-1.5' : 'inset-px'} rounded-3xl bg-gradient-to-br from-white/80 to-white/20`}></div>
                                     {/* Modern border highlight */}
                                     <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 md:group-hover:ring-blue-200/60 transition-all duration-300"></div>
                                     
                                     {/* Gruppenraum indicator - accent bar */}
                                     {isGruppenraum && (
                                         <div 
-                                            className="absolute left-0 top-0 bottom-0 w-1 rounded-l-3xl"
-                                            style={{ backgroundColor: "#83CD2D" }}
+                                            className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-3xl"
+                                            style={{ backgroundColor: "#83CD2D", marginLeft: "-1px" }}
                                         ></div>
                                     )}
                                     

@@ -253,20 +253,24 @@ export function ActivityManagementModal({
             type="submit"
             form="activity-management-form"
             disabled={isSubmitting || loading || isDeleting}
-            className="relative group overflow-hidden px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2
-            bg-blue-500/90 hover:bg-blue-600/90 backdrop-blur-md
+            className="relative group overflow-hidden px-5 py-2.5 rounded-full text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2
+            bg-blue-600 hover:bg-blue-700 backdrop-blur-md
             text-white
-            shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]
-            transform hover:-translate-y-1 active:translate-y-0 hover:scale-[1.02] active:scale-[0.98]
+            shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] hover:shadow-[0_10px_15px_-3px_rgba(59,130,246,0.5),0_4px_6px_-2px_rgba(59,130,246,0.25)]
             border border-blue-200/50 hover:border-blue-200/60
             ring-1 ring-white/20 hover:ring-blue-200/60
             focus:outline-none focus:ring-2 focus:ring-blue-200/60 focus:ring-offset-2"
+            style={{ 
+              transform: 'translateY(0px)',
+              transition: 'box-shadow 50ms ease-out, transform 800ms cubic-bezier(0.4, 0, 0.2, 1), background-color 300ms ease-out, border-color 300ms ease-out' 
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-4px)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0px)';
+            }}
           >
-            {/* Gradient overlay matching activity cards */}
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03] rounded-full"></div>
-            
-            {/* Inner glow effect */}
-            <div className="absolute inset-px rounded-full bg-gradient-to-br from-white/80 to-white/20"></div>
             
             {/* Content */}
             <div className="relative flex items-center gap-2">
@@ -281,11 +285,12 @@ export function ActivityManagementModal({
               ) : (
                 <>
                   <div className="relative">
-                    <svg className="w-4 h-4 transition-all duration-300 group-hover:scale-110 group-hover:rotate-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" 
+                        className="group-hover:stroke-white/90 group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] transition-all duration-300" />
                     </svg>
-                    {/* Pulse animation on hover */}
-                    <div className="absolute inset-0 bg-white/30 rounded-full scale-0 group-hover:scale-150 group-hover:opacity-0 transition-all duration-500"></div>
+                    {/* Subtle glow behind icon */}
+                    <div className="absolute inset-0 bg-gradient-radial from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm"></div>
                   </div>
                   <span className="font-semibold">Speichern</span>
                 </>
@@ -305,7 +310,14 @@ export function ActivityManagementModal({
       <FormModal
         isOpen={isOpen}
         onClose={onClose}
-        title={`Aktivität: ${activity.name}`}
+        title={
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Aktivität: {activity.name}</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Erstellt von: {activity.supervisors && activity.supervisors.length > 0 && activity.supervisors[0] ? (activity.supervisors[0].full_name ?? 'Unbekannt') : 'Unbekannt'}
+            </p>
+          </div>
+        }
         size="sm"
         footer={footer}
       >
@@ -449,32 +461,13 @@ export function ActivityManagementModal({
             </div>
           </div>
 
-          {/* Info Cards - Compact */}
-          <div className="space-y-2">
-            {/* Activity Info - Condensed */}
-            <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-blue-50/60 to-indigo-50/60 backdrop-blur-sm border border-blue-200/30 p-3">
-              <div className="relative">
-                <div className="space-y-0.5 text-xs text-blue-600">
-                  <p className="flex items-center gap-1">
-                    <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
-                    {activity.participant_count ?? 0} Teilnehmer eingeschrieben
-                  </p>
-                  <p className="flex items-center gap-1">
-                    <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
-                    Erstellt von: {activity.supervisors && activity.supervisors.length > 0 && activity.supervisors[0] ? (activity.supervisors[0].full_name ?? 'Unbekannt') : 'Unbekannt'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Update Info - Condensed */}
-            <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-gray-50/60 to-slate-50/60 backdrop-blur-sm border border-gray-200/30 p-3">
-              <div className="relative flex items-center gap-2">
-                <svg className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className="text-xs text-gray-600">Änderungen werden sofort wirksam.</p>
-              </div>
+          {/* Info Card - Compact */}
+          <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-gray-50/60 to-slate-50/60 backdrop-blur-sm border border-gray-200/30 p-3">
+            <div className="relative flex items-center gap-2">
+              <svg className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-xs text-gray-600">Änderungen werden sofort wirksam.</p>
             </div>
           </div>
         </form>
