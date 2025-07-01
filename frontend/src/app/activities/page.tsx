@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header/types";
@@ -11,10 +10,10 @@ import {
     type Activity, 
     type ActivityCategory
 } from "~/lib/activity-helpers";
+import { ActivityManagementModal } from "~/components/activities/activity-management-modal";
 
 
 export default function ActivitiesPage() {
-    const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [activities, setActivities] = useState<Activity[]>([]);
@@ -22,6 +21,8 @@ export default function ActivitiesPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("all");
     const [filteredActivities, setFilteredActivities] = useState<Activity[]>([]);
+    const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
+    const [isManagementModalOpen, setIsManagementModalOpen] = useState(false);
 
     // Load activities and categories on mount
     useEffect(() => {
@@ -72,9 +73,28 @@ export default function ActivitiesPage() {
         setFilteredActivities(filtered);
     }, [searchTerm, categoryFilter, activities]);
 
-    // Handle activity selection
+    // Handle activity selection - open management modal
     const handleSelectActivity = (activity: Activity) => {
-        router.push(`/activities/${activity.id}`);
+        setSelectedActivity(activity);
+        setIsManagementModalOpen(true);
+    };
+
+    // Handle edit button click - same as selecting activity
+    const handleEditActivity = (e: React.MouseEvent, activity: Activity) => {
+        e.stopPropagation(); // Prevent duplicate modal opening
+        handleSelectActivity(activity);
+    };
+
+    // Handle successful management actions (edit/delete)
+    const handleManagementSuccess = async () => {
+        // Reload activities to show updated data
+        try {
+            const activitiesData = await fetchActivities();
+            setActivities(activitiesData);
+            setFilteredActivities(activitiesData);
+        } catch (err) {
+            console.error("Error reloading activities:", err);
+        }
     };
 
     // Prepare filters for PageHeaderWithSearch
@@ -228,7 +248,11 @@ export default function ActivitiesPage() {
                                             </span>
                                             
                                             {/* Edit icon button */}
-                                            <div className="relative">
+                                            <button
+                                                onClick={(e) => handleEditActivity(e, activity)}
+                                                className="relative"
+                                                aria-label="Aktivität bearbeiten"
+                                            >
                                                 <div className="w-10 h-10 rounded-full bg-gray-100 md:group-hover:bg-blue-100 flex items-center justify-center transition-all duration-200 md:group-hover:scale-110">
                                                     <svg 
                                                         className="w-5 h-5 text-gray-600 md:group-hover:text-blue-600 transition-colors" 
@@ -247,7 +271,7 @@ export default function ActivitiesPage() {
                                                 
                                                 {/* Ripple effect on hover */}
                                                 <div className="absolute inset-0 rounded-full bg-blue-200/20 scale-0 md:group-hover:scale-100 transition-transform duration-300"></div>
-                                            </div>
+                                            </button>
                                         </div>
                                     </div>
 
@@ -291,6 +315,19 @@ export default function ActivitiesPage() {
                     </div>
                 )}
             </div>
+            
+            {/* Activity Management Modal */}
+            {selectedActivity && (
+                <ActivityManagementModal
+                    isOpen={isManagementModalOpen}
+                    onClose={() => {
+                        setIsManagementModalOpen(false);
+                        setSelectedActivity(null);
+                    }}
+                    onSuccess={handleManagementSuccess}
+                    activity={selectedActivity}
+                />
+            )}
         </ResponsiveLayout>
     );
 }
