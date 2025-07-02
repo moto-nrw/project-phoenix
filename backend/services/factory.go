@@ -70,6 +70,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.GroupSupervisor,
 		repos.CombinedGroup,
 		repos.GroupMapping,
+		repos.ScheduledCheckout,
 		repos.Student,
 		repos.Room,
 		repos.ActivityGroup,

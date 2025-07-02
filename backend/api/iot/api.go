@@ -1156,6 +1156,24 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Cancel any pending scheduled checkout since the student is checking out manually
+		pendingCheckout, err := rs.ActiveService.GetPendingScheduledCheckout(r.Context(), student.ID)
+		if err != nil {
+			log.Printf("[CHECKIN] Warning: Failed to check for pending scheduled checkout: %v", err)
+		} else if pendingCheckout != nil {
+			// Get staff ID from device context if available
+			var cancelledBy int64 = 1 // Default to admin ID if no staff context
+			if staffCtx := device.StaffFromCtx(r.Context()); staffCtx != nil {
+				cancelledBy = staffCtx.ID
+			}
+			
+			if err := rs.ActiveService.CancelScheduledCheckout(r.Context(), pendingCheckout.ID, cancelledBy); err != nil {
+				log.Printf("[CHECKIN] Warning: Failed to cancel scheduled checkout %d: %v", pendingCheckout.ID, err)
+			} else {
+				log.Printf("[CHECKIN] Cancelled pending scheduled checkout %d for student %d", pendingCheckout.ID, student.ID)
+			}
+		}
+
 		log.Printf("[CHECKIN] SUCCESS: Checked out student %s %s (ID: %d), ended visit %d",
 			person.FirstName, person.LastName, student.ID, currentVisit.ID)
 		visitID = &currentVisit.ID

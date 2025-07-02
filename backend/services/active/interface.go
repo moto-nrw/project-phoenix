@@ -99,6 +99,14 @@ type Service interface {
 	GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error)
 	ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64) (*AttendanceResult, error)
 	CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error)
+
+	// Scheduled checkout operations
+	CreateScheduledCheckout(ctx context.Context, checkout *active.ScheduledCheckout) error
+	GetScheduledCheckout(ctx context.Context, id int64) (*active.ScheduledCheckout, error)
+	GetPendingScheduledCheckout(ctx context.Context, studentID int64) (*active.ScheduledCheckout, error)
+	CancelScheduledCheckout(ctx context.Context, id int64, cancelledBy int64) error
+	ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledCheckoutResult, error)
+	GetStudentScheduledCheckouts(ctx context.Context, studentID int64) ([]*active.ScheduledCheckout, error)
 }
 
 // DashboardAnalytics represents aggregated analytics for dashboard
@@ -290,4 +298,14 @@ type AttendanceCleanupPreview struct {
 	StudentRecords map[int64]int  `json:"student_records"` // studentID -> count
 	OldestRecord   *time.Time     `json:"oldest_record,omitempty"`
 	RecordsByDate  map[string]int `json:"records_by_date"` // date -> count
+}
+
+// ScheduledCheckoutResult represents the result of processing scheduled checkouts
+type ScheduledCheckoutResult struct {
+	ProcessedAt      time.Time `json:"processed_at"`
+	CheckoutsExecuted int      `json:"checkouts_executed"`
+	VisitsEnded      int       `json:"visits_ended"`
+	AttendanceUpdated int       `json:"attendance_updated"`
+	Errors           []string  `json:"errors,omitempty"`
+	Success          bool      `json:"success"`
 }

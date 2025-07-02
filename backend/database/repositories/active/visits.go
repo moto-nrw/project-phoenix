@@ -324,3 +324,24 @@ func (r *VisitRepository) CountExpiredVisits(ctx context.Context) (int64, error)
 
 	return count, nil
 }
+
+// GetCurrentByStudentID finds the current active visit for a student
+func (r *VisitRepository) GetCurrentByStudentID(ctx context.Context, studentID int64) (*active.Visit, error) {
+	visit := new(active.Visit)
+	err := r.db.NewSelect().
+		Model(visit).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Where(`"visit".student_id = ? AND "visit".exit_time IS NULL`, studentID).
+		Order(`"visit".entry_time DESC`).
+		Limit(1).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get current by student ID",
+			Err: err,
+		}
+	}
+
+	return visit, nil
+}

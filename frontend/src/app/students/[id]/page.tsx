@@ -14,6 +14,8 @@ import {
   ModernInfoItem, 
   ModernContactActions
 } from "~/components/simple/student";
+import { ScheduledCheckoutModal } from "~/components/scheduled-checkout/scheduled-checkout-modal";
+import { ScheduledCheckoutInfo } from "~/components/scheduled-checkout/scheduled-checkout-info";
 
 
 // Extended Student type for this page
@@ -51,6 +53,8 @@ export default function StudentDetailPage() {
         location: string;
         room: { name: string } | null;
     } | null>(null);
+    const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+    const [checkoutUpdated, setCheckoutUpdated] = useState(0);
 
     // Fetch student data from API
     useEffect(() => {
@@ -143,7 +147,7 @@ export default function StudentDetailPage() {
         };
 
         void fetchStudent();
-    }, [studentId]);
+    }, [studentId, checkoutUpdated]);
 
     // Helper functions moved to individual components for better separation of concerns
 
@@ -439,6 +443,40 @@ export default function StudentDetailPage() {
                                 />
                             </div>
 
+                            {/* Checkout Section - Only shown if student is present */}
+                            {hasFullAccess && currentLocation?.location === "Anwesend" && (
+                                <div className="mb-6 sm:mb-8">
+                                    {/* Scheduled Checkout Info */}
+                                    <ScheduledCheckoutInfo 
+                                        studentId={studentId} 
+                                        onUpdate={() => setCheckoutUpdated(prev => prev + 1)}
+                                    />
+                                    
+                                    {/* Checkout Button */}
+                                    <div className="mt-4">
+                                        <Button
+                                            onClick={() => setShowCheckoutModal(true)}
+                                            className="w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white"
+                                        >
+                                            <svg
+                                                className="h-5 w-5 mr-2"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth={2}
+                                                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                                                />
+                                            </svg>
+                                            Checkout planen
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
                                     {/* History Navigation Container */}
                                     <div className="mb-6 sm:mb-8">
                                         <ModernInfoCard 
@@ -712,6 +750,40 @@ export default function StudentDetailPage() {
                 ) : (
                     // Full Access Content
                     <>
+                        {/* Checkout Section - Only shown if student is present */}
+                        {hasFullAccess && currentLocation?.location === "Anwesend" && (
+                            <div className="mb-6">
+                                {/* Scheduled Checkout Info */}
+                                <ScheduledCheckoutInfo 
+                                    studentId={studentId} 
+                                    onUpdate={() => setCheckoutUpdated(prev => prev + 1)}
+                                />
+                                
+                                {/* Checkout Button */}
+                                <div className="mt-4">
+                                    <Button
+                                        onClick={() => setShowCheckoutModal(true)}
+                                        className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+                                    >
+                                        <svg
+                                            className="h-5 w-5 mr-2"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                                            />
+                                        </svg>
+                                        Checkout planen
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+
                         {/* History Navigation Container */}
                         <div className="mb-6 sm:mb-8">
                             <ModernInfoCard 
@@ -923,6 +995,20 @@ export default function StudentDetailPage() {
                 </div>
                 </div>
             </div>
+            
+            {/* Scheduled Checkout Modal */}
+            {student && (
+                <ScheduledCheckoutModal
+                    isOpen={showCheckoutModal}
+                    onClose={() => setShowCheckoutModal(false)}
+                    studentId={studentId}
+                    studentName={student.name}
+                    onCheckoutScheduled={() => {
+                        setCheckoutUpdated(prev => prev + 1);
+                        setShowCheckoutModal(false);
+                    }}
+                />
+            )}
         </ResponsiveLayout>
     );
 }

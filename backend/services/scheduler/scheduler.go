@@ -60,6 +60,9 @@ func (s *Scheduler) Start() {
 
 	// Schedule token cleanup every hour
 	s.scheduleTokenCleanupTask()
+
+	// Schedule checkout processing every minute
+	s.scheduleCheckoutProcessingTask()
 }
 
 // Stop gracefully stops the scheduler
@@ -462,6 +465,97 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 		}
 		if len(result.Errors) > 10 {
 			log.Printf("  ... and %d more errors", len(result.Errors)-10)
+		}
+	}
+}
+
+// scheduleCheckoutProcessingTask schedules the scheduled checkout processing task
+func (s *Scheduler) scheduleCheckoutProcessingTask() {
+	// Check if scheduled checkout processing is enabled (default enabled)
+	if enabled := os.Getenv("SCHEDULED_CHECKOUT_ENABLED"); enabled == "false" {
+		log.Println("Scheduled checkout processing is disabled (set SCHEDULED_CHECKOUT_ENABLED=true to enable)")
+		return
+	}
+
+	task := &ScheduledTask{
+		Name:     "scheduled-checkout-processing",
+		Schedule: "1m", // Run every minute
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	s.wg.Add(1)
+	go s.runCheckoutProcessingTask(task)
+}
+
+// runCheckoutProcessingTask runs the checkout processing task every minute
+func (s *Scheduler) runCheckoutProcessingTask(task *ScheduledTask) {
+	defer s.wg.Done()
+
+	log.Println("Scheduled checkout processing task scheduled to run every minute")
+
+	// Run immediately on startup
+	s.executeCheckoutProcessing(task)
+
+	// Then run every minute
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.executeCheckoutProcessing(task)
+		case <-s.ctx.Done():
+			return
+		}
+	}
+}
+
+// executeCheckoutProcessing executes the checkout processing task
+func (s *Scheduler) executeCheckoutProcessing(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.LastRun = time.Now()
+	task.mu.Unlock()
+
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.NextRun = time.Now().Add(time.Minute)
+		task.mu.Unlock()
+	}()
+
+	ctx := context.Background()
+	
+	// Process due scheduled checkouts
+	result, err := s.activeService.ProcessDueScheduledCheckouts(ctx)
+	if err != nil {
+		log.Printf("ERROR: Scheduled checkout processing failed: %v", err)
+		return
+	}
+
+	// Only log if there were checkouts to process
+	if result.CheckoutsExecuted > 0 {
+		if result.Success {
+			log.Printf("Scheduled checkout processing: processed %d checkouts (%d visits ended, %d attendance updated)",
+				result.CheckoutsExecuted, result.VisitsEnded, result.AttendanceUpdated)
+		} else {
+			log.Printf("Scheduled checkout processing: partial success - processed %d checkouts with %d errors",
+				result.CheckoutsExecuted, len(result.Errors))
+			for i, errMsg := range result.Errors {
+				if i < 5 { // Log first 5 errors
+					log.Printf("  - Error: %s", errMsg)
+				}
+			}
+			if len(result.Errors) > 5 {
+				log.Printf("  ... and %d more errors", len(result.Errors)-5)
+			}
 		}
 	}
 }

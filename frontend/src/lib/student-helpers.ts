@@ -1,6 +1,14 @@
 // lib/student-helpers.ts
 // Type definitions and helper functions for students
 
+// Scheduled checkout information
+export interface ScheduledCheckoutInfo {
+    id: number;
+    scheduled_for: string;
+    reason?: string;
+    scheduled_by: string;
+}
+
 // Backend types (from Go structs)
 export interface BackendStudent {
     id: number;
@@ -17,6 +25,7 @@ export interface BackendStudent {
     guardian_phone?: string;
     group_id?: number;
     group_name?: string;
+    scheduled_checkout?: ScheduledCheckoutInfo;
     created_at: string;
     updated_at: string;
 }
@@ -105,7 +114,7 @@ export interface Student {
 }
 
 // Mapping functions
-export function mapStudentResponse(backendStudent: BackendStudent): Student {
+export function mapStudentResponse(backendStudent: BackendStudent): Student & { scheduled_checkout?: ScheduledCheckoutInfo } {
     // Construct the full name from first and last name
     const firstName = backendStudent.first_name || '';
     const lastName = backendStudent.last_name || '';
@@ -142,6 +151,14 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student {
         contact_lg: backendStudent.guardian_contact,
         custom_users_id: undefined, // Not provided by backend
     };
+    
+    // Add scheduled checkout info if present
+    if (backendStudent.scheduled_checkout) {
+        return {
+            ...mapped,
+            scheduled_checkout: backendStudent.scheduled_checkout
+        };
+    }
     
     return mapped;
 }
