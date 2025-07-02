@@ -3,6 +3,7 @@ package active
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -2293,18 +2294,32 @@ func (s *service) ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledC
 		return result, &ActiveError{Op: "ProcessDueScheduledCheckouts", Err: err}
 	}
 
+	// Log how many checkouts are due
+	if len(dueCheckouts) > 0 {
+		fmt.Printf("Processing %d due scheduled checkouts\n", len(dueCheckouts))
+	}
+
 	// Process each checkout
 	for _, checkout := range dueCheckouts {
 		// End any active visit for the student
+		fmt.Printf("Processing checkout ID %d for student %d\n", checkout.ID, checkout.StudentID)
 		visit, err := s.visitRepo.GetCurrentByStudentID(ctx, checkout.StudentID)
 		if err != nil {
-			errMsg := fmt.Sprintf("Failed to get current visit for student %d: %v", checkout.StudentID, err)
-			result.Errors = append(result.Errors, errMsg)
-			result.Success = false
-			continue
+			// Check if it's just "no rows" error - that's expected if student has no active visit
+			if err.Error() == "sql: no rows in result set" || strings.Contains(err.Error(), "no rows") {
+				fmt.Printf("No active visit found for student %d (expected if using old system)\n", checkout.StudentID)
+				visit = nil // Set to nil and continue processing
+			} else {
+				// Real error
+				errMsg := fmt.Sprintf("Failed to get current visit for student %d: %v", checkout.StudentID, err)
+				result.Errors = append(result.Errors, errMsg)
+				result.Success = false
+				continue
+			}
 		}
 
 		if visit != nil && visit.IsActive() {
+			fmt.Printf("Found active visit %d for student %d, ending it\n", visit.ID, checkout.StudentID)
 			visit.EndVisit()
 			if err := s.visitRepo.Update(ctx, visit); err != nil {
 				errMsg := fmt.Sprintf("Failed to end visit %d for student %d: %v", visit.ID, checkout.StudentID, err)
@@ -2313,18 +2328,23 @@ func (s *service) ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledC
 				continue
 			}
 			result.VisitsEnded++
+		} else {
+			fmt.Printf("No active visit found for student %d\n", checkout.StudentID)
 		}
 
 		// Update attendance record
 		attendance, err := s.attendanceRepo.GetTodayByStudentID(ctx, checkout.StudentID)
 		if err != nil {
-			errMsg := fmt.Sprintf("Failed to get attendance for student %d: %v", checkout.StudentID, err)
-			result.Errors = append(result.Errors, errMsg)
-			result.Success = false
-			continue
-		}
-
-		if attendance != nil && attendance.CheckOutTime == nil {
+			// If there's no attendance record, log but don't fail the entire checkout
+			// This can happen if student was marked present using old system
+			if err.Error() == "sql: no rows in result set" || strings.Contains(err.Error(), "no rows") {
+				fmt.Printf("No attendance record found for student %d, skipping attendance update\n", checkout.StudentID)
+			} else {
+				errMsg := fmt.Sprintf("Failed to get attendance for student %d: %v", checkout.StudentID, err)
+				result.Errors = append(result.Errors, errMsg)
+				// Don't mark as failed, still mark checkout as executed
+			}
+		} else if attendance != nil && attendance.CheckOutTime == nil {
 			checkoutTime := checkout.ScheduledFor
 			attendance.CheckOutTime = &checkoutTime
 			attendance.CheckedOutBy = &checkout.ScheduledBy
@@ -2332,24 +2352,27 @@ func (s *service) ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledC
 			if err := s.attendanceRepo.Update(ctx, attendance); err != nil {
 				errMsg := fmt.Sprintf("Failed to update attendance for student %d: %v", checkout.StudentID, err)
 				result.Errors = append(result.Errors, errMsg)
-				result.Success = false
-				continue
+				// Don't mark as failed, still mark checkout as executed
+			} else {
+				result.AttendanceUpdated++
 			}
-			result.AttendanceUpdated++
 		}
 
 		// Mark scheduled checkout as executed
+		fmt.Printf("Marking scheduled checkout %d as executed\n", checkout.ID)
 		now := time.Now()
 		checkout.Status = active.ScheduledCheckoutStatusExecuted
 		checkout.ExecutedAt = &now
 
 		if err := s.scheduledCheckoutRepo.Update(ctx, checkout); err != nil {
 			errMsg := fmt.Sprintf("Failed to update scheduled checkout %d: %v", checkout.ID, err)
+			fmt.Printf("ERROR: %s\n", errMsg)
 			result.Errors = append(result.Errors, errMsg)
 			result.Success = false
 			continue
 		}
 		result.CheckoutsExecuted++
+		fmt.Printf("Successfully processed scheduled checkout %d for student %d\n", checkout.ID, checkout.StudentID)
 	}
 
 	return result, nil

@@ -9,7 +9,7 @@ import (
 
 // ScheduledCheckout represents a scheduled future checkout for a student
 type ScheduledCheckout struct {
-	bun.BaseModel `bun:"table:active.scheduled_checkouts,alias:scheduled_checkout"`
+	bun.BaseModel `bun:"table:active.scheduled_checkouts"`
 
 	ID           int64      `bun:"id,pk,autoincrement" json:"id"`
 	StudentID    int64      `bun:"student_id,notnull" json:"student_id"`
@@ -28,6 +28,22 @@ type ScheduledCheckout struct {
 func (sc *ScheduledCheckout) TableName() string {
 	return "active.scheduled_checkouts"
 }
+
+// BeforeAppendModel is called by BUN before appending the model to the query
+// Commented out to prevent triple-quote issues with ORDER BY
+// func (sc *ScheduledCheckout) BeforeAppendModel(ctx context.Context, query bun.Query) error {
+// 	switch query.(type) {
+// 	case *bun.SelectQuery:
+// 		// Let repository handle table expression for SELECT
+// 	case *bun.InsertQuery:
+// 		// Let repository handle table expression for INSERT
+// 	case *bun.UpdateQuery:
+// 		// Let repository handle table expression for UPDATE
+// 	case *bun.DeleteQuery:
+// 		// Let repository handle table expression for DELETE
+// 	}
+// 	return nil
+// }
 
 // ScheduledCheckoutStatus constants
 const (

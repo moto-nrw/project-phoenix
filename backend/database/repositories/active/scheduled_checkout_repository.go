@@ -75,22 +75,43 @@ func (r *ScheduledCheckoutRepository) GetPendingByStudentID(ctx context.Context,
 // GetDueCheckouts retrieves all pending checkouts scheduled for before the given time
 func (r *ScheduledCheckoutRepository) GetDueCheckouts(ctx context.Context, beforeTime time.Time) ([]*active.ScheduledCheckout, error) {
 	var checkouts []*active.ScheduledCheckout
-	err := r.db.NewSelect().
-		Model(&checkouts).
-		Where(`status = ?`, active.ScheduledCheckoutStatusPending).
-		Where(`scheduled_for <= ?`, beforeTime).
-		Order(`scheduled_for ASC`).
-		Scan(ctx)
+	
+	// Use raw SQL query to avoid BUN's alias handling issues with triple quotes
+	query := `
+		SELECT id, student_id, scheduled_by, scheduled_for, reason, status, 
+		       executed_at, cancelled_at, cancelled_by, created_at, updated_at
+		FROM active.scheduled_checkouts
+		WHERE status = ? AND scheduled_for <= ?
+		ORDER BY scheduled_for ASC
+	`
+	
+	err := r.db.NewRaw(query, active.ScheduledCheckoutStatusPending, beforeTime).
+		Scan(ctx, &checkouts)
+	
 	if err != nil {
 		return nil, fmt.Errorf("failed to get due scheduled checkouts: %w", err)
 	}
+	
+	// Debug logging
+	if len(checkouts) > 0 {
+		fmt.Printf("GetDueCheckouts found %d pending checkouts\n", len(checkouts))
+		for i, checkout := range checkouts {
+			fmt.Printf("  [%d] ID=%d, StudentID=%d, ScheduledFor=%v, Status=%s\n", 
+				i, checkout.ID, checkout.StudentID, checkout.ScheduledFor, checkout.Status)
+		}
+	}
+	
 	return checkouts, nil
 }
 
 // Update updates a scheduled checkout
 func (r *ScheduledCheckoutRepository) Update(ctx context.Context, checkout *active.ScheduledCheckout) error {
 	checkout.UpdatedAt = time.Now()
-	_, err := r.db.NewUpdate().
+	
+	fmt.Printf("Updating scheduled checkout ID=%d, Status=%s, ExecutedAt=%v\n", 
+		checkout.ID, checkout.Status, checkout.ExecutedAt)
+	
+	result, err := r.db.NewUpdate().
 		Model(checkout).
 		ModelTableExpr(`active.scheduled_checkouts AS "scheduled_checkout"`).
 		WherePK().
@@ -98,6 +119,10 @@ func (r *ScheduledCheckoutRepository) Update(ctx context.Context, checkout *acti
 	if err != nil {
 		return fmt.Errorf("failed to update scheduled checkout: %w", err)
 	}
+	
+	rowsAffected, _ := result.RowsAffected()
+	fmt.Printf("Update affected %d rows\n", rowsAffected)
+	
 	return nil
 }
 
