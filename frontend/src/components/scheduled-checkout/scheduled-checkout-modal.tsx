@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Modal } from "../ui/modal";
 import { Button } from "../ui/button";
+import { TimePicker } from "../ui/time-picker";
 import { createScheduledCheckout, performImmediateCheckout } from "~/lib/scheduled-checkout-api";
 import { useSession } from "next-auth/react";
 
@@ -111,7 +112,7 @@ export function ScheduledCheckoutModal({
         Abbrechen
       </Button>
       <Button onClick={handleSubmit} disabled={isSubmitting}>
-        {isSubmitting ? "Wird geplant..." : "Checkout planen"}
+        {isSubmitting ? "Wird verarbeitet..." : checkoutType === "now" ? "Jetzt ausloggen" : "Ausloggen planen"}
       </Button>
     </>
   );
@@ -165,19 +166,19 @@ export function ScheduledCheckoutModal({
           <div>
             <label
               htmlFor="checkout-time"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-medium text-gray-700 mb-3"
             >
-              Uhrzeit
+              Uhrzeit auswählen
             </label>
-            <input
-              type="time"
-              id="checkout-time"
-              value={checkoutTime}
-              onChange={(e) => setCheckoutTime(e.target.value)}
+            <TimePicker
+              value={checkoutTime || currentTime}
+              onChange={setCheckoutTime}
               min={currentTime}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-              required
+              className="mt-2"
             />
+            <p className="mt-2 text-xs text-gray-500 text-center">
+              Verwenden Sie die Pfeile oder tippen Sie direkt auf die Zahlen
+            </p>
           </div>
         )}
 

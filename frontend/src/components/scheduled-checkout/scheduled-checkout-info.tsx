@@ -15,9 +15,10 @@ import { useSession } from "next-auth/react";
 interface ScheduledCheckoutInfoProps {
   studentId: string;
   onUpdate?: () => void;
+  onScheduledCheckoutChange?: (hasScheduledCheckout: boolean) => void;
 }
 
-export function ScheduledCheckoutInfo({ studentId, onUpdate }: ScheduledCheckoutInfoProps) {
+export function ScheduledCheckoutInfo({ studentId, onUpdate, onScheduledCheckoutChange }: ScheduledCheckoutInfoProps) {
   const { data: session } = useSession();
   const [scheduledCheckouts, setScheduledCheckouts] = useState<ScheduledCheckout[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,12 +30,14 @@ export function ScheduledCheckoutInfo({ studentId, onUpdate }: ScheduledCheckout
       // Filter only pending checkouts
       const pendingCheckouts = checkouts.filter(c => c.status === "pending");
       setScheduledCheckouts(pendingCheckouts);
+      // Notify parent component about the scheduled checkout state
+      onScheduledCheckoutChange?.(pendingCheckouts.length > 0);
     } catch (error) {
       console.error("Error fetching scheduled checkouts:", error);
     } finally {
       setLoading(false);
     }
-  }, [studentId, session?.user?.token]);
+  }, [studentId, session?.user?.token, onScheduledCheckoutChange]);
 
   useEffect(() => {
     void fetchScheduledCheckouts();

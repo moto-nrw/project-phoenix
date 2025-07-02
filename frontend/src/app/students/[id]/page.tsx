@@ -55,6 +55,7 @@ export default function StudentDetailPage() {
     } | null>(null);
     const [showCheckoutModal, setShowCheckoutModal] = useState(false);
     const [checkoutUpdated, setCheckoutUpdated] = useState(0);
+    const [hasScheduledCheckout, setHasScheduledCheckout] = useState(false);
 
     // Fetch student data from API
     useEffect(() => {
@@ -446,33 +447,40 @@ export default function StudentDetailPage() {
                             {/* Checkout Section - Only shown if student is present */}
                             {hasFullAccess && currentLocation?.location && currentLocation.location.startsWith("Anwesend") && (
                                 <div className="mb-6 sm:mb-8">
-                                    {/* Scheduled Checkout Info */}
-                                    <ScheduledCheckoutInfo 
-                                        studentId={studentId} 
-                                        onUpdate={() => setCheckoutUpdated(prev => prev + 1)}
-                                    />
-                                    
-                                    {/* Checkout Button */}
-                                    <div className="mt-4">
-                                        <Button
-                                            onClick={() => setShowCheckoutModal(true)}
-                                            className="w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white"
-                                        >
-                                            <svg
-                                                className="h-5 w-5 mr-2"
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                stroke="currentColor"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth={2}
-                                                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                                                />
-                                            </svg>
-                                            Checkout planen
-                                        </Button>
+                                    <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+                                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Checkout verwalten</h3>
+                                        
+                                        {/* Scheduled Checkout Info */}
+                                        <ScheduledCheckoutInfo 
+                                            studentId={studentId} 
+                                            onUpdate={() => setCheckoutUpdated(prev => prev + 1)}
+                                            onScheduledCheckoutChange={setHasScheduledCheckout}
+                                        />
+                                        
+                                        {/* Checkout Button - only show if no scheduled checkout exists */}
+                                        {!hasScheduledCheckout && (
+                                            <div className="mt-4">
+                                                <Button
+                                                    onClick={() => setShowCheckoutModal(true)}
+                                                    className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+                                                >
+                                                    <svg
+                                                        className="h-5 w-5 mr-2"
+                                                        fill="none"
+                                                        viewBox="0 0 24 24"
+                                                        stroke="currentColor"
+                                                    >
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            strokeWidth={2}
+                                                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                                                        />
+                                                    </svg>
+                                                    Schüler ausloggen
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -753,33 +761,40 @@ export default function StudentDetailPage() {
                         {/* Checkout Section - Only shown if student is present */}
                         {hasFullAccess && currentLocation?.location && currentLocation.location.startsWith("Anwesend") && (
                             <div className="mb-6">
-                                {/* Scheduled Checkout Info */}
-                                <ScheduledCheckoutInfo 
-                                    studentId={studentId} 
-                                    onUpdate={() => setCheckoutUpdated(prev => prev + 1)}
-                                />
-                                
-                                {/* Checkout Button */}
-                                <div className="mt-4">
-                                    <Button
-                                        onClick={() => setShowCheckoutModal(true)}
-                                        className="w-full bg-blue-500 hover:bg-blue-600 text-white"
-                                    >
-                                        <svg
-                                            className="h-5 w-5 mr-2"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                                            />
-                                        </svg>
-                                        Checkout planen
-                                    </Button>
+                                <div className="bg-white rounded-lg border border-gray-200 p-4">
+                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Checkout verwalten</h3>
+                                    
+                                    {/* Scheduled Checkout Info */}
+                                    <ScheduledCheckoutInfo 
+                                        studentId={studentId} 
+                                        onUpdate={() => setCheckoutUpdated(prev => prev + 1)}
+                                        onScheduledCheckoutChange={setHasScheduledCheckout}
+                                    />
+                                    
+                                    {/* Checkout Button - only show if no scheduled checkout exists */}
+                                    {!hasScheduledCheckout && (
+                                        <div className="mt-4">
+                                            <Button
+                                                onClick={() => setShowCheckoutModal(true)}
+                                                className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+                                            >
+                                                <svg
+                                                    className="h-5 w-5 mr-2"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    stroke="currentColor"
+                                                >
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        strokeWidth={2}
+                                                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                                                    />
+                                                </svg>
+                                                Schüler ausloggen
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
