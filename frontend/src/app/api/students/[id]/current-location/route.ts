@@ -71,8 +71,9 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       } satisfies LocationResponse;
     }
     
-    // If student.location is "Anwesend" (checked in), they are present
-    if (student.location === "Anwesend") {
+    // If student.location starts with "Anwesend" (checked in), they are present
+    // This includes "Anwesend", "Anwesend - Aktivität", "Anwesend - Room Name", etc.
+    if (student.location?.startsWith("Anwesend")) {
       // Student is checked in - try to get detailed room information if they have a group
       if (student?.group_id) {
         // Try to get room status for the student's group (may fail due to permissions)
@@ -93,7 +94,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
                 if (roomData) {
                   return {
                     status: "present",
-                    location: "Anwesend",
+                    location: student.location || "Anwesend",
                     room: {
                       id: roomData.id.toString(),
                       name: roomData.name ?? `Raum ${studentStatus.current_room_id}`,
@@ -113,7 +114,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
                 // Even if room details fail, we know they're in a room
                 return {
                   status: "present",
-                  location: "Anwesend",
+                  location: student.location || "Anwesend",
                   room: {
                     id: studentStatus.current_room_id.toString(),
                     name: `Raum ${studentStatus.current_room_id}`,
@@ -139,10 +140,10 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       
       // If we get here, student is checked in but we couldn't get room details
       // This could be due to: no group, no room assignment, or permission restrictions
-      // Show them as "Unterwegs" (present but location unknown to this user)
+      // Use the location from the backend if available, otherwise "Unterwegs"
       return {
         status: "present",
-        location: "Unterwegs",
+        location: student.location || "Unterwegs",
         room: null,
         group: student.group_id ? {
           id: student.group_id.toString(),

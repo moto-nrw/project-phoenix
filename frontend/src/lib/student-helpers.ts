@@ -78,7 +78,8 @@ export interface PrivacyConsent {
 }
 
 // Student attendance status enum (updated to use attendance-based terminology)
-export type StudentLocation = "Zuhause" | "Anwesend" | "Unknown";
+// Now includes specific location details from backend
+export type StudentLocation = "Zuhause" | "Anwesend" | "Anwesend - Aktivität" | "Anwesend - Raum" | "Unknown" | string;
 
 // Frontend types (mapped from backend)
 export interface Student {
@@ -120,13 +121,16 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student & { 
     const lastName = backendStudent.last_name || '';
     const name = `${firstName} ${lastName}`.trim();
     
-    // Map backend attendance status to our new enum
+    // Map backend attendance status - preserve full location details
     let current_location: StudentLocation = "Unknown";
-    if (backendStudent.location && (backendStudent.location === "Anwesend" || backendStudent.location.startsWith("Anwesend"))) {
-        current_location = "Anwesend";
-    } else if (backendStudent.location === "Zuhause" || backendStudent.location === "Abwesend") {
-        // Backend returns "Abwesend" for not checked in, map to "Zuhause" for frontend
-        current_location = "Zuhause";
+    if (backendStudent.location) {
+        if (backendStudent.location === "Abwesend") {
+            // Backend returns "Abwesend" for not checked in, map to "Zuhause" for frontend
+            current_location = "Zuhause";
+        } else {
+            // Preserve the full location string from backend (e.g., "Anwesend", "Anwesend - Aktivität", etc.)
+            current_location = backendStudent.location;
+        }
     }
     
     const mapped = {
@@ -143,7 +147,7 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student & { 
         current_location: current_location,
         takes_bus: undefined, // TODO: Map from backend when available
         // Legacy boolean fields for backward compatibility (derived from attendance status)
-        in_house: current_location === "Anwesend",
+        in_house: current_location.startsWith("Anwesend"),
         wc: false, // Deprecated - no longer used
         school_yard: false, // Deprecated - no longer used
         bus: backendStudent.bus, // Administrative permission flag (Buskind)

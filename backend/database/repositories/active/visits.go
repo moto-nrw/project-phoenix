@@ -332,7 +332,7 @@ func (r *VisitRepository) GetCurrentByStudentID(ctx context.Context, studentID i
 		Model(visit).
 		ModelTableExpr(`active.visits AS "visit"`).
 		Where(`"visit".student_id = ? AND "visit".exit_time IS NULL`, studentID).
-		Order(`"visit".entry_time DESC`).
+		Order(`entry_time DESC`).
 		Limit(1).
 		Scan(ctx)
 
