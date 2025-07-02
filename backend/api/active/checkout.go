@@ -30,7 +30,7 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// First check if student has a current visit (in a room)
-	currentVisit, visitErr := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
+	currentVisit, _ := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
 	
 	// Check attendance status regardless of visit
 	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
@@ -45,36 +45,18 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check authorization based on either active visit group or education group
+	// Check authorization - only education group teachers can checkout their students
 	isAuthorized := false
 	
-	// If student has an active visit, check supervisors of that active group
-	if visitErr == nil && currentVisit != nil && currentVisit.ActiveGroupID > 0 {
-		activeGroup, err := rs.ActiveService.GetActiveGroupWithSupervisors(ctx, currentVisit.ActiveGroupID)
-		if err == nil {
-			for _, supervisor := range activeGroup.Supervisors {
-				if supervisor.Staff != nil && supervisor.Staff.Person != nil && 
-				   supervisor.Staff.Person.AccountID != nil && 
-				   *supervisor.Staff.Person.AccountID == int64(userClaims.ID) {
-					isAuthorized = true
-					break
-				}
-			}
-		}
-	}
-
-	// If not authorized via active group, check if user is authorized via education group
-	if !isAuthorized {
-		// First get the person and staff info for the current user
-		person, err := rs.PersonService.FindByAccountID(ctx, int64(userClaims.ID))
-		if err == nil && person != nil {
-			staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
-			if err == nil && staff != nil {
-				// Use the service method to check teacher-student access with staff ID
-				hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staff.ID, studentID)
-				if err == nil && hasAccess {
-					isAuthorized = true
-				}
+	// Get the person and staff info for the current user
+	person, err := rs.PersonService.FindByAccountID(ctx, int64(userClaims.ID))
+	if err == nil && person != nil {
+		staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
+		if err == nil && staff != nil {
+			// Check if user is a teacher of the student's education group
+			hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staff.ID, studentID)
+			if err == nil && hasAccess {
+				isAuthorized = true
 			}
 		}
 	}
@@ -94,14 +76,12 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update attendance to mark student as checked out
-	// We need to get the staff ID from the account ID
-	person, err := rs.PersonService.FindByAccountID(ctx, int64(userClaims.ID))
-	if err != nil {
+	// We already have person and staff from authorization, but need to re-get due to error handling
+	if person == nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to get staff information")
 		return
 	}
 	
-	// Get staff from person
 	staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, "User is not a staff member")

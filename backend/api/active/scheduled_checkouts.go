@@ -54,40 +54,35 @@ func (rs *Resource) createScheduledCheckout(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Check if the user is authorized to schedule checkout for this student
-	// We need to verify they're supervising the student's current group
-	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(ctx, req.StudentID)
+	// Only education group teachers can schedule checkouts for their students
+	isAuthorized := false
+	
+	// Get the person and staff info for the current user
+	person, err := rs.PersonService.FindByAccountID(ctx, int64(userClaims.ID))
 	if err != nil {
-		// Student might not be checked in, but we can still schedule a checkout
-		// In this case, we'll skip the authorization check for now
-		// TODO: Check if user supervises any of the student's groups
-	} else {
-		// Student is checked in, verify authorization
-		if currentVisit.ActiveGroupID != 0 {
-			activeGroup, err := rs.ActiveService.GetActiveGroupWithSupervisors(ctx, currentVisit.ActiveGroupID)
-			if err != nil {
-				common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to verify authorization")
-				return
-			}
-
-			// Check if user is a supervisor or teacher
-			isAuthorized := false
-			for _, supervisor := range activeGroup.Supervisors {
-				if supervisor.Staff != nil && supervisor.Staff.Person != nil && 
-				   supervisor.Staff.Person.AccountID != nil && 
-				   *supervisor.Staff.Person.AccountID == int64(userClaims.ID) {
-					isAuthorized = true
-					break
-				}
-			}
-
-			// TODO: Also check if user is a teacher of the education group
-			// This requires loading the education group information
-
-			if !isAuthorized {
-				common.RespondWithError(w, r, http.StatusForbidden, "You are not authorized to schedule checkout for this student")
-				return
+		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to get user information")
+		return
+	}
+	
+	if person != nil {
+		staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
+		if err != nil {
+			common.RespondWithError(w, r, http.StatusInternalServerError, "User is not a staff member")
+			return
+		}
+		
+		if staff != nil {
+			// Check if user is a teacher of the student's education group
+			hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staff.ID, req.StudentID)
+			if err == nil && hasAccess {
+				isAuthorized = true
 			}
 		}
+	}
+
+	if !isAuthorized {
+		common.RespondWithError(w, r, http.StatusForbidden, "You are not authorized to schedule checkout for this student")
+		return
 	}
 	
 	// Create scheduled checkout
