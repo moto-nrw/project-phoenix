@@ -63,6 +63,14 @@ func (m *MockAttendanceRepository) GetStudentCurrentStatus(ctx context.Context, 
 	return nil, args.Error(1)
 }
 
+func (m *MockAttendanceRepository) GetTodayByStudentID(ctx context.Context, studentID int64) (*active.Attendance, error) {
+	args := m.Called(ctx, studentID)
+	if obj := args.Get(0); obj != nil {
+		return obj.(*active.Attendance), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockAttendanceRepository) Delete(ctx context.Context, id int64) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
