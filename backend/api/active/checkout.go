@@ -1,0 +1,128 @@
+package active
+
+import (
+	"fmt"
+	"net/http"
+	"strconv"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+)
+
+// checkoutStudent handles immediate checkout of a student
+func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get user from JWT context
+	userClaims := jwt.ClaimsFromCtx(ctx)
+	if userClaims.ID == 0 {
+		common.RespondWithError(w, r, http.StatusUnauthorized, "Invalid token")
+		return
+	}
+
+	// Get student ID from URL
+	studentIDStr := chi.URLParam(r, "studentId")
+	studentID, err := strconv.ParseInt(studentIDStr, 10, 64)
+	if err != nil {
+		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid student ID")
+		return
+	}
+
+	// First check if student has a current visit (in a room)
+	currentVisit, visitErr := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
+	
+	// Check attendance status regardless of visit
+	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
+	if err != nil {
+		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to get attendance status")
+		return
+	}
+
+	// If student is not checked in at all, return error
+	if attendanceStatus.Status != "checked_in" {
+		common.RespondWithError(w, r, http.StatusNotFound, "Student is not currently checked in")
+		return
+	}
+
+	// Check authorization based on either active visit group or education group
+	isAuthorized := false
+	
+	// If student has an active visit, check supervisors of that active group
+	if visitErr == nil && currentVisit != nil && currentVisit.ActiveGroupID > 0 {
+		activeGroup, err := rs.ActiveService.GetActiveGroupWithSupervisors(ctx, currentVisit.ActiveGroupID)
+		if err == nil {
+			for _, supervisor := range activeGroup.Supervisors {
+				if supervisor.Staff != nil && supervisor.Staff.Person != nil && 
+				   supervisor.Staff.Person.AccountID != nil && 
+				   *supervisor.Staff.Person.AccountID == int64(userClaims.ID) {
+					isAuthorized = true
+					break
+				}
+			}
+		}
+	}
+
+	// If not authorized via active group, check if user is authorized via education group
+	if !isAuthorized {
+		// First get the person and staff info for the current user
+		person, err := rs.PersonService.FindByAccountID(ctx, int64(userClaims.ID))
+		if err == nil && person != nil {
+			staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
+			if err == nil && staff != nil {
+				// Use the service method to check teacher-student access with staff ID
+				hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staff.ID, studentID)
+				if err == nil && hasAccess {
+					isAuthorized = true
+				}
+			}
+		}
+	}
+
+	if !isAuthorized {
+		common.RespondWithError(w, r, http.StatusForbidden, 
+			"You are not authorized to checkout this student")
+		return
+	}
+
+	// End the visit if student has one
+	if currentVisit != nil {
+		if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
+			// Log but don't fail - we still want to update attendance
+			fmt.Printf("Warning: Failed to end visit %d: %v\n", currentVisit.ID, err)
+		}
+	}
+
+	// Update attendance to mark student as checked out
+	// We need to get the staff ID from the account ID
+	person, err := rs.PersonService.FindByAccountID(ctx, int64(userClaims.ID))
+	if err != nil {
+		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to get staff information")
+		return
+	}
+	
+	// Get staff from person
+	staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
+	if err != nil {
+		common.RespondWithError(w, r, http.StatusInternalServerError, "User is not a staff member")
+		return
+	}
+	
+	// Toggle attendance to check out the student
+	// Note: deviceID = 0 for web-based checkouts (no physical device)
+	result, err := rs.ActiveService.ToggleStudentAttendance(ctx, studentID, staff.ID, 0)
+	if err != nil {
+		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to checkout student from daily attendance")
+		return
+	}
+
+	common.RespondWithJSON(w, r, http.StatusOK, map[string]interface{}{
+		"status":  "success",
+		"message": "Student checked out successfully",
+		"data": map[string]interface{}{
+			"student_id": studentID,
+			"action":     result.Action,
+			"attendance_id": result.AttendanceID,
+		},
+	})
+}

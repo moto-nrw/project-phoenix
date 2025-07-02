@@ -444,7 +444,7 @@ export default function StudentDetailPage() {
                             </div>
 
                             {/* Checkout Section - Only shown if student is present */}
-                            {hasFullAccess && currentLocation?.location === "Anwesend" && (
+                            {hasFullAccess && currentLocation?.location && currentLocation.location.startsWith("Anwesend") && (
                                 <div className="mb-6 sm:mb-8">
                                     {/* Scheduled Checkout Info */}
                                     <ScheduledCheckoutInfo 
@@ -751,7 +751,7 @@ export default function StudentDetailPage() {
                     // Full Access Content
                     <>
                         {/* Checkout Section - Only shown if student is present */}
-                        {hasFullAccess && currentLocation?.location === "Anwesend" && (
+                        {hasFullAccess && currentLocation?.location && currentLocation.location.startsWith("Anwesend") && (
                             <div className="mb-6">
                                 {/* Scheduled Checkout Info */}
                                 <ScheduledCheckoutInfo 

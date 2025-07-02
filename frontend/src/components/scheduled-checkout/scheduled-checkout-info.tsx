@@ -92,9 +92,6 @@ export function ScheduledCheckoutInfo({ studentId, onUpdate }: ScheduledCheckout
                 {formatTime(new Date(checkout.scheduled_for))} Uhr
                 {checkout.reason && ` - ${checkout.reason}`}
               </p>
-              <p className="mt-1 text-xs text-amber-600">
-                Geplant von: {checkout.scheduled_by}
-              </p>
             </div>
             <Button
               variant="outline"

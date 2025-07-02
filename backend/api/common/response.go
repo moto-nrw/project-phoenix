@@ -61,10 +61,9 @@ func RespondNoContent(w http.ResponseWriter, r *http.Request) {
 }
 
 // RespondWithJSON sends a JSON response with the given status code
-func RespondWithJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	render.JSON(w, nil, data)
+func RespondWithJSON(w http.ResponseWriter, r *http.Request, status int, data interface{}) {
+	render.Status(r, status)
+	render.JSON(w, r, data)
 }
 
 // Pagination represents pagination metadata for responses

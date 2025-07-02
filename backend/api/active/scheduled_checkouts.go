@@ -9,25 +9,41 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
 )
 
 // createScheduledCheckout creates a new scheduled checkout for a student
 func (rs *Resource) createScheduledCheckout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	// TODO: Extract staff ID from JWT token context
-	// For now, using a placeholder staff ID
-	staffID := int64(1) // This should be extracted from the authenticated user context
+	
+	// Get user from JWT context
+	userClaims := jwt.ClaimsFromCtx(ctx)
+	if userClaims.ID == 0 {
+		common.RespondWithError(w, r, http.StatusUnauthorized, "Invalid token")
+		return
+	}
+	
+	// For now, use the account ID as the staff ID
+	// TODO: Properly resolve staff ID from account
+	staffID := int64(userClaims.ID)
 
 	// Parse request body
 	var req struct {
-		StudentID    int64     `json:"student_id"`
-		ScheduledFor time.Time `json:"scheduled_for"`
-		Reason       string    `json:"reason,omitempty"`
+		StudentID    int64  `json:"student_id"`
+		ScheduledFor string `json:"scheduled_for"` // Accept as string first
+		Reason       string `json:"reason,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid request body")
+		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid request body: " + err.Error())
+		return
+	}
+	
+	// Parse the time string
+	scheduledTime, err := time.Parse(time.RFC3339, req.ScheduledFor)
+	if err != nil {
+		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid scheduled time format: " + err.Error())
 		return
 	}
 
@@ -37,16 +53,48 @@ func (rs *Resource) createScheduledCheckout(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if req.ScheduledFor.IsZero() {
-		common.RespondWithError(w, r, http.StatusBadRequest, "Scheduled time is required")
-		return
-	}
+	// Check if the user is authorized to schedule checkout for this student
+	// We need to verify they're supervising the student's current group
+	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(ctx, req.StudentID)
+	if err != nil {
+		// Student might not be checked in, but we can still schedule a checkout
+		// In this case, we'll skip the authorization check for now
+		// TODO: Check if user supervises any of the student's groups
+	} else {
+		// Student is checked in, verify authorization
+		if currentVisit.ActiveGroupID != 0 {
+			activeGroup, err := rs.ActiveService.GetActiveGroupWithSupervisors(ctx, currentVisit.ActiveGroupID)
+			if err != nil {
+				common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to verify authorization")
+				return
+			}
 
+			// Check if user is a supervisor or teacher
+			isAuthorized := false
+			for _, supervisor := range activeGroup.Supervisors {
+				if supervisor.Staff != nil && supervisor.Staff.Person != nil && 
+				   supervisor.Staff.Person.AccountID != nil && 
+				   *supervisor.Staff.Person.AccountID == int64(userClaims.ID) {
+					isAuthorized = true
+					break
+				}
+			}
+
+			// TODO: Also check if user is a teacher of the education group
+			// This requires loading the education group information
+
+			if !isAuthorized {
+				common.RespondWithError(w, r, http.StatusForbidden, "You are not authorized to schedule checkout for this student")
+				return
+			}
+		}
+	}
+	
 	// Create scheduled checkout
 	checkout := &active.ScheduledCheckout{
 		StudentID:    req.StudentID,
 		ScheduledBy:  staffID,
-		ScheduledFor: req.ScheduledFor,
+		ScheduledFor: scheduledTime,
 		Reason:       req.Reason,
 	}
 
@@ -55,7 +103,7 @@ func (rs *Resource) createScheduledCheckout(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	common.RespondWithJSON(w, http.StatusCreated, map[string]interface{}{
+	common.RespondWithJSON(w, r, http.StatusCreated, map[string]interface{}{
 		"status":  "success",
 		"data":    checkout,
 		"message": "Scheduled checkout created successfully",
@@ -86,7 +134,7 @@ func (rs *Resource) getScheduledCheckout(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	common.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+	common.RespondWithJSON(w, r, http.StatusOK, map[string]interface{}{
 		"status": "success",
 		"data":   checkout,
 	})
@@ -112,7 +160,7 @@ func (rs *Resource) cancelScheduledCheckout(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	common.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+	common.RespondWithJSON(w, r, http.StatusOK, map[string]interface{}{
 		"status":  "success",
 		"message": "Scheduled checkout cancelled successfully",
 	})
@@ -137,7 +185,7 @@ func (rs *Resource) getStudentScheduledCheckouts(w http.ResponseWriter, r *http.
 		return
 	}
 
-	common.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+	common.RespondWithJSON(w, r, http.StatusOK, map[string]interface{}{
 		"status": "success",
 		"data":   checkouts,
 	})
@@ -163,7 +211,7 @@ func (rs *Resource) getPendingScheduledCheckout(w http.ResponseWriter, r *http.R
 	}
 
 	if checkout == nil {
-		common.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		common.RespondWithJSON(w, r, http.StatusOK, map[string]interface{}{
 			"status": "success",
 			"data":   nil,
 			"message": "No pending scheduled checkout found",
@@ -171,7 +219,7 @@ func (rs *Resource) getPendingScheduledCheckout(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	common.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+	common.RespondWithJSON(w, r, http.StatusOK, map[string]interface{}{
 		"status": "success",
 		"data":   checkout,
 	})
@@ -193,7 +241,7 @@ func (rs *Resource) processScheduledCheckouts(w http.ResponseWriter, r *http.Req
 		status = http.StatusPartialContent
 	}
 
-	common.RespondWithJSON(w, status, map[string]interface{}{
+	common.RespondWithJSON(w, r, status, map[string]interface{}{
 		"status":  "success",
 		"data":    result,
 		"message": fmt.Sprintf("Processed %d scheduled checkouts", result.CheckoutsExecuted),

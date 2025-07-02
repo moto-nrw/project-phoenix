@@ -79,7 +79,7 @@ export interface PrivacyConsent {
 
 // Student attendance status enum (updated to use attendance-based terminology)
 // Now includes specific location details from backend
-export type StudentLocation = "Zuhause" | "Anwesend" | "Anwesend - Aktivität" | "Anwesend - Raum" | "Unknown" | string;
+export type StudentLocation = string;
 
 // Frontend types (mapped from backend)
 export interface Student {

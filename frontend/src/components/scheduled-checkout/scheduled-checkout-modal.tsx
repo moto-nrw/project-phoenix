@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Modal } from "../ui/modal";
 import { Button } from "../ui/button";
-import { createScheduledCheckout } from "~/lib/scheduled-checkout-api";
+import { createScheduledCheckout, performImmediateCheckout } from "~/lib/scheduled-checkout-api";
 import { useSession } from "next-auth/react";
 
 interface ScheduledCheckoutModalProps {
@@ -36,10 +36,23 @@ export function ScheduledCheckoutModal({
       let scheduledFor: string;
       
       if (checkoutType === "now") {
-        // Schedule for 1 minute in the future to allow for processing
-        const now = new Date();
-        now.setMinutes(now.getMinutes() + 1);
-        scheduledFor = now.toISOString();
+        // Perform immediate checkout instead of scheduling
+        try {
+          await performImmediateCheckout(parseInt(studentId, 10), session?.user?.token);
+          onCheckoutScheduled();
+          onClose();
+          
+          // Reset form
+          setCheckoutTime("");
+          setCheckoutType("now");
+          setReason("");
+          return;
+        } catch (error) {
+          console.error("Error performing immediate checkout:", error);
+          setError("Fehler beim sofortigen Checkout");
+          setIsSubmitting(false);
+          return;
+        }
       } else {
         if (!checkoutTime) {
           setError("Bitte wählen Sie eine Uhrzeit aus");
