@@ -146,6 +146,9 @@ func (m *MockVisitRepository) GetVisitRetentionStats(ctx context.Context) (map[i
 func (m *MockVisitRepository) CountExpiredVisits(ctx context.Context) (int64, error) {
 	return 0, nil
 }
+func (m *MockVisitRepository) GetCurrentByStudentID(ctx context.Context, studentID int64) (*active.Visit, error) {
+	return nil, nil
+}
 
 func TestUpdateSessionActivity_Simple(t *testing.T) {
 	tests := []struct {

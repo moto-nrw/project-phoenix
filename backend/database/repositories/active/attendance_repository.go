@@ -129,3 +129,9 @@ func (r *AttendanceRepository) Delete(ctx context.Context, id int64) error {
 	// Use the base Delete method with interface{} conversion
 	return r.Repository.Delete(ctx, id)
 }
+
+// GetTodayByStudentID gets today's attendance record for a student
+func (r *AttendanceRepository) GetTodayByStudentID(ctx context.Context, studentID int64) (*active.Attendance, error) {
+	// This is the same as GetStudentCurrentStatus - just call that method
+	return r.GetStudentCurrentStatus(ctx, studentID)
+}

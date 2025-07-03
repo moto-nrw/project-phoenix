@@ -17,17 +17,20 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // Resource defines the active API resource
 type Resource struct {
 	ActiveService activeSvc.Service
+	PersonService userSvc.PersonService
 }
 
 // NewResource creates a new active resource
-func NewResource(activeService activeSvc.Service) *Resource {
+func NewResource(activeService activeSvc.Service, personService userSvc.PersonService) *Resource {
 	return &Resource{
 		ActiveService: activeService,
+		PersonService: personService,
 	}
 }
 
@@ -75,6 +78,9 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateVisit)
 			r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteVisit)
 			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post("/{id}/end", rs.endVisit)
+			
+			// Immediate checkout for students
+			r.With(authorize.RequiresPermission(permissions.VisitsUpdate)).Post("/student/{studentId}/checkout", rs.checkoutStudent)
 		})
 
 		// Supervisors
@@ -125,6 +131,21 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/room/{roomId}/utilization", rs.getRoomUtilization)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}/attendance", rs.getStudentAttendance)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/dashboard", rs.getDashboardAnalytics)
+		})
+
+		// Scheduled Checkouts
+		r.Route("/scheduled-checkouts", func(r chi.Router) {
+			// Create and cancel require visits update permission
+			r.With(authorize.RequiresPermission(permissions.VisitsUpdate)).Post("/", rs.createScheduledCheckout)
+			r.With(authorize.RequiresPermission(permissions.VisitsUpdate)).Delete("/{id}", rs.cancelScheduledCheckout)
+
+			// Read operations require read permissions
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getScheduledCheckout)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}", rs.getStudentScheduledCheckouts)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}/pending", rs.getPendingScheduledCheckout)
+
+			// Process endpoint requires admin permissions (for background job)
+			r.With(authorize.RequiresPermission(permissions.AdminWildcard)).Post("/process", rs.processScheduledCheckouts)
 		})
 	})
 

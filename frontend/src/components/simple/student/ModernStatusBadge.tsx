@@ -9,6 +9,10 @@ export function ModernStatusBadge({ location, roomName }: ModernStatusBadgeProps
     if (location === "Anwesend" || location === "In House" || location?.startsWith("Anwesend")) {
       // If we have a specific room name, use it
       const label = roomName ?? (() => {
+        if (location?.startsWith("Anwesend - ")) {
+          // Extract activity/room name from "Anwesend - Aktivität" or "Anwesend - Room Name" format
+          return location.substring(11);
+        }
         if (location?.startsWith("Anwesend in ")) {
           // Extract room name from "Anwesend in Room Name" format
           return location.substring(12);

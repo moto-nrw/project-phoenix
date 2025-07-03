@@ -2,6 +2,8 @@ package active
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -18,11 +20,12 @@ import (
 
 // Service implements the Active Service interface
 type service struct {
-	groupRepo         active.GroupRepository
-	visitRepo         active.VisitRepository
-	supervisorRepo    active.GroupSupervisorRepository
-	combinedGroupRepo active.CombinedGroupRepository
-	groupMappingRepo  active.GroupMappingRepository
+	groupRepo             active.GroupRepository
+	visitRepo             active.VisitRepository
+	supervisorRepo        active.GroupSupervisorRepository
+	combinedGroupRepo     active.CombinedGroupRepository
+	groupMappingRepo      active.GroupMappingRepository
+	scheduledCheckoutRepo active.ScheduledCheckoutRepository
 
 	// Additional repositories for dashboard analytics
 	studentRepo        userModels.StudentRepository
@@ -50,6 +53,7 @@ func NewService(
 	supervisorRepo active.GroupSupervisorRepository,
 	combinedGroupRepo active.CombinedGroupRepository,
 	groupMappingRepo active.GroupMappingRepository,
+	scheduledCheckoutRepo active.ScheduledCheckoutRepository,
 	studentRepo userModels.StudentRepository,
 	roomRepo facilityModels.RoomRepository,
 	activityGroupRepo activitiesModels.GroupRepository,
@@ -64,24 +68,25 @@ func NewService(
 	db *bun.DB,
 ) Service {
 	return &service{
-		groupRepo:          groupRepo,
-		visitRepo:          visitRepo,
-		supervisorRepo:     supervisorRepo,
-		combinedGroupRepo:  combinedGroupRepo,
-		groupMappingRepo:   groupMappingRepo,
-		studentRepo:        studentRepo,
-		roomRepo:           roomRepo,
-		activityGroupRepo:  activityGroupRepo,
-		activityCatRepo:    activityCatRepo,
-		educationGroupRepo: educationGroupRepo,
-		personRepo:         personRepo,
-		attendanceRepo:     attendanceRepo,
-		educationService:   educationService,
-		usersService:       usersService,
-		teacherRepo:        teacherRepo,
-		staffRepo:          staffRepo,
-		db:                 db,
-		txHandler:          base.NewTxHandler(db),
+		groupRepo:             groupRepo,
+		visitRepo:             visitRepo,
+		supervisorRepo:        supervisorRepo,
+		combinedGroupRepo:     combinedGroupRepo,
+		groupMappingRepo:      groupMappingRepo,
+		scheduledCheckoutRepo: scheduledCheckoutRepo,
+		studentRepo:           studentRepo,
+		roomRepo:              roomRepo,
+		activityGroupRepo:     activityGroupRepo,
+		activityCatRepo:       activityCatRepo,
+		educationGroupRepo:    educationGroupRepo,
+		personRepo:            personRepo,
+		attendanceRepo:        attendanceRepo,
+		educationService:      educationService,
+		usersService:          usersService,
+		teacherRepo:           teacherRepo,
+		staffRepo:             staffRepo,
+		db:                    db,
+		txHandler:             base.NewTxHandler(db),
 	}
 }
 
@@ -2205,4 +2210,191 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 	}
 
 	return result, nil
+}
+
+// CreateScheduledCheckout creates a new scheduled checkout for a student
+func (s *service) CreateScheduledCheckout(ctx context.Context, checkout *active.ScheduledCheckout) error {
+	// Validate that the scheduled time is in the future
+	if checkout.ScheduledFor.Before(time.Now()) {
+		return &ActiveError{Op: "CreateScheduledCheckout", Err: fmt.Errorf("scheduled time must be in the future")}
+	}
+
+	// Check if student has an existing pending checkout
+	existing, err := s.scheduledCheckoutRepo.GetPendingByStudentID(ctx, checkout.StudentID)
+	if err != nil {
+		return &ActiveError{Op: "CreateScheduledCheckout", Err: err}
+	}
+	if existing != nil {
+		return &ActiveError{Op: "CreateScheduledCheckout", Err: fmt.Errorf("student already has a pending scheduled checkout")}
+	}
+
+	// Set default status
+	checkout.Status = active.ScheduledCheckoutStatusPending
+
+	// Create the scheduled checkout
+	if err := s.scheduledCheckoutRepo.Create(ctx, checkout); err != nil {
+		return &ActiveError{Op: "CreateScheduledCheckout", Err: err}
+	}
+
+	return nil
+}
+
+// GetScheduledCheckout retrieves a scheduled checkout by ID
+func (s *service) GetScheduledCheckout(ctx context.Context, id int64) (*active.ScheduledCheckout, error) {
+	checkout, err := s.scheduledCheckoutRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetScheduledCheckout", Err: err}
+	}
+	return checkout, nil
+}
+
+// GetPendingScheduledCheckout retrieves the pending scheduled checkout for a student
+func (s *service) GetPendingScheduledCheckout(ctx context.Context, studentID int64) (*active.ScheduledCheckout, error) {
+	checkout, err := s.scheduledCheckoutRepo.GetPendingByStudentID(ctx, studentID)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetPendingScheduledCheckout", Err: err}
+	}
+	return checkout, nil
+}
+
+// CancelScheduledCheckout cancels a scheduled checkout
+func (s *service) CancelScheduledCheckout(ctx context.Context, id int64, cancelledBy int64) error {
+	checkout, err := s.scheduledCheckoutRepo.GetByID(ctx, id)
+	if err != nil {
+		return &ActiveError{Op: "CancelScheduledCheckout", Err: err}
+	}
+
+	if checkout.Status != active.ScheduledCheckoutStatusPending {
+		return &ActiveError{Op: "CancelScheduledCheckout", Err: fmt.Errorf("can only cancel pending checkouts")}
+	}
+
+	now := time.Now()
+	checkout.Status = active.ScheduledCheckoutStatusCancelled
+	checkout.CancelledAt = &now
+	checkout.CancelledBy = &cancelledBy
+
+	if err := s.scheduledCheckoutRepo.Update(ctx, checkout); err != nil {
+		return &ActiveError{Op: "CancelScheduledCheckout", Err: err}
+	}
+
+	return nil
+}
+
+// ProcessDueScheduledCheckouts processes all scheduled checkouts that are due
+func (s *service) ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledCheckoutResult, error) {
+	result := &ScheduledCheckoutResult{
+		ProcessedAt: time.Now(),
+		Success:     true,
+		Errors:      make([]string, 0),
+	}
+
+	// Get all due checkouts
+	dueCheckouts, err := s.scheduledCheckoutRepo.GetDueCheckouts(ctx, time.Now())
+	if err != nil {
+		result.Success = false
+		return result, &ActiveError{Op: "ProcessDueScheduledCheckouts", Err: err}
+	}
+
+	// Log how many checkouts are due
+	if len(dueCheckouts) > 0 {
+		fmt.Printf("Processing %d due scheduled checkouts\n", len(dueCheckouts))
+	}
+
+	// Process each checkout
+	for _, checkout := range dueCheckouts {
+		// End any active visit for the student
+		fmt.Printf("Processing checkout ID %d for student %d\n", checkout.ID, checkout.StudentID)
+		visit, err := s.visitRepo.GetCurrentByStudentID(ctx, checkout.StudentID)
+		if err != nil {
+			// Check if it's just "no rows" error - that's expected if student has no active visit
+			// Need to check both direct error and wrapped DatabaseError
+			isNoRows := errors.Is(err, sql.ErrNoRows)
+			if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+				isNoRows = true
+			}
+			
+			if isNoRows {
+				fmt.Printf("No active visit found for student %d (expected if using old system)\n", checkout.StudentID)
+				visit = nil // Set to nil and continue processing
+			} else {
+				// Real error
+				errMsg := fmt.Sprintf("Failed to get current visit for student %d: %v", checkout.StudentID, err)
+				result.Errors = append(result.Errors, errMsg)
+				result.Success = false
+				continue
+			}
+		}
+
+		if visit != nil && visit.IsActive() {
+			fmt.Printf("Found active visit %d for student %d, ending it\n", visit.ID, checkout.StudentID)
+			visit.EndVisit()
+			if err := s.visitRepo.Update(ctx, visit); err != nil {
+				errMsg := fmt.Sprintf("Failed to end visit %d for student %d: %v", visit.ID, checkout.StudentID, err)
+				result.Errors = append(result.Errors, errMsg)
+				result.Success = false
+				continue
+			}
+			result.VisitsEnded++
+		} else {
+			fmt.Printf("No active visit found for student %d\n", checkout.StudentID)
+		}
+
+		// Update attendance record
+		attendance, err := s.attendanceRepo.GetTodayByStudentID(ctx, checkout.StudentID)
+		if err != nil {
+			// If there's no attendance record, log but don't fail the entire checkout
+			// This can happen if student was marked present using old system
+			isNoRows := errors.Is(err, sql.ErrNoRows)
+			if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+				isNoRows = true
+			}
+			
+			if isNoRows {
+				fmt.Printf("No attendance record found for student %d, skipping attendance update\n", checkout.StudentID)
+			} else {
+				errMsg := fmt.Sprintf("Failed to get attendance for student %d: %v", checkout.StudentID, err)
+				result.Errors = append(result.Errors, errMsg)
+				// Don't mark as failed, still mark checkout as executed
+			}
+		} else if attendance != nil && attendance.CheckOutTime == nil {
+			checkoutTime := checkout.ScheduledFor
+			attendance.CheckOutTime = &checkoutTime
+			attendance.CheckedOutBy = &checkout.ScheduledBy
+
+			if err := s.attendanceRepo.Update(ctx, attendance); err != nil {
+				errMsg := fmt.Sprintf("Failed to update attendance for student %d: %v", checkout.StudentID, err)
+				result.Errors = append(result.Errors, errMsg)
+				// Don't mark as failed, still mark checkout as executed
+			} else {
+				result.AttendanceUpdated++
+			}
+		}
+
+		// Mark scheduled checkout as executed
+		fmt.Printf("Marking scheduled checkout %d as executed\n", checkout.ID)
+		now := time.Now()
+		checkout.Status = active.ScheduledCheckoutStatusExecuted
+		checkout.ExecutedAt = &now
+
+		if err := s.scheduledCheckoutRepo.Update(ctx, checkout); err != nil {
+			errMsg := fmt.Sprintf("Failed to update scheduled checkout %d: %v", checkout.ID, err)
+			fmt.Printf("ERROR: %s\n", errMsg)
+			result.Errors = append(result.Errors, errMsg)
+			result.Success = false
+			continue
+		}
+		result.CheckoutsExecuted++
+		fmt.Printf("Successfully processed scheduled checkout %d for student %d\n", checkout.ID, checkout.StudentID)
+	}
+
+	return result, nil
+}
+
+// GetStudentScheduledCheckouts retrieves all scheduled checkouts for a student
+func (s *service) GetStudentScheduledCheckouts(ctx context.Context, studentID int64) ([]*active.ScheduledCheckout, error) {
+	checkouts, err := s.scheduledCheckoutRepo.ListByStudentID(ctx, studentID)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetStudentScheduledCheckouts", Err: err}
+	}
+	return checkouts, nil
 }

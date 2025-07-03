@@ -83,4 +83,7 @@ type AttendanceRepository interface {
 
 	// Delete deletes an attendance record
 	Delete(ctx context.Context, id int64) error
+
+	// GetTodayByStudentID gets today's attendance record for a student
+	GetTodayByStudentID(ctx context.Context, studentID int64) (*Attendance, error)
 }

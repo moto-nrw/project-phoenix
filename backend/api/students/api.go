@@ -3,6 +3,7 @@ package students
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -68,6 +69,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listStudents)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}", rs.getStudent)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/in-group-room", rs.getStudentInGroupRoom)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/current-location", rs.getStudentCurrentLocation)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/current-visit", rs.getStudentCurrentVisit)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/visit-history", rs.getStudentVisitHistory)
 
@@ -98,22 +100,31 @@ func (rs *Resource) Router() chi.Router {
 
 // StudentResponse represents a student response
 type StudentResponse struct {
-	ID              int64     `json:"id"`
-	PersonID        int64     `json:"person_id"`
-	FirstName       string    `json:"first_name"`
-	LastName        string    `json:"last_name"`
-	TagID           string    `json:"tag_id,omitempty"`
-	SchoolClass     string    `json:"school_class"`
-	Location        string    `json:"location"`
-	Bus             bool      `json:"bus"`
-	GuardianName    string    `json:"guardian_name"`
-	GuardianContact string    `json:"guardian_contact"`
-	GuardianEmail   string    `json:"guardian_email,omitempty"`
-	GuardianPhone   string    `json:"guardian_phone,omitempty"`
-	GroupID         int64     `json:"group_id,omitempty"`
-	GroupName       string    `json:"group_name,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID                int64                    `json:"id"`
+	PersonID          int64                    `json:"person_id"`
+	FirstName         string                   `json:"first_name"`
+	LastName          string                   `json:"last_name"`
+	TagID             string                   `json:"tag_id,omitempty"`
+	SchoolClass       string                   `json:"school_class"`
+	Location          string                   `json:"location"`
+	Bus               bool                     `json:"bus"`
+	GuardianName      string                   `json:"guardian_name"`
+	GuardianContact   string                   `json:"guardian_contact"`
+	GuardianEmail     string                   `json:"guardian_email,omitempty"`
+	GuardianPhone     string                   `json:"guardian_phone,omitempty"`
+	GroupID           int64                    `json:"group_id,omitempty"`
+	GroupName         string                   `json:"group_name,omitempty"`
+	ScheduledCheckout *ScheduledCheckoutInfo   `json:"scheduled_checkout,omitempty"`
+	CreatedAt         time.Time                `json:"created_at"`
+	UpdatedAt         time.Time                `json:"updated_at"`
+}
+
+// ScheduledCheckoutInfo represents scheduled checkout information for a student
+type ScheduledCheckoutInfo struct {
+	ID           int64     `json:"id"`
+	ScheduledFor time.Time `json:"scheduled_for"`
+	Reason       string    `json:"reason,omitempty"`
+	ScheduledBy  string    `json:"scheduled_by"` // Name of the person who scheduled
 }
 
 // SupervisorContact represents contact information for a group supervisor
@@ -246,7 +257,7 @@ func (req *RFIDAssignmentRequest) Bind(r *http.Request) error {
 
 // newStudentResponse creates a student response from a student and person model
 // includeLocation determines whether to include sensitive location data
-func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, includeLocation bool, activeService activeService.Service) StudentResponse {
+func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, includeLocation bool, activeService activeService.Service, personService userService.PersonService) StudentResponse {
 	response := StudentResponse{
 		ID:              student.ID,
 		PersonID:        student.PersonID,
@@ -271,8 +282,17 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 			// Student has an active visit - they are present and in a specific activity
 			if includeLocation {
 				// Supervisors see detailed location/activity information
-				// TODO: Get room and activity names from the visit data
-				response.Location = "Anwesend - Aktivität" // Placeholder for now
+				// Get the active group with room details
+				if currentVisit.ActiveGroupID > 0 {
+					activeGroup, err := activeService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
+					if err == nil && activeGroup != nil && activeGroup.Room != nil {
+						response.Location = fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name)
+					} else {
+						response.Location = "Anwesend - Aktivität"
+					}
+				} else {
+					response.Location = "Anwesend - Aktivität"
+				}
 			} else {
 				// Non-supervisors see generic attendance status
 				response.Location = "Anwesend"
@@ -285,6 +305,24 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 	} else {
 		// Student is not checked in or has checked out
 		response.Location = "Abwesend"
+	}
+
+	// Check for pending scheduled checkout
+	if pendingCheckout, err := activeService.GetPendingScheduledCheckout(ctx, student.ID); err == nil && pendingCheckout != nil {
+		// Get the name of the person who scheduled the checkout
+		scheduledByName := "Unknown"
+		if staff, err := personService.StaffRepository().FindByID(ctx, pendingCheckout.ScheduledBy); err == nil && staff != nil {
+			if person, err := personService.Get(ctx, staff.PersonID); err == nil && person != nil {
+				scheduledByName = person.FirstName + " " + person.LastName
+			}
+		}
+		
+		response.ScheduledCheckout = &ScheduledCheckoutInfo{
+			ID:           pendingCheckout.ID,
+			ScheduledFor: pendingCheckout.ScheduledFor,
+			Reason:       pendingCheckout.Reason,
+			ScheduledBy:  scheduledByName,
+		}
 	}
 
 	if person != nil {
@@ -475,7 +513,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		responses = append(responses, newStudentResponse(r.Context(), student, person, group, canAccessLocation, rs.ActiveService))
+		responses = append(responses, newStudentResponse(r.Context(), student, person, group, canAccessLocation, rs.ActiveService, rs.PersonService))
 	}
 
 	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, totalCount, "Students retrieved successfully")
@@ -543,7 +581,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare response
 	response := StudentDetailResponse{
-		StudentResponse: newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService),
+		StudentResponse: newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService),
 		HasFullAccess:   hasFullAccess,
 	}
 
@@ -672,7 +710,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	canAccessLocation := hasAdminPermissions(userPermissions)
 
 	// Return the created student with person data
-	common.Respond(w, r, http.StatusCreated, newStudentResponse(r.Context(), student, person, group, canAccessLocation, rs.ActiveService), "Student created successfully")
+	common.Respond(w, r, http.StatusCreated, newStudentResponse(r.Context(), student, person, group, canAccessLocation, rs.ActiveService, rs.PersonService), "Student created successfully")
 }
 
 // updateStudent handles updating an existing student
@@ -798,7 +836,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	canAccessLocation := hasAdminPermissions(userPermissions)
 
 	// Return the updated student with person data
-	common.Respond(w, r, http.StatusOK, newStudentResponse(r.Context(), updatedStudent, person, group, canAccessLocation, rs.ActiveService), "Student updated successfully")
+	common.Respond(w, r, http.StatusOK, newStudentResponse(r.Context(), updatedStudent, person, group, canAccessLocation, rs.ActiveService, rs.PersonService), "Student updated successfully")
 }
 
 // deleteStudent handles deleting a student and their associated person record
@@ -836,6 +874,86 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Student deleted successfully")
+}
+
+// getStudentCurrentLocation handles getting a student's current location with scheduled checkout info
+func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Request) {
+	// Parse student ID from URL
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get student with person and group details
+	student, err := rs.StudentRepo.FindByID(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get person details
+	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get group details if student has a group
+	var group *education.Group
+	if student.GroupID != nil {
+		group, _ = rs.EducationService.GetGroup(r.Context(), *student.GroupID)
+	}
+
+	// Check user's permission level
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	isAdmin := hasAdminPermissions(userPermissions)
+	staff, _ := rs.UserContextService.GetCurrentStaff(r.Context())
+	
+	// Determine if user has full access to student location details
+	hasFullAccess := isAdmin
+	if !hasFullAccess && staff != nil && student.GroupID != nil {
+		educationGroups, _ := rs.UserContextService.GetMyGroups(r.Context())
+		for _, eduGroup := range educationGroups {
+			if eduGroup.ID == *student.GroupID {
+				hasFullAccess = true
+				break
+			}
+		}
+	}
+
+	// Build student response
+	response := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService)
+
+	// Create location response structure
+	locationResponse := struct {
+		Location          string                   `json:"location"`
+		CurrentRoom       string                   `json:"current_room,omitempty"`
+		ScheduledCheckout *ScheduledCheckoutInfo   `json:"scheduled_checkout,omitempty"`
+	}{
+		Location:          response.Location,
+		ScheduledCheckout: response.ScheduledCheckout,
+	}
+
+	// If student is present and user has full access, try to get current room
+	if hasFullAccess && response.Location == "Anwesend" {
+		if currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID); err == nil && currentVisit != nil {
+			if activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), currentVisit.ActiveGroupID); err == nil && activeGroup != nil {
+				// The room should be loaded as part of the active group
+				if activeGroup.Room != nil {
+					locationResponse.CurrentRoom = activeGroup.Room.Name
+				}
+			}
+		}
+	}
+
+	common.Respond(w, r, http.StatusOK, locationResponse, "Student location retrieved successfully")
 }
 
 // getStudentInGroupRoom checks if a student is in their educational group's room
