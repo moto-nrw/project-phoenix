@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header/types";
@@ -15,6 +16,7 @@ import { ActivityManagementModal } from "~/components/activities/activity-manage
 import { QuickCreateActivityModal } from "~/components/activities/quick-create-modal";
 import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
+import { SimpleAlert, alertAnimationStyles } from "~/components/simple/SimpleAlert";
 
 
 export default function ActivitiesPage() {
@@ -31,6 +33,9 @@ export default function ActivitiesPage() {
     const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
     const [currentStaff, setCurrentStaff] = useState<Staff | null>(null);
     const [isAlertShowing, setIsAlertShowing] = useState(false);
+    const [isNavBarHidden, setIsNavBarHidden] = useState(false);
+    const [showManagementSuccess, setShowManagementSuccess] = useState(false);
+    const [managementSuccessMessage, setManagementSuccessMessage] = useState("");
 
     // Listen for alert show/hide events to move FAB
     useEffect(() => {
@@ -43,6 +48,40 @@ export default function ActivitiesPage() {
         return () => {
             window.removeEventListener('alert-show', handleAlertShow);
             window.removeEventListener('alert-hide', handleAlertHide);
+        };
+    }, []);
+
+    // Track scroll position to detect when mobile nav bar is hidden
+    useEffect(() => {
+        let lastScrollY = window.scrollY;
+        let ticking = false;
+
+        const handleScroll = () => {
+            if (!ticking) {
+                window.requestAnimationFrame(() => {
+                    const currentScrollY = window.scrollY;
+                    
+                    // Mobile navigation typically hides when scrolling down past a threshold
+                    if (currentScrollY > lastScrollY && currentScrollY > 50) {
+                        // Scrolling down - nav bar should be hidden
+                        setIsNavBarHidden(true);
+                    } else if (currentScrollY < lastScrollY || currentScrollY <= 50) {
+                        // Scrolling up or at top - nav bar should be visible
+                        setIsNavBarHidden(false);
+                    }
+                    
+                    lastScrollY = currentScrollY;
+                    ticking = false;
+                });
+                
+                ticking = true;
+            }
+        };
+
+        window.addEventListener('scroll', handleScroll, { passive: true });
+
+        return () => {
+            window.removeEventListener('scroll', handleScroll);
         };
     }, []);
 
@@ -99,6 +138,9 @@ export default function ActivitiesPage() {
             filtered = filtered.filter(activity => isActivityCreator(activity, currentStaff.id));
         }
 
+        // Sort activities alphabetically by name
+        filtered.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+
         setFilteredActivities(filtered);
     }, [searchTerm, categoryFilter, myActivitiesFilter, activities, currentStaff]);
 
@@ -115,7 +157,13 @@ export default function ActivitiesPage() {
     };
 
     // Handle successful management actions (edit/delete)
-    const handleManagementSuccess = async () => {
+    const handleManagementSuccess = async (message?: string) => {
+        // Show success message if provided
+        if (message) {
+            setManagementSuccessMessage(message);
+            setShowManagementSuccess(true);
+        }
+        
         // Reload activities to show updated data
         try {
             const activitiesData = await fetchActivities();
@@ -212,9 +260,9 @@ export default function ActivitiesPage() {
         <ResponsiveLayout>
             <div className="w-full">
                 {/* Custom Page Header with Create Button */}
-                <div className="mb-6">
+                <div>
                     {/* Header with Title and Create Button */}
-                    <div className="mb-6">
+                    <div className="mb-0 md:mb-6">
                         <div className="flex items-center justify-between gap-4">
                             <h1 className="text-[1.625rem] md:text-3xl font-bold text-gray-900">
                                 Aktivitäten
@@ -244,7 +292,7 @@ export default function ActivitiesPage() {
                         search={{
                             value: searchTerm,
                             onChange: setSearchTerm,
-                            placeholder: "Aktivität, Betreuer oder Kategorie suchen..."
+                            placeholder: "Aktivität suchen..."
                         }}
                         filters={filters}
                         activeFilters={activeFilters}
@@ -253,16 +301,19 @@ export default function ActivitiesPage() {
                             setCategoryFilter("all");
                             setMyActivitiesFilter(false);
                         }}
-                        className=""
+                        className="-mt-3 md:mt-0"
                     />
                 </div>
 
                 {/* Mobile FAB Create Button */}
                 <button
                     onClick={() => setIsQuickCreateOpen(true)}
-                    className={`md:hidden fixed right-4 z-[9999] w-14 h-14 bg-gradient-to-br from-[#83CD2D] to-[#70B525] text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(131,205,45,0.3)] transition-all duration-300 flex items-center justify-center group active:scale-95 ${
-                        isAlertShowing ? 'bottom-44' : 'bottom-24'
-                    }`}
+                    className={`md:hidden fixed right-4 z-[9999] w-14 h-14 bg-gradient-to-br from-[#83CD2D] to-[#70B525] text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(131,205,45,0.3)] transition-all duration-300 flex items-center justify-center group active:scale-95`}
+                    style={{
+                        bottom: isAlertShowing 
+                            ? (isNavBarHidden ? '8rem' : '11rem')  // 32 (128px) when alert showing and nav hidden, 44 (176px) when nav visible
+                            : (isNavBarHidden ? '1.5rem' : '6rem') // 6 (24px) when nav hidden, 24 (96px) when nav visible
+                    }}
                     aria-label="Aktivität erstellen"
                 >
                     {/* Inner glow effect */}
@@ -296,8 +347,11 @@ export default function ActivitiesPage() {
                                     onClick={() => handleSelectActivity(activity)}
                                     className="group cursor-pointer relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.01] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-1 active:scale-[0.99] md:hover:border-blue-200/50"
                                     style={{
+                                        animationName: 'fadeInUp',
+                                        animationDuration: '0.5s',
+                                        animationTimingFunction: 'ease-out',
+                                        animationFillMode: 'forwards',
                                         animationDelay: `${index * 0.05}s`,
-                                        animation: 'fadeInUp 0.5s ease-out forwards',
                                         opacity: 0
                                     }}
                                 >
@@ -344,41 +398,39 @@ export default function ActivitiesPage() {
                                             </div>
                                         </div>
                                         
-                                        {/* Right content - Edit button (only for creators) */}
-                                        {isActivityCreator(activity, currentStaff?.id) && (
-                                            <div className="flex items-center gap-3 ml-4">
-                                                {/* Desktop hint */}
-                                                <span className="hidden lg:block text-xs text-gray-400 group-hover:text-gray-600 transition-colors">
-                                                    Bearbeiten
-                                                </span>
+                                        {/* Right content - Edit button (available for all users) */}
+                                        <div className="flex items-center gap-3 ml-4">
+                                            {/* Desktop hint */}
+                                            <span className="hidden lg:block text-xs text-gray-400 group-hover:text-gray-600 transition-colors">
+                                                Bearbeiten
+                                            </span>
+                                            
+                                            {/* Edit icon button */}
+                                            <button
+                                                onClick={(e) => handleEditActivity(e, activity)}
+                                                className="relative"
+                                                aria-label="Aktivität bearbeiten"
+                                            >
+                                                <div className="w-10 h-10 rounded-full bg-gray-100 md:group-hover:bg-blue-100 flex items-center justify-center transition-all duration-200 md:group-hover:scale-110">
+                                                    <svg 
+                                                        className="w-5 h-5 text-gray-600 md:group-hover:text-blue-600 transition-colors" 
+                                                        fill="none" 
+                                                        viewBox="0 0 24 24" 
+                                                        stroke="currentColor"
+                                                    >
+                                                        <path 
+                                                            strokeLinecap="round" 
+                                                            strokeLinejoin="round" 
+                                                            strokeWidth={2} 
+                                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
+                                                        />
+                                                    </svg>
+                                                </div>
                                                 
-                                                {/* Edit icon button */}
-                                                <button
-                                                    onClick={(e) => handleEditActivity(e, activity)}
-                                                    className="relative"
-                                                    aria-label="Aktivität bearbeiten"
-                                                >
-                                                    <div className="w-10 h-10 rounded-full bg-gray-100 md:group-hover:bg-blue-100 flex items-center justify-center transition-all duration-200 md:group-hover:scale-110">
-                                                        <svg 
-                                                            className="w-5 h-5 text-gray-600 md:group-hover:text-blue-600 transition-colors" 
-                                                            fill="none" 
-                                                            viewBox="0 0 24 24" 
-                                                            stroke="currentColor"
-                                                        >
-                                                            <path 
-                                                                strokeLinecap="round" 
-                                                                strokeLinejoin="round" 
-                                                                strokeWidth={2} 
-                                                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" 
-                                                            />
-                                                        </svg>
-                                                    </div>
-                                                    
-                                                    {/* Ripple effect on hover */}
-                                                    <div className="absolute inset-0 rounded-full bg-blue-200/20 scale-0 md:group-hover:scale-100 transition-transform duration-300"></div>
-                                                </button>
-                                            </div>
-                                        )}
+                                                {/* Ripple effect on hover */}
+                                                <div className="absolute inset-0 rounded-full bg-blue-200/20 scale-0 md:group-hover:scale-100 transition-transform duration-300"></div>
+                                            </button>
+                                        </div>
                                     </div>
 
                                     {/* Glowing border effect */}
@@ -433,7 +485,7 @@ export default function ActivitiesPage() {
                     onSuccess={handleManagementSuccess}
                     activity={selectedActivity}
                     currentStaffId={currentStaff?.id}
-                    readOnly={!isActivityCreator(selectedActivity, currentStaff?.id)}
+                    readOnly={false}
                 />
             )}
             
@@ -446,6 +498,21 @@ export default function ActivitiesPage() {
                     void handleManagementSuccess(); // Reload activities
                 }}
             />
+            
+            {/* Management Success Alert - rendered independently */}
+            {showManagementSuccess && typeof document !== 'undefined' && createPortal(
+                <>
+                    {alertAnimationStyles}
+                    <SimpleAlert
+                        type="success"
+                        message={managementSuccessMessage}
+                        autoClose
+                        duration={3000}
+                        onClose={() => setShowManagementSuccess(false)}
+                    />
+                </>,
+                document.body
+            )}
         </ResponsiveLayout>
     );
 }

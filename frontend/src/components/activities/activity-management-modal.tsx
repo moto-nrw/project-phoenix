@@ -3,13 +3,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { getCategories, updateActivity, deleteActivity, type ActivityCategory, type Activity } from "~/lib/activity-api";
-import { SimpleAlert, alertAnimationStyles } from "~/components/simple/SimpleAlert";
 import { getDbOperationMessage } from "~/lib/use-notification";
+import { useScrollLock } from "~/hooks/useScrollLock";
 
 interface ActivityManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (message?: string) => void;
   activity: Activity;
   currentStaffId?: string | null;
   readOnly?: boolean;
@@ -29,8 +29,6 @@ export function ActivityManagementModal({
   currentStaffId: _currentStaffId,
   readOnly = false
 }: ActivityManagementModalProps) {
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
   const [form, setForm] = useState<EditForm>({
     name: activity.name,
     category_id: activity.ag_category_id || "",
@@ -44,6 +42,9 @@ export function ActivityManagementModal({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
+  
+  // Use scroll lock hook
+  useScrollLock(isOpen);
 
   // Handle modal close with animation
   const handleClose = useCallback(() => {
@@ -146,17 +147,18 @@ export function ActivityManagementModal({
       // Call the update API
       await updateActivity(activity.id, updateData);
       
-      // Show success notification
-      setSuccessMessage(getDbOperationMessage('update', 'Aktivität', form.name.trim()));
-      setShowSuccessAlert(true);
-      
-      // Handle success
-      if (onSuccess) {
-        onSuccess();
-      }
+      // Get success message
+      const successMessage = getDbOperationMessage('update', 'Aktivität', form.name.trim());
       
       // Close modal with animation
       handleClose();
+      
+      // Handle success with message after modal starts closing
+      setTimeout(() => {
+        if (onSuccess) {
+          onSuccess(successMessage);
+        }
+      }, 100);
     } catch (err) {
       console.error("Error updating activity:", err);
       
@@ -167,12 +169,12 @@ export function ActivityManagementModal({
         const message = err.message;
         
         // Handle specific error cases with user-friendly messages
-        if (message.includes("user is not a teacher")) {
-          errorMessage = "Nur pädagogische Fachkräfte können Aktivitäten bearbeiten. Bitte wenden Sie sich an eine pädagogische Fachkraft oder einen Administrator.";
+        if (message.includes("user is not authenticated")) {
+          errorMessage = "Sie müssen angemeldet sein, um Aktivitäten zu bearbeiten.";
         } else if (message.includes("401")) {
-          errorMessage = "Sie haben keine Berechtigung, diese Aktivität zu bearbeiten.";
+          errorMessage = "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
         } else if (message.includes("403")) {
-          errorMessage = "Zugriff verweigert. Bitte prüfen Sie Ihre Berechtigungen.";
+          errorMessage = "Zugriff verweigert. Bitte melden Sie sich erneut an.";
         } else if (message.includes("400")) {
           errorMessage = "Ungültige Eingabedaten. Bitte überprüfen Sie Ihre Eingaben.";
         } else {
@@ -193,17 +195,18 @@ export function ActivityManagementModal({
     try {
       await deleteActivity(activity.id);
       
-      // Show success notification
-      setSuccessMessage(getDbOperationMessage('delete', 'Aktivität', activity.name));
-      setShowSuccessAlert(true);
-      
-      // Handle success
-      if (onSuccess) {
-        onSuccess();
-      }
+      // Get success message
+      const successMessage = getDbOperationMessage('delete', 'Aktivität', activity.name);
       
       // Close modal with animation
       handleClose();
+      
+      // Handle success with message after modal starts closing
+      setTimeout(() => {
+        if (onSuccess) {
+          onSuccess(successMessage);
+        }
+      }, 100);
     } catch (err) {
       console.error("Error deleting activity:", err);
       
@@ -215,7 +218,7 @@ export function ActivityManagementModal({
         if (message.includes("students enrolled")) {
           errorMessage = "Diese Aktivität kann nicht gelöscht werden, da noch Schüler eingeschrieben sind. Bitte entfernen Sie zuerst alle Schüler aus der Aktivität.";
         } else if (message.includes("401") || message.includes("403")) {
-          errorMessage = "Sie haben keine Berechtigung, diese Aktivität zu löschen.";
+          errorMessage = "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
         } else {
           errorMessage = message;
         }
@@ -230,115 +233,92 @@ export function ActivityManagementModal({
 
   const footer = (
     <>
-      <div className="flex flex-col-reverse md:flex-row items-stretch md:items-center justify-between w-full gap-3">
-        <div className="flex-1 md:flex-initial">
-          {!readOnly && !showDeleteConfirm && (
+      {/* Delete Confirmation Mode - Shows only delete options */}
+      {!readOnly && showDeleteConfirm ? (
+        <div className="flex justify-end items-center">
+          <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => setShowDeleteConfirm(true)}
-              className="w-full md:w-auto px-4 py-2.5 md:py-2 rounded-lg text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors duration-150 disabled:opacity-50"
-              disabled={isSubmitting || isDeleting}
+              onClick={() => setShowDeleteConfirm(false)}
+              className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
+              disabled={isDeleting}
             >
-              <svg className="w-4 h-4 inline-block mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              Löschen
+              Abbrechen
             </button>
-          )}
-          {!readOnly && showDeleteConfirm && (
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <span className="text-sm text-red-600 text-center sm:text-left">Wirklich löschen?</span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                  className="flex-1 sm:flex-initial px-3 py-2 sm:py-1.5 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition-colors duration-150 disabled:opacity-50"
-                >
-                  {isDeleting ? "Wird gelöscht..." : "Ja, löschen"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteConfirm(false)}
-                  disabled={isDeleting}
-                  className="flex-1 sm:flex-initial px-3 py-2 sm:py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-700 hover:bg-gray-100 transition-colors duration-150"
-                >
-                  Abbrechen
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-2 md:gap-3">
-          <button
-            type="button"
-            onClick={handleClose}
-            className="flex-1 md:flex-initial px-4 py-2.5 md:py-2 rounded-lg text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-colors duration-150 disabled:opacity-50"
-            disabled={isSubmitting || isDeleting}
-          >
-            Schließen
-          </button>
-          
-          {!readOnly && (
             <button
-              type="submit"
-              form="activity-management-form"
-              disabled={isSubmitting || loading || isDeleting}
-              className="relative group overflow-hidden px-5 py-2.5 rounded-full text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2 flex-1 md:flex-initial
-              bg-blue-600 hover:bg-blue-700 md:hover:bg-blue-700 active:bg-blue-700 backdrop-blur-md
-              text-white
-              shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] md:hover:shadow-[0_10px_15px_-3px_rgba(59,130,246,0.5),0_4px_6px_-2px_rgba(59,130,246,0.25)]
-              border border-blue-200/50 md:hover:border-blue-200/60
-              ring-1 ring-white/20 md:hover:ring-blue-200/60
-              focus:outline-none focus:ring-2 focus:ring-blue-200/60 focus:ring-offset-2"
-              style={{ 
-                transform: 'translateY(0px)',
-                transition: 'box-shadow 50ms ease-out, transform 800ms cubic-bezier(0.4, 0, 0.2, 1), background-color 300ms ease-out, border-color 300ms ease-out' 
-              }}
-              onMouseEnter={(e) => {
-                if (window.innerWidth >= 768) {
-                  (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-4px)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (window.innerWidth >= 768) {
-                  (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0px)';
-                }
-              }}
+              type="button"
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-            
-            {/* Content */}
-            <div className="relative flex items-center gap-2">
-              {isSubmitting ? (
+              {isDeleting ? (
                 <>
                   <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  <span className="font-semibold">Wird gespeichert...</span>
+                  <span>Löschen...</span>
                 </>
               ) : (
-                <>
-                  <div className="relative">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" 
-                        className="group-hover:stroke-white/90 group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] transition-all duration-300" />
-                    </svg>
-                    {/* Subtle glow behind icon */}
-                    <div className="absolute inset-0 bg-gradient-radial from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm"></div>
-                  </div>
-                  <span className="font-semibold">Speichern</span>
-                </>
+                "Löschen"
               )}
-            </div>
-            
-            {/* Animated background shine effect */}
-            <div className="absolute inset-0 -top-2 h-full w-full rotate-12 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 group-hover:animate-[shine_1s_ease-in-out]"></div>
             </button>
-          )}
+          </div>
         </div>
-      </div>
+      ) : (
+        /* Normal Footer - Shows when not in delete mode */
+        <div className="flex justify-between items-center">
+          {/* Secondary actions left */}
+          <div className="flex items-center gap-2">
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="p-2 text-gray-400 hover:text-red-600 transition-colors rounded-lg hover:bg-gray-50"
+                disabled={isSubmitting || isDeleting}
+                aria-label="Aktivität löschen"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                </svg>
+              </button>
+            )}
+          </div>
+          
+          {/* Primary actions right */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
+              disabled={isSubmitting || isDeleting}
+            >
+              Abbrechen
+            </button>
+            
+            {!readOnly && (
+              <button
+                type="submit"
+                form="activity-management-form"
+                disabled={isSubmitting || loading || isDeleting}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[100px]"
+              >
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Speichern...</span>
+                  </>
+                ) : (
+                  "Speichern"
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 
@@ -352,12 +332,10 @@ export function ActivityManagementModal({
 
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
     }
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
     };
   }, [isOpen, handleClose]);
 
@@ -435,7 +413,7 @@ export function ActivityManagementModal({
         </div>
 
         {/* Content */}
-        <div className="overflow-y-auto max-h-[calc(100vh-12rem)] sm:max-h-[calc(90vh-8rem)] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+        <div className="overflow-y-auto max-h-[calc(100vh-12rem)] sm:max-h-[calc(90vh-8rem)] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100" data-modal-content="true">
           <div className={`p-4 md:p-6 ${
             isAnimating && !isExiting ? 'sm:animate-contentReveal' : 'sm:opacity-0'
           }`}>
@@ -589,15 +567,26 @@ export function ActivityManagementModal({
             </div>
           </div>
 
-          {/* Info Card - Compact */}
-          <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-gray-50/60 to-slate-50/60 backdrop-blur-sm border border-gray-200/30 p-3">
-            <div className="relative flex items-center gap-2">
-              <svg className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-xs text-gray-600">{readOnly ? 'Sie können nur Aktivitäten bearbeiten, die Sie selbst erstellt haben.' : 'Änderungen werden sofort wirksam.'}</p>
+          {/* Info Card / Delete Confirmation - Compact */}
+          {showDeleteConfirm ? (
+            <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-red-50/60 to-rose-50/60 backdrop-blur-sm border border-red-200/30 p-3">
+              <div className="relative flex items-center gap-2">
+                <svg className="w-3.5 h-3.5 text-red-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                </svg>
+                <p className="text-xs text-red-700 font-medium">Diese Aktivität wirklich löschen?</p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-gray-50/60 to-slate-50/60 backdrop-blur-sm border border-gray-200/30 p-3">
+              <div className="relative flex items-center gap-2">
+                <svg className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-xs text-gray-600">{readOnly ? 'Sie können nur Aktivitäten bearbeiten, die Sie selbst erstellt haben.' : 'Änderungen werden sofort wirksam.'}</p>
+              </div>
+            </div>
+          )}
         </form>
       )}
           </div>
@@ -614,7 +603,7 @@ export function ActivityManagementModal({
   );
 
   // Portal render
-  if (typeof document !== 'undefined') {
+  if (typeof document !== 'undefined' && isOpen) {
     return createPortal(
       <>
         <style>{`
@@ -623,21 +612,7 @@ export function ActivityManagementModal({
             100% { transform: translateX(100%) rotate(12deg); }
           }
         `}</style>
-        {/* Render modal only when open */}
-        {isOpen && modalContent}
-        {/* Success Alert - rendered independently of modal state */}
-        {showSuccessAlert && (
-          <>
-            {alertAnimationStyles}
-            <SimpleAlert
-              type="success"
-              message={successMessage}
-              autoClose
-              duration={3000}
-              onClose={() => setShowSuccessAlert(false)}
-            />
-          </>
-        )}
+        {modalContent}
       </>,
       document.body
     );

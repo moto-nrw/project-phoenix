@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { getCategories, type ActivityCategory } from "~/lib/activity-api";
 import { SimpleAlert, alertAnimationStyles } from "~/components/simple/SimpleAlert";
 import { getDbOperationMessage } from "~/lib/use-notification";
+import { useScrollLock } from "~/hooks/useScrollLock";
 
 interface QuickCreateActivityModalProps {
   isOpen: boolean;
@@ -36,6 +37,9 @@ export function QuickCreateActivityModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
+  
+  // Use scroll lock hook
+  useScrollLock(isOpen);
 
   // Handle modal close with animation
   const handleClose = useCallback(() => {
@@ -169,12 +173,12 @@ export function QuickCreateActivityModal({
         const message = err.message;
         
         // Handle specific error cases with user-friendly messages
-        if (message.includes("user is not a teacher")) {
-          errorMessage = "Nur pädagogische Fachkräfte können Aktivitäten erstellen. Bitte wenden Sie sich an eine pädagogische Fachkraft oder einen Administrator.";
+        if (message.includes("user is not authenticated")) {
+          errorMessage = "Sie müssen angemeldet sein, um Aktivitäten zu erstellen.";
         } else if (message.includes("401")) {
-          errorMessage = "Sie haben keine Berechtigung, Aktivitäten zu erstellen.";
+          errorMessage = "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
         } else if (message.includes("403")) {
-          errorMessage = "Zugriff verweigert. Bitte prüfen Sie Ihre Berechtigungen.";
+          errorMessage = "Zugriff verweigert. Bitte melden Sie sich erneut an.";
         } else if (message.includes("400")) {
           errorMessage = "Ungültige Eingabedaten. Bitte überprüfen Sie Ihre Eingaben.";
         } else {
@@ -198,12 +202,10 @@ export function QuickCreateActivityModal({
 
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
     }
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
     };
   }, [isOpen, handleClose]);
 
@@ -281,7 +283,7 @@ export function QuickCreateActivityModal({
         </div>
 
         {/* Content */}
-        <div className="overflow-y-auto max-h-[calc(100vh-12rem)] sm:max-h-[calc(90vh-8rem)] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+        <div className="overflow-y-auto max-h-[calc(100vh-12rem)] sm:max-h-[calc(90vh-8rem)] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100" data-modal-content="true">
           <div className={`p-4 md:p-6 ${
             isAnimating && !isExiting ? 'sm:animate-contentReveal' : 'sm:opacity-0'
           }`}>
