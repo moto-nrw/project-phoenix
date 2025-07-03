@@ -364,7 +364,7 @@ func (r *TokenRepository) CleanupOldTokensForAccount(ctx context.Context, accoun
 // FindByFamilyID finds all tokens belonging to a specific family
 func (r *TokenRepository) FindByFamilyID(ctx context.Context, familyID string) ([]*auth.Token, error) {
 	var tokens []*auth.Token
-	
+
 	err := r.db.NewSelect().
 		Model(&tokens).
 		ModelTableExpr(`auth.tokens AS "token"`).
@@ -415,7 +415,7 @@ func (r *TokenRepository) GetLatestTokenInFamily(ctx context.Context, familyID s
 	}
 
 	var token auth.Token
-	
+
 	err := db.NewSelect().
 		Model(&token).
 		ModelTableExpr(`auth.tokens AS "token"`).

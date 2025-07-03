@@ -143,6 +143,9 @@ type StaffRepository interface {
 
 	// UpdateNotes updates staff notes
 	UpdateNotes(ctx context.Context, id int64, notes string) error
+
+	// FindWithPerson retrieves a staff member with their associated person data
+	FindWithPerson(ctx context.Context, id int64) (*Staff, error)
 }
 
 // TeacherRepository defines operations for managing teachers

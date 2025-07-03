@@ -60,7 +60,7 @@ var cleanupStatsCmd = &cobra.Command{
 var cleanupTokensCmd = &cobra.Command{
 	Use:   "tokens",
 	Short: "Clean up expired authentication tokens",
-	Long:  `Clean up expired refresh tokens from the database.
+	Long: `Clean up expired refresh tokens from the database.
 This helps maintain database performance and security by removing tokens that can no longer be used.`,
 	RunE: runCleanupTokens,
 }

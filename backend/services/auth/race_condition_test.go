@@ -14,23 +14,23 @@ func TestRefreshTokenRaceCondition(t *testing.T) {
 	t.Log("Race condition test would require full database setup")
 	t.Log("The fix has been implemented using SELECT ... FOR UPDATE")
 	t.Log("This prevents concurrent token refresh attempts")
-	
+
 	// Demonstrate the concept
 	var mu sync.Mutex
 	tokenUsed := false
 	successCount := 0
-	
+
 	// Simulate multiple concurrent refresh attempts
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			
+
 			// This simulates the SELECT ... FOR UPDATE behavior
 			mu.Lock()
 			defer mu.Unlock()
-			
+
 			if !tokenUsed {
 				tokenUsed = true
 				successCount++
@@ -40,9 +40,9 @@ func TestRefreshTokenRaceCondition(t *testing.T) {
 			}
 		}(i)
 	}
-	
+
 	wg.Wait()
-	
+
 	// Only one refresh should succeed
 	assert.Equal(t, 1, successCount, "Exactly one refresh should succeed")
 }
@@ -57,7 +57,7 @@ func TestDemonstrateRaceConditionScenario(t *testing.T) {
 	t.Log("T1   | SELECT token (finds it)      |")
 	t.Log("T2   |                              | SELECT token (also finds it!)")
 	t.Log("T3   | BEGIN TRANSACTION            |")
-	t.Log("T4   | DELETE token                 |")  
+	t.Log("T4   | DELETE token                 |")
 	t.Log("T5   | COMMIT                       |")
 	t.Log("T6   |                              | BEGIN TRANSACTION")
 	t.Log("T7   |                              | DELETE token (FAILS!)")
@@ -106,7 +106,7 @@ echo ""
 echo "curl -X POST http://localhost:8080/auth/refresh \\"
 echo "  -H \"Content-Type: application/json\" \\"
 echo "  -d '{\"refresh_token\":\"'$REFRESH_TOKEN'\"}'"`
-	
+
 	t.Log(script)
 	t.Log("")
 	t.Log("3. Run the script and then execute the refresh command in multiple terminals")
@@ -122,19 +122,19 @@ func TestMockConcurrentRefreshAttempts(t *testing.T) {
 		success bool
 		message string
 	}
-	
+
 	attempts := make(chan refreshAttempt, 5)
-	
+
 	// Simulate 5 concurrent refresh attempts
 	var wg sync.WaitGroup
 	for i := 1; i <= 5; i++ {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			
+
 			// Simulate timing
 			time.Sleep(time.Duration(id) * 10 * time.Millisecond)
-			
+
 			// In real implementation, only first one succeeds due to FOR UPDATE lock
 			if id == 1 {
 				attempts <- refreshAttempt{
@@ -151,10 +151,10 @@ func TestMockConcurrentRefreshAttempts(t *testing.T) {
 			}
 		}(i)
 	}
-	
+
 	wg.Wait()
 	close(attempts)
-	
+
 	// Print results
 	t.Log("\n=== Simulated Concurrent Refresh Results ===")
 	successCount := 0
@@ -166,7 +166,7 @@ func TestMockConcurrentRefreshAttempts(t *testing.T) {
 		}
 		t.Logf("Request %d: %s - %s", attempt.id, status, attempt.message)
 	}
-	
+
 	t.Logf("\nTotal successful refreshes: %d (should be exactly 1)", successCount)
 	assert.Equal(t, 1, successCount)
 }

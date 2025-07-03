@@ -113,29 +113,25 @@ export default function StudentDetailPage() {
                 setHasFullAccess(hasAccess);
                 setSupervisors(groupSupervisors);
                 
-                // If user has full access (is a supervisor), fetch current location
-                if (hasAccess) {
-                    try {
-                        const locationResponse = await fetch(`/api/students/${studentId}/current-location`);
-                        if (locationResponse.ok) {
-                            const response = await locationResponse.json() as unknown;
-                            
-                            // Unwrap the response
-                            const locationData = (response && typeof response === 'object' && 'data' in response ? response.data : response) as {
-                                status: string;
-                                location: string;
-                                room: { name: string } | null;
-                            };
-                            
-                            setCurrentLocation(locationData);
-                        } else {
-                            console.error("Location response not ok:", locationResponse.status);
-                        }
-                    } catch (locationErr) {
-                        console.error("Error fetching student location:", locationErr);
+                // Always fetch current location - basic attendance status should be visible to all users
+                try {
+                    const locationResponse = await fetch(`/api/students/${studentId}/current-location`);
+                    if (locationResponse.ok) {
+                        const response = await locationResponse.json() as unknown;
+                        
+                        // Unwrap the response
+                        const locationData = (response && typeof response === 'object' && 'data' in response ? response.data : response) as {
+                            status: string;
+                            location: string;
+                            room: { name: string } | null;
+                        };
+                        
+                        setCurrentLocation(locationData);
+                    } else {
+                        console.error("Location response not ok:", locationResponse.status);
                     }
-                } else {
-                    console.log('Not fetching location - no access for student:', studentId);
+                } catch (locationErr) {
+                    console.error("Error fetching student location:", locationErr);
                 }
                 
                 setLoading(false);

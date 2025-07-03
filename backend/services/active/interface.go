@@ -67,10 +67,15 @@ type Service interface {
 
 	// Activity Session Management with Conflict Detection
 	StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error)
+	StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error)
 	CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*ActivityConflictInfo, error)
 	EndActivitySession(ctx context.Context, activeGroupID int64) error
 	ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error)
+	ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error)
 	GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error)
+
+	// Dynamic Supervisor Management
+	UpdateActiveGroupSupervisors(ctx context.Context, activeGroupID int64, supervisorIDs []int64) (*active.Group, error)
 
 	// Session timeout operations
 	ProcessSessionTimeout(ctx context.Context, deviceID int64) (*TimeoutResult, error)
@@ -78,7 +83,7 @@ type Service interface {
 	ValidateSessionTimeout(ctx context.Context, deviceID int64, timeoutMinutes int) error
 	GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*SessionTimeoutInfo, error)
 	CleanupAbandonedSessions(ctx context.Context, olderThan time.Duration) (int, error)
-	
+
 	// Daily session management
 	EndDailySessions(ctx context.Context) (*DailySessionCleanupResult, error)
 
@@ -261,28 +266,28 @@ type AttendanceResult struct {
 
 // DailySessionCleanupResult represents the result of ending daily sessions
 type DailySessionCleanupResult struct {
-	SessionsEnded    int       `json:"sessions_ended"`
-	VisitsEnded      int       `json:"visits_ended"`
-	ExecutedAt       time.Time `json:"executed_at"`
-	Success          bool      `json:"success"`
-	Errors           []string  `json:"errors,omitempty"`
+	SessionsEnded int       `json:"sessions_ended"`
+	VisitsEnded   int       `json:"visits_ended"`
+	ExecutedAt    time.Time `json:"executed_at"`
+	Success       bool      `json:"success"`
+	Errors        []string  `json:"errors,omitempty"`
 }
 
 // AttendanceCleanupResult represents the result of cleaning stale attendance records
 type AttendanceCleanupResult struct {
-	StartedAt         time.Time `json:"started_at"`
-	CompletedAt       time.Time `json:"completed_at"`
-	RecordsClosed     int       `json:"records_closed"`
-	StudentsAffected  int       `json:"students_affected"`
-	OldestRecordDate  *time.Time `json:"oldest_record_date,omitempty"`
-	Success           bool       `json:"success"`
-	Errors            []string   `json:"errors,omitempty"`
+	StartedAt        time.Time  `json:"started_at"`
+	CompletedAt      time.Time  `json:"completed_at"`
+	RecordsClosed    int        `json:"records_closed"`
+	StudentsAffected int        `json:"students_affected"`
+	OldestRecordDate *time.Time `json:"oldest_record_date,omitempty"`
+	Success          bool       `json:"success"`
+	Errors           []string   `json:"errors,omitempty"`
 }
 
 // AttendanceCleanupPreview shows what attendance records would be cleaned
 type AttendanceCleanupPreview struct {
-	TotalRecords     int                      `json:"total_records"`
-	StudentRecords   map[int64]int           `json:"student_records"` // studentID -> count
-	OldestRecord     *time.Time              `json:"oldest_record,omitempty"`
-	RecordsByDate    map[string]int          `json:"records_by_date"` // date -> count
+	TotalRecords   int            `json:"total_records"`
+	StudentRecords map[int64]int  `json:"student_records"` // studentID -> count
+	OldestRecord   *time.Time     `json:"oldest_record,omitempty"`
+	RecordsByDate  map[string]int `json:"records_by_date"` // date -> count
 }

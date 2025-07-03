@@ -97,6 +97,40 @@ func (r *GroupSupervisorRepository) Create(ctx context.Context, supervision *act
 	return r.Repository.Create(ctx, supervision)
 }
 
+// Update overrides base Update to handle schema-qualified tables
+func (r *GroupSupervisorRepository) Update(ctx context.Context, supervision *active.GroupSupervisor) error {
+	if supervision == nil {
+		return fmt.Errorf("group supervisor cannot be nil")
+	}
+
+	// Validate supervision
+	if err := supervision.Validate(); err != nil {
+		return err
+	}
+
+	// Check if we have a transaction in context
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	// Perform the update with proper table expression
+	_, err := db.NewUpdate().
+		Model(supervision).
+		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
+		WherePK().
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupSupervisorRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.GroupSupervisor, error) {
 	var supervisions []*active.GroupSupervisor

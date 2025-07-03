@@ -54,10 +54,10 @@ func (s *Scheduler) Start() {
 
 	// Schedule daily data cleanup at 2 AM
 	s.scheduleCleanupTask()
-	
+
 	// Schedule daily session end at configurable time (default 6 PM)
 	s.scheduleSessionEndTask()
-	
+
 	// Schedule token cleanup every hour
 	s.scheduleTokenCleanupTask()
 }
@@ -241,11 +241,11 @@ func (s *Scheduler) scheduleTokenCleanupTask() {
 		Name:     "token-cleanup",
 		Schedule: "1h", // Run every hour
 	}
-	
+
 	s.mu.Lock()
 	s.tasks[task.Name] = task
 	s.mu.Unlock()
-	
+
 	s.wg.Add(1)
 	go s.runTokenCleanupTask(task)
 }
@@ -253,16 +253,16 @@ func (s *Scheduler) scheduleTokenCleanupTask() {
 // runTokenCleanupTask runs the token cleanup task on schedule
 func (s *Scheduler) runTokenCleanupTask(task *ScheduledTask) {
 	defer s.wg.Done()
-	
+
 	log.Println("Token cleanup task scheduled to run every hour")
-	
+
 	// Run immediately on startup
 	s.executeTokenCleanup(task)
-	
+
 	// Then run every hour
 	ticker := time.NewTicker(time.Hour)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -283,17 +283,17 @@ func (s *Scheduler) executeTokenCleanup(task *ScheduledTask) {
 	task.Running = true
 	task.LastRun = time.Now()
 	task.mu.Unlock()
-	
+
 	defer func() {
 		task.mu.Lock()
 		task.Running = false
 		task.NextRun = time.Now().Add(time.Hour)
 		task.mu.Unlock()
 	}()
-	
+
 	log.Println("Running scheduled token cleanup...")
 	startTime := time.Now()
-	
+
 	// Use reflection to call CleanupExpiredTokens method
 	if s.authService != nil {
 		method := reflect.ValueOf(s.authService).MethodByName("CleanupExpiredTokens")
@@ -301,18 +301,18 @@ func (s *Scheduler) executeTokenCleanup(task *ScheduledTask) {
 			ctx := context.Background()
 			ctxValue := reflect.ValueOf(ctx)
 			results := method.Call([]reflect.Value{ctxValue})
-			
+
 			if len(results) == 2 {
 				count := results[0].Int()
 				errInterface := results[1].Interface()
-				
+
 				if errInterface != nil {
 					if err, ok := errInterface.(error); ok && err != nil {
 						log.Printf("ERROR: Token cleanup failed: %v", err)
 						return
 					}
 				}
-				
+
 				duration := time.Since(startTime)
 				log.Printf("Token cleanup completed in %v: deleted %d expired tokens",
 					duration.Round(time.Millisecond), count)

@@ -126,6 +126,6 @@ func (c *RefreshClaims) ParseClaims(claims map[string]any) error {
 		return errors.New("could not parse claim token")
 	}
 	c.Token = token.(string)
-	
+
 	return nil
 }

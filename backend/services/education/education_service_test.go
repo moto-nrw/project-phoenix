@@ -724,6 +724,14 @@ func (m *MockStaffRepository) UpdateNotes(ctx context.Context, id int64, notes s
 	return args.Error(0)
 }
 
+func (m *MockStaffRepository) FindWithPerson(ctx context.Context, id int64) (*userModels.Staff, error) {
+	args := m.Called(ctx, id)
+	if obj := args.Get(0); obj != nil {
+		return obj.(*userModels.Staff), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 // Tests for Substitution Validation
 func TestCreateSubstitution_DateValidation(t *testing.T) {
 	// Create mock repositories
