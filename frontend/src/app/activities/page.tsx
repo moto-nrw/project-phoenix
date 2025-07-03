@@ -30,6 +30,21 @@ export default function ActivitiesPage() {
     const [isManagementModalOpen, setIsManagementModalOpen] = useState(false);
     const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
     const [currentStaff, setCurrentStaff] = useState<Staff | null>(null);
+    const [isAlertShowing, setIsAlertShowing] = useState(false);
+
+    // Listen for alert show/hide events to move FAB
+    useEffect(() => {
+        const handleAlertShow = () => setIsAlertShowing(true);
+        const handleAlertHide = () => setIsAlertShowing(false);
+
+        window.addEventListener('alert-show', handleAlertShow);
+        window.addEventListener('alert-hide', handleAlertHide);
+
+        return () => {
+            window.removeEventListener('alert-show', handleAlertShow);
+            window.removeEventListener('alert-hide', handleAlertHide);
+        };
+    }, []);
 
     // Load activities, categories and current user on mount
     useEffect(() => {
@@ -245,7 +260,9 @@ export default function ActivitiesPage() {
                 {/* Mobile FAB Create Button */}
                 <button
                     onClick={() => setIsQuickCreateOpen(true)}
-                    className="md:hidden fixed bottom-24 right-4 z-40 w-14 h-14 bg-gradient-to-br from-[#83CD2D] to-[#70B525] text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(131,205,45,0.3)] transition-all duration-300 flex items-center justify-center group active:scale-95"
+                    className={`md:hidden fixed right-4 z-[9999] w-14 h-14 bg-gradient-to-br from-[#83CD2D] to-[#70B525] text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(131,205,45,0.3)] transition-all duration-300 flex items-center justify-center group active:scale-95 ${
+                        isAlertShowing ? 'bottom-44' : 'bottom-24'
+                    }`}
                     aria-label="Aktivität erstellen"
                 >
                     {/* Inner glow effect */}
@@ -425,7 +442,7 @@ export default function ActivitiesPage() {
                 isOpen={isQuickCreateOpen}
                 onClose={() => setIsQuickCreateOpen(false)}
                 onSuccess={() => {
-                    setIsQuickCreateOpen(false);
+                    // Don't close here - let the modal handle its own closing
                     void handleManagementSuccess(); // Reload activities
                 }}
             />

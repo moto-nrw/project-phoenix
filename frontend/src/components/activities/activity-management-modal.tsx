@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { getCategories, updateActivity, deleteActivity, type ActivityCategory, type Activity } from "~/lib/activity-api";
-import { SimpleAlert } from "~/components/simple/SimpleAlert";
+import { SimpleAlert, alertAnimationStyles } from "~/components/simple/SimpleAlert";
 import { getDbOperationMessage } from "~/lib/use-notification";
 
 interface ActivityManagementModalProps {
@@ -368,7 +368,7 @@ export function ActivityManagementModal({
     }
   }, [handleClose]);
 
-  if (!isOpen) return null;
+  // Don't return null here - we need to render the success alert even when modal is closed
 
   const modalContent = (
     <div
@@ -623,15 +623,20 @@ export function ActivityManagementModal({
             100% { transform: translateX(100%) rotate(12deg); }
           }
         `}</style>
-        {modalContent}
-        {/* Success Alert */}
+        {/* Render modal only when open */}
+        {isOpen && modalContent}
+        {/* Success Alert - rendered independently of modal state */}
         {showSuccessAlert && (
-          <SimpleAlert
-            type="success"
-            message={successMessage}
-            autoClose
-            onClose={() => setShowSuccessAlert(false)}
-          />
+          <>
+            {alertAnimationStyles}
+            <SimpleAlert
+              type="success"
+              message={successMessage}
+              autoClose
+              duration={3000}
+              onClose={() => setShowSuccessAlert(false)}
+            />
+          </>
         )}
       </>,
       document.body

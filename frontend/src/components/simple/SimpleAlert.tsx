@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 
 interface SimpleAlertProps {
   type: "success" | "error" | "info" | "warning";
@@ -44,23 +44,54 @@ export function SimpleAlert({
   autoClose = false,
   duration = 3000,
 }: SimpleAlertProps) {
+  // Dispatch event to notify FAB to move up on mobile
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('alert-show'));
+      return () => {
+        window.dispatchEvent(new CustomEvent('alert-hide'));
+      };
+    }
+  }, []);
   const styles = alertStyles[type];
+  const [isVisible, setIsVisible] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
+    // Trigger entrance animation
+    const showTimer = setTimeout(() => {
+      setIsVisible(true);
+    }, 10);
+
     if (autoClose && onClose) {
-      const timer = setTimeout(onClose, duration);
-      return () => clearTimeout(timer);
+      const timer = setTimeout(() => {
+        // Start exit animation
+        setIsExiting(true);
+        // Actually close after animation
+        setTimeout(onClose, 300);
+      }, duration);
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(showTimer);
+      };
     }
+
+    return () => clearTimeout(showTimer);
   }, [autoClose, duration, onClose]);
 
   return (
     <div
       className={`
-        fixed bottom-24 lg:bottom-6 right-6 z-50 max-w-sm
+        fixed bottom-24 lg:bottom-6 left-4 right-4 md:left-auto md:right-6 z-[9998] md:max-w-sm
         ${styles.bg} ${styles.border} 
         rounded-2xl border p-4 shadow-lg backdrop-blur-sm
-        animate-in slide-in-from-bottom-5 duration-300
+        transition-all duration-300 ease-out
+        ${isVisible && !isExiting ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}
       `}
+      style={{
+        transform: isVisible && !isExiting ? 'translateY(0)' : 'translateY(16px)',
+        opacity: isVisible && !isExiting ? 1 : 0,
+      }}
     >
       <div className="flex items-start gap-3">
         <div className={`flex-shrink-0 ${styles.text}`}>
@@ -103,11 +134,12 @@ export function SimpleAlert({
         )}
       </div>
       {autoClose && (
-        <div className="absolute bottom-0 left-0 right-0 h-1 overflow-hidden rounded-b-2xl">
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200/20 overflow-hidden rounded-b-2xl">
           <div
-            className={`h-full bg-current opacity-20 animate-[shrink_${duration}ms_linear_forwards]`}
+            className="h-full bg-current opacity-30"
             style={{
               animation: `shrink ${duration}ms linear forwards`,
+              transformOrigin: 'left',
             }}
           />
         </div>
@@ -116,14 +148,16 @@ export function SimpleAlert({
   );
 }
 
-// Add this CSS to your global styles
-export const alertAnimation = `
-  @keyframes shrink {
-    from {
-      width: 100%;
+// Add this CSS to your global styles or as a style tag
+export const alertAnimationStyles = (
+  <style>{`
+    @keyframes shrink {
+      from {
+        transform: scaleX(1);
+      }
+      to {
+        transform: scaleX(0);
+      }
     }
-    to {
-      width: 0%;
-    }
-  }
-`;
+  `}</style>
+);
