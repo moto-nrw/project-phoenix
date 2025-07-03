@@ -2,6 +2,8 @@ package active
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -29,7 +31,7 @@ func (r *ScheduledCheckoutRepository) Create(ctx context.Context, checkout *acti
 	if checkout.UpdatedAt.IsZero() {
 		checkout.UpdatedAt = now
 	}
-	
+
 	_, err := r.db.NewInsert().
 		Model(checkout).
 		ModelTableExpr(`active.scheduled_checkouts`).
@@ -64,7 +66,7 @@ func (r *ScheduledCheckoutRepository) GetPendingByStudentID(ctx context.Context,
 		Where(`"scheduled_checkout".status = ?`, active.ScheduledCheckoutStatusPending).
 		Scan(ctx)
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get pending scheduled checkout: %w", err)
@@ -75,7 +77,7 @@ func (r *ScheduledCheckoutRepository) GetPendingByStudentID(ctx context.Context,
 // GetDueCheckouts retrieves all pending checkouts scheduled for before the given time
 func (r *ScheduledCheckoutRepository) GetDueCheckouts(ctx context.Context, beforeTime time.Time) ([]*active.ScheduledCheckout, error) {
 	var checkouts []*active.ScheduledCheckout
-	
+
 	// Use raw SQL query to avoid BUN's alias handling issues with triple quotes
 	query := `
 		SELECT id, student_id, scheduled_by, scheduled_for, reason, status, 
@@ -84,33 +86,33 @@ func (r *ScheduledCheckoutRepository) GetDueCheckouts(ctx context.Context, befor
 		WHERE status = ? AND scheduled_for <= ?
 		ORDER BY scheduled_for ASC
 	`
-	
+
 	err := r.db.NewRaw(query, active.ScheduledCheckoutStatusPending, beforeTime).
 		Scan(ctx, &checkouts)
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get due scheduled checkouts: %w", err)
 	}
-	
+
 	// Debug logging
 	if len(checkouts) > 0 {
 		fmt.Printf("GetDueCheckouts found %d pending checkouts\n", len(checkouts))
 		for i, checkout := range checkouts {
-			fmt.Printf("  [%d] ID=%d, StudentID=%d, ScheduledFor=%v, Status=%s\n", 
+			fmt.Printf("  [%d] ID=%d, StudentID=%d, ScheduledFor=%v, Status=%s\n",
 				i, checkout.ID, checkout.StudentID, checkout.ScheduledFor, checkout.Status)
 		}
 	}
-	
+
 	return checkouts, nil
 }
 
 // Update updates a scheduled checkout
 func (r *ScheduledCheckoutRepository) Update(ctx context.Context, checkout *active.ScheduledCheckout) error {
 	checkout.UpdatedAt = time.Now()
-	
-	fmt.Printf("Updating scheduled checkout ID=%d, Status=%s, ExecutedAt=%v\n", 
+
+	fmt.Printf("Updating scheduled checkout ID=%d, Status=%s, ExecutedAt=%v\n",
 		checkout.ID, checkout.Status, checkout.ExecutedAt)
-	
+
 	result, err := r.db.NewUpdate().
 		Model(checkout).
 		ModelTableExpr(`active.scheduled_checkouts AS "scheduled_checkout"`).
@@ -119,10 +121,10 @@ func (r *ScheduledCheckoutRepository) Update(ctx context.Context, checkout *acti
 	if err != nil {
 		return fmt.Errorf("failed to update scheduled checkout: %w", err)
 	}
-	
+
 	rowsAffected, _ := result.RowsAffected()
 	fmt.Printf("Update affected %d rows\n", rowsAffected)
-	
+
 	return nil
 }
 

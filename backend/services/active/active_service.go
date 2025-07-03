@@ -2,8 +2,9 @@ package active
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -2306,7 +2307,13 @@ func (s *service) ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledC
 		visit, err := s.visitRepo.GetCurrentByStudentID(ctx, checkout.StudentID)
 		if err != nil {
 			// Check if it's just "no rows" error - that's expected if student has no active visit
-			if err.Error() == "sql: no rows in result set" || strings.Contains(err.Error(), "no rows") {
+			// Need to check both direct error and wrapped DatabaseError
+			isNoRows := errors.Is(err, sql.ErrNoRows)
+			if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+				isNoRows = true
+			}
+			
+			if isNoRows {
 				fmt.Printf("No active visit found for student %d (expected if using old system)\n", checkout.StudentID)
 				visit = nil // Set to nil and continue processing
 			} else {
@@ -2337,7 +2344,12 @@ func (s *service) ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledC
 		if err != nil {
 			// If there's no attendance record, log but don't fail the entire checkout
 			// This can happen if student was marked present using old system
-			if err.Error() == "sql: no rows in result set" || strings.Contains(err.Error(), "no rows") {
+			isNoRows := errors.Is(err, sql.ErrNoRows)
+			if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+				isNoRows = true
+			}
+			
+			if isNoRows {
 				fmt.Printf("No attendance record found for student %d, skipping attendance update\n", checkout.StudentID)
 			} else {
 				errMsg := fmt.Sprintf("Failed to get attendance for student %d: %v", checkout.StudentID, err)
