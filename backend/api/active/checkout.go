@@ -31,7 +31,7 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 
 	// First check if student has a current visit (in a room)
 	currentVisit, _ := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
-	
+
 	// Check attendance status regardless of visit
 	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
 	if err != nil {
@@ -47,7 +47,7 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Check authorization - only education group teachers can checkout their students
 	isAuthorized := false
-	
+
 	// Get the person and staff info for the current user
 	person, err := rs.PersonService.FindByAccountID(ctx, int64(userClaims.ID))
 	if err == nil && person != nil {
@@ -62,7 +62,7 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !isAuthorized {
-		common.RespondWithError(w, r, http.StatusForbidden, 
+		common.RespondWithError(w, r, http.StatusForbidden,
 			"You are not authorized to checkout this student")
 		return
 	}
@@ -81,13 +81,13 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to get staff information")
 		return
 	}
-	
+
 	staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, "User is not a staff member")
 		return
 	}
-	
+
 	// Toggle attendance to check out the student
 	// Note: deviceID = 0 for web-based checkouts (no physical device)
 	result, err := rs.ActiveService.ToggleStudentAttendance(ctx, studentID, staff.ID, 0)
@@ -96,12 +96,26 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Cancel any pending scheduled checkout since the student was checked out manually
+	pendingCheckout, err := rs.ActiveService.GetPendingScheduledCheckout(ctx, studentID)
+	if err != nil {
+		// Log warning but don't fail the checkout
+		fmt.Printf("Warning: Failed to check for pending scheduled checkout: %v\n", err)
+	} else if pendingCheckout != nil {
+		// Cancel using the staff ID who performed the manual checkout
+		if err := rs.ActiveService.CancelScheduledCheckout(ctx, pendingCheckout.ID, staff.ID); err != nil {
+			fmt.Printf("Warning: Failed to cancel scheduled checkout %d: %v\n", pendingCheckout.ID, err)
+		} else {
+			fmt.Printf("Cancelled pending scheduled checkout %d for student %d\n", pendingCheckout.ID, studentID)
+		}
+	}
+
 	common.RespondWithJSON(w, r, http.StatusOK, map[string]interface{}{
 		"status":  "success",
 		"message": "Student checked out successfully",
 		"data": map[string]interface{}{
-			"student_id": studentID,
-			"action":     result.Action,
+			"student_id":    studentID,
+			"action":        result.Action,
 			"attendance_id": result.AttendanceID,
 		},
 	})
