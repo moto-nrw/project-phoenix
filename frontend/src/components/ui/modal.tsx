@@ -3,6 +3,7 @@
 import React, { useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useModal } from "../dashboard/modal-context";
+import { useScrollLock } from "~/hooks/useScrollLock";
 
 interface ModalProps {
   isOpen: boolean;
@@ -22,6 +23,9 @@ export function Modal({
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isExiting, setIsExiting] = React.useState(false);
   const { openModal, closeModal } = useModal();
+  
+  // Use scroll lock hook
+  useScrollLock(isOpen);
 
   // Enhanced close handler with exit animation
   const handleClose = useCallback(() => {
@@ -44,8 +48,6 @@ export function Modal({
 
     if (isOpen) {
       document.addEventListener("keydown", handleEscKey);
-      // Disable scrolling on body when modal is open
-      document.body.style.overflow = "hidden";
       // Trigger blur effect on layout
       openModal();
       // Dispatch custom event for ResponsiveLayout (help modal)
@@ -64,8 +66,6 @@ export function Modal({
 
     return () => {
       document.removeEventListener("keydown", handleEscKey);
-      // Re-enable scrolling when modal is closed
-      document.body.style.overflow = "";
       if (!isOpen) {
         setIsAnimating(false);
         setIsExiting(false);
@@ -147,7 +147,7 @@ export function Modal({
         </div>
 
         {/* Content area with custom scrollbar and reveal animation */}
-        <div className="max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+        <div className="max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100" data-modal-content="true">
           <div className={`p-6 text-gray-700 leading-relaxed ${
             isAnimating && !isExiting ? 'animate-contentReveal' : 'opacity-0'
           }`}>
