@@ -1411,10 +1411,25 @@ func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
 	uniqueStudents := make(map[int64]usersSvc.StudentWithGroup)
 
 	// Fetch students for each teacher
-	for _, teacherID := range teacherIDs {
-		students, err := rs.UsersService.GetStudentsWithGroupsByTeacher(r.Context(), teacherID)
+	// Note: The parameter name "teacherIDs" is misleading - these are actually staff IDs from the client
+	teacherRepo := rs.UsersService.TeacherRepository()
+	for _, staffID := range teacherIDs {
+		// First, find the teacher by staff ID
+		teacher, err := teacherRepo.FindByStaffID(r.Context(), staffID)
 		if err != nil {
-			log.Printf("Error fetching students for teacher %d: %v", teacherID, err)
+			log.Printf("Error finding teacher for staff %d: %v", staffID, err)
+			// Continue with other teachers even if one fails
+			continue
+		}
+		if teacher == nil {
+			log.Printf("No teacher found for staff ID %d", staffID)
+			continue
+		}
+
+		// Now use the actual teacher ID to get students
+		students, err := rs.UsersService.GetStudentsWithGroupsByTeacher(r.Context(), teacher.ID)
+		if err != nil {
+			log.Printf("Error fetching students for teacher %d (staff %d): %v", teacher.ID, staffID, err)
 			// Continue with other teachers even if one fails
 			continue
 		}
