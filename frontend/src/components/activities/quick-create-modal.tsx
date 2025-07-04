@@ -472,12 +472,13 @@ export function QuickCreateActivityModal({
           <button
             type="submit"
             form="quick-create-form"
-            disabled={isSubmitting || loading}
-            className="relative px-5 py-2.5 rounded-lg text-sm font-medium text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2
-            bg-[#83CD2D] hover:bg-[#75BC28] focus:bg-[#75BC28]
-            shadow-sm hover:shadow-md focus:shadow-md
-            transform hover:-translate-y-0.5 active:translate-y-0
-            focus:outline-none focus:ring-2 focus:ring-[#83CD2D] focus:ring-offset-2"
+            disabled={isSubmitting || loading || !form.name.trim() || !form.category_id}
+            className={`relative px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:cursor-not-allowed flex items-center gap-2
+            ${(!form.name.trim() || !form.category_id) 
+              ? 'bg-gray-200/50 text-gray-400 border border-gray-300/50 shadow-none cursor-not-allowed' 
+              : 'bg-[#83CD2D] hover:bg-[#75BC28] focus:bg-[#75BC28] text-white shadow-sm hover:shadow-md focus:shadow-md transform hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-[#83CD2D] focus:ring-offset-2'
+            }
+            ${isSubmitting || loading ? 'opacity-50' : ''}`}
           >
             {isSubmitting ? (
               <>
