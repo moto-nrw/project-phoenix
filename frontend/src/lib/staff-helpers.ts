@@ -14,7 +14,7 @@ export interface LocationStatus {
 
 // Get location status for a staff member based on their supervision status
 export function getStaffLocationStatus(staff: Staff): LocationStatus {
-  const location = staff.currentLocation || "Zuhause";
+  const location = staff.currentLocation ?? "Zuhause";
   
   // Match the location status pattern from ogs_groups
   if (location === "Zuhause") {
@@ -71,11 +71,6 @@ export function getStaffDisplayType(staff: Staff): string {
 // Get additional info to display on card
 export function getStaffCardInfo(staff: Staff): string[] {
   const info: string[] = [];
-  
-  // Add RFID status
-  if (staff.hasRfid) {
-    info.push("RFID ✓");
-  }
   
   // Add qualifications if available
   if (staff.qualifications) {

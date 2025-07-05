@@ -73,7 +73,7 @@ function StaffPageContent() {
     
     // Location filter
     if (locationFilter !== "all") {
-      const location = staffMember.currentLocation || "Zuhause";
+      const location = staffMember.currentLocation ?? "Zuhause";
       
       switch (locationFilter) {
         case "zuhause":
@@ -206,7 +206,7 @@ function StaffPageContent() {
         ) : (
           <div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3 gap-6">
-              {filteredStaff.map((staffMember, index) => {
+              {filteredStaff.map((staffMember) => {
                 const locationStatus = getStaffLocationStatus(staffMember);
                 const displayType = getStaffDisplayType(staffMember);
                 const cardInfo = getStaffCardInfo(staffMember);
@@ -237,7 +237,7 @@ function StaffPageContent() {
                           </p>
                           {/* Role/Specialization in same style as "Nur zur Information" */}
                           <p className="text-xs text-gray-400 mt-1">
-                            {staffMember.specialization || displayType}
+                            {staffMember.specialization ?? displayType}
                           </p>
                         </div>
                         

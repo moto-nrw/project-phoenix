@@ -109,73 +109,82 @@ class StaffService {
         staffList = staffData.data;
       }
 
-      // Map staff and fetch their supervision status individually
-      const mappedStaff = await Promise.all(
-        staffList.map(async (staff): Promise<Staff> => {
+      // Fetch active groups once for all staff
+      let activeGroups: Array<{
+        supervisors?: Array<{
+          staff_id?: number;
+          role?: string;
+        }>;
+        room?: {
+          id: number;
+          name: string;
+        };
+      }> = [];
+
+      try {
+        const activeGroupsUrl = `/api/active/groups?active=true`;
+        const activeGroupsResponse = await fetch(activeGroupsUrl, {
+          credentials: "include",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (activeGroupsResponse.ok) {
+          const activeGroupsData = await activeGroupsResponse.json() as unknown;
+          
+          // The frontend route handler wraps the backend response, so we need to unwrap it
+          // Backend returns: { status: "success", data: [...], message: "..." }
+          // Frontend wrapper makes it: { success: true, data: { status: "success", data: [...] } }
+          if (activeGroupsData && typeof activeGroupsData === 'object' && 'data' in activeGroupsData) {
+            const wrappedData = (activeGroupsData as { data?: unknown }).data;
+            if (wrappedData && typeof wrappedData === 'object' && 'data' in wrappedData) {
+              // Double wrapped - frontend wrapper around backend response
+              const backendResponse = wrappedData as { data?: unknown };
+              if (Array.isArray(backendResponse.data)) {
+                activeGroups = backendResponse.data as typeof activeGroups;
+              }
+            } else if (Array.isArray(wrappedData)) {
+              // Single wrapped - just frontend wrapper
+              activeGroups = wrappedData as typeof activeGroups;
+            }
+          } else if (Array.isArray(activeGroupsData)) {
+            // Direct array response (shouldn't happen with our setup)
+            activeGroups = activeGroupsData as typeof activeGroups;
+          }
+        }
+      } catch {
+        // Continue with empty active groups if fetch fails
+      }
+
+      // Map staff and check their supervision status
+      const mappedStaff = staffList.map((staff): Staff => {
           let currentLocation: string | undefined = "Zuhause"; // Default to "Zuhause" (at home)
           let isSupervising = false;
           let supervisionRole: string | undefined;
 
-          // Try to fetch active supervision status
-          try {
-            const activeGroupsUrl = `/api/active/groups?is_active=true`;
-            const activeGroupsResponse = await fetch(activeGroupsUrl, {
-              credentials: "include",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-            });
-
-            if (activeGroupsResponse.ok) {
-              const activeGroupsData = await activeGroupsResponse.json() as unknown;
+          // Check if this staff member is supervising any active group
+          if (staff.staff_id) {
+            for (const group of activeGroups) {
+              const supervisors = group.supervisors ?? [];
               
-              // Handle different response formats - could be array or object with data property
-              let activeGroups: Array<{
-                supervisors?: Array<{
-                  staff_id?: number;
-                  role?: string;
-                }>;
-                room?: {
-                  id: number;
-                  name: string;
-                };
-              }> = [];
-              
-              if (Array.isArray(activeGroupsData)) {
-                activeGroups = activeGroupsData as typeof activeGroups;
-              } else if (activeGroupsData && typeof activeGroupsData === 'object' && 'data' in activeGroupsData) {
-                const dataObj = activeGroupsData as { data?: unknown };
-                if (Array.isArray(dataObj.data)) {
-                  activeGroups = dataObj.data as typeof activeGroups;
-                }
-              }
+              const isSupervisingThisGroup = supervisors.some(
+                sup => sup.staff_id !== undefined && sup.staff_id.toString() === staff.staff_id!
+              );
 
-              // Check if this staff member is supervising any active group
-              for (const group of activeGroups) {
-                const supervisors = group.supervisors ?? [];
-                // Check if this staff member has a staff_id and is supervising
-                if (!staff.staff_id) continue;
-                
-                const isSupervisingThisGroup = supervisors.some(
-                  sup => sup.staff_id && sup.staff_id.toString() === staff.staff_id!.toString()
-                );
-
-                if (isSupervisingThisGroup) {
-                  isSupervising = true;
-                  if (group.room) {
-                    currentLocation = group.room.name;
-                  } else {
-                    currentLocation = "Unterwegs";
-                  }
-                  const supervisor = supervisors.find(sup => sup.staff_id && sup.staff_id.toString() === staff.staff_id!.toString());
-                  supervisionRole = supervisor?.role;
-                  break;
+              if (isSupervisingThisGroup) {
+                isSupervising = true;
+                if (group.room) {
+                  currentLocation = group.room.name;
+                } else {
+                  currentLocation = "Unterwegs";
                 }
+                const supervisor = supervisors.find(sup => sup.staff_id !== undefined && sup.staff_id.toString() === staff.staff_id!);
+                supervisionRole = supervisor?.role;
+                break;
               }
             }
-          } catch {
-            // Continue with default "Zuhause" location if active groups fetch fails
           }
 
           return {
@@ -194,8 +203,7 @@ class StaffService {
             currentRoomId: undefined,
             supervisionRole,
           };
-        })
-      );
+        });
 
       // Apply client-side filters
       let filteredStaff = mappedStaff;

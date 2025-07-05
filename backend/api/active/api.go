@@ -16,21 +16,25 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/facilities"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/uptrace/bun"
 )
 
 // Resource defines the active API resource
 type Resource struct {
 	ActiveService activeSvc.Service
 	PersonService userSvc.PersonService
+	db            *bun.DB
 }
 
 // NewResource creates a new active resource
-func NewResource(activeService activeSvc.Service, personService userSvc.PersonService) *Resource {
+func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, db *bun.DB) *Resource {
 	return &Resource{
 		ActiveService: activeService,
 		PersonService: personService,
+		db:            db,
 	}
 }
 
@@ -78,7 +82,7 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateVisit)
 			r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteVisit)
 			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post("/{id}/end", rs.endVisit)
-			
+
 			// Immediate checkout for students
 			r.With(authorize.RequiresPermission(permissions.VisitsUpdate)).Post("/student/{studentId}/checkout", rs.checkoutStudent)
 		})
@@ -174,17 +178,31 @@ func VisitIDExtractor() authorize.ResourceExtractor {
 
 // ActiveGroupResponse represents an active group API response
 type ActiveGroupResponse struct {
-	ID              int64      `json:"id"`
-	GroupID         int64      `json:"group_id"`
-	RoomID          int64      `json:"room_id"`
-	StartTime       time.Time  `json:"start_time"`
-	EndTime         *time.Time `json:"end_time,omitempty"`
-	IsActive        bool       `json:"is_active"`
-	Notes           string     `json:"notes,omitempty"`
-	VisitCount      int        `json:"visit_count,omitempty"`
-	SupervisorCount int        `json:"supervisor_count,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	ID              int64                   `json:"id"`
+	GroupID         int64                   `json:"group_id"`
+	RoomID          int64                   `json:"room_id"`
+	StartTime       time.Time               `json:"start_time"`
+	EndTime         *time.Time              `json:"end_time,omitempty"`
+	IsActive        bool                    `json:"is_active"`
+	Notes           string                  `json:"notes,omitempty"`
+	VisitCount      int                     `json:"visit_count,omitempty"`
+	SupervisorCount int                     `json:"supervisor_count,omitempty"`
+	Supervisors     []GroupSupervisorSimple `json:"supervisors,omitempty"`
+	Room            *RoomSimple             `json:"room,omitempty"`
+	CreatedAt       time.Time               `json:"created_at"`
+	UpdatedAt       time.Time               `json:"updated_at"`
+}
+
+// GroupSupervisorSimple represents simplified supervisor info for active group response
+type GroupSupervisorSimple struct {
+	StaffID int64  `json:"staff_id"`
+	Role    string `json:"role,omitempty"`
+}
+
+// RoomSimple represents simplified room info for active group response
+type RoomSimple struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 }
 
 // VisitResponse represents a visit API response
@@ -447,6 +465,22 @@ func newActiveGroupResponse(group *active.Group) ActiveGroupResponse {
 	}
 	if group.Supervisors != nil {
 		response.SupervisorCount = len(group.Supervisors)
+		// Add supervisor details
+		response.Supervisors = make([]GroupSupervisorSimple, 0, len(group.Supervisors))
+		for _, supervisor := range group.Supervisors {
+			response.Supervisors = append(response.Supervisors, GroupSupervisorSimple{
+				StaffID: supervisor.StaffID,
+				Role:    supervisor.Role,
+			})
+		}
+	}
+
+	// Add room info if available
+	if group.Room != nil {
+		response.Room = &RoomSimple{
+			ID:   group.Room.ID,
+			Name: group.Room.Name,
+		}
 	}
 
 	return response
@@ -552,8 +586,15 @@ func (rs *Resource) listActiveGroups(w http.ResponseWriter, r *http.Request) {
 	activeStr := r.URL.Query().Get("active")
 	if activeStr != "" {
 		isActive := activeStr == "true" || activeStr == "1"
-		queryOptions.Filter.Equal("is_active", isActive)
+		if isActive {
+			queryOptions.Filter.IsNull("end_time")
+		} else {
+			queryOptions.Filter.IsNotNull("end_time")
+		}
 	}
+
+	// Check if we should include supervisors
+	includeRelations := r.URL.Query().Get("active") == "true" || r.URL.Query().Get("is_active") == "true"
 
 	// Get active groups
 	groups, err := rs.ActiveService.ListActiveGroups(r.Context(), queryOptions)
@@ -562,6 +603,49 @@ func (rs *Resource) listActiveGroups(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
+	}
+
+	// If we need to include relations, load them
+	if includeRelations && len(groups) > 0 {
+		// Get room IDs to fetch
+		roomIDs := make([]int64, 0, len(groups))
+		roomIDMap := make(map[int64]bool)
+		for _, group := range groups {
+			if group.RoomID > 0 && !roomIDMap[group.RoomID] {
+				roomIDs = append(roomIDs, group.RoomID)
+				roomIDMap[group.RoomID] = true
+			}
+		}
+
+		// Fetch rooms if any
+		roomMap := make(map[int64]*facilities.Room)
+		if len(roomIDs) > 0 {
+			var rooms []*facilities.Room
+			err := rs.db.NewSelect().
+				Model(&rooms).
+				ModelTableExpr(`facilities.rooms AS "room"`).
+				Where(`"room".id IN (?)`, bun.In(roomIDs)).
+				Scan(r.Context())
+			if err == nil {
+				for _, room := range rooms {
+					roomMap[room.ID] = room
+				}
+			}
+		}
+
+		// Load supervisors and assign rooms for all active groups
+		for _, group := range groups {
+			// Load supervisors for this group
+			supervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupID(r.Context(), group.ID)
+			if err == nil {
+				group.Supervisors = supervisors
+			}
+
+			// Assign room if found
+			if room, ok := roomMap[group.RoomID]; ok {
+				group.Room = room
+			}
+		}
 	}
 
 	// Build response
