@@ -608,13 +608,6 @@ function OGSGroupPageContent() {
                     </div>
                 ) : filteredStudents.length > 0 ? (
                     <div>
-                        {/* Add floating animation keyframes */}
-                        <style jsx>{`
-                            @keyframes float {
-                                0%, 100% { transform: translateY(0px) rotate(var(--rotation)); }
-                                50% { transform: translateY(-4px) rotate(var(--rotation)); }
-                            }
-                        `}</style>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3 gap-6">
                         {filteredStudents.map((student, index) => {
                             const locationStatus = getLocationStatus(student);
@@ -624,10 +617,6 @@ function OGSGroupPageContent() {
                                     key={student.id}
                                     onClick={() => router.push(`/students/${student.id}?from=/ogs_groups`)}
                                     className={`group cursor-pointer relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.03] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-3 active:scale-[0.97] md:hover:border-blue-200/50`}
-                                    style={{
-                                        transform: `rotate(${(index % 3 - 1) * 0.8}deg)`,
-                                        animation: `float 8s ease-in-out infinite ${index * 0.7}s`
-                                    }}
                                 >
                                     {/* Modern gradient overlay */}
                                     <div className={`absolute inset-0 bg-gradient-to-br ${locationStatus.cardGradient} opacity-[0.03] rounded-3xl`}></div>

@@ -116,8 +116,67 @@ class StaffService {
           let isSupervising = false;
           let supervisionRole: string | undefined;
 
-          // Skip location tracking for now - activeGroups API needs fixing
-          // TODO: Re-enable when active groups API is properly configured
+          // Try to fetch active supervision status
+          try {
+            const activeGroupsUrl = `/api/active/groups?is_active=true`;
+            const activeGroupsResponse = await fetch(activeGroupsUrl, {
+              credentials: "include",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            });
+
+            if (activeGroupsResponse.ok) {
+              const activeGroupsData = await activeGroupsResponse.json() as unknown;
+              
+              // Handle different response formats - could be array or object with data property
+              let activeGroups: Array<{
+                supervisors?: Array<{
+                  staff_id?: number;
+                  role?: string;
+                }>;
+                room?: {
+                  id: number;
+                  name: string;
+                };
+              }> = [];
+              
+              if (Array.isArray(activeGroupsData)) {
+                activeGroups = activeGroupsData as typeof activeGroups;
+              } else if (activeGroupsData && typeof activeGroupsData === 'object' && 'data' in activeGroupsData) {
+                const dataObj = activeGroupsData as { data?: unknown };
+                if (Array.isArray(dataObj.data)) {
+                  activeGroups = dataObj.data as typeof activeGroups;
+                }
+              }
+
+              // Check if this staff member is supervising any active group
+              for (const group of activeGroups) {
+                const supervisors = group.supervisors ?? [];
+                // Check if this staff member has a staff_id and is supervising
+                if (!staff.staff_id) continue;
+                
+                const isSupervisingThisGroup = supervisors.some(
+                  sup => sup.staff_id && sup.staff_id.toString() === staff.staff_id!.toString()
+                );
+
+                if (isSupervisingThisGroup) {
+                  isSupervising = true;
+                  if (group.room) {
+                    currentLocation = group.room.name;
+                  } else {
+                    currentLocation = "Unterwegs";
+                  }
+                  const supervisor = supervisors.find(sup => sup.staff_id && sup.staff_id.toString() === staff.staff_id!.toString());
+                  supervisionRole = supervisor?.role;
+                  break;
+                }
+              }
+            }
+          } catch {
+            // Continue with default "Zuhause" location if active groups fetch fails
+          }
 
           return {
             id: staff.id,
@@ -126,8 +185,8 @@ class StaffService {
             lastName: staff.lastName,
             email: undefined, // Not provided by API route handler
             specialization: staff.specialization,
-            qualifications: staff.qualifications,
-            staffNotes: staff.staff_notes,
+            qualifications: staff.qualifications ?? undefined,
+            staffNotes: staff.staff_notes ?? undefined,
             hasRfid: !!staff.tag_id,
             isTeacher: !!staff.teacher_id, // Has teacher_id means is teacher
             isSupervising,

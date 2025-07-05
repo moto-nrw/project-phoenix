@@ -27,7 +27,7 @@ function StaffPageContent() {
   // State variables
   const [staff, setStaff] = useState<Staff[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
+  const [locationFilter, setLocationFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,7 +39,6 @@ function StaffPageContent() {
 
         const filters: StaffFilters = {
           search: searchTerm || undefined,
-          type: typeFilter as StaffFilters['type'],
         };
 
         const staffData = await staffService.getAllStaff(filters);
@@ -57,36 +56,61 @@ function StaffPageContent() {
     if (session?.user?.token) {
       void fetchStaffData();
     }
-  }, [session?.user?.token, searchTerm, typeFilter]);
+  }, [session?.user?.token, searchTerm]);
 
-  // Apply client-side search filter (in case backend doesn't support search)
+  // Apply client-side filters
   const filteredStaff = staff.filter((staffMember) => {
+    // Search filter
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
-      return (
+      const matchesSearch = 
         staffMember.firstName.toLowerCase().includes(searchLower) ||
         staffMember.lastName.toLowerCase().includes(searchLower) ||
-        staffMember.name.toLowerCase().includes(searchLower)
-      );
+        staffMember.name.toLowerCase().includes(searchLower);
+      
+      if (!matchesSearch) return false;
     }
+    
+    // Location filter
+    if (locationFilter !== "all") {
+      const location = staffMember.currentLocation || "Zuhause";
+      
+      switch (locationFilter) {
+        case "zuhause":
+          if (location !== "Zuhause") return false;
+          break;
+        case "im_raum":
+          if (!location || location === "Zuhause" || location === "Schulhof" || location === "Unterwegs") return false;
+          break;
+        case "schulhof":
+          if (location !== "Schulhof") return false;
+          break;
+        case "unterwegs":
+          if (location !== "Unterwegs") return false;
+          break;
+      }
+    }
+    
     return true;
   });
 
   // Prepare filter configurations for PageHeaderWithSearch
   const filterConfigs: FilterConfig[] = useMemo(() => [
     {
-      id: 'type',
-      label: 'Typ',
-      type: 'buttons',
-      value: typeFilter,
-      onChange: (value) => setTypeFilter(value as string),
+      id: 'location',
+      label: 'Aufenthaltsort',
+      type: 'grid',
+      value: locationFilter,
+      onChange: (value) => setLocationFilter(value as string),
       options: [
-        { value: 'all', label: 'Alle' },
-        { value: 'teachers', label: 'Lehrer' },
-        { value: 'staff', label: 'Betreuer' }
+        { value: "all", label: "Alle Orte", icon: "M4 6h16M4 12h16M4 18h16" },
+        { value: "zuhause", label: "Zuhause", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
+        { value: "im_raum", label: "Im Raum", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
+        { value: "schulhof", label: "Schulhof", icon: "M21 12a9 9 0 11-18 0 9 9 0 0118 0zM12 12a8 8 0 008 4M7.5 13.5a12 12 0 008.5 6.5M12 12a8 8 0 00-7.464 4.928M12.951 7.353a12 12 0 00-9.88 4.111M12 12a8 8 0 00-.536-8.928M15.549 15.147a12 12 0 001.38-10.611" },
+        { value: "unterwegs", label: "Unterwegs", icon: "M13 10V3L4 14h7v7l9-11h-7z" }
       ]
     }
-  ], [typeFilter]);
+  ], [locationFilter]);
 
   // Prepare active filters for display
   const activeFilters: ActiveFilter[] = useMemo(() => {
@@ -100,27 +124,29 @@ function StaffPageContent() {
       });
     }
     
-    if (typeFilter !== "all") {
-      const typeLabels: Record<string, string> = {
-        "teachers": "Lehrer",
-        "staff": "Betreuer"
+    if (locationFilter !== "all") {
+      const locationLabels: Record<string, string> = {
+        "zuhause": "Zuhause",
+        "im_raum": "Im Raum",
+        "schulhof": "Schulhof",
+        "unterwegs": "Unterwegs"
       };
       filters.push({
-        id: 'type',
-        label: typeLabels[typeFilter] ?? typeFilter,
-        onRemove: () => setTypeFilter("all")
+        id: 'location',
+        label: locationLabels[locationFilter] ?? locationFilter,
+        onRemove: () => setLocationFilter("all")
       });
     }
     
     return filters;
-  }, [searchTerm, typeFilter]);
+  }, [searchTerm, locationFilter]);
 
   if (status === "loading" || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-          <p className="text-gray-600">Personal wird geladen...</p>
+          <p className="text-gray-600">Mitarbeiter werden geladen...</p>
         </div>
       </div>
     );
@@ -131,12 +157,12 @@ function StaffPageContent() {
       <div className="w-full">
         {/* Modern Header with PageHeaderWithSearch component */}
         <PageHeaderWithSearch
-          title="Personal"
+          title="Mitarbeiter"
           badge={{
             icon: (
               <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
               </svg>
             ),
             count: filteredStaff.length
@@ -150,7 +176,7 @@ function StaffPageContent() {
           activeFilters={activeFilters}
           onClearAllFilters={() => {
             setSearchTerm("");
-            setTypeFilter("all");
+            setLocationFilter("all");
           }}
         />
 
@@ -167,7 +193,7 @@ function StaffPageContent() {
             <div className="flex flex-col items-center gap-4">
               <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
               </svg>
               <div>
                 <h3 className="text-lg font-medium text-gray-900">Kein Personal gefunden</h3>
@@ -179,13 +205,6 @@ function StaffPageContent() {
           </div>
         ) : (
           <div>
-            {/* Add floating animation keyframes */}
-            <style jsx>{`
-              @keyframes float {
-                0%, 100% { transform: translateY(0px) rotate(var(--rotation)); }
-                50% { transform: translateY(-4px) rotate(var(--rotation)); }
-              }
-            `}</style>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3 gap-6">
               {filteredStaff.map((staffMember, index) => {
                 const locationStatus = getStaffLocationStatus(staffMember);
@@ -197,11 +216,6 @@ function StaffPageContent() {
                   <div
                     key={staffMember.id}
                     className={`group relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500`}
-                    style={{
-                      transform: `rotate(${(index % 3 - 1) * 0.8}deg)`,
-                      animation: `float 8s ease-in-out infinite ${index * 0.7}s`,
-                      '--rotation': `${(index % 3 - 1) * 0.8}deg`
-                    } as React.CSSProperties}
                   >
                     {/* Modern gradient overlay */}
                     <div className={`absolute inset-0 bg-gradient-to-br ${locationStatus.cardGradient} opacity-[0.03] rounded-3xl`}></div>
@@ -221,6 +235,10 @@ function StaffPageContent() {
                           <p className="text-base font-semibold text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis">
                             {staffMember.lastName}
                           </p>
+                          {/* Role/Specialization in same style as "Nur zur Information" */}
+                          <p className="text-xs text-gray-400 mt-1">
+                            {staffMember.specialization || displayType}
+                          </p>
                         </div>
                         
                         {/* Status Badge */}
@@ -236,12 +254,6 @@ function StaffPageContent() {
                         </span>
                       </div>
 
-                      {/* Display Type */}
-                      <div className="mb-2">
-                        <p className="text-sm font-medium text-gray-600">
-                          {displayType}
-                        </p>
-                      </div>
 
                       {/* Additional Info */}
                       {cardInfo.length > 0 && (
@@ -261,12 +273,6 @@ function StaffPageContent() {
                         </p>
                       )}
                       
-                      {/* Info text - matching ogs_groups style */}
-                      <div className="flex justify-start mt-3">
-                        <p className="text-xs text-gray-400">
-                          Nur zur Information
-                        </p>
-                      </div>
 
                       {/* Decorative elements */}
                       <div className="absolute top-3 left-3 w-5 h-5 bg-white/20 rounded-full animate-ping"></div>
