@@ -83,6 +83,7 @@ interface AdditionalNavItem {
 
 const additionalNavItems: AdditionalNavItem[] = [
   { href: '/students/search', label: 'Schüler Suche', requiresSupervision: true },
+  { href: '/staff', label: 'Personal', alwaysShow: true },
   { href: '/activities', label: 'Aktivitäten', requiresAdmin: true },
   { href: '/statistics', label: 'Statistiken', requiresAdmin: true },
   { href: '/substitutions', label: 'Vertretungen', requiresAdmin: true },

@@ -24,7 +24,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
     queryParams.append(key, value);
   });
   
-  const endpoint = `/active/groups${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+  const endpoint = `/api/active/groups${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
   
   // Fetch active groups from the API
   return await apiGet(endpoint, token);
@@ -37,6 +37,6 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
 export const POST = createPostHandler<unknown, GroupCreateRequest>(
   async (_request: NextRequest, body: GroupCreateRequest, token: string) => {
     // Create the active group via the API
-    return await apiPost("/active/groups", token, body);
+    return await apiPost("/api/active/groups", token, body);
   }
 );
