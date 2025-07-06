@@ -165,6 +165,7 @@ class StaffService {
           let supervisionRole: string | undefined;
 
           // Check if this staff member is supervising any active group
+          const supervisedRooms: string[] = [];
           if (staff.staff_id) {
             for (const group of activeGroups) {
               const supervisors = group.supervisors ?? [];
@@ -176,14 +177,22 @@ class StaffService {
               if (isSupervisingThisGroup) {
                 isSupervising = true;
                 if (group.room) {
-                  currentLocation = group.room.name;
-                } else {
-                  currentLocation = "Unterwegs";
+                  supervisedRooms.push(group.room.name);
                 }
                 const supervisor = supervisors.find(sup => sup.staff_id !== undefined && sup.staff_id.toString() === staff.staff_id!);
-                supervisionRole = supervisor?.role;
-                break;
+                if (!supervisionRole) {
+                  supervisionRole = supervisor?.role;
+                }
               }
+            }
+            
+            // Set location based on supervised rooms
+            if (supervisedRooms.length > 1) {
+              currentLocation = `${supervisedRooms.length} Räume`;
+            } else if (supervisedRooms.length === 1) {
+              currentLocation = supervisedRooms[0];
+            } else if (isSupervising) {
+              currentLocation = "Unterwegs";
             }
           }
 
