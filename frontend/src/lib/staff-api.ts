@@ -180,9 +180,7 @@ class StaffService {
                   supervisedRooms.push(group.room.name);
                 }
                 const supervisor = supervisors.find(sup => sup.staff_id !== undefined && sup.staff_id.toString() === staff.staff_id!);
-                if (!supervisionRole) {
-                  supervisionRole = supervisor?.role;
-                }
+                supervisionRole ??= supervisor?.role;
               }
             }
             
