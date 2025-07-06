@@ -158,6 +158,20 @@ class StaffService {
         // Continue with empty active groups if fetch fails
       }
 
+      // Build a map of staff_id to their supervised groups for O(1) lookup
+      const staffGroupsMap: Record<string, Array<{ group: typeof activeGroups[0]; role?: string }>> = {};
+      
+      for (const group of activeGroups) {
+        const supervisors = group.supervisors ?? [];
+        for (const supervisor of supervisors) {
+          if (supervisor.staff_id !== undefined) {
+            const staffIdStr = supervisor.staff_id.toString();
+            staffGroupsMap[staffIdStr] ??= [];
+            staffGroupsMap[staffIdStr].push({ group, role: supervisor.role });
+          }
+        }
+      }
+
       // Map staff and check their supervision status
       const mappedStaff = staffList.map((staff): Staff => {
           let currentLocation: string | undefined = "Zuhause"; // Default to "Zuhause" (at home)
@@ -167,30 +181,25 @@ class StaffService {
           // Check if this staff member is supervising any active group
           const supervisedRooms: string[] = [];
           if (staff.staff_id) {
-            for (const group of activeGroups) {
-              const supervisors = group.supervisors ?? [];
+            const supervisedGroups = staffGroupsMap[staff.staff_id];
+            if (supervisedGroups) {
+              isSupervising = true;
               
-              const isSupervisingThisGroup = supervisors.some(
-                sup => sup.staff_id !== undefined && sup.staff_id.toString() === staff.staff_id!
-              );
-
-              if (isSupervisingThisGroup) {
-                isSupervising = true;
+              for (const { group, role } of supervisedGroups) {
                 if (group.room) {
                   supervisedRooms.push(group.room.name);
                 }
-                const supervisor = supervisors.find(sup => sup.staff_id !== undefined && sup.staff_id.toString() === staff.staff_id!);
-                supervisionRole ??= supervisor?.role;
+                supervisionRole ??= role;
               }
-            }
-            
-            // Set location based on supervised rooms
-            if (supervisedRooms.length > 1) {
-              currentLocation = `${supervisedRooms.length} Räume`;
-            } else if (supervisedRooms.length === 1) {
-              currentLocation = supervisedRooms[0];
-            } else if (isSupervising) {
-              currentLocation = "Unterwegs";
+              
+              // Set location based on supervised rooms
+              if (supervisedRooms.length > 1) {
+                currentLocation = `${supervisedRooms.length} Räume`;
+              } else if (supervisedRooms.length === 1) {
+                currentLocation = supervisedRooms[0];
+              } else {
+                currentLocation = "Unterwegs";
+              }
             }
           }
 
