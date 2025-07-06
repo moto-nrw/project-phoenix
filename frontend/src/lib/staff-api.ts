@@ -53,7 +53,6 @@ export interface Staff {
   // Supervision status
   isSupervising: boolean;
   currentLocation?: string;
-  currentRoomId?: string;
   supervisionRole?: string;
 }
 
@@ -216,7 +215,6 @@ class StaffService {
             isTeacher: !!staff.teacher_id, // Has teacher_id means is teacher
             isSupervising,
             currentLocation,
-            currentRoomId: undefined,
             supervisionRole,
           };
         });
