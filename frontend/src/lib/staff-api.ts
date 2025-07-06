@@ -86,13 +86,25 @@ class StaffService {
         staffUrl += `?${queryParams.toString()}`;
       }
 
-      const staffResponse = await fetch(staffUrl, {
-        credentials: "include",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
+      // Fetch staff and active groups in parallel for better performance
+      const activeGroupsUrl = `/api/active/groups?active=true`;
+      
+      const [staffResponse, activeGroupsResponse] = await Promise.all([
+        fetch(staffUrl, {
+          credentials: "include",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }),
+        fetch(activeGroupsUrl, {
+          credentials: "include",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }).catch(() => null) // Don't fail if active groups fetch fails
+      ]);
 
       if (!staffResponse.ok) {
         throw new Error(`Failed to fetch staff: ${staffResponse.statusText}`);
@@ -108,7 +120,7 @@ class StaffService {
         staffList = staffData.data;
       }
 
-      // Fetch active groups once for all staff
+      // Process active groups data
       let activeGroups: Array<{
         supervisors?: Array<{
           staff_id?: number;
@@ -120,17 +132,8 @@ class StaffService {
         };
       }> = [];
 
-      try {
-        const activeGroupsUrl = `/api/active/groups?active=true`;
-        const activeGroupsResponse = await fetch(activeGroupsUrl, {
-          credentials: "include",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (activeGroupsResponse.ok) {
+      if (activeGroupsResponse && activeGroupsResponse.ok) {
+        try {
           const activeGroupsData = await activeGroupsResponse.json() as unknown;
           
           // The frontend route handler wraps the backend response, so we need to unwrap it
@@ -152,9 +155,9 @@ class StaffService {
             // Direct array response (shouldn't happen with our setup)
             activeGroups = activeGroupsData as typeof activeGroups;
           }
+        } catch {
+          // Continue with empty active groups if JSON parsing fails
         }
-      } catch {
-        // Continue with empty active groups if fetch fails
       }
 
       // Build a map of staff_id to their supervised groups for O(1) lookup

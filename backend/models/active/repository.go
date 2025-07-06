@@ -92,6 +92,9 @@ type GroupSupervisorRepository interface {
 	// FindByActiveGroupID finds all supervisors for a specific active group
 	FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*GroupSupervisor, error)
 
+	// FindByActiveGroupIDs finds all supervisors for multiple active groups in a single query
+	FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*GroupSupervisor, error)
+
 	// EndSupervision marks a supervision as ended at the current date
 	EndSupervision(ctx context.Context, id int64) error
 }

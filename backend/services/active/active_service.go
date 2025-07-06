@@ -529,6 +529,14 @@ func (s *service) FindSupervisorsByActiveGroupID(ctx context.Context, activeGrou
 	return supervisors, nil
 }
 
+func (s *service) FindSupervisorsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*active.GroupSupervisor, error) {
+	supervisors, err := s.supervisorRepo.FindByActiveGroupIDs(ctx, activeGroupIDs)
+	if err != nil {
+		return nil, &ActiveError{Op: "FindSupervisorsByActiveGroupIDs", Err: ErrDatabaseOperation}
+	}
+	return supervisors, nil
+}
+
 func (s *service) EndSupervision(ctx context.Context, id int64) error {
 	if err := s.supervisorRepo.EndSupervision(ctx, id); err != nil {
 		return &ActiveError{Op: "EndSupervision", Err: ErrDatabaseOperation}
@@ -2312,7 +2320,7 @@ func (s *service) ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledC
 			if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
 				isNoRows = true
 			}
-			
+
 			if isNoRows {
 				fmt.Printf("No active visit found for student %d (expected if using old system)\n", checkout.StudentID)
 				visit = nil // Set to nil and continue processing
@@ -2348,7 +2356,7 @@ func (s *service) ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledC
 			if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
 				isNoRows = true
 			}
-			
+
 			if isNoRows {
 				fmt.Printf("No attendance record found for student %d, skipping attendance update\n", checkout.StudentID)
 			} else {

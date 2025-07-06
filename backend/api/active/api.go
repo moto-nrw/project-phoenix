@@ -633,11 +633,30 @@ func (rs *Resource) listActiveGroups(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Load supervisors and assign rooms for all active groups
+		// Collect all group IDs for batch supervisor loading
+		groupIDs := make([]int64, len(groups))
+		for i, group := range groups {
+			groupIDs[i] = group.ID
+		}
+
+		// Load all supervisors in a single query
+		allSupervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupIDs(r.Context(), groupIDs)
+		if err != nil {
+			// Log the error but continue without supervisors
+			log.Printf("Error loading supervisors: %v", err)
+			allSupervisors = []*active.GroupSupervisor{}
+		}
+
+		// Create a map of group ID to supervisors for O(1) lookup
+		supervisorMap := make(map[int64][]*active.GroupSupervisor)
+		for _, supervisor := range allSupervisors {
+			supervisorMap[supervisor.ActiveGroupID] = append(supervisorMap[supervisor.ActiveGroupID], supervisor)
+		}
+
+		// Assign supervisors and rooms to groups
 		for _, group := range groups {
-			// Load supervisors for this group
-			supervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupID(r.Context(), group.ID)
-			if err == nil {
+			// Assign supervisors from the map
+			if supervisors, ok := supervisorMap[group.ID]; ok {
 				group.Supervisors = supervisors
 			}
 
