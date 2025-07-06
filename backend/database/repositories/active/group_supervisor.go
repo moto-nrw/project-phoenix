@@ -64,6 +64,29 @@ func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, act
 	return supervisions, nil
 }
 
+// FindByActiveGroupIDs finds all supervisors for multiple active groups in a single query
+func (r *GroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*active.GroupSupervisor, error) {
+	if len(activeGroupIDs) == 0 {
+		return []*active.GroupSupervisor{}, nil
+	}
+
+	var supervisions []*active.GroupSupervisor
+	err := r.db.NewSelect().
+		Model(&supervisions).
+		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
+		Where("group_id IN (?)", bun.In(activeGroupIDs)).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by active group IDs",
+			Err: err,
+		}
+	}
+
+	return supervisions, nil
+}
+
 // EndSupervision marks a supervision as ended at the current date
 func (r *GroupSupervisorRepository) EndSupervision(ctx context.Context, id int64) error {
 	_, err := r.db.NewUpdate().

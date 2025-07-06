@@ -329,7 +329,6 @@ function OGSGroupPageContent() {
                 label: "Gruppenraum", 
                 badgeColor: "text-white backdrop-blur-sm",
                 cardGradient: "from-emerald-50/80 to-green-100/80",
-                glowColor: "ring-emerald-200/50 shadow-emerald-100/50",
                 customBgColor: "#83CD2D",
                 customShadow: "0 8px 25px rgba(131, 205, 45, 0.4)"
             };
@@ -342,7 +341,6 @@ function OGSGroupPageContent() {
                 label: roomName, 
                 badgeColor: "text-white backdrop-blur-sm",
                 cardGradient: "from-blue-50/80 to-cyan-100/80",
-                glowColor: "ring-blue-200/50 shadow-blue-100/50",
                 customBgColor: "#5080D8",
                 customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)"
             };
@@ -354,7 +352,6 @@ function OGSGroupPageContent() {
                 label: "Schulhof", 
                 badgeColor: "text-white backdrop-blur-sm",
                 cardGradient: "from-amber-50/80 to-yellow-100/80",
-                glowColor: "ring-amber-200/50 shadow-amber-100/50",
                 customBgColor: "#F78C10",
                 customShadow: "0 8px 25px rgba(247, 140, 16, 0.4)"
             };
@@ -366,7 +363,6 @@ function OGSGroupPageContent() {
                 label: "Unterwegs", 
                 badgeColor: "text-white backdrop-blur-sm",
                 cardGradient: "from-fuchsia-50/80 to-pink-100/80",
-                glowColor: "ring-fuchsia-200/50 shadow-fuchsia-100/50",
                 customBgColor: "#D946EF",
                 customShadow: "0 8px 25px rgba(217, 70, 239, 0.4)"
             };
@@ -377,7 +373,6 @@ function OGSGroupPageContent() {
             label: "Zuhause", 
             badgeColor: "text-white backdrop-blur-sm",
             cardGradient: "from-red-50/80 to-rose-100/80",
-            glowColor: "ring-red-200/50 shadow-red-100/50",
             customBgColor: "#FF3130",
             customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)"
         };
@@ -608,15 +603,8 @@ function OGSGroupPageContent() {
                     </div>
                 ) : filteredStudents.length > 0 ? (
                     <div>
-                        {/* Add floating animation keyframes */}
-                        <style jsx>{`
-                            @keyframes float {
-                                0%, 100% { transform: translateY(0px) rotate(var(--rotation)); }
-                                50% { transform: translateY(-4px) rotate(var(--rotation)); }
-                            }
-                        `}</style>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3 gap-6">
-                        {filteredStudents.map((student, index) => {
+                        {filteredStudents.map((student) => {
                             const locationStatus = getLocationStatus(student);
 
                             return (
@@ -624,10 +612,6 @@ function OGSGroupPageContent() {
                                     key={student.id}
                                     onClick={() => router.push(`/students/${student.id}?from=/ogs_groups`)}
                                     className={`group cursor-pointer relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.03] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-3 active:scale-[0.97] md:hover:border-blue-200/50`}
-                                    style={{
-                                        transform: `rotate(${(index % 3 - 1) * 0.8}deg)`,
-                                        animation: `float 8s ease-in-out infinite ${index * 0.7}s`
-                                    }}
                                 >
                                     {/* Modern gradient overlay */}
                                     <div className={`absolute inset-0 bg-gradient-to-br ${locationStatus.cardGradient} opacity-[0.03] rounded-3xl`}></div>

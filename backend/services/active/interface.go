@@ -45,6 +45,7 @@ type Service interface {
 	ListGroupSupervisors(ctx context.Context, options *base.QueryOptions) ([]*active.GroupSupervisor, error)
 	FindSupervisorsByStaffID(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error)
 	FindSupervisorsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*active.GroupSupervisor, error)
+	FindSupervisorsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*active.GroupSupervisor, error)
 	EndSupervision(ctx context.Context, id int64) error
 	GetStaffActiveSupervisions(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error)
 
@@ -302,10 +303,10 @@ type AttendanceCleanupPreview struct {
 
 // ScheduledCheckoutResult represents the result of processing scheduled checkouts
 type ScheduledCheckoutResult struct {
-	ProcessedAt      time.Time `json:"processed_at"`
-	CheckoutsExecuted int      `json:"checkouts_executed"`
-	VisitsEnded      int       `json:"visits_ended"`
+	ProcessedAt       time.Time `json:"processed_at"`
+	CheckoutsExecuted int       `json:"checkouts_executed"`
+	VisitsEnded       int       `json:"visits_ended"`
 	AttendanceUpdated int       `json:"attendance_updated"`
-	Errors           []string  `json:"errors,omitempty"`
-	Success          bool      `json:"success"`
+	Errors            []string  `json:"errors,omitempty"`
+	Success           bool      `json:"success"`
 }
