@@ -370,7 +370,6 @@ function MeinRaumPageContent() {
             label: groupName, 
             badgeColor: "text-white backdrop-blur-sm",
             cardGradient: "from-blue-50/80 to-cyan-100/80",
-            glowColor: "ring-blue-200/50 shadow-blue-100/50",
             customBgColor: groupColor.bg,
             customShadow: groupColor.shadow
         };

@@ -329,7 +329,6 @@ function OGSGroupPageContent() {
                 label: "Gruppenraum", 
                 badgeColor: "text-white backdrop-blur-sm",
                 cardGradient: "from-emerald-50/80 to-green-100/80",
-                glowColor: "ring-emerald-200/50 shadow-emerald-100/50",
                 customBgColor: "#83CD2D",
                 customShadow: "0 8px 25px rgba(131, 205, 45, 0.4)"
             };
@@ -342,7 +341,6 @@ function OGSGroupPageContent() {
                 label: roomName, 
                 badgeColor: "text-white backdrop-blur-sm",
                 cardGradient: "from-blue-50/80 to-cyan-100/80",
-                glowColor: "ring-blue-200/50 shadow-blue-100/50",
                 customBgColor: "#5080D8",
                 customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)"
             };
@@ -354,7 +352,6 @@ function OGSGroupPageContent() {
                 label: "Schulhof", 
                 badgeColor: "text-white backdrop-blur-sm",
                 cardGradient: "from-amber-50/80 to-yellow-100/80",
-                glowColor: "ring-amber-200/50 shadow-amber-100/50",
                 customBgColor: "#F78C10",
                 customShadow: "0 8px 25px rgba(247, 140, 16, 0.4)"
             };
@@ -366,7 +363,6 @@ function OGSGroupPageContent() {
                 label: "Unterwegs", 
                 badgeColor: "text-white backdrop-blur-sm",
                 cardGradient: "from-fuchsia-50/80 to-pink-100/80",
-                glowColor: "ring-fuchsia-200/50 shadow-fuchsia-100/50",
                 customBgColor: "#D946EF",
                 customShadow: "0 8px 25px rgba(217, 70, 239, 0.4)"
             };
@@ -377,7 +373,6 @@ function OGSGroupPageContent() {
             label: "Zuhause", 
             badgeColor: "text-white backdrop-blur-sm",
             cardGradient: "from-red-50/80 to-rose-100/80",
-            glowColor: "ring-red-200/50 shadow-red-100/50",
             customBgColor: "#FF3130",
             customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)"
         };
