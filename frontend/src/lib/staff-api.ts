@@ -132,7 +132,7 @@ class StaffService {
         };
       }> = [];
 
-      if (activeGroupsResponse && activeGroupsResponse.ok) {
+      if (activeGroupsResponse?.ok) {
         try {
           const activeGroupsData = await activeGroupsResponse.json() as unknown;
           
