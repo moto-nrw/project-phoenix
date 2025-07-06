@@ -650,7 +650,7 @@ func (rs *Resource) listActiveGroups(w http.ResponseWriter, r *http.Request) {
 		// Create a map of group ID to supervisors for O(1) lookup
 		supervisorMap := make(map[int64][]*active.GroupSupervisor)
 		for _, supervisor := range allSupervisors {
-			supervisorMap[supervisor.ActiveGroupID] = append(supervisorMap[supervisor.ActiveGroupID], supervisor)
+			supervisorMap[supervisor.GroupID] = append(supervisorMap[supervisor.GroupID], supervisor)
 		}
 
 		// Assign supervisors and rooms to groups

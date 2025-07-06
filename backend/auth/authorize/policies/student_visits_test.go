@@ -1013,6 +1013,10 @@ func (m *SimpleMockActiveService) FindSupervisorsByActiveGroupID(ctx context.Con
 	return nil, nil
 }
 
+func (m *SimpleMockActiveService) FindSupervisorsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*active.GroupSupervisor, error) {
+	return nil, nil
+}
+
 func (m *SimpleMockActiveService) EndSupervision(ctx context.Context, id int64) error {
 	return nil
 }
