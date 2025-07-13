@@ -284,7 +284,7 @@ export default function StatisticsPage() {
                                     </div>
                                     <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-[#F78C10] to-[#E77C00] opacity-25 blur-lg group-hover:opacity-40 transition-opacity duration-300"></div>
                                 </div>
-                                <span className="text-3xl font-bold bg-gradient-to-br from-gray-900 to-gray-700 bg-clip-text text-transparent">{schoolStats?.occupancyRate.toFixed(0)}%</span>
+                                <span className="text-3xl font-bold bg-gradient-to-br from-gray-900 to-gray-700 bg-clip-text text-transparent">{(schoolStats?.occupancyRate ?? 0).toFixed(0)}%</span>
                             </div>
                             <p className="text-sm font-medium text-gray-600">Raumauslastung</p>
                             <div className="mt-3 flex items-center text-xs text-gray-500">
