@@ -59,42 +59,47 @@ function SearchPageContent() {
       
       // If user has OGS groups, fetch room status for students in those groups
       if (userOgsGroups.length > 0 && session?.user?.token) {
-        for (const groupId of userOgsGroups) {
-          try {
-            const roomStatusResponse = await fetch(`/api/groups/${groupId}/students/room-status`, {
-              headers: {
-                'Authorization': `Bearer ${session.user.token}`,
-                'Content-Type': 'application/json'
-              }
-            });
+        try {
+          const roomStatusResponses = await Promise.all(
+            userOgsGroups.map(async (groupId) => {
+              try {
+                const roomStatusResponse = await fetch(`/api/groups/${groupId}/students/room-status`, {
+                  headers: {
+                    'Authorization': `Bearer ${session.user.token}`,
+                    'Content-Type': 'application/json'
+                  }
+                });
 
-            if (roomStatusResponse.ok) {
-              const response = await roomStatusResponse.json() as {
-                success: boolean;
-                message: string;
-                data: {
-                  group_has_room: boolean;
-                  group_room_id?: number;
-                  student_room_status: Record<string, { 
-                    in_group_room: boolean; 
-                    current_room_id?: number;
-                    first_name?: string;
-                    last_name?: string;
-                    reason?: string;
-                  }>;
-                };
-              };
-              
-              if (response.data?.student_room_status) {
-                setRoomStatus(prev => ({
-                  ...prev,
-                  ...response.data.student_room_status
-                }));
+                if (roomStatusResponse.ok) {
+                  const response = await roomStatusResponse.json() as {
+                    success: boolean;
+                    message: string;
+                    data: {
+                      group_has_room: boolean;
+                      group_room_id?: number;
+                      student_room_status: Record<string, { 
+                        in_group_room: boolean; 
+                        current_room_id?: number;
+                        first_name?: string;
+                        last_name?: string;
+                        reason?: string;
+                      }>;
+                    };
+                  };
+                  return response.data?.student_room_status || {};
+                }
+              } catch (roomStatusErr) {
+                console.error("Failed to fetch room status for group:", groupId, roomStatusErr);
               }
-            }
-          } catch (roomStatusErr) {
-            console.error("Failed to fetch room status for group:", groupId, roomStatusErr);
-          }
+              return {};
+            })
+          );
+
+          // Merge all room statuses and update state in a single batch
+          const mergedRoomStatus = roomStatusResponses.reduce((acc, curr) => ({ ...acc, ...curr }), {});
+          setRoomStatus(prev => ({ ...prev, ...mergedRoomStatus }));
+        } catch (err) {
+          console.error("Error fetching room statuses:", err);
         }
       }
     } catch {
