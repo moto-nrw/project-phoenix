@@ -1,13 +1,12 @@
 // app/statistics/page.tsx
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
-import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 
 
 // Type definitions for statistics
@@ -158,12 +157,6 @@ export default function StatisticsPage() {
 
         return () => clearTimeout(timer);
     }, [timeRange]);
-
-    // Function to format date
-    const formatDate = (dateStr: string): string => {
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' });
-    };
 
     if (status === "loading" || loading) {
         return (
@@ -545,9 +538,7 @@ export default function StatisticsPage() {
                             <div className="space-y-6">
                                 {Object.entries(
                                     activityParticipation.reduce((acc, activity) => {
-                                        if (!acc[activity.category]) {
-                                            acc[activity.category] = { students: 0, total: 0 };
-                                        }
+                                        acc[activity.category] ??= { students: 0, total: 0 };
                                         acc[activity.category].students += activity.students;
                                         acc[activity.category].total += activity.totalSlots;
                                         return acc;
