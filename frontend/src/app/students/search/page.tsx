@@ -9,9 +9,12 @@ import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { studentService, groupService } from "~/lib/api";
 import type { Student, Group } from "~/lib/api";
+import { fetchRooms } from "~/lib/rooms-api";
+import { createRoomIdToNameMap } from "~/lib/rooms-helpers";
+import { userContextService } from "~/lib/usercontext-api";
 
 function SearchPageContent() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -26,6 +29,17 @@ function SearchPageContent() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // OGS group tracking
+  const [userOgsGroups, setUserOgsGroups] = useState<string[]>([]);
+  const [roomStatus, setRoomStatus] = useState<Record<string, { 
+    in_group_room: boolean; 
+    current_room_id?: number;
+    first_name?: string;
+    last_name?: string;
+    reason?: string;
+  }>>({});
+  const [roomIdToNameMap, setRoomIdToNameMap] = useState<Record<string, string>>({});
 
   const fetchStudentsData = useCallback(async (filters?: {
     search?: string;
@@ -42,27 +56,90 @@ function SearchPageContent() {
       });
 
       setStudents(fetchedStudents.students);
+      
+      // If user has OGS groups, fetch room status for students in those groups
+      if (userOgsGroups.length > 0 && session?.user?.token) {
+        try {
+          const roomStatusResponses = await Promise.all(
+            userOgsGroups.map(async (groupId) => {
+              try {
+                const roomStatusResponse = await fetch(`/api/groups/${groupId}/students/room-status`, {
+                  headers: {
+                    'Authorization': `Bearer ${session.user.token}`,
+                    'Content-Type': 'application/json'
+                  }
+                });
+
+                if (roomStatusResponse.ok) {
+                  const response = await roomStatusResponse.json() as {
+                    success: boolean;
+                    message: string;
+                    data: {
+                      group_has_room: boolean;
+                      group_room_id?: number;
+                      student_room_status: Record<string, { 
+                        in_group_room: boolean; 
+                        current_room_id?: number;
+                        first_name?: string;
+                        last_name?: string;
+                        reason?: string;
+                      }>;
+                    };
+                  };
+                  return response.data?.student_room_status || {};
+                }
+              } catch (roomStatusErr) {
+                console.error("Failed to fetch room status for group:", groupId, roomStatusErr);
+              }
+              return {};
+            })
+          );
+
+          // Merge all room statuses and update state in a single batch
+          const mergedRoomStatus = roomStatusResponses.reduce((acc, curr) => ({ ...acc, ...curr }), {});
+          setRoomStatus(prev => ({ ...prev, ...mergedRoomStatus }));
+        } catch (err) {
+          console.error("Error fetching room statuses:", err);
+        }
+      }
     } catch {
       // Error fetching students - handle gracefully
       setError("Fehler beim Laden der Schülerdaten.");
     } finally {
       setIsSearching(false);
     }
-  }, [searchTerm, selectedGroup]);
+  }, [searchTerm, selectedGroup, userOgsGroups, session?.user?.token]);
 
-  // Load groups on mount
+  // Load groups and user's OGS groups on mount
   useEffect(() => {
-    const loadGroups = async () => {
+    const loadInitialData = async () => {
       try {
+        // Load all groups for filter
         const fetchedGroups = await groupService.getGroups();
         setGroups(fetchedGroups);
+        
+        // Load user's OGS groups
+        if (session?.user?.token) {
+          try {
+            const myOgsGroups = await userContextService.getMyEducationalGroups();
+            setUserOgsGroups(myOgsGroups.map(g => g.id));
+            
+            // Fetch rooms for mapping
+            const rooms = await fetchRooms(session.user.token);
+            const roomMap = createRoomIdToNameMap(rooms);
+            setRoomIdToNameMap(roomMap);
+          } catch (ogsError) {
+            console.error("Error loading OGS groups:", ogsError);
+            // User might not have OGS groups, which is fine
+          }
+        }
       } catch (error) {
         console.error("Error loading groups:", error);
       }
     };
 
-    void loadGroups();
-  }, []);
+    void loadInitialData();
+  }, [session?.user?.token]);
 
   // Load initial students on mount
   useEffect(() => {
@@ -203,8 +280,73 @@ function SearchPageContent() {
     return true;
   });
 
+  // Helper function to check if student is in user's OGS group
+  const isStudentInUserOgsGroup = (student: Student): boolean => {
+    return userOgsGroups.includes(student.group_id ?? '');
+  };
+
   // Helper function to get attendance status with enhanced design
   const getLocationStatus = (student: Student) => {
+    // Check if student is in user's OGS group for detailed location
+    if (isStudentInUserOgsGroup(student)) {
+      const studentRoomStatus = roomStatus[student.id.toString()];
+      
+      // Check if student is in group room
+      if (studentRoomStatus?.in_group_room) {
+        return { 
+          label: "Gruppenraum", 
+          badgeColor: "text-white backdrop-blur-sm",
+          cardGradient: "from-emerald-50/80 to-green-100/80",
+          customBgColor: "#83CD2D",
+          customShadow: "0 8px 25px rgba(131, 205, 45, 0.4)"
+        };
+      }
+      
+      // Check if student is in a specific room (not group room)
+      if (studentRoomStatus?.current_room_id && !studentRoomStatus.in_group_room) {
+        const roomName = roomIdToNameMap[studentRoomStatus.current_room_id.toString()] ?? `Raum ${studentRoomStatus.current_room_id}`;
+        return { 
+          label: roomName, 
+          badgeColor: "text-white backdrop-blur-sm",
+          cardGradient: "from-blue-50/80 to-cyan-100/80",
+          customBgColor: "#5080D8",
+          customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)"
+        };
+      }
+      
+      // Check for schoolyard
+      if (student.school_yard === true) {
+        return { 
+          label: "Schulhof", 
+          badgeColor: "text-white backdrop-blur-sm",
+          cardGradient: "from-amber-50/80 to-yellow-100/80",
+          customBgColor: "#F78C10",
+          customShadow: "0 8px 25px rgba(247, 140, 16, 0.4)"
+        };
+      }
+      
+      // Check for in transit/movement
+      if (student.in_house === true) {
+        return { 
+          label: "Unterwegs", 
+          badgeColor: "text-white backdrop-blur-sm",
+          cardGradient: "from-fuchsia-50/80 to-pink-100/80",
+          customBgColor: "#D946EF",
+          customShadow: "0 8px 25px rgba(217, 70, 239, 0.4)"
+        };
+      }
+      
+      // Default to at home for OGS students
+      return { 
+        label: "Zuhause", 
+        badgeColor: "text-white backdrop-blur-sm",
+        cardGradient: "from-red-50/80 to-rose-100/80",
+        customBgColor: "#FF3130",
+        customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)"
+      };
+    }
+    
+    // For non-OGS group students, use simple status
     if (student.current_location === "Anwesend") {
       return { 
         label: "Anwesend", 
@@ -370,6 +512,9 @@ function SearchPageContent() {
                       {/* Additional Info */}
                       <div className="space-y-1 mb-3">
                         <div className="flex items-center text-sm text-gray-600">
+                          <svg className="h-4 w-4 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                          </svg>
                           <span>Klasse {student.school_class}</span>
                         </div>
                         {student.group_name && (
