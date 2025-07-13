@@ -539,8 +539,11 @@ export default function StatisticsPage() {
                                 {Object.entries(
                                     activityParticipation.reduce((acc, activity) => {
                                         acc[activity.category] ??= { students: 0, total: 0 };
-                                        acc[activity.category].students += activity.students;
-                                        acc[activity.category].total += activity.totalSlots;
+                                        const categoryData = acc[activity.category];
+                                        if (categoryData) {
+                                            categoryData.students += activity.students;
+                                            categoryData.total += activity.totalSlots;
+                                        }
                                         return acc;
                                     }, {} as Record<string, { students: number; total: number }>)
                                 ).slice(0, 5).map(([category, data], index) => (
