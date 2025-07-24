@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -31,6 +32,7 @@ type userContextService struct {
 	visitsRepo         active.VisitRepository
 	supervisorRepo     active.GroupSupervisorRepository
 	profileRepo        users.ProfileRepository
+	substitutionRepo   education.GroupSubstitutionRepository
 	db                 *bun.DB
 	txHandler          *base.TxHandler
 }
@@ -48,6 +50,7 @@ func NewUserContextService(
 	visitsRepo active.VisitRepository,
 	supervisorRepo active.GroupSupervisorRepository,
 	profileRepo users.ProfileRepository,
+	substitutionRepo education.GroupSubstitutionRepository,
 	db *bun.DB,
 ) UserContextService {
 	return &userContextService{
@@ -62,6 +65,7 @@ func NewUserContextService(
 		visitsRepo:         visitsRepo,
 		supervisorRepo:     supervisorRepo,
 		profileRepo:        profileRepo,
+		substitutionRepo:   substitutionRepo,
 		db:                 db,
 		txHandler:          base.NewTxHandler(db),
 	}
@@ -223,21 +227,66 @@ func (s *userContextService) GetCurrentTeacher(ctx context.Context) (*users.Teac
 
 // GetMyGroups retrieves educational groups associated with the current user
 func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Group, error) {
+	// Try to get the current staff first (for substitutions)
+	staff, staffErr := s.GetCurrentStaff(ctx)
+	
 	// Try to get the current teacher
-	teacher, err := s.GetCurrentTeacher(ctx)
-	if err != nil {
-		if !errors.Is(err, ErrUserNotLinkedToTeacher) && !errors.Is(err, ErrUserNotLinkedToStaff) && !errors.Is(err, ErrUserNotLinkedToPerson) {
-			return nil, err
+	teacher, teacherErr := s.GetCurrentTeacher(ctx)
+	
+	// If user is neither staff nor teacher, return empty list
+	if staffErr != nil && teacherErr != nil {
+		if !errors.Is(teacherErr, ErrUserNotLinkedToTeacher) && !errors.Is(teacherErr, ErrUserNotLinkedToStaff) && !errors.Is(teacherErr, ErrUserNotLinkedToPerson) {
+			return nil, teacherErr
 		}
-
-		// User is not a teacher or not linked to person/staff, return empty list (could expand to other user types later)
 		return []*education.Group{}, nil
 	}
 
-	// Get groups where the teacher is assigned
-	groups, err := s.educationGroupRepo.FindByTeacher(ctx, teacher.ID)
-	if err != nil {
-		return nil, &UserContextError{Op: "get my groups", Err: err}
+	// Create a map to store unique groups (to avoid duplicates)
+	groupMap := make(map[int64]*education.Group)
+
+	// Get groups where the teacher is assigned (if user is a teacher)
+	if teacher != nil && teacherErr == nil {
+		teacherGroups, err := s.educationGroupRepo.FindByTeacher(ctx, teacher.ID)
+		if err != nil {
+			return nil, &UserContextError{Op: "get my groups", Err: err}
+		}
+		
+		// Add teacher's groups to the map
+		for _, group := range teacherGroups {
+			groupMap[group.ID] = group
+		}
+	}
+
+	// Get groups where the staff member is an active substitute (if user is staff)
+	if staff != nil && staffErr == nil {
+		// Get today's date for checking active substitutions
+		today := time.Now().Truncate(24 * time.Hour)
+		
+		// Find active substitutions for this staff member
+		substitutions, err := s.substitutionRepo.FindActive(ctx, today)
+		if err != nil {
+			return nil, &UserContextError{Op: "get my groups (substitutions)", Err: err}
+		}
+		
+		// Filter substitutions where current staff is the substitute
+		for _, sub := range substitutions {
+			if sub.SubstituteStaffID == staff.ID {
+				// Get the group for this substitution
+				group, err := s.educationGroupRepo.FindByID(ctx, sub.GroupID)
+				if err != nil {
+					continue // Skip if we can't load the group
+				}
+				if group != nil {
+					groupMap[group.ID] = group
+				}
+			}
+		}
+	}
+
+	// Convert map to slice
+	groups := make([]*education.Group, 0, len(groupMap))
+	for _, group := range groupMap {
+		groups = append(groups, group)
 	}
 
 	return groups, nil
