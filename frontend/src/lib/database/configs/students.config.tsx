@@ -105,6 +105,21 @@ export const studentsConfig = defineEntityConfig<Student>({
         ],
       },
       {
+        title: 'Zusätzliche Informationen',
+        backgroundColor: 'bg-gray-50',
+        columns: 1,
+        fields: [
+          {
+            name: 'extra_info',
+            label: 'Zusätzliche Informationen',
+            type: 'textarea',
+            required: false,
+            helperText: 'Weitere wichtige Informationen über den Schüler (nur für Betreuer sichtbar)',
+            rows: 4,
+          },
+        ],
+      },
+      {
         title: 'Datenschutz',
         backgroundColor: 'bg-yellow-50',
         columns: 2,

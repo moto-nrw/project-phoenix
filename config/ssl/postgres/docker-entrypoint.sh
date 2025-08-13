@@ -1,0 +1,22 @@
+#!/bin/bash
+set -e
+
+# Copy SSL certificates to the proper location
+echo "Setting up SSL certificates..."
+mkdir -p /var/lib/postgresql/ssl/certs
+cp -f /ssl-certs-source/server.crt /var/lib/postgresql/ssl/certs/server.crt
+cp -f /ssl-certs-source/server.key /var/lib/postgresql/ssl/certs/server.key
+cp -f /ssl-certs-source/ca.crt /var/lib/postgresql/ssl/certs/ca.crt
+
+# Set proper permissions
+chown -R postgres:postgres /var/lib/postgresql/ssl
+chmod 700 /var/lib/postgresql/ssl
+chmod 700 /var/lib/postgresql/ssl/certs
+chmod 600 /var/lib/postgresql/ssl/certs/server.key
+chmod 644 /var/lib/postgresql/ssl/certs/server.crt
+chmod 644 /var/lib/postgresql/ssl/certs/ca.crt
+
+echo "SSL certificates configured successfully"
+
+# Call the original entrypoint
+exec docker-entrypoint.sh "$@"

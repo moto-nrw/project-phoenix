@@ -115,6 +115,7 @@ type StudentResponse struct {
 	GroupID           int64                    `json:"group_id,omitempty"`
 	GroupName         string                   `json:"group_name,omitempty"`
 	ScheduledCheckout *ScheduledCheckoutInfo   `json:"scheduled_checkout,omitempty"`
+	ExtraInfo         string                   `json:"extra_info,omitempty"`
 	CreatedAt         time.Time                `json:"created_at"`
 	UpdatedAt         time.Time                `json:"updated_at"`
 }
@@ -157,10 +158,11 @@ type StudentRequest struct {
 	GuardianContact string `json:"guardian_contact"`
 
 	// Optional fields
-	GuardianEmail string `json:"guardian_email,omitempty"`
-	GuardianPhone string `json:"guardian_phone,omitempty"`
-	GroupID       *int64 `json:"group_id,omitempty"`
-	Bus           *bool  `json:"bus,omitempty"` // Whether student takes the bus
+	GuardianEmail string  `json:"guardian_email,omitempty"`
+	GuardianPhone string  `json:"guardian_phone,omitempty"`
+	GroupID       *int64  `json:"group_id,omitempty"`
+	Bus           *bool   `json:"bus,omitempty"` // Whether student takes the bus
+	ExtraInfo     *string `json:"extra_info,omitempty"` // Extra information visible to supervisors
 }
 
 // UpdateStudentRequest represents a student update request
@@ -178,6 +180,7 @@ type UpdateStudentRequest struct {
 	GuardianPhone   *string `json:"guardian_phone,omitempty"`
 	GroupID         *int64  `json:"group_id,omitempty"`
 	Bus             *bool   `json:"bus,omitempty"` // Whether student takes the bus
+	ExtraInfo       *string `json:"extra_info,omitempty"` // Extra information visible to supervisors
 }
 
 // RFIDAssignmentRequest represents an RFID tag assignment request
@@ -347,6 +350,11 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 
 	if group != nil {
 		response.GroupName = group.Name
+	}
+
+	// Include extra info only for supervisors (when includeLocation is true)
+	if includeLocation && student.ExtraInfo != nil && *student.ExtraInfo != "" {
+		response.ExtraInfo = *student.ExtraInfo
 	}
 
 	return response
@@ -621,6 +629,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		response.GuardianEmail = ""
 		response.GuardianPhone = ""
 		response.TagID = ""
+		response.ExtraInfo = ""
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Student retrieved successfully")
@@ -682,6 +691,10 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 	if req.Bus != nil {
 		student.Bus = *req.Bus
+	}
+
+	if req.ExtraInfo != nil {
+		student.ExtraInfo = req.ExtraInfo
 	}
 
 	// Create student
@@ -803,6 +816,9 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Bus != nil {
 		student.Bus = *req.Bus
+	}
+	if req.ExtraInfo != nil {
+		student.ExtraInfo = req.ExtraInfo
 	}
 
 	// Update student

@@ -24,6 +24,7 @@ type Student struct {
 	GuardianEmail   *string `bun:"guardian_email" json:"guardian_email,omitempty"`
 	GuardianPhone   *string `bun:"guardian_phone" json:"guardian_phone,omitempty"`
 	GroupID         *int64  `bun:"group_id" json:"group_id,omitempty"`
+	ExtraInfo       *string `bun:"extra_info" json:"extra_info,omitempty"`
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
