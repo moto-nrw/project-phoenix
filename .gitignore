@@ -443,3 +443,15 @@ frontend/test-data*.sql
 frontend/fix-permissions.sql
 frontend/remove-admin-role.sql
 frontend/rebuild-and-test.sh
+
+# SonarQube files
+.sonarqube/
+.scannerwork/
+sonar-reports/
+**/coverage.out
+**/golint-report.out
+**/govet-report.out
+**/golangci-lint-report.xml
+.env.sonar
+docker-compose.sonar.yml
+sonar-project.properties
