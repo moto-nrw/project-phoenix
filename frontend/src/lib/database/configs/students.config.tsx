@@ -115,7 +115,7 @@ export const studentsConfig = defineEntityConfig<Student>({
             type: 'textarea',
             required: false,
             helperText: 'Weitere wichtige Informationen über den Schüler (nur für Betreuer sichtbar)',
-            rows: 4,
+            colSpan: 2,
           },
         ],
       },
@@ -240,6 +240,16 @@ export const studentsConfig = defineEntityConfig<Student>({
           {
             label: 'Kontakt',
             value: (student) => student.contact_lg ?? 'Nicht angegeben',
+          },
+        ],
+      },
+      {
+        title: 'Zusätzliche Informationen',
+        titleColor: 'text-gray-800',
+        items: [
+          {
+            label: 'Notizen',
+            value: (student) => student.extra_info ?? 'Keine zusätzlichen Informationen',
           },
         ],
       },
