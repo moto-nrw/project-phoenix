@@ -1,7 +1,4 @@
-
-
-
-ackage migrations
+package migrations
 
 import (
 	"context"
