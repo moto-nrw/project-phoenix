@@ -13,7 +13,7 @@ import (
 
 // Account represents an authentication account
 type Account struct {
-	base.Model     `bun:"schema:auth,table:accounts"`
+	base.Model     `bun:"table:accounts"`
 	Email          string     `bun:"email,notnull" json:"email"`
 	Username       *string    `bun:"username,unique" json:"username,omitempty"`
 	Active         bool       `bun:"active,notnull,default:true" json:"active"`
@@ -37,16 +37,14 @@ func (a *Account) TableName() string {
 // BeforeAppendModel lets us modify query before it's executed
 func (a *Account) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("auth.accounts")
+		q.ModelTableExpr(`auth.accounts AS "account"`)
 	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("auth.accounts")
-	}
+	// INSERT queries should not use aliases
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("auth.accounts")
+		q.ModelTableExpr(`auth.accounts AS "account"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("auth.accounts")
+		q.ModelTableExpr(`auth.accounts AS "account"`)
 	}
 	return nil
 }

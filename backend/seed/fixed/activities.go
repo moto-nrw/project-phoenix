@@ -1,0 +1,437 @@
+package fixed
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"math/rand"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/schedule"
+)
+
+// Activity data for seeding
+type activityGroupData struct {
+	name            string
+	description     string
+	category        string
+	maxParticipants int
+	minAge          int
+	maxAge          int
+	requiresConsent bool
+	roomName        string
+}
+
+// seedActivities creates activity categories and groups
+func (s *Seeder) seedActivities(ctx context.Context) error {
+	// Create activity categories
+	categoryData := []struct {
+		name        string
+		description string
+		color       string
+	}{
+		{"Sport", "Sportliche Aktivitäten für Kinder", "#7ED321"},
+		{"Kunst & Basteln", "Kreative Aktivitäten und Handwerken", "#F5A623"},
+		{"Musik", "Musikalische Aktivitäten und Gesang", "#BD10E0"},
+		{"Spiele", "Brett-, Karten- und Gruppenspiele", "#50E3C2"},
+		{"Lesen", "Leseförderung und Literatur", "#B8E986"},
+		{"Hausaufgabenhilfe", "Unterstützung bei den Hausaufgaben", "#4A90E2"},
+		{"Natur & Forschen", "Naturerkundung und einfache Experimente", "#7ED321"},
+		{"Computer", "Grundlagen im Umgang mit dem Computer", "#9013FE"},
+	}
+
+	for _, data := range categoryData {
+		category := &activities.Category{
+			Name:        data.name,
+			Description: data.description,
+			Color:       data.color,
+		}
+		category.CreatedAt = time.Now()
+		category.UpdatedAt = time.Now()
+
+		_, err := s.tx.NewInsert().Model(category).
+			ModelTableExpr("activities.categories").
+			On("CONFLICT (name) DO UPDATE").
+			Set("updated_at = EXCLUDED.updated_at").
+			Exec(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to create activity category %s: %w", data.name, err)
+		}
+
+		// Reload to get ID
+		err = s.tx.NewRaw("SELECT * FROM activities.categories WHERE name = ?", data.name).Scan(ctx, category)
+		if err != nil {
+			return fmt.Errorf("failed to reload category %s: %w", data.name, err)
+		}
+
+		s.result.ActivityCategories = append(s.result.ActivityCategories, category)
+	}
+
+	// Create activity groups
+	activityGroups := []activityGroupData{
+		// Sport
+		{"Fußball-AG", "Fußballtraining für Anfänger und Fortgeschrittene", "Sport", 20, 6, 12, false, "Sporthalle"},
+		{"Basketball für Anfänger", "Grundlagen des Basketballspiels", "Sport", 15, 8, 12, false, "Sporthalle"},
+		{"Tanz und Bewegung", "Moderne Tänze und Bewegungsspiele", "Sport", 20, 6, 10, false, "Kleine Sporthalle"},
+		{"Schwimmen", "Schwimmkurs für Fortgeschrittene", "Sport", 12, 8, 12, true, "Sporthalle"}, // Requires consent
+
+		// Kunst & Basteln
+		{"Basteln und Malen", "Kreatives Gestalten mit verschiedenen Materialien", "Kunst & Basteln", 15, 6, 10, false, "Kunstraum"},
+		{"Töpfern", "Arbeiten mit Ton und Keramik", "Kunst & Basteln", 10, 8, 12, false, "Töpferraum"},
+		{"Origami-Werkstatt", "Papierfalten nach japanischer Tradition", "Kunst & Basteln", 12, 8, 12, false, "Kunstraum"},
+
+		// Musik
+		{"Kinderchor", "Gemeinsames Singen und Stimmbildung", "Musik", 25, 6, 12, false, "Musikraum"},
+		{"Rhythmus und Percussion", "Trommeln und Rhythmusinstrumente", "Musik", 15, 6, 10, false, "Musikraum"},
+		{"Blockflöten-AG", "Blockflötenunterricht für Anfänger", "Musik", 10, 7, 10, false, "Musikraum"},
+
+		// Spiele
+		{"Schach für Anfänger", "Grundlagen des Schachspiels", "Spiele", 16, 8, 12, false, "Bibliothek"},
+		{"Brett- und Kartenspiele", "Verschiedene Gesellschaftsspiele", "Spiele", 20, 6, 12, false, "OGS-Raum 2"},
+
+		// Lesen
+		{"Leseclub", "Gemeinsames Lesen und Buchbesprechungen", "Lesen", 15, 8, 12, false, "Bibliothek"},
+		{"Vorlesestunde", "Geschichten für die Jüngeren", "Lesen", 20, 6, 8, false, "Bibliothek"},
+
+		// Hausaufgabenhilfe
+		{"Hausaufgaben Klasse 1-2", "Betreute Hausaufgabenzeit", "Hausaufgabenhilfe", 20, 6, 8, false, "OGS-Raum 1"},
+		{"Hausaufgaben Klasse 3-4", "Betreute Hausaufgabenzeit", "Hausaufgabenhilfe", 20, 8, 10, false, "Klassenzimmer 3A"},
+		{"Hausaufgaben Klasse 5", "Betreute Hausaufgabenzeit", "Hausaufgabenhilfe", 15, 10, 12, false, "Klassenzimmer 5A"},
+
+		// Natur & Forschen
+		{"Junge Forscher", "Experimente und Naturbeobachtungen", "Natur & Forschen", 12, 8, 12, false, "Forscherraum"},
+
+		// Computer
+		{"Computer-Grundlagen", "Erste Schritte am Computer", "Computer", 15, 8, 12, false, "Computerraum"},
+	}
+
+	// Map category names to IDs
+	categoryMap := make(map[string]int64)
+	for _, cat := range s.result.ActivityCategories {
+		categoryMap[cat.Name] = cat.ID
+	}
+
+	// Create activity groups
+	for _, data := range activityGroups {
+		// Find room
+		var roomID *int64
+		for _, room := range s.result.Rooms {
+			if room.Name == data.roomName {
+				roomID = &room.ID
+				break
+			}
+		}
+
+		group := &activities.Group{
+			Name:            data.name,
+			CategoryID:      categoryMap[data.category],
+			MaxParticipants: data.maxParticipants,
+			PlannedRoomID:   roomID,
+			IsOpen:          true,
+		}
+		group.CreatedAt = time.Now()
+		group.UpdatedAt = time.Now()
+
+		_, err := s.tx.NewInsert().Model(group).ModelTableExpr("activities.groups").Exec(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to create activity group %s: %w", data.name, err)
+		}
+
+		s.result.ActivityGroups = append(s.result.ActivityGroups, group)
+		s.result.ActivityByID[group.ID] = group
+	}
+
+	// Assign supervisors to activities
+	if err := s.assignActivitySupervisors(ctx); err != nil {
+		return fmt.Errorf("failed to assign activity supervisors: %w", err)
+	}
+
+	if s.verbose {
+		log.Printf("Created %d activity categories and %d activity groups",
+			len(s.result.ActivityCategories), len(s.result.ActivityGroups))
+	}
+
+	return nil
+}
+
+// assignActivitySupervisors assigns staff to supervise activities
+func (s *Seeder) assignActivitySupervisors(ctx context.Context) error {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	// Each activity needs 1-2 supervisors
+	for _, activity := range s.result.ActivityGroups {
+		numSupervisors := rng.Intn(2) + 1 // 1 or 2
+
+		// Create shuffled staff list
+		staffIndices := make([]int, len(s.result.Staff))
+		for i := range staffIndices {
+			staffIndices[i] = i
+		}
+		// Shuffle
+		for i := len(staffIndices) - 1; i > 0; i-- {
+			j := rng.Intn(i + 1)
+			staffIndices[i], staffIndices[j] = staffIndices[j], staffIndices[i]
+		}
+
+		// Assign supervisors
+		for i := 0; i < numSupervisors && i < len(staffIndices); i++ {
+			staff := s.result.Staff[staffIndices[i]]
+
+			assignment := &activities.SupervisorPlanned{
+				GroupID:   activity.ID,
+				StaffID:   staff.ID,
+				IsPrimary: i == 0, // First supervisor is primary
+			}
+			assignment.CreatedAt = time.Now()
+			assignment.UpdatedAt = time.Now()
+
+			_, err := s.tx.NewInsert().Model(assignment).ModelTableExpr("activities.supervisors").Exec(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to assign supervisor to activity %d: %w",
+					activity.ID, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// seedTimeframes creates the daily schedule timeframes
+func (s *Seeder) seedTimeframes(ctx context.Context) error {
+	// OGS timeframes for elementary school afternoon supervision
+	timeframeData := []struct {
+		description string
+		startHour   int
+		startMinute int
+		endHour     int
+		endMinute   int
+	}{
+		{"Mittagessen", 12, 0, 13, 0},
+		{"Freispiel/Ruhephase", 13, 0, 14, 0},
+		{"1. AG-Block", 14, 0, 15, 0},
+		{"Pause", 15, 0, 15, 15},
+		{"2. AG-Block", 15, 15, 16, 15},
+		{"Freispiel/Abholzeit", 16, 15, 17, 0},
+	}
+
+	today := time.Now()
+	for _, data := range timeframeData {
+		// Create start and end times
+		startTime := time.Date(today.Year(), today.Month(), today.Day(),
+			data.startHour, data.startMinute, 0, 0, time.Local)
+		endTime := time.Date(today.Year(), today.Month(), today.Day(),
+			data.endHour, data.endMinute, 0, 0, time.Local)
+
+		timeframe := &schedule.Timeframe{
+			Description: data.description,
+			StartTime:   startTime,
+			EndTime:     &endTime,
+		}
+		timeframe.CreatedAt = time.Now()
+		timeframe.UpdatedAt = time.Now()
+
+		_, err := s.tx.NewInsert().Model(timeframe).ModelTableExpr("schedule.timeframes").Exec(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to create timeframe %s: %w", data.description, err)
+		}
+
+		s.result.Timeframes = append(s.result.Timeframes, timeframe)
+	}
+
+	if s.verbose {
+		log.Printf("Created %d schedule timeframes", len(s.result.Timeframes))
+	}
+
+	return nil
+}
+
+// seedActivitySchedules links activities to timeframes and weekdays
+func (s *Seeder) seedActivitySchedules(ctx context.Context) error {
+	// Map activities to their schedule slots
+	scheduleMap := map[string]struct {
+		timeframeDesc string
+		weekdays      []string
+	}{
+		// Hausaufgaben during first slot
+		"Hausaufgaben Klasse 1-2": {"1. AG-Block", []string{"monday", "tuesday", "wednesday", "thursday", "friday"}},
+		"Hausaufgaben Klasse 3-4": {"1. AG-Block", []string{"monday", "tuesday", "wednesday", "thursday", "friday"}},
+		"Hausaufgaben Klasse 5":   {"1. AG-Block", []string{"monday", "tuesday", "wednesday", "thursday", "friday"}},
+
+		// Sport activities
+		"Fußball-AG":              {"2. AG-Block", []string{"monday", "wednesday", "friday"}},
+		"Basketball für Anfänger": {"2. AG-Block", []string{"tuesday", "thursday"}},
+		"Tanz und Bewegung":       {"1. AG-Block", []string{"tuesday", "thursday"}},
+		"Schwimmen":               {"2. AG-Block", []string{"wednesday"}},
+
+		// Creative activities
+		"Basteln und Malen":  {"2. AG-Block", []string{"monday", "wednesday"}},
+		"Töpfern":            {"2. AG-Block", []string{"tuesday", "thursday"}},
+		"Origami-Werkstatt":  {"1. AG-Block", []string{"friday"}},
+
+		// Music
+		"Kinderchor":             {"2. AG-Block", []string{"tuesday", "thursday"}},
+		"Rhythmus und Percussion": {"1. AG-Block", []string{"monday", "wednesday"}},
+		"Blockflöten-AG":         {"2. AG-Block", []string{"friday"}},
+
+		// Other activities
+		"Schach für Anfänger":    {"2. AG-Block", []string{"monday", "friday"}},
+		"Brett- und Kartenspiele": {"Freispiel/Ruhephase", []string{"monday", "tuesday", "wednesday", "thursday", "friday"}},
+		"Leseclub":               {"1. AG-Block", []string{"wednesday"}},
+		"Vorlesestunde":          {"Freispiel/Ruhephase", []string{"tuesday", "thursday"}},
+		"Junge Forscher":         {"2. AG-Block", []string{"wednesday", "friday"}},
+		"Computer-Grundlagen":    {"2. AG-Block", []string{"tuesday", "thursday"}},
+	}
+
+	// Map timeframe descriptions to IDs
+	timeframeMap := make(map[string]int64)
+	for _, tf := range s.result.Timeframes {
+		timeframeMap[tf.Description] = tf.ID
+	}
+
+	// Create schedules
+	for _, activity := range s.result.ActivityGroups {
+		if schedule, ok := scheduleMap[activity.Name]; ok {
+			timeframeID := timeframeMap[schedule.timeframeDesc]
+
+			for _, weekday := range schedule.weekdays {
+				weekdayInt := weekdayToInt(weekday)
+				sched := &activities.Schedule{
+					ActivityGroupID: activity.ID,
+					TimeframeID:     &timeframeID,
+					Weekday:         weekdayInt,
+				}
+				sched.CreatedAt = time.Now()
+				sched.UpdatedAt = time.Now()
+
+				_, err := s.tx.NewInsert().Model(sched).ModelTableExpr("activities.schedules").Exec(ctx)
+				if err != nil {
+					return fmt.Errorf("failed to create schedule for activity %s: %w",
+						activity.Name, err)
+				}
+
+				s.result.Schedules = append(s.result.Schedules, sched)
+			}
+		}
+	}
+
+	if s.verbose {
+		log.Printf("Created %d activity schedules", len(s.result.Schedules))
+	}
+
+	return nil
+}
+
+// seedStudentEnrollments enrolls students in activities
+func (s *Seeder) seedStudentEnrollments(ctx context.Context) error {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	// Track enrollments per activity
+	enrollmentCounts := make(map[int64]int)
+	for _, activity := range s.result.ActivityGroups {
+		enrollmentCounts[activity.ID] = 0
+	}
+
+	// Each student gets 2-3 activities
+	for _, student := range s.result.Students {
+		numActivities := rng.Intn(2) + 2 // 2 or 3 activities
+
+		// Get student's age based on class (not used anymore)
+		// studentAge := getStudentAge(student.SchoolClass)
+
+		// Find eligible activities
+		eligibleActivities := []*activities.Group{}
+		for _, activity := range s.result.ActivityGroups {
+			// For now, all activities are eligible (no age restrictions in model)
+			// Check capacity (70-85% fill rate)
+			fillRate := float64(enrollmentCounts[activity.ID]) / float64(activity.MaxParticipants)
+			if fillRate < 0.85 {
+				eligibleActivities = append(eligibleActivities, activity)
+			}
+		}
+
+		// Shuffle eligible activities
+		for i := len(eligibleActivities) - 1; i > 0; i-- {
+			j := rng.Intn(i + 1)
+			eligibleActivities[i], eligibleActivities[j] = eligibleActivities[j], eligibleActivities[i]
+		}
+
+		// Enroll in activities
+		enrolled := 0
+		for _, activity := range eligibleActivities {
+			if enrolled >= numActivities {
+				break
+			}
+
+			// No consent check needed (not in model)
+
+			enrollment := &activities.StudentEnrollment{
+				StudentID:       student.ID,
+				ActivityGroupID: activity.ID,
+				EnrollmentDate:  time.Now().AddDate(0, 0, -rng.Intn(30)),
+			}
+			enrollment.CreatedAt = time.Now()
+			enrollment.UpdatedAt = time.Now()
+
+			_, err := s.tx.NewInsert().Model(enrollment).ModelTableExpr("activities.student_enrollments").Exec(ctx)
+			if err != nil {
+				// Skip on duplicate
+				continue
+			}
+
+			s.result.Enrollments = append(s.result.Enrollments, enrollment)
+			enrollmentCounts[activity.ID]++
+			enrolled++
+		}
+	}
+
+	if s.verbose {
+		log.Printf("Created %d student enrollments", len(s.result.Enrollments))
+		
+		// Print fill rates
+		log.Println("Activity fill rates:")
+		for _, activity := range s.result.ActivityGroups {
+			count := enrollmentCounts[activity.ID]
+			fillRate := float64(count) / float64(activity.MaxParticipants) * 100
+			log.Printf("  %s: %d/%d (%.1f%%)", activity.Name, count, activity.MaxParticipants, fillRate)
+		}
+	}
+
+	return nil
+}
+
+// Helper function to estimate student age based on class
+func getStudentAge(class string) int {
+	if len(class) < 1 {
+		return 8 // Default
+	}
+
+	grade := class[0] - '0'
+	if grade >= 1 && grade <= 5 {
+		return int(grade) + 5 // Grade 1 = 6 years old, Grade 5 = 10 years old
+	}
+
+	return 8 // Default
+}
+
+// Helper function to convert weekday string to int
+func weekdayToInt(weekday string) int {
+	switch weekday {
+	case "monday":
+		return activities.WeekdayMonday
+	case "tuesday":
+		return activities.WeekdayTuesday
+	case "wednesday":
+		return activities.WeekdayWednesday
+	case "thursday":
+		return activities.WeekdayThursday
+	case "friday":
+		return activities.WeekdayFriday
+	case "saturday":
+		return activities.WeekdaySaturday
+	case "sunday":
+		return activities.WeekdaySunday
+	default:
+		return activities.WeekdayMonday // Default
+	}
+}

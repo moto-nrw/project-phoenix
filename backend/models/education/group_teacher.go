@@ -22,16 +22,14 @@ type GroupTeacher struct {
 
 func (gt *GroupTeacher) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("education.group_teacher")
+		q.ModelTableExpr(`education.group_teacher AS "group_teacher"`)
 	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("education.group_teacher")
-	}
+	// INSERT queries should not use aliases
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("education.group_teacher")
+		q.ModelTableExpr(`education.group_teacher AS "group_teacher"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("education.group_teacher")
+		q.ModelTableExpr(`education.group_teacher AS "group_teacher"`)
 	}
 	return nil
 }

@@ -27,9 +27,6 @@ func (e *Entry) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
 		q.ModelTableExpr("feedback.entries")
 	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("feedback.entries")
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr("feedback.entries")
 	}

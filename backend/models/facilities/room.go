@@ -31,9 +31,6 @@ func (r *Room) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
 		q.ModelTableExpr(`facilities.rooms AS "room"`)
 	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("facilities.rooms")
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`facilities.rooms AS "room"`)
 	}

@@ -21,9 +21,6 @@ func (t *Timeframe) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
 		q.ModelTableExpr("schedule.timeframes")
 	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("schedule.timeframes")
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr("schedule.timeframes")
 	}

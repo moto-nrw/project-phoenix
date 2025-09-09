@@ -36,9 +36,6 @@ func (s *Student) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
 		q.ModelTableExpr("users.students")
 	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("users.students")
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr("users.students")
 	}

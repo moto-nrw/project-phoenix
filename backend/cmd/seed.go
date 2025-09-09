@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/moto-nrw/project-phoenix/seed"
 	"github.com/spf13/cobra"
 	"github.com/uptrace/bun"
 )
@@ -16,29 +17,49 @@ import (
 // seedCmd represents the seed command
 var seedCmd = &cobra.Command{
 	Use:   "seed",
-	Short: "Seed the database with German test data",
-	Long: `Seed the database with German test data for testing purposes.
-This command creates a complete OGS (Offene Ganztagsschule) dataset:
-- 24 rooms (classrooms, labs, gym, library, etc.)
-- 25 education groups (grade classes)
-- 150 persons (30 staff/teachers, 120 students)
-- 8 activity categories (Sport, Kunst & Basteln, Musik, etc.)
-- 19 activity groups (Fußball-AG, Computer-Grundlagen, etc.)
-- 6 OGS timeframes (12:00-17:00 afternoon supervision)
-- Activity schedules linking groups to weekdays and times
-- Supervisor assignments for all activities
-- Student enrollments in activities
-- 7 IoT devices (RFID readers, sensors)
-- Privacy consents (GDPR compliance)
+	Short: "Seed the database with test data",
+	Long: `Seed the database with comprehensive test data for development and testing.
+
+This command creates:
+FIXED DATA (always created):
+- 24 rooms across multiple buildings
+- 150 persons with RFID cards (30 staff, 120 students)
+- 20 teachers with specializations
+- 25 education groups (10 classes, 15 supervision groups)
+- 19 activity groups with schedules
+- 7 IoT devices with room assignments
+- Privacy consents for 90% of students
+
+RUNTIME STATE (optional, for testing):
+- Active group sessions with supervisors
+- Students checked into rooms
+- Visit tracking records
+- Attendance records for today
+- Combined group scenarios
+
+The data includes proper relationships:
+- Teachers → Staff → Persons → RFID Cards
+- Students → Groups with guardian information
+- Groups → Rooms with teacher assignments
+- Activities → Schedules with enrollments
+- Devices → Rooms for RFID testing
 
 Usage:
-  go run main.go seed
-  go run main.go seed --reset (to clear existing data first)`,
+  go run main.go seed                  # Create all data with initial runtime state
+  go run main.go seed --reset          # Clear all data first, then seed
+  go run main.go seed --fixed-only     # Only create fixed data (no active sessions)
+  go run main.go seed --runtime-only   # Only create runtime state (requires fixed data)`,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := context.Background()
+
+		// Parse flags
 		reset, _ := cmd.Flags().GetBool("reset")
+		fixedOnly, _ := cmd.Flags().GetBool("fixed-only")
+		runtimeOnly, _ := cmd.Flags().GetBool("runtime-only")
+		verbose, _ := cmd.Flags().GetBool("verbose")
+
 		if reset {
-			fmt.Println("WARNING: --reset flag is set. This will delete existing data!")
+			fmt.Println("WARNING: --reset flag is set. This will delete ALL existing data!")
 			fmt.Print("Are you sure you want to continue? (y/N): ")
 			var response string
 			_, err := fmt.Scanln(&response)
@@ -47,16 +68,26 @@ Usage:
 				return
 			}
 		}
-		seedDatabase(ctx, reset)
+
+		// Validate flag combinations
+		if fixedOnly && runtimeOnly {
+			log.Fatal("Cannot use --fixed-only and --runtime-only together")
+		}
+
+		// Run seeding
+		runSeeding(ctx, reset, fixedOnly, runtimeOnly, verbose)
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(seedCmd)
 	seedCmd.Flags().Bool("reset", false, "Reset all data before seeding")
+	seedCmd.Flags().Bool("fixed-only", false, "Only seed fixed data (no runtime state)")
+	seedCmd.Flags().Bool("runtime-only", false, "Only create runtime state (requires existing fixed data)")
+	seedCmd.Flags().Bool("verbose", false, "Enable verbose logging")
 }
 
-func seedDatabase(ctx context.Context, reset bool) {
+func runSeeding(ctx context.Context, reset, fixedOnly, runtimeOnly, verbose bool) {
 	// Initialize database connection
 	db, err := database.DBConn()
 	if err != nil {
@@ -68,161 +99,40 @@ func seedDatabase(ctx context.Context, reset bool) {
 		}
 	}()
 
-	// Initialize random number generator
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	// Reset data if requested
-	if reset {
-		fmt.Println("Resetting existing data...")
-		if err := resetData(ctx, db); err != nil {
-			log.Fatal("Failed to reset data:", err)
-		}
-		fmt.Println("Data reset completed.")
+	// Configure seeder
+	config := &seed.Config{
+		Reset:             reset,
+		FixedOnly:         fixedOnly,
+		RuntimeOnly:       runtimeOnly,
+		CreateActiveState: !fixedOnly, // Create active state unless fixed-only
+		Verbose:           verbose,
 	}
 
-	fmt.Println("Starting database seeding...")
-
-	// Use transaction for all operations
-	err = db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-
-		// 1. Create Rooms first (no dependencies)
-		fmt.Println("Creating rooms...")
-		roomIDs, err := seedRooms(ctx, tx)
-		if err != nil {
-			return fmt.Errorf("failed to seed rooms: %w", err)
-		}
-		fmt.Printf("Created %d rooms\n", len(roomIDs))
-
-		// 2. Create Groups (depends on rooms)
-		fmt.Println("Creating groups...")
-		groupIDs, err := seedGroups(ctx, tx, roomIDs)
-		if err != nil {
-			return fmt.Errorf("failed to seed groups: %w", err)
-		}
-		fmt.Printf("Created %d groups\n", len(groupIDs))
-
-		// 3. Create RFID cards first (needed for persons)
-		fmt.Println("Creating RFID cards...")
-		rfidIDs, err := seedRFIDCards(ctx, tx, rng)
-		if err != nil {
-			return fmt.Errorf("failed to seed RFID cards: %w", err)
-		}
-		fmt.Printf("Created %d RFID cards\n", len(rfidIDs))
-
-		// 4. Create Persons (base for all users)
-		fmt.Println("Creating persons...")
-		personIDs, err := seedPersons(ctx, tx, rfidIDs, rng)
-		if err != nil {
-			return fmt.Errorf("failed to seed persons: %w", err)
-		}
-		fmt.Printf("Created %d persons\n", len(personIDs))
-
-		// 4. Create Staff members from some persons
-		fmt.Println("Creating staff members...")
-		staffIDs, err := seedStaff(ctx, tx, personIDs[:30]) // First 30 persons are staff
-		if err != nil {
-			return fmt.Errorf("failed to seed staff: %w", err)
-		}
-		fmt.Printf("Created %d staff members\n", len(staffIDs))
-
-		// 5. Create Teachers from some staff members
-		fmt.Println("Creating teachers...")
-		teacherIDs, err := seedTeachers(ctx, tx, staffIDs[:20]) // First 20 staff are teachers
-		if err != nil {
-			return fmt.Errorf("failed to seed teachers: %w", err)
-		}
-		fmt.Printf("Created %d teachers\n", len(teacherIDs))
-
-		// 6. Create Students from remaining persons
-		fmt.Println("Creating students...")
-		studentPersonIDs := personIDs[30:]                                             // Remaining persons are students
-		studentIDs, err := seedStudents(ctx, tx, studentPersonIDs, groupIDs[:10], rng) // First 10 groups are grade classes
-		if err != nil {
-			return fmt.Errorf("failed to seed students: %w", err)
-		}
-		fmt.Printf("Created %d students\n", len(studentIDs))
-
-		// 6.5. Assign Teachers to Education Groups
-		fmt.Println("Assigning teachers to education groups...")
-		err = seedGroupTeachers(ctx, tx, groupIDs[:10], teacherIDs, rng) // First 10 groups are grade classes
-		if err != nil {
-			return fmt.Errorf("failed to assign teachers to groups: %w", err)
-		}
-		fmt.Printf("Assigned teachers to education groups\n")
-
-		// 7. Create Activity Categories (no dependencies)
-		fmt.Println("Creating activity categories...")
-		categoryIDs, err := seedActivityCategories(ctx, tx)
-		if err != nil {
-			return fmt.Errorf("failed to seed activity categories: %w", err)
-		}
-		fmt.Printf("Created %d activity categories\n", len(categoryIDs))
-
-		// 8. Create Schedule Timeframes (no dependencies)
-		fmt.Println("Creating schedule timeframes...")
-		timeframeIDs, err := seedScheduleTimeframes(ctx, tx)
-		if err != nil {
-			return fmt.Errorf("failed to seed schedule timeframes: %w", err)
-		}
-		fmt.Printf("Created %d schedule timeframes\n", len(timeframeIDs))
-
-		// 9. Create Activity Groups (depends on categories and rooms)
-		fmt.Println("Creating activity groups...")
-		activityGroupIDs, err := seedActivityGroups(ctx, tx, categoryIDs, roomIDs, rng)
-		if err != nil {
-			return fmt.Errorf("failed to seed activity groups: %w", err)
-		}
-		fmt.Printf("Created %d activity groups\n", len(activityGroupIDs))
-
-		// 10. Create Activity Schedules (depends on activity groups and timeframes)
-		fmt.Println("Creating activity schedules...")
-		scheduleIDs, err := seedActivitySchedules(ctx, tx, activityGroupIDs, timeframeIDs, rng)
-		if err != nil {
-			return fmt.Errorf("failed to seed activity schedules: %w", err)
-		}
-		fmt.Printf("Created %d activity schedules\n", len(scheduleIDs))
-
-		// 11. Create Activity Supervisors (depends on activity groups and staff)
-		fmt.Println("Creating activity supervisors...")
-		supervisorIDs, err := seedActivitySupervisors(ctx, tx, activityGroupIDs, staffIDs, rng)
-		if err != nil {
-			return fmt.Errorf("failed to seed activity supervisors: %w", err)
-		}
-		fmt.Printf("Created %d activity supervisors\n", len(supervisorIDs))
-
-		// 12. Create Student Enrollments (depends on activity groups and students)
-		fmt.Println("Creating student enrollments...")
-		enrollmentIDs, err := seedStudentEnrollments(ctx, tx, activityGroupIDs, studentIDs, rng)
-		if err != nil {
-			return fmt.Errorf("failed to seed student enrollments: %w", err)
-		}
-		fmt.Printf("Created %d student enrollments\n", len(enrollmentIDs))
-
-		// 13. Create IoT Devices (depends on persons)
-		fmt.Println("Creating IoT devices...")
-		deviceIDs, err := seedIoTDevices(ctx, tx, personIDs[:5], rng) // First 5 persons register devices
-		if err != nil {
-			return fmt.Errorf("failed to seed IoT devices: %w", err)
-		}
-		fmt.Printf("Created %d IoT devices\n", len(deviceIDs))
-
-		// 14. Create Privacy Consents (depends on students)
-		fmt.Println("Creating privacy consents...")
-		consentIDs, err := seedPrivacyConsents(ctx, tx, studentIDs, rng)
-		if err != nil {
-			return fmt.Errorf("failed to seed privacy consents: %w", err)
-		}
-		fmt.Printf("Created %d privacy consents\n", len(consentIDs))
-
-		return nil
-	})
-
+	// Create and run seeder
+	seeder := seed.NewSeeder(db, config)
+	result, err := seeder.Seed(ctx)
 	if err != nil {
-		log.Fatal("Failed to seed database:", err)
+		log.Fatal("Seeding failed:", err)
 	}
 
-	fmt.Println("Database seeding completed successfully!")
+	// Print additional instructions if runtime state was created
+	if result.Runtime != nil && len(result.Runtime.ActiveGroups) > 0 {
+		fmt.Println("\n=== Testing RFID Check-ins ===")
+		fmt.Println("The database now has active sessions ready for testing:")
+		fmt.Println("1. Use an RFID device API key from the seeded devices")
+		fmt.Println("2. Authenticate with a staff PIN (see above)")
+		fmt.Println("3. Test student check-ins/check-outs with RFID tags")
+		fmt.Println("\nExample RFID check-in:")
+		fmt.Println("POST /iot/checkin")
+		fmt.Println(`{
+  "tag_uid": "<student_rfid_tag>",
+  "device_id": "RFID-MAIN-001",
+  "room_id": <room_id>
+}`)
+	}
 }
+
+// The following functions are part of the old implementation and are kept for reference
 
 func resetData(ctx context.Context, db *bun.DB) error {
 	// Delete in reverse order of dependencies
