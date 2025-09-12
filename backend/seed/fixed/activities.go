@@ -401,18 +401,19 @@ func (s *Seeder) seedStudentEnrollments(ctx context.Context) error {
 }
 
 // Helper function to estimate student age based on class
-func getStudentAge(class string) int {
-	if len(class) < 1 {
-		return 8 // Default
-	}
-
-	grade := class[0] - '0'
-	if grade >= 1 && grade <= 5 {
-		return int(grade) + 5 // Grade 1 = 6 years old, Grade 5 = 10 years old
-	}
-
-	return 8 // Default
-}
+// Unused - kept for potential future use
+// func getStudentAge(class string) int {
+// 	if len(class) < 1 {
+// 		return 8 // Default
+// 	}
+//
+// 	grade := class[0] - '0'
+// 	if grade >= 1 && grade <= 5 {
+// 		return int(grade) + 5 // Grade 1 = 6 years old, Grade 5 = 10 years old
+// 	}
+//
+// 	return 8 // Default
+// }
 
 // Helper function to convert weekday string to int
 func weekdayToInt(weekday string) int {

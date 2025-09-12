@@ -128,7 +128,7 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 
 	for i := 0; i < totalPersons; i++ {
 		// Generate person data
-		firstName := firstNames[rng.Intn(len(firstNames))]
+		var firstName string
 		lastName := lastNames[rng.Intn(len(lastNames))]
 
 		// For the first 30 persons (staff), use adult names
@@ -136,7 +136,7 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 			firstName = firstNames[i%35] // First 35 names are adults
 		} else {
 			// For students, use child names
-			firstName = firstNames[35+((i-30)%len(firstNames)-35)]
+			firstName = firstNames[35+((i-30)%(len(firstNames)-35))]
 		}
 
 		// Create RFID card
@@ -299,9 +299,10 @@ func generateRFIDTag(rng *rand.Rand) string {
 	return hex
 }
 
-func generatePINCode(rng *rand.Rand) string {
-	return fmt.Sprintf("%04d", rng.Intn(10000))
-}
+// Unused - kept for potential future use
+// func generatePINCode(rng *rand.Rand) string {
+// 	return fmt.Sprintf("%04d", rng.Intn(10000))
+// }
 
 func normalizeForEmail(name string) string {
 	// Convert to lowercase first
