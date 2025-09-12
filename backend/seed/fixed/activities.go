@@ -265,22 +265,22 @@ func (s *Seeder) seedActivitySchedules(ctx context.Context) error {
 		"Schwimmen":               {"2. AG-Block", []string{"wednesday"}},
 
 		// Creative activities
-		"Basteln und Malen":  {"2. AG-Block", []string{"monday", "wednesday"}},
-		"Töpfern":            {"2. AG-Block", []string{"tuesday", "thursday"}},
-		"Origami-Werkstatt":  {"1. AG-Block", []string{"friday"}},
+		"Basteln und Malen": {"2. AG-Block", []string{"monday", "wednesday"}},
+		"Töpfern":           {"2. AG-Block", []string{"tuesday", "thursday"}},
+		"Origami-Werkstatt": {"1. AG-Block", []string{"friday"}},
 
 		// Music
-		"Kinderchor":             {"2. AG-Block", []string{"tuesday", "thursday"}},
+		"Kinderchor":              {"2. AG-Block", []string{"tuesday", "thursday"}},
 		"Rhythmus und Percussion": {"1. AG-Block", []string{"monday", "wednesday"}},
-		"Blockflöten-AG":         {"2. AG-Block", []string{"friday"}},
+		"Blockflöten-AG":          {"2. AG-Block", []string{"friday"}},
 
 		// Other activities
-		"Schach für Anfänger":    {"2. AG-Block", []string{"monday", "friday"}},
+		"Schach für Anfänger":     {"2. AG-Block", []string{"monday", "friday"}},
 		"Brett- und Kartenspiele": {"Freispiel/Ruhephase", []string{"monday", "tuesday", "wednesday", "thursday", "friday"}},
-		"Leseclub":               {"1. AG-Block", []string{"wednesday"}},
-		"Vorlesestunde":          {"Freispiel/Ruhephase", []string{"tuesday", "thursday"}},
-		"Junge Forscher":         {"2. AG-Block", []string{"wednesday", "friday"}},
-		"Computer-Grundlagen":    {"2. AG-Block", []string{"tuesday", "thursday"}},
+		"Leseclub":                {"1. AG-Block", []string{"wednesday"}},
+		"Vorlesestunde":           {"Freispiel/Ruhephase", []string{"tuesday", "thursday"}},
+		"Junge Forscher":          {"2. AG-Block", []string{"wednesday", "friday"}},
+		"Computer-Grundlagen":     {"2. AG-Block", []string{"tuesday", "thursday"}},
 	}
 
 	// Map timeframe descriptions to IDs
@@ -387,7 +387,7 @@ func (s *Seeder) seedStudentEnrollments(ctx context.Context) error {
 
 	if s.verbose {
 		log.Printf("Created %d student enrollments", len(s.result.Enrollments))
-		
+
 		// Print fill rates
 		log.Println("Activity fill rates:")
 		for _, activity := range s.result.ActivityGroups {

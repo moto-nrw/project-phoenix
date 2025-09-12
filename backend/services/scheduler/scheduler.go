@@ -532,7 +532,7 @@ func (s *Scheduler) executeCheckoutProcessing(task *ScheduledTask) {
 	}()
 
 	ctx := context.Background()
-	
+
 	// Process due scheduled checkouts
 	result, err := s.activeService.ProcessDueScheduledCheckouts(ctx)
 	if err != nil {

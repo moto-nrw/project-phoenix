@@ -13,18 +13,18 @@ import (
 // Result contains all created fixed data entities
 type Result struct {
 	// Core entities
-	Rooms           []*facilities.Room
-	Persons         []*users.Person
-	RFIDCards       []*users.RFIDCard
-	Staff           []*users.Staff
-	Teachers        []*users.Teacher
-	Students        []*users.Student
+	Rooms     []*facilities.Room
+	Persons   []*users.Person
+	RFIDCards []*users.RFIDCard
+	Staff     []*users.Staff
+	Teachers  []*users.Teacher
+	Students  []*users.Student
 
 	// Auth entities
-	Accounts       []*auth.Account
-	Roles          []*auth.Role
-	AdminAccount   *auth.Account
-	StaffWithPINs  map[string]string // email -> PIN for testing
+	Accounts      []*auth.Account
+	Roles         []*auth.Role
+	AdminAccount  *auth.Account
+	StaffWithPINs map[string]string // email -> PIN for testing
 
 	// Education entities
 	EducationGroups   []*education.Group
@@ -41,8 +41,8 @@ type Result struct {
 	Schedules  []*activities.Schedule
 
 	// IoT entities
-	Devices        []*iot.Device
-	DevicesByRoom  map[int64]*iot.Device // room_id -> device
+	Devices       []*iot.Device
+	DevicesByRoom map[int64]*iot.Device // room_id -> device
 
 	// Lookup maps for relationships
 	PersonByID        map[int64]*users.Person

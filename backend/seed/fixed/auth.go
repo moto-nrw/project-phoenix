@@ -54,36 +54,36 @@ func (s *Seeder) seedRolesAndPermissions(ctx context.Context) error {
 		permissions.UsersRead,
 		permissions.UsersUpdate,
 		permissions.UsersDelete,
-		
+
 		// Groups
 		permissions.GroupsRead,
 		permissions.GroupsUpdate,
 		permissions.GroupsDelete,
-		
+
 		// Activities
 		permissions.ActivitiesRead,
 		permissions.ActivitiesUpdate,
 		permissions.ActivitiesDelete,
-		
+
 		// Visits
 		permissions.VisitsRead,
 		permissions.VisitsUpdate,
 		permissions.VisitsDelete,
-		
+
 		// Rooms
 		permissions.RoomsRead,
 		permissions.RoomsUpdate,
 		permissions.RoomsDelete,
-		
+
 		// IoT
 		permissions.IOTRead,
 		permissions.IOTUpdate,
 		permissions.IOTManage,
-		
+
 		// Feedback
 		permissions.FeedbackRead,
 		permissions.FeedbackCreate,
-		
+
 		// Config
 		permissions.ConfigRead,
 		permissions.ConfigUpdate,
@@ -147,9 +147,9 @@ func (s *Seeder) seedRolesAndPermissions(ctx context.Context) error {
 			permissions.RoomsRead,
 		},
 		"guardian": {
-			permissions.UsersRead,   // Limited to their children
-			permissions.GroupsRead,  // Limited to their children's groups
-			permissions.VisitsRead,  // Limited to their children's activities
+			permissions.UsersRead,  // Limited to their children
+			permissions.GroupsRead, // Limited to their children's groups
+			permissions.VisitsRead, // Limited to their children's activities
 		},
 	}
 

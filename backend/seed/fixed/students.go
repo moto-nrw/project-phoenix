@@ -39,9 +39,9 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 			// Generate guardian information based on student's last name
 			guardianFirstName := firstNames[rng.Intn(35)] // Adult names
 			guardianName := fmt.Sprintf("%s %s", guardianFirstName, person.LastName)
-			guardianPhone := fmt.Sprintf("+49 %d %d-%d", 
-				30+rng.Intn(900), 
-				rng.Intn(900)+100, 
+			guardianPhone := fmt.Sprintf("+49 %d %d-%d",
+				30+rng.Intn(900),
+				rng.Intn(900)+100,
 				rng.Intn(9000)+1000)
 			guardianEmail := fmt.Sprintf("%s.%s@gmx.de",
 				normalizeForEmail(guardianFirstName),
@@ -51,14 +51,14 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 			bus := rng.Float32() < 0.3
 
 			student := &users.Student{
-				PersonID:          person.ID,
-				SchoolClass:       classGroup.Name,
-				Bus:               bus,
-				GuardianName:      guardianName,
-				GuardianContact:   guardianPhone,
-				GuardianEmail:     &guardianEmail,
-				GuardianPhone:     &guardianPhone,
-				GroupID:           &classGroup.ID,
+				PersonID:        person.ID,
+				SchoolClass:     classGroup.Name,
+				Bus:             bus,
+				GuardianName:    guardianName,
+				GuardianContact: guardianPhone,
+				GuardianEmail:   &guardianEmail,
+				GuardianPhone:   &guardianPhone,
+				GroupID:         &classGroup.ID,
 			}
 			student.CreatedAt = time.Now()
 			student.UpdatedAt = time.Now()
@@ -74,7 +74,7 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 	}
 
 	if s.verbose {
-		log.Printf("Created %d students distributed across %d classes", 
+		log.Printf("Created %d students distributed across %d classes",
 			len(s.result.Students), len(s.result.ClassGroups))
 	}
 
@@ -93,7 +93,7 @@ func (s *Seeder) seedPrivacyConsents(ctx context.Context) error {
 		if rng.Float32() < 0.9 {
 			policyVersion := policyVersions[rng.Intn(len(policyVersions))]
 			acceptedAt := time.Now().AddDate(0, 0, -rng.Intn(180)) // Within last 6 months
-			durationDays := 365                                     // 1 year validity
+			durationDays := 365                                    // 1 year validity
 			expiresAt := acceptedAt.AddDate(1, 0, 0)
 			renewalRequired := expiresAt.Before(time.Now().AddDate(0, 1, 0))
 
@@ -112,7 +112,7 @@ func (s *Seeder) seedPrivacyConsents(ctx context.Context) error {
 
 			_, err := s.tx.NewInsert().Model(consent).ModelTableExpr("users.privacy_consents").Exec(ctx)
 			if err != nil {
-				return fmt.Errorf("failed to create privacy consent for student %d: %w", 
+				return fmt.Errorf("failed to create privacy consent for student %d: %w",
 					student.ID, err)
 			}
 			consentCount++
@@ -120,7 +120,7 @@ func (s *Seeder) seedPrivacyConsents(ctx context.Context) error {
 	}
 
 	if s.verbose {
-		log.Printf("Created %d privacy consents (%.0f%% coverage)", 
+		log.Printf("Created %d privacy consents (%.0f%% coverage)",
 			consentCount, float64(consentCount)/float64(len(s.result.Students))*100)
 	}
 
@@ -167,7 +167,7 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 				VALUES (?, ?, ?, ?, ?)
 				ON CONFLICT (email) DO NOTHING
 				RETURNING id`,
-				account.CreatedAt, account.UpdatedAt, account.Email, 
+				account.CreatedAt, account.UpdatedAt, account.Email,
 				account.PasswordHash, account.Active).Scan(&id)
 			if err != nil {
 				// Skip if email already exists
@@ -190,12 +190,12 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 
 			// Create student-guardian relationship
 			guardianRel := &users.StudentGuardian{
-				StudentID:         student.ID,
-				GuardianAccountID: account.ID,
-				RelationshipType:  "parent",
-				IsPrimary:         true, // All guardians created are primary for simplicity
+				StudentID:          student.ID,
+				GuardianAccountID:  account.ID,
+				RelationshipType:   "parent",
+				IsPrimary:          true, // All guardians created are primary for simplicity
 				IsEmergencyContact: true,
-				CanPickup:         true,
+				CanPickup:          true,
 			}
 			guardianRel.CreatedAt = time.Now()
 			guardianRel.UpdatedAt = time.Now()

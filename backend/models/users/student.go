@@ -34,13 +34,13 @@ type Student struct {
 // BeforeAppendModel sets the correct table expression
 func (s *Student) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("users.students")
+		q.ModelTableExpr(`users.students AS "student"`)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("users.students")
+		q.ModelTableExpr(`users.students AS "student"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("users.students")
+		q.ModelTableExpr(`users.students AS "student"`)
 	}
 	return nil
 }

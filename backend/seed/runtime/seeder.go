@@ -81,7 +81,7 @@ func (s *Seeder) createActiveSessions(ctx context.Context, currentTime time.Time
 	activeClasses := 4
 	for i := 0; i < activeClasses && i < len(s.fixedData.ClassGroups); i++ {
 		classGroup := s.fixedData.ClassGroups[i]
-		
+
 		// Skip if room already has an active session
 		if classGroup.RoomID != nil {
 			if _, exists := s.result.ActiveGroupsByRoom[*classGroup.RoomID]; exists {
@@ -236,15 +236,15 @@ func (s *Seeder) createActiveSessions(ctx context.Context, currentTime time.Time
 
 		// Assign activity supervisors
 		var supervisors []struct {
-			StaffID int64  `bun:"staff_id"`
-			IsLead  bool   `bun:"is_lead"`
+			StaffID int64 `bun:"staff_id"`
+			IsLead  bool  `bun:"is_lead"`
 		}
 		err = s.tx.NewSelect().
 			Table("activities.supervisor_assignments").
 			Column("staff_id", "is_lead").
 			Where("activity_group_id = ?", activity.ID).
 			Scan(ctx, &supervisors)
-		
+
 		if err == nil {
 			for _, sup := range supervisors {
 				role := "supervisor"
@@ -252,9 +252,9 @@ func (s *Seeder) createActiveSessions(ctx context.Context, currentTime time.Time
 					role = "lead_supervisor"
 				}
 				supervisor := &active.GroupSupervisor{
-					GroupID:      activeGroup.ID,
+					GroupID: activeGroup.ID,
 					StaffID: sup.StaffID,
-					Role:         role,
+					Role:    role,
 				}
 				supervisor.CreatedAt = time.Now()
 				supervisor.UpdatedAt = time.Now()
@@ -382,7 +382,7 @@ func (s *Seeder) createAttendanceRecords(ctx context.Context, currentTime time.T
 		// 90% attendance rate
 		if rng.Float32() < 0.9 {
 			checkInTime := today.Add(7*time.Hour + 30*time.Minute) // 7:30 AM
-			
+
 			// Add some variation to arrival times
 			arrivalOffset := rng.Intn(60) - 10 // -10 to +50 minutes
 			checkInTime = checkInTime.Add(time.Duration(arrivalOffset) * time.Minute)

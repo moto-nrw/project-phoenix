@@ -58,8 +58,8 @@ func (s *Seeder) seedStaff(ctx context.Context) error {
 
 	for i, person := range staffPersons {
 		staff := &users.Staff{
-			PersonID:    person.ID,
-			StaffNotes:  staffNotes[i%len(staffNotes)],
+			PersonID:   person.ID,
+			StaffNotes: staffNotes[i%len(staffNotes)],
 		}
 		staff.CreatedAt = time.Now()
 		staff.UpdatedAt = time.Now()

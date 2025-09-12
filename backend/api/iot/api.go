@@ -1166,7 +1166,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 			if staffCtx := device.StaffFromCtx(r.Context()); staffCtx != nil {
 				cancelledBy = staffCtx.ID
 			}
-			
+
 			if err := rs.ActiveService.CancelScheduledCheckout(r.Context(), pendingCheckout.ID, cancelledBy); err != nil {
 				log.Printf("[CHECKIN] Warning: Failed to cancel scheduled checkout %d: %v", pendingCheckout.ID, err)
 			} else {

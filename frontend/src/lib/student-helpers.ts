@@ -104,6 +104,8 @@ export interface Student {
     bus?: boolean; // Administrative permission flag (Buskind), not attendance status
     name_lg?: string;
     contact_lg?: string;
+    guardian_email?: string;
+    guardian_phone?: string;
     custom_users_id?: string;
     // Privacy consent data (fetched separately)
     privacy_consent?: PrivacyConsent;
@@ -156,6 +158,8 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student & { 
         bus: backendStudent.bus, // Administrative permission flag (Buskind)
         name_lg: backendStudent.guardian_name,
         contact_lg: backendStudent.guardian_contact,
+        guardian_email: backendStudent.guardian_email,
+        guardian_phone: backendStudent.guardian_phone,
         custom_users_id: undefined, // Not provided by backend
         extra_info: backendStudent.extra_info,
     };

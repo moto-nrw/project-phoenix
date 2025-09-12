@@ -208,7 +208,7 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 				INSERT INTO auth.accounts (created_at, updated_at, email, password_hash, pin_hash, active)
 				VALUES (?, ?, ?, ?, ?, ?)
 				RETURNING id`,
-				account.CreatedAt, account.UpdatedAt, account.Email, 
+				account.CreatedAt, account.UpdatedAt, account.Email,
 				account.PasswordHash, account.PINHash, account.Active).Scan(&id)
 			if err != nil {
 				return fmt.Errorf("failed to create account for %s: %w", email, err)
@@ -256,10 +256,10 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 
 		// Create person
 		person := &users.Person{
-			FirstName:  firstName,
-			LastName:   lastName,
-			TagID:      &rfidCard.ID,
-			AccountID:  accountID,
+			FirstName: firstName,
+			LastName:  lastName,
+			TagID:     &rfidCard.ID,
+			AccountID: accountID,
 		}
 		person.CreatedAt = time.Now()
 		person.UpdatedAt = time.Now()
@@ -302,7 +302,6 @@ func generateRFIDTag(rng *rand.Rand) string {
 func generatePINCode(rng *rand.Rand) string {
 	return fmt.Sprintf("%04d", rng.Intn(10000))
 }
-
 
 func normalizeForEmail(name string) string {
 	// Convert to lowercase first

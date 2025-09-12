@@ -100,24 +100,24 @@ func (rs *Resource) Router() chi.Router {
 
 // StudentResponse represents a student response
 type StudentResponse struct {
-	ID                int64                    `json:"id"`
-	PersonID          int64                    `json:"person_id"`
-	FirstName         string                   `json:"first_name"`
-	LastName          string                   `json:"last_name"`
-	TagID             string                   `json:"tag_id,omitempty"`
-	SchoolClass       string                   `json:"school_class"`
-	Location          string                   `json:"location"`
-	Bus               bool                     `json:"bus"`
-	GuardianName      string                   `json:"guardian_name"`
-	GuardianContact   string                   `json:"guardian_contact"`
-	GuardianEmail     string                   `json:"guardian_email,omitempty"`
-	GuardianPhone     string                   `json:"guardian_phone,omitempty"`
-	GroupID           int64                    `json:"group_id,omitempty"`
-	GroupName         string                   `json:"group_name,omitempty"`
-	ScheduledCheckout *ScheduledCheckoutInfo   `json:"scheduled_checkout,omitempty"`
-	ExtraInfo         string                   `json:"extra_info,omitempty"`
-	CreatedAt         time.Time                `json:"created_at"`
-	UpdatedAt         time.Time                `json:"updated_at"`
+	ID                int64                  `json:"id"`
+	PersonID          int64                  `json:"person_id"`
+	FirstName         string                 `json:"first_name"`
+	LastName          string                 `json:"last_name"`
+	TagID             string                 `json:"tag_id,omitempty"`
+	SchoolClass       string                 `json:"school_class"`
+	Location          string                 `json:"location"`
+	Bus               bool                   `json:"bus"`
+	GuardianName      string                 `json:"guardian_name"`
+	GuardianContact   string                 `json:"guardian_contact"`
+	GuardianEmail     string                 `json:"guardian_email,omitempty"`
+	GuardianPhone     string                 `json:"guardian_phone,omitempty"`
+	GroupID           int64                  `json:"group_id,omitempty"`
+	GroupName         string                 `json:"group_name,omitempty"`
+	ScheduledCheckout *ScheduledCheckoutInfo `json:"scheduled_checkout,omitempty"`
+	ExtraInfo         string                 `json:"extra_info,omitempty"`
+	CreatedAt         time.Time              `json:"created_at"`
+	UpdatedAt         time.Time              `json:"updated_at"`
 }
 
 // ScheduledCheckoutInfo represents scheduled checkout information for a student
@@ -161,7 +161,7 @@ type StudentRequest struct {
 	GuardianEmail string  `json:"guardian_email,omitempty"`
 	GuardianPhone string  `json:"guardian_phone,omitempty"`
 	GroupID       *int64  `json:"group_id,omitempty"`
-	Bus           *bool   `json:"bus,omitempty"` // Whether student takes the bus
+	Bus           *bool   `json:"bus,omitempty"`        // Whether student takes the bus
 	ExtraInfo     *string `json:"extra_info,omitempty"` // Extra information visible to supervisors
 }
 
@@ -179,7 +179,7 @@ type UpdateStudentRequest struct {
 	GuardianEmail   *string `json:"guardian_email,omitempty"`
 	GuardianPhone   *string `json:"guardian_phone,omitempty"`
 	GroupID         *int64  `json:"group_id,omitempty"`
-	Bus             *bool   `json:"bus,omitempty"` // Whether student takes the bus
+	Bus             *bool   `json:"bus,omitempty"`        // Whether student takes the bus
 	ExtraInfo       *string `json:"extra_info,omitempty"` // Extra information visible to supervisors
 }
 
@@ -275,12 +275,12 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 	// Use real tracking data instead of deprecated flags
 	// Always check attendance status first - this is public information
 	attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, student.ID)
-	
+
 	if err == nil && attendanceStatus != nil && attendanceStatus.Status == "checked_in" {
 		// Student is checked in today
 		// Now check if they have an active visit (room assignment)
 		currentVisit, err := activeService.GetStudentCurrentVisit(ctx, student.ID)
-		
+
 		if err == nil && currentVisit != nil {
 			// Student has an active visit - they are present and in a specific activity
 			if includeLocation {
@@ -319,7 +319,7 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 				scheduledByName = person.FirstName + " " + person.LastName
 			}
 		}
-		
+
 		response.ScheduledCheckout = &ScheduledCheckoutInfo{
 			ID:           pendingCheckout.ID,
 			ScheduledFor: pendingCheckout.ScheduledFor,
@@ -931,7 +931,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	isAdmin := hasAdminPermissions(userPermissions)
 	staff, _ := rs.UserContextService.GetCurrentStaff(r.Context())
-	
+
 	// Determine if user has full access to student location details
 	hasFullAccess := isAdmin
 	if !hasFullAccess && staff != nil && student.GroupID != nil {
@@ -949,9 +949,9 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 
 	// Create location response structure
 	locationResponse := struct {
-		Location          string                   `json:"location"`
-		CurrentRoom       string                   `json:"current_room,omitempty"`
-		ScheduledCheckout *ScheduledCheckoutInfo   `json:"scheduled_checkout,omitempty"`
+		Location          string                 `json:"location"`
+		CurrentRoom       string                 `json:"current_room,omitempty"`
+		ScheduledCheckout *ScheduledCheckoutInfo `json:"scheduled_checkout,omitempty"`
 	}{
 		Location:          response.Location,
 		ScheduledCheckout: response.ScheduledCheckout,

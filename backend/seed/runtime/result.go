@@ -7,13 +7,13 @@ import (
 // Result contains all created runtime state
 type Result struct {
 	// Active sessions
-	ActiveGroups    []*active.Group
-	CombinedGroups  []*active.CombinedGroup
-	GroupMappings   []GroupMapping
+	ActiveGroups   []*active.Group
+	CombinedGroups []*active.CombinedGroup
+	GroupMappings  []GroupMapping
 
 	// Visit tracking
-	Visits          []*active.Visit
-	Attendance      []*active.Attendance
+	Visits     []*active.Visit
+	Attendance []*active.Attendance
 
 	// Supervisor assignments
 	Supervisors     []*active.GroupSupervisor

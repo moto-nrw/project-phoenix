@@ -284,7 +284,7 @@ func (s *Seeder) printSummary(result *Result) {
 		fmt.Printf("  Active Groups: %d\n", len(result.Runtime.ActiveGroups))
 		fmt.Printf("  Active Visits: %d\n", len(result.Runtime.Visits))
 		fmt.Printf("  Group Supervisors: %d assignments\n", result.Runtime.SupervisorCount)
-		
+
 		// Count students currently checked in
 		checkedIn := 0
 		for _, visit := range result.Runtime.Visits {

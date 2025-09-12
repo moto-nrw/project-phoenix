@@ -107,8 +107,8 @@ export default function StudentDetailPage() {
                     bus: mappedStudent.bus ?? false,
                     current_room: undefined, // Not available from API yet
                     guardian_name: hasAccess ? (mappedStudent.name_lg ?? "") : "",
-                    guardian_contact: "", // Email - not provided in this API response
-                    guardian_phone: hasAccess ? (mappedStudent.contact_lg ?? "") : "",
+                    guardian_contact: hasAccess ? (mappedStudent.guardian_email ?? mappedStudent.contact_lg ?? "") : "",
+                    guardian_phone: hasAccess ? (mappedStudent.guardian_phone ?? "") : "",
                     birthday: undefined, // Not available from API yet
                     notes: undefined, // Not available from API yet
                     buskind: mappedStudent.bus, // Use bus field for buskind
@@ -643,7 +643,7 @@ export default function StudentDetailPage() {
                                                     }
                                                 />
                                             )}
-                                            {student.extra_info && (
+                                            {hasFullAccess && student.extra_info && (
                                                 <ModernInfoItem 
                                                     label="Zusätzliche Informationen" 
                                                     value={student.extra_info}
@@ -968,7 +968,7 @@ export default function StudentDetailPage() {
                                         }
                                     />
                                 )}
-                                {student.extra_info && (
+                                {hasFullAccess && student.extra_info && (
                                     <ModernInfoItem 
                                         label="Zusätzliche Informationen" 
                                         value={student.extra_info}
