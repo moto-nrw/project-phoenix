@@ -325,8 +325,10 @@ function OGSGroupPageContent() {
         
         // Check if student is in group room
         if (studentRoomStatus?.in_group_room) {
+            // Use the actual room name instead of generic "Gruppenraum"
+            const roomLabel = currentGroup?.room_name || "Gruppenraum";
             return { 
-                label: "Gruppenraum", 
+                label: roomLabel, 
                 badgeColor: "text-white backdrop-blur-sm",
                 cardGradient: "from-emerald-50/80 to-green-100/80",
                 customBgColor: "#83CD2D",

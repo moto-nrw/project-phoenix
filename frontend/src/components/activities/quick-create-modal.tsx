@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { FormModal } from "~/components/ui/form-modal";
+import React, { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { getCategories, type ActivityCategory } from "~/lib/activity-api";
-import { SimpleAlert } from "~/components/simple/SimpleAlert";
+import { SimpleAlert, alertAnimationStyles } from "~/components/simple/SimpleAlert";
 import { getDbOperationMessage } from "~/lib/use-notification";
+import { useScrollLock } from "~/hooks/useScrollLock";
 
 interface QuickCreateActivityModalProps {
   isOpen: boolean;
@@ -34,10 +35,30 @@ export function QuickCreateActivityModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
+  
+  // Use scroll lock hook
+  useScrollLock(isOpen);
 
-  // Load categories when modal opens
+  // Handle modal close with animation
+  const handleClose = useCallback(() => {
+    setIsExiting(true);
+    setIsAnimating(false);
+    
+    // Delay actual close to allow exit animation
+    setTimeout(() => {
+      onClose();
+    }, 250);
+  }, [onClose]);
+
+  // Load categories and manage animations when modal opens
   useEffect(() => {
     if (isOpen) {
+      // Trigger entrance animation with slight delay for smooth effect
+      setTimeout(() => {
+        setIsAnimating(true);
+      }, 10);
       void loadCategories();
       // Reset form when modal opens
       setForm({
@@ -46,6 +67,15 @@ export function QuickCreateActivityModal({
         max_participants: "15"
       });
       setError(null);
+      // Don't reset success alert here - it should persist after modal closes
+    }
+  }, [isOpen]);
+
+  // Reset animation states when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setIsAnimating(false);
+      setIsExiting(false);
     }
   }, [isOpen]);
 
@@ -131,8 +161,8 @@ export function QuickCreateActivityModal({
         onSuccess();
       }
       
-      // Close modal
-      onClose();
+      // Close modal immediately - success alert will persist independently
+      handleClose();
     } catch (err) {
       console.error("Error creating activity:", err);
       
@@ -143,12 +173,12 @@ export function QuickCreateActivityModal({
         const message = err.message;
         
         // Handle specific error cases with user-friendly messages
-        if (message.includes("user is not a teacher")) {
-          errorMessage = "Nur pädagogische Fachkräfte können Aktivitäten erstellen. Bitte wenden Sie sich an eine pädagogische Fachkraft oder einen Administrator.";
+        if (message.includes("user is not authenticated")) {
+          errorMessage = "Sie müssen angemeldet sein, um Aktivitäten zu erstellen.";
         } else if (message.includes("401")) {
-          errorMessage = "Sie haben keine Berechtigung, Aktivitäten zu erstellen.";
+          errorMessage = "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
         } else if (message.includes("403")) {
-          errorMessage = "Zugriff verweigert. Bitte prüfen Sie Ihre Berechtigungen.";
+          errorMessage = "Zugriff verweigert. Bitte melden Sie sich erneut an.";
         } else if (message.includes("400")) {
           errorMessage = "Ungültige Eingabedaten. Bitte überprüfen Sie Ihre Eingaben.";
         } else {
@@ -162,56 +192,101 @@ export function QuickCreateActivityModal({
     }
   };
 
-  const footer = (
-    <>
-      <button
-        type="button"
-        onClick={onClose}
-        className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-colors duration-150 disabled:opacity-50"
-        disabled={isSubmitting}
-      >
-        Abbrechen
-      </button>
-      
-      <button
-        type="submit"
-        form="quick-create-form"
-        disabled={isSubmitting || loading}
-        className="relative px-5 py-2.5 rounded-lg text-sm font-medium text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2
-        bg-[#83CD2D] hover:bg-[#75BC28] focus:bg-[#75BC28]
-        shadow-sm hover:shadow-md focus:shadow-md
-        transform hover:-translate-y-0.5 active:translate-y-0
-        focus:outline-none focus:ring-2 focus:ring-[#83CD2D] focus:ring-offset-2"
-      >
-        {isSubmitting ? (
-          <>
-            <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <span>Wird erstellt...</span>
-          </>
-        ) : (
-          <>
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            <span>Aktivität erstellen</span>
-          </>
-        )}
-      </button>
-    </>
-  );
+  // Handle escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        handleClose();
+      }
+    };
 
-  return (
-    <>
-      <FormModal
-        isOpen={isOpen}
-        onClose={onClose}
-        title="Aktivität erstellen"
-        size="sm"
-        footer={footer}
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isOpen, handleClose]);
+
+  // Handle backdrop click
+  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      handleClose();
+    }
+  }, [handleClose]);
+
+  // Don't return null here - we need to render the success alert even when modal is closed
+
+  const modalContent = (
+    <div
+      className={`fixed inset-0 z-[9999] flex items-center justify-center transition-all duration-400 ease-out ${
+        isAnimating && !isExiting 
+          ? 'bg-black/40' 
+          : 'bg-black/0'
+      }`}
+      onClick={handleBackdropClick}
+      style={{ 
+        position: 'fixed', 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0,
+        animation: isAnimating && !isExiting ? 'backdropEnter 400ms ease-out' : undefined
+      }}
+    >
+      {/* Modal */}
+      <div className={`relative w-[calc(100%-2rem)] max-w-md mx-4 rounded-2xl shadow-2xl border border-gray-200/50 overflow-hidden transform ${
+          isAnimating && !isExiting
+            ? 'animate-modalEnter' 
+            : isExiting
+            ? 'animate-modalExit'
+            : 'scale-75 opacity-0 translate-y-8 -rotate-1'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)',
+          backdropFilter: 'blur(20px)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 8px 16px -8px rgba(80, 128, 216, 0.15)',
+          animationFillMode: 'both'
+        }}
       >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-100">
+          <h3 className="text-lg md:text-xl font-semibold text-gray-900 pr-4">
+            Aktivität erstellen
+          </h3>
+          <button
+            onClick={handleClose}
+            className="group relative flex-shrink-0 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95"
+            aria-label="Modal schließen"
+          >
+            {/* Animated X icon */}
+            <svg 
+              className="w-5 h-5 transition-transform duration-200 group-hover:rotate-90" 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            
+            {/* Subtle hover glow */}
+            <div 
+              className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+              style={{
+                boxShadow: '0 0 12px rgba(80,128,216,0.3)'
+              }}
+            />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="overflow-y-auto max-h-[calc(100vh-12rem)] sm:max-h-[calc(90vh-8rem)] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100" data-modal-content="true">
+          <div className={`p-4 md:p-6 ${
+            isAnimating && !isExiting ? 'sm:animate-contentReveal' : 'sm:opacity-0'
+          }`}>
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4">
@@ -380,18 +455,76 @@ export function QuickCreateActivityModal({
           </div>
         </form>
       )}
-    </FormModal>
-      
-      {/* Success Alert */}
-      {showSuccessAlert && (
-        <SimpleAlert
-          type="success"
-          message={successMessage}
-          autoClose
-          duration={3000}
-          onClose={() => setShowSuccessAlert(false)}
-        />
-      )}
-    </>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-3 p-4 md:p-6 border-t border-gray-100 bg-gray-50/50">
+          <button
+            type="button"
+            onClick={handleClose}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-colors duration-150 disabled:opacity-50"
+            disabled={isSubmitting}
+          >
+            Abbrechen
+          </button>
+          
+          <button
+            type="submit"
+            form="quick-create-form"
+            disabled={isSubmitting || loading || !form.name.trim() || !form.category_id}
+            className={`relative px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:cursor-not-allowed flex items-center gap-2
+            ${(!form.name.trim() || !form.category_id) 
+              ? 'bg-gray-200/50 text-gray-400 border border-gray-300/50 shadow-none cursor-not-allowed' 
+              : 'bg-[#83CD2D] hover:bg-[#75BC28] focus:bg-[#75BC28] text-white shadow-sm hover:shadow-md focus:shadow-md transform hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-[#83CD2D] focus:ring-offset-2'
+            }
+            ${isSubmitting || loading ? 'opacity-50' : ''}`}
+          >
+            {isSubmitting ? (
+              <>
+                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Wird erstellt...</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                <span>Aktivität erstellen</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
   );
+
+  // Portal render
+  if (typeof document !== 'undefined') {
+    return (
+      <>
+        {/* Render modal only when open */}
+        {isOpen && createPortal(modalContent, document.body)}
+        {/* Success Alert - rendered independently of modal state */}
+        {showSuccessAlert && createPortal(
+          <>
+            {alertAnimationStyles}
+            <SimpleAlert
+              type="success"
+              message={successMessage}
+              autoClose
+              duration={3000}
+              onClose={() => setShowSuccessAlert(false)}
+            />
+          </>,
+          document.body
+        )}
+      </>
+    );
+  }
+
+  return null;
 }

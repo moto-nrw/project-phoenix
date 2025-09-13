@@ -3,10 +3,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { UserContextProvider } from "~/lib/usercontext-context";
-import { QuickCreateActivityModal } from "~/components/activities/quick-create-modal";
 import { useSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 
@@ -67,7 +65,7 @@ const NAV_ITEMS: NavItem[] = [
         href: "/activities",
         label: "Aktivitäten",
         icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
-        requiresAdmin: true
+        alwaysShow: true
     },
     {
         href: "/statistics",
@@ -104,7 +102,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
     const pathname = usePathname();
 
     // Quick create activity modal state
-    const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
 
     // Get session for role checking
     const { data: session } = useSession();
@@ -212,36 +209,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
                             </Link>
                         ))}
                     </nav>
-                    
-                    {/* Create Activity Button */}
-                    <div className="mt-6 pt-4 border-t border-gray-100">
-                        <button
-                            onClick={() => setIsQuickCreateOpen(true)}
-                            className="w-full flex items-center justify-center gap-2.5 px-4 py-3 text-sm font-medium text-gray-700 bg-gradient-to-r from-[#83CD2D]/10 to-[#70B525]/10 border border-[#83CD2D]/30 rounded-xl hover:from-[#83CD2D]/20 hover:to-[#70B525]/20 hover:border-[#83CD2D]/50 hover:shadow-md hover:shadow-[#83CD2D]/20 transition-all duration-300 group transform hover:scale-[1.02] active:scale-[0.98]"
-                        >
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#83CD2D] to-[#70B525] flex items-center justify-center shadow-sm group-hover:shadow-md group-hover:shadow-[#83CD2D]/30 transition-all duration-300 group-hover:rotate-90">
-                                <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                                </svg>
-                            </div>
-                            <span className="flex-1 text-left font-semibold text-gray-800">Aktivität erstellen</span>
-                            <svg className="h-4 w-4 text-[#83CD2D] group-hover:translate-x-1 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                            </svg>
-                        </button>
-                    </div>
                 </div>
             </aside>
 
-            {/* Quick Create Activity Modal */}
-            <QuickCreateActivityModal
-                isOpen={isQuickCreateOpen}
-                onClose={() => setIsQuickCreateOpen(false)}
-                onSuccess={() => {
-                    setIsQuickCreateOpen(false);
-                    // Optional: Show success notification or refresh data
-                }}
-            />
         </>
     );
 }
