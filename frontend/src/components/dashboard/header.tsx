@@ -13,6 +13,7 @@ import { MobileSearchModal } from "./mobile-search-modal";
 import { NotificationCenter } from "./notification-center";
 import { MobileNotificationModal } from "./mobile-notification-modal";
 import { useSession } from "next-auth/react";
+import { LogoutModal } from "~/components/ui/logout-modal";
 
 // Function to get page title based on pathname
 function getPageTitle(pathname: string): string {
@@ -107,6 +108,7 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
     const [isMobileNotificationOpen, setIsMobileNotificationOpen] = useState(false);
+    const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
     const pathname = usePathname();
     const helpContent = getHelpContent(pathname);
     const pageTitle = getPageTitle(pathname);
@@ -384,14 +386,17 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
                                     
                                     <div className="border-t border-gray-100 my-2"></div>
                                     
-                                    <Link 
-                                        href="/logout" 
-                                        onClick={closeProfileMenu}
-                                        className="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors duration-150"
+                                    <button 
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            closeProfileMenu();
+                                            setIsLogoutModalOpen(true);
+                                        }}
+                                        className="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors duration-150 w-full text-left"
                                     >
                                         <LogoutIcon className="w-4 h-4 mr-3" />
                                         Abmelden
-                                    </Link>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -409,6 +414,12 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
             <MobileNotificationModal 
                 isOpen={isMobileNotificationOpen} 
                 onClose={closeMobileNotification} 
+            />
+            
+            {/* Logout Modal */}
+            <LogoutModal
+                isOpen={isLogoutModalOpen}
+                onClose={() => setIsLogoutModalOpen(false)}
             />
         </header>
     );
