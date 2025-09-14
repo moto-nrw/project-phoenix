@@ -111,7 +111,7 @@ interface AdditionalNavItem {
 }
 
 const additionalNavItems: AdditionalNavItem[] = [
-  { href: '/students/search', label: 'Schüler Suche', requiresSupervision: true },
+  { href: '/students/search', label: 'Kindersuche', requiresSupervision: true },
   { href: '/statistics', label: 'Statistiken', requiresAdmin: true },
   { href: '/substitutions', label: 'Vertretungen', requiresAdmin: true },
   { href: '/database', label: 'Datenbank', requiresAdmin: true },
@@ -235,7 +235,7 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
         ...filteredMainItems,
         {
           href: '/students/search',
-          label: 'Suchen',
+          label: 'Kindersuche',
           icon: (
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />

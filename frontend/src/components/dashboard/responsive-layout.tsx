@@ -17,7 +17,7 @@ export default function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
   const userName = session?.user?.name ?? 'Root';
   const userEmail = session?.user?.email ?? '';
   const userRoles = session?.user?.roles ?? [];
-  const userRole = userRoles.length > 0 ? userRoles[0] : 'User';
+  const userRole = userRoles.includes('admin') ? 'Admin' : userRoles.length > 0 ? 'Betreuer' : 'Betreuer';
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
 
   // Check for invalid session and redirect

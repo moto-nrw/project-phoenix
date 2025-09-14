@@ -298,6 +298,11 @@ function OGSGroupPageContent() {
                 case "in_room":
                     if (!studentRoomStatus?.in_group_room) return false;
                     break;
+                case "foreign_room":
+                    // Student is in a room but NOT their group room
+                    // They have a current_room_id but in_group_room is false
+                    if (!studentRoomStatus?.current_room_id || studentRoomStatus?.in_group_room !== false) return false;
+                    break;
                 case "in_house":
                     // Check both the in_house flag and current_location
                     if (!student.in_house && student.current_location !== LOCATIONS.IN_HOUSE) return false;
@@ -405,6 +410,7 @@ function OGSGroupPageContent() {
             options: [
                 { value: "all", label: "Alle Orte", icon: "M4 6h16M4 12h16M4 18h16" },
                 { value: "in_room", label: "Gruppenraum", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
+                { value: "foreign_room", label: "Fremder Raum", icon: "M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" },
                 { value: "in_house", label: "Unterwegs", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
                 { value: "school_yard", label: "Schulhof", icon: "M21 12a9 9 0 11-18 0 9 9 0 0118 0zM12 12a8 8 0 008 4M7.5 13.5a12 12 0 008.5 6.5M12 12a8 8 0 00-7.464 4.928M12.951 7.353a12 12 0 00-9.88 4.111M12 12a8 8 0 00-.536-8.928M15.549 15.147a12 12 0 001.38-10.611" },
                 { value: "at_home", label: "Zuhause", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" }

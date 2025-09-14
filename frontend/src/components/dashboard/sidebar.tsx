@@ -51,7 +51,7 @@ const NAV_ITEMS: NavItem[] = [
     },
     {
         href: "/students/search",
-        label: "Suche",
+        label: "Kindersuche",
         icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
         requiresSupervision: true
     },
@@ -163,7 +163,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
             ...baseFilteredNavItems,
             {
                 href: "/students/search",
-                label: "Suche",
+                label: "Kindersuche",
                 icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
                 alwaysShow: true
             }

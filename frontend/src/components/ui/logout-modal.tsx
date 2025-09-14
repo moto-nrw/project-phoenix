@@ -143,9 +143,12 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
               <div className="mt-6">
                 <button
                   onClick={handleConfirmLogout}
-                  className="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-900/90 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
+                  className="group relative inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-110 hover:shadow-2xl hover:shadow-red-500/25 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
                 >
-                  Abmelden
+                  {/* Animated background glow on hover */}
+                  <div className="absolute inset-0 rounded-md bg-red-600 opacity-0 blur-xl transition-opacity duration-300 group-hover:opacity-40" />
+                  
+                  <span className="relative">Abmelden</span>
                 </button>
               </div>
             </>
