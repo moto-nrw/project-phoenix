@@ -21,7 +21,7 @@ export function IOSToggle({ checked, onChange, disabled = false }: IOSToggleProp
         transition-colors duration-200 ease-in-out focus:outline-none
         focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2
         ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}
-        ${checked ? "bg-[#34C759]" : "bg-gray-300"}
+        ${checked ? "bg-[#83CD2D]" : "bg-gray-300"}
       `}
     >
       <span

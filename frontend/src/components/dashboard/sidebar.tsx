@@ -193,8 +193,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
     return (
         <>
             {/* Desktop sidebar */}
-            <aside className={`w-64 bg-white border-r border-gray-200 min-h-screen overflow-y-auto ${className}`}>
-                <div className="p-4">
+            <aside className={`w-64 bg-white border-r border-gray-200 min-h-screen ${className}`}>
+                <div className="sticky top-[73px] p-4">
                     <nav className="space-y-2">
                         {filteredNavItems.map((item) => (
                             <Link

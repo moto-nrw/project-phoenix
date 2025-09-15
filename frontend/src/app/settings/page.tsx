@@ -54,11 +54,6 @@ function SettingsContent() {
     email: "",
   });
 
-  // Memoized callback for alert close to prevent re-renders from resetting timer
-  const handleAlertClose = useCallback(() => {
-    setShowAlert(false);
-  }, []);
-
   // Settings state
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(false);
@@ -70,6 +65,21 @@ function SettingsContent() {
   const [activityTracking, setActivityTracking] = useState(true);
   const [emailChannel, setEmailChannel] = useState(true);
   const [browserChannel, setBrowserChannel] = useState(false);
+
+  // Memoized callback for alert close to prevent re-renders from resetting timer
+  const handleAlertClose = useCallback(() => {
+    setShowAlert(false);
+  }, []);
+
+  // Handle back navigation on mobile
+  const handleBackToList = useCallback(() => {
+    setActiveTab(null);
+  }, []);
+
+  // Handle tab selection
+  const handleTabSelect = useCallback((tabId: string) => {
+    setActiveTab(tabId);
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -171,16 +181,6 @@ function SettingsContent() {
   }
 
   const allTabs = session?.user?.isAdmin ? [...tabs, ...adminTabs] : tabs;
-
-  // Handle back navigation on mobile
-  const handleBackToList = useCallback(() => {
-    setActiveTab(null);
-  }, []);
-
-  // Handle tab selection
-  const handleTabSelect = useCallback((tabId: string) => {
-    setActiveTab(tabId);
-  }, []);
 
   const renderTabContent = () => {
     switch (activeTab) {
