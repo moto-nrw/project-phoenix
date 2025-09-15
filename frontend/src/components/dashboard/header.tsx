@@ -339,7 +339,7 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
                                 {/* Menu items */}
                                 <div className="py-2">
                                     <Link 
-                                        href="/profile" 
+                                        href="/settings" 
                                         onClick={closeProfileMenu}
                                         className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors duration-150"
                                     >

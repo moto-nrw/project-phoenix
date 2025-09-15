@@ -20,7 +20,7 @@ export function HoverBorderGradient({
   containerClassName,
   className,
   as: Component = "button",
-  duration = 1,
+  duration: _duration = 1,
   ...props
 }: HoverBorderGradientProps) {
   const [isHovering, setIsHovering] = useState(false);

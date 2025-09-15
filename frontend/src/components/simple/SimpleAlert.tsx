@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 
 interface SimpleAlertProps {
   type: "success" | "error" | "info" | "warning";
@@ -57,27 +57,40 @@ export function SimpleAlert({
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
+  // Use ref to store the latest onClose callback without triggering effect re-runs
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     // Trigger entrance animation
     const showTimer = setTimeout(() => {
       setIsVisible(true);
     }, 10);
 
-    if (autoClose && onClose) {
-      const timer = setTimeout(() => {
+    let autoCloseTimer: NodeJS.Timeout | undefined;
+    let exitTimer: NodeJS.Timeout | undefined;
+
+    if (autoClose) {
+      autoCloseTimer = setTimeout(() => {
         // Start exit animation
         setIsExiting(true);
         // Actually close after animation
-        setTimeout(onClose, 300);
+        exitTimer = setTimeout(() => {
+          if (onCloseRef.current) {
+            onCloseRef.current();
+          }
+        }, 300);
       }, duration);
-      return () => {
-        clearTimeout(timer);
-        clearTimeout(showTimer);
-      };
     }
 
-    return () => clearTimeout(showTimer);
-  }, [autoClose, duration, onClose]);
+    return () => {
+      clearTimeout(showTimer);
+      if (autoCloseTimer) clearTimeout(autoCloseTimer);
+      if (exitTimer) clearTimeout(exitTimer);
+    };
+  }, [autoClose, duration]); // Remove onClose from dependencies to prevent timer reset
 
   return (
     <div

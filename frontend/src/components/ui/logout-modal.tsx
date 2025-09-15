@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { useSession } from "next-auth/react";
 import { Modal } from "./modal";
 
 interface LogoutModalProps {
@@ -34,8 +33,8 @@ const LogOutIcon = ({ className }: { className?: string }) => (
 export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const { data: session } = useSession();
-  const userName = session?.user?.name ?? "Benutzer";
+  // const { data: session } = useSession(); // Currently unused
+  // const userName = session?.user?.name ?? "Benutzer"; // Currently unused
 
   const launchConfetti = () => {
     const confettiContainer = document.createElement('div');
@@ -104,14 +103,14 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
     
     // Sign out in the background
     setTimeout(() => {
-      signOut({ redirect: false });
+      void signOut({ redirect: false });
     }, 100);
   };
 
   return (
     <Modal
       isOpen={isOpen}
-      onClose={isLoggingOut ? () => {} : onClose}
+      onClose={isLoggingOut ? () => undefined : onClose}
       title="" // Leerer String zeigt nur X-Button ohne Titel
       footer={undefined} // Kein Footer
     >
