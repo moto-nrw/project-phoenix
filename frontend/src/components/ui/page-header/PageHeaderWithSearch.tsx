@@ -100,26 +100,29 @@ export function PageHeaderWithSearch({
             {search && (
               <SearchBar
                 {...search}
-                className={filters.length > 0 || actionButton ? "w-96" : "flex-1"}
+                className={filters.length > 0 || actionButton ? "w-64 lg:w-96" : "flex-1"}
                 size="md"
               />
             )}
             {filters.length > 0 && (
               <DesktopFilters filters={filters} />
             )}
+            {/* Spacer to push badge to the right when there are filters */}
+            {!title && badge && filters.length > 0 && <div className="flex-1" />}
             {/* Show badge inline on desktop when no title */}
             {!title && badge && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full whitespace-nowrap flex-shrink-0">
                 {badge.icon && (
-                  <span className="text-gray-600">{badge.icon}</span>
+                  <span className="text-gray-600 flex-shrink-0">{badge.icon}</span>
                 )}
-                <span className="text-sm font-medium text-gray-700">
-                  {badge.count} Kinder
+                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                  <span className="hidden xl:inline">{badge.count} Kinder</span>
+                  <span className="xl:hidden">{badge.count}</span>
                 </span>
               </div>
             )}
             {/* Spacer to push action button to the right */}
-            {actionButton && <div className="flex-1" />}
+            {actionButton && !badge && <div className="flex-1" />}
             {/* Custom action button */}
             {actionButton}
           </div>
