@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { SimpleAlert } from "~/components/simple/SimpleAlert";
 
 interface PINStatus {
   has_pin: boolean;
@@ -10,9 +9,10 @@ interface PINStatus {
 
 interface PINManagementProps {
   onSuccess?: (message: string) => void;
+  onError?: (message: string) => void;
 }
 
-export function PINManagement({ onSuccess }: PINManagementProps) {
+export function PINManagement({ onSuccess, onError }: PINManagementProps) {
   const [pinStatus, setPinStatus] = useState<PINStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +42,11 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
       setPinStatus(responseData.data);
     } catch (err) {
       console.error("Error loading PIN status:", err);
-      setError(err instanceof Error ? err.message : "Fehler beim Laden des PIN-Status");
+      const errorMessage = err instanceof Error ? err.message : "Fehler beim Laden des PIN-Status";
+      setError(errorMessage);
+      if (onError) {
+        onError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -79,6 +83,9 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
     const validationError = validateForm();
     if (validationError) {
       setError(validationError);
+      if (onError) {
+        onError(validationError);
+      }
       return;
     }
 
@@ -119,7 +126,11 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
       
     } catch (err) {
       console.error("Error updating PIN:", err);
-      setError(err instanceof Error ? err.message : "Fehler beim Aktualisieren der PIN");
+      const errorMessage = err instanceof Error ? err.message : "Fehler beim Aktualisieren der PIN";
+      setError(errorMessage);
+      if (onError) {
+        onError(errorMessage);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -174,16 +185,7 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
         </div>
       </div>
 
-      {/* Error Messages */}
-      {error && (
-        <SimpleAlert
-          type="error"
-          message={error}
-          autoClose
-          duration={5000}
-          onClose={() => setError(null)}
-        />
-      )}
+      {/* Error Messages are now handled by parent component */}
 
       {/* PIN Form */}
       <form onSubmit={handleSubmit} className="space-y-4">

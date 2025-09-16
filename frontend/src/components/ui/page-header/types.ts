@@ -8,14 +8,14 @@ export interface PageHeaderWithSearchProps {
     count: number;
     label?: string;
   };
-  
+
   // Optional navigation tabs (like in OGS groups or MyRoom)
   tabs?: {
     items: TabItem[];
     activeTab: string;
     onTabChange: (tabId: string) => void;
   };
-  
+
   // Search configuration
   search?: {
     value: string;
@@ -23,14 +23,17 @@ export interface PageHeaderWithSearchProps {
     placeholder?: string;
     className?: string;
   };
-  
+
   // Filter configuration
   filters?: FilterConfig[];
-  
+
   // Active filters for display
   activeFilters?: ActiveFilter[];
   onClearAllFilters?: () => void;
-  
+
+  // Custom action button (desktop only)
+  actionButton?: React.ReactNode;
+
   // Layout options
   className?: string;
 }

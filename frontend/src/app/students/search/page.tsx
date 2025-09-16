@@ -29,6 +29,7 @@ function SearchPageContent() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
   
   // OGS group tracking
   const [userOgsGroups, setUserOgsGroups] = useState<string[]>([]);
@@ -40,6 +41,16 @@ function SearchPageContent() {
     reason?: string;
   }>>({});
   const [roomIdToNameMap, setRoomIdToNameMap] = useState<Record<string, string>>({});
+
+  // Handle mobile detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const fetchStudentsData = useCallback(async (filters?: {
     search?: string;
@@ -392,9 +403,9 @@ function SearchPageContent() {
   return (
     <ResponsiveLayout>
       <div className="w-full">
-        {/* Modern Header with PageHeaderWithSearch component */}
+        {/* PageHeaderWithSearch - Title only on mobile */}
         <PageHeaderWithSearch
-          title="Schülersuche"
+          title={isMobile ? "Schülersuche" : ""}
           badge={{
             icon: (
               <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -30,6 +30,17 @@ function StaffPageContent() {
   const [locationFilter, setLocationFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Handle mobile detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Fetch staff data
   useEffect(() => {
@@ -155,9 +166,9 @@ function StaffPageContent() {
   return (
     <ResponsiveLayout>
       <div className="w-full">
-        {/* Modern Header with PageHeaderWithSearch component */}
+        {/* PageHeaderWithSearch - Title only on mobile */}
         <PageHeaderWithSearch
-          title="Mitarbeiter"
+          title={isMobile ? "Mitarbeiter" : ""}
           badge={{
             icon: (
               <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -67,9 +67,22 @@ function OGSGroupPageContent() {
     
     // State for showing group selection (for 5+ groups)
     const [showGroupSelection, setShowGroupSelection] = useState(true);
-    
+
+    // State for mobile detection
+    const [isMobile, setIsMobile] = useState(false);
+
     // Get current selected group
     const currentGroup = allGroups[selectedGroupIndex] ?? null;
+
+    // Handle mobile detection
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     // Check access and fetch OGS group data
     useEffect(() => {
@@ -534,17 +547,17 @@ function OGSGroupPageContent() {
     return (
         <ResponsiveLayout>
             <div className="w-full">
-                {/* Modern Header with PageHeaderWithSearch component */}
+                {/* PageHeaderWithSearch - Title only on mobile */}
                 <PageHeaderWithSearch
-                    title={allGroups.length === 1 ? currentGroup?.name ?? "OGS Gruppen" : "OGS Gruppen"}
+                    title={isMobile ? (allGroups.length === 1 ? currentGroup?.name ?? "Meine Gruppe" : "Meine Gruppen") : ""}
                     badge={{
                         icon: (
                             <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                                       d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                             </svg>
                         ),
-                        count: allGroups.length === 1 
+                        count: allGroups.length === 1
                             ? currentGroup?.student_count ?? 0
                             : allGroups.reduce((sum, group) => sum + (group.student_count ?? 0), 0)
                     }}

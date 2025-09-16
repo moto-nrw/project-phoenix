@@ -36,6 +36,17 @@ export default function ActivitiesPage() {
     const [isNavBarHidden, setIsNavBarHidden] = useState(false);
     const [showManagementSuccess, setShowManagementSuccess] = useState(false);
     const [managementSuccessMessage, setManagementSuccessMessage] = useState("");
+    const [isMobile, setIsMobile] = useState(false);
+
+    // Handle mobile detection
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     // Listen for alert show/hide events to move FAB
     useEffect(() => {
@@ -259,51 +270,40 @@ export default function ActivitiesPage() {
     return (
         <ResponsiveLayout>
             <div className="w-full">
-                {/* Custom Page Header with Create Button */}
-                <div>
-                    {/* Header with Title and Create Button */}
-                    <div className="mb-0 md:mb-6">
-                        <div className="flex items-center justify-between gap-4">
-                            <h1 className="text-[1.625rem] md:text-3xl font-bold text-gray-900">
-                                Aktivitäten
-                            </h1>
-                            
-                            {/* Create Activity Button - Desktop */}
-                            <button
-                                onClick={() => setIsQuickCreateOpen(true)}
-                                className="hidden md:flex items-center gap-2.5 px-5 py-2.5 bg-gradient-to-r from-white to-gray-50 hover:from-gray-50 hover:to-gray-100 text-gray-700 hover:text-gray-900 rounded-full border border-gray-200 hover:border-[#83CD2D]/30 shadow-sm hover:shadow-md transition-all duration-300 group relative overflow-hidden"
-                            >
-                                {/* Subtle gradient overlay on hover */}
-                                <div className="absolute inset-0 bg-gradient-to-r from-[#83CD2D]/0 to-[#70B525]/0 group-hover:from-[#83CD2D]/5 group-hover:to-[#70B525]/5 transition-all duration-300"></div>
-                                
-                                <div className="relative w-5 h-5 rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70B525] flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-sm group-hover:shadow-[#83CD2D]/30">
-                                    <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                                    </svg>
-                                </div>
-                                <span className="relative font-semibold text-sm">Aktivität erstellen</span>
-                            </button>
-                        </div>
-                    </div>
+                {/* PageHeaderWithSearch - Title only on mobile */}
+                <PageHeaderWithSearch
+                    title={isMobile ? "Aktivitäten" : ""}
+                    search={{
+                        value: searchTerm,
+                        onChange: setSearchTerm,
+                        placeholder: "Aktivität suchen..."
+                    }}
+                    filters={filters}
+                    activeFilters={activeFilters}
+                    onClearAllFilters={() => {
+                        setSearchTerm("");
+                        setCategoryFilter("all");
+                        setMyActivitiesFilter(false);
+                    }}
+                    actionButton={!isMobile && (
+                        <button
+                            onClick={() => setIsQuickCreateOpen(true)}
+                            className="w-10 h-10 bg-gradient-to-br from-[#83CD2D] to-[#70B525] text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group hover:scale-110 active:scale-95"
+                            aria-label="Aktivität erstellen"
+                        >
+                            {/* Inner glow effect */}
+                            <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
 
-                    {/* Search and Filters using PageHeaderWithSearch components */}
-                    <PageHeaderWithSearch
-                        title=""  
-                        search={{
-                            value: searchTerm,
-                            onChange: setSearchTerm,
-                            placeholder: "Aktivität suchen..."
-                        }}
-                        filters={filters}
-                        activeFilters={activeFilters}
-                        onClearAllFilters={() => {
-                            setSearchTerm("");
-                            setCategoryFilter("all");
-                            setMyActivitiesFilter(false);
-                        }}
-                        className="-mt-3 md:mt-0"
-                    />
-                </div>
+                            {/* Plus icon */}
+                            <svg className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                            </svg>
+
+                            {/* Ripple effect on hover */}
+                            <div className="absolute inset-0 rounded-full bg-white/20 scale-0 group-hover:scale-100 transition-transform duration-500 opacity-0 group-hover:opacity-100"></div>
+                        </button>
+                    )}
+                />
 
                 {/* Mobile FAB Create Button */}
                 <button

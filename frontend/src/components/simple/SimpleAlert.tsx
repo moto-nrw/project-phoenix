@@ -21,7 +21,7 @@ const alertStyles = {
     bg: "bg-[#FF3130]/10",
     border: "border-[#FF3130]/20",
     text: "text-[#CC2626]",
-    icon: "M6 18L18 6M6 6l12 12",
+    icon: "M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
   },
   info: {
     bg: "bg-[#5080D8]/10",
@@ -95,8 +95,8 @@ export function SimpleAlert({
   return (
     <div
       className={`
-        fixed bottom-24 lg:bottom-6 left-4 right-4 md:left-auto md:right-6 z-[9998] md:max-w-sm
-        ${styles.bg} ${styles.border} 
+        fixed bottom-6 left-4 right-4 md:left-auto md:right-6 z-[9998] md:max-w-sm
+        ${styles.bg} ${styles.border}
         rounded-2xl border p-4 shadow-lg backdrop-blur-sm
         transition-all duration-300 ease-out
         ${isVisible && !isExiting ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}
@@ -147,12 +147,13 @@ export function SimpleAlert({
         )}
       </div>
       {autoClose && (
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200/20 overflow-hidden rounded-b-2xl">
+        <div className="absolute bottom-0 left-2 right-0 h-1 bg-gray-200/20 overflow-hidden rounded-b-2xl">
           <div
             className="h-full bg-current opacity-30"
             style={{
               animation: `shrink ${duration}ms linear forwards`,
               transformOrigin: 'left',
+              width: '100%',
             }}
           />
         </div>

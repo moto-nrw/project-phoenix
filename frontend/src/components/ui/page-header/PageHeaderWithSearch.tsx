@@ -18,6 +18,7 @@ export function PageHeaderWithSearch({
   filters = [],
   activeFilters = [],
   onClearAllFilters,
+  actionButton,
   className = ""
 }: PageHeaderWithSearchProps) {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
@@ -32,19 +33,33 @@ export function PageHeaderWithSearch({
 
   return (
     <div className={className}>
-      {/* Page Header */}
-      <PageHeader title={title} badge={badge} />
+      {/* Page Header - Only show if title is not empty */}
+      {title && <PageHeader title={title} badge={badge} />}
 
       {/* Navigation Tabs (if provided) */}
       {tabs && <NavigationTabs {...tabs} />}
 
       {/* Mobile Search & Filters */}
       <div className="md:hidden">
+        {/* Show badge on mobile if no title */}
+        {!title && badge && (
+          <div className="flex justify-end mb-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
+              {badge.icon && (
+                <span className="text-gray-600">{badge.icon}</span>
+              )}
+              <span className="text-sm font-medium text-gray-700">
+                {badge.count}
+              </span>
+            </div>
+          </div>
+        )}
+
         {search && (
           <div className="flex gap-2 mb-3">
-            <SearchBar 
-              {...search} 
-              className="flex-1" 
+            <SearchBar
+              {...search}
+              className="flex-1"
               size="sm"
             />
             {filters.length > 0 && (
@@ -80,18 +95,33 @@ export function PageHeaderWithSearch({
 
       {/* Desktop Search & Filters */}
       <div className="hidden md:block mb-6">
-        {(search !== undefined || filters.length > 0) && (
+        {(search !== undefined || filters.length > 0 || (!title && badge) || actionButton) && (
           <div className="flex items-center gap-3 mb-3">
             {search && (
-              <SearchBar 
-                {...search} 
-                className="flex-1" 
+              <SearchBar
+                {...search}
+                className={filters.length > 0 || actionButton ? "w-96" : "flex-1"}
                 size="md"
               />
             )}
             {filters.length > 0 && (
               <DesktopFilters filters={filters} />
             )}
+            {/* Show badge inline on desktop when no title */}
+            {!title && badge && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
+                {badge.icon && (
+                  <span className="text-gray-600">{badge.icon}</span>
+                )}
+                <span className="text-sm font-medium text-gray-700">
+                  {badge.count} Kinder
+                </span>
+              </div>
+            )}
+            {/* Spacer to push action button to the right */}
+            {actionButton && <div className="flex-1" />}
+            {/* Custom action button */}
+            {actionButton}
           </div>
         )}
 

@@ -338,19 +338,8 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
 
                                 {/* Menu items */}
                                 <div className="py-2">
-                                    <Link 
-                                        href="/settings" 
-                                        onClick={closeProfileMenu}
-                                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors duration-150"
-                                    >
-                                        <svg className="w-4 h-4 mr-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                        </svg>
-                                        Profil anzeigen
-                                    </Link>
-                                    
-                                    <Link 
-                                        href="/settings" 
+                                    <Link
+                                        href="/settings"
                                         onClick={closeProfileMenu}
                                         className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors duration-150"
                                     >

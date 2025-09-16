@@ -321,6 +321,11 @@ function SettingsContent() {
                   setAlertType("success");
                   setShowAlert(true);
                 }}
+                onError={(message) => {
+                  setAlertMessage(message);
+                  setAlertType("error");
+                  setShowAlert(true);
+                }}
               />
             </div>
           </div>
@@ -638,8 +643,8 @@ function SettingsContent() {
   return (
     <ResponsiveLayout>
       <div className="w-full">
-        {/* Header - Only show on desktop or mobile list view */}
-        {(!isMobile || activeTab === null) && (
+        {/* Header - Only show on mobile list view */}
+        {isMobile && activeTab === null && (
           <PageHeaderWithSearch
             title="Einstellungen"
           />
@@ -679,7 +684,7 @@ function SettingsContent() {
           <>
             {/* Mobile List View */}
             {activeTab === null ? (
-              <div className="flex flex-col h-[calc(100vh-180px)]">
+              <div className="flex flex-col h-[calc(100vh-120px)]">
                 <div className="bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100 overflow-hidden">
                   {allTabs.map((tab, index) => (
                     <button
