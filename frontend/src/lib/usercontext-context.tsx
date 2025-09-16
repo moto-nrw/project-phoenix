@@ -56,7 +56,7 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
     useEffect(() => {
         // Skip API calls on login/register pages
         const isAuthPage = pathname === "/" || pathname === "/register";
-        
+
         // Only fetch when session status is "authenticated" and we have a token and not on auth pages
         if (status === "authenticated" && session?.user?.token && !isAuthPage) {
             void fetchUserData();
@@ -66,7 +66,7 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
             setIsLoading(false);
             setError(null);
         }
-    }, [status, session?.user?.token, pathname, fetchUserData]);
+    }, [status, session?.user?.token, fetchUserData]); // Removed pathname dependency to prevent refetch on navigation
 
     const value: UserContextState = {
         educationalGroups,

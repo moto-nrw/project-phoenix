@@ -4,7 +4,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { UserContextProvider } from "~/lib/usercontext-context";
 import { useSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 
@@ -217,9 +216,5 @@ function SidebarContent({ className = "" }: SidebarProps) {
 }
 
 export function Sidebar({ className = "" }: SidebarProps) {
-    return (
-        <UserContextProvider>
-            <SidebarContent className={className} />
-        </UserContextProvider>
-    );
+    return <SidebarContent className={className} />;
 }
