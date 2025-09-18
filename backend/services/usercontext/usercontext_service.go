@@ -275,6 +275,7 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 				// Get the group for this substitution
 				group, err := s.educationGroupRepo.FindByID(ctx, sub.GroupID)
 				if err != nil {
+					log.Printf("Failed to load group with ID %d for substitution: %v", sub.GroupID, err)
 					continue // Skip if we can't load the group
 				}
 				if group != nil {
