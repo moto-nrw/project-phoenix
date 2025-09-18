@@ -260,7 +260,8 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 	// Get groups where the staff member is an active substitute (if user is staff)
 	if staff != nil && staffErr == nil {
 		// Get today's date for checking active substitutions
-		today := time.Now().Truncate(24 * time.Hour)
+		now := time.Now()
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 		
 		// Find active substitutions for this staff member
 		substitutions, err := s.substitutionRepo.FindActive(ctx, today)
