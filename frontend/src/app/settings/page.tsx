@@ -642,7 +642,7 @@ function SettingsContent() {
 
   return (
     <ResponsiveLayout>
-      <div className="w-full">
+      <div className="w-full -mt-1.5">
         {/* Header - Only show on mobile list view */}
         {isMobile && activeTab === null && (
           <PageHeaderWithSearch

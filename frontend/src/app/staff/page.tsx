@@ -165,7 +165,7 @@ function StaffPageContent() {
 
   return (
     <ResponsiveLayout>
-      <div className="w-full">
+      <div className="w-full -mt-1.5">
         {/* PageHeaderWithSearch - Title only on mobile */}
         <PageHeaderWithSearch
           title={isMobile ? "Mitarbeiter" : ""}

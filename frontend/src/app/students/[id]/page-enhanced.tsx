@@ -6,13 +6,14 @@ import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { useSession } from "next-auth/react";
-import { studentService } from "~/lib/api";
+import { studentService, updateStudent } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
 import { ModernContactActions } from "~/components/simple/student";
 import { ScheduledCheckoutModal } from "~/components/scheduled-checkout/scheduled-checkout-modal";
 import { ScheduledCheckoutInfo } from "~/components/scheduled-checkout/scheduled-checkout-info";
+import { SimpleAlert } from "~/components/simple/SimpleAlert";
 
-// Guardian type for multiple guardians
+// Guardian type
 interface Guardian {
     id?: string;
     name: string;
@@ -27,14 +28,11 @@ interface ExtendedStudent extends Student {
     school_yard: boolean;
     bus: boolean;
     current_room?: string;
-    guardian_name: string;
-    guardian_contact: string;
-    guardian_phone?: string;
+    guardians: Guardian[];
     birthday?: string;
     notes?: string;
     buskind?: boolean;
     attendance_rate?: number;
-    guardians?: Guardian[];
 }
 
 // Simplified status badge component
@@ -69,22 +67,81 @@ function StatusBadge({ location, roomName }: { location?: string; roomName?: str
 }
 
 // Simplified info card component
-function InfoCard({ title, children, icon }: { title: string; children: React.ReactNode; icon: React.ReactNode }) {
+function InfoCard({
+    title,
+    children,
+    icon,
+    onEdit,
+    isEditing = false,
+    onSave,
+    onCancel
+}: {
+    title: string;
+    children: React.ReactNode;
+    icon: React.ReactNode;
+    onEdit?: () => void;
+    isEditing?: boolean;
+    onSave?: () => void;
+    onCancel?: () => void;
+}) {
     return (
         <div className="bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100 p-6">
-            <div className="flex items-center gap-3 mb-4">
-                <div className="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">
-                    {icon}
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">
+                        {icon}
+                    </div>
+                    <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
                 </div>
-                <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+                {onEdit && !isEditing && (
+                    <button
+                        onClick={onEdit}
+                        className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 hover:shadow-md hover:scale-105 active:scale-100 transition-all duration-200"
+                    >
+                        <svg className="h-4 w-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                        Bearbeiten
+                    </button>
+                )}
+                {isEditing && (
+                    <div className="flex gap-2">
+                        <button
+                            onClick={onCancel}
+                            className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200"
+                        >
+                            Abbrechen
+                        </button>
+                        <button
+                            onClick={onSave}
+                            className="px-3 py-1.5 rounded-lg bg-gray-900 text-sm font-medium text-white hover:bg-gray-700 transition-all duration-200"
+                        >
+                            Speichern
+                        </button>
+                    </div>
+                )}
             </div>
             <div className="space-y-3">{children}</div>
         </div>
     );
 }
 
-// Simplified info item component
-function InfoItem({ label, value, icon }: { label: string; value: string | React.ReactNode; icon?: React.ReactNode }) {
+// Info item component (editable)
+function InfoItem({
+    label,
+    value,
+    icon,
+    isEditing = false,
+    onChange,
+    type = "text"
+}: {
+    label: string;
+    value: string | React.ReactNode;
+    icon?: React.ReactNode;
+    isEditing?: boolean;
+    onChange?: (value: string) => void;
+    type?: string;
+}) {
     return (
         <div className="flex items-start gap-3">
             {icon && (
@@ -94,7 +151,16 @@ function InfoItem({ label, value, icon }: { label: string; value: string | React
             )}
             <div className="flex-1 min-w-0">
                 <p className="text-xs text-gray-500 mb-1">{label}</p>
-                <div className="text-sm text-gray-900 font-medium">{value}</div>
+                {isEditing && onChange ? (
+                    <input
+                        type={type}
+                        value={value as string}
+                        onChange={(e) => onChange(e.target.value)}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                ) : (
+                    <div className="text-sm text-gray-900 font-medium">{value}</div>
+                )}
             </div>
         </div>
     );
@@ -126,8 +192,8 @@ export default function StudentDetailPage() {
     const [isEditingPersonal, setIsEditingPersonal] = useState(false);
     const [isEditingGuardians, setIsEditingGuardians] = useState(false);
     const [editedStudent, setEditedStudent] = useState<ExtendedStudent | null>(null);
-    const [editedGuardians, setEditedGuardians] = useState<Guardian[]>([]);
-    const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+    const [successMessage, setSuccessMessage] = useState("");
+    const [errorMessage, setErrorMessage] = useState("");
 
     // Fetch student data
     useEffect(() => {
@@ -153,20 +219,22 @@ export default function StudentDetailPage() {
                     guardian_contact?: string;
                     guardian_phone?: string;
                     guardian_email?: string;
+                    name_lg?: string;
+                    contact_lg?: string;
                 };
 
                 const hasAccess = mappedStudent.has_full_access ?? true;
                 const groupSupervisors = mappedStudent.group_supervisors ?? [];
 
-                // Create guardians array from legacy fields
+                // Parse guardians - for now, we create one from the existing data
                 const guardians: Guardian[] = [];
-                if (hasAccess && mappedStudent.name_lg) {
+                if (mappedStudent.name_lg || mappedStudent.guardian_name) {
                     guardians.push({
-                        id: '1',
-                        name: mappedStudent.name_lg,
-                        email: mappedStudent.guardian_email ?? '',
-                        phone: mappedStudent.contact_lg ?? '',
-                        relationship: 'Erziehungsberechtigte/r'
+                        id: "1",
+                        name: mappedStudent.name_lg ?? mappedStudent.guardian_name ?? "",
+                        email: mappedStudent.guardian_email ?? mappedStudent.guardian_contact ?? "",
+                        phone: mappedStudent.contact_lg ?? mappedStudent.guardian_phone ?? "",
+                        relationship: "Erziehungsberechtigte/r"
                     });
                 }
 
@@ -184,19 +252,15 @@ export default function StudentDetailPage() {
                     school_yard: mappedStudent.school_yard ?? false,
                     bus: mappedStudent.bus ?? false,
                     current_room: undefined,
-                    guardian_name: hasAccess ? (mappedStudent.name_lg ?? "") : "",
-                    guardian_contact: hasAccess ? (mappedStudent.guardian_email ?? "") : "",
-                    guardian_phone: hasAccess ? (mappedStudent.contact_lg ?? "") : "",
+                    guardians: hasAccess ? guardians : [],
                     birthday: undefined,
                     notes: undefined,
                     buskind: mappedStudent.bus,
-                    attendance_rate: undefined,
-                    guardians
+                    attendance_rate: undefined
                 };
 
                 setStudent(extendedStudent);
                 setEditedStudent(extendedStudent);
-                setEditedGuardians(guardians);
                 setHasFullAccess(hasAccess);
                 setSupervisors(groupSupervisors);
 
@@ -227,77 +291,83 @@ export default function StudentDetailPage() {
         void fetchStudent();
     }, [studentId, checkoutUpdated]);
 
-    // Handle save for personal information
     const handleSavePersonal = async () => {
         if (!editedStudent) return;
 
         try {
-            await studentService.updateStudent(studentId, {
-                first_name: editedStudent.first_name,
-                second_name: editedStudent.second_name,
+            await updateStudent(studentId, {
+                first_name: editedStudent.first_name ?? "",
+                last_name: editedStudent.second_name ?? "",
                 school_class: editedStudent.school_class,
-                bus: editedStudent.buskind ?? false,
-                notes: editedStudent.notes
             });
 
             setStudent(editedStudent);
             setIsEditingPersonal(false);
-            setAlertMessage({ type: 'success', message: 'Persönliche Informationen erfolgreich aktualisiert' });
-            setTimeout(() => setAlertMessage(null), 3000);
-        } catch (error) {
-            console.error('Failed to save personal information:', error);
-            setAlertMessage({ type: 'error', message: 'Fehler beim Speichern der persönlichen Informationen' });
-            setTimeout(() => setAlertMessage(null), 3000);
+            setSuccessMessage("Persönliche Informationen erfolgreich gespeichert");
+        } catch (err) {
+            console.error("Error updating student:", err);
+            setErrorMessage("Fehler beim Speichern der Änderungen");
         }
     };
 
-    // Handle save for guardians
     const handleSaveGuardians = async () => {
-        if (!student) return;
+        if (!editedStudent || editedStudent.guardians.length === 0) return;
 
         try {
-            // For now, we'll save the first guardian to the legacy fields
-            const primaryGuardian = editedGuardians[0];
+            // For now, save the first guardian
+            const primaryGuardian = editedStudent.guardians[0];
             if (primaryGuardian) {
-                await studentService.updateStudent(studentId, {
-                    name_lg: primaryGuardian.name,
-                    contact_lg: primaryGuardian.phone
+                await updateStudent(studentId, {
+                    guardian_name: primaryGuardian.name,
+                    guardian_email: primaryGuardian.email,
+                    guardian_phone: primaryGuardian.phone,
                 });
             }
 
-            const updatedStudent = { ...student, guardians: editedGuardians };
-            if (primaryGuardian) {
-                updatedStudent.guardian_name = primaryGuardian.name;
-                updatedStudent.guardian_phone = primaryGuardian.phone;
-                updatedStudent.guardian_contact = primaryGuardian.email;
-            }
-
-            setStudent(updatedStudent);
+            setStudent(editedStudent);
             setIsEditingGuardians(false);
-            setAlertMessage({ type: 'success', message: 'Erziehungsberechtigte erfolgreich aktualisiert' });
-            setTimeout(() => setAlertMessage(null), 3000);
-        } catch (error) {
-            console.error('Failed to save guardians:', error);
-            setAlertMessage({ type: 'error', message: 'Fehler beim Speichern der Erziehungsberechtigten' });
-            setTimeout(() => setAlertMessage(null), 3000);
+            setSuccessMessage("Erziehungsberechtigte erfolgreich gespeichert");
+        } catch (err) {
+            console.error("Error updating guardians:", err);
+            setErrorMessage("Fehler beim Speichern der Erziehungsberechtigten");
         }
     };
 
-    // Add a new guardian
     const handleAddGuardian = () => {
-        setEditedGuardians([...editedGuardians, { name: '', email: '', phone: '', relationship: 'Erziehungsberechtigte/r' }]);
+        if (!editedStudent) return;
+
+        const newGuardian: Guardian = {
+            id: Date.now().toString(),
+            name: "",
+            email: "",
+            phone: "",
+            relationship: "Erziehungsberechtigte/r"
+        };
+
+        setEditedStudent({
+            ...editedStudent,
+            guardians: [...editedStudent.guardians, newGuardian]
+        });
     };
 
-    // Remove a guardian
-    const handleRemoveGuardian = (index: number) => {
-        setEditedGuardians(editedGuardians.filter((_, i) => i !== index));
+    const handleRemoveGuardian = (guardianId: string) => {
+        if (!editedStudent) return;
+
+        setEditedStudent({
+            ...editedStudent,
+            guardians: editedStudent.guardians.filter(g => g.id !== guardianId)
+        });
     };
 
-    // Update guardian field
-    const handleUpdateGuardian = (index: number, field: keyof Guardian, value: string) => {
-        const updated = [...editedGuardians];
-        updated[index] = { ...updated[index], [field]: value };
-        setEditedGuardians(updated);
+    const handleGuardianChange = (guardianId: string, field: keyof Guardian, value: string) => {
+        if (!editedStudent) return;
+
+        setEditedStudent({
+            ...editedStudent,
+            guardians: editedStudent.guardians.map(g =>
+                g.id === guardianId ? { ...g, [field]: value } : g
+            )
+        });
     };
 
     if (loading) {
@@ -313,7 +383,7 @@ export default function StudentDetailPage() {
         );
     }
 
-    if (error || !student) {
+    if (error || !student || !editedStudent) {
         return (
             <ResponsiveLayout>
                 <div className="flex min-h-[80vh] flex-col items-center justify-center">
@@ -331,6 +401,21 @@ export default function StudentDetailPage() {
 
     return (
         <ResponsiveLayout>
+            {successMessage && (
+                <SimpleAlert
+                    type="success"
+                    message={successMessage}
+                    onClose={() => setSuccessMessage("")}
+                />
+            )}
+            {errorMessage && (
+                <SimpleAlert
+                    type="error"
+                    message={errorMessage}
+                    onClose={() => setErrorMessage("")}
+                />
+            )}
+
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Back button */}
                 <button
@@ -447,12 +532,6 @@ export default function StudentDetailPage() {
                             </div>
                         )}
 
-                        {alertMessage && (
-                            <div className="mb-6">
-                                <Alert type={alertMessage.type} message={alertMessage.message} />
-                            </div>
-                        )}
-
                         {/* History Section */}
                         <InfoCard
                             title="Historien"
@@ -533,246 +612,140 @@ export default function StudentDetailPage() {
 
                         <div className="space-y-6 mt-6">
                             {/* Personal Information */}
-                            <div className="bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100 p-6">
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">
-                                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                            </svg>
-                                        </div>
-                                        <h2 className="text-lg font-semibold text-gray-900">Persönliche Informationen</h2>
-                                    </div>
-                                    {!isEditingPersonal ? (
-                                        <button
-                                            onClick={() => {
-                                                setIsEditingPersonal(true);
-                                                setEditedStudent(student);
-                                            }}
-                                            className="px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                                        >
-                                            Bearbeiten
-                                        </button>
-                                    ) : (
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => {
-                                                    setIsEditingPersonal(false);
-                                                    setEditedStudent(student);
-                                                }}
-                                                className="px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                                            >
-                                                Abbrechen
-                                            </button>
-                                            <button
-                                                onClick={handleSavePersonal}
-                                                className="px-3 py-1.5 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
-                                            >
-                                                Speichern
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="space-y-3">
-                                    {isEditingPersonal && editedStudent ? (
-                                        <>
-                                            <div>
-                                                <label className="text-xs text-gray-500 mb-1 block">Vorname</label>
-                                                <input
-                                                    type="text"
-                                                    value={editedStudent.first_name}
-                                                    onChange={(e) => setEditedStudent({ ...editedStudent, first_name: e.target.value })}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="text-xs text-gray-500 mb-1 block">Nachname</label>
-                                                <input
-                                                    type="text"
-                                                    value={editedStudent.second_name}
-                                                    onChange={(e) => setEditedStudent({ ...editedStudent, second_name: e.target.value })}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="text-xs text-gray-500 mb-1 block">Klasse</label>
-                                                <input
-                                                    type="text"
-                                                    value={editedStudent.school_class}
-                                                    onChange={(e) => setEditedStudent({ ...editedStudent, school_class: e.target.value })}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="text-xs text-gray-500 mb-1 block">Buskind</label>
-                                                <select
-                                                    value={editedStudent.buskind ? 'true' : 'false'}
-                                                    onChange={(e) => setEditedStudent({ ...editedStudent, buskind: e.target.value === 'true' })}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                >
-                                                    <option value="false">Nein</option>
-                                                    <option value="true">Ja</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className="text-xs text-gray-500 mb-1 block">Notizen</label>
-                                                <textarea
-                                                    value={editedStudent.notes ?? ''}
-                                                    onChange={(e) => setEditedStudent({ ...editedStudent, notes: e.target.value })}
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                    rows={3}
-                                                />
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <InfoItem label="Vollständiger Name" value={student.name} />
-                                            <InfoItem label="Klasse" value={student.school_class} />
-                                            <InfoItem label="Gruppe" value={student.group_name ?? 'Nicht zugewiesen'} />
-                                            <InfoItem label="Geburtsdatum" value={student.birthday ? new Date(student.birthday).toLocaleDateString('de-DE') : 'Nicht angegeben'} />
-                                            <InfoItem label="Buskind" value={student.buskind ? 'Ja' : 'Nein'} />
-                                            {student.notes && <InfoItem label="Notizen" value={student.notes} />}
-                                        </>
-                                    )}
-                                </div>
-                            </div>
+                            <InfoCard
+                                title="Persönliche Informationen"
+                                icon={
+                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                }
+                                onEdit={() => setIsEditingPersonal(true)}
+                                isEditing={isEditingPersonal}
+                                onSave={handleSavePersonal}
+                                onCancel={() => {
+                                    setIsEditingPersonal(false);
+                                    setEditedStudent(student);
+                                }}
+                            >
+                                <InfoItem
+                                    label="Vorname"
+                                    value={isEditingPersonal ? editedStudent.first_name ?? "" : student.first_name ?? ""}
+                                    isEditing={isEditingPersonal}
+                                    onChange={(value) => setEditedStudent({ ...editedStudent, first_name: value })}
+                                />
+                                <InfoItem
+                                    label="Nachname"
+                                    value={isEditingPersonal ? editedStudent.second_name ?? "" : student.second_name ?? ""}
+                                    isEditing={isEditingPersonal}
+                                    onChange={(value) => setEditedStudent({ ...editedStudent, second_name: value })}
+                                />
+                                <InfoItem
+                                    label="Klasse"
+                                    value={isEditingPersonal ? editedStudent.school_class : student.school_class}
+                                    isEditing={isEditingPersonal}
+                                    onChange={(value) => setEditedStudent({ ...editedStudent, school_class: value })}
+                                />
+                                <InfoItem label="Gruppe" value={student.group_name ?? 'Nicht zugewiesen'} />
+                                <InfoItem
+                                    label="Geburtsdatum"
+                                    value={isEditingPersonal ? editedStudent.birthday ?? "" : student.birthday ? new Date(student.birthday).toLocaleDateString('de-DE') : 'Nicht angegeben'}
+                                    isEditing={isEditingPersonal}
+                                    type="date"
+                                    onChange={(value) => setEditedStudent({ ...editedStudent, birthday: value })}
+                                />
+                                <InfoItem label="Buskind" value={student.buskind ? 'Ja' : 'Nein'} />
+                                {student.notes && <InfoItem label="Notizen" value={student.notes} />}
+                            </InfoCard>
 
-                            {/* Guardian Information */}
-                            <div className="bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100 p-6">
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">
-                                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                            </svg>
-                                        </div>
-                                        <h2 className="text-lg font-semibold text-gray-900">Erziehungsberechtigte</h2>
-                                    </div>
-                                    {!isEditingGuardians ? (
-                                        <button
-                                            onClick={() => {
-                                                setIsEditingGuardians(true);
-                                                setEditedGuardians(student.guardians ?? []);
-                                            }}
-                                            className="px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                                        >
-                                            Bearbeiten
-                                        </button>
-                                    ) : (
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => {
-                                                    setIsEditingGuardians(false);
-                                                    setEditedGuardians(student.guardians ?? []);
-                                                }}
-                                                className="px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                                            >
-                                                Abbrechen
-                                            </button>
-                                            <button
-                                                onClick={handleSaveGuardians}
-                                                className="px-3 py-1.5 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
-                                            >
-                                                Speichern
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="space-y-4">
-                                    {isEditingGuardians ? (
-                                        <>
-                                            {editedGuardians.map((guardian, index) => (
-                                                <div key={index} className="p-4 border border-gray-200 rounded-lg space-y-3">
-                                                    <div className="flex justify-between items-center mb-2">
-                                                        <h3 className="text-sm font-semibold text-gray-700">Erziehungsberechtigte/r {index + 1}</h3>
-                                                        {editedGuardians.length > 1 && (
-                                                            <button
-                                                                onClick={() => handleRemoveGuardian(index)}
-                                                                className="text-red-500 hover:text-red-700 text-sm"
-                                                            >
-                                                                Entfernen
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                        <div>
-                                                            <label className="text-xs text-gray-500 mb-1 block">Name</label>
-                                                            <input
-                                                                type="text"
-                                                                value={guardian.name}
-                                                                onChange={(e) => handleUpdateGuardian(index, 'name', e.target.value)}
-                                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                                placeholder="Max Mustermann"
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-xs text-gray-500 mb-1 block">Beziehung</label>
-                                                            <input
-                                                                type="text"
-                                                                value={guardian.relationship ?? ''}
-                                                                onChange={(e) => handleUpdateGuardian(index, 'relationship', e.target.value)}
-                                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                                placeholder="Mutter/Vater/etc."
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-xs text-gray-500 mb-1 block">E-Mail</label>
-                                                            <input
-                                                                type="email"
-                                                                value={guardian.email}
-                                                                onChange={(e) => handleUpdateGuardian(index, 'email', e.target.value)}
-                                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                                placeholder="email@beispiel.de"
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-xs text-gray-500 mb-1 block">Telefonnummer</label>
-                                                            <input
-                                                                type="tel"
-                                                                value={guardian.phone}
-                                                                onChange={(e) => handleUpdateGuardian(index, 'phone', e.target.value)}
-                                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                                placeholder="+49 123 456789"
-                                                            />
-                                                        </div>
-                                                    </div>
+                            {/* Guardians Information */}
+                            <InfoCard
+                                title="Erziehungsberechtigte"
+                                icon={
+                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                    </svg>
+                                }
+                                onEdit={() => setIsEditingGuardians(true)}
+                                isEditing={isEditingGuardians}
+                                onSave={handleSaveGuardians}
+                                onCancel={() => {
+                                    setIsEditingGuardians(false);
+                                    setEditedStudent(student);
+                                }}
+                            >
+                                {isEditingGuardians ? (
+                                    <>
+                                        {editedStudent.guardians.map((guardian, index) => (
+                                            <div key={guardian.id} className="border border-gray-100 rounded-lg p-4 space-y-3">
+                                                <div className="flex justify-between items-start">
+                                                    <h4 className="text-sm font-medium text-gray-700">
+                                                        Erziehungsberechtigte/r {index + 1}
+                                                    </h4>
+                                                    {editedStudent.guardians.length > 1 && (
+                                                        <button
+                                                            onClick={() => handleRemoveGuardian(guardian.id ?? "")}
+                                                            className="text-red-500 hover:text-red-700"
+                                                        >
+                                                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                        </button>
+                                                    )}
                                                 </div>
-                                            ))}
-                                            <button
-                                                onClick={handleAddGuardian}
-                                                className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-700 transition-colors"
-                                            >
-                                                + Weitere/n Erziehungsberechtigte/n hinzufügen
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <>
-                                            {student.guardians && student.guardians.length > 0 ? (
-                                                student.guardians.map((guardian, index) => (
-                                                    <div key={index} className="p-4 border border-gray-200 rounded-lg">
-                                                        <div className="space-y-2">
-                                                            <InfoItem label="Name" value={guardian.name} />
-                                                            {guardian.relationship && <InfoItem label="Beziehung" value={guardian.relationship} />}
-                                                            <InfoItem label="E-Mail" value={guardian.email || 'Nicht angegeben'} />
-                                                            <InfoItem label="Telefonnummer" value={guardian.phone || 'Nicht angegeben'} />
-                                                        </div>
-                                                        <div className="mt-3">
-                                                            <ModernContactActions email={guardian.email} phone={guardian.phone} studentName={student.name} />
-                                                        </div>
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <>
-                                                    <InfoItem label="Name" value={student.guardian_name || 'Nicht angegeben'} />
-                                                    <InfoItem label="E-Mail" value={student.guardian_contact || 'Nicht angegeben'} />
-                                                    <InfoItem label="Telefonnummer" value={student.guardian_phone ?? 'Nicht angegeben'} />
-                                                    <ModernContactActions email={student.guardian_contact} phone={student.guardian_phone} studentName={student.name} />
-                                                </>
-                                            )}
-                                        </>
-                                    )}
-                                </div>
-                            </div>
+                                                <InfoItem
+                                                    label="Name"
+                                                    value={guardian.name}
+                                                    isEditing={true}
+                                                    onChange={(value) => handleGuardianChange(guardian.id ?? "", "name", value)}
+                                                />
+                                                <InfoItem
+                                                    label="E-Mail"
+                                                    value={guardian.email}
+                                                    isEditing={true}
+                                                    type="email"
+                                                    onChange={(value) => handleGuardianChange(guardian.id ?? "", "email", value)}
+                                                />
+                                                <InfoItem
+                                                    label="Telefon"
+                                                    value={guardian.phone}
+                                                    isEditing={true}
+                                                    type="tel"
+                                                    onChange={(value) => handleGuardianChange(guardian.id ?? "", "phone", value)}
+                                                />
+                                            </div>
+                                        ))}
+                                        <button
+                                            onClick={handleAddGuardian}
+                                            className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-700 transition-all"
+                                        >
+                                            <svg className="h-5 w-5 inline mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                            </svg>
+                                            Weitere/n Erziehungsberechtigte/n hinzufügen
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        {student.guardians.map((guardian, index) => (
+                                            <div key={guardian.id} className="space-y-3">
+                                                {student.guardians.length > 1 && (
+                                                    <h4 className="text-sm font-medium text-gray-700 border-t border-gray-100 pt-3">
+                                                        Erziehungsberechtigte/r {index + 1}
+                                                    </h4>
+                                                )}
+                                                <InfoItem label="Name" value={guardian.name} />
+                                                <InfoItem label="E-Mail" value={guardian.email} />
+                                                <InfoItem label="Telefonnummer" value={guardian.phone || 'Nicht angegeben'} />
+                                                <ModernContactActions
+                                                    email={guardian.email}
+                                                    phone={guardian.phone}
+                                                    studentName={student.name}
+                                                />
+                                            </div>
+                                        ))}
+                                    </>
+                                )}
+                            </InfoCard>
                         </div>
                     </>
                 )}

@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
@@ -99,6 +99,7 @@ interface SidebarProps {
 function SidebarContent({ className = "" }: SidebarProps) {
     // Aktuelle Route ermitteln
     const pathname = usePathname();
+    const searchParams = useSearchParams();
 
     // Quick create activity modal state
 
@@ -171,6 +172,21 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
     // Funktion zur Überprüfung, ob ein Link aktiv ist
     const isActiveLink = (href: string) => {
+        // Special handling for student detail pages
+        if (pathname.startsWith("/students/") && pathname !== "/students/search") {
+            // Check the referrer parameter to maintain the correct highlight
+            const from = searchParams.get("from");
+            if (from) {
+                // If we came from ogs_groups or myroom, highlight those
+                if (from.startsWith("/ogs_groups") && href === "/ogs_groups") return true;
+                if (from.startsWith("/myroom") && href === "/myroom") return true;
+                if (from.startsWith("/students/search") && href === "/students/search") return true;
+            } else {
+                // Default to student search if no referrer
+                return href === "/students/search";
+            }
+        }
+
         // Exakter Match für Dashboard
         if (href === "/dashboard") {
             return pathname === "/dashboard";

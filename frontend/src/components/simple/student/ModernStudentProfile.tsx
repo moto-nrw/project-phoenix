@@ -30,7 +30,7 @@ export function ModernStudentProfile({
   return (
     <>
       {/* Mobile Header (visible only on mobile) */}
-      <div className="block sm:hidden bg-white/95 backdrop-blur-md border border-gray-200/50 shadow-sm rounded-2xl mb-2">
+      <div className="block sm:hidden bg-white border border-gray-200 rounded-xl mb-2">
         <div className="flex items-center justify-between px-4 py-3">
           {/* Name - Now takes full width */}
           <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -46,27 +46,16 @@ export function ModernStudentProfile({
           
           {/* Right: Status Badge */}
           <div className="flex-shrink-0 ml-3">
-            <div className="scale-75 origin-right">
-              <ModernStatusBadge location={student.current_location} roomName={student.current_room} />
-            </div>
+            <ModernStatusBadge location={student.current_location} roomName={student.current_room} />
           </div>
         </div>
       </div>
       
 
       {/* Desktop Header (visible only on larger screens) */}
-      <div 
-        className="hidden sm:block relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500"
-        style={{
-          transform: `rotate(${(index % 3 - 1) * 0.2}deg)` // Reduced rotation for mobile
-        }}
-      >
-        {/* Modern gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03] rounded-3xl"></div>
-        {/* Subtle inner glow */}
-        <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-        {/* Modern border highlight */}
-        <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300"></div>
+      <div className="hidden sm:block bg-white border border-gray-200 rounded-xl">
+        {/* Subtle gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-50/20 to-white/50 opacity-50 rounded-xl"></div>
         
         <div className="relative py-4 px-3 sm:py-5 sm:px-4 lg:py-6 lg:px-5">
           {/* Desktop Profile Section */}

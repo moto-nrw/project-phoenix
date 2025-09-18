@@ -546,7 +546,7 @@ function OGSGroupPageContent() {
 
     return (
         <ResponsiveLayout>
-            <div className="w-full">
+            <div className="w-full -mt-1.5">
                 {/* PageHeaderWithSearch - Title only on mobile */}
                 <PageHeaderWithSearch
                     title={isMobile ? (allGroups.length === 1 ? currentGroup?.name ?? "Meine Gruppe" : "Meine Gruppen") : ""}

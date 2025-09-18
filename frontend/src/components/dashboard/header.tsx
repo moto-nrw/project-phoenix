@@ -19,7 +19,7 @@ import { LogoutModal } from "~/components/ui/logout-modal";
 function getPageTitle(pathname: string): string {
     // Check for /students/search first before other /students/ paths
     if (pathname === "/students/search") {
-        return "Suche";
+        return "Kindersuche";
     }
     
     // Handle specific routes with dynamic segments
