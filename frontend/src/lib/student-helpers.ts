@@ -344,6 +344,37 @@ export function formatStudentStatus(student: Student): string {
     return 'Zuhause';
 }
 
+/**
+ * Extracts guardian contact information with clear precedence rules.
+ * This function provides a consistent way to determine which contact
+ * information to display for a student's guardian.
+ * 
+ * Precedence order:
+ * 1. guardian_email - Primary contact method (if available)
+ * 2. contact_lg - Legacy contact field (fallback)
+ * 3. Empty string - Final fallback when no contact info is available
+ * 
+ * @param studentData - Object containing guardian contact fields
+ * @returns The most appropriate guardian contact information
+ */
+export function extractGuardianContact(studentData: {
+    guardian_email?: string;
+    contact_lg?: string;
+}): string {
+    // First priority: Use guardian_email if available
+    if (studentData.guardian_email) {
+        return studentData.guardian_email;
+    }
+    
+    // Second priority: Fall back to legacy contact_lg field
+    if (studentData.contact_lg) {
+        return studentData.contact_lg;
+    }
+    
+    // Final fallback: Return empty string when no contact info available
+    return "";
+}
+
 export function getStatusColor(student: Student): string {
     if (student.in_house) return 'green';
     if (student.wc) return 'blue';

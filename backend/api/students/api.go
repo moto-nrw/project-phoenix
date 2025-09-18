@@ -259,8 +259,8 @@ func (req *RFIDAssignmentRequest) Bind(r *http.Request) error {
 }
 
 // newStudentResponse creates a student response from a student and person model
-// includeLocation determines whether to include sensitive location data
-func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, includeLocation bool, activeService activeService.Service, personService userService.PersonService) StudentResponse {
+// hasFullAccess determines whether to include detailed location data and supervisor-only information (like extra info)
+func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, activeService activeService.Service, personService userService.PersonService) StudentResponse {
 	response := StudentResponse{
 		ID:              student.ID,
 		PersonID:        student.PersonID,
@@ -283,8 +283,8 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 
 		if err == nil && currentVisit != nil {
 			// Student has an active visit - they are present and in a specific activity
-			if includeLocation {
-				// Supervisors see detailed location/activity information
+			if hasFullAccess {
+				// Users with full access see detailed location/activity information
 				// Get the active group with room details
 				if currentVisit.ActiveGroupID > 0 {
 					activeGroup, err := activeService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
@@ -297,7 +297,7 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 					response.Location = "Anwesend - Aktivität"
 				}
 			} else {
-				// Non-supervisors see generic attendance status
+				// Users without full access see generic attendance status
 				response.Location = "Anwesend"
 			}
 		} else {
@@ -352,8 +352,8 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 		response.GroupName = group.Name
 	}
 
-	// Include extra info only for supervisors (when includeLocation is true)
-	if includeLocation && student.ExtraInfo != nil && *student.ExtraInfo != "" {
+	// Include extra info only for users with full access (supervisors/admins)
+	if hasFullAccess && student.ExtraInfo != nil && *student.ExtraInfo != "" {
 		response.ExtraInfo = *student.ExtraInfo
 	}
 
@@ -378,7 +378,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// For search functionality, we show all students regardless of group supervision
 	// Permission checking will be done on individual student detail view
 	var allowedGroupIDs []int64
-	canAccessLocation := isAdmin
+	hasFullAccess := isAdmin
 
 	// If a specific group filter is requested, apply it
 	if groupIDStr != "" {
@@ -507,8 +507,8 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// Filter based on location (only if user can access location data)
-		if location != "" && canAccessLocation && student.GetLocation() != location && location != "Unknown" {
+		// Filter based on location (only if user has full access to location data)
+		if location != "" && hasFullAccess && student.GetLocation() != location && location != "Unknown" {
 			continue
 		}
 
@@ -521,7 +521,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		responses = append(responses, newStudentResponse(r.Context(), student, person, group, canAccessLocation, rs.ActiveService, rs.PersonService))
+		responses = append(responses, newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService))
 	}
 
 	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, totalCount, "Students retrieved successfully")
@@ -718,12 +718,12 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Admin users creating students can see full data including location
+	// Admin users creating students can see full data including detailed location
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	canAccessLocation := hasAdminPermissions(userPermissions)
+	hasFullAccess := hasAdminPermissions(userPermissions)
 
 	// Return the created student with person data
-	common.Respond(w, r, http.StatusCreated, newStudentResponse(r.Context(), student, person, group, canAccessLocation, rs.ActiveService, rs.PersonService), "Student created successfully")
+	common.Respond(w, r, http.StatusCreated, newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService), "Student created successfully")
 }
 
 // updateStudent handles updating an existing student
@@ -847,12 +847,12 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Admin users updating students can see full data including location
+	// Admin users updating students can see full data including detailed location
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	canAccessLocation := hasAdminPermissions(userPermissions)
+	hasFullAccess := hasAdminPermissions(userPermissions)
 
 	// Return the updated student with person data
-	common.Respond(w, r, http.StatusOK, newStudentResponse(r.Context(), updatedStudent, person, group, canAccessLocation, rs.ActiveService, rs.PersonService), "Student updated successfully")
+	common.Respond(w, r, http.StatusOK, newStudentResponse(r.Context(), updatedStudent, person, group, hasFullAccess, rs.ActiveService, rs.PersonService), "Student updated successfully")
 }
 
 // deleteStudent handles deleting a student and their associated person record

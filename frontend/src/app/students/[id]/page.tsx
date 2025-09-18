@@ -8,6 +8,7 @@ import { Button } from "~/components/ui/button";
 import { useSession } from "next-auth/react";
 import { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
+import { extractGuardianContact } from "~/lib/student-helpers";
 import { 
   ModernStudentProfile,
   ModernInfoCard, 
@@ -107,7 +108,7 @@ export default function StudentDetailPage() {
                     bus: mappedStudent.bus ?? false,
                     current_room: undefined, // Not available from API yet
                     guardian_name: hasAccess ? (mappedStudent.name_lg ?? "") : "",
-                    guardian_contact: hasAccess ? (mappedStudent.guardian_email ?? mappedStudent.contact_lg ?? "") : "",
+                    guardian_contact: hasAccess ? extractGuardianContact(mappedStudent) : "",
                     guardian_phone: hasAccess ? (mappedStudent.guardian_phone ?? "") : "",
                     birthday: undefined, // Not available from API yet
                     notes: undefined, // Not available from API yet
