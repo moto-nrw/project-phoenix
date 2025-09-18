@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 # Copy SSL certificates from the mounted volume to PostgreSQL's data directory
