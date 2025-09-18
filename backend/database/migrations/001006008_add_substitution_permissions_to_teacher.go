@@ -41,9 +41,14 @@ func addSubstitutionPermissionsToRoles(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+
+	// Track whether transaction was committed
+	committed := false
 	defer func() {
-		if rbErr := tx.Rollback(); rbErr != nil && err == nil {
-			err = rbErr
+		if !committed {
+			if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
+				log.Printf("Failed to rollback transaction: %v", rbErr)
+			}
 		}
 	}()
 
@@ -102,6 +107,7 @@ func addSubstitutionPermissionsToRoles(ctx context.Context, db *bun.DB) error {
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
+	committed = true
 
 	log.Println("Successfully added substitution permissions to teacher and staff roles")
 	return nil

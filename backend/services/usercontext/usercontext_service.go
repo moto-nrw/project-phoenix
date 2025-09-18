@@ -231,10 +231,10 @@ func (s *userContextService) GetCurrentTeacher(ctx context.Context) (*users.Teac
 func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Group, error) {
 	// Try to get the current staff first (for substitutions)
 	staff, staffErr := s.GetCurrentStaff(ctx)
-	
+
 	// Try to get the current teacher
 	teacher, teacherErr := s.GetCurrentTeacher(ctx)
-	
+
 	// If user is neither staff nor teacher, return empty list
 	if staffErr != nil && teacherErr != nil {
 		if !errors.Is(teacherErr, ErrUserNotLinkedToTeacher) && !errors.Is(teacherErr, ErrUserNotLinkedToStaff) && !errors.Is(teacherErr, ErrUserNotLinkedToPerson) {
@@ -246,13 +246,17 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 	// Create a map to store unique groups (to avoid duplicates)
 	groupMap := make(map[int64]*education.Group)
 
+	// Track partial failures across all operations
+	var partialErr *PartialError
+	failedGroupIDs := make([]int64, 0)
+
 	// Get groups where the teacher is assigned (if user is a teacher)
 	if teacher != nil && teacherErr == nil {
 		teacherGroups, err := s.educationGroupRepo.FindByTeacher(ctx, teacher.ID)
 		if err != nil {
 			return nil, &UserContextError{Op: "get my groups", Err: err}
 		}
-		
+
 		// Add teacher's groups to the map
 		for _, group := range teacherGroups {
 			groupMap[group.ID] = group
@@ -264,13 +268,13 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 		// Get today's date for checking active substitutions
 		now := time.Now()
 		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-		
+
 		// Find active substitutions for this staff member
 		substitutions, err := s.substitutionRepo.FindActive(ctx, today)
 		if err != nil {
 			return nil, &UserContextError{Op: "get my groups (substitutions)", Err: err}
 		}
-		
+
 		// Filter substitutions where current staff is the substitute
 		for _, sub := range substitutions {
 			if sub.SubstituteStaffID == staff.ID {
@@ -282,10 +286,24 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 						"substitution_id": sub.ID,
 						"error":           err,
 					}).Warn("Failed to load group for substitution")
+
+					// Track the failure
+					failedGroupIDs = append(failedGroupIDs, sub.GroupID)
+					if partialErr == nil {
+						partialErr = &PartialError{
+							Op:        "get my groups (load substitution groups)",
+							FailedIDs: failedGroupIDs,
+						}
+					}
+					partialErr.FailureCount++
+					partialErr.LastErr = err
 					continue // Skip if we can't load the group
 				}
 				if group != nil {
 					groupMap[group.ID] = group
+					if partialErr != nil {
+						partialErr.SuccessCount++
+					}
 				}
 			}
 		}
@@ -295,6 +313,25 @@ func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Grou
 	groups := make([]*education.Group, 0, len(groupMap))
 	for _, group := range groupMap {
 		groups = append(groups, group)
+	}
+
+	// Return partial error if some groups failed to load
+	if partialErr != nil && partialErr.FailureCount > 0 {
+		partialErr.FailedIDs = failedGroupIDs
+		// Log summary of partial failures
+		logrus.WithFields(logrus.Fields{
+			"success_count": partialErr.SuccessCount,
+			"failure_count": partialErr.FailureCount,
+			"failed_ids":    partialErr.FailedIDs,
+			"operation":     partialErr.Op,
+		}).Warn("Partial failure in GetMyGroups")
+
+		// If we have at least some groups, return them with the partial error
+		if len(groups) > 0 {
+			return groups, partialErr
+		}
+		// If all failed, return the partial error as main error
+		return nil, partialErr
 	}
 
 	return groups, nil
