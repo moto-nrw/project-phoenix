@@ -25,6 +25,9 @@ func (gt *GroupTeacher) BeforeAppendModel(query any) error {
 		q.ModelTableExpr(`education.group_teacher AS "group_teacher"`)
 	}
 	// INSERT queries should not use aliases
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr(`education.group_teacher`)
+	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`education.group_teacher AS "group_teacher"`)
 	}
