@@ -109,7 +109,7 @@ type StudentResponse struct {
 	Location          string                 `json:"location"`
 	Bus               bool                   `json:"bus"`
 	GuardianName      string                 `json:"guardian_name"`
-	GuardianContact   string                 `json:"guardian_contact"`
+	GuardianContact   string                 `json:"guardian_contact,omitempty"`
 	GuardianEmail     string                 `json:"guardian_email,omitempty"`
 	GuardianPhone     string                 `json:"guardian_phone,omitempty"`
 	GroupID           int64                  `json:"group_id,omitempty"`
@@ -262,14 +262,18 @@ func (req *RFIDAssignmentRequest) Bind(r *http.Request) error {
 // hasFullAccess determines whether to include detailed location data and supervisor-only information (like extra info)
 func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, activeService activeService.Service, personService userService.PersonService) StudentResponse {
 	response := StudentResponse{
-		ID:              student.ID,
-		PersonID:        student.PersonID,
-		SchoolClass:     student.SchoolClass,
-		Bus:             student.Bus,
-		GuardianName:    student.GuardianName,
-		GuardianContact: student.GuardianContact,
-		CreatedAt:       student.CreatedAt,
-		UpdatedAt:       student.UpdatedAt,
+		ID:           student.ID,
+		PersonID:     student.PersonID,
+		SchoolClass:  student.SchoolClass,
+		Bus:          student.Bus,
+		GuardianName: student.GuardianName,
+		CreatedAt:    student.CreatedAt,
+		UpdatedAt:    student.UpdatedAt,
+	}
+
+	// Only include guardian contact info for users with full access
+	if hasFullAccess {
+		response.GuardianContact = student.GuardianContact
 	}
 
 	// Use real tracking data instead of deprecated flags
@@ -331,17 +335,21 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 	if person != nil {
 		response.FirstName = person.FirstName
 		response.LastName = person.LastName
-		if person.TagID != nil {
+		// Only include RFID tag for users with full access
+		if hasFullAccess && person.TagID != nil {
 			response.TagID = *person.TagID
 		}
 	}
 
-	if student.GuardianEmail != nil {
-		response.GuardianEmail = *student.GuardianEmail
-	}
+	// Only include guardian email and phone for users with full access
+	if hasFullAccess {
+		if student.GuardianEmail != nil {
+			response.GuardianEmail = *student.GuardianEmail
+		}
 
-	if student.GuardianPhone != nil {
-		response.GuardianPhone = *student.GuardianPhone
+		if student.GuardianPhone != nil {
+			response.GuardianPhone = *student.GuardianPhone
+		}
 	}
 
 	if student.GroupID != nil {
@@ -619,17 +627,12 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 
 		response.GroupSupervisors = supervisors
 
-		// Clear sensitive data for users without full access
-		// BUT keep basic attendance status (Anwesend/Abwesend) - this is public information
-		// Only clear if it contains detailed location info
+		// Note: Sensitive fields are already handled in newStudentResponse based on hasFullAccess
+		// No need to clear them here as they won't be set if user lacks access
+		// Location handling is special - we keep basic attendance status as it's public information
 		if response.Location != "Anwesend" && response.Location != "Abwesend" {
 			response.Location = ""
 		}
-		response.GuardianContact = ""
-		response.GuardianEmail = ""
-		response.GuardianPhone = ""
-		response.TagID = ""
-		response.ExtraInfo = ""
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Student retrieved successfully")
