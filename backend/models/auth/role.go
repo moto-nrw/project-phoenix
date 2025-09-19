@@ -26,16 +26,13 @@ func (r *Role) TableName() string {
 
 func (r *Role) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("auth.roles")
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("auth.roles")
+		q.ModelTableExpr(`auth.roles AS "role"`)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("auth.roles")
+		q.ModelTableExpr(`auth.roles AS "role"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("auth.roles")
+		q.ModelTableExpr(`auth.roles AS "role"`)
 	}
 	return nil
 }

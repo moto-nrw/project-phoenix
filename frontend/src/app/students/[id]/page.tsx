@@ -8,6 +8,7 @@ import { Button } from "~/components/ui/button";
 import { useSession } from "next-auth/react";
 import { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
+import { extractGuardianContact } from "~/lib/student-helpers";
 import { 
   ModernStudentProfile,
   ModernInfoCard, 
@@ -33,6 +34,7 @@ interface ExtendedStudent extends Student {
     notes?: string;
     buskind?: boolean;
     attendance_rate?: number;
+    extra_info?: string;
 }
 
 export default function StudentDetailPage() {
@@ -106,12 +108,13 @@ export default function StudentDetailPage() {
                     bus: mappedStudent.bus ?? false,
                     current_room: undefined, // Not available from API yet
                     guardian_name: hasAccess ? (mappedStudent.name_lg ?? "") : "",
-                    guardian_contact: "", // Email - not provided in this API response
-                    guardian_phone: hasAccess ? (mappedStudent.contact_lg ?? "") : "",
+                    guardian_contact: hasAccess ? extractGuardianContact(mappedStudent) : "",
+                    guardian_phone: hasAccess ? (mappedStudent.guardian_phone ?? "") : "",
                     birthday: undefined, // Not available from API yet
                     notes: undefined, // Not available from API yet
                     buskind: mappedStudent.bus, // Use bus field for buskind
-                    attendance_rate: undefined // Not available from API yet
+                    attendance_rate: undefined, // Not available from API yet
+                    extra_info: hasAccess ? mappedStudent.extra_info : undefined
                 };
 
                 setStudent(extendedStudent);
@@ -641,6 +644,17 @@ export default function StudentDetailPage() {
                                                     }
                                                 />
                                             )}
+                                            {hasFullAccess && student.extra_info && (
+                                                <ModernInfoItem 
+                                                    label="Zusätzliche Informationen" 
+                                                    value={student.extra_info}
+                                                    icon={
+                                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                        </svg>
+                                                    }
+                                                />
+                                            )}
                                         </ModernInfoCard>
 
                                         {/* Guardian Information */}
@@ -951,6 +965,17 @@ export default function StudentDetailPage() {
                                         icon={
                                             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                            </svg>
+                                        }
+                                    />
+                                )}
+                                {hasFullAccess && student.extra_info && (
+                                    <ModernInfoItem 
+                                        label="Zusätzliche Informationen" 
+                                        value={student.extra_info}
+                                        icon={
+                                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                             </svg>
                                         }
                                     />

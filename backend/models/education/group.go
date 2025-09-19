@@ -27,9 +27,6 @@ func (g *Group) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
 		q.ModelTableExpr(`education.groups AS "group"`)
 	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("education.groups")
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`education.groups AS "group"`)
 	}

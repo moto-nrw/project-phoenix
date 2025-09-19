@@ -28,8 +28,6 @@ func (rp *RolePermission) BeforeAppendModel(query any) error {
 	switch q := query.(type) {
 	case *bun.SelectQuery:
 		q.ModelTableExpr("auth.role_permissions")
-	case *bun.InsertQuery:
-		q.ModelTableExpr("auth.role_permissions")
 	case *bun.UpdateQuery:
 		q.ModelTableExpr("auth.role_permissions")
 	case *bun.DeleteQuery:

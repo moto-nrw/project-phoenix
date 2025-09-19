@@ -30,9 +30,6 @@ func (g *Group) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
 		q.ModelTableExpr("activities.groups")
 	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("activities.groups")
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr("activities.groups")
 	}

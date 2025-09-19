@@ -310,8 +310,8 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get staff member
-	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
+	// Get staff member with person data using FindWithPerson method
+	staff, err := rs.StaffRepo.FindWithPerson(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("staff member not found"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -319,17 +319,16 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get associated person
-	person, err := rs.PersonService.Get(r.Context(), staff.PersonID)
-	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for staff member"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+	// If person data was not loaded by FindWithPerson, try to fetch it separately
+	if staff.Person == nil && staff.PersonID > 0 {
+		person, err := rs.PersonService.Get(r.Context(), staff.PersonID)
+		if err != nil {
+			log.Printf("Warning: failed to get person data for staff member %d: %v", id, err)
+			// Don't fail the request, just log the warning
+		} else {
+			staff.Person = person
 		}
-		return
 	}
-
-	// Set person data
-	staff.Person = person
 
 	// Check if this staff member is also a teacher
 	isTeacher := false
@@ -485,16 +484,6 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 		}
 		staff.PersonID = req.PersonID
 		staff.Person = person
-	} else {
-		// Get associated person for response
-		person, err := rs.PersonService.Get(r.Context(), staff.PersonID)
-		if err != nil {
-			if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for staff member"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
-			return
-		}
-		staff.Person = person
 	}
 
 	// Update staff record
@@ -503,6 +492,16 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Render error: %v", err)
 		}
 		return
+	}
+
+	// Reload staff with person data to ensure we have the latest information
+	staff, err = rs.StaffRepo.FindWithPerson(r.Context(), id)
+	if err != nil {
+		// If we can't reload, try to at least get the person data
+		if staff.Person == nil && staff.PersonID > 0 {
+			person, _ := rs.PersonService.Get(r.Context(), staff.PersonID)
+			staff.Person = person
+		}
 	}
 
 	// Check if this staff member is also a teacher

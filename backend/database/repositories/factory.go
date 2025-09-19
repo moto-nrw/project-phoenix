@@ -74,13 +74,13 @@ type Factory struct {
 	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup        activeModels.GroupRepository
-	ActiveVisit        activeModels.VisitRepository
-	GroupSupervisor    activeModels.GroupSupervisorRepository
-	CombinedGroup      activeModels.CombinedGroupRepository
-	GroupMapping       activeModels.GroupMappingRepository
-	Attendance         activeModels.AttendanceRepository
-	ScheduledCheckout  activeModels.ScheduledCheckoutRepository
+	ActiveGroup       activeModels.GroupRepository
+	ActiveVisit       activeModels.VisitRepository
+	GroupSupervisor   activeModels.GroupSupervisorRepository
+	CombinedGroup     activeModels.CombinedGroupRepository
+	GroupMapping      activeModels.GroupMappingRepository
+	Attendance        activeModels.AttendanceRepository
+	ScheduledCheckout activeModels.ScheduledCheckoutRepository
 
 	// Feedback domain
 	FeedbackEntry feedbackModels.EntryRepository

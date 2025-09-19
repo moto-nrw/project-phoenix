@@ -85,6 +85,8 @@ func usersStudentsUp(ctx context.Context, db *bun.DB) error {
 			guardian_email TEXT,
 			guardian_phone TEXT,
 			group_id BIGINT,
+			-- Extra information field visible only to supervisors
+			extra_info TEXT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			CONSTRAINT fk_students_person FOREIGN KEY (person_id) 
