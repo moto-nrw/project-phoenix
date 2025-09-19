@@ -183,6 +183,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.ActiveVisit,
 		repos.GroupSupervisor,
 		repos.Profile,
+		repos.GroupSubstitution,
 		db,
 	)
 
