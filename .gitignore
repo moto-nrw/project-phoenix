@@ -387,6 +387,9 @@ cython_debug/
 # Generated binary files
 **/project-phoenix
 backend/project-phoenix
+backend/test-build
+backend/test_build
+backend/test_compile
 # Do NOT exclude package.json files - they should be tracked
 !/frontend/package.json
 !/frontend/package-lock.json
@@ -431,3 +434,24 @@ docker-compose.prod.yml
 **/ssl/**/keys/
 config/ssl/**/certs/
 deployment/**/ssl/certs/
+# Bruno API testing collection
+/bruno
+/My API Tests
+
+# Test SQL files and scripts
+frontend/test-data*.sql
+frontend/fix-permissions.sql
+frontend/remove-admin-role.sql
+frontend/rebuild-and-test.sh
+
+# SonarQube files
+.sonarqube/
+.scannerwork/
+sonar-reports/
+**/coverage.out
+**/golint-report.out
+**/govet-report.out
+**/golangci-lint-report.xml
+.env.sonar
+docker-compose.sonar.yml
+sonar-project.properties

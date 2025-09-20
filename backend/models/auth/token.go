@@ -17,6 +17,10 @@ type Token struct {
 	Mobile     bool      `bun:"mobile,notnull,default:false" json:"mobile"`
 	Identifier *string   `bun:"identifier" json:"identifier,omitempty"`
 
+	// Token family tracking for detecting token theft
+	FamilyID   string `bun:"family_id" json:"family_id,omitempty"`
+	Generation int    `bun:"generation,default:0" json:"generation"`
+
 	// Relations
 	Account *Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
 }
@@ -72,16 +76,13 @@ func (m *Token) GetUpdatedAt() time.Time {
 // BeforeAppendModel lets us modify query before it's executed
 func (t *Token) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("auth.tokens")
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("auth.tokens")
+		q.ModelTableExpr(`auth.tokens AS "token"`)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("auth.tokens")
+		q.ModelTableExpr(`auth.tokens AS "token"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("auth.tokens")
+		q.ModelTableExpr(`auth.tokens AS "token"`)
 	}
 	return nil
 }

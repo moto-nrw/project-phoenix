@@ -30,8 +30,8 @@ func (r *StaffRepository) FindByPersonID(ctx context.Context, personID int64) (*
 	staff := new(users.Staff)
 	err := r.db.NewSelect().
 		Model(staff).
-		ModelTableExpr("users.staff AS staff").
-		Where("person_id = ?", personID).
+		ModelTableExpr(`users.staff AS "staff"`).
+		Where(`"staff".person_id = ?`, personID).
 		Scan(ctx)
 
 	if err != nil {
@@ -48,9 +48,9 @@ func (r *StaffRepository) FindByPersonID(ctx context.Context, personID int64) (*
 func (r *StaffRepository) UpdateNotes(ctx context.Context, id int64, notes string) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.Staff)(nil)).
-		ModelTableExpr("users.staff").
-		Set("staff_notes = ?", notes).
-		Where("id = ?", id).
+		ModelTableExpr(`users.staff AS "staff"`).
+		Set(`"staff".staff_notes = ?`, notes).
+		Where(`"staff".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -115,7 +115,7 @@ func (r *StaffRepository) ListWithOptions(ctx context.Context, options *modelBas
 	var staffMembers []*users.Staff
 	query := r.db.NewSelect().
 		Model(&staffMembers).
-		ModelTableExpr("users.staff")
+		ModelTableExpr(`users.staff AS "staff"`)
 
 	// Apply query options
 	if options != nil {
@@ -135,19 +135,34 @@ func (r *StaffRepository) ListWithOptions(ctx context.Context, options *modelBas
 
 // FindWithPerson retrieves a staff member with their associated person data
 func (r *StaffRepository) FindWithPerson(ctx context.Context, id int64) (*users.Staff, error) {
+	// First get the staff member
 	staff := new(users.Staff)
 	err := r.db.NewSelect().
 		Model(staff).
-		ModelTableExpr("users.staff").
-		Relation("Person").
-		Where("id = ?", id).
+		ModelTableExpr(`users.staff AS "staff"`).
+		Where(`"staff".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find with person",
+			Op:  "find with person - staff",
 			Err: err,
 		}
+	}
+
+	// Then get the person if exists
+	if staff.PersonID > 0 {
+		person := new(users.Person)
+		err = r.db.NewSelect().
+			Model(person).
+			ModelTableExpr(`users.persons AS "person"`).
+			Where(`"person".id = ?`, staff.PersonID).
+			Scan(ctx)
+
+		if err == nil {
+			staff.Person = person
+		}
+		// Ignore person not found errors
 	}
 
 	return staff, nil
@@ -167,8 +182,8 @@ func (r *StaffRepository) AddNotes(ctx context.Context, id int64, notes string) 
 	// Update the staff record
 	_, err = r.db.NewUpdate().
 		Model(staff).
-		ModelTableExpr("users.staff").
-		Column("staff_notes").
+		ModelTableExpr(`users.staff AS "staff"`).
+		Column(`"staff".staff_notes`).
 		WherePK().
 		Exec(ctx)
 

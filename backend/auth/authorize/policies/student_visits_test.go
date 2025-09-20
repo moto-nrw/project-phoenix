@@ -13,6 +13,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/uptrace/bun"
@@ -165,6 +167,38 @@ func (m *SimpleMockUserService) ListAvailableRFIDCards(ctx context.Context) ([]*
 	return args.Get(0).([]*userModels.RFIDCard), args.Error(1)
 }
 
+func (m *SimpleMockUserService) ValidateStaffPIN(ctx context.Context, pin string) (*userModels.Staff, error) {
+	args := m.Called(ctx, pin)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*userModels.Staff), args.Error(1)
+}
+
+func (m *SimpleMockUserService) GetStudentsByTeacher(ctx context.Context, teacherID int64) ([]*userModels.Student, error) {
+	args := m.Called(ctx, teacherID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*userModels.Student), args.Error(1)
+}
+
+func (m *SimpleMockUserService) GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]usersSvc.StudentWithGroup, error) {
+	args := m.Called(ctx, teacherID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]usersSvc.StudentWithGroup), args.Error(1)
+}
+
+func (m *SimpleMockUserService) ValidateStaffPINForSpecificStaff(ctx context.Context, staffID int64, pin string) (*userModels.Staff, error) {
+	args := m.Called(ctx, staffID, pin)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*userModels.Staff), args.Error(1)
+}
+
 func (m *SimpleMockUserService) WithTx(tx bun.Tx) interface{} {
 	// Required by base.TransactionalService
 	return m
@@ -186,6 +220,60 @@ func (m *SimpleMockActiveService) GetVisit(ctx context.Context, visitID int64) (
 func (m *SimpleMockActiveService) WithTx(tx bun.Tx) interface{} {
 	// Required by base.TransactionalService
 	return m
+}
+
+func (m *SimpleMockActiveService) GetDashboardAnalytics(ctx context.Context) (*activeSvc.DashboardAnalytics, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*activeSvc.DashboardAnalytics), args.Error(1)
+}
+
+// Add missing methods for attendance tracking
+func (m *SimpleMockActiveService) GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*activeSvc.AttendanceStatus, error) {
+	args := m.Called(ctx, studentID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*activeSvc.AttendanceStatus), args.Error(1)
+}
+
+func (m *SimpleMockActiveService) ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64) (*activeSvc.AttendanceResult, error) {
+	args := m.Called(ctx, studentID, staffID, deviceID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*activeSvc.AttendanceResult), args.Error(1)
+}
+
+func (m *SimpleMockActiveService) CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error) {
+	args := m.Called(ctx, teacherID, studentID)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *SimpleMockActiveService) ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error) {
+	args := m.Called(ctx, activityID, deviceID, supervisorIDs, roomID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*active.Group), args.Error(1)
+}
+
+func (m *SimpleMockActiveService) StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error) {
+	args := m.Called(ctx, activityID, deviceID, supervisorIDs, roomID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*active.Group), args.Error(1)
+}
+
+func (m *SimpleMockActiveService) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupID int64, supervisorIDs []int64) (*active.Group, error) {
+	args := m.Called(ctx, activeGroupID, supervisorIDs)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*active.Group), args.Error(1)
 }
 
 // Simplified mock repositories
@@ -255,6 +343,27 @@ func (m *SimpleMockStudentRepository) FindByGroupIDs(ctx context.Context, groupI
 	return args.Get(0).([]*userModels.Student), args.Error(1)
 }
 
+func (m *SimpleMockStudentRepository) CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error) {
+	args := m.Called(ctx, options)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *SimpleMockStudentRepository) FindByTeacherID(ctx context.Context, teacherID int64) ([]*userModels.Student, error) {
+	args := m.Called(ctx, teacherID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*userModels.Student), args.Error(1)
+}
+
+func (m *SimpleMockStudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*userModels.StudentWithGroupInfo, error) {
+	args := m.Called(ctx, teacherID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*userModels.StudentWithGroupInfo), args.Error(1)
+}
+
 type SimpleMockStaffRepository struct {
 	mock.Mock
 }
@@ -290,6 +399,14 @@ func (m *SimpleMockStaffRepository) List(ctx context.Context, filters map[string
 
 func (m *SimpleMockStaffRepository) UpdateNotes(ctx context.Context, id int64, notes string) error {
 	return nil
+}
+
+func (m *SimpleMockStaffRepository) FindWithPerson(ctx context.Context, id int64) (*userModels.Staff, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*userModels.Staff), args.Error(1)
 }
 
 type SimpleMockTeacherRepository struct {
@@ -896,6 +1013,10 @@ func (m *SimpleMockActiveService) FindSupervisorsByActiveGroupID(ctx context.Con
 	return nil, nil
 }
 
+func (m *SimpleMockActiveService) FindSupervisorsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*active.GroupSupervisor, error) {
+	return nil, nil
+}
+
 func (m *SimpleMockActiveService) EndSupervision(ctx context.Context, id int64) error {
 	return nil
 }
@@ -974,4 +1095,97 @@ func (m *SimpleMockActiveService) GetRoomUtilization(ctx context.Context, roomID
 
 func (m *SimpleMockActiveService) GetStudentAttendanceRate(ctx context.Context, studentID int64) (float64, error) {
 	return 0, nil
+}
+
+// Activity Session Management with Conflict Detection
+func (m *SimpleMockActiveService) StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error) {
+	return nil, nil
+}
+
+func (m *SimpleMockActiveService) CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*activeSvc.ActivityConflictInfo, error) {
+	return &activeSvc.ActivityConflictInfo{}, nil
+}
+
+func (m *SimpleMockActiveService) EndActivitySession(ctx context.Context, activeGroupID int64) error {
+	return nil
+}
+
+func (m *SimpleMockActiveService) ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error) {
+	return nil, nil
+}
+
+func (m *SimpleMockActiveService) GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error) {
+	return nil, nil
+}
+
+// Session timeout operations - mock implementations
+func (m *SimpleMockActiveService) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*activeSvc.TimeoutResult, error) {
+	return nil, nil
+}
+
+func (m *SimpleMockActiveService) UpdateSessionActivity(ctx context.Context, activeGroupID int64) error {
+	return nil
+}
+
+func (m *SimpleMockActiveService) ValidateSessionTimeout(ctx context.Context, deviceID int64, timeoutMinutes int) error {
+	return nil
+}
+
+func (m *SimpleMockActiveService) GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*activeSvc.SessionTimeoutInfo, error) {
+	return nil, nil
+}
+
+func (m *SimpleMockActiveService) CleanupAbandonedSessions(ctx context.Context, olderThan time.Duration) (int, error) {
+	return 0, nil
+}
+
+func (m *SimpleMockActiveService) EndDailySessions(ctx context.Context) (*activeSvc.DailySessionCleanupResult, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*activeSvc.DailySessionCleanupResult), args.Error(1)
+}
+
+// Scheduled checkout methods
+func (m *SimpleMockActiveService) CreateScheduledCheckout(ctx context.Context, checkout *active.ScheduledCheckout) error {
+	args := m.Called(ctx, checkout)
+	return args.Error(0)
+}
+
+func (m *SimpleMockActiveService) GetScheduledCheckout(ctx context.Context, id int64) (*active.ScheduledCheckout, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*active.ScheduledCheckout), args.Error(1)
+}
+
+func (m *SimpleMockActiveService) GetPendingScheduledCheckout(ctx context.Context, studentID int64) (*active.ScheduledCheckout, error) {
+	args := m.Called(ctx, studentID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*active.ScheduledCheckout), args.Error(1)
+}
+
+func (m *SimpleMockActiveService) CancelScheduledCheckout(ctx context.Context, id int64, cancelledBy int64) error {
+	args := m.Called(ctx, id, cancelledBy)
+	return args.Error(0)
+}
+
+func (m *SimpleMockActiveService) ProcessDueScheduledCheckouts(ctx context.Context) (*activeSvc.ScheduledCheckoutResult, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*activeSvc.ScheduledCheckoutResult), args.Error(1)
+}
+
+func (m *SimpleMockActiveService) GetStudentScheduledCheckouts(ctx context.Context, studentID int64) ([]*active.ScheduledCheckout, error) {
+	args := m.Called(ctx, studentID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*active.ScheduledCheckout), args.Error(1)
 }

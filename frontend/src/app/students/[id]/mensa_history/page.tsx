@@ -45,7 +45,7 @@ export default function StudentMensaHistoryPage() {
     const searchParams = useSearchParams();
     const studentId = params.id as string;
     const referrer = searchParams.get("from") ?? "/students/search";
-    const { data: session } = useSession();
+    const { } = useSession();
 
     const [student, setStudent] = useState<Student | null>(null);
     const [mensaHistory, setMensaHistory] = useState<MensaEntry[]>([]);
@@ -114,7 +114,7 @@ export default function StudentMensaHistoryPage() {
                         id: "4",
                         date: "2025-05-11T12:00:00",
                         has_eaten: false,
-                        comment: "War an diesem Tag abwesend"
+                        comment: "War an diesem Tag zuhause"
                     },
                     {
                         id: "5",
@@ -291,7 +291,7 @@ export default function StudentMensaHistoryPage() {
 
     if (loading) {
         return (
-            <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+            <ResponsiveLayout>
                 <div className="flex min-h-[80vh] items-center justify-center">
                     <div className="flex flex-col items-center gap-4">
                         <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
@@ -304,7 +304,7 @@ export default function StudentMensaHistoryPage() {
 
     if (error || !student) {
         return (
-            <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+            <ResponsiveLayout>
                 <div className="flex min-h-[80vh] flex-col items-center justify-center">
                     <Alert
                         type="error"
@@ -322,7 +322,7 @@ export default function StudentMensaHistoryPage() {
     }
 
     return (
-        <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+        <ResponsiveLayout>
             <div className="max-w-7xl mx-auto">
                             {/* Back Button */}
                             <div className="mb-6">

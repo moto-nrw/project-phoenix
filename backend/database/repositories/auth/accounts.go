@@ -128,7 +128,7 @@ func (r *AccountRepository) FindByRole(ctx context.Context, role string) ([]*aut
 // List retrieves accounts matching the provided filters
 func (r *AccountRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error) {
 	var accounts []*auth.Account
-	query := r.db.NewSelect().Model(&accounts)
+	query := r.db.NewSelect().Model(&accounts).ModelTableExpr(`auth.accounts AS "account"`)
 
 	// Apply filters
 	for field, value := range filters {

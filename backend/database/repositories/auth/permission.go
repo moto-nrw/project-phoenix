@@ -30,7 +30,7 @@ func (r *PermissionRepository) FindByName(ctx context.Context, name string) (*au
 	err := r.db.NewSelect().
 		Model(permission).
 		ModelTableExpr(`auth.permissions AS "permission"`).
-		Where("LOWER(name) = LOWER(?)", name).
+		Where(`LOWER("permission".name) = LOWER(?)`, name).
 		Scan(ctx)
 
 	if err != nil {
@@ -49,7 +49,7 @@ func (r *PermissionRepository) FindByResourceAction(ctx context.Context, resourc
 	err := r.db.NewSelect().
 		Model(permission).
 		ModelTableExpr(`auth.permissions AS "permission"`).
-		Where("LOWER(resource) = LOWER(?) AND LOWER(action) = LOWER(?)", resource, action).
+		Where(`LOWER("permission".resource) = LOWER(?) AND LOWER("permission".action) = LOWER(?)`, resource, action).
 		Scan(ctx)
 
 	if err != nil {
@@ -62,7 +62,7 @@ func (r *PermissionRepository) FindByResourceAction(ctx context.Context, resourc
 	return permission, nil
 }
 
-// FindByAccountID retrieves all permissions assigned to an account
+// FindByAccountID retrieves all permissions assigned to an account (direct + role-based)
 func (r *PermissionRepository) FindByAccountID(ctx context.Context, accountID int64) ([]*auth.Permission, error) {
 	var permissions []*auth.Permission
 
@@ -82,12 +82,34 @@ func (r *PermissionRepository) FindByAccountID(ctx context.Context, accountID in
 			Column("permission_id").
 			TableExpr("account_permissions_direct").
 			UnionAll(r.db.NewSelect().TableExpr("account_permissions_from_roles").Column("permission_id"))).
-		Join("JOIN all_account_permissions aap ON aap.permission_id = permission.id").
+		Join(`JOIN all_account_permissions aap ON aap.permission_id = "permission".id`).
 		Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by account ID",
+			Err: err,
+		}
+	}
+
+	return permissions, nil
+}
+
+// FindDirectByAccountID retrieves only direct permissions assigned to an account (not role-based)
+func (r *PermissionRepository) FindDirectByAccountID(ctx context.Context, accountID int64) ([]*auth.Permission, error) {
+	var permissions []*auth.Permission
+
+	// This query gets ONLY direct permissions, not role-based ones
+	err := r.db.NewSelect().
+		Model(&permissions).
+		ModelTableExpr(`auth.permissions AS "permission"`).
+		Join(`JOIN auth.account_permissions ap ON ap.permission_id = "permission".id`).
+		Where("ap.account_id = ? AND ap.granted = true", accountID).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find direct permissions by account ID",
 			Err: err,
 		}
 	}
@@ -101,7 +123,7 @@ func (r *PermissionRepository) FindByRoleID(ctx context.Context, roleID int64) (
 	err := r.db.NewSelect().
 		Model(&permissions).
 		ModelTableExpr(`auth.permissions AS "permission"`).
-		Join("JOIN auth.role_permissions rp ON rp.permission_id = permission.id").
+		Join(`JOIN auth.role_permissions rp ON rp.permission_id = "permission".id`).
 		Where("rp.role_id = ?", roleID).
 		Scan(ctx)
 
@@ -190,11 +212,17 @@ func (r *PermissionRepository) RemovePermissionFromAccount(ctx context.Context, 
 
 // AssignPermissionToRole assigns a permission to a role
 func (r *PermissionRepository) AssignPermissionToRole(ctx context.Context, roleID int64, permissionID int64) error {
+	// Get the database connection (or transaction if in context)
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
 	// Check if the permission assignment already exists
-	exists, err := r.db.NewSelect().
-		Model((*auth.RolePermission)(nil)).
+	count, err := db.NewSelect().
+		Table("auth.role_permissions").
 		Where("role_id = ? AND permission_id = ?", roleID, permissionID).
-		Exists(ctx)
+		Count(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -203,17 +231,18 @@ func (r *PermissionRepository) AssignPermissionToRole(ctx context.Context, roleI
 		}
 	}
 
-	if exists {
+	if count > 0 {
 		// Already assigned, nothing to do
 		return nil
 	}
 
 	// Create the permission assignment
-	_, err = r.db.NewInsert().
+	_, err = db.NewInsert().
 		Model(&auth.RolePermission{
 			RoleID:       roleID,
 			PermissionID: permissionID,
 		}).
+		ModelTableExpr("auth.role_permissions").
 		Exec(ctx)
 
 	if err != nil {
@@ -228,8 +257,14 @@ func (r *PermissionRepository) AssignPermissionToRole(ctx context.Context, roleI
 
 // RemovePermissionFromRole removes a permission assignment from a role
 func (r *PermissionRepository) RemovePermissionFromRole(ctx context.Context, roleID int64, permissionID int64) error {
-	_, err := r.db.NewDelete().
-		Model((*auth.RolePermission)(nil)).
+	// Get the database connection (or transaction if in context)
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	_, err := db.NewDelete().
+		Table("auth.role_permissions").
 		Where("role_id = ? AND permission_id = ?", roleID, permissionID).
 		Exec(ctx)
 
@@ -299,7 +334,9 @@ func (r *PermissionRepository) Update(ctx context.Context, permission *auth.Perm
 // List retrieves permissions matching the provided filters
 func (r *PermissionRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.Permission, error) {
 	var permissions []*auth.Permission
-	query := r.db.NewSelect().Model(&permissions)
+	query := r.db.NewSelect().
+		Model(&permissions).
+		ModelTableExpr(`auth.permissions AS "permission"`)
 
 	// Apply filters
 	for field, value := range filters {
@@ -308,31 +345,31 @@ func (r *PermissionRepository) List(ctx context.Context, filters map[string]inte
 			case "name":
 				// Case-insensitive name search
 				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(name) = LOWER(?)", strValue)
+					query = query.Where(`LOWER("permission".name) = LOWER(?)`, strValue)
 				} else {
-					query = query.Where("name = ?", value)
+					query = query.Where(`"permission".name = ?`, value)
 				}
 			case "resource":
 				// Case-insensitive resource search
 				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(resource) = LOWER(?)", strValue)
+					query = query.Where(`LOWER("permission".resource) = LOWER(?)`, strValue)
 				} else {
-					query = query.Where("resource = ?", value)
+					query = query.Where(`"permission".resource = ?`, value)
 				}
 			case "action":
 				// Case-insensitive action search
 				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(action) = LOWER(?)", strValue)
+					query = query.Where(`LOWER("permission".action) = LOWER(?)`, strValue)
 				} else {
-					query = query.Where("action = ?", value)
+					query = query.Where(`"permission".action = ?`, value)
 				}
 			case "name_like":
 				// Case-insensitive name pattern search
 				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(name) LIKE LOWER(?)", "%"+strValue+"%")
+					query = query.Where(`LOWER("permission".name) LIKE LOWER(?)`, "%"+strValue+"%")
 				}
 			case "is_system":
-				query = query.Where("is_system = ?", value)
+				query = query.Where(`"permission".is_system = ?`, value)
 			default:
 				// Default to exact match for other fields
 				query = query.Where("? = ?", bun.Ident(field), value)

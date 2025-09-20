@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/uptrace/bun"
@@ -13,17 +14,19 @@ import (
 
 // service implements the facilities.Service interface
 type service struct {
-	roomRepo  facilities.RoomRepository
-	db        *bun.DB
-	txHandler *base.TxHandler
+	roomRepo        facilities.RoomRepository
+	activeGroupRepo active.GroupRepository
+	db              *bun.DB
+	txHandler       *base.TxHandler
 }
 
 // NewService creates a new facilities service
-func NewService(roomRepo facilities.RoomRepository, db *bun.DB) Service {
+func NewService(roomRepo facilities.RoomRepository, activeGroupRepo active.GroupRepository, db *bun.DB) Service {
 	return &service{
-		roomRepo:  roomRepo,
-		db:        db,
-		txHandler: base.NewTxHandler(db),
+		roomRepo:        roomRepo,
+		activeGroupRepo: activeGroupRepo,
+		db:              db,
+		txHandler:       base.NewTxHandler(db),
 	}
 }
 
@@ -31,17 +34,23 @@ func NewService(roomRepo facilities.RoomRepository, db *bun.DB) Service {
 func (s *service) WithTx(tx bun.Tx) interface{} {
 	// Get repository with transaction if it implements the TransactionalRepository interface
 	var roomRepo = s.roomRepo
+	var activeGroupRepo = s.activeGroupRepo
 
 	// Try to cast repository to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.roomRepo.(base.TransactionalRepository); ok {
 		roomRepo = txRepo.WithTx(tx).(facilities.RoomRepository)
 	}
 
+	if txRepo, ok := s.activeGroupRepo.(base.TransactionalRepository); ok {
+		activeGroupRepo = txRepo.WithTx(tx).(active.GroupRepository)
+	}
+
 	// Return a new service with the transaction
 	return &service{
-		roomRepo:  roomRepo,
-		db:        s.db,
-		txHandler: s.txHandler.WithTx(tx),
+		roomRepo:        roomRepo,
+		activeGroupRepo: activeGroupRepo,
+		db:              s.db,
+		txHandler:       s.txHandler.WithTx(tx),
 	}
 }
 
@@ -215,6 +224,36 @@ func (s *service) GetAvailableRooms(ctx context.Context, capacity int) ([]*facil
 	return availableRooms, nil
 }
 
+// GetAvailableRoomsWithOccupancy finds all rooms that can accommodate the given capacity
+// and includes their current occupancy status
+func (s *service) GetAvailableRoomsWithOccupancy(ctx context.Context, capacity int) ([]RoomWithOccupancy, error) {
+	// Get all rooms - using empty filter map for now
+	allRooms, err := s.roomRepo.List(ctx, make(map[string]interface{}))
+	if err != nil {
+		return nil, &FacilitiesError{Op: "get available rooms with occupancy", Err: err}
+	}
+
+	// Filter rooms by capacity and check occupancy
+	var roomsWithOccupancy []RoomWithOccupancy
+	for _, room := range allRooms {
+		if room.IsAvailable(capacity) {
+			// Check if room is occupied
+			activeGroups, err := s.activeGroupRepo.FindActiveByRoomID(ctx, room.ID)
+			if err != nil {
+				return nil, &FacilitiesError{Op: "check room occupancy", Err: err}
+			}
+
+			roomWithOccupancy := RoomWithOccupancy{
+				Room:       room,
+				IsOccupied: len(activeGroups) > 0,
+			}
+			roomsWithOccupancy = append(roomsWithOccupancy, roomWithOccupancy)
+		}
+	}
+
+	return roomsWithOccupancy, nil
+}
+
 // GetRoomUtilization calculates the current utilization of a room
 func (s *service) GetRoomUtilization(ctx context.Context, roomID int64) (float64, error) {
 	room, err := s.roomRepo.FindByID(ctx, roomID)
@@ -294,7 +333,7 @@ func (s *service) GetRoomHistory(ctx context.Context, roomID int64, startTime, e
 
 	// Query active_visits table for room history
 	var history []RoomHistoryEntry
-	
+
 	// Build the query
 	err = s.db.NewSelect().
 		TableExpr("active.visits AS v").

@@ -1,6 +1,14 @@
 // lib/student-helpers.ts
 // Type definitions and helper functions for students
 
+// Scheduled checkout information
+export interface ScheduledCheckoutInfo {
+    id: number;
+    scheduled_for: string;
+    reason?: string;
+    scheduled_by: string;
+}
+
 // Backend types (from Go structs)
 export interface BackendStudent {
     id: number;
@@ -10,12 +18,15 @@ export interface BackendStudent {
     tag_id?: string;
     school_class: string;
     location: string;
+    bus: boolean;
     guardian_name: string;
     guardian_contact: string;
     guardian_email?: string;
     guardian_phone?: string;
     group_id?: number;
     group_name?: string;
+    scheduled_checkout?: ScheduledCheckoutInfo;
+    extra_info?: string;
     created_at: string;
     updated_at: string;
 }
@@ -36,6 +47,41 @@ export interface BackendStudentDetail extends BackendStudent {
     group_supervisors?: SupervisorContact[];
 }
 
+// Privacy consent types
+export interface BackendPrivacyConsent {
+    id: number;
+    student_id: number;
+    policy_version: string;
+    accepted: boolean;
+    accepted_at?: string;
+    expires_at?: string;
+    duration_days?: number;
+    renewal_required: boolean;
+    data_retention_days: number;
+    details?: Record<string, unknown>;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface PrivacyConsent {
+    id: string;
+    studentId: string;
+    policyVersion: string;
+    accepted: boolean;
+    acceptedAt?: Date;
+    expiresAt?: Date;
+    durationDays?: number;
+    renewalRequired: boolean;
+    dataRetentionDays: number;
+    details?: Record<string, unknown>;
+    createdAt: Date;
+    updatedAt: Date;
+}
+
+// Student attendance status enum (updated to use attendance-based terminology)
+// Now includes specific location details from backend
+export type StudentLocation = string;
+
 // Frontend types (mapped from backend)
 export interface Student {
     id: string;
@@ -47,24 +93,50 @@ export interface Student {
     studentId?: string;
     group_name?: string;
     group_id?: string;
-    in_house: boolean;
-    wc?: boolean;
-    school_yard?: boolean;
-    bus?: boolean;
+    // Current attendance status of student
+    current_location: StudentLocation;
+    // Transportation method (separate from attendance)
+    takes_bus?: boolean;
+    // Legacy boolean fields for backward compatibility (derived from current_location)
+    in_house: boolean; // Now maps to "Anwesend" status
+    wc?: boolean; // Deprecated - no longer used
+    school_yard?: boolean; // Deprecated - no longer used
+    bus?: boolean; // Administrative permission flag (Buskind), not attendance status
     name_lg?: string;
     contact_lg?: string;
+    guardian_email?: string;
+    guardian_phone?: string;
     custom_users_id?: string;
+    // Privacy consent data (fetched separately)
+    privacy_consent?: PrivacyConsent;
+    // Privacy consent fields for form handling
+    privacy_consent_accepted?: boolean;
+    data_retention_days?: number;
     // Additional fields for access control
     has_full_access?: boolean;
     group_supervisors?: SupervisorContact[];
+    // Extra information visible only to supervisors
+    extra_info?: string;
 }
 
 // Mapping functions
-export function mapStudentResponse(backendStudent: BackendStudent): Student {
+export function mapStudentResponse(backendStudent: BackendStudent): Student & { scheduled_checkout?: ScheduledCheckoutInfo } {
     // Construct the full name from first and last name
     const firstName = backendStudent.first_name || '';
     const lastName = backendStudent.last_name || '';
     const name = `${firstName} ${lastName}`.trim();
+    
+    // Map backend attendance status - preserve full location details
+    let current_location: StudentLocation = "Unknown";
+    if (backendStudent.location) {
+        if (backendStudent.location === "Abwesend") {
+            // Backend returns "Abwesend" for not checked in, map to "Zuhause" for frontend
+            current_location = "Zuhause";
+        } else {
+            // Preserve the full location string from backend (e.g., "Anwesend", "Anwesend - Aktivität", etc.)
+            current_location = backendStudent.location;
+        }
+    }
     
     const mapped = {
         id: String(backendStudent.id),
@@ -76,14 +148,29 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student {
         studentId: backendStudent.tag_id,
         group_name: backendStudent.group_name,
         group_id: backendStudent.group_id ? String(backendStudent.group_id) : undefined,
-        in_house: backendStudent.location === "In House",
-        wc: backendStudent.location === "WC",
-        school_yard: backendStudent.location === "School Yard",
-        bus: backendStudent.location === "Bus",
+        // New attendance-based system
+        current_location: current_location,
+        takes_bus: undefined, // TODO: Map from backend when available
+        // Legacy boolean fields for backward compatibility (derived from attendance status)
+        in_house: current_location.startsWith("Anwesend"),
+        wc: false, // Deprecated - no longer used
+        school_yard: false, // Deprecated - no longer used
+        bus: backendStudent.bus, // Administrative permission flag (Buskind)
         name_lg: backendStudent.guardian_name,
         contact_lg: backendStudent.guardian_contact,
+        guardian_email: backendStudent.guardian_email,
+        guardian_phone: backendStudent.guardian_phone,
         custom_users_id: undefined, // Not provided by backend
+        extra_info: backendStudent.extra_info,
     };
+    
+    // Add scheduled checkout info if present
+    if (backendStudent.scheduled_checkout) {
+        return {
+            ...mapped,
+            scheduled_checkout: backendStudent.scheduled_checkout
+        };
+    }
     
     return mapped;
 }
@@ -98,18 +185,31 @@ export function mapSingleStudentResponse(response: { data: BackendStudent }): St
     return mapStudentResponse(response.data);
 }
 
+// Map student detail response (includes access control info)
+export function mapStudentDetailResponse(backendStudent: BackendStudentDetail): Student {
+    // First map the basic student data
+    const student = mapStudentResponse(backendStudent);
+    
+    // Then add the additional fields
+    student.has_full_access = backendStudent.has_full_access;
+    student.group_supervisors = backendStudent.group_supervisors;
+    
+    return student;
+}
+
 // Prepare frontend student for backend
 export function prepareStudentForBackend(student: Partial<Student> & { 
     tag_id?: string;
     guardian_email?: string;
     guardian_phone?: string;
+    extra_info?: string;
 }): Partial<BackendStudent> {
-    // Calculate location string from boolean flags
+    // Calculate location string from boolean flags (excluding bus)
     let location = "Unknown";
     if (student.in_house) location = "In House";
     else if (student.wc) location = "WC";
     else if (student.school_yard) location = "School Yard";
-    else if (student.bus) location = "Bus";
+    // Note: bus is NOT a location, it's a separate transportation field
 
     return {
         id: student.id ? parseInt(student.id, 10) : undefined,
@@ -117,12 +217,14 @@ export function prepareStudentForBackend(student: Partial<Student> & {
         last_name: student.second_name, // Map second_name to last_name for backend
         school_class: student.school_class,
         location: location,
+        bus: student.bus ?? false, // Send bus as a separate field
         guardian_name: student.name_lg,
         guardian_contact: student.contact_lg,
         group_id: student.group_id ? parseInt(student.group_id, 10) : undefined,
         tag_id: student.tag_id,
         guardian_email: student.guardian_email,
         guardian_phone: student.guardian_phone,
+        extra_info: student.extra_info,
     };
 }
 
@@ -137,6 +239,7 @@ export interface CreateStudentRequest {
     tag_id?: string; // Optional RFID
     guardian_email?: string;
     guardian_phone?: string;
+    extra_info?: string;
 }
 
 export interface UpdateStudentRequest {
@@ -149,6 +252,7 @@ export interface UpdateStudentRequest {
     tag_id?: string;
     guardian_email?: string;
     guardian_phone?: string;
+    extra_info?: string;
 }
 
 // Backend request type (for actual API calls)
@@ -162,6 +266,25 @@ export interface BackendUpdateRequest {
     guardian_email?: string;
     guardian_phone?: string;
     group_id?: number;
+    extra_info?: string;
+}
+
+// Map privacy consent from backend to frontend
+export function mapPrivacyConsentResponse(backendConsent: BackendPrivacyConsent): PrivacyConsent {
+    return {
+        id: String(backendConsent.id),
+        studentId: String(backendConsent.student_id),
+        policyVersion: backendConsent.policy_version,
+        accepted: backendConsent.accepted,
+        acceptedAt: backendConsent.accepted_at ? new Date(backendConsent.accepted_at) : undefined,
+        expiresAt: backendConsent.expires_at ? new Date(backendConsent.expires_at) : undefined,
+        durationDays: backendConsent.duration_days,
+        renewalRequired: backendConsent.renewal_required,
+        dataRetentionDays: backendConsent.data_retention_days,
+        details: backendConsent.details,
+        createdAt: new Date(backendConsent.created_at),
+        updatedAt: new Date(backendConsent.updated_at),
+    };
 }
 
 // Map frontend update request to backend format
@@ -195,6 +318,9 @@ export function mapUpdateRequestToBackend(request: UpdateStudentRequest): Backen
     if (request.group_id !== undefined) {
         backendRequest.group_id = parseInt(request.group_id, 10);
     }
+    if (request.extra_info !== undefined) {
+        backendRequest.extra_info = request.extra_info;
+    }
     
     return backendRequest;
 }
@@ -215,7 +341,38 @@ export function formatStudentStatus(student: Student): string {
     if (student.wc) return 'Toilette';
     if (student.school_yard) return 'Schulhof';
     if (student.bus) return 'Bus';
-    return 'Abwesend';
+    return 'Zuhause';
+}
+
+/**
+ * Extracts guardian contact information with clear precedence rules.
+ * This function provides a consistent way to determine which contact
+ * information to display for a student's guardian.
+ * 
+ * Precedence order:
+ * 1. guardian_email - Primary contact method (if available)
+ * 2. contact_lg - Legacy contact field (fallback)
+ * 3. Empty string - Final fallback when no contact info is available
+ * 
+ * @param studentData - Object containing guardian contact fields
+ * @returns The most appropriate guardian contact information
+ */
+export function extractGuardianContact(studentData: {
+    guardian_email?: string;
+    contact_lg?: string;
+}): string {
+    // First priority: Use guardian_email if available
+    if (studentData.guardian_email) {
+        return studentData.guardian_email;
+    }
+    
+    // Second priority: Fall back to legacy contact_lg field
+    if (studentData.contact_lg) {
+        return studentData.contact_lg;
+    }
+    
+    // Final fallback: Return empty string when no contact info available
+    return "";
 }
 
 export function getStatusColor(student: Student): string {

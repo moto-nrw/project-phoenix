@@ -60,6 +60,12 @@ func RespondNoContent(w http.ResponseWriter, r *http.Request) {
 	render.NoContent(w, r)
 }
 
+// RespondWithJSON sends a JSON response with the given status code
+func RespondWithJSON(w http.ResponseWriter, r *http.Request, status int, data interface{}) {
+	render.Status(r, status)
+	render.JSON(w, r, data)
+}
+
 // Pagination represents pagination metadata for responses
 type Pagination struct {
 	CurrentPage  int `json:"current_page"`

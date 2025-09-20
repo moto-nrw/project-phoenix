@@ -4,9 +4,10 @@ import { useState, useEffect, Suspense } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
-import { Input } from "~/components/ui";
+import { Input, PasswordChangeModal } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
-import { fetchProfile, updateProfile } from "~/lib/profile-api";
+import { SimpleAlert } from "~/components/simple/SimpleAlert";
+import { fetchProfile, updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { Profile, ProfileUpdateRequest } from "~/lib/profile-helpers";
 
 // Info Card Component
@@ -32,7 +33,12 @@ interface AvatarUploadProps {
 }
 
 const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatar, firstName, lastName, onAvatarChange }) => {
-  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  const getInitials = () => {
+    const first = firstName?.charAt(0) || '';
+    const last = lastName?.charAt(0) || '';
+    return (first + last).toUpperCase() || '?';
+  };
+  const initials = getInitials();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -40,6 +46,7 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatar, firstName, lastName
       onAvatarChange(file);
     }
   };
+
 
   return (
     <div className="flex flex-col items-center">
@@ -66,7 +73,11 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatar, firstName, lastName
           className="hidden"
         />
       </div>
-      <button className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium">
+      <button 
+        type="button"
+        onClick={() => document.getElementById('avatar-upload')?.click()}
+        className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium"
+      >
         Foto ändern
       </button>
     </div>
@@ -85,9 +96,11 @@ function ProfilePageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [hasLoadedProfile, setHasLoadedProfile] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -114,8 +127,8 @@ function ProfilePageContent() {
       const data = await fetchProfile();
       setProfile(data);
       setFormData({
-        firstName: data.firstName,
-        lastName: data.lastName,
+        firstName: data.firstName || "",
+        lastName: data.lastName || "",
         bio: data.bio ?? "",
         email: data.email,
         username: data.username ?? "",
@@ -149,7 +162,14 @@ function ProfilePageContent() {
     try {
       setIsSaving(true);
       setError(null);
-      setSuccessMessage(null);
+
+      // If no profile exists yet, firstName and lastName are required
+      if ((!profile?.firstName || !profile?.lastName) && 
+          (!formData.firstName || !formData.lastName)) {
+        setError("Vorname und Nachname sind erforderlich, um Ihr Profil zu erstellen.");
+        setIsSaving(false);
+        return;
+      }
 
       const updateData: ProfileUpdateRequest = {
         firstName: formData.firstName,
@@ -162,6 +182,7 @@ function ProfilePageContent() {
       setProfile(updatedProfile);
       setIsEditing(false);
       setSuccessMessage("Profil erfolgreich aktualisiert");
+      setShowSuccessAlert(true);
     } catch (err) {
       setError("Fehler beim Speichern des Profils");
       console.error(err);
@@ -184,8 +205,20 @@ function ProfilePageContent() {
   };
 
   const handleAvatarChange = async (file: File) => {
-    // TODO: Implement avatar upload
-    console.log("Avatar upload not yet implemented", file);
+    setIsSaving(true);
+    setError(null);
+    
+    try {
+      const updatedProfile = await uploadAvatar(file);
+      setProfile(updatedProfile);
+      setSuccessMessage("Profilbild erfolgreich aktualisiert");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (err) {
+      console.error("Error uploading avatar:", err);
+      setError(err instanceof Error ? err.message : "Fehler beim Hochladen des Profilbilds");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (status === "loading" || isLoading) {
@@ -201,7 +234,7 @@ function ProfilePageContent() {
 
   if (!profile) {
     return (
-      <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+      <ResponsiveLayout>
         <div className="max-w-4xl mx-auto">
           <Alert type="error" message="Profil konnte nicht geladen werden" />
         </div>
@@ -210,7 +243,7 @@ function ProfilePageContent() {
   }
 
   return (
-    <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+    <ResponsiveLayout>
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-6 md:mb-8">
@@ -237,11 +270,6 @@ function ProfilePageContent() {
         {error && (
           <div className="mb-6">
             <Alert type="error" message={error} />
-          </div>
-        )}
-        {successMessage && (
-          <div className="mb-6">
-            <Alert type="success" message={successMessage} />
           </div>
         )}
 
@@ -324,6 +352,13 @@ function ProfilePageContent() {
                 )}
               </div>
             }>
+              {(!profile.firstName || !profile.lastName) && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <span className="font-medium">Profil unvollständig:</span> Bitte vervollständigen Sie Ihren Vor- und Nachnamen.
+                  </p>
+                </div>
+              )}
               <form className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input
@@ -352,7 +387,6 @@ function ProfilePageContent() {
                     value={formData.email}
                     disabled
                   />
-                  <p className="mt-1 text-xs text-gray-500">E-Mail kann in den Einstellungen geändert werden</p>
                 </div>
 
                 <Input
@@ -422,27 +456,69 @@ function ProfilePageContent() {
               </form>
             </InfoCard>
 
-            {/* Account Security Info */}
-            <InfoCard title="Kontosicherheit" className="mt-6">
-              <div className="flex items-center justify-between py-3">
-                <div>
-                  <p className="font-medium">Passwort</p>
-                  <p className="text-sm text-gray-500">Zuletzt geändert vor 30 Tagen</p>
-                </div>
+            {/* System Settings Link */}
+            <InfoCard title="Weitere Einstellungen" className="mt-6">
+              <div className="space-y-3">
+                <button
+                  onClick={() => setShowPasswordModal(true)}
+                  className="w-full flex items-center justify-between rounded-lg border border-gray-200 p-4 transition-colors hover:bg-gray-50"
+                >
+                  <div className="flex items-center space-x-3">
+                    <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                    <div className="text-left">
+                      <h4 className="font-medium text-gray-900">Passwort ändern</h4>
+                      <p className="text-sm text-gray-600">Aktualisieren Sie Ihr Konto-Passwort</p>
+                    </div>
+                  </div>
+                  <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                </button>
                 <a
                   href="/settings"
-                  className="text-sm font-medium text-gray-900 hover:text-gray-700 flex items-center gap-1 transition-colors"
+                  className="block w-full text-center py-2 px-4 bg-gray-100 text-gray-900 rounded-lg hover:bg-gray-200 transition-colors font-medium text-sm group"
                 >
-                  Ändern
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Systemeinstellungen öffnen
+                    <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </span>
                 </a>
+                <p className="text-xs text-gray-500 text-center">
+                  Benachrichtigungen, Design, Datenschutz und mehr
+                </p>
               </div>
             </InfoCard>
           </div>
         </div>
       </div>
+
+      {/* Password Change Modal */}
+      <PasswordChangeModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        onSuccess={() => {
+          setSuccessMessage("Passwort erfolgreich geändert!");
+          setShowSuccessAlert(true);
+        }}
+      />
+      
+      {/* Success Alert */}
+      {showSuccessAlert && (
+        <SimpleAlert
+          type="success"
+          message={successMessage}
+          autoClose
+          duration={3000}
+          onClose={() => setShowSuccessAlert(false)}
+        />
+      )}
     </ResponsiveLayout>
   );
 }

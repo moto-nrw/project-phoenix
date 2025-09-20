@@ -59,7 +59,7 @@ export function DataListPage<T extends BaseEntity>({
     externalSearchTerm !== undefined
       ? data // If external search, don't filter data (already filtered by the parent)
       : data.filter((entity) =>
-          entity.name.toLowerCase().includes(internalSearchTerm.toLowerCase()),
+          entity.name?.toLowerCase().includes(internalSearchTerm.toLowerCase()) ?? false,
         );
   
   console.log("DataListPage filtered data:", filteredData);
@@ -67,7 +67,7 @@ export function DataListPage<T extends BaseEntity>({
   // Default entity renderer
   const defaultRenderEntity = (entity: T) => (
     <div className="flex w-full items-center justify-between">
-      <span>{entity.name}</span>
+      <span>{entity.name || "Unbenannt"}</span>
       <svg
         xmlns="http://www.w3.org/2000/svg"
         className="h-5 w-5 text-gray-400"
@@ -149,8 +149,8 @@ export function DataListPage<T extends BaseEntity>({
         {/* Entity List */}
         <div className="w-full space-y-3">
           {filteredData.length > 0 ? (
-            filteredData.map((entity) => (
-              <div key={entity.id}>
+            filteredData.map((entity, index) => (
+              <div key={entity.id || `entity-${index}`}>
                 {renderEntity ? (
                   renderEntity(entity)
                 ) : (

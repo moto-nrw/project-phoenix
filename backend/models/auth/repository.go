@@ -43,6 +43,7 @@ type PermissionRepository interface {
 	FindByName(ctx context.Context, name string) (*Permission, error)
 	FindByResourceAction(ctx context.Context, resource, action string) (*Permission, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
+	FindDirectByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*Permission, error)
 	FindByRoleByName(ctx context.Context, roleName string) (*Role, error)
 	AssignPermissionToAccount(ctx context.Context, accountID int64, permissionID int64) error
@@ -118,6 +119,7 @@ type TokenRepository interface {
 	Delete(ctx context.Context, id interface{}) error
 	List(ctx context.Context, filters map[string]interface{}) ([]*Token, error)
 	FindByToken(ctx context.Context, token string) (*Token, error)
+	FindByTokenForUpdate(ctx context.Context, token string) (*Token, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Token, error)
 	FindByAccountIDAndIdentifier(ctx context.Context, accountID int64, identifier string) (*Token, error)
 	DeleteExpiredTokens(ctx context.Context) (int, error)
@@ -125,6 +127,12 @@ type TokenRepository interface {
 	DeleteByAccountIDAndIdentifier(ctx context.Context, accountID int64, identifier string) error
 	FindValidTokens(ctx context.Context, filters map[string]interface{}) ([]*Token, error)
 	FindTokensWithAccount(ctx context.Context, filters map[string]interface{}) ([]*Token, error)
+	CleanupOldTokensForAccount(ctx context.Context, accountID int64, keepCount int) error
+
+	// Token family tracking methods
+	FindByFamilyID(ctx context.Context, familyID string) ([]*Token, error)
+	DeleteByFamilyID(ctx context.Context, familyID string) error
+	GetLatestTokenInFamily(ctx context.Context, familyID string) (*Token, error)
 }
 
 // PasswordResetTokenRepository defines operations for managing password reset tokens

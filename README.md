@@ -56,6 +56,7 @@ Project Phoenix is a comprehensive room and student management system designed f
 - 🏷️ **RFID Student Tracking** - Real-time location tracking using RFID technology
 - 🏫 **Room Management** - Monitor room occupancy and usage patterns
 - 👥 **Group Management** - Organize students into groups and manage activities
+- 👨‍🏫 **Multiple Supervisors** - Assign multiple supervisors to groups and rooms for enhanced oversight
 - 📊 **Analytics Dashboard** - Comprehensive reporting and utilization statistics
 - 🗓️ **Schedule Management** - Handle class schedules and time-based activities
 - 🎯 **Activity Tracking** - Track student participation in various activities

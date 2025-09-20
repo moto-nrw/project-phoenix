@@ -9,17 +9,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/iot"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Group represents an active group session in a room
 type Group struct {
-	base.Model `bun:"schema:active,table:groups"`
-	StartTime  time.Time  `bun:"start_time,notnull" json:"start_time"`
-	EndTime    *time.Time `bun:"end_time" json:"end_time,omitempty"`
-	GroupID    int64      `bun:"group_id,notnull" json:"group_id"`
-	DeviceID   int64      `bun:"device_id,notnull" json:"device_id"`
-	RoomID     int64      `bun:"room_id,notnull" json:"room_id"`
+	base.Model     `bun:"schema:active,table:groups"`
+	StartTime      time.Time  `bun:"start_time,notnull" json:"start_time"`
+	EndTime        *time.Time `bun:"end_time" json:"end_time,omitempty"`
+	LastActivity   time.Time  `bun:"last_activity,notnull" json:"last_activity"`      // Activity tracking for timeout
+	TimeoutMinutes int        `bun:"timeout_minutes,nullzero" json:"timeout_minutes"` // Session timeout config (default 30)
+	GroupID        int64      `bun:"group_id,notnull" json:"group_id"`
+	DeviceID       *int64     `bun:"device_id" json:"device_id,omitempty"` // Optional for RFID system
+	RoomID         int64      `bun:"room_id,notnull" json:"room_id"`
 
 	// Relations - these would be populated when using the ORM's relations
 	ActualGroup *activities.Group  `bun:"rel:belongs-to,join:group_id=id" json:"actual_group,omitempty"`
@@ -29,21 +30,20 @@ type Group struct {
 	Supervisors []*GroupSupervisor `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
 }
 
-func (g *Group) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("active.groups")
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("active.groups")
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("active.groups")
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("active.groups")
-	}
-	return nil
-}
+// BeforeAppendModel is commented out to let the repository control the table expression
+// func (g *Group) BeforeAppendModel(query any) error {
+// 	switch q := query.(type) {
+// 	case *bun.SelectQuery:
+// 		q.ModelTableExpr("active.groups")
+// 	case *bun.InsertQuery:
+// 		q.ModelTableExpr("active.groups")
+// 	case *bun.UpdateQuery:
+// 		q.ModelTableExpr("active.groups")
+// 	case *bun.DeleteQuery:
+// 		q.ModelTableExpr("active.groups")
+// 	}
+// 	return nil
+// }
 
 // GetID returns the entity's ID
 func (g *Group) GetID() interface{} {
@@ -79,9 +79,8 @@ func (g *Group) Validate() error {
 		return errors.New("group ID is required")
 	}
 
-	if g.DeviceID <= 0 {
-		return errors.New("device ID is required")
-	}
+	// DeviceID is now optional for RFID system
+	// No validation needed for DeviceID
 
 	if g.RoomID <= 0 {
 		return errors.New("room ID is required")
@@ -116,4 +115,35 @@ func (g *Group) GetDuration() time.Duration {
 		return time.Since(g.StartTime)
 	}
 	return g.EndTime.Sub(g.StartTime)
+}
+
+// UpdateActivity updates the last activity timestamp to current time
+func (g *Group) UpdateActivity() {
+	g.LastActivity = time.Now()
+}
+
+// GetTimeoutDuration returns the configured timeout duration
+func (g *Group) GetTimeoutDuration() time.Duration {
+	if g.TimeoutMinutes <= 0 {
+		return 30 * time.Minute // Default 30 minutes
+	}
+	return time.Duration(g.TimeoutMinutes) * time.Minute
+}
+
+// GetInactivityDuration returns how long the session has been inactive
+func (g *Group) GetInactivityDuration() time.Duration {
+	return time.Since(g.LastActivity)
+}
+
+// IsTimedOut checks if the session has exceeded the timeout threshold
+func (g *Group) IsTimedOut() bool {
+	if !g.IsActive() {
+		return false // Already ended
+	}
+	return g.GetInactivityDuration() >= g.GetTimeoutDuration()
+}
+
+// GetTimeUntilTimeout returns how much time remains before timeout (negative if already timed out)
+func (g *Group) GetTimeUntilTimeout() time.Duration {
+	return g.GetTimeoutDuration() - g.GetInactivityDuration()
 }

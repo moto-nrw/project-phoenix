@@ -12,6 +12,7 @@ import (
 	jwx "github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
+	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -31,10 +32,12 @@ type Service struct {
 	tokenRepo              auth.TokenRepository
 	passwordResetTokenRepo auth.PasswordResetTokenRepository // Add this
 	personRepo             users.PersonRepository            // Add this for first name
+	authEventRepo          audit.AuthEventRepository         // Add for audit logging
 	tokenAuth              *jwt.TokenAuth
 	jwtExpiry              time.Duration
 	jwtRefreshExpiry       time.Duration
 	txHandler              *base.TxHandler
+	db                     *bun.DB // Add database connection
 }
 
 // Updated NewService constructor
@@ -50,6 +53,7 @@ func NewService(
 	rolePermissionRepo auth.RolePermissionRepository, // Add this
 	passwordResetTokenRepo auth.PasswordResetTokenRepository, // Add this
 	personRepo users.PersonRepository, // Add this for first name
+	authEventRepo audit.AuthEventRepository, // Add for audit logging
 	db *bun.DB,
 ) (*Service, error) {
 
@@ -69,10 +73,12 @@ func NewService(
 		tokenRepo:              tokenRepo,
 		passwordResetTokenRepo: passwordResetTokenRepo, // Add this
 		personRepo:             personRepo,             // Add this for first name
+		authEventRepo:          authEventRepo,          // Add for audit logging
 		tokenAuth:              tokenAuth,
 		jwtExpiry:              tokenAuth.JwtExpiry,
 		jwtRefreshExpiry:       tokenAuth.JwtRefreshExpiry,
 		txHandler:              base.NewTxHandler(db),
+		db:                     db, // Add database connection
 	}, nil
 }
 
@@ -90,6 +96,7 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 	var tokenRepo = s.tokenRepo
 	var passwordResetTokenRepo = s.passwordResetTokenRepo // Add this
 	var personRepo = s.personRepo                         // Add this for first name
+	var authEventRepo = s.authEventRepo                   // Add for audit logging
 
 	// Try to cast repositories to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.accountRepo.(base.TransactionalRepository); ok {
@@ -122,6 +129,9 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok { // Add this for first name
 		personRepo = txRepo.WithTx(tx).(users.PersonRepository)
 	}
+	if txRepo, ok := s.authEventRepo.(base.TransactionalRepository); ok { // Add for audit logging
+		authEventRepo = txRepo.WithTx(tx).(audit.AuthEventRepository)
+	}
 
 	// Return a new service with the transaction
 	return &Service{
@@ -135,26 +145,41 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 		tokenRepo:              tokenRepo,
 		passwordResetTokenRepo: passwordResetTokenRepo, // Add this
 		personRepo:             personRepo,             // Add this for first name
+		authEventRepo:          authEventRepo,          // Add for audit logging
 		tokenAuth:              s.tokenAuth,
 		jwtExpiry:              s.jwtExpiry,
 		jwtRefreshExpiry:       s.jwtRefreshExpiry,
 		txHandler:              s.txHandler.WithTx(tx),
+		db:                     s.db, // Add database connection
 	}
 }
 
 // Login authenticates a user and returns access and refresh tokens
 func (s *Service) Login(ctx context.Context, email, password string) (string, string, error) {
+	return s.LoginWithAudit(ctx, email, password, "", "")
+}
+
+// LoginWithAudit authenticates a user and returns access and refresh tokens with audit logging
+func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
 	// Normalize email
 	email = strings.TrimSpace(strings.ToLower(email))
 
 	// Get account by email
 	account, err := s.accountRepo.FindByEmail(ctx, email)
 	if err != nil {
+		// Log failed login attempt with unknown account ID (use 0)
+		if ipAddress != "" {
+			s.logAuthEvent(ctx, 0, audit.EventTypeLogin, false, ipAddress, userAgent, "Account not found")
+		}
 		return "", "", &AuthError{Op: "login", Err: ErrAccountNotFound}
 	}
 
 	// Check if account is active
 	if !account.Active {
+		// Log failed login attempt
+		if ipAddress != "" {
+			s.logAuthEvent(ctx, account.ID, audit.EventTypeLogin, false, ipAddress, userAgent, "Account inactive")
+		}
 		return "", "", &AuthError{Op: "login", Err: ErrAccountInactive}
 	}
 
@@ -165,11 +190,16 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, st
 
 	valid, err := userpass.VerifyPassword(password, *account.PasswordHash)
 	if err != nil || !valid {
+		// Log failed login attempt
+		if ipAddress != "" {
+			s.logAuthEvent(ctx, account.ID, audit.EventTypeLogin, false, ipAddress, userAgent, "Invalid password")
+		}
 		return "", "", &AuthError{Op: "login", Err: ErrInvalidCredentials}
 	}
 
-	// Create refresh token
+	// Create refresh token with new family
 	tokenStr := uuid.Must(uuid.NewV4()).String()
+	familyID := uuid.Must(uuid.NewV4()).String() // New family for login
 	identifier := "Service login"
 	now := time.Now()
 	token := &auth.Token{
@@ -178,23 +208,60 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, st
 		Expiry:     now.Add(s.jwtRefreshExpiry),
 		Mobile:     false, // This would come from a user agent in a real request
 		Identifier: &identifier,
+		FamilyID:   familyID,
+		Generation: 0, // First token in family
 	}
 
-	// Execute in transaction using txHandler
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
-		txService := s.WithTx(tx).(AuthService)
+	// Execute in transaction using txHandler with retry for concurrent logins
+	maxRetries := 3
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+			// Get transactional service
+			txService := s.WithTx(tx).(AuthService)
 
-		// Create token using the transaction-aware repositories
-		if err := txService.(*Service).tokenRepo.Create(ctx, token); err != nil {
-			return err
+			// Clean up existing tokens for this account
+			// This prevents token accumulation while allowing multiple active sessions
+			//
+			// Option 2: Keep only the N most recent tokens (multiple sessions)
+			// This allows frontend sessions to remain active while cleaning up old tokens
+			const maxTokensPerAccount = 5
+			if err := txService.(*Service).tokenRepo.CleanupOldTokensForAccount(ctx, account.ID, maxTokensPerAccount); err != nil {
+				log.Printf("Warning: failed to clean up old tokens for account %d: %v", account.ID, err)
+			}
+
+			// Option 1 (Alternative): Delete ALL existing tokens (single session only)
+			// Uncomment below and comment out Option 2 to enforce single session
+			// if err := txService.(*Service).tokenRepo.DeleteByAccountID(ctx, account.ID); err != nil {
+			//     // Log the error but don't fail the login
+			//     // This ensures users can still login even if cleanup fails
+			//     log.Printf("Warning: failed to clean up existing tokens for account %d: %v", account.ID, err)
+			// }
+
+			// Create token using the transaction-aware repositories
+			if err := txService.(*Service).tokenRepo.Create(ctx, token); err != nil {
+				// Check if it's a duplicate key error on family_id/generation
+				if strings.Contains(err.Error(), "uk_tokens_family_generation") {
+					// Another concurrent login is happening, regenerate family ID
+					token.FamilyID = uuid.Must(uuid.NewV4()).String()
+					return err // Will retry with new family ID
+				}
+				return err
+			}
+
+			// Update last login
+			loginTime := time.Now()
+			account.LastLogin = &loginTime
+			return txService.(*Service).accountRepo.Update(ctx, account)
+		})
+
+		// If successful or non-retryable error, break
+		if err == nil || !strings.Contains(err.Error(), "uk_tokens_family_generation") {
+			break
 		}
 
-		// Update last login
-		loginTime := time.Now()
-		account.LastLogin = &loginTime
-		return txService.(*Service).accountRepo.Update(ctx, account)
-	})
+		// Log retry attempt
+		log.Printf("Login race condition detected for account %d, retrying (attempt %d/%d)", account.ID, attempt+1, maxRetries)
+	}
 
 	if err != nil {
 		return "", "", &AuthError{Op: "login transaction", Err: err}
@@ -243,9 +310,23 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, st
 	}
 
 	firstName := ""
+	lastName := ""
 	person, err := s.personRepo.FindByAccountID(ctx, account.ID)
 	if err == nil && person != nil {
 		firstName = person.FirstName
+		lastName = person.LastName
+	}
+
+	// Check for static role flags
+	isAdmin := false
+	isTeacher := false
+	for _, roleName := range roleNames {
+		if roleName == "admin" {
+			isAdmin = true
+		}
+		if roleName == "teacher" {
+			isTeacher = true
+		}
 	}
 
 	// Generate token pair
@@ -255,8 +336,11 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, st
 		Sub:         email, // Use email as subject
 		Username:    username,
 		FirstName:   firstName,
+		LastName:    lastName,
 		Roles:       roleNames,
 		Permissions: permissionStrs, // Use string array here
+		IsAdmin:     isAdmin,
+		IsTeacher:   isTeacher,
 	}
 
 	refreshClaims := jwt.RefreshClaims{
@@ -268,6 +352,11 @@ func (s *Service) Login(ctx context.Context, email, password string) (string, st
 	accessToken, refreshToken, err := s.tokenAuth.GenTokenPair(appClaims, refreshClaims)
 	if err != nil {
 		return "", "", &AuthError{Op: "generate tokens", Err: err}
+	}
+
+	// Log successful login
+	if ipAddress != "" {
+		s.logAuthEvent(ctx, account.ID, audit.EventTypeLogin, true, ipAddress, userAgent, "")
 	}
 
 	return accessToken, refreshToken, nil
@@ -404,6 +493,11 @@ func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.
 
 // RefreshToken generates new token pair from a refresh token
 func (s *Service) RefreshToken(ctx context.Context, refreshTokenStr string) (string, string, error) {
+	return s.RefreshTokenWithAudit(ctx, refreshTokenStr, "", "")
+}
+
+// RefreshTokenWithAudit generates new token pair from a refresh token with audit logging
+func (s *Service) RefreshTokenWithAudit(ctx context.Context, refreshTokenStr, ipAddress, userAgent string) (string, string, error) {
 	// Parse JWT refresh token
 	jwtToken, err := s.tokenAuth.JwtAuth.Decode(refreshTokenStr)
 	if err != nil {
@@ -420,52 +514,95 @@ func (s *Service) RefreshToken(ctx context.Context, refreshTokenStr string) (str
 		return "", "", &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
 	}
 
-	// Get token from database using token string from claims
-	dbToken, err := s.tokenRepo.FindByToken(ctx, refreshClaims.Token)
-	if err != nil {
-		return "", "", &AuthError{Op: "get token", Err: ErrTokenNotFound}
-	}
+	var dbToken *auth.Token
+	var account *auth.Account
+	var newToken *auth.Token
 
-	// Check if token is expired
-	if time.Now().After(dbToken.Expiry) {
-		// Delete expired token
-		_ = s.tokenRepo.Delete(ctx, dbToken)
-		return "", "", &AuthError{Op: "check token expiry", Err: ErrTokenExpired}
-	}
-
-	// Get account
-	account, err := s.accountRepo.FindByID(ctx, dbToken.AccountID)
-	if err != nil {
-		return "", "", &AuthError{Op: "get account", Err: ErrAccountNotFound}
-	}
-
-	// Check if account is active
-	if !account.Active {
-		return "", "", &AuthError{Op: "check account status", Err: ErrAccountInactive}
-	}
-
-	// Generate new refresh token
-	newTokenStr := uuid.Must(uuid.NewV4()).String()
-	now := time.Now()
-
-	// Update token in database
-	dbToken.Token = newTokenStr
-	dbToken.Expiry = now.Add(s.jwtRefreshExpiry)
-
-	// Execute in transaction using txHandler
+	// Execute token lookup and validation in transaction with row lock
 	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
-		txService := s.WithTx(tx).(AuthService)
+		// Context already has the transaction from RunInTx
 
-		// Update token
-		if err := txService.(*Service).tokenRepo.Update(ctx, dbToken); err != nil {
+		// Get token from database with row lock
+		var lookupErr error
+		dbToken, lookupErr = s.tokenRepo.FindByTokenForUpdate(ctx, refreshClaims.Token)
+		if lookupErr != nil {
+			return &AuthError{Op: "get token", Err: ErrTokenNotFound}
+		}
+
+		// Check if token is expired
+		if time.Now().After(dbToken.Expiry) {
+			// Delete expired token
+			_ = s.tokenRepo.Delete(ctx, dbToken.ID)
+			// Log expired token attempt
+			if ipAddress != "" && dbToken.AccountID > 0 {
+				s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeTokenExpired, false, ipAddress, userAgent, "Token expired")
+			}
+			return &AuthError{Op: "check token expiry", Err: ErrTokenExpired}
+		}
+
+		// Token family tracking - detect potential token theft
+		if dbToken.FamilyID != "" {
+			// Check if this is the latest token in the family
+			latestToken, err := s.tokenRepo.GetLatestTokenInFamily(ctx, dbToken.FamilyID)
+			if err == nil && latestToken != nil && latestToken.Generation > dbToken.Generation {
+				// This token has already been refreshed - potential theft detected!
+				// Delete entire token family to force re-authentication
+				_ = s.tokenRepo.DeleteByFamilyID(ctx, dbToken.FamilyID)
+
+				// Log security event
+				if ipAddress != "" {
+					s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Token theft detected - family invalidated")
+				}
+
+				return &AuthError{Op: "token theft detection", Err: ErrInvalidToken}
+			}
+		}
+
+		// Get account
+		var accountErr error
+		account, accountErr = s.accountRepo.FindByID(ctx, dbToken.AccountID)
+		if accountErr != nil {
+			return &AuthError{Op: "get account", Err: ErrAccountNotFound}
+		}
+
+		// Check if account is active
+		if !account.Active {
+			// Log failed refresh attempt
+			if ipAddress != "" {
+				s.logAuthEvent(ctx, account.ID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Account inactive")
+			}
+			return &AuthError{Op: "check account status", Err: ErrAccountInactive}
+		}
+
+		// Generate new refresh token in the same family
+		newTokenStr := uuid.Must(uuid.NewV4()).String()
+		now := time.Now()
+
+		// Create new token with incremented generation
+		newToken = &auth.Token{
+			Token:      newTokenStr,
+			AccountID:  account.ID,
+			Expiry:     now.Add(s.jwtRefreshExpiry),
+			Mobile:     dbToken.Mobile,
+			Identifier: dbToken.Identifier,
+			FamilyID:   dbToken.FamilyID,
+			Generation: dbToken.Generation + 1, // Increment generation
+		}
+
+		// Delete the old token
+		if err := s.tokenRepo.Delete(ctx, dbToken.ID); err != nil {
+			return err
+		}
+
+		// Create the new token
+		if err := s.tokenRepo.Create(ctx, newToken); err != nil {
 			return err
 		}
 
 		// Update last login
 		loginTime := time.Now()
 		account.LastLogin = &loginTime
-		return txService.(*Service).accountRepo.Update(ctx, account)
+		return s.accountRepo.Update(ctx, account)
 	})
 
 	if err != nil {
@@ -510,18 +647,43 @@ func (s *Service) RefreshToken(ctx context.Context, refreshTokenStr string) (str
 		username = *account.Username
 	}
 
+	// Get person info for first/last name
+	firstName := ""
+	lastName := ""
+	person, err := s.personRepo.FindByAccountID(ctx, account.ID)
+	if err == nil && person != nil {
+		firstName = person.FirstName
+		lastName = person.LastName
+	}
+
+	// Check for static role flags
+	isAdmin := false
+	isTeacher := false
+	for _, roleName := range roleNames {
+		if roleName == "admin" {
+			isAdmin = true
+		}
+		if roleName == "teacher" {
+			isTeacher = true
+		}
+	}
+
 	// Generate token pair
 	appClaims := jwt.AppClaims{
 		ID:          int(account.ID),
 		Sub:         account.Email,
 		Username:    username,
+		FirstName:   firstName,
+		LastName:    lastName,
 		Roles:       roleNames,
 		Permissions: permissionStrs, // Use string array here
+		IsAdmin:     isAdmin,
+		IsTeacher:   isTeacher,
 	}
 
 	newRefreshClaims := jwt.RefreshClaims{
-		ID:    int(dbToken.ID),
-		Token: dbToken.Token,
+		ID:    int(newToken.ID),
+		Token: newToken.Token,
 	}
 
 	// Generate tokens
@@ -530,11 +692,21 @@ func (s *Service) RefreshToken(ctx context.Context, refreshTokenStr string) (str
 		return "", "", &AuthError{Op: "generate tokens", Err: err}
 	}
 
+	// Log successful token refresh
+	if ipAddress != "" {
+		s.logAuthEvent(ctx, account.ID, audit.EventTypeTokenRefresh, true, ipAddress, userAgent, "")
+	}
+
 	return accessToken, newRefreshToken, nil
 }
 
 // Logout invalidates a refresh token
 func (s *Service) Logout(ctx context.Context, refreshTokenStr string) error {
+	return s.LogoutWithAudit(ctx, refreshTokenStr, "", "")
+}
+
+// LogoutWithAudit invalidates a refresh token with audit logging
+func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddress, userAgent string) error {
 	// Parse JWT refresh token
 	jwtToken, err := s.tokenAuth.JwtAuth.Decode(refreshTokenStr)
 	if err != nil {
@@ -551,17 +723,28 @@ func (s *Service) Logout(ctx context.Context, refreshTokenStr string) error {
 		return &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
 	}
 
-	// Get token from database
+	// Get token from database to find the account ID
 	dbToken, err := s.tokenRepo.FindByToken(ctx, refreshClaims.Token)
 	if err != nil {
 		// Token not found, consider logout successful
 		return nil
 	}
 
-	// Delete token from database
-	err = s.tokenRepo.Delete(ctx, dbToken)
+	// Delete ALL tokens for this account to ensure complete logout
+	// This ensures that all sessions (access and refresh tokens) are invalidated
+	err = s.tokenRepo.DeleteByAccountID(ctx, dbToken.AccountID)
 	if err != nil {
-		return &AuthError{Op: "delete token", Err: err}
+		// Log the error but don't fail the logout
+		log.Printf("Warning: failed to delete all tokens for account %d during logout: %v", dbToken.AccountID, err)
+		// Still try to delete the specific token
+		if deleteErr := s.tokenRepo.Delete(ctx, dbToken.ID); deleteErr != nil {
+			return &AuthError{Op: "delete token", Err: deleteErr}
+		}
+	}
+
+	// Log successful logout
+	if ipAddress != "" {
+		s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
 	}
 
 	return nil
@@ -813,7 +996,24 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 		return &AuthError{Op: "assign role", Err: errors.New("role not found")}
 	}
 
-	if err := s.roleRepo.AssignRoleToAccount(ctx, int64(accountID), int64(roleID)); err != nil {
+	// Check if role is already assigned using the repository
+	existingRole, err := s.accountRoleRepo.FindByAccountAndRole(ctx, int64(accountID), int64(roleID))
+	if err != nil && !strings.Contains(err.Error(), "no rows") {
+		return &AuthError{Op: "check role assignment", Err: err}
+	}
+
+	if existingRole != nil {
+		// Role already assigned, no action needed
+		return nil
+	}
+
+	// Create the role assignment using the repository
+	accountRole := &auth.AccountRole{
+		AccountID: int64(accountID),
+		RoleID:    int64(roleID),
+	}
+
+	if err := s.accountRoleRepo.Create(ctx, accountRole); err != nil {
 		return &AuthError{Op: "assign role to account", Err: err}
 	}
 
@@ -822,7 +1022,8 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 
 // RemoveRoleFromAccount removes a role from an account
 func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int) error {
-	if err := s.roleRepo.RemoveRoleFromAccount(ctx, int64(accountID), int64(roleID)); err != nil {
+	// Use the repository to delete the role assignment
+	if err := s.accountRoleRepo.DeleteByAccountAndRole(ctx, int64(accountID), int64(roleID)); err != nil {
 		return &AuthError{Op: "remove role from account", Err: err}
 	}
 	return nil
@@ -971,6 +1172,15 @@ func (s *Service) GetAccountPermissions(ctx context.Context, accountID int) ([]*
 	permissions, err := s.getAccountPermissions(ctx, int64(accountID))
 	if err != nil {
 		return nil, &AuthError{Op: "get account permissions", Err: err}
+	}
+	return permissions, nil
+}
+
+// GetAccountDirectPermissions retrieves only direct permissions for an account (not role-based)
+func (s *Service) GetAccountDirectPermissions(ctx context.Context, accountID int) ([]*auth.Permission, error) {
+	permissions, err := s.permissionRepo.FindDirectByAccountID(ctx, int64(accountID))
+	if err != nil {
+		return nil, &AuthError{Op: "get account direct permissions", Err: err}
 	}
 	return permissions, nil
 }
@@ -1350,4 +1560,25 @@ func (s *Service) ListParentAccounts(ctx context.Context, filters map[string]int
 		return nil, &AuthError{Op: "list parent accounts", Err: err}
 	}
 	return accounts, nil
+}
+
+// logAuthEvent logs an authentication event for audit purposes
+func (s *Service) logAuthEvent(ctx context.Context, accountID int64, eventType string, success bool, ipAddress, userAgent string, errorMessage string) {
+	event := audit.NewAuthEvent(accountID, eventType, success, ipAddress)
+	event.UserAgent = userAgent
+	if errorMessage != "" {
+		event.ErrorMessage = errorMessage
+	}
+
+	// Log asynchronously to avoid blocking auth operations
+	go func() {
+		// Create a new context with timeout for the logging operation
+		logCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := s.authEventRepo.Create(logCtx, event); err != nil {
+			// Log the error but don't fail the auth operation
+			log.Printf("Failed to log auth event: %v", err)
+		}
+	}()
 }

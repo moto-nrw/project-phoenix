@@ -39,6 +39,9 @@ type GroupRepository interface {
 
 	// FindByStaffSupervisor finds all activity groups where a staff member is a supervisor
 	FindByStaffSupervisor(ctx context.Context, staffID int64) ([]*Group, error)
+
+	// FindByStaffSupervisorToday finds all activity groups where a staff member is a supervisor for today
+	FindByStaffSupervisorToday(ctx context.Context, staffID int64) ([]*Group, error)
 }
 
 // ScheduleRepository defines operations for managing activity schedules

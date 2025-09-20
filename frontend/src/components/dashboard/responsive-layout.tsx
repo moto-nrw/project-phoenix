@@ -1,17 +1,34 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { Header } from './header';
 import { Sidebar } from './sidebar';
 import { MobileBottomNav } from './mobile-bottom-nav';
 
 interface ResponsiveLayoutProps {
   children: React.ReactNode;
-  userName: string;
 }
 
-export default function ResponsiveLayout({ children, userName }: ResponsiveLayoutProps) {
+export default function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const userName = session?.user?.name ?? 'Root';
+  const userEmail = session?.user?.email ?? '';
+  const userRoles = session?.user?.roles ?? [];
+  const userRole = userRoles.length > 0 ? userRoles[0] : 'User';
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
+
+  // Check for invalid session and redirect
+  useEffect(() => {
+    if (status === 'loading') return;
+    
+    // If session exists but token is empty, redirect to login
+    if (session && !session.user?.token) {
+      router.push('/');
+    }
+  }, [session, status, router]);
 
   // Listen for modal state changes via custom events
   useEffect(() => {
@@ -28,19 +45,19 @@ export default function ResponsiveLayout({ children, userName }: ResponsiveLayou
   }, []);
 
   return (
-    <div className="min-h-screen">
-      {/* Header with conditional blur */}
-      <div className={`transition-all duration-300 ${isMobileModalOpen ? 'blur-md lg:blur-none' : ''}`}>
-        <Header userName={userName} />
+    <div className="min-h-screen flex flex-col">
+      {/* Header with conditional blur - sticky positioning */}
+      <div className={`sticky top-0 z-40 transition-all duration-300 ${isMobileModalOpen ? 'blur-md lg:blur-none' : ''}`}>
+        <Header userName={userName} userEmail={userEmail} userRole={userRole} />
       </div>
       
       {/* Main content with conditional blur */}
-      <div className={`flex transition-all duration-300 ${isMobileModalOpen ? 'blur-md lg:blur-none' : ''}`}>
+      <div className={`flex flex-1 transition-all duration-300 ${isMobileModalOpen ? 'blur-md lg:blur-none' : ''}`}>
         {/* Desktop sidebar - only visible on md+ screens */}
         <Sidebar className="hidden lg:block" />
         
         {/* Main content with bottom padding on mobile for bottom navigation */}
-        <main className="flex-1 p-4 md:p-8 pb-24 lg:pb-8">
+        <main className="flex-1 p-2 md:p-8 pb-24 lg:pb-8">
           {children}
         </main>
       </div>

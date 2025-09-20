@@ -3,13 +3,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserContextProvider, useHasEducationalGroups } from "~/lib/usercontext-context";
+import { useState } from "react";
+import { useSession } from "next-auth/react";
+import { UserContextProvider } from "~/lib/usercontext-context";
+import { QuickCreateActivityModal } from "~/components/activities/quick-create-modal";
+import { useSupervision } from "~/lib/supervision-context";
+import { isAdmin } from "~/lib/auth-utils";
 
 // Type für Navigation Items
 interface NavItem {
     href: string;
     label: string;
     icon: string;
+    requiresAdmin?: boolean;
+    requiresGroups?: boolean;
+    requiresSupervision?: boolean;
+    requiresActiveSupervision?: boolean;
+    alwaysShow?: boolean;
+    labelMultiple?: string;
 }
 
 // Navigation Items
@@ -17,47 +28,73 @@ const NAV_ITEMS: NavItem[] = [
     {
         href: "/dashboard",
         label: "Home",
-        icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"
+        icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
+        requiresAdmin: true
     },
     {
         href: "/ogs_groups",
-        label: "OGS Gruppe",
-        icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+        label: "Meine Gruppe",
+        icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
+        requiresGroups: true,
+        labelMultiple: "Meine Gruppen"
+    },
+    {
+        href: "/staff",
+        label: "Mitarbeiter",
+        icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2",
+        alwaysShow: true
+    },
+    {
+        href: "/myroom",
+        label: "Mein Raum",
+        icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
+        requiresActiveSupervision: true,
+        labelMultiple: "Meine Räume"
     },
     {
         href: "/students/search",
-        label: "Schüler",
-        icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+        label: "Suche",
+        icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
+        requiresSupervision: true
     },
     {
         href: "/rooms",
         label: "Räume",
-        icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+        icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
+        requiresAdmin: true
     },
     {
         href: "/activities",
         label: "Aktivitäten",
-        icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+        icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+        requiresAdmin: true
     },
-    {
-        href: "/statistics",
-        label: "Statistiken",
-        icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-    },
+    // Temporarily disabled - not ready yet
+    // {
+    //     href: "/statistics",
+    //     label: "Statistiken",
+    //     icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
+    //     requiresAdmin: true
+    // },
     {
         href: "/substitutions",
         label: "Vertretungen",
-        icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+        icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
+        requiresAdmin: true,
+        // TODO: In the future, this should check for specific substitution permissions
+        // requiresPermission: 'substitutions:read'
     },
     {
         href: "/database",
-        label: "Datenbank",
-        icon: "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
+        label: "Datenverwaltung",
+        icon: "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4",
+        requiresAdmin: true
     },
     {
         href: "/settings",
         label: "Einstellungen",
-        icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+        icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z",
+        alwaysShow: true
     }
 ];
 
@@ -69,19 +106,75 @@ function SidebarContent({ className = "" }: SidebarProps) {
     // Aktuelle Route ermitteln
     const pathname = usePathname();
 
-    // Check if user has educational groups
-    const { hasEducationalGroups, isLoading } = useHasEducationalGroups();
+    // Quick create activity modal state
+    const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
 
-    // Filter navigation items based on user's educational groups
-    const filteredNavItems = NAV_ITEMS.filter(item => {
-        // Always show all items except "OGS Gruppe"
-        if (item.href !== "/ogs_groups") {
+    // Get session for role checking
+    const { data: session } = useSession();
+
+    // Get supervision state
+    const { hasGroups, isSupervising, isLoadingGroups, isLoadingSupervision } = useSupervision();
+
+    // Check if user has educational groups (keeping existing hook for compatibility)
+    // const { hasEducationalGroups, isLoading } = useHasEducationalGroups();
+
+    // Check if user has any supervision (groups or active room)
+    const hasAnySupervision = (!isLoadingGroups && hasGroups) || (!isLoadingSupervision && isSupervising);
+    
+    // Filter navigation items based on permissions
+    const baseFilteredNavItems = NAV_ITEMS.filter(item => {
+        // Always show items marked as alwaysShow
+        if (item.alwaysShow) {
             return true;
         }
-        // Only show "OGS Gruppe" if user has educational groups
-        // Don't show it while loading to avoid flickering
-        return !isLoading && hasEducationalGroups;
+
+        // Check admin requirement
+        if (item.requiresAdmin && !isAdmin(session)) {
+            return false;
+        }
+
+        // Check group requirement
+        if (item.requiresGroups) {
+            // Only show for users who are actively supervising groups, not admins
+            if (isAdmin(session)) {
+                return false;
+            }
+            // Use the new supervision context
+            return !isLoadingGroups && hasGroups;
+        }
+
+        // Check supervision requirement (for student search - groups OR room supervision)
+        if (item.requiresSupervision) {
+            // Only show if user has supervision (will be handled by dynamic logic below)
+            if (isAdmin(session)) return false;
+            const hasGroupSupervision = !isLoadingGroups && hasGroups;
+            const hasRoomSupervision = !isLoadingSupervision && isSupervising;
+            return hasGroupSupervision || hasRoomSupervision;
+        }
+
+        // Check active supervision requirement (for room menu - only active room supervision)
+        if (item.requiresActiveSupervision) {
+            // Show only for users actively supervising a room, not for admins or group-only supervisors
+            if (isAdmin(session)) return false;
+            const hasRoomSupervision = !isLoadingSupervision && isSupervising;
+            return hasRoomSupervision;
+        }
+
+        return true;
     });
+
+    // If user has no supervision and is not admin, add student search to main nav
+    const filteredNavItems = !hasAnySupervision && !isAdmin(session)
+        ? [
+            ...baseFilteredNavItems,
+            {
+                href: "/students/search",
+                label: "Suche",
+                icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
+                alwaysShow: true
+            }
+          ]
+        : baseFilteredNavItems;
 
     // Funktion zur Überprüfung, ob ein Link aktiv ist
     const isActiveLink = (href: string) => {
@@ -122,9 +215,36 @@ function SidebarContent({ className = "" }: SidebarProps) {
                             </Link>
                         ))}
                     </nav>
+                    
+                    {/* Create Activity Button */}
+                    <div className="mt-6 pt-4 border-t border-gray-100">
+                        <button
+                            onClick={() => setIsQuickCreateOpen(true)}
+                            className="w-full flex items-center justify-center gap-2.5 px-4 py-3 text-sm font-medium text-gray-700 bg-gradient-to-r from-[#83CD2D]/10 to-[#70B525]/10 border border-[#83CD2D]/30 rounded-xl hover:from-[#83CD2D]/20 hover:to-[#70B525]/20 hover:border-[#83CD2D]/50 hover:shadow-md hover:shadow-[#83CD2D]/20 transition-all duration-300 group transform hover:scale-[1.02] active:scale-[0.98]"
+                        >
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#83CD2D] to-[#70B525] flex items-center justify-center shadow-sm group-hover:shadow-md group-hover:shadow-[#83CD2D]/30 transition-all duration-300 group-hover:rotate-90">
+                                <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                </svg>
+                            </div>
+                            <span className="flex-1 text-left font-semibold text-gray-800">Aktivität erstellen</span>
+                            <svg className="h-4 w-4 text-[#83CD2D] group-hover:translate-x-1 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
             </aside>
 
+            {/* Quick Create Activity Modal */}
+            <QuickCreateActivityModal
+                isOpen={isQuickCreateOpen}
+                onClose={() => setIsQuickCreateOpen(false)}
+                onSuccess={() => {
+                    setIsQuickCreateOpen(false);
+                    // Optional: Show success notification or refresh data
+                }}
+            />
         </>
     );
 }

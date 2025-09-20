@@ -44,6 +44,18 @@ interface TokenCleanupResponse {
     cleaned_tokens: number;
 }
 
+// Interface for raw API responses that use lowercase field names
+interface RawRoleData {
+    id?: number;
+    name?: string;
+    description?: string;
+    created_at?: string;
+    createdAt?: string;
+    updated_at?: string;
+    updatedAt?: string;
+    permissions?: BackendPermission[];
+}
+
 export const authService = {
     // Public endpoints
     login: async (credentials: LoginRequest): Promise<TokenResponse> => {
@@ -429,11 +441,92 @@ export const authService = {
                     throw new Error(`Get role failed: ${response.status}`);
                 }
 
-                const responseData = await response.json() as ApiResponse<BackendRole>;
-                return mapRoleResponse(responseData.data);
+                const responseData = await response.json() as { data?: { data?: BackendRole } | BackendRole };
+                // Processing role response
+                
+                // Handle nested response structure
+                let roleData: BackendRole;
+                
+                if (responseData?.data && typeof responseData.data === 'object' && 'data' in responseData.data && responseData.data.data) {
+                    // Double nested: { data: { data: {...} } }
+                    roleData = responseData.data.data;
+                } else if (responseData?.data) {
+                    // Single nested: { data: {...} }
+                    roleData = responseData.data as BackendRole;
+                } else {
+                    console.error("Unexpected role response structure:", responseData);
+                    throw new Error("Invalid response format from role API");
+                }
+                
+                // Handle different casing in API response
+                if ('id' in roleData && (roleData as RawRoleData).id !== undefined && !('ID' in roleData)) {
+                    // Convert lowercase fields to uppercase for proper mapping
+                    const rawData = roleData as RawRoleData;
+                    roleData = {
+                        ID: rawData.id!,
+                        Name: rawData.name!,
+                        Description: rawData.description!,
+                        CreatedAt: (rawData.created_at ?? rawData.createdAt)!,
+                        UpdatedAt: (rawData.updated_at ?? rawData.updatedAt)!,
+                        Permissions: rawData.permissions,
+                    };
+                }
+                
+                return mapRoleResponse(roleData);
             } else {
-                const response = await api.get<ApiResponse<BackendRole>>(url);
-                return mapRoleResponse(response.data.data);
+                interface RoleApiResponse {
+                    data?: {
+                        data?: BackendRole | { data: BackendRole };
+                    } | BackendRole;
+                }
+                const response = await api.get<RoleApiResponse>(url);
+                // Processing non-proxy role response
+                
+                // Handle nested response structure
+                let roleData: BackendRole;
+                
+                const responseData = response.data;
+                if (!responseData) {
+                    throw new Error("No data in response");
+                }
+                
+                // Check if it's directly a BackendRole
+                if ('ID' in responseData && 'Name' in responseData) {
+                    roleData = responseData as BackendRole;
+                } 
+                // Check if it's nested once: { data: BackendRole }
+                else if (typeof responseData === 'object' && 'data' in responseData) {
+                    const nestedData = responseData.data;
+                    if (!nestedData) {
+                        throw new Error("Invalid response format from role API");
+                    }
+                    
+                    // Check if double nested: { data: { data: BackendRole } }
+                    if (typeof nestedData === 'object' && 'data' in nestedData && nestedData.data) {
+                        roleData = (nestedData as { data: BackendRole }).data;
+                    } else {
+                        roleData = nestedData as BackendRole;
+                    }
+                } else {
+                    console.error("Unexpected role response structure:", response.data);
+                    throw new Error("Invalid response format from role API");
+                }
+                
+                // Handle different casing in API response
+                if ('id' in roleData && (roleData as RawRoleData).id !== undefined && !('ID' in roleData)) {
+                    // Convert lowercase fields to uppercase for proper mapping
+                    const rawData = roleData as RawRoleData;
+                    roleData = {
+                        ID: rawData.id!,
+                        Name: rawData.name!,
+                        Description: rawData.description!,
+                        CreatedAt: (rawData.created_at ?? rawData.createdAt)!,
+                        UpdatedAt: (rawData.updated_at ?? rawData.updatedAt)!,
+                        Permissions: rawData.permissions,
+                    };
+                }
+                
+                return mapRoleResponse(roleData);
             }
         } catch (error) {
             console.error("Get role error:", error);
@@ -526,8 +619,24 @@ export const authService = {
                     throw new Error(`Get role permissions failed: ${response.status}`);
                 }
 
-                const responseData = await response.json() as ApiResponse<BackendPermission[]>;
-                return responseData.data.map(mapPermissionResponse);
+                const responseData = await response.json() as { data?: { data?: BackendPermission[] } | BackendPermission[] };
+                // Processing permissions API response
+                
+                // Handle nested response structure
+                let permissionsData: BackendPermission[] = [];
+                
+                if (responseData?.data && typeof responseData.data === 'object' && 'data' in responseData.data && Array.isArray(responseData.data.data)) {
+                    // Double nested structure: { data: { data: [] } }
+                    permissionsData = responseData.data.data;
+                } else if (responseData?.data && Array.isArray(responseData.data)) {
+                    // Single nested structure: { data: [] }
+                    permissionsData = responseData.data;
+                } else {
+                    console.error("Unexpected response structure:", responseData);
+                    throw new Error("Invalid response format from permissions API");
+                }
+                
+                return permissionsData.map(mapPermissionResponse);
             } else {
                 const response = await api.get<ApiResponse<BackendPermission[]>>(url);
                 return response.data.data.map(mapPermissionResponse);
@@ -669,7 +778,18 @@ export const authService = {
                 }
 
                 const responseData = await response.json() as ApiResponse<BackendPermission[]>;
-                return responseData.data.map(mapPermissionResponse);
+                
+                // Check if data exists and is an array
+                if (!responseData.data || !Array.isArray(responseData.data)) {
+                    console.error("Unexpected response structure:", responseData);
+                    throw new Error("Invalid response format from permissions API");
+                }
+                
+                // Map the permissions, filtering out any invalid ones
+                // Note: The backend returns lowercase field names
+                return responseData.data
+                    .filter(perm => perm?.name && perm?.resource && perm?.action)
+                    .map(mapPermissionResponse);
             } else {
                 const response = await api.get<ApiResponse<BackendPermission[]>>(url, { params });
                 return response.data.data.map(mapPermissionResponse);
@@ -1067,8 +1187,28 @@ export const authService = {
                     throw new Error(`Get account roles failed: ${response.status}`);
                 }
 
-                const responseData = await response.json() as ApiResponse<BackendRole[]>;
-                return responseData.data.map(mapRoleResponse);
+                const responseData = await response.json() as { data?: BackendRole[] | { data: BackendRole[] } } | BackendRole[];
+                // Processing account roles response
+                console.log('Account roles raw response:', responseData);
+                
+                // Handle different response structures
+                let rolesData: BackendRole[] = [];
+                
+                if (Array.isArray(responseData)) {
+                    // Direct array response
+                    rolesData = responseData;
+                } else if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+                    if (Array.isArray(responseData.data)) {
+                        // Single nested: { data: [...] }
+                        rolesData = responseData.data;
+                    } else if (responseData.data && typeof responseData.data === 'object' && 'data' in responseData.data && Array.isArray((responseData.data as { data: BackendRole[] }).data)) {
+                        // Double nested: { data: { data: [...] } }
+                        rolesData = (responseData.data as { data: BackendRole[] }).data;
+                    }
+                }
+                
+                console.log('Mapped roles data:', rolesData);
+                return rolesData.map(mapRoleResponse);
             } else {
                 const response = await api.get<ApiResponse<BackendRole[]>>(url);
                 return response.data.data.map(mapRoleResponse);
@@ -1101,14 +1241,80 @@ export const authService = {
                     throw new Error(`Get account permissions failed: ${response.status}`);
                 }
 
-                const responseData = await response.json() as ApiResponse<BackendPermission[]>;
-                return responseData.data.map(mapPermissionResponse);
+                const responseData = await response.json() as { data?: { data?: BackendPermission[] } | BackendPermission[] };
+                // Processing permissions API response
+                
+                // Handle nested response structure
+                let permissionsData: BackendPermission[] = [];
+                
+                if (responseData?.data && typeof responseData.data === 'object' && 'data' in responseData.data && Array.isArray(responseData.data.data)) {
+                    // Double nested structure: { data: { data: [] } }
+                    permissionsData = responseData.data.data;
+                } else if (responseData?.data && Array.isArray(responseData.data)) {
+                    // Single nested structure: { data: [] }
+                    permissionsData = responseData.data;
+                } else {
+                    console.error("Unexpected response structure:", responseData);
+                    throw new Error("Invalid response format from permissions API");
+                }
+                
+                return permissionsData.map(mapPermissionResponse);
             } else {
                 const response = await api.get<ApiResponse<BackendPermission[]>>(url);
                 return response.data.data.map(mapPermissionResponse);
             }
         } catch (error) {
             console.error("Get account permissions error:", error);
+            throw error;
+        }
+    },
+
+    getAccountDirectPermissions: async (accountId: string): Promise<Permission[]> => {
+        const useProxyApi = typeof window !== "undefined";
+        const url = useProxyApi
+            ? `/api/auth/accounts/${accountId}/permissions/direct`
+            : `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/permissions/direct`;
+
+        try {
+            if (useProxyApi) {
+                const session = await getSession();
+                const response = await fetch(url, {
+                    headers: {
+                        Authorization: `Bearer ${session?.user?.token}`,
+                        "Content-Type": "application/json",
+                    },
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(`Get account direct permissions error: ${response.status}`, errorText);
+                    throw new Error(`Get account direct permissions failed: ${response.status}`);
+                }
+
+                const responseData = await response.json() as { data?: { data?: BackendPermission[] } | BackendPermission[] };
+                // Processing direct permissions API response
+                
+                // Handle nested response structure
+                let permissionsData: BackendPermission[] = [];
+                
+                if (responseData?.data && typeof responseData.data === 'object' && 'data' in responseData.data && Array.isArray(responseData.data.data)) {
+                    // Double nested structure: { data: { data: [] } }
+                    permissionsData = responseData.data.data;
+                } else if (responseData?.data && Array.isArray(responseData.data)) {
+                    // Single nested structure: { data: [] }
+                    permissionsData = responseData.data;
+                } else {
+                    console.error("Unexpected response structure:", responseData);
+                    throw new Error("Invalid response format from direct permissions API");
+                }
+                
+                return permissionsData.map(mapPermissionResponse);
+            } else {
+                const response = await api.get<ApiResponse<BackendPermission[]>>(url);
+                return response.data.data.map(mapPermissionResponse);
+            }
+        } catch (error) {
+            console.error("Get account direct permissions error:", error);
             throw error;
         }
     },
@@ -1202,6 +1408,56 @@ export const authService = {
             }
         } catch (error) {
             console.error("Remove permission from account error:", error);
+            throw error;
+        }
+    },
+
+    assignPermissionToAccount: async (accountId: string, permissionId: string): Promise<void> => {
+        // Use the grant endpoint for assigning permissions
+        return authService.grantPermissionToAccount(accountId, permissionId);
+    },
+
+    // Get all available permissions for assignment
+    getAvailablePermissions: async (): Promise<Permission[]> => {
+        const useProxyApi = typeof window !== "undefined";
+        const url = useProxyApi
+            ? "/api/auth/permissions"
+            : `${env.NEXT_PUBLIC_API_URL}/auth/permissions`;
+
+        try {
+            if (useProxyApi) {
+                const session = await getSession();
+                const response = await fetch(url, {
+                    headers: {
+                        Authorization: `Bearer ${session?.user?.token}`,
+                        "Content-Type": "application/json",
+                    },
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(`Get available permissions error: ${response.status}`, errorText);
+                    throw new Error(`Get available permissions failed: ${response.status}`);
+                }
+
+                const responseData = await response.json() as ApiResponse<BackendPermission[]>;
+                
+                // Check if data exists and is an array
+                if (!responseData.data || !Array.isArray(responseData.data)) {
+                    console.error("Unexpected response structure:", responseData);
+                    throw new Error("Invalid response format from permissions API");
+                }
+                
+                // Map the permissions, filtering out any invalid ones
+                return responseData.data
+                    .filter(perm => perm?.name && perm?.resource && perm?.action)
+                    .map(mapPermissionResponse);
+            } else {
+                const response = await api.get<ApiResponse<BackendPermission[]>>(url);
+                return response.data.data.map(mapPermissionResponse);
+            }
+        } catch (error) {
+            console.error("Get available permissions error:", error);
             throw error;
         }
     },

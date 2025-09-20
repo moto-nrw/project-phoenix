@@ -22,9 +22,39 @@ type SupervisorPlannedRepository struct {
 // NewSupervisorPlannedRepository creates a new SupervisorPlannedRepository
 func NewSupervisorPlannedRepository(db *bun.DB) activities.SupervisorPlannedRepository {
 	return &SupervisorPlannedRepository{
-		Repository: base.NewRepository[*activities.SupervisorPlanned](db, "activities.supervisors", "SupervisorPlanned"),
+		Repository: base.NewRepository[*activities.SupervisorPlanned](db, "activities.supervisors", "supervisor_planned"),
 		db:         db,
 	}
+}
+
+// FindByID overrides the base repository method to fix the alias issue
+func (r *SupervisorPlannedRepository) FindByID(ctx context.Context, id interface{}) (*activities.SupervisorPlanned, error) {
+	var supervisor activities.SupervisorPlanned
+
+	var query *bun.SelectQuery
+
+	// Extract transaction from context if it exists
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		query = (*tx).NewSelect()
+	} else {
+		query = r.db.NewSelect()
+	}
+
+	// Use the same alias as base repository: "supervisor_planned"
+	err := query.
+		Model(&supervisor).
+		ModelTableExpr(`activities.supervisors AS "supervisor_planned"`).
+		Where(`"supervisor_planned".id = ?`, id).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by id",
+			Err: err,
+		}
+	}
+
+	return &supervisor, nil
 }
 
 // FindByStaffID finds all supervisions for a specific staff member
@@ -217,26 +247,54 @@ func (r *SupervisorPlannedRepository) Update(ctx context.Context, supervisor *ac
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewUpdate().
+	var query *bun.UpdateQuery
+
+	// Extract transaction from context if it exists
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		query = (*tx).NewUpdate()
+	} else {
+		query = r.db.NewUpdate()
+	}
+
+	// Configure the query
+	query = query.
 		Model(supervisor).
 		Where("id = ?", supervisor.ID).
 		ModelTableExpr("activities.supervisors")
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewUpdate().
-			Model(supervisor).
-			Where("id = ?", supervisor.ID).
-			ModelTableExpr("activities.supervisors")
-	}
 
 	// Execute the query
 	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+// Delete overrides the base Delete method to handle transactions
+func (r *SupervisorPlannedRepository) Delete(ctx context.Context, id interface{}) error {
+	var query *bun.DeleteQuery
+
+	// Extract transaction from context if it exists
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		query = (*tx).NewDelete()
+	} else {
+		query = r.db.NewDelete()
+	}
+
+	// Use the same alias as base repository: "supervisor_planned"
+	_, err := query.
+		Model((*activities.SupervisorPlanned)(nil)).
+		ModelTableExpr(`activities.supervisors AS "supervisor_planned"`).
+		Where(`"supervisor_planned".id = ?`, id).
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "delete",
 			Err: err,
 		}
 	}

@@ -6,9 +6,10 @@ import type { ApiResponse } from "./api-helpers";
 import {
   mapSingleStudentResponse,
   mapStudentsResponse,
+  mapStudentDetailResponse,
   prepareStudentForBackend,
 } from "./student-helpers";
-import type { BackendStudent, Student } from "./student-helpers";
+import type { BackendStudent, BackendStudentDetail, Student } from "./student-helpers";
 import {
   mapSingleGroupResponse,
   mapGroupResponse, // Used in exported function
@@ -59,6 +60,14 @@ interface PaginatedResponse<T> {
   message?: string;
 }
 
+// API response wrapper types
+interface ApiResponseWrapper<T> {
+  success: boolean;
+  message?: string;
+  data: T;
+}
+
+
 // Create an Axios instance
 const api = axios.create({
   baseURL: env.NEXT_PUBLIC_API_URL, // Client-safe environment variable pointing to the backend server
@@ -70,14 +79,17 @@ const api = axios.create({
 });
 
 // Add a request interceptor to include the auth token
+// Note: This interceptor only runs in client-side code
 api.interceptors.request.use(
   async (config) => {
-    // Get the session to retrieve the token
-    const session = await getSession();
+    // Only try to get session if we're in the browser
+    if (typeof window !== 'undefined') {
+      const session = await getSession();
 
-    // If there's a token, add it to the headers
-    if (session?.user?.token) {
-      config.headers.Authorization = `Bearer ${session.user.token}`;
+      // If there's a token, add it to the headers
+      if (session?.user?.token) {
+        config.headers.Authorization = `Bearer ${session.user.token}`;
+      }
     }
 
     return config;
@@ -87,6 +99,21 @@ api.interceptors.request.use(
   },
 );
 
+// Track ongoing refresh attempts to prevent multiple simultaneous refreshes
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
+
+// Subscribe to token refresh completion
+const subscribeTokenRefresh = (callback: (token: string) => void) => {
+  refreshSubscribers.push(callback);
+};
+
+// Notify all subscribers when refresh is complete
+const onTokenRefreshed = (token: string) => {
+  refreshSubscribers.forEach((callback) => callback(token));
+  refreshSubscribers = [];
+};
+
 // Add a response interceptor to handle common errors
 api.interceptors.response.use(
   (response: AxiosResponse) => {
@@ -95,32 +122,75 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as AxiosRequestConfig & {
       _retry?: boolean;
+      _retryCount?: number;
     };
 
     // If the error is a 401 (Unauthorized) and we haven't retried yet
     if (error.response?.status === 401 && !originalRequest._retry) {
+      const callerId = `axios-interceptor-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      console.log(`\n[${callerId}] Axios interceptor: 401 error detected`);
       originalRequest._retry = true;
+      originalRequest._retryCount = (originalRequest._retryCount ?? 0) + 1;
+
+      // Limit retry attempts
+      if (originalRequest._retryCount > 3) {
+        console.error("Max retry attempts reached, giving up");
+        if (typeof window !== "undefined") {
+          window.location.href = "/";
+        }
+        return Promise.reject(error);
+      }
+
+      // If we're already refreshing, queue this request
+      if (isRefreshing) {
+        console.log(`[${callerId}] Token refresh already in progress, queueing request`);
+        return new Promise((resolve) => {
+          subscribeTokenRefresh((token: string) => {
+            if (originalRequest.headers) {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+              resolve(api(originalRequest));
+            }
+          });
+        });
+      }
 
       console.log("Received 401 error, attempting to refresh token");
+      
+      // Only attempt token refresh on the client side
+      if (typeof window === "undefined") {
+        console.log("Running server-side, cannot refresh token");
+        return Promise.reject(error);
+      }
+      
+      isRefreshing = true;
 
-      // Try to refresh the token and retry the request
-      const refreshSuccessful = await handleAuthFailure();
+      try {
+        // Try to refresh the token and retry the request
+        const refreshSuccessful = await handleAuthFailure();
 
-      if (refreshSuccessful && originalRequest.headers) {
-        // Get the newest session with updated token
-        const session = await getSession();
+        if (refreshSuccessful && originalRequest.headers) {
+          // Get the newest session with updated token
+          const session = await getSession();
 
-        if (session?.user?.token) {
-          console.log("Using refreshed token for retry");
-          originalRequest.headers.Authorization = `Bearer ${session.user.token}`;
-          return api(originalRequest);
+          if (session?.user?.token) {
+            console.log("Token refresh successful, retrying original request");
+            
+            // Notify all queued requests
+            onTokenRefreshed(session.user.token);
+            
+            // Retry the original request
+            originalRequest.headers.Authorization = `Bearer ${session.user.token}`;
+            return api(originalRequest);
+          }
         }
-      } else {
-        console.log("Token refresh failed, unable to retry request");
+        
+        console.error("Token refresh failed, redirecting to login");
         // Force redirect to login if we're in the browser
         if (typeof window !== "undefined") {
           window.location.href = "/";
         }
+      } finally {
+        isRefreshing = false;
       }
     }
 
@@ -159,20 +229,32 @@ export const studentService = {
     search?: string;
     inHouse?: boolean;
     groupId?: string;
-  }): Promise<Student[]> => {
+    page?: number;
+    pageSize?: number;
+  }): Promise<{
+    students: Student[];
+    pagination?: {
+      current_page: number;
+      page_size: number;
+      total_pages: number;
+      total_records: number;
+    };
+  }> => {
     // Build query parameters
     const params = new URLSearchParams();
     if (filters?.search) params.append("search", filters.search);
     if (filters?.inHouse !== undefined)
       params.append("in_house", filters.inHouse.toString());
     if (filters?.groupId) params.append("group_id", filters.groupId);
+    if (filters?.page) params.append("page", filters.page.toString());
+    if (filters?.pageSize) params.append("page_size", filters.pageSize.toString());
 
     // Use the nextjs api route which handles auth token properly
     // Use relative URL in browser environment
     const useProxyApi = typeof window !== "undefined";
     let url = useProxyApi
       ? "/api/students"
-      : `${env.NEXT_PUBLIC_API_URL}/students`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/students`;
 
     try {
       // Build query string for API route
@@ -217,19 +299,34 @@ export const studentService = {
 
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
-                const responseData = await retryResponse.json() as {
-                  data?: Student[];
-                  [key: string]: unknown;
-                };
+                const responseData = await retryResponse.json() as unknown;
                 
-                // The Next.js API route uses route wrapper which may wrap the response
-                if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
-                  // If wrapped, extract the data
-                  return responseData.data;
+                // Handle wrapped ApiResponse format from route wrapper
+                if (responseData && typeof responseData === 'object' && 'success' in responseData && 'data' in responseData) {
+                  // Response is wrapped: { success: true, message: "...", data: { data: [...], pagination: {...} } }
+                  const apiWrapper = responseData as ApiResponseWrapper<{ data: Student[]; pagination?: { current_page: number; page_size: number; total_pages: number; total_records: number; }; }>;
+                  const innerData = apiWrapper.data;
+                  if (innerData && typeof innerData === 'object' && 'data' in innerData) {
+                    return {
+                      students: Array.isArray(innerData.data) ? innerData.data : [],
+                      pagination: innerData.pagination
+                    };
+                  }
                 }
                 
-                // Otherwise, treat as direct array
-                return responseData as unknown as Student[];
+                // Handle direct paginated response format
+                if (responseData && typeof responseData === 'object' && 'data' in responseData && Array.isArray((responseData as { data: unknown }).data)) {
+                  const paginatedData = responseData as { data: Student[]; pagination?: { current_page: number; page_size: number; total_pages: number; total_records: number; }; };
+                  return {
+                    students: paginatedData.data,
+                    pagination: paginatedData.pagination
+                  };
+                }
+                
+                // Fallback for old format
+                return {
+                  students: Array.isArray(responseData) ? responseData as Student[] : []
+                };
               }
             }
           }
@@ -238,23 +335,42 @@ export const studentService = {
         }
 
         // Type assertion to avoid unsafe assignment
-        const responseData = await response.json() as {
-          data?: Student[];
-          [key: string]: unknown;
-        };
+        const responseData = await response.json() as unknown;
         
-        // The Next.js API route uses route wrapper which may wrap the response
-        if (responseData && typeof responseData === 'object' && 'data' in responseData && responseData.data) {
-          // If wrapped, extract the data
-          return responseData.data;
+        // Handle wrapped ApiResponse format from route wrapper
+        if (responseData && typeof responseData === 'object' && 'success' in responseData && 'data' in responseData) {
+          // Response is wrapped: { success: true, message: "...", data: { data: [...], pagination: {...} } }
+          const apiWrapper = responseData as ApiResponseWrapper<{ data: Student[]; pagination?: { current_page: number; page_size: number; total_pages: number; total_records: number; }; }>;
+          const innerData = apiWrapper.data;
+          if (innerData && typeof innerData === 'object' && 'data' in innerData) {
+            return {
+              students: Array.isArray(innerData.data) ? innerData.data : [],
+              pagination: innerData.pagination
+            };
+          }
         }
         
-        // Otherwise, treat as direct array
-        return responseData as unknown as Student[];
+        // Handle direct paginated response format
+        if (responseData && typeof responseData === 'object' && 'data' in responseData && Array.isArray((responseData as { data: unknown }).data)) {
+          const paginatedData = responseData as { data: Student[]; pagination?: { current_page: number; page_size: number; total_pages: number; total_records: number; }; };
+          return {
+            students: paginatedData.data,
+            pagination: paginatedData.pagination
+          };
+        }
+        
+        // Fallback for old format
+        return {
+          students: Array.isArray(responseData) ? responseData as Student[] : []
+        };
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url, { params });
-        return mapStudentsResponse((response as { data: unknown }).data as BackendStudent[]);
+        const paginatedResponse = response.data as PaginatedResponse<BackendStudent>;
+        return {
+          students: mapStudentsResponse(paginatedResponse.data),
+          pagination: paginatedResponse.pagination
+        };
       }
     } catch (error) {
       throw handleApiError(error, "Error fetching students");
@@ -267,7 +383,7 @@ export const studentService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/students/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/students/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
 
     try {
       if (useProxyApi) {
@@ -307,8 +423,18 @@ export const studentService = {
               if (retryResponse.ok) {
                 // Type assertion to avoid unsafe assignment
                 const data: unknown = await retryResponse.json();
-                // Return as Student with additional fields - route handler already unwrapped it
-                return data as Student;
+                // The route handler returns the raw backend data which needs mapping
+                if (data && typeof data === 'object') {
+                  // Check if it's wrapped in an ApiResponse
+                  if ('data' in data) {
+                    const wrapped = data as { data: BackendStudentDetail };
+                    return mapStudentDetailResponse(wrapped.data);
+                  } else {
+                    // Direct response
+                    return mapStudentDetailResponse(data as BackendStudentDetail);
+                  }
+                }
+                throw new Error('Invalid student response format');
               }
             }
           }
@@ -319,13 +445,26 @@ export const studentService = {
         // Type assertion to avoid unsafe assignment
         const responseData = await response.json() as unknown;
         
-        // Return as Student with additional fields - route handler already unwrapped it
-        return responseData as Student;
+        // The route handler already maps the response to frontend format
+        // DO NOT call mapStudentDetailResponse as it would double-map the data
+        if (responseData && typeof responseData === 'object') {
+          // Check if it's wrapped in an ApiResponse
+          if ('data' in responseData) {
+            const wrapped = responseData as { data: Student };
+            return wrapped.data;
+          } else {
+            // Direct response - already mapped by API route
+            return responseData as Student;
+          }
+        }
+        
+        throw new Error('Invalid student response format');
       } else {
         // Server-side: use axios with the API URL directly
         const response = await api.get(url);
-        // Return as Student with additional fields
-        return response.data as Student;
+        // Map the backend response properly
+        const backendData = response.data as { data: BackendStudentDetail };
+        return mapStudentDetailResponse(backendData.data);
       }
     } catch (error) {
       throw handleApiError(error, `Error fetching student ${id}`);
@@ -334,34 +473,32 @@ export const studentService = {
 
   // Create a new student
   createStudent: async (student: Omit<Student, "id">): Promise<Student> => {
-    // Transform from frontend model to backend model
-    const backendStudent = prepareStudentForBackend(student);
-
-    // Basic validation for student creation - match backend requirements
-    if (!backendStudent.first_name) {
+    // Basic validation for student creation - using frontend field names
+    if (!student.first_name) {
       throw new Error("First name is required");
     }
-    if (!backendStudent.last_name) {
+    if (!student.second_name) {
       throw new Error("Last name is required");
     }
-    if (!backendStudent.school_class) {
+    if (!student.school_class) {
       throw new Error("School class is required");
     }
-    if (!backendStudent.guardian_name) {
+    if (!student.name_lg) {
       throw new Error("Guardian name is required");
     }
-    if (!backendStudent.guardian_contact) {
+    if (!student.contact_lg) {
       throw new Error("Guardian contact is required");
     }
 
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/students`
-      : `${env.NEXT_PUBLIC_API_URL}/students`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/students`;
 
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
+        // Send frontend format data - the API route will handle transformation
         const session = await getSession();
         const response = await fetch(url, {
           method: "POST",
@@ -372,7 +509,7 @@ export const studentService = {
                 "Content-Type": "application/json",
               }
             : undefined,
-          body: JSON.stringify(backendStudent),
+          body: JSON.stringify(student),
         });
 
         if (!response.ok) {
@@ -397,6 +534,8 @@ export const studentService = {
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
+        // For server-side, we need to transform the data since we're calling the backend directly
+        const backendStudent = prepareStudentForBackend(student);
         const response = await api.post(url, backendStudent);
         return mapSingleStudentResponse({ 
           data: response.data as unknown as BackendStudent 
@@ -412,25 +551,15 @@ export const studentService = {
     id: string,
     student: Partial<Student>,
   ): Promise<Student> => {
-    // First, capture the name fields so we can track them in the response later
-    const firstName = student.first_name;
-    const secondName = student.second_name;
-
-    // Transform from frontend model to backend model updates
-    const backendUpdates = prepareStudentForBackend(student);
-
-    // Validation for required fields in updates
-    // Note: For updates, we only validate fields that are provided
-    // Backend will handle partial updates correctly
-
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/students/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/students/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
 
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
+        // Send frontend format data - the API route will handle transformation
         const session = await getSession();
         const response = await fetch(url, {
           method: "PUT",
@@ -441,7 +570,7 @@ export const studentService = {
                 "Content-Type": "application/json",
               }
             : undefined,
-          body: JSON.stringify(backendUpdates),
+          body: JSON.stringify(student),
         });
 
         if (!response.ok) {
@@ -471,23 +600,12 @@ export const studentService = {
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
+        // For server-side, we need to transform the data since we're calling the backend directly
+        const backendUpdates = prepareStudentForBackend(student);
         const response = await api.put(url, backendUpdates);
-        // Merge the returned data with our local name changes if provided
         const mappedResponse = mapSingleStudentResponse({
           data: response.data as unknown as BackendStudent
         });
-        if (firstName || secondName) {
-          if (firstName) mappedResponse.first_name = firstName;
-          if (secondName) mappedResponse.second_name = secondName;
-          // Update the display name as well
-          if (firstName && secondName) {
-            mappedResponse.name = `${firstName} ${secondName}`;
-          } else if (firstName) {
-            mappedResponse.name = firstName;
-          } else if (secondName) {
-            mappedResponse.name = secondName;
-          }
-        }
         return mappedResponse;
       }
     } catch (error) {
@@ -500,7 +618,7 @@ export const studentService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/students/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/students/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/students/${id}`;
 
     try {
       if (useProxyApi) {
@@ -545,7 +663,7 @@ export const groupService = {
 
     // Use the nextjs api route which handles auth token properly
     const useProxyApi = typeof window !== "undefined";
-    let url = useProxyApi ? "/api/groups" : `${env.NEXT_PUBLIC_API_URL}/groups`;
+    let url = useProxyApi ? "/api/groups" : `${env.NEXT_PUBLIC_API_URL}/api/groups`;
 
     try {
       // Build query string for API route
@@ -643,7 +761,7 @@ export const groupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
 
     try {
       if (useProxyApi) {
@@ -770,7 +888,7 @@ export const groupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups`
-      : `${env.NEXT_PUBLIC_API_URL}/groups`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups`;
 
     try {
       if (useProxyApi) {
@@ -824,7 +942,7 @@ export const groupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
 
     try {
       if (useProxyApi) {
@@ -880,7 +998,7 @@ export const groupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}`;
 
     try {
       if (useProxyApi) {
@@ -949,7 +1067,7 @@ export const groupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/${id}/students`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${id}/students`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${id}/students`;
 
     try {
       if (useProxyApi) {
@@ -1003,7 +1121,7 @@ export const groupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/${groupId}/supervisors`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${groupId}/supervisors`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/supervisors`;
 
     try {
       if (useProxyApi) {
@@ -1050,7 +1168,7 @@ export const groupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/${groupId}/supervisors/${supervisorId}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${groupId}/supervisors/${supervisorId}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/supervisors/${supervisorId}`;
 
     try {
       if (useProxyApi) {
@@ -1096,7 +1214,7 @@ export const groupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/${groupId}/representative`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/${groupId}/representative`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/${groupId}/representative`;
 
     try {
       if (useProxyApi) {
@@ -1147,7 +1265,7 @@ export const combinedGroupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? "/api/groups/combined"
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined`;
 
     try {
       if (useProxyApi) {
@@ -1189,7 +1307,7 @@ export const combinedGroupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1244,7 +1362,7 @@ export const combinedGroupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/combined`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined`;
 
     try {
       if (useProxyApi) {
@@ -1294,7 +1412,7 @@ export const combinedGroupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1338,7 +1456,7 @@ export const combinedGroupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/combined/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1381,7 +1499,7 @@ export const combinedGroupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/combined/${combinedGroupId}/groups`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined/${combinedGroupId}/groups`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${combinedGroupId}/groups`;
 
     try {
       if (useProxyApi) {
@@ -1428,7 +1546,7 @@ export const combinedGroupService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/groups/combined/${combinedGroupId}/groups/${groupId}`
-      : `${env.NEXT_PUBLIC_API_URL}/groups/combined/${combinedGroupId}/groups/${groupId}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/groups/combined/${combinedGroupId}/groups/${groupId}`;
 
     try {
       if (useProxyApi) {
@@ -1487,7 +1605,7 @@ export const roomService = {
 
     // Use the nextjs api route which handles auth token properly
     const useProxyApi = typeof window !== "undefined";
-    let url = useProxyApi ? "/api/rooms" : `${env.NEXT_PUBLIC_API_URL}/rooms`;
+    let url = useProxyApi ? "/api/rooms" : `${env.NEXT_PUBLIC_API_URL}/api/rooms`;
 
     try {
       // Build query string for API route
@@ -1595,7 +1713,7 @@ export const roomService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/rooms/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/rooms/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1763,7 +1881,7 @@ export const roomService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/rooms`
-      : `${env.NEXT_PUBLIC_API_URL}/rooms`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/rooms`;
 
     try {
       if (useProxyApi) {
@@ -1817,7 +1935,7 @@ export const roomService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/rooms/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/rooms/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1873,7 +1991,7 @@ export const roomService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? `/api/rooms/${id}`
-      : `${env.NEXT_PUBLIC_API_URL}/rooms/${id}`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/rooms/${id}`;
 
     try {
       if (useProxyApi) {
@@ -1913,7 +2031,7 @@ export const roomService = {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi
       ? "/api/rooms/by-category"
-      : `${env.NEXT_PUBLIC_API_URL}/rooms/by-category`;
+      : `${env.NEXT_PUBLIC_API_URL}/api/rooms/by-category`;
 
     try {
       if (useProxyApi) {

@@ -9,8 +9,9 @@ import type { BackendGroup } from "~/lib/group-helpers";
 interface GroupUpdateRequest {
   name?: string;
   description?: string;
-  room_id?: string;
-  representative_id?: string;
+  room_id?: number;
+  representative_id?: number;
+  teacher_ids?: number[];
 }
 
 /**
@@ -22,17 +23,16 @@ export const GET = createGetHandler(async (request: NextRequest, token: string, 
   const endpoint = `/api/groups/${id}`;
   
   // Fetch group from the API
-  const response = await apiGet<BackendGroup>(endpoint, token);
-  console.log('Backend API response:', response);
+  const response = await apiGet<{ status: string; data: BackendGroup; message?: string }>(endpoint, token);
   
   // If response is undefined or null, throw an error
   if (!response) {
     throw new Error('Group not found');
   }
   
-  // The response is already a BackendGroup, not wrapped
-  // Return it directly so that createGetHandler can wrap it once
-  return response;
+  // The response is wrapped in status/data/message structure
+  // Return the data object directly
+  return response.data || response;
 });
 
 /**

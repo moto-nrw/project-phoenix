@@ -30,6 +30,7 @@ func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) 
 	device := new(iot.Device)
 	err := r.db.NewSelect().
 		Model(device).
+		ModelTableExpr(`iot.devices AS "device"`).
 		Where("device_id = ?", deviceID).
 		Scan(ctx)
 
@@ -43,11 +44,31 @@ func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) 
 	return device, nil
 }
 
+// FindByAPIKey retrieves a device by its API key
+func (r *DeviceRepository) FindByAPIKey(ctx context.Context, apiKey string) (*iot.Device, error) {
+	device := new(iot.Device)
+	err := r.db.NewSelect().
+		Model(device).
+		ModelTableExpr(`iot.devices AS "device"`).
+		Where("api_key = ?", apiKey).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by API key",
+			Err: err,
+		}
+	}
+
+	return device, nil
+}
+
 // FindByType retrieves devices by their type
 func (r *DeviceRepository) FindByType(ctx context.Context, deviceType string) ([]*iot.Device, error) {
 	var devices []*iot.Device
 	err := r.db.NewSelect().
 		Model(&devices).
+		ModelTableExpr(`iot.devices AS "device"`).
 		Where("device_type = ?", deviceType).
 		Scan(ctx)
 
@@ -66,6 +87,7 @@ func (r *DeviceRepository) FindByStatus(ctx context.Context, status iot.DeviceSt
 	var devices []*iot.Device
 	err := r.db.NewSelect().
 		Model(&devices).
+		ModelTableExpr(`iot.devices AS "device"`).
 		Where("status = ?", status).
 		Scan(ctx)
 
@@ -84,6 +106,7 @@ func (r *DeviceRepository) FindByRegisteredBy(ctx context.Context, personID int6
 	var devices []*iot.Device
 	err := r.db.NewSelect().
 		Model(&devices).
+		ModelTableExpr(`iot.devices AS "device"`).
 		Where("registered_by_id = ?", personID).
 		Scan(ctx)
 
@@ -101,6 +124,7 @@ func (r *DeviceRepository) FindByRegisteredBy(ctx context.Context, personID int6
 func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, deviceID string, lastSeen time.Time) error {
 	_, err := r.db.NewUpdate().
 		Model((*iot.Device)(nil)).
+		ModelTableExpr("iot.devices").
 		Set("last_seen = ?", lastSeen).
 		Where("device_id = ?", deviceID).
 		Exec(ctx)
@@ -119,6 +143,7 @@ func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, deviceID string, 
 func (r *DeviceRepository) UpdateStatus(ctx context.Context, deviceID string, status iot.DeviceStatus) error {
 	_, err := r.db.NewUpdate().
 		Model((*iot.Device)(nil)).
+		ModelTableExpr("iot.devices").
 		Set("status = ?", status).
 		Where("device_id = ?", deviceID).
 		Exec(ctx)
@@ -138,6 +163,7 @@ func (r *DeviceRepository) FindActiveDevices(ctx context.Context) ([]*iot.Device
 	var devices []*iot.Device
 	err := r.db.NewSelect().
 		Model(&devices).
+		ModelTableExpr(`iot.devices AS "device"`).
 		Where("status = ?", iot.DeviceStatusActive).
 		Scan(ctx)
 
@@ -156,6 +182,7 @@ func (r *DeviceRepository) FindDevicesRequiringMaintenance(ctx context.Context) 
 	var devices []*iot.Device
 	err := r.db.NewSelect().
 		Model(&devices).
+		ModelTableExpr(`iot.devices AS "device"`).
 		Where("status = ?", iot.DeviceStatusMaintenance).
 		Scan(ctx)
 
@@ -176,6 +203,7 @@ func (r *DeviceRepository) FindOfflineDevices(ctx context.Context, offlineSince 
 	var devices []*iot.Device
 	err := r.db.NewSelect().
 		Model(&devices).
+		ModelTableExpr(`iot.devices AS "device"`).
 		Where("last_seen < ? OR (last_seen IS NULL AND created_at < ?)", cutoffTime, cutoffTime).
 		Scan(ctx)
 
@@ -199,6 +227,7 @@ func (r *DeviceRepository) CountDevicesByType(ctx context.Context) (map[string]i
 	var counts []countResult
 	err := r.db.NewSelect().
 		Model((*iot.Device)(nil)).
+		ModelTableExpr(`iot.devices AS "device"`).
 		Column("device_type").
 		ColumnExpr("COUNT(*) AS count").
 		Group("device_type").
@@ -254,7 +283,7 @@ func (r *DeviceRepository) Update(ctx context.Context, device *iot.Device) error
 // List retrieves devices matching the provided filters
 func (r *DeviceRepository) List(ctx context.Context, filters map[string]interface{}) ([]*iot.Device, error) {
 	var devices []*iot.Device
-	query := r.db.NewSelect().Model(&devices)
+	query := r.db.NewSelect().Model(&devices).ModelTableExpr(`iot.devices AS "device"`)
 
 	// Apply filters
 	for field, value := range filters {

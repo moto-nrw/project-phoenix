@@ -12,9 +12,15 @@ import { GlobalSearch } from "./global-search";
 import { MobileSearchModal } from "./mobile-search-modal";
 import { NotificationCenter } from "./notification-center";
 import { MobileNotificationModal } from "./mobile-notification-modal";
+import { useSession } from "next-auth/react";
 
 // Function to get page title based on pathname
 function getPageTitle(pathname: string): string {
+    // Check for /students/search first before other /students/ paths
+    if (pathname === "/students/search") {
+        return "Suche";
+    }
+    
     // Handle specific routes with dynamic segments
     if (pathname.startsWith("/students/") && pathname !== "/students") {
         if (pathname.includes("/feedback_history")) return "Feedback Historie";
@@ -31,7 +37,7 @@ function getPageTitle(pathname: string): string {
         if (pathname.includes("/activities")) return "Aktivitäten Datenbank";
         if (pathname.includes("/groups")) return "Gruppen Datenbank";
         if (pathname.includes("/students")) return "Schüler Datenbank";
-        if (pathname.includes("/teachers")) return "Lehrer Datenbank";
+        if (pathname.includes("/teachers")) return "Datenbank Pädagogische Fachkräfte";
         if (pathname.includes("/rooms")) return "Räume Datenbank";
         return "Datenbank";
     }
@@ -42,11 +48,13 @@ function getPageTitle(pathname: string): string {
         case "/":
             return "Home";
         case "/ogs_groups":
-            return "OGS Gruppen";
+            return "Meine Gruppe";
+        case "/myroom":
+            return "Mein Raum";
+        case "/staff":
+            return "Mitarbeiter";
         case "/students":
             return "Schüler";
-        case "/students/search":
-            return "Schüler Suche";
         case "/rooms":
             return "Räume";
         case "/activities":
@@ -56,9 +64,11 @@ function getPageTitle(pathname: string): string {
         case "/substitutions":
             return "Vertretungen";
         case "/database":
-            return "Datenbank";
+            return "Datenverwaltung";
         case "/settings":
             return "Einstellungen";
+        case "/borndal_feedback":
+            return "Borndal Feedback";
         default:
             return "Home";
     }
@@ -67,6 +77,8 @@ function getPageTitle(pathname: string): string {
 
 interface HeaderProps {
     userName?: string;
+    userEmail?: string;
+    userRole?: string;
 }
 
 // Logout Icon als React Component
@@ -91,13 +103,14 @@ const LogoutIcon = ({ className }: { className?: string }) => (
 
 
 
-export function Header({ userName = "Benutzer" }: HeaderProps) {
+export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }: HeaderProps) {
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
     const [isMobileNotificationOpen, setIsMobileNotificationOpen] = useState(false);
     const pathname = usePathname();
     const helpContent = getHelpContent(pathname);
     const pageTitle = getPageTitle(pathname);
+    const { data: session } = useSession();
 
     // Mock notification state for mobile button
     const [hasUnreadNotifications] = useState(true); // This would come from global state
@@ -136,8 +149,8 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
                 <div className="flex items-center h-16 w-full">
                     {/* Left section: Logo + Brand + Context */}
                     <div className="flex items-center space-x-4 flex-shrink-0">
-                        <div className="flex items-center space-x-3">
-                            <div className="relative">
+                        <Link href="/dashboard" className="flex items-center space-x-3 group">
+                            <div className="relative transition-transform duration-200 group-hover:scale-110">
                                 <Image
                                     src="/images/moto_transparent.png"
                                     alt="moto"
@@ -151,7 +164,7 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
                             
                             <div className="flex items-center space-x-3">
                                 <span
-                                    className="text-xl font-bold tracking-tight"
+                                    className="text-xl font-bold tracking-tight transition-all duration-200 group-hover:scale-105"
                                     style={{
                                         background: 'linear-gradient(135deg, #5080d8, #83cd2d)',
                                         WebkitBackgroundClip: 'text',
@@ -161,21 +174,42 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
                                 >
                                     moto
                                 </span>
-                                
-                                {/* Breadcrumb separator */}
-                                <div className="hidden md:block w-px h-5 bg-gray-300"></div>
-                                
-                                {/* Context indicator */}
-                                <span className="hidden md:inline text-sm font-medium text-gray-600">
-                                    {pageTitle}
-                                </span>
                             </div>
-                        </div>
+                        </Link>
+                        
+                        {/* Breadcrumb separator */}
+                        <div className="hidden md:block w-px h-5 bg-gray-300"></div>
+                        
+                        {/* Context indicator */}
+                        <span className="hidden md:inline text-sm font-medium text-gray-600">
+                            {pageTitle}
+                        </span>
                     </div>
 
-                    {/* Search bar aligned with sidebar end - positioned to start exactly where sidebar ends */}
-                    <div className="hidden lg:block absolute left-64 pl-6">
-                        <GlobalSearch className="w-80" />
+                    {/* Search bar centered horizontally - or session expiry warning */}
+                    <div className="hidden lg:flex absolute left-1/2 transform -translate-x-1/2">
+                        {session?.error === "RefreshTokenExpired" ? (
+                            <div className="flex items-center space-x-2 px-4 py-2 bg-red-50 border border-red-200 rounded-lg">
+                                <svg 
+                                    className="w-5 h-5 text-red-600 flex-shrink-0" 
+                                    fill="none" 
+                                    viewBox="0 0 24 24" 
+                                    stroke="currentColor"
+                                >
+                                    <path 
+                                        strokeLinecap="round" 
+                                        strokeLinejoin="round" 
+                                        strokeWidth={2} 
+                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                                    />
+                                </svg>
+                                <span className="text-sm font-medium text-red-800">
+                                    Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.
+                                </span>
+                            </div>
+                        ) : (
+                            <GlobalSearch className="w-80" />
+                        )}
                     </div>
 
                     {/* Right section: Actions + Profile */}
@@ -195,6 +229,25 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
 
                         {/* Mobile action buttons */}
                         <div className="lg:hidden flex items-center space-x-2">
+                            {/* Session expiry warning for mobile */}
+                            {session?.error === "RefreshTokenExpired" && (
+                                <div className="p-2 text-red-600">
+                                    <svg 
+                                        className="w-5 h-5" 
+                                        fill="none" 
+                                        viewBox="0 0 24 24" 
+                                        stroke="currentColor"
+                                    >
+                                        <path 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round" 
+                                            strokeWidth={2} 
+                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                                        />
+                                    </svg>
+                                </div>
+                            )}
+                            
                             {/* Mobile notifications button */}
                             <button 
                                 onClick={openMobileNotification}
@@ -210,16 +263,18 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
                                 )}
                             </button>
 
-                            {/* Mobile search button */}
-                            <button 
-                                onClick={openMobileSearch}
-                                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors duration-200 active:bg-gray-200"
-                                aria-label="Suche öffnen"
-                            >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
-                            </button>
+                            {/* Mobile search button - hide when session expired */}
+                            {session?.error !== "RefreshTokenExpired" && (
+                                <button 
+                                    onClick={openMobileSearch}
+                                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors duration-200 active:bg-gray-200"
+                                    aria-label="Suche öffnen"
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </button>
+                            )}
                         </div>
 
                         {/* User menu */}
@@ -239,10 +294,10 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
                                 
                                 <div className="hidden md:block text-left">
                                     <div className="text-sm font-medium text-gray-900">
-                                        {userName.split(' ')[0]}
+                                        {userName}
                                     </div>
                                     <div className="text-xs text-gray-500">
-                                        Administrator
+                                        {userRole}
                                     </div>
                                 </div>
                                 
@@ -276,7 +331,7 @@ export function Header({ userName = "Benutzer" }: HeaderProps) {
                                         </div>
                                         <div>
                                             <div className="font-medium text-gray-900">{userName}</div>
-                                            <div className="text-sm text-gray-500">admin@moto.nrw</div>
+                                            <div className="text-sm text-gray-500">{userEmail}</div>
                                         </div>
                                     </div>
                                 </div>

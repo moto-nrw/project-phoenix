@@ -24,6 +24,7 @@ type Student struct {
 	GuardianEmail   *string `bun:"guardian_email" json:"guardian_email,omitempty"`
 	GuardianPhone   *string `bun:"guardian_phone" json:"guardian_phone,omitempty"`
 	GroupID         *int64  `bun:"group_id" json:"group_id,omitempty"`
+	ExtraInfo       *string `bun:"extra_info" json:"extra_info,omitempty"`
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
@@ -31,18 +32,17 @@ type Student struct {
 }
 
 // BeforeAppendModel sets the correct table expression
+// Note: Table aliases (AS "student") are only applied for SELECT, UPDATE, and DELETE queries.
+//       For INSERT queries, aliases should NOT be used, as they can cause issues with some database drivers.
 func (s *Student) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("users.students")
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("users.students")
+		q.ModelTableExpr(`users.students AS "student"`)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("users.students")
+		q.ModelTableExpr(`users.students AS "student"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("users.students")
+		q.ModelTableExpr(`users.students AS "student"`)
 	}
 	return nil
 }
@@ -97,11 +97,8 @@ func (s *Student) Validate() error {
 		}
 	}
 
-	// Ensure only one loc ation is active at a time
+	// Ensure only one location is active at a time (bus is not a location)
 	locationCount := 0
-	if s.Bus {
-		locationCount++
-	}
 	if s.InHouse {
 		locationCount++
 	}
@@ -134,9 +131,6 @@ func (s *Student) SetGroupID(groupID *int64) {
 
 // GetLocation returns the current location of the student
 func (s *Student) GetLocation() string {
-	if s.Bus {
-		return "Bus"
-	}
 	if s.InHouse {
 		return "In House"
 	}
@@ -146,31 +140,29 @@ func (s *Student) GetLocation() string {
 	if s.SchoolYard {
 		return "School Yard"
 	}
-	return "Unknown"
+	// If none of the location flags are set, student is at home
+	return "Home"
 }
 
 // SetLocation sets the student's location, ensuring only one is active
 func (s *Student) SetLocation(location string) error {
-	// Reset all locations
-	s.Bus = false
+	// Reset all location flags (but not bus, which is transportation info)
 	s.InHouse = false
 	s.WC = false
 	s.SchoolYard = false
 
 	// Set the specified location
 	switch strings.ToLower(location) {
-	case "bus":
-		s.Bus = true
 	case "in house", "house":
 		s.InHouse = true
 	case "wc", "bathroom":
 		s.WC = true
 	case "school yard", "yard":
 		s.SchoolYard = true
-	case "unknown", "none", "":
-		// All locations remain false
+	case "home", "none", "":
+		// All locations remain false (student is at home)
 	default:
-		return errors.New("invalid location: must be Bus, In House, WC, School Yard, or empty")
+		return errors.New("invalid location: must be In House, WC, School Yard, Home, or empty")
 	}
 
 	return nil
@@ -189,4 +181,10 @@ func (m *Student) GetCreatedAt() time.Time {
 // GetUpdatedAt returns the last update timestamp
 func (m *Student) GetUpdatedAt() time.Time {
 	return m.UpdatedAt
+}
+
+// StudentWithGroupInfo represents a student with their group information
+type StudentWithGroupInfo struct {
+	*Student
+	GroupName string `json:"group_name"`
 }

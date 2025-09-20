@@ -25,16 +25,12 @@ func (rp *RolePermission) TableName() string {
 }
 
 func (rp *RolePermission) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
+	switch q := query.(type) {
+	case *bun.SelectQuery:
 		q.ModelTableExpr("auth.role_permissions")
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
+	case *bun.UpdateQuery:
 		q.ModelTableExpr("auth.role_permissions")
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("auth.role_permissions")
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
+	case *bun.DeleteQuery:
 		q.ModelTableExpr("auth.role_permissions")
 	}
 	return nil

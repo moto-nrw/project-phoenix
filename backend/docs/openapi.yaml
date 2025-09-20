@@ -124,6 +124,25 @@ paths:
       summary: GET /api/active/analytics/counts
       tags:
       - Active
+  /api/active/analytics/dashboard:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/active/analytics/dashboard
+      tags:
+      - Active
   /api/active/analytics/room/{roomId}/utilization:
     get:
       description: Generated from routes
@@ -1240,19 +1259,13 @@ paths:
       summary: PUT /api/activities/{id}
       tags:
       - Activities
-  /api/activities/{id}/enroll/{studentId}:
-    post:
+  /api/activities/{id}/schedules:
+    get:
       description: Generated from routes
       parameters:
       - description: id parameter
         in: path
         name: id
-        required: true
-        schema:
-          type: string
-      - description: studentId parameter
-        in: path
-        name: studentId
         required: true
         schema:
           type: string
@@ -1269,7 +1282,126 @@ paths:
           description: Internal server error
       security:
       - bearerAuth: []
-      summary: POST /api/activities/{id}/enroll/{studentId}
+      summary: GET /api/activities/{id}/schedules
+      tags:
+      - Activities
+    post:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/activities/{id}/schedules
+      tags:
+      - Activities
+  /api/activities/{id}/schedules/{scheduleId}:
+    delete:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: scheduleId parameter
+        in: path
+        name: scheduleId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: DELETE /api/activities/{id}/schedules/{scheduleId}
+      tags:
+      - Activities
+    get:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: scheduleId parameter
+        in: path
+        name: scheduleId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/activities/{id}/schedules/{scheduleId}
+      tags:
+      - Activities
+    put:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: scheduleId parameter
+        in: path
+        name: scheduleId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: PUT /api/activities/{id}/schedules/{scheduleId}
       tags:
       - Activities
   /api/activities/{id}/students:
@@ -1298,6 +1430,208 @@ paths:
       summary: GET /api/activities/{id}/students
       tags:
       - Activities
+    put:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: PUT /api/activities/{id}/students
+      tags:
+      - Activities
+  /api/activities/{id}/students/{studentId}:
+    delete:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: studentId parameter
+        in: path
+        name: studentId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: DELETE /api/activities/{id}/students/{studentId}
+      tags:
+      - Activities
+    post:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: studentId parameter
+        in: path
+        name: studentId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/activities/{id}/students/{studentId}
+      tags:
+      - Activities
+  /api/activities/{id}/supervisors:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/activities/{id}/supervisors
+      tags:
+      - Activities
+    post:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/activities/{id}/supervisors
+      tags:
+      - Activities
+  /api/activities/{id}/supervisors/{supervisorId}:
+    delete:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: supervisorId parameter
+        in: path
+        name: supervisorId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: DELETE /api/activities/{id}/supervisors/{supervisorId}
+      tags:
+      - Activities
+    put:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: supervisorId parameter
+        in: path
+        name: supervisorId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: PUT /api/activities/{id}/supervisors/{supervisorId}
+      tags:
+      - Activities
   /api/activities/categories:
     get:
       description: Generated from routes
@@ -1315,6 +1649,96 @@ paths:
       security:
       - bearerAuth: []
       summary: GET /api/activities/categories
+      tags:
+      - Activities
+  /api/activities/schedules/available:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/activities/schedules/available
+      tags:
+      - Activities
+  /api/activities/students/{studentId}:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: studentId parameter
+        in: path
+        name: studentId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/activities/students/{studentId}
+      tags:
+      - Activities
+  /api/activities/students/{studentId}/available:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: studentId parameter
+        in: path
+        name: studentId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/activities/students/{studentId}/available
+      tags:
+      - Activities
+  /api/activities/supervisors/available:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/activities/supervisors/available
       tags:
       - Activities
   /api/activities/timespans:
@@ -1583,6 +2007,81 @@ paths:
       summary: PATCH /api/config/key/{key}
       tags:
       - Config
+  /api/config/retention:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/config/retention
+      tags:
+      - Config
+    put:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: PUT /api/config/retention
+      tags:
+      - Config
+  /api/config/retention/cleanup:
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/config/retention/cleanup
+      tags:
+      - Config
+  /api/config/retention/stats:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/config/retention/stats
+      tags:
+      - Config
   /api/config/system-status:
     get:
       description: Generated from routes
@@ -1602,6 +2101,25 @@ paths:
       summary: GET /api/config/system-status
       tags:
       - Config
+  /api/database/stats:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/database/stats
+      tags:
+      - Database
   /api/feedback:
     get:
       description: Generated from routes
@@ -1936,6 +2454,58 @@ paths:
       security:
       - bearerAuth: []
       summary: GET /api/groups/{id}/students
+      tags:
+      - Groups
+  /api/groups/{id}/students/room-status:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/groups/{id}/students/room-status
+      tags:
+      - Groups
+  /api/groups/{id}/substitutions:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/groups/{id}/substitutions
       tags:
       - Groups
   /api/groups/{id}/supervisors:
@@ -2347,6 +2917,291 @@ paths:
       summary: GET /api/iot/type/{type}
       tags:
       - Iot
+  /api/me:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/me
+      tags:
+      - Me
+  /api/me/groups:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/me/groups
+      tags:
+      - Me
+  /api/me/groups/{groupID}/students:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: groupID parameter
+        in: path
+        name: groupID
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/me/groups/{groupID}/students
+      tags:
+      - Me
+  /api/me/groups/{groupID}/visits:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: groupID parameter
+        in: path
+        name: groupID
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/me/groups/{groupID}/visits
+      tags:
+      - Me
+  /api/me/groups/active:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/me/groups/active
+      tags:
+      - Me
+  /api/me/groups/activity:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/me/groups/activity
+      tags:
+      - Me
+  /api/me/groups/supervised:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/me/groups/supervised
+      tags:
+      - Me
+  /api/me/profile:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/me/profile
+      tags:
+      - Me
+    put:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: PUT /api/me/profile
+      tags:
+      - Me
+  /api/me/profile/avatar:
+    delete:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: DELETE /api/me/profile/avatar
+      tags:
+      - Me
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/me/profile/avatar
+      tags:
+      - Me
+  /api/me/profile/avatar/{filename}:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: filename parameter
+        in: path
+        name: filename
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/me/profile/avatar/{filename}
+      tags:
+      - Me
+  /api/me/staff:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/me/staff
+      tags:
+      - Me
+  /api/me/teacher:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/me/teacher
+      tags:
+      - Me
   /api/rooms:
     get:
       description: Generated from routes
@@ -2458,6 +3313,32 @@ paths:
       security:
       - bearerAuth: []
       summary: PUT /api/rooms/{id}
+      tags:
+      - Rooms
+  /api/rooms/{id}/history:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/rooms/{id}/history
       tags:
       - Rooms
   /api/rooms/available:
@@ -3211,6 +4092,32 @@ paths:
       summary: GET /api/staff/{id}/groups
       tags:
       - Staff
+  /api/staff/{id}/substitutions:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/staff/{id}/substitutions
+      tags:
+      - Staff
   /api/staff/available:
     get:
       description: Generated from routes
@@ -3228,6 +4135,25 @@ paths:
       security:
       - bearerAuth: []
       summary: GET /api/staff/available
+      tags:
+      - Staff
+  /api/staff/available-for-substitution:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/staff/available-for-substitution
       tags:
       - Staff
   /api/students:
@@ -3249,7 +4175,50 @@ paths:
       summary: GET /api/students
       tags:
       - Students
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/students
+      tags:
+      - Students
   /api/students/{id}:
+    delete:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: DELETE /api/students/{id}
+      tags:
+      - Students
     get:
       description: Generated from routes
       parameters:
@@ -3275,7 +4244,127 @@ paths:
       summary: GET /api/students/{id}
       tags:
       - Students
-  /api/students/with-user:
+    put:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: PUT /api/students/{id}
+      tags:
+      - Students
+  /api/students/{id}/in-group-room:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/students/{id}/in-group-room
+      tags:
+      - Students
+  /api/students/{id}/privacy-consent:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/students/{id}/privacy-consent
+      tags:
+      - Students
+    put:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: PUT /api/students/{id}/privacy-consent
+      tags:
+      - Students
+  /api/substitutions:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/substitutions
+      tags:
+      - Substitutions
     post:
       description: Generated from routes
       responses:
@@ -3291,9 +4380,104 @@ paths:
           description: Internal server error
       security:
       - bearerAuth: []
-      summary: POST /api/students/with-user
+      summary: POST /api/substitutions
       tags:
-      - Students
+      - Substitutions
+  /api/substitutions/{id}:
+    delete:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: DELETE /api/substitutions/{id}
+      tags:
+      - Substitutions
+    get:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/substitutions/{id}
+      tags:
+      - Substitutions
+    put:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: PUT /api/substitutions/{id}
+      tags:
+      - Substitutions
+  /api/substitutions/active:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/substitutions/active
+      tags:
+      - Substitutions
   /api/users:
     get:
       description: Generated from routes
@@ -3587,6 +4771,25 @@ paths:
       summary: GET /api/users/by-tag/{tagId}
       tags:
       - Users
+  /api/users/rfid-cards/available:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/users/rfid-cards/available
+      tags:
+      - Users
   /api/users/search:
     get:
       description: Generated from routes
@@ -3842,6 +5045,32 @@ paths:
       security:
       - bearerAuth: []
       summary: POST /auth/accounts/{accountId}/permissions/{permissionId}/grant
+      tags:
+      - Auth
+  /auth/accounts/{accountId}/permissions/direct:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: accountId parameter
+        in: path
+        name: accountId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /auth/accounts/{accountId}/permissions/direct
       tags:
       - Auth
   /auth/accounts/{accountId}/roles:

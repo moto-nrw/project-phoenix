@@ -380,7 +380,7 @@ export default function RoomDetailPage() {
   // Render loading state
   if (loading) {
     return (
-      <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+      <ResponsiveLayout>
         <div className="flex min-h-[80vh] items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
@@ -409,7 +409,7 @@ export default function RoomDetailPage() {
     }
 
     return (
-      <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+      <ResponsiveLayout>
         <div className="flex min-h-[50vh] flex-col items-center justify-center">
           <div className="w-full max-w-lg mx-auto p-6 bg-white rounded-lg shadow-sm">
             <div className="flex items-center justify-center mb-6">
@@ -451,7 +451,7 @@ export default function RoomDetailPage() {
   }
 
   return (
-    <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+    <ResponsiveLayout>
       <div className="max-w-7xl mx-auto">
         {/* Back Button */}
         <div className="mb-6">

@@ -10,15 +10,16 @@ import (
 
 // PrivacyConsent represents a privacy consent record for a student
 type PrivacyConsent struct {
-	base.Model      `bun:"schema:users,table:privacy_consents"`
-	StudentID       int64                  `bun:"student_id,notnull" json:"student_id"`
-	PolicyVersion   string                 `bun:"policy_version,notnull" json:"policy_version"`
-	Accepted        bool                   `bun:"accepted,notnull" json:"accepted"`
-	AcceptedAt      *time.Time             `bun:"accepted_at" json:"accepted_at,omitempty"`
-	ExpiresAt       *time.Time             `bun:"expires_at" json:"expires_at,omitempty"`
-	DurationDays    *int                   `bun:"duration_days" json:"duration_days,omitempty"`
-	RenewalRequired bool                   `bun:"renewal_required,notnull" json:"renewal_required"`
-	Details         map[string]interface{} `bun:"details,type:jsonb" json:"details,omitempty"`
+	base.Model        `bun:"schema:users,table:privacy_consents"`
+	StudentID         int64                  `bun:"student_id,notnull" json:"student_id"`
+	PolicyVersion     string                 `bun:"policy_version,notnull" json:"policy_version"`
+	Accepted          bool                   `bun:"accepted,notnull" json:"accepted"`
+	AcceptedAt        *time.Time             `bun:"accepted_at" json:"accepted_at,omitempty"`
+	ExpiresAt         *time.Time             `bun:"expires_at" json:"expires_at,omitempty"`
+	DurationDays      *int                   `bun:"duration_days" json:"duration_days,omitempty"`
+	RenewalRequired   bool                   `bun:"renewal_required,notnull" json:"renewal_required"`
+	DataRetentionDays int                    `bun:"data_retention_days,notnull" json:"data_retention_days"`
+	Details           map[string]interface{} `bun:"details,type:jsonb" json:"details,omitempty"`
 
 	// Relations not stored in the database
 	Student *Student `bun:"-" json:"student,omitempty"`
@@ -26,16 +27,13 @@ type PrivacyConsent struct {
 
 func (pc *PrivacyConsent) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("users.privacy_consents")
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("users.privacy_consents")
+		q.ModelTableExpr(`users.privacy_consents AS "privacy_consent"`)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("users.privacy_consents")
+		q.ModelTableExpr(`users.privacy_consents AS "privacy_consent"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("users.privacy_consents")
+		q.ModelTableExpr(`users.privacy_consents AS "privacy_consent"`)
 	}
 	return nil
 }
@@ -53,6 +51,11 @@ func (pc *PrivacyConsent) Validate() error {
 
 	if pc.PolicyVersion == "" {
 		return errors.New("policy version is required")
+	}
+
+	// Validate data retention days
+	if pc.DataRetentionDays < 1 || pc.DataRetentionDays > 31 {
+		return errors.New("data retention days must be between 1 and 31")
 	}
 
 	// If consent is accepted, accepted_at must be set
@@ -174,4 +177,22 @@ func (pc *PrivacyConsent) GetCreatedAt() time.Time {
 // GetUpdatedAt implements the base.Entity interface
 func (pc *PrivacyConsent) GetUpdatedAt() time.Time {
 	return pc.UpdatedAt
+}
+
+// GetDataRetentionDays returns the number of days to retain visit data
+func (pc *PrivacyConsent) GetDataRetentionDays() int {
+	// If DataRetentionDays is not set (0), default to 30 days
+	if pc.DataRetentionDays == 0 {
+		return 30
+	}
+	return pc.DataRetentionDays
+}
+
+// SetDataRetentionDays sets the data retention days with validation
+func (pc *PrivacyConsent) SetDataRetentionDays(days int) error {
+	if days < 1 || days > 31 {
+		return errors.New("data retention days must be between 1 and 31")
+	}
+	pc.DataRetentionDays = days
+	return nil
 }

@@ -10,12 +10,12 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
     - name: Setup Go
       uses: actions/setup-go@v5
       with:
         go-version-file: ${{ inputs.go-version-file }}
+        cache: true
+        cache-dependency-path: backend/go.sum
 
     - name: Install Dependencies
       shell: bash

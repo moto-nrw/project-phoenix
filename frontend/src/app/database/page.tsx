@@ -2,158 +2,322 @@
 
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { ResponsiveLayout, SectionTitle, DataTypeCard } from "@/components/dashboard";
+import Link from "next/link";
+import { ResponsiveLayout } from "~/components/dashboard";
+import { Suspense, useState, useEffect } from "react";
 
-// Icon components
-const UserIcon = () => (
+// Icon component
+const Icon: React.FC<{ path: string; className?: string }> = ({ path, className }) => (
   <svg
-    xmlns="http://www.w3.org/2000/svg"
-    className="h-8 w-8"
+    className={className}
     fill="none"
     viewBox="0 0 24 24"
     stroke="currentColor"
+    strokeWidth={2}
   >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-    />
+    <path strokeLinecap="round" strokeLinejoin="round" d={path} />
   </svg>
 );
 
-const TeachersIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    className="h-8 w-8"
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-    />
-  </svg>
-);
+// Base data sections configuration
+const baseDataSections = [
+  {
+    id: "students",
+    title: "Schüler",
+    description: "Schülerdaten verwalten und bearbeiten",
+    href: "/database/students",
+    icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
+    color: "from-[#5080D8] to-[#4070c8]",
+  },
+  {
+    id: "teachers",
+    title: "Pädagogische Fachkräfte",
+    description: "Daten der pädagogischen Fachkräfte und Zuordnungen verwalten",
+    href: "/database/teachers",
+    icon: "M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222",
+    color: "from-[#F78C10] to-[#e57a00]",
+  },
+  {
+    id: "rooms",
+    title: "Räume",
+    description: "Räume und Ausstattung verwalten",
+    href: "/database/rooms",
+    icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
+    color: "from-[#83CD2D] to-[#70b525]",
+  },
+  {
+    id: "activities",
+    title: "Aktivitäten",
+    description: "Aktivitäten und Zeitpläne verwalten",
+    href: "/database/activities",
+    icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+    color: "from-[#FF3130] to-[#e02020]",
+  },
+  {
+    id: "groups",
+    title: "Gruppen",
+    description: "Gruppen und Kombinationen verwalten",
+    href: "/database/groups",
+    icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
+    color: "from-purple-500 to-purple-600",
+  },
+  {
+    id: "roles",
+    title: "Rollen",
+    description: "Benutzerrollen und Berechtigungen verwalten",
+    href: "/database/roles",
+    icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
+    color: "from-[#9333ea] to-[#7c3aed]",
+  },
+  {
+    id: "devices",
+    title: "Geräte",
+    description: "IoT-Geräte und RFID-Reader verwalten",
+    href: "/database/devices",
+    icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
+    color: "from-amber-500 to-orange-600",
+  },
+  {
+    id: "permissions",
+    title: "Berechtigungen",
+    description: "Systemberechtigungen ansehen",
+    href: "/database/permissions",
+    icon: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1 1 21 9z",
+    color: "from-[#ec4899] to-[#db2777]",
+  },
+];
 
-const GroupsIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    className="h-8 w-8"
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-    />
-  </svg>
-);
-
-const RoomsIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    className="h-8 w-8"
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-    />
-  </svg>
-);
-
-export default function DatabasePage() {
-  const { data: session, status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      redirect("/");
-    },
+function DatabaseContent() {
+  const { data: session, status } = useSession({ required: true });
+  const [counts, setCounts] = useState<{
+    students: number;
+    teachers: number;
+    rooms: number;
+    activities: number;
+    groups: number;
+    roles: number;
+    devices: number;
+    permissionCount: number;
+  }>({
+    students: 0,
+    teachers: 0,
+    rooms: 0,
+    activities: 0,
+    groups: 0,
+    roles: 0,
+    devices: 0,
+    permissionCount: 0,
   });
+  const [permissions, setPermissions] = useState<{
+    canViewStudents: boolean;
+    canViewTeachers: boolean;
+    canViewRooms: boolean;
+    canViewActivities: boolean;
+    canViewGroups: boolean;
+    canViewRoles: boolean;
+    canViewDevices: boolean;
+    canViewPermissions: boolean;
+  }>({
+    canViewStudents: false,
+    canViewTeachers: false,
+    canViewRooms: false,
+    canViewActivities: false,
+    canViewGroups: false,
+    canViewRoles: false,
+    canViewDevices: false,
+    canViewPermissions: false,
+  });
+  const [countsLoading, setCountsLoading] = useState(true);
+
+  // Fetch real counts from the database
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const response = await fetch("/api/database/counts");
+        if (response.ok) {
+          const result = await response.json() as {
+            success: boolean;
+            message: string;
+            data: {
+              students: number;
+              teachers: number;
+              rooms: number;
+              activities: number;
+              groups: number;
+              roles: number;
+              devices: number;
+              permissionCount: number;
+              permissions: {
+                canViewStudents: boolean;
+                canViewTeachers: boolean;
+                canViewRooms: boolean;
+                canViewActivities: boolean;
+                canViewGroups: boolean;
+                canViewRoles: boolean;
+                canViewDevices: boolean;
+                canViewPermissions: boolean;
+              };
+            };
+          };
+          console.log("Database counts response:", result);
+          const data = result.data;
+          setCounts({
+            students: data.students,
+            teachers: data.teachers,
+            rooms: data.rooms,
+            activities: data.activities,
+            groups: data.groups,
+            roles: data.roles,
+            devices: data.devices,
+            permissionCount: data.permissionCount,
+          });
+          setPermissions(data.permissions || {
+            canViewStudents: false,
+            canViewTeachers: false,
+            canViewRooms: false,
+            canViewActivities: false,
+            canViewGroups: false,
+            canViewRoles: false,
+            canViewDevices: false,
+            canViewPermissions: false,
+          });
+          console.log("Permissions set to:", data.permissions);
+        } else {
+          console.error("Failed to fetch counts:", response.status);
+        }
+      } catch (error) {
+        console.error("Error fetching counts:", error);
+      } finally {
+        setCountsLoading(false);
+      }
+    };
+
+    if (session?.user) {
+      void fetchCounts();
+    }
+  }, [session]);
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p>Loading...</p>
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 md:h-12 md:w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+          <p className="text-sm md:text-base text-gray-600">Daten werden geladen...</p>
+        </div>
       </div>
     );
   }
 
+  if (!session?.user) {
+    redirect("/");
+  }
+
   return (
-    <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
-      <div className="max-w-7xl mx-auto">
-        <h1 className="mb-8 text-4xl font-bold text-gray-900">Datenbankänderungen</h1>
-        
-        <SectionTitle title="Datensatz auswählen" />
+    <>
+      {/* Header */}
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Datenverwaltung</h1>
+        <p className="mt-1 md:mt-2 text-sm md:text-base text-gray-600">
+          Wählen Sie einen Bereich aus, um Daten zu verwalten
+        </p>
+      </div>
 
-        {/* Database Selection Cards */}
-        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {/* Students Card */}
-          <DataTypeCard
-            title="Schüler"
-            description="Schülerdaten bearbeiten"
-            href="/database/students"
-            icon={<UserIcon />}
-          />
-
-          {/* Teachers Card */}
-          <DataTypeCard
-            title="Pädagogische Fachkräfte"
-            description="Mitarbeiterdaten bearbeiten"
-            href="/database/teachers"
-            icon={<TeachersIcon />}
-          />
-
-          {/* Groups Card */}
-          <DataTypeCard
-            title="Gruppen"
-            description="Gruppendaten bearbeiten"
-            href="/database/groups"
-            icon={<GroupsIcon />}
-          />
-
-          {/* Rooms Card */}
-          <DataTypeCard
-            title="Räume"
-            description="Raumdaten bearbeiten"
-            href="/database/rooms"
-            icon={<RoomsIcon />}
-          />
-
-          {/* Activities Card */}
-          <DataTypeCard
-            title="Aktivitäten"
-            description="Aktivitätsgruppen verwalten"
-            href="/database/activities"
-            icon={
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-8 w-8"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17 14v6m-3-3h6M6 10h2a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2zm10 0h2a2 2 0 002-2V6a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2zM6 20h2a2 2 0 002-2v-2a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z"
-                />
-              </svg>
-            }
-          />
+      {/* Info Section */}
+      <div className="mb-6 md:mb-8 rounded-lg border border-blue-200 bg-blue-50 p-3 md:p-4">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <Icon
+              path="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              className="h-4 w-4 md:h-5 md:w-5 text-blue-600"
+            />
+          </div>
+          <div className="ml-2 md:ml-3 flex-1">
+            <h3 className="text-xs md:text-sm font-medium text-blue-800">Hinweis zur Datenverwaltung</h3>
+            <div className="mt-0.5 md:mt-1 text-xs md:text-sm text-blue-700">
+              <p>Änderungen an den Daten werden sofort wirksam. Bitte gehen Sie sorgfältig vor und überprüfen Sie Ihre Eingaben.</p>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Data Section Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {baseDataSections.map((section) => {
+          // Check permissions for this section
+          const permissionKey = `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}` as keyof typeof permissions;
+          if (!permissions?.[permissionKey]) {
+            return null; // Don't render sections user doesn't have permission for
+          }
+
+          // Get the count for this section (special case for permissions)
+          const countKey = section.id === 'permissions' ? 'permissionCount' : section.id;
+          const count = counts[countKey as keyof typeof counts] ?? 0;
+          const countText = countsLoading ? "Lade..." : `${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
+
+          return (
+            <Link
+              key={section.id}
+              href={section.href}
+              className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-4 md:p-6 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01] hover:border-blue-300 active:scale-[0.99] min-h-[44px] touch-manipulation"
+            >
+              {/* Background gradient on hover */}
+              <div className={`absolute inset-0 bg-gradient-to-br ${section.color} opacity-0 group-hover:opacity-5 transition-opacity duration-200`} />
+
+              {/* Content */}
+              <div className="relative">
+                {/* Icon and Count */}
+                <div className="flex items-start justify-between mb-3 md:mb-4">
+                  <div className={`rounded-lg bg-gradient-to-br ${section.color} p-2.5 md:p-3 text-white shadow-md group-hover:shadow-lg transition-all duration-200`}>
+                    <Icon path={section.icon} className="h-5 w-5 md:h-6 md:w-6" />
+                  </div>
+                  <span className={`text-xs font-medium px-2 py-1 rounded-full transition-all duration-200 ${countsLoading
+                      ? "bg-gray-200 text-gray-400 animate-pulse"
+                      : "bg-gray-100 text-gray-500"
+                    }`}>
+                    {countText}
+                  </span>
+                </div>
+
+                {/* Title and Description */}
+                <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-1 group-hover:text-gray-800">
+                  {section.title}
+                </h3>
+                <p className="text-xs md:text-sm text-gray-600 line-clamp-2">
+                  {section.description}
+                </p>
+
+                {/* Arrow indicator */}
+                <div className="mt-3 md:mt-4 flex items-center text-gray-400 group-hover:text-gray-600 transition-colors">
+                  <span className="text-xs md:text-sm font-medium">Verwalten</span>
+                  <Icon
+                    path="M9 5l7 7-7 7"
+                    className="ml-2 h-3.5 w-3.5 md:h-4 md:w-4 transition-transform duration-200 group-hover:translate-x-1"
+                  />
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+export default function DatabasePage() {
+  return (
+    <ResponsiveLayout>
+      <Suspense
+        fallback={
+          <div className="flex min-h-[50vh] items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-8 w-8 md:h-12 md:w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+              <p className="text-sm md:text-base text-gray-600">Daten werden geladen...</p>
+            </div>
+          </div>
+        }
+      >
+        <DatabaseContent />
+      </Suspense>
     </ResponsiveLayout>
   );
 }

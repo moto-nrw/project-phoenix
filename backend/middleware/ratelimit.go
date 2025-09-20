@@ -94,12 +94,12 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 				w.Header().Set("X-RateLimit-Remaining", "0")
 				w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", time.Now().Add(time.Minute).Unix()))
 				w.Header().Set("Retry-After", "60")
-				
+
 				// Log rate limit violation if logger is available
 				if rl.logger != nil {
 					rl.logger.LogRateLimitExceeded(r)
 				}
-				
+
 				http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
 				return
 			}

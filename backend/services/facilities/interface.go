@@ -26,10 +26,17 @@ type Service interface {
 	// Advanced operations
 	CheckRoomAvailability(ctx context.Context, roomID int64, requiredCapacity int) (bool, error)
 	GetAvailableRooms(ctx context.Context, capacity int) ([]*facilities.Room, error)
+	GetAvailableRoomsWithOccupancy(ctx context.Context, capacity int) ([]RoomWithOccupancy, error)
 	GetRoomUtilization(ctx context.Context, roomID int64) (float64, error)
 	GetBuildingList(ctx context.Context) ([]string, error)
 	GetCategoryList(ctx context.Context) ([]string, error)
 	GetRoomHistory(ctx context.Context, roomID int64, startTime, endTime time.Time) ([]RoomHistoryEntry, error)
+}
+
+// RoomWithOccupancy represents a room with its current occupancy status
+type RoomWithOccupancy struct {
+	*facilities.Room
+	IsOccupied bool `json:"is_occupied"`
 }
 
 // RoomHistoryEntry represents a single room history entry

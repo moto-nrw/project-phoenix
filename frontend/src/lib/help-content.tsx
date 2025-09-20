@@ -432,7 +432,7 @@ export const NAVIGATION_HELP: Record<string, { title: string; content: ReactNode
                         </div>
                         <div className="flex items-center space-x-2">
                             <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
-                            <span><strong>Zuhause:</strong> Kind wurde abgeholt oder ist abgemeldet</span>
+                            <span><strong>Zuhause:</strong> Kind wurde abgeholt oder ist zuhause</span>
                         </div>
                     </div>
                 </div>
@@ -824,8 +824,8 @@ export const NAVIGATION_HELP: Record<string, { title: string; content: ReactNode
                         <div className="flex items-start space-x-3">
                             <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2 flex-shrink-0"></span>
                             <div>
-                                <span className="font-medium text-gray-900">Lehrer verwalten</span>
-                                <p className="text-sm text-gray-600">Lehrer- und Betreuerdaten organisieren</p>
+                                <span className="font-medium text-gray-900">Pädagogische Fachkräfte verwalten</span>
+                                <p className="text-sm text-gray-600">Daten der pädagogischen Fachkräfte und Betreuerdaten organisieren</p>
                             </div>
                         </div>
                     </div>
@@ -849,6 +849,89 @@ export const NAVIGATION_HELP: Record<string, { title: string; content: ReactNode
                         <div className="flex items-center space-x-2">
                             <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
                             <span><strong>Beziehungen verwalten:</strong> Verknüpfungen zwischen Datensätzen pflegen</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )
+    },
+    "/staff": {
+        title: "Mitarbeiter Hilfe",
+        content: (
+            <div className="space-y-6">
+                <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+                        <span className="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
+                        Personalübersicht
+                    </h3>
+                    <p className="text-gray-700 leading-relaxed">
+                        Verschaffen Sie sich einen schnellen Überblick über alle Mitarbeiter und deren aktuellen Einsatzort im Ganztag.
+                    </p>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-900 mb-3">Verfügbare Informationen</h4>
+                    <div className="grid gap-3">
+                        <div className="flex items-start space-x-3">
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2 flex-shrink-0"></span>
+                            <div>
+                                <span className="font-medium text-gray-900">Mitarbeiterübersicht</span>
+                                <p className="text-sm text-gray-600">Alle pädagogischen Fachkräfte auf einen Blick</p>
+                            </div>
+                        </div>
+                        <div className="flex items-start space-x-3">
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2 flex-shrink-0"></span>
+                            <div>
+                                <span className="font-medium text-gray-900">Einsatzorte</span>
+                                <p className="text-sm text-gray-600">Aktueller Aufenthaltsort und betreute Räume/Gruppen</p>
+                            </div>
+                        </div>
+                        <div className="flex items-start space-x-3">
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2 flex-shrink-0"></span>
+                            <div>
+                                <span className="font-medium text-gray-900">Qualifikationen</span>
+                                <p className="text-sm text-gray-600">Spezialisierungen und Zusatzqualifikationen</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-900 mb-3">Statusanzeigen</h4>
+                    <div className="space-y-2 text-sm">
+                        <div className="flex items-center space-x-2">
+                            <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                            <span><strong>Zuhause:</strong> Mitarbeiter ist nicht im Dienst</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                            <span><strong>Im Raum:</strong> Mitarbeiter betreut einen spezifischen Raum</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                            <span><strong>Schulhof:</strong> Mitarbeiter beaufsichtigt den Außenbereich</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                            <span><strong>Unterwegs:</strong> Mitarbeiter ist zwischen Räumen oder in Bewegung</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-900 mb-3">Funktionen</h4>
+                    <div className="space-y-2 text-sm">
+                        <div className="flex items-center space-x-2">
+                            <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                            <span><strong>Suche:</strong> Mitarbeiter nach Namen suchen</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                            <span><strong>Filter:</strong> Nach Aufenthaltsort filtern</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                            <span><strong>Informationskarten:</strong> Nur zur Ansicht - keine Navigation</span>
                         </div>
                     </div>
                 </div>

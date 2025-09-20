@@ -65,6 +65,9 @@ type PersonRepository interface {
 
 	// UnlinkFromRFIDCard removes RFID card association from a person
 	UnlinkFromRFIDCard(ctx context.Context, personID int64) error
+
+	// FindWithAccount retrieves a person with their associated account
+	FindWithAccount(ctx context.Context, id int64) (*Person, error)
 }
 
 // StudentRepository defines operations for managing students
@@ -99,6 +102,9 @@ type StudentRepository interface {
 	// ListWithOptions retrieves students with query options
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Student, error)
 
+	// CountWithOptions counts students matching the query options
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+
 	// UpdateLocation updates a student's location status
 	UpdateLocation(ctx context.Context, id int64, location string) error
 
@@ -107,6 +113,12 @@ type StudentRepository interface {
 
 	// RemoveFromGroup removes a student from their group
 	RemoveFromGroup(ctx context.Context, studentID int64) error
+
+	// FindByTeacherID retrieves students supervised by a teacher (through group assignments)
+	FindByTeacherID(ctx context.Context, teacherID int64) ([]*Student, error)
+
+	// FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
+	FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*StudentWithGroupInfo, error)
 }
 
 // StaffRepository defines operations for managing staff members
@@ -131,6 +143,9 @@ type StaffRepository interface {
 
 	// UpdateNotes updates staff notes
 	UpdateNotes(ctx context.Context, id int64, notes string) error
+
+	// FindWithPerson retrieves a staff member with their associated person data
+	FindWithPerson(ctx context.Context, id int64) (*Staff, error)
 }
 
 // TeacherRepository defines operations for managing teachers

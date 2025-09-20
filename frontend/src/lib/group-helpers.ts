@@ -78,6 +78,13 @@ export interface Group {
     room_name?: string;
     representative_id?: string;
     representative_name?: string;
+    representative?: {
+        id: string;
+        staffId: string;
+        firstName: string;
+        lastName: string;
+        fullName: string;
+    };
     student_count?: number;
     supervisor_count?: number;
     created_at?: string;
@@ -122,6 +129,17 @@ export function mapGroupResponse(backendGroup: BackendGroup): Group {
         updated_at: backendGroup.updated_at,
     };
     
+    // Map the representative if available
+    if (backendGroup.representative) {
+        group.representative = {
+            id: String(backendGroup.representative.id),
+            staffId: String(backendGroup.representative.staff_id),
+            firstName: backendGroup.representative.first_name,
+            lastName: backendGroup.representative.last_name,
+            fullName: backendGroup.representative.full_name,
+        };
+    }
+    
     // If the backend group has students, map them to StudentForGroup objects
     if (Array.isArray(backendGroup.students)) {
         group.students = backendGroup.students.map(student => ({
@@ -138,6 +156,9 @@ export function mapGroupResponse(backendGroup: BackendGroup): Group {
             id: String(teacher.id),
             name: teacher.full_name
         }));
+        
+        // Extract teacher IDs for form population
+        group.teacher_ids = backendGroup.teachers.map(teacher => String(teacher.id));
     }
     
     return group;

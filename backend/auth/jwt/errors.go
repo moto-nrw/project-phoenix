@@ -36,7 +36,7 @@ func ErrUnauthorized(err error) render.Renderer {
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: http.StatusUnauthorized,
-		StatusText:     http.StatusText(http.StatusUnauthorized),
+		StatusText:     "error",
 		ErrorText:      err.Error(),
 	}
 }

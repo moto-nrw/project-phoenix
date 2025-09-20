@@ -6,119 +6,16 @@ import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "@/components/dashboard";
 import { Input } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
+import { substitutionService } from "~/lib/substitution-api";
+import { groupService } from "~/lib/api";
+import type { Group } from "~/lib/api";
+import type { Substitution, TeacherAvailability } from "~/lib/substitution-helpers";
+import { formatTeacherName, getTeacherStatus } from "~/lib/substitution-helpers";
 
-// Teacher type based on DB schema seen in the migrations
-interface Teacher {
-    id: string;
-    first_name: string;
-    second_name: string;
-    regular_group?: string;  // OGS-Gruppe, von der die Person Leiter/in ist
-    role?: string;           // Position (e.g. "Gruppenleiter/in")
-    in_substitution: boolean;
-    current_group?: string;  // Wenn in Vertretung, für welche Gruppe
-}
-
-// Group type based on DB schema
-interface Group {
-    id: string;
-    name: string;
-    regular_staff_id?: string;
-    regular_staff_name?: string;
-    substitute_staff_id?: string;
-    substitute_staff_name?: string;
-}
-
-// Demo data for teachers
-const exampleTeachers: Teacher[] = [
-    {
-        id: "1",
-        first_name: "Anna",
-        second_name: "Lehmann",
-        regular_group: "Bären",
-        role: "Gruppenleiter/in",
-        in_substitution: false
-    },
-    {
-        id: "2",
-        first_name: "Thomas",
-        second_name: "Meyer",
-        regular_group: "Wölfe",
-        role: "Gruppenleiter/in",
-        in_substitution: true,
-        current_group: "Bären"
-    },
-    {
-        id: "3",
-        first_name: "Sarah",
-        second_name: "Schneider",
-        regular_group: "Füchse",
-        role: "Gruppenleiter/in",
-        in_substitution: false
-    },
-    {
-        id: "4",
-        first_name: "Michael",
-        second_name: "Fischer",
-        role: "Pädagogische Fachkraft",
-        in_substitution: false
-    },
-    {
-        id: "5",
-        first_name: "Laura",
-        second_name: "Weber",
-        regular_group: "Eulen",
-        role: "Gruppenleiter/in",
-        in_substitution: true,
-        current_group: "Eulen"
-    },
-    {
-        id: "6",
-        first_name: "Daniel",
-        second_name: "Schmidt",
-        role: "Pädagogische Fachkraft",
-        in_substitution: false
-    }
-];
-
-// Demo data for groups
-const exampleGroups: Group[] = [
-    {
-        id: "g1",
-        name: "Bären",
-        regular_staff_id: "8",
-        regular_staff_name: "Petra Müller",
-        substitute_staff_id: "2",
-        substitute_staff_name: "Thomas Meyer"
-    },
-    {
-        id: "g2",
-        name: "Füchse",
-        regular_staff_id: "9",
-        regular_staff_name: "Martin Wagner",
-        substitute_staff_id: "",
-        substitute_staff_name: ""
-    },
-    {
-        id: "g3",
-        name: "Eulen",
-        regular_staff_id: "10",
-        regular_staff_name: "Julia Hoffmann",
-        substitute_staff_id: "5",
-        substitute_staff_name: "Laura Weber"
-    },
-    {
-        id: "g4",
-        name: "Wölfe",
-        regular_staff_id: "11",
-        regular_staff_name: "Stefan Koch",
-        substitute_staff_id: "",
-        substitute_staff_name: ""
-    }
-];
 
 export default function SubstitutionPage() {
     const router = useRouter();
-    const { data: session, status } = useSession({
+    const { status } = useSession({
         required: true,
         onUnauthenticated() {
             router.push("/");
@@ -126,8 +23,9 @@ export default function SubstitutionPage() {
     });
 
     // States
-    const [teachers, setTeachers] = useState<Teacher[]>([]);
+    const [teachers, setTeachers] = useState<TeacherAvailability[]>([]);
     const [groups, setGroups] = useState<Group[]>([]);
+    const [activeSubstitutions, setActiveSubstitutions] = useState<Substitution[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -135,7 +33,7 @@ export default function SubstitutionPage() {
 
     // Popup states
     const [showPopup, setShowPopup] = useState(false);
-    const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
+    const [selectedTeacher, setSelectedTeacher] = useState<TeacherAvailability | null>(null);
     const [selectedGroup, setSelectedGroup] = useState("");
     const [substitutionDays, setSubstitutionDays] = useState(1);
 
@@ -147,46 +45,40 @@ export default function SubstitutionPage() {
         setError(null);
 
         try {
-            // Simulate API request with example data
-            setTimeout(() => {
-                let filteredTeachers = [...exampleTeachers];
-
-                // Filter by search term
-                if (filters?.search) {
-                    const searchLower = filters.search.toLowerCase();
-                    filteredTeachers = filteredTeachers.filter(teacher =>
-                        teacher.first_name.toLowerCase().includes(searchLower) ||
-                        teacher.second_name.toLowerCase().includes(searchLower)
-                    );
-                }
-
-                setTeachers(filteredTeachers);
-                setIsLoading(false);
-            }, 500);
+            const availableTeachers = await substitutionService.fetchAvailableTeachers(
+                new Date(), // Current date
+                filters?.search
+            );
+            setTeachers(availableTeachers);
         } catch (err) {
             console.error("Error fetching teachers:", err);
             setError("Fehler beim Laden der Lehrerdaten.");
             setTeachers([]);
+        } finally {
             setIsLoading(false);
         }
     }, []);
 
     // Fetch groups data
     const fetchGroups = useCallback(async () => {
-        setIsLoading(true);
-        setError(null);
-
         try {
-            // Simulate API request with example data
-            setTimeout(() => {
-                setGroups(exampleGroups);
-                setIsLoading(false);
-            }, 500);
+            const allGroups = await groupService.getGroups();
+            setGroups(allGroups);
         } catch (err) {
             console.error("Error fetching groups:", err);
             setError("Fehler beim Laden der Gruppendaten.");
             setGroups([]);
-            setIsLoading(false);
+        }
+    }, []);
+
+    // Fetch active substitutions
+    const fetchActiveSubstitutions = useCallback(async () => {
+        try {
+            const substitutions = await substitutionService.fetchActiveSubstitutions(new Date());
+            setActiveSubstitutions(substitutions);
+        } catch (err) {
+            console.error("Error fetching active substitutions:", err);
+            // Don't set error for substitutions, just log it
         }
     }, []);
 
@@ -194,7 +86,8 @@ export default function SubstitutionPage() {
     useEffect(() => {
         void fetchTeachers();
         void fetchGroups();
-    }, [fetchTeachers, fetchGroups]);
+        void fetchActiveSubstitutions();
+    }, [fetchTeachers, fetchGroups, fetchActiveSubstitutions]);
 
     // Handle search
     const handleSearch = () => {
@@ -216,7 +109,7 @@ export default function SubstitutionPage() {
     };
 
     // Open popup for substitution assignment
-    const openSubstitutionPopup = (teacher: Teacher) => {
+    const openSubstitutionPopup = (teacher: TeacherAvailability) => {
         setSelectedTeacher(teacher);
         setSelectedGroup("");
         setSubstitutionDays(1);
@@ -230,42 +123,56 @@ export default function SubstitutionPage() {
     };
 
     // Handle substitution assignment
-    const handleAssignSubstitution = () => {
+    const handleAssignSubstitution = async () => {
         if (!selectedTeacher || !selectedGroup) {
             setError("Bitte wählen Sie eine Gruppe aus.");
             return;
         }
 
-        // Simulate substitution assignment
-        console.log(`Assigning ${selectedTeacher.first_name} ${selectedTeacher.second_name} to ${selectedGroup} for ${substitutionDays} days`);
+        try {
+            setIsLoading(true);
+            setError(null);
 
-        // Update teacher's substitution status
-        const updatedTeachers = teachers.map(teacher => {
-            if (teacher.id === selectedTeacher.id) {
-                return {
-                    ...teacher,
-                    in_substitution: true,
-                    current_group: selectedGroup
-                };
+            // Find the selected group to get its ID and representative
+            const group = groups.find(g => g.name === selectedGroup);
+            if (!group) {
+                setError("Gruppe nicht gefunden.");
+                return;
             }
-            return teacher;
-        });
 
-        // Update group's substitute data
-        const updatedGroups = groups.map(group => {
-            if (group.name === selectedGroup) {
-                return {
-                    ...group,
-                    substitute_staff_id: selectedTeacher.id,
-                    substitute_staff_name: `${selectedTeacher.first_name} ${selectedTeacher.second_name}`
-                };
-            }
-            return group;
-        });
+            // For general group coverage, we don't need to specify who is being replaced
+            // Pass null for regularStaffId to indicate this is general coverage, not a specific replacement
+            const regularStaffId = null;
 
-        setTeachers(updatedTeachers);
-        setGroups(updatedGroups);
-        closePopup();
+            // Calculate end date based on substitution days
+            const startDate = new Date();
+            const endDate = new Date();
+            endDate.setDate(endDate.getDate() + substitutionDays - 1);
+
+            // Create the substitution
+            await substitutionService.createSubstitution(
+                group.id,
+                regularStaffId,
+                selectedTeacher.id,
+                startDate,
+                endDate,
+                "Vertretung", // reason
+                `Vertretung für ${substitutionDays} Tag(e)` // notes
+            );
+
+            // Refresh data
+            await Promise.all([
+                fetchTeachers(),
+                fetchActiveSubstitutions()
+            ]);
+
+            closePopup();
+        } catch (err) {
+            console.error("Error creating substitution:", err);
+            setError("Fehler beim Zuweisen der Vertretung.");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     if (status === "loading") {
@@ -278,12 +185,12 @@ export default function SubstitutionPage() {
 
 
     return (
-        <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
+        <ResponsiveLayout>
             <div className="max-w-7xl mx-auto">
                 {/* Mobile-optimized Header */}
                 <div className="mb-4 md:mb-8">
                     <h1 className="text-2xl md:text-4xl font-bold text-gray-900">Vertretungsverwaltung</h1>
-                    <p className="mt-1 text-sm md:text-base text-gray-600">Verwalte Lehrkräfte und Vertretungszuweisungen</p>
+                    <p className="mt-1 text-sm md:text-base text-gray-600">Verwalte pädagogische Fachkräfte und Vertretungszuweisungen</p>
                 </div>
 
                 {/* Mobile Search Bar - Always Visible */}
@@ -291,7 +198,7 @@ export default function SubstitutionPage() {
                     <Input
                         label="Schnellsuche"
                         name="searchTerm"
-                        placeholder="Lehrkraft suchen..."
+                        placeholder="Pädagogische Fachkraft suchen..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="text-base" // Prevent iOS zoom
@@ -356,7 +263,7 @@ export default function SubstitutionPage() {
                 {/* Teachers Results Section */}
                 <div className="mb-6 md:mb-8 overflow-hidden rounded-xl bg-white/90 shadow-md backdrop-blur-sm">
                     <div className="p-4 md:p-6">
-                        <h2 className="mb-4 md:mb-6 text-lg md:text-xl font-bold text-gray-800">Verfügbare Lehrkräfte</h2>
+                        <h2 className="mb-4 md:mb-6 text-lg md:text-xl font-bold text-gray-800">Verfügbare pädagogische Fachkräfte</h2>
 
                         {error && (
                             <div className="mb-4 md:mb-6">
@@ -384,18 +291,18 @@ export default function SubstitutionPage() {
                                                 <div className="flex items-start justify-between mb-3">
                                                     <div className="flex items-center space-x-3 flex-1 min-w-0">
                                                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-teal-400 to-blue-500 font-medium text-white flex-shrink-0">
-                                                            {(teacher.first_name?.charAt(0) || "L").toUpperCase()}
+                                                            {(teacher.firstName?.charAt(0) || "L").toUpperCase()}
                                                         </div>
                                                         <div className="flex flex-col min-w-0 flex-1">
                                                             <span className="font-medium text-gray-900 truncate">
-                                                                {teacher.first_name} {teacher.second_name}
+                                                                {formatTeacherName(teacher)}
                                                             </span>
                                                             <span className="text-sm text-gray-500 truncate">
                                                                 {teacher.role}
                                                             </span>
-                                                            {teacher.regular_group && (
+                                                            {teacher.regularGroup && (
                                                                 <span className="text-sm text-gray-500 truncate">
-                                                                    OGS-Gruppe: {teacher.regular_group}
+                                                                    OGS-Gruppe: {teacher.regularGroup}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -404,11 +311,9 @@ export default function SubstitutionPage() {
 
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center">
-                                                        <span className={`h-3 w-3 rounded-full ${teacher.in_substitution ? "bg-orange-500" : "bg-green-500"} mr-2`}></span>
+                                                        <span className={`h-3 w-3 rounded-full ${teacher.inSubstitution ? "bg-orange-500" : "bg-green-500"} mr-2`}></span>
                                                         <span className="text-sm text-gray-600">
-                                                            {teacher.in_substitution
-                                                                ? `In Vertretung: ${teacher.current_group}`
-                                                                : "Verfügbar"}
+                                                            {getTeacherStatus(teacher)}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -416,14 +321,14 @@ export default function SubstitutionPage() {
                                                 <div className="mt-3">
                                                     <button
                                                         onClick={() => openSubstitutionPopup(teacher)}
-                                                        disabled={teacher.in_substitution}
+                                                        disabled={teacher.inSubstitution}
                                                         className={`w-full rounded-lg px-4 py-3 text-sm font-medium shadow-sm transition-all ${
-                                                            teacher.in_substitution
+                                                            teacher.inSubstitution
                                                                 ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                                                                 : "bg-gradient-to-r from-teal-500 to-blue-600 text-white hover:from-teal-600 hover:to-blue-700 hover:shadow-md active:scale-[0.98]"
                                                         }`}
                                                     >
-                                                        {teacher.in_substitution ? "In Vertretung" : "Vertretung zuweisen"}
+                                                        {teacher.inSubstitution ? "In Vertretung" : "Vertretung zuweisen"}
                                                     </button>
                                                 </div>
                                             </div>
@@ -432,15 +337,15 @@ export default function SubstitutionPage() {
                                             <div className="hidden md:flex items-center justify-between">
                                                 <div className="flex items-center space-x-3">
                                                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-teal-400 to-blue-500 font-medium text-white">
-                                                        {(teacher.first_name?.charAt(0) || "L").toUpperCase()}
+                                                        {(teacher.firstName?.charAt(0) || "L").toUpperCase()}
                                                     </div>
 
                                                     <div className="flex flex-col">
                                                         <span className="font-medium text-gray-900">
-                                                            {teacher.first_name} {teacher.second_name}
+                                                            {formatTeacherName(teacher)}
                                                         </span>
                                                         <span className="text-sm text-gray-500">
-                                                            {teacher.role}{teacher.regular_group ? ` | OGS-Gruppe: ${teacher.regular_group}` : ''}
+                                                            {teacher.role}{teacher.regularGroup ? ` | OGS-Gruppe: ${teacher.regularGroup}` : ''}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -448,24 +353,22 @@ export default function SubstitutionPage() {
                                                 <div className="flex items-center space-x-4">
                                                     {/* Status indicator */}
                                                     <div className="flex items-center">
-                                                        <span className={`h-3 w-3 rounded-full ${teacher.in_substitution ? "bg-orange-500" : "bg-green-500"} mr-2`}></span>
+                                                        <span className={`h-3 w-3 rounded-full ${teacher.inSubstitution ? "bg-orange-500" : "bg-green-500"} mr-2`}></span>
                                                         <span className="text-sm text-gray-600">
-                                                            {teacher.in_substitution
-                                                                ? `In Vertretung: ${teacher.current_group}`
-                                                                : "Verfügbar"}
+                                                            {getTeacherStatus(teacher)}
                                                         </span>
                                                     </div>
 
                                                     <button
                                                         onClick={() => openSubstitutionPopup(teacher)}
-                                                        disabled={teacher.in_substitution}
+                                                        disabled={teacher.inSubstitution}
                                                         className={`rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition-all ${
-                                                            teacher.in_substitution
+                                                            teacher.inSubstitution
                                                                 ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                                                                 : "bg-gradient-to-r from-teal-500 to-blue-600 text-white hover:from-teal-600 hover:to-blue-700 hover:shadow-md"
                                                         }`}
                                                     >
-                                                        {teacher.in_substitution ? "In Vertretung" : "Vertretung zuweisen"}
+                                                        {teacher.inSubstitution ? "In Vertretung" : "Vertretung zuweisen"}
                                                     </button>
                                                 </div>
                                             </div>
@@ -478,7 +381,7 @@ export default function SubstitutionPage() {
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                             </svg>
                                             <div>
-                                                <h3 className="text-lg font-medium text-gray-900">Keine Lehrkräfte gefunden</h3>
+                                                <h3 className="text-lg font-medium text-gray-900">Keine pädagogischen Fachkräfte gefunden</h3>
                                                 <p className="text-gray-600">Versuche deine Suchkriterien anzupassen.</p>
                                             </div>
                                         </div>
@@ -495,12 +398,15 @@ export default function SubstitutionPage() {
                         <h2 className="mb-4 md:mb-6 text-lg md:text-xl font-bold text-gray-800">Aktuelle Vertretungen</h2>
 
                         <div className="space-y-3">
-                            {groups.some(group => group.substitute_staff_id) ? (
-                                groups
-                                    .filter(group => group.substitute_staff_id)
-                                    .map((group) => (
+                            {activeSubstitutions.length > 0 ? (
+                                activeSubstitutions.map((substitution) => {
+                                    // Find the group for this substitution
+                                    const group = groups.find(g => g.id === substitution.groupId);
+                                    if (!group) return null;
+                                    
+                                    return (
                                         <div
-                                            key={group.id}
+                                            key={substitution.id}
                                             className="rounded-lg border border-gray-100 bg-white p-4 shadow-sm"
                                         >
                                             {/* Mobile Layout - Stacked */}
@@ -514,7 +420,7 @@ export default function SubstitutionPage() {
                                                             Gruppe: {group.name}
                                                         </span>
                                                         <span className="text-sm text-gray-500">
-                                                            Reguläre Lehrkraft: {group.regular_staff_name}
+                                                            {substitution.groupName ?? group.name}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -522,39 +428,28 @@ export default function SubstitutionPage() {
                                                 <div className="mb-3">
                                                     <span className="text-sm text-gray-600">Vertretung durch:</span>
                                                     <span className="block font-medium text-gray-900">
-                                                        {group.substitute_staff_name}
+                                                        {substitution.substituteStaffName}
                                                     </span>
                                                 </div>
 
                                                 <button
-                                                    onClick={() => {
-                                                        // Simulate ending substitution
-                                                        const updatedGroups = groups.map(g => {
-                                                            if (g.id === group.id) {
-                                                                return {
-                                                                    ...g,
-                                                                    substitute_staff_id: "",
-                                                                    substitute_staff_name: ""
-                                                                };
-                                                            }
-                                                            return g;
-                                                        });
-
-                                                        const updatedTeachers = teachers.map(teacher => {
-                                                            if (teacher.id === group.substitute_staff_id) {
-                                                                return {
-                                                                    ...teacher,
-                                                                    in_substitution: false,
-                                                                    current_group: undefined
-                                                                };
-                                                            }
-                                                            return teacher;
-                                                        });
-
-                                                        setGroups(updatedGroups);
-                                                        setTeachers(updatedTeachers);
+                                                    onClick={async () => {
+                                                        try {
+                                                            setIsLoading(true);
+                                                            await substitutionService.deleteSubstitution(substitution.id);
+                                                            await Promise.all([
+                                                                fetchTeachers(),
+                                                                fetchActiveSubstitutions()
+                                                            ]);
+                                                        } catch (err) {
+                                                            console.error("Error ending substitution:", err);
+                                                            setError("Fehler beim Beenden der Vertretung.");
+                                                        } finally {
+                                                            setIsLoading(false);
+                                                        }
                                                     }}
                                                     className="w-full rounded-lg bg-red-100 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-200 transition-colors active:scale-[0.98]"
+                                                    disabled={isLoading}
                                                 >
                                                     Vertretung beenden
                                                 </button>
@@ -572,51 +467,41 @@ export default function SubstitutionPage() {
                                                             Gruppe: {group.name}
                                                         </span>
                                                         <span className="text-sm text-gray-500">
-                                                            Reguläre Lehrkraft: {group.regular_staff_name}
+                                                            {substitution.groupName ?? group.name}
                                                         </span>
                                                     </div>
                                                 </div>
 
                                                 <div className="flex flex-col">
                                                     <span className="font-medium text-gray-900">
-                                                        Vertretung: {group.substitute_staff_name}
+                                                        Vertretung: {substitution.substituteStaffName}
                                                     </span>
                                                     <button
-                                                        onClick={() => {
-                                                            // Simulate ending substitution
-                                                            const updatedGroups = groups.map(g => {
-                                                                if (g.id === group.id) {
-                                                                    return {
-                                                                        ...g,
-                                                                        substitute_staff_id: "",
-                                                                        substitute_staff_name: ""
-                                                                    };
-                                                                }
-                                                                return g;
-                                                            });
-
-                                                            const updatedTeachers = teachers.map(teacher => {
-                                                                if (teacher.id === group.substitute_staff_id) {
-                                                                    return {
-                                                                        ...teacher,
-                                                                        in_substitution: false,
-                                                                        current_group: undefined
-                                                                    };
-                                                                }
-                                                                return teacher;
-                                                            });
-
-                                                            setGroups(updatedGroups);
-                                                            setTeachers(updatedTeachers);
+                                                        onClick={async () => {
+                                                            try {
+                                                                setIsLoading(true);
+                                                                await substitutionService.deleteSubstitution(substitution.id);
+                                                                await Promise.all([
+                                                                    fetchTeachers(),
+                                                                    fetchActiveSubstitutions()
+                                                                ]);
+                                                            } catch (err) {
+                                                                console.error("Error ending substitution:", err);
+                                                                setError("Fehler beim Beenden der Vertretung.");
+                                                            } finally {
+                                                                setIsLoading(false);
+                                                            }
                                                         }}
                                                         className="mt-2 rounded-lg bg-red-100 px-4 py-1 text-sm font-medium text-red-600 hover:bg-red-200 transition-colors"
+                                                        disabled={isLoading}
                                                     >
                                                         Vertretung beenden
                                                     </button>
                                                 </div>
                                             </div>
                                         </div>
-                                    ))
+                                    );
+                                })
                             ) : (
                                 <div className="py-8 text-center">
                                     <div className="flex flex-col items-center gap-4">
@@ -643,8 +528,8 @@ export default function SubstitutionPage() {
                             <h2 className="mb-4 text-lg md:text-xl font-bold text-gray-800">Vertretung zuweisen</h2>
 
                             <div className="mb-6">
-                                <p className="mb-2 text-sm font-medium text-gray-700">Lehrkraft:</p>
-                                <p className="font-medium text-gray-900">{selectedTeacher.first_name} {selectedTeacher.second_name}</p>
+                                <p className="mb-2 text-sm font-medium text-gray-700">Pädagogische Fachkraft:</p>
+                                <p className="font-medium text-gray-900">{formatTeacherName(selectedTeacher)}</p>
                             </div>
 
                             {/* Group selection */}

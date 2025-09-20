@@ -12,9 +12,9 @@ export async function POST(_request: NextRequest) {
   try {
     const session = await auth();
 
-    if (!session?.user?.token) {
+    if (!session?.user?.refreshToken) {
       return NextResponse.json(
-        { error: "No valid session found" },
+        { error: "No refresh token found" },
         { status: 401 },
       );
     }
@@ -22,19 +22,23 @@ export async function POST(_request: NextRequest) {
     // Check for roles - continue even if no roles present
 
     // Send refresh token request to backend
+    // Use server URL in server context (Docker environment)
+    const apiUrl = env.NEXT_PUBLIC_API_URL;
+    
+    // The backend expects the refresh token in Authorization header
     const backendResponse = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/auth/refresh`,
+      `${apiUrl}/auth/refresh`,
       {
         method: "POST",
         headers: {
+          "Authorization": `Bearer ${session.user.refreshToken}`,
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.user.token}`,
         },
-        body: JSON.stringify({ refresh_token: session.user.refreshToken }),
       },
     );
 
     if (!backendResponse.ok) {
+      console.error(`Backend refresh failed: ${backendResponse.status}`);
       return NextResponse.json(
         { error: "Failed to refresh token" },
         { status: backendResponse.status },
@@ -42,12 +46,21 @@ export async function POST(_request: NextRequest) {
     }
 
     const tokens = (await backendResponse.json()) as TokenResponse;
+    
+    console.log("Backend token refresh successful:", {
+      access_token: tokens.access_token.substring(0, 20) + "...",
+      refresh_token: tokens.refresh_token.substring(0, 20) + "...",
+    });
+    
+    // IMPORTANT: The new refresh token must be used for the next refresh
+    // The old refresh token is now invalid (deleted by backend)
 
     return NextResponse.json({
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
     });
-  } catch {
+  } catch (error) {
+    console.error("Token refresh error:", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },

@@ -21,6 +21,7 @@ interface BackendStaffResponse {
     last_name: string;
     email?: string;
     tag_id?: string;
+    account_id?: number;
     created_at: string;
     updated_at: string;
   };
@@ -73,10 +74,11 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     
     // Map the response data to match the Teacher interface from teacher-api.ts
     return {
-      id: String(staff.id),
+      id: String(staff.id), // This should be the staff ID since that's what we use for the API
       name: staff.person ? `${staff.person.first_name} ${staff.person.last_name}` : "",
       first_name: staff.person?.first_name ?? "",
       last_name: staff.person?.last_name ?? "",
+      email: staff.person?.email ?? undefined,  // Include email from person object
       specialization: staff.specialization ?? "",
       role: staff.role ?? null,
       qualifications: staff.qualifications ?? null,
@@ -86,6 +88,13 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       updated_at: staff.updated_at,
       // Include person_id for updates
       person_id: staff.person_id,
+      // Include account_id from person object
+      account_id: staff.person?.account_id,
+      // Include both IDs for debugging
+      staff_id: String(staff.id),
+      teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
+      // Include person object if available
+      person: staff.person,
     };
   } catch (error) {
     console.error("Error fetching staff member:", error);
@@ -99,6 +108,7 @@ interface TeacherResponse {
   name: string;
   first_name: string;
   last_name: string;
+  email?: string;
   specialization: string;
   role: string | null;
   qualifications: string | null;
@@ -107,6 +117,19 @@ interface TeacherResponse {
   created_at: string;
   updated_at: string;
   person_id?: number;
+  account_id?: number;
+  staff_id?: string;
+  teacher_id?: string;
+  person?: {
+    id: number;
+    first_name: string;
+    last_name: string;
+    email?: string;
+    tag_id?: string;
+    account_id?: number;
+    created_at: string;
+    updated_at: string;
+  };
 }
 
 /**
@@ -136,6 +159,7 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
         name: response.person ? `${response.person.first_name} ${response.person.last_name}` : "",
         first_name: response.person?.first_name ?? "",
         last_name: response.person?.last_name ?? "",
+        email: response.person?.email ?? undefined,  // Include email from person object
         specialization: response.specialization ?? "",
         role: response.role ?? null,
         qualifications: response.qualifications ?? null,
@@ -143,6 +167,12 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
         staff_notes: response.staff_notes ?? null,
         created_at: response.created_at,
         updated_at: response.updated_at,
+        // Include account_id from person object
+        account_id: response.person?.account_id,
+        // Include person_id for updates
+        person_id: response.person_id,
+        // Include person object if available
+        person: response.person,
       };
     } catch (error) {
       // Check for permission errors (403 Forbidden)

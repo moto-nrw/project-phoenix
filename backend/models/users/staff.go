@@ -20,16 +20,13 @@ type Staff struct {
 
 func (s *Staff) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("users.staff")
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("users.staff")
+		q.ModelTableExpr(`users.staff AS "staff"`)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("users.staff")
+		q.ModelTableExpr(`users.staff AS "staff"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("users.staff")
+		q.ModelTableExpr(`users.staff AS "staff"`)
 	}
 	return nil
 }
@@ -87,3 +84,6 @@ func (m *Staff) GetCreatedAt() time.Time {
 func (m *Staff) GetUpdatedAt() time.Time {
 	return m.UpdatedAt
 }
+
+// PIN-related functionality has been moved to auth.Account model
+// This simplifies the architecture by centralizing all authentication data

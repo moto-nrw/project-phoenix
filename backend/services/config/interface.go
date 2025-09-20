@@ -37,6 +37,11 @@ type Service interface {
 	RequiresRestart(ctx context.Context) (bool, error)
 	RequiresDatabaseReset(ctx context.Context) (bool, error)
 
+	// Timeout configuration operations
+	GetTimeoutSettings(ctx context.Context) (*config.TimeoutSettings, error)
+	UpdateTimeoutSettings(ctx context.Context, settings *config.TimeoutSettings) error
+	GetDeviceTimeoutSettings(ctx context.Context, deviceID int64) (*config.TimeoutSettings, error)
+
 	// Transaction support
 	// WithTx is already defined in base.TransactionalService
 }

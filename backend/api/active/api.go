@@ -16,18 +16,25 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/facilities"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	userSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/uptrace/bun"
 )
 
 // Resource defines the active API resource
 type Resource struct {
 	ActiveService activeSvc.Service
+	PersonService userSvc.PersonService
+	db            *bun.DB
 }
 
 // NewResource creates a new active resource
-func NewResource(activeService activeSvc.Service) *Resource {
+func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, db *bun.DB) *Resource {
 	return &Resource{
 		ActiveService: activeService,
+		PersonService: personService,
+		db:            db,
 	}
 }
 
@@ -75,6 +82,9 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateVisit)
 			r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteVisit)
 			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post("/{id}/end", rs.endVisit)
+
+			// Immediate checkout for students
+			r.With(authorize.RequiresPermission(permissions.VisitsUpdate)).Post("/student/{studentId}/checkout", rs.checkoutStudent)
 		})
 
 		// Supervisors
@@ -124,6 +134,22 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/counts", rs.getCounts)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/room/{roomId}/utilization", rs.getRoomUtilization)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}/attendance", rs.getStudentAttendance)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/dashboard", rs.getDashboardAnalytics)
+		})
+
+		// Scheduled Checkouts
+		r.Route("/scheduled-checkouts", func(r chi.Router) {
+			// Create and cancel require visits update permission
+			r.With(authorize.RequiresPermission(permissions.VisitsUpdate)).Post("/", rs.createScheduledCheckout)
+			r.With(authorize.RequiresPermission(permissions.VisitsUpdate)).Delete("/{id}", rs.cancelScheduledCheckout)
+
+			// Read operations require read permissions
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getScheduledCheckout)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}", rs.getStudentScheduledCheckouts)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}/pending", rs.getPendingScheduledCheckout)
+
+			// Process endpoint requires admin permissions (for background job)
+			r.With(authorize.RequiresPermission(permissions.AdminWildcard)).Post("/process", rs.processScheduledCheckouts)
 		})
 	})
 
@@ -152,17 +178,31 @@ func VisitIDExtractor() authorize.ResourceExtractor {
 
 // ActiveGroupResponse represents an active group API response
 type ActiveGroupResponse struct {
-	ID              int64      `json:"id"`
-	GroupID         int64      `json:"group_id"`
-	RoomID          int64      `json:"room_id"`
-	StartTime       time.Time  `json:"start_time"`
-	EndTime         *time.Time `json:"end_time,omitempty"`
-	IsActive        bool       `json:"is_active"`
-	Notes           string     `json:"notes,omitempty"`
-	VisitCount      int        `json:"visit_count,omitempty"`
-	SupervisorCount int        `json:"supervisor_count,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	ID              int64                   `json:"id"`
+	GroupID         int64                   `json:"group_id"`
+	RoomID          int64                   `json:"room_id"`
+	StartTime       time.Time               `json:"start_time"`
+	EndTime         *time.Time              `json:"end_time,omitempty"`
+	IsActive        bool                    `json:"is_active"`
+	Notes           string                  `json:"notes,omitempty"`
+	VisitCount      int                     `json:"visit_count,omitempty"`
+	SupervisorCount int                     `json:"supervisor_count,omitempty"`
+	Supervisors     []GroupSupervisorSimple `json:"supervisors,omitempty"`
+	Room            *RoomSimple             `json:"room,omitempty"`
+	CreatedAt       time.Time               `json:"created_at"`
+	UpdatedAt       time.Time               `json:"updated_at"`
+}
+
+// GroupSupervisorSimple represents simplified supervisor info for active group response
+type GroupSupervisorSimple struct {
+	StaffID int64  `json:"staff_id"`
+	Role    string `json:"role,omitempty"`
+}
+
+// RoomSimple represents simplified room info for active group response
+type RoomSimple struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 }
 
 // VisitResponse represents a visit API response
@@ -226,6 +266,67 @@ type AnalyticsResponse struct {
 	ActiveVisitsCount int     `json:"active_visits_count,omitempty"`
 	RoomUtilization   float64 `json:"room_utilization,omitempty"`
 	AttendanceRate    float64 `json:"attendance_rate,omitempty"`
+}
+
+// DashboardAnalyticsResponse represents dashboard analytics API response
+type DashboardAnalyticsResponse struct {
+	// Student Overview
+	StudentsPresent      int `json:"students_present"`
+	StudentsInTransit    int `json:"students_in_transit"` // Students present but not in any active visit
+	StudentsOnPlayground int `json:"students_on_playground"`
+	StudentsInRooms      int `json:"students_in_rooms"` // Students in indoor rooms (excluding playground)
+
+	// Activities & Rooms
+	ActiveActivities    int     `json:"active_activities"`
+	FreeRooms           int     `json:"free_rooms"`
+	TotalRooms          int     `json:"total_rooms"`
+	CapacityUtilization float64 `json:"capacity_utilization"`
+	ActivityCategories  int     `json:"activity_categories"`
+
+	// OGS Groups
+	ActiveOGSGroups      int `json:"active_ogs_groups"`
+	StudentsInGroupRooms int `json:"students_in_group_rooms"`
+	SupervisorsToday     int `json:"supervisors_today"`
+	StudentsInHomeRoom   int `json:"students_in_home_room"`
+
+	// Recent Activity (Privacy-compliant)
+	RecentActivity []RecentActivityItem `json:"recent_activity"`
+
+	// Current Activities (No personal data)
+	CurrentActivities []CurrentActivityItem `json:"current_activities"`
+
+	// Active Groups Summary
+	ActiveGroupsSummary []ActiveGroupSummary `json:"active_groups_summary"`
+
+	// Timestamp
+	LastUpdated time.Time `json:"last_updated"`
+}
+
+// RecentActivityItem represents a recent activity without personal data
+type RecentActivityItem struct {
+	Type      string    `json:"type"`
+	GroupName string    `json:"group_name"`
+	RoomName  string    `json:"room_name"`
+	Count     int       `json:"count"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// CurrentActivityItem represents current activity status
+type CurrentActivityItem struct {
+	Name         string `json:"name"`
+	Category     string `json:"category"`
+	Participants int    `json:"participants"`
+	MaxCapacity  int    `json:"max_capacity"`
+	Status       string `json:"status"`
+}
+
+// ActiveGroupSummary represents active group summary
+type ActiveGroupSummary struct {
+	Name         string `json:"name"`
+	Type         string `json:"type"`
+	StudentCount int    `json:"student_count"`
+	Location     string `json:"location"`
+	Status       string `json:"status"`
 }
 
 // ===== Request Types =====
@@ -364,6 +465,22 @@ func newActiveGroupResponse(group *active.Group) ActiveGroupResponse {
 	}
 	if group.Supervisors != nil {
 		response.SupervisorCount = len(group.Supervisors)
+		// Add supervisor details
+		response.Supervisors = make([]GroupSupervisorSimple, 0, len(group.Supervisors))
+		for _, supervisor := range group.Supervisors {
+			response.Supervisors = append(response.Supervisors, GroupSupervisorSimple{
+				StaffID: supervisor.StaffID,
+				Role:    supervisor.Role,
+			})
+		}
+	}
+
+	// Add room info if available
+	if group.Room != nil {
+		response.Room = &RoomSimple{
+			ID:   group.Room.ID,
+			Name: group.Room.Name,
+		}
 	}
 
 	return response
@@ -469,8 +586,15 @@ func (rs *Resource) listActiveGroups(w http.ResponseWriter, r *http.Request) {
 	activeStr := r.URL.Query().Get("active")
 	if activeStr != "" {
 		isActive := activeStr == "true" || activeStr == "1"
-		queryOptions.Filter.Equal("is_active", isActive)
+		if isActive {
+			queryOptions.Filter.IsNull("end_time")
+		} else {
+			queryOptions.Filter.IsNotNull("end_time")
+		}
 	}
+
+	// Check if we should include supervisors
+	includeRelations := r.URL.Query().Get("active") == "true" || r.URL.Query().Get("is_active") == "true"
 
 	// Get active groups
 	groups, err := rs.ActiveService.ListActiveGroups(r.Context(), queryOptions)
@@ -479,6 +603,68 @@ func (rs *Resource) listActiveGroups(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
+	}
+
+	// If we need to include relations, load them
+	if includeRelations && len(groups) > 0 {
+		// Get room IDs to fetch
+		roomIDs := make([]int64, 0, len(groups))
+		roomIDMap := make(map[int64]bool)
+		for _, group := range groups {
+			if group.RoomID > 0 && !roomIDMap[group.RoomID] {
+				roomIDs = append(roomIDs, group.RoomID)
+				roomIDMap[group.RoomID] = true
+			}
+		}
+
+		// Fetch rooms if any
+		roomMap := make(map[int64]*facilities.Room)
+		if len(roomIDs) > 0 {
+			var rooms []*facilities.Room
+			err := rs.db.NewSelect().
+				Model(&rooms).
+				ModelTableExpr(`facilities.rooms AS "room"`).
+				Where(`"room".id IN (?)`, bun.In(roomIDs)).
+				Scan(r.Context())
+			if err == nil {
+				for _, room := range rooms {
+					roomMap[room.ID] = room
+				}
+			}
+		}
+
+		// Collect all group IDs for batch supervisor loading
+		groupIDs := make([]int64, len(groups))
+		for i, group := range groups {
+			groupIDs[i] = group.ID
+		}
+
+		// Load all supervisors in a single query
+		allSupervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupIDs(r.Context(), groupIDs)
+		if err != nil {
+			// Log the error but continue without supervisors
+			log.Printf("Error loading supervisors: %v", err)
+			allSupervisors = []*active.GroupSupervisor{}
+		}
+
+		// Create a map of group ID to supervisors for O(1) lookup
+		supervisorMap := make(map[int64][]*active.GroupSupervisor)
+		for _, supervisor := range allSupervisors {
+			supervisorMap[supervisor.GroupID] = append(supervisorMap[supervisor.GroupID], supervisor)
+		}
+
+		// Assign supervisors and rooms to groups
+		for _, group := range groups {
+			// Assign supervisors from the map
+			if supervisors, ok := supervisorMap[group.ID]; ok {
+				group.Supervisors = supervisors
+			}
+
+			// Assign room if found
+			if room, ok := roomMap[group.RoomID]; ok {
+				group.Room = room
+			}
+		}
 	}
 
 	// Build response
@@ -790,11 +976,20 @@ func (rs *Resource) listVisits(w http.ResponseWriter, r *http.Request) {
 	// Get query parameters
 	queryOptions := base.NewQueryOptions()
 
+	// Set table alias to match repository implementation
+	queryOptions.Filter.WithTableAlias("visit")
+
 	// Get active status filter
 	activeStr := r.URL.Query().Get("active")
 	if activeStr != "" {
 		isActive := activeStr == "true" || activeStr == "1"
-		queryOptions.Filter.Equal("is_active", isActive)
+		if isActive {
+			// For active visits, exit_time should be NULL
+			queryOptions.Filter.IsNull("exit_time")
+		} else {
+			// For inactive visits, exit_time should NOT be NULL
+			queryOptions.Filter.IsNotNull("exit_time")
+		}
 	}
 
 	// Get visits
@@ -1866,4 +2061,72 @@ func (rs *Resource) getStudentAttendance(w http.ResponseWriter, r *http.Request)
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Student attendance rate retrieved successfully")
+}
+
+// getDashboardAnalytics handles getting dashboard analytics data
+func (rs *Resource) getDashboardAnalytics(w http.ResponseWriter, r *http.Request) {
+	// Get dashboard analytics
+	analytics, err := rs.ActiveService.GetDashboardAnalytics(r.Context())
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Build response
+	response := DashboardAnalyticsResponse{
+		StudentsPresent:      analytics.StudentsPresent,
+		StudentsInTransit:    analytics.StudentsInTransit,
+		StudentsOnPlayground: analytics.StudentsOnPlayground,
+		StudentsInRooms:      analytics.StudentsInRooms,
+		ActiveActivities:     analytics.ActiveActivities,
+		FreeRooms:            analytics.FreeRooms,
+		TotalRooms:           analytics.TotalRooms,
+		CapacityUtilization:  analytics.CapacityUtilization,
+		ActivityCategories:   analytics.ActivityCategories,
+		ActiveOGSGroups:      analytics.ActiveOGSGroups,
+		StudentsInGroupRooms: analytics.StudentsInGroupRooms,
+		SupervisorsToday:     analytics.SupervisorsToday,
+		StudentsInHomeRoom:   analytics.StudentsInHomeRoom,
+		RecentActivity:       make([]RecentActivityItem, 0),
+		CurrentActivities:    make([]CurrentActivityItem, 0),
+		ActiveGroupsSummary:  make([]ActiveGroupSummary, 0),
+		LastUpdated:          time.Now(),
+	}
+
+	// Map recent activity
+	for _, activity := range analytics.RecentActivity {
+		response.RecentActivity = append(response.RecentActivity, RecentActivityItem{
+			Type:      activity.Type,
+			GroupName: activity.GroupName,
+			RoomName:  activity.RoomName,
+			Count:     activity.Count,
+			Timestamp: activity.Timestamp,
+		})
+	}
+
+	// Map current activities
+	for _, activity := range analytics.CurrentActivities {
+		response.CurrentActivities = append(response.CurrentActivities, CurrentActivityItem{
+			Name:         activity.Name,
+			Category:     activity.Category,
+			Participants: activity.Participants,
+			MaxCapacity:  activity.MaxCapacity,
+			Status:       activity.Status,
+		})
+	}
+
+	// Map active groups summary
+	for _, group := range analytics.ActiveGroupsSummary {
+		response.ActiveGroupsSummary = append(response.ActiveGroupsSummary, ActiveGroupSummary{
+			Name:         group.Name,
+			Type:         group.Type,
+			StudentCount: group.StudentCount,
+			Location:     group.Location,
+			Status:       group.Status,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Dashboard analytics retrieved successfully")
 }

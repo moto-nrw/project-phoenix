@@ -14,6 +14,7 @@ import (
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
+	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
@@ -21,6 +22,7 @@ import (
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
+	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	"github.com/moto-nrw/project-phoenix/database"
@@ -35,19 +37,21 @@ type API struct {
 	Router   chi.Router
 
 	// API Resources
-	Auth        *authAPI.Resource
-	Rooms       *roomsAPI.Resource
-	Students    *studentsAPI.Resource
-	Groups      *groupsAPI.Resource
-	Activities  *activitiesAPI.Resource
-	Staff       *staffAPI.Resource
-	Feedback    *feedbackAPI.Resource
-	Schedules   *schedulesAPI.Resource
-	Config      *configAPI.Resource
-	Active      *activeAPI.Resource
-	IoT         *iotAPI.Resource
-	Users       *usersAPI.Resource
-	UserContext *usercontextAPI.Resource
+	Auth          *authAPI.Resource
+	Rooms         *roomsAPI.Resource
+	Students      *studentsAPI.Resource
+	Groups        *groupsAPI.Resource
+	Activities    *activitiesAPI.Resource
+	Staff         *staffAPI.Resource
+	Feedback      *feedbackAPI.Resource
+	Schedules     *schedulesAPI.Resource
+	Config        *configAPI.Resource
+	Active        *activeAPI.Resource
+	IoT           *iotAPI.Resource
+	Users         *usersAPI.Resource
+	UserContext   *usercontextAPI.Resource
+	Substitutions *substitutionsAPI.Resource
+	Database      *databaseAPI.Resource
 }
 
 // New creates a new API instance
@@ -78,7 +82,7 @@ func New(enableCORS bool) (*API, error) {
 	api.Router.Use(middleware.RealIP)
 	api.Router.Use(middleware.Logger)
 	api.Router.Use(middleware.Recoverer)
-	
+
 	// Add security headers to all responses
 	api.Router.Use(customMiddleware.SecurityHeaders)
 
@@ -99,7 +103,7 @@ func New(enableCORS bool) (*API, error) {
 		api.Router.Use(cors.Handler(cors.Options{
 			AllowedOrigins:   allowedOrigins,
 			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Staff-PIN", "X-Staff-ID", "X-Device-Key"},
 			ExposedHeaders:   []string{"Link"},
 			AllowCredentials: true,
 			MaxAge:           300,
@@ -141,17 +145,19 @@ func New(enableCORS bool) (*API, error) {
 	// Initialize API resources
 	api.Auth = authAPI.NewResource(api.Services.Auth)
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities)
-	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student, api.Services.Education, api.Services.UserContext)
-	api.Groups = groupsAPI.NewResource(api.Services.Education)
-	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users)
+	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student, api.Services.Education, api.Services.UserContext, api.Services.Active, api.Services.IoT, repoFactory.PrivacyConsent)
+	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student)
+	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth)
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
-	api.Config = configAPI.NewResource(api.Services.Config)
-	api.Active = activeAPI.NewResource(api.Services.Active)
-	api.IoT = iotAPI.NewResource(api.Services.IoT)
+	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup)
+	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, db)
+	api.IoT = iotAPI.NewResource(api.Services.IoT, api.Services.Users, api.Services.Active, api.Services.Activities, api.Services.Config, api.Services.Facilities, api.Services.Education)
 	api.Users = usersAPI.NewResource(api.Services.Users)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext)
+	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
+	api.Database = databaseAPI.NewResource(api.Services.Database)
 
 	// Register routes with rate limiting
 	api.registerRoutesWithRateLimiting()
@@ -168,13 +174,13 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (a *API) registerRoutesWithRateLimiting() {
 	// Check if rate limiting is enabled
 	rateLimitEnabled := os.Getenv("RATE_LIMIT_ENABLED") == "true"
-	
+
 	// Get security logger if it exists
 	var securityLogger *customMiddleware.SecurityLogger
 	if securityLogging := os.Getenv("SECURITY_LOGGING_ENABLED"); securityLogging == "true" {
 		securityLogger = customMiddleware.NewSecurityLogger()
 	}
-	
+
 	// Configure auth-specific rate limiting if enabled
 	var authRateLimiter *customMiddleware.RateLimiter
 	if rateLimitEnabled {
@@ -197,6 +203,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 	a.Router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("OK"))
 	})
+
+	// Note: Avatar files are served through authenticated endpoints, not as static files
+	// This prevents unauthorized access to user avatars
 
 	// Mount API resources
 	// Auth routes mounted at root level to match frontend expectations
@@ -247,6 +256,12 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount user context resources
 		r.Mount("/me", a.UserContext.Router())
+
+		// Mount substitutions resources
+		r.Mount("/substitutions", a.Substitutions.Router())
+
+		// Mount database resources
+		r.Mount("/database", a.Database.Router())
 
 		// Add other resource routes here as they are implemented
 	})

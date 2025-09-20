@@ -5,8 +5,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	modelAuth "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -28,11 +30,14 @@ func NewPersonRepository(db *bun.DB) users.PersonRepository {
 
 // FindByTagID retrieves a person by their RFID tag ID
 func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*users.Person, error) {
+	// Normalize the tag ID to match the stored format
+	normalizedTagID := normalizeTagID(tagID)
+
 	person := new(users.Person)
 	err := r.db.NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
-		Where("tag_id = ?", tagID).
+		Where(`"person".tag_id = ?`, normalizedTagID).
 		Scan(ctx)
 
 	if err != nil {
@@ -55,7 +60,7 @@ func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64)
 	err := r.db.NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
-		Where("account_id = ?", accountID).
+		Where(`"person".account_id = ?`, accountID).
 		Scan(ctx)
 
 	if err != nil {
@@ -78,7 +83,7 @@ func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, ac
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set("account_id = ?", accountID).
-		Where("id = ?", personID).
+		Where(`"person".id = ?`, personID).
 		Exec(ctx)
 
 	if err != nil {
@@ -97,7 +102,7 @@ func (r *PersonRepository) UnlinkFromAccount(ctx context.Context, personID int64
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set("account_id = NULL").
-		Where("id = ?", personID).
+		Where(`"person".id = ?`, personID).
 		Exec(ctx)
 
 	if err != nil {
@@ -110,13 +115,30 @@ func (r *PersonRepository) UnlinkFromAccount(ctx context.Context, personID int64
 	return nil
 }
 
+// normalizeTagID normalizes RFID tag ID format (same logic as RFIDCard.Validate)
+func normalizeTagID(tagID string) string {
+	// Trim spaces
+	tagID = strings.TrimSpace(tagID)
+
+	// Remove common separators
+	tagID = strings.ReplaceAll(tagID, ":", "")
+	tagID = strings.ReplaceAll(tagID, "-", "")
+	tagID = strings.ReplaceAll(tagID, " ", "")
+
+	// Convert to uppercase
+	return strings.ToUpper(tagID)
+}
+
 // LinkToRFIDCard associates a person with an RFID card
 func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error {
+	// Normalize the tag ID to match RFID card format
+	normalizedTagID := normalizeTagID(tagID)
+
 	_, err := r.db.NewUpdate().
 		Model((*users.Person)(nil)).
-		ModelTableExpr("users.persons").
-		Set("tag_id = ?", tagID).
-		Where("id = ?", personID).
+		ModelTableExpr(`users.persons AS "person"`).
+		Set("tag_id = ?", normalizedTagID).
+		Where(`"person".id = ?`, personID).
 		Exec(ctx)
 
 	if err != nil {
@@ -133,9 +155,9 @@ func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 func (r *PersonRepository) UnlinkFromRFIDCard(ctx context.Context, personID int64) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.Person)(nil)).
-		ModelTableExpr("users.persons").
+		ModelTableExpr(`users.persons AS "person"`).
 		Set("tag_id = NULL").
-		Where("id = ?", personID).
+		Where(`"person".id = ?`, personID).
 		Exec(ctx)
 
 	if err != nil {
@@ -183,7 +205,7 @@ func (r *PersonRepository) ListWithOptions(ctx context.Context, options *modelBa
 	var persons []*users.Person
 	query := r.db.NewSelect().
 		Model(&persons).
-		ModelTableExpr("users.persons AS person")
+		ModelTableExpr(`users.persons AS "person"`)
 
 	// Apply query options
 	if options != nil {
@@ -203,12 +225,32 @@ func (r *PersonRepository) ListWithOptions(ctx context.Context, options *modelBa
 
 // FindWithAccount retrieves a person with their associated account
 func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*users.Person, error) {
-	person := new(users.Person)
+	// Use a more explicit approach with result struct to avoid table name conflicts
+	type personAccountResult struct {
+		Person  *users.Person      `bun:"person"`
+		Account *modelAuth.Account `bun:"account"`
+	}
+
+	result := &personAccountResult{
+		Person:  new(users.Person),
+		Account: new(modelAuth.Account),
+	}
+
 	err := r.db.NewSelect().
-		Model(person).
-		ModelTableExpr("users.persons").
-		Relation("Account").
-		Where("id = ?", id).
+		Model(result).
+		ModelTableExpr(`users.persons AS "person"`).
+		// Person columns with proper aliasing
+		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
+		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
+		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
+		// Account columns
+		ColumnExpr(`"account".id AS "account__id", "account".created_at AS "account__created_at", "account".updated_at AS "account__updated_at"`).
+		ColumnExpr(`"account".email AS "account__email", "account".username AS "account__username"`).
+		ColumnExpr(`"account".active AS "account__active", "account".last_login AS "account__last_login"`).
+		ColumnExpr(`"account".pin_hash AS "account__pin_hash", "account".pin_attempts AS "account__pin_attempts", "account".pin_locked_until AS "account__pin_locked_until"`).
+		// JOIN - Fixed to use auth.accounts directly rather than joining to a table alias "accounts"
+		Join(`LEFT JOIN auth.accounts AS "account" ON ("account".id = "person".account_id)`).
+		Where(`"person".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -218,17 +260,40 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 		}
 	}
 
-	return person, nil
+	// Connect the account to the person
+	if result.Account != nil && result.Account.ID != 0 {
+		result.Person.Account = result.Account
+	}
+
+	return result.Person, nil
 }
 
 // FindWithRFIDCard retrieves a person with their associated RFID card
 func (r *PersonRepository) FindWithRFIDCard(ctx context.Context, id int64) (*users.Person, error) {
-	person := new(users.Person)
+	// Use a more explicit approach with result struct to avoid table name conflicts
+	type personRFIDResult struct {
+		Person   *users.Person   `bun:"person"`
+		RFIDCard *users.RFIDCard `bun:"rfid_card"`
+	}
+
+	result := &personRFIDResult{
+		Person:   new(users.Person),
+		RFIDCard: new(users.RFIDCard),
+	}
+
 	err := r.db.NewSelect().
-		Model(person).
-		ModelTableExpr("users.persons").
-		Relation("RFIDCard").
-		Where("id = ?", id).
+		Model(result).
+		ModelTableExpr(`users.persons AS "person"`).
+		// Person columns with proper aliasing
+		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
+		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
+		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
+		// RFID card columns
+		ColumnExpr(`"rfid_card".id AS "rfid_card__id", "rfid_card".created_at AS "rfid_card__created_at", "rfid_card".updated_at AS "rfid_card__updated_at"`).
+		ColumnExpr(`"rfid_card".is_active AS "rfid_card__is_active", "rfid_card".last_used AS "rfid_card__last_used"`).
+		// JOIN
+		Join(`LEFT JOIN users.rfid_cards AS "rfid_card" ON "rfid_card".id = "person".tag_id`).
+		Where(`"person".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -238,7 +303,12 @@ func (r *PersonRepository) FindWithRFIDCard(ctx context.Context, id int64) (*use
 		}
 	}
 
-	return person, nil
+	// Connect the RFID card to the person
+	if result.RFIDCard != nil && result.RFIDCard.ID != "" {
+		result.Person.RFIDCard = result.RFIDCard
+	}
+
+	return result.Person, nil
 }
 
 // Legacy method to maintain compatibility with old interface

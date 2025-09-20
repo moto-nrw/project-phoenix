@@ -19,16 +19,13 @@ type Person struct {
 	AccountID  *int64  `bun:"account_id" json:"account_id,omitempty"`
 
 	// Relations not stored in the database
-	Account  *auth.Account `bun:"-" json:"account,omitempty"`
-	RFIDCard *RFIDCard     `bun:"-" json:"rfid_card,omitempty"`
+	Account  *auth.Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
+	RFIDCard *RFIDCard     `bun:"rel:belongs-to,join:tag_id=id" json:"rfid_card,omitempty"`
 }
 
 func (p *Person) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
 		q.ModelTableExpr(`users.persons AS "person"`)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("users.persons")
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`users.persons AS "person"`)

@@ -5,12 +5,21 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useSupervision } from "~/lib/supervision-context";
+import { isAdmin } from "~/lib/auth-utils";
+import { QuickCreateActivityModal } from "~/components/activities/quick-create-modal";
 
 interface NavItem {
   href: string;
   label: string;
   icon: React.ReactNode;
   activeIcon?: React.ReactNode;
+  requiresAdmin?: boolean;
+  requiresGroups?: boolean;
+  requiresSupervision?: boolean;
+  requiresActiveSupervision?: boolean;
+  alwaysShow?: boolean;
 }
 
 // Main navigation items that appear in the bottom bar
@@ -28,10 +37,11 @@ const mainNavItems: NavItem[] = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
       </svg>
     ),
+    requiresAdmin: true,
   },
   {
     href: "/ogs_groups",
-    label: "Gruppe",
+    label: "Meine Gruppe",
     icon: (
       <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -42,24 +52,11 @@ const mainNavItems: NavItem[] = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
       </svg>
     ),
+    requiresGroups: true,
   },
   {
-    href: "/students/search",
-    label: "Suchen",
-    icon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-      </svg>
-    ),
-    activeIcon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-      </svg>
-    ),
-  },
-  {
-    href: "/rooms",
-    label: "Räume",
+    href: "/myroom",
+    label: "Mein Raum",
     icon: (
       <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -70,16 +67,43 @@ const mainNavItems: NavItem[] = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
       </svg>
     ),
+    requiresActiveSupervision: true,
+  },
+  {
+    href: "/staff",
+    label: "Mitarbeiter",
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+      </svg>
+    ),
+    activeIcon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+      </svg>
+    ),
+    alwaysShow: true,
   },
 ];
 
 // Additional navigation items that appear in the overflow menu
-const additionalNavItems = [
-  { href: '/activities', label: 'Aktivitäten' },
-  { href: '/statistics', label: 'Statistiken' },
-  { href: '/substitutions', label: 'Vertretungen' },
-  { href: '/database', label: 'Datenbank' },
-  { href: '/settings', label: 'Einstellungen' },
+interface AdditionalNavItem {
+  href: string;
+  label: string;
+  requiresAdmin?: boolean;
+  requiresSupervision?: boolean;
+  requiresActiveSupervision?: boolean;
+  alwaysShow?: boolean;
+}
+
+const additionalNavItems: AdditionalNavItem[] = [
+  { href: '/students/search', label: 'Schüler Suche', requiresSupervision: true },
+  { href: '/activities', label: 'Aktivitäten', requiresAdmin: true },
+  // Temporarily disabled - not ready yet
+  // { href: '/statistics', label: 'Statistiken', requiresAdmin: true },
+  { href: '/substitutions', label: 'Vertretungen', requiresAdmin: true },
+  { href: '/database', label: 'Datenbank', requiresAdmin: true },
+  { href: '/settings', label: 'Einstellungen', alwaysShow: true },
 ];
 
 // More icon
@@ -98,6 +122,12 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [isOverflowMenuOpen, setIsOverflowMenuOpen] = useState(false);
+
+  // Get session for role checking
+  const { data: session } = useSession();
+
+  // Get supervision state
+  const { hasGroups, isSupervising, isLoadingGroups, isLoadingSupervision } = useSupervision();
 
   // Auto-hide functionality for better UX
   useEffect(() => {
@@ -133,8 +163,93 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
     setIsOverflowMenuOpen(false);
   };
 
+  // Quick create activity modal state
+  const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
+
+  // Filter main navigation items based on permissions
+  const filteredMainItems = mainNavItems.filter(item => {
+    if (item.alwaysShow) return true;
+    if (item.requiresAdmin && !isAdmin(session)) return false;
+    if (item.requiresGroups) {
+      // Only show for users who are actively supervising groups, not admins
+      if (isAdmin(session)) return false;
+      if (!hasGroups || isLoadingGroups) return false;
+    }
+    if (item.requiresSupervision) {
+      // Show for users supervising groups OR rooms, but not for admins or regular users
+      if (isAdmin(session)) return false;
+      const hasGroupSupervision = !isLoadingGroups && hasGroups;
+      const hasRoomSupervision = !isLoadingSupervision && isSupervising;
+      if (!hasGroupSupervision && !hasRoomSupervision) return false;
+    }
+    if (item.requiresActiveSupervision) {
+      // Show only for users actively supervising a room, not for admins or group-only supervisors
+      if (isAdmin(session)) return false;
+      const hasRoomSupervision = !isLoadingSupervision && isSupervising;
+      if (!hasRoomSupervision) return false;
+    }
+    return true;
+  });
+
+  // Check if user has any supervision (groups or active room)
+  const hasAnySupervision = (!isLoadingGroups && hasGroups) || (!isLoadingSupervision && isSupervising);
+
+  // Filter additional navigation items based on permissions
+  const filteredAdditionalItems = additionalNavItems.filter(item => {
+    if (item.alwaysShow) return true;
+    if (item.requiresAdmin && !isAdmin(session)) return false;
+    if (item.requiresSupervision) {
+      // Show for users supervising groups OR rooms, but not for admins or regular users
+      if (isAdmin(session)) return false;
+      const hasGroupSupervision = !isLoadingGroups && hasGroups;
+      const hasRoomSupervision = !isLoadingSupervision && isSupervising;
+      if (!hasGroupSupervision && !hasRoomSupervision) return false;
+    }
+    if (item.requiresActiveSupervision) {
+      // Show only for users actively supervising a room, not for admins or group-only supervisors
+      if (isAdmin(session)) return false;
+      const hasRoomSupervision = !isLoadingSupervision && isSupervising;
+      if (!hasRoomSupervision) return false;
+    }
+    return true;
+  });
+  
+  // Dynamic layout based on available items and supervision status
+  
+  // If user has no supervision, show only student search in main nav (settings and create activity go to overflow)
+  const shouldShowInMainNav = !hasAnySupervision && !isAdmin(session);
+  
+  const displayMainItems: NavItem[] = shouldShowInMainNav
+    ? [
+        ...filteredMainItems,
+        {
+          href: '/students/search',
+          label: 'Suchen',
+          icon: (
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          ),
+          activeIcon: (
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          ),
+          alwaysShow: true
+        }
+      ]
+    : filteredMainItems;
+  
+  // Always show overflow menu (for users without supervision, it contains settings and create activity)
+  const showOverflowMenu = true;
+
+  // For users without supervision, ensure settings always appears in overflow menu
+  const displayAdditionalItems = shouldShowInMainNav
+    ? filteredAdditionalItems // Settings already included via alwaysShow: true
+    : filteredAdditionalItems;
+
   // Check if any additional nav item is active
-  const isAnyAdditionalNavActive = additionalNavItems.some(item => isActiveRoute(item.href));
+  const isAnyAdditionalNavActive = displayAdditionalItems.some(item => isActiveRoute(item.href));
 
   return (
     <>
@@ -203,10 +318,31 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
             </button>
           </div>
 
+          {/* Create Activity Button */}
+          <div className="px-6 pb-4">
+            <button
+              onClick={() => {
+                setIsQuickCreateOpen(true);
+                closeOverflowMenu();
+              }}
+              className="w-full flex items-center gap-3 px-4 py-4 bg-gradient-to-r from-[#83CD2D]/10 to-[#70B525]/10 border border-[#83CD2D]/30 rounded-2xl hover:from-[#83CD2D]/20 hover:to-[#70B525]/20 hover:border-[#83CD2D]/50 hover:shadow-lg hover:shadow-[#83CD2D]/20 transition-all duration-300 transform active:scale-[0.96] group"
+            >
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#83CD2D] to-[#70B525] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#83CD2D]/30 transition-all duration-300 group-active:rotate-90">
+                <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </div>
+              <span className="flex-1 text-left font-semibold text-gray-800">Aktivität erstellen</span>
+              <svg className="h-5 w-5 text-[#83CD2D] group-active:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
+            </button>
+          </div>
+
           {/* Modern navigation grid aligned with header and bottom nav design */}
           <div className="relative px-6 pb-8">
             <div className="grid grid-cols-2 gap-3">
-              {additionalNavItems.map((item) => (
+              {displayAdditionalItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -252,12 +388,16 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
                     <svg className={`w-5 h-5 transition-colors duration-200 ${
                       isActiveRoute(item.href) ? 'text-[#5080d8]' : 'text-gray-600 group-hover:text-[#5080d8]'
                     }`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      {item.href === '/students/search' && (
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      )}
                       {item.href === '/activities' && (
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                       )}
+                      {/* Temporarily disabled - not ready yet
                       {item.href === '/statistics' && (
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      )}
+                      )} */}
                       {item.href === '/substitutions' && (
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       )}
@@ -301,7 +441,7 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
         <div className="relative px-2 py-2">
           <div className="flex items-center justify-around max-w-md mx-auto">
             {/* Main navigation items */}
-            {mainNavItems.map((item) => {
+            {displayMainItems.map((item) => {
               const isActive = isActiveRoute(item.href);
               
               return (
@@ -353,8 +493,9 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
               );
             })}
 
-            {/* More button */}
-            <button
+            {/* More button - only show if there are overflow items */}
+            {showOverflowMenu && (
+              <button
               onClick={toggleOverflowMenu}
               className={`
                 group relative flex flex-col items-center justify-center min-w-0 flex-1 px-2 py-2 rounded-xl
@@ -395,13 +536,24 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
                 Mehr
               </span>
               
-            </button>
+              </button>
+            )}
           </div>
         </div>
         
         {/* Safe area padding for devices with home indicator */}
         <div className="h-safe-area-inset-bottom bg-white/80" />
       </nav>
+
+      {/* Quick Create Activity Modal */}
+      <QuickCreateActivityModal
+        isOpen={isQuickCreateOpen}
+        onClose={() => setIsQuickCreateOpen(false)}
+        onSuccess={() => {
+          setIsQuickCreateOpen(false);
+          // Optional: Show success notification or refresh data
+        }}
+      />
     </>
   );
 }

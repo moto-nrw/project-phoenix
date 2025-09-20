@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/database"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/feedback"
@@ -21,21 +22,46 @@ import (
 
 // Factory provides access to all services
 type Factory struct {
-	Auth        auth.AuthService
-	Active      active.Service
-	Activities  activities.ActivityService
-	Education   education.Service
-	Facilities  facilities.Service
-	Feedback    feedback.Service
-	IoT         iot.Service
-	Config      config.Service
-	Schedule    schedule.Service
-	Users       users.PersonService
-	UserContext usercontext.UserContextService
+	Auth          auth.AuthService
+	Active        active.Service
+	ActiveCleanup active.CleanupService
+	Activities    activities.ActivityService
+	Education     education.Service
+	Facilities    facilities.Service
+	Feedback      feedback.Service
+	IoT           iot.Service
+	Config        config.Service
+	Schedule      schedule.Service
+	Users         users.PersonService
+	UserContext   usercontext.UserContextService
+	Database      database.DatabaseService
 }
 
 // NewFactory creates a new services factory
 func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
+
+	// Initialize education service first (needed for active service)
+	educationService := education.NewService(
+		repos.Group,
+		repos.GroupTeacher,
+		repos.GroupSubstitution,
+		repos.Room,
+		repos.Teacher,
+		repos.Staff,
+		db,
+	)
+
+	// Initialize users service first (needed for active service)
+	usersService := users.NewPersonService(
+		repos.Person,
+		repos.RFIDCard,
+		repos.Account,
+		repos.PersonGuardian,
+		repos.Student,
+		repos.Staff,
+		repos.Teacher,
+		db,
+	)
 
 	// Initialize active service
 	activeService := active.NewService(
@@ -44,15 +70,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.GroupSupervisor,
 		repos.CombinedGroup,
 		repos.GroupMapping,
-		db,
-	)
-
-	// Initialize education service
-	educationService := education.NewService(
-		repos.Group,
-		repos.GroupTeacher,
-		repos.GroupSubstitution,
+		repos.ScheduledCheckout,
+		repos.Student,
 		repos.Room,
+		repos.ActivityGroup,
+		repos.ActivityCategory,
+		repos.Group,
+		repos.Person,
+		repos.Attendance,
+		educationService,
+		usersService,
 		repos.Teacher,
 		repos.Staff,
 		db,
@@ -92,6 +119,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	// Initialize facilities service
 	facilitiesService := facilities.NewService(
 		repos.Room,
+		repos.ActiveGroup,
 		db,
 	)
 
@@ -100,18 +128,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.Dateframe,
 		repos.Timeframe,
 		repos.RecurrenceRule,
-		db,
-	)
-
-	// Initialize users service
-	usersService := users.NewPersonService(
-		repos.Person,
-		repos.RFIDCard,
-		repos.Account,
-		repos.PersonGuardian,
-		repos.Student,
-		repos.Staff,
-		repos.Teacher,
 		db,
 	)
 
@@ -127,6 +143,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.RolePermission,     // Add this
 		repos.PasswordResetToken, // Add this
 		repos.Person,             // Add this for first name
+		repos.AuthEvent,          // Add for audit logging
 		db,
 	)
 	if err != nil {
@@ -165,20 +182,35 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.ActiveGroup,
 		repos.ActiveVisit,
 		repos.GroupSupervisor,
+		repos.Profile,
+		repos.GroupSubstitution,
+		db,
+	)
+
+	// Initialize database stats service
+	databaseService := database.NewService(repos)
+
+	// Initialize cleanup service
+	activeCleanupService := active.NewCleanupService(
+		repos.ActiveVisit,
+		repos.PrivacyConsent,
+		repos.DataDeletion,
 		db,
 	)
 
 	return &Factory{
-		Auth:        authService,
-		Active:      activeService,
-		Activities:  activitiesService,
-		Education:   educationService,
-		Facilities:  facilitiesService,
-		Feedback:    feedbackService,
-		IoT:         iotService,
-		Config:      configService,
-		Schedule:    scheduleService,
-		Users:       usersService,
-		UserContext: userContextService,
+		Auth:          authService,
+		Active:        activeService,
+		ActiveCleanup: activeCleanupService,
+		Activities:    activitiesService,
+		Education:     educationService,
+		Facilities:    facilitiesService,
+		Feedback:      feedbackService,
+		IoT:           iotService,
+		Config:        configService,
+		Schedule:      scheduleService,
+		Users:         usersService,
+		UserContext:   userContextService,
+		Database:      databaseService,
 	}, nil
 }

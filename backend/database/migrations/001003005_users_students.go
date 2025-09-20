@@ -85,6 +85,8 @@ func usersStudentsUp(ctx context.Context, db *bun.DB) error {
 			guardian_email TEXT,
 			guardian_phone TEXT,
 			group_id BIGINT,
+			-- Extra information field visible only to supervisors
+			extra_info TEXT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			CONSTRAINT fk_students_person FOREIGN KEY (person_id) 
@@ -99,9 +101,9 @@ func usersStudentsUp(ctx context.Context, db *bun.DB) error {
 			CONSTRAINT chk_valid_guardian_phone CHECK (
 				guardian_phone IS NULL OR is_valid_phone(guardian_phone)
 			),
-			-- Ensure only one location is set at a time
+			-- Ensure only one location is set at a time (bus is not a location, it's a transportation attribute)
 			CONSTRAINT chk_one_location_only CHECK (
-				(bus::int + in_house::int + wc::int + school_yard::int) <= 1
+				(in_house::int + wc::int + school_yard::int) <= 1
 			)
 		)
 	`)

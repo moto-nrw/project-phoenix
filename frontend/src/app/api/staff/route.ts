@@ -78,14 +78,13 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
     
     // Check if the response is already an array (common pattern)
     if (Array.isArray(response)) {
-      // Direct array response - filter and map
+      // Direct array response - map all staff (not just teachers)
       const mappedStaff = response
-        .filter((staff: BackendStaffResponse) => staff.is_teacher) // Only include teachers
         .map((staff: BackendStaffResponse) => ({
-          id: String(staff.teacher_id ?? staff.id), // Use teacher_id if available, otherwise staff id
+          id: staff.teacher_id ? String(staff.teacher_id) : String(staff.id), // Use teacher_id for teachers, staff_id for others
           name: staff.person ? `${staff.person.first_name} ${staff.person.last_name}` : "",
-          first_name: staff.person?.first_name ?? "",
-          last_name: staff.person?.last_name ?? "",
+          firstName: staff.person?.first_name ?? "",
+          lastName: staff.person?.last_name ?? "",
           specialization: staff.specialization ?? "",
           role: staff.role ?? null,
           qualifications: staff.qualifications ?? null,
@@ -105,12 +104,11 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
     if ('data' in response && Array.isArray(response.data)) {
       // Map the response data to match the Teacher interface from teacher-api.ts
       const mappedStaff = response.data
-        .filter((staff: BackendStaffResponse) => staff.is_teacher) // Only include teachers
         .map((staff: BackendStaffResponse) => ({
-          id: String(staff.teacher_id ?? staff.id), // Use teacher_id if available, otherwise staff id
+          id: staff.teacher_id ? String(staff.teacher_id) : String(staff.id), // Use teacher_id for teachers, staff_id for others
           name: staff.person ? `${staff.person.first_name} ${staff.person.last_name}` : "",
-          first_name: staff.person?.first_name ?? "",
-          last_name: staff.person?.last_name ?? "",
+          firstName: staff.person?.first_name ?? "",
+          lastName: staff.person?.last_name ?? "",
           specialization: staff.specialization ?? "",
           role: staff.role ?? null,
           qualifications: staff.qualifications ?? null,
@@ -140,8 +138,8 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
 interface TeacherResponse {
   id: string;
   name: string;
-  first_name: string;
-  last_name: string;
+  firstName: string;
+  lastName: string;
   specialization: string;
   role: string | null;
   qualifications: string | null;
@@ -176,10 +174,10 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
       // Map the response to match the Teacher interface from teacher-api.ts
       return {
         ...response,
-        id: String(response.teacher_id ?? response.id),
+        id: response.teacher_id ? String(response.teacher_id) : String(response.id), // Use teacher_id for teachers, staff_id for others
         name: response.person ? `${response.person.first_name} ${response.person.last_name}` : "",
-        first_name: response.person?.first_name ?? "",
-        last_name: response.person?.last_name ?? "",
+        firstName: response.person?.first_name ?? "",
+        lastName: response.person?.last_name ?? "",
         specialization: response.specialization ?? "",
         role: response.role ?? null,
         qualifications: response.qualifications ?? null,

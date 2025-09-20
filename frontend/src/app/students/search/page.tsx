@@ -1,131 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
-import { Input } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
-
-// Student type based on what's seen in the code
-interface Student {
-  id: string;
-  first_name: string;
-  second_name: string;
-  name?: string;
-  school_class: string;
-  group_id: string;
-  group_name?: string;
-  in_house: boolean;
-  wc: boolean;
-  school_yard: boolean;
-  bus: boolean;
-}
-
-interface Group {
-  id: string;
-  name: string;
-}
-
-// Demo data for students - defined outside component to avoid dependency issues
-const exampleStudents: Student[] = [
-  {
-    id: "1",
-    first_name: "Emma",
-    second_name: "Müller",
-    school_class: "1a",
-    group_id: "g1",
-    group_name: "Bären",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "2",
-    first_name: "Max",
-    second_name: "Schmidt",
-    school_class: "1b",
-    group_id: "g1",
-    group_name: "Bären",
-    in_house: false,
-    wc: true,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "3",
-    first_name: "Sophie",
-    second_name: "Wagner",
-    school_class: "2a",
-    group_id: "g2",
-    group_name: "Füchse",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "4",
-    first_name: "Leon",
-    second_name: "Fischer",
-    school_class: "2b",
-    group_id: "g2",
-    group_name: "Füchse",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "5",
-    first_name: "Mia",
-    second_name: "Weber",
-    school_class: "3a",
-    group_id: "g3",
-    group_name: "Eulen",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  },
-  {
-    id: "6",
-    first_name: "Noah",
-    second_name: "Becker",
-    school_class: "3b",
-    group_id: "g3",
-    group_name: "Eulen",
-    in_house: false,
-    wc: false,
-    school_yard: true,
-    bus: false
-  },
-  {
-    id: "7",
-    first_name: "Lina",
-    second_name: "Hoffmann",
-    school_class: "4a",
-    group_id: "g4",
-    group_name: "Drachen",
-    in_house: false,
-    wc: false,
-    school_yard: false,
-    bus: true
-  },
-  {
-    id: "8",
-    first_name: "Paul",
-    second_name: "Richter",
-    school_class: "4b",
-    group_id: "g4",
-    group_name: "Drachen",
-    in_house: true,
-    wc: false,
-    school_yard: false,
-    bus: false
-  }
-];
+import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
+import { studentService, groupService } from "~/lib/api";
+import type { Student, Group } from "~/lib/api";
+import { fetchRooms } from "~/lib/rooms-api";
+import { createRoomIdToNameMap } from "~/lib/rooms-helpers";
+import { userContextService } from "~/lib/usercontext-api";
 
 function SearchPageContent() {
   const { data: session, status } = useSession();
@@ -143,11 +29,19 @@ function SearchPageContent() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // OGS group tracking
+  const [userOgsGroups, setUserOgsGroups] = useState<string[]>([]);
+  const [roomStatus, setRoomStatus] = useState<Record<string, { 
+    in_group_room: boolean; 
+    current_room_id?: number;
+    first_name?: string;
+    last_name?: string;
+    reason?: string;
+  }>>({});
+  const [roomIdToNameMap, setRoomIdToNameMap] = useState<Record<string, string>>({});
 
-  // Mobile-specific state
-  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
-
-  const fetchStudents = useCallback(async (filters?: {
+  const fetchStudentsData = useCallback(async (filters?: {
     search?: string;
     groupId?: string;
   }) => {
@@ -155,47 +49,102 @@ function SearchPageContent() {
       setIsSearching(true);
       setError(null);
 
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Fetch students from API
+      const fetchedStudents = await studentService.getStudents({
+        search: filters?.search ?? searchTerm,
+        groupId: filters?.groupId ?? selectedGroup
+      });
 
-      // For demo, just filter the example students
-      let filtered = [...exampleStudents];
+      setStudents(fetchedStudents.students);
+      
+      // If user has OGS groups, fetch room status for students in those groups
+      if (userOgsGroups.length > 0 && session?.user?.token) {
+        try {
+          const roomStatusResponses = await Promise.all(
+            userOgsGroups.map(async (groupId) => {
+              try {
+                const roomStatusResponse = await fetch(`/api/groups/${groupId}/students/room-status`, {
+                  headers: {
+                    'Authorization': `Bearer ${session.user.token}`,
+                    'Content-Type': 'application/json'
+                  }
+                });
 
-      const searchQuery = filters?.search ?? searchTerm;
-      if (searchQuery) {
-        filtered = filtered.filter(student =>
-          student.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          student.second_name.toLowerCase().includes(searchQuery.toLowerCase())
-        );
+                if (roomStatusResponse.ok) {
+                  const response = await roomStatusResponse.json() as {
+                    success: boolean;
+                    message: string;
+                    data: {
+                      group_has_room: boolean;
+                      group_room_id?: number;
+                      student_room_status: Record<string, { 
+                        in_group_room: boolean; 
+                        current_room_id?: number;
+                        first_name?: string;
+                        last_name?: string;
+                        reason?: string;
+                      }>;
+                    };
+                  };
+                  return response.data?.student_room_status || {};
+                }
+              } catch (roomStatusErr) {
+                console.error("Failed to fetch room status for group:", groupId, roomStatusErr);
+              }
+              return {};
+            })
+          );
+
+          // Merge all room statuses and update state in a single batch
+          const mergedRoomStatus = roomStatusResponses.reduce((acc, curr) => ({ ...acc, ...curr }), {});
+          setRoomStatus(prev => ({ ...prev, ...mergedRoomStatus }));
+        } catch (err) {
+          console.error("Error fetching room statuses:", err);
+        }
       }
-
-      const groupFilter = filters?.groupId ?? selectedGroup;
-      if (groupFilter) {
-        filtered = filtered.filter(student => student.group_id === groupFilter);
-      }
-
-      setStudents(filtered);
-    } catch (error) {
-      console.error("Error fetching students:", error);
+    } catch {
+      // Error fetching students - handle gracefully
       setError("Fehler beim Laden der Schülerdaten.");
     } finally {
       setIsSearching(false);
     }
-  }, [searchTerm, selectedGroup]);
+  }, [searchTerm, selectedGroup, userOgsGroups, session?.user?.token]);
 
-  // Load demo data and groups on mount
+  // Load groups and user's OGS groups on mount
   useEffect(() => {
-    // Set demo students
-    setStudents(exampleStudents);
+    const loadInitialData = async () => {
+      try {
+        // Load all groups for filter
+        const fetchedGroups = await groupService.getGroups();
+        setGroups(fetchedGroups);
+        
+        // Load user's OGS groups
+        if (session?.user?.token) {
+          try {
+            const myOgsGroups = await userContextService.getMyEducationalGroups();
+            setUserOgsGroups(myOgsGroups.map(g => g.id));
+            
+            // Fetch rooms for mapping
+            const rooms = await fetchRooms(session.user.token);
+            const roomMap = createRoomIdToNameMap(rooms);
+            setRoomIdToNameMap(roomMap);
+          } catch (ogsError) {
+            console.error("Error loading OGS groups:", ogsError);
+            // User might not have OGS groups, which is fine
+          }
+        }
+      } catch (error) {
+        console.error("Error loading groups:", error);
+      }
+    };
 
-    // Extract unique groups from demo data
-    const uniqueGroups = Array.from(
-      new Set(exampleStudents.map(s => s.group_name).filter(Boolean))
-    ).map((name, index) => ({
-      id: `g${index + 1}`,
-      name: name!
-    }));
-    setGroups(uniqueGroups);
+    void loadInitialData();
+  }, [session?.user?.token]);
+
+  // Load initial students on mount
+  useEffect(() => {
+    void fetchStudentsData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Debounced search effect
@@ -206,7 +155,7 @@ function SearchPageContent() {
 
     searchTimeoutRef.current = setTimeout(() => {
       if (searchTerm.length >= 2 || searchTerm.length === 0) {
-        void fetchStudents();
+        void fetchStudentsData();
       }
     }, 300);
 
@@ -215,43 +164,107 @@ function SearchPageContent() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchTerm, fetchStudents]);
+  }, [searchTerm, fetchStudentsData]);
 
-  const handleSearch = () => {
-    const filters = {
-      search: searchTerm,
-      groupId: selectedGroup,
-    };
+  // Re-fetch when group filter changes
+  useEffect(() => {
+    void fetchStudentsData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGroup]);
 
-    void fetchStudents(filters);
-  };
-
-  const handleFilterReset = () => {
-    setSearchTerm("");
-    setSelectedGroup("");
-    setSelectedYear("all");
-    setAttendanceFilter("all");
-    setIsMobileFiltersOpen(false);
-    
-    // Clear timeout to prevent pending searches
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
+  // Prepare filter configurations for PageHeaderWithSearch
+  const filterConfigs: FilterConfig[] = useMemo(() => [
+    {
+      id: 'year',
+      label: 'Klassenstufe',
+      type: 'buttons',
+      value: selectedYear,
+      onChange: (value) => setSelectedYear(value as string),
+      options: [
+        { value: 'all', label: 'Alle' },
+        { value: '1', label: '1' },
+        { value: '2', label: '2' },
+        { value: '3', label: '3' },
+        { value: '4', label: '4' }
+      ]
+    },
+    {
+      id: 'group',
+      label: 'Gruppe',
+      type: 'dropdown',
+      value: selectedGroup,
+      onChange: (value) => setSelectedGroup(value as string),
+      options: [
+        { value: '', label: 'Alle Gruppen' },
+        ...groups.map(group => ({ value: group.id, label: group.name }))
+      ]
+    },
+    {
+      id: 'attendance',
+      label: 'Anwesenheit',
+      type: 'dropdown',
+      value: attendanceFilter,
+      onChange: (value) => setAttendanceFilter(value as string),
+      options: [
+        { value: 'all', label: 'Alle Status' },
+        { value: 'anwesend', label: 'Anwesend' },
+        { value: 'abwesend', label: 'Zuhause' }
+      ]
     }
-    void fetchStudents();
-  };
+  ], [selectedYear, selectedGroup, attendanceFilter, groups]);
+
+  // Prepare active filters for display
+  const activeFilters: ActiveFilter[] = useMemo(() => {
+    const filters: ActiveFilter[] = [];
+    
+    if (searchTerm) {
+      filters.push({
+        id: 'search',
+        label: `"${searchTerm}"`,
+        onRemove: () => setSearchTerm("")
+      });
+    }
+    
+    if (selectedYear !== "all") {
+      filters.push({
+        id: 'year',
+        label: `Jahr ${selectedYear}`,
+        onRemove: () => setSelectedYear("all")
+      });
+    }
+    
+    if (selectedGroup) {
+      const groupName = groups.find(g => g.id === selectedGroup)?.name ?? "Gruppe";
+      filters.push({
+        id: 'group',
+        label: groupName,
+        onRemove: () => setSelectedGroup("")
+      });
+    }
+    
+    if (attendanceFilter !== "all") {
+      const statusLabels: Record<string, string> = {
+        "anwesend": "Anwesend",
+        "abwesend": "Zuhause"
+      };
+      filters.push({
+        id: 'attendance',
+        label: statusLabels[attendanceFilter] ?? attendanceFilter,
+        onRemove: () => setAttendanceFilter("all")
+      });
+    }
+    
+    return filters;
+  }, [searchTerm, selectedYear, selectedGroup, attendanceFilter, groups]);
 
   // Apply additional client-side filtering for attendance statuses and year
   const filteredStudents = students.filter((student) => {
     // Apply attendance filter
     if (attendanceFilter === "all") {
       // No attendance filtering
-    } else if (attendanceFilter === "in_house" && !student.in_house) {
+    } else if (attendanceFilter === "anwesend" && student.current_location !== "Anwesend") {
       return false;
-    } else if (attendanceFilter === "wc" && !student.wc) {
-      return false;
-    } else if (attendanceFilter === "school_yard" && !student.school_yard) {
-      return false;
-    } else if (attendanceFilter === "bus" && !student.bus) {
+    } else if (attendanceFilter === "abwesend" && student.current_location !== "Zuhause") {
       return false;
     }
 
@@ -267,30 +280,102 @@ function SearchPageContent() {
     return true;
   });
 
-  // Helper function to determine the school year
-  const getSchoolYear = (schoolClass: string): number => {
-    const yearMatch = /^(\d)/.exec(schoolClass);
-    return yearMatch?.[1] ? parseInt(yearMatch[1], 10) : 0;
+  // Helper function to check if student is in user's OGS group
+  const isStudentInUserOgsGroup = (student: Student): boolean => {
+    return userOgsGroups.includes(student.group_id ?? '');
   };
 
-  // Determine color for year dot
-  const getYearColor = (year: number): string => {
-    switch (year) {
-      case 1: return "bg-blue-500";
-      case 2: return "bg-green-500";
-      case 3: return "bg-yellow-500";
-      case 4: return "bg-purple-500";
-      default: return "bg-gray-400";
-    }
-  };
-
-  // Helper function to get location status
+  // Helper function to get attendance status with enhanced design
   const getLocationStatus = (student: Student) => {
-    if (student.in_house) return { label: "Im Haus", color: "bg-green-500 text-green-50" };
-    if (student.wc) return { label: "Toilette", color: "bg-blue-500 text-blue-50" };
-    if (student.school_yard) return { label: "Schulhof", color: "bg-yellow-500 text-yellow-50" };
-    if (student.bus) return { label: "Zuhause", color: "bg-orange-500 text-orange-50" };
-    return { label: "Unbekannt", color: "bg-gray-500 text-gray-50" };
+    // Check if student is in user's OGS group for detailed location
+    if (isStudentInUserOgsGroup(student)) {
+      const studentRoomStatus = roomStatus[student.id.toString()];
+      
+      // Check if student is in group room
+      if (studentRoomStatus?.in_group_room) {
+        return { 
+          label: "Gruppenraum", 
+          badgeColor: "text-white backdrop-blur-sm",
+          cardGradient: "from-emerald-50/80 to-green-100/80",
+          customBgColor: "#83CD2D",
+          customShadow: "0 8px 25px rgba(131, 205, 45, 0.4)"
+        };
+      }
+      
+      // Check if student is in a specific room (not group room)
+      if (studentRoomStatus?.current_room_id && !studentRoomStatus.in_group_room) {
+        const roomName = roomIdToNameMap[studentRoomStatus.current_room_id.toString()] ?? `Raum ${studentRoomStatus.current_room_id}`;
+        return { 
+          label: roomName, 
+          badgeColor: "text-white backdrop-blur-sm",
+          cardGradient: "from-blue-50/80 to-cyan-100/80",
+          customBgColor: "#5080D8",
+          customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)"
+        };
+      }
+      
+      // Check for schoolyard
+      if (student.school_yard === true) {
+        return { 
+          label: "Schulhof", 
+          badgeColor: "text-white backdrop-blur-sm",
+          cardGradient: "from-amber-50/80 to-yellow-100/80",
+          customBgColor: "#F78C10",
+          customShadow: "0 8px 25px rgba(247, 140, 16, 0.4)"
+        };
+      }
+      
+      // Check for in transit/movement
+      if (student.in_house === true) {
+        return { 
+          label: "Unterwegs", 
+          badgeColor: "text-white backdrop-blur-sm",
+          cardGradient: "from-fuchsia-50/80 to-pink-100/80",
+          customBgColor: "#D946EF",
+          customShadow: "0 8px 25px rgba(217, 70, 239, 0.4)"
+        };
+      }
+      
+      // Default to at home for OGS students
+      return { 
+        label: "Zuhause", 
+        badgeColor: "text-white backdrop-blur-sm",
+        cardGradient: "from-red-50/80 to-rose-100/80",
+        customBgColor: "#FF3130",
+        customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)"
+      };
+    }
+    
+    // For non-OGS group students, use simple status
+    if (student.current_location === "Anwesend") {
+      return { 
+        label: "Anwesend", 
+        badgeColor: "text-white backdrop-blur-sm",
+        cardGradient: "from-emerald-50/80 to-green-100/80",
+        glowColor: "ring-emerald-200/50 shadow-emerald-100/50",
+        customBgColor: "#83CD2D",
+        customShadow: "0 8px 25px rgba(131, 205, 45, 0.4)"
+      };
+    }
+    if (student.current_location === "Zuhause") {
+      return { 
+        label: "Zuhause", 
+        badgeColor: "text-white backdrop-blur-sm",
+        cardGradient: "from-red-50/80 to-rose-100/80",
+        glowColor: "ring-red-200/50 shadow-red-100/50",
+        customBgColor: "#FF3130",
+        customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)"
+      };
+    }
+    // Default to at home (consistent with OGS groups page)
+    return { 
+      label: "Zuhause", 
+      badgeColor: "text-white backdrop-blur-sm",
+      cardGradient: "from-red-50/80 to-rose-100/80",
+      glowColor: "ring-red-200/50 shadow-red-100/50",
+      customBgColor: "#FF3130",
+      customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)"
+    };
   };
 
   if (status === "loading") {
@@ -305,246 +390,133 @@ function SearchPageContent() {
   }
 
   return (
-    <ResponsiveLayout userName={session?.user?.name ?? "Root"}>
-      <div className="max-w-7xl mx-auto">
-        {/* Mobile-optimized Header */}
-        <div className="mb-4 md:mb-8">
-          <h1 className="text-2xl md:text-4xl font-bold text-gray-900">Schülersuche</h1>
-          <p className="mt-1 text-sm md:text-base text-gray-600">Finde Schüler nach Namen, Gruppe oder Status</p>
-        </div>
+    <ResponsiveLayout>
+      <div className="w-full">
+        {/* Modern Header with PageHeaderWithSearch component */}
+        <PageHeaderWithSearch
+          title="Schülersuche"
+          badge={{
+            icon: (
+              <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+            ),
+            count: filteredStudents.length
+          }}
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: "Name suchen..."
+          }}
+          filters={filterConfigs}
+          activeFilters={activeFilters}
+          onClearAllFilters={() => {
+            setSearchTerm("");
+            setSelectedGroup("");
+            setSelectedYear("all");
+            setAttendanceFilter("all");
+          }}
+        />
 
-        {/* Mobile Search Bar - Always Visible */}
-        <div className="mb-4 md:hidden">
-          <Input
-            label="Schnellsuche"
-            name="searchTerm"
-            placeholder="Schüler suchen..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="text-base" // Prevent iOS zoom
-          />
-        </div>
+        {/* Mobile Error Display */}
+        {error && (
+          <div className="mb-4 md:hidden">
+            <Alert type="error" message={error} />
+          </div>
+        )}
 
-        {/* Mobile Filter Toggle */}
-        <div className="mb-4 md:hidden">
-          <button
-            onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
-            className="flex w-full items-center justify-between rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-gray-200 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          >
-            <span className="text-sm font-medium text-gray-700">
-              Filter & Erweiterte Suche
-            </span>
-            <svg 
-              className={`h-5 w-5 text-gray-400 transition-transform ${isMobileFiltersOpen ? 'rotate-180' : ''}`} 
-              fill="none" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Search Panel - Desktop always visible, Mobile collapsible */}
-        <div className={`mb-6 overflow-hidden rounded-xl bg-white shadow-md transition-all duration-300 ${
-          isMobileFiltersOpen ? 'block' : 'hidden md:block'
-        }`}>
-          <div className="p-4 md:p-6">
-            <h2 className="mb-4 text-lg md:text-xl font-bold text-gray-800">Suchkriterien</h2>
-
-            <div className="grid grid-cols-1 gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-4">
-              {/* Name Search - Desktop only (mobile has quick search above) */}
-              <div className="hidden md:block">
-                <Input
-                  label="Name"
-                  name="searchTerm"
-                  placeholder="Vor- oder Nachname"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="h-12 text-base"
-                />
-              </div>
-
-              {/* Group Filter */}
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Gruppe
-                </label>
-                <select
-                  value={selectedGroup}
-                  onChange={(e) => setSelectedGroup(e.target.value)}
-                  className="mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 text-base shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8"
-                >
-                  <option value="">Alle Gruppen</option>
-                  {groups.map(group => (
-                    <option key={group.id} value={group.id}>{group.name}</option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                  <svg className="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* School Year Filter */}
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Jahrgangsstufe
-                </label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 text-base shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8"
-                >
-                  <option value="all">Alle Jahrgänge</option>
-                  <option value="1">Jahrgang 1</option>
-                  <option value="2">Jahrgang 2</option>
-                  <option value="3">Jahrgang 3</option>
-                  <option value="4">Jahrgang 4</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                  <svg className="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Attendance Status */}
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Anwesenheitsstatus
-                </label>
-                <select
-                  value={attendanceFilter}
-                  onChange={(e) => setAttendanceFilter(e.target.value)}
-                  className="mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 text-base shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8"
-                >
-                  <option value="all">Alle</option>
-                  <option value="in_house">In Räumen</option>
-                  <option value="wc">Toilette</option>
-                  <option value="school_yard">Schulhof</option>
-                  <option value="bus">Zuhause</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                  <svg className="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            {/* Search Actions */}
-            <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
-              <button
-                onClick={handleFilterReset}
-                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 order-2 sm:order-1"
-              >
-                Zurücksetzen
-              </button>
-              <button
-                onClick={handleSearch}
-                disabled={isSearching}
-                className="rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm transition-all hover:from-blue-600 hover:to-blue-700 hover:shadow-md disabled:opacity-70 order-1 sm:order-2"
-              >
-                {isSearching ? "Suche läuft..." : "Suchen"}
-              </button>
+        {/* Student Grid - Mobile Optimized with Playful Design */}
+        {isSearching ? (
+          <div className="py-12 text-center">
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+              <p className="text-gray-600">Suche läuft...</p>
             </div>
           </div>
-        </div>
-
-        {/* Results Section */}
-        <div className="rounded-xl bg-white shadow-md overflow-hidden">
-          <div className="p-4 md:p-6">
-            {/* Results Header - Mobile Optimized */}
-            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 md:mb-6 gap-4">
+        ) : filteredStudents.length === 0 ? (
+          <div className="py-12 text-center">
+            <div className="flex flex-col items-center gap-4">
+              <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
               <div>
-                <h2 className="text-lg md:text-xl font-bold text-gray-800">
-                  Suchergebnisse
-                </h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  {filteredStudents.length} {filteredStudents.length === 1 ? 'Schüler gefunden' : 'Schüler gefunden'}
-                </p>
-              </div>
-              
-              {/* Year Legend - Hidden on mobile, shown on tablet+ */}
-              <div className="hidden md:flex items-center space-x-4">
-                <div className="flex items-center">
-                  <span className="inline-block h-3 w-3 rounded-full bg-blue-500 mr-1"></span>
-                  <span className="text-xs text-gray-600">Jahr 1</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="inline-block h-3 w-3 rounded-full bg-green-500 mr-1"></span>
-                  <span className="text-xs text-gray-600">Jahr 2</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="inline-block h-3 w-3 rounded-full bg-yellow-500 mr-1"></span>
-                  <span className="text-xs text-gray-600">Jahr 3</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="inline-block h-3 w-3 rounded-full bg-purple-500 mr-1"></span>
-                  <span className="text-xs text-gray-600">Jahr 4</span>
-                </div>
+                <h3 className="text-lg font-medium text-gray-900">Keine Schüler gefunden</h3>
+                <p className="text-gray-600">Versuche deine Suchkriterien anzupassen.</p>
               </div>
             </div>
+          </div>
+        ) : (
+          <div>
+            {/* Add floating animation keyframes */}
+            <style jsx>{`
+              @keyframes float {
+                0%, 100% { transform: translateY(0px) rotate(var(--rotation)); }
+                50% { transform: translateY(-4px) rotate(var(--rotation)); }
+              }
+            `}</style>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3 gap-6">
+              {filteredStudents.map((student, index) => {
+                const locationStatus = getLocationStatus(student);
 
-            {error && (
-              <div className="mb-6">
-                <Alert type="error" message={error} />
-              </div>
-            )}
+                return (
+                  <div
+                    key={student.id}
+                    onClick={() => router.push(`/students/${student.id}?from=/students/search`)}
+                    className={`group cursor-pointer relative overflow-hidden rounded-2xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.03] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-3 active:scale-[0.97] md:hover:border-blue-200/50`}
+                    style={{
+                      transform: `rotate(${(index % 3 - 1) * 0.8}deg)`,
+                      animation: `float 8s ease-in-out infinite ${index * 0.7}s`
+                    }}
+                  >
+                    {/* Modern gradient overlay */}
+                    <div className={`absolute inset-0 bg-gradient-to-br ${locationStatus.cardGradient} opacity-[0.03] rounded-2xl`}></div>
+                    {/* Subtle inner glow */}
+                    <div className="absolute inset-px rounded-2xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                    {/* Modern border highlight */}
+                    <div className="absolute inset-0 rounded-2xl ring-1 ring-white/20 md:group-hover:ring-blue-200/60 transition-all duration-300"></div>
+                    
 
-            {isSearching ? (
-              <div className="py-12 text-center">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-                  <p className="text-gray-600">Suche läuft...</p>
-                </div>
-              </div>
-            ) : filteredStudents.length === 0 ? (
-              <div className="py-12 text-center">
-                <div className="flex flex-col items-center gap-4">
-                  <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900">Keine Schüler gefunden</h3>
-                    <p className="text-gray-600">Versuche deine Suchkriterien anzupassen.</p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              /* Student Grid - Mobile Optimized */
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredStudents.map((student) => {
-                  const year = getSchoolYear(student.school_class);
-                  const yearColor = getYearColor(year);
-                  const locationStatus = getLocationStatus(student);
-
-                  return (
-                    <div
-                      key={student.id}
-                      onClick={() => router.push(`/students/${student.id}?from=/students/search`)}
-                      className="group cursor-pointer rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-all duration-200 hover:border-blue-300 hover:shadow-md active:scale-[0.98]"
-                    >
-                      <div className="flex items-start justify-between mb-3">
+                    <div className="relative p-6">
+                      {/* Header with student name */}
+                      <div className="flex items-center justify-between mb-3">
+                        {/* Student Name */}
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
-                            {student.first_name} {student.second_name}
-                          </h3>
-                          <div className="flex items-center mt-1 gap-2">
-                            <span className="text-sm text-gray-500">
-                              Klasse {student.school_class}
-                            </span>
-                            <span className={`inline-block h-2 w-2 rounded-full ${yearColor}`} />
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-lg font-bold text-gray-800 whitespace-nowrap overflow-hidden text-ellipsis md:group-hover:text-blue-600 transition-colors duration-300">
+                              {student.first_name}
+                            </h3>
+                            {/* Subtle integrated arrow */}
+                            <svg className="w-4 h-4 text-gray-300 md:group-hover:text-blue-500 md:group-hover:translate-x-1 transition-all duration-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
                           </div>
+                          <p className="text-base font-semibold text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis md:group-hover:text-blue-500 transition-colors duration-300">
+                            {student.second_name}
+                          </p>
                         </div>
-                        <svg className="h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
+                        
+                        {/* Status Badge */}
+                        <span 
+                          className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${locationStatus.badgeColor} ml-3`}
+                          style={{ 
+                            backgroundColor: locationStatus.customBgColor,
+                            boxShadow: locationStatus.customShadow
+                          }}
+                        >
+                          <span className="w-1.5 h-1.5 bg-white/80 rounded-full mr-2 animate-pulse"></span>
+                          {locationStatus.label}
+                        </span>
                       </div>
 
-                      <div className="space-y-2">
+                      {/* Additional Info */}
+                      <div className="space-y-1 mb-3">
+                        <div className="flex items-center text-sm text-gray-600">
+                          <svg className="h-4 w-4 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                          </svg>
+                          <span>Klasse {student.school_class}</span>
+                        </div>
                         {student.group_name && (
                           <div className="flex items-center text-sm text-gray-600">
                             <svg className="h-4 w-4 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -553,21 +525,28 @@ function SearchPageContent() {
                             Gruppe: {student.group_name}
                           </div>
                         )}
-
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-500">Status:</span>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${locationStatus.color}`}>
-                            {locationStatus.label}
-                          </span>
-                        </div>
                       </div>
+
+                      {/* Bottom row with click hint */}
+                      <div className="flex justify-start">
+                        <p className="text-xs text-gray-400 md:group-hover:text-blue-400 transition-colors duration-300">
+                          Tippen für mehr Infos
+                        </p>
+                      </div>
+
+                      {/* Decorative elements */}
+                      <div className="absolute top-3 left-3 w-5 h-5 bg-white/20 rounded-full animate-ping"></div>
+                      <div className="absolute bottom-3 right-3 w-3 h-3 bg-white/30 rounded-full"></div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+
+                    {/* Glowing border effect */}
+                    <div className="absolute inset-0 rounded-2xl opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent via-blue-100/30 to-transparent"></div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </ResponsiveLayout>
   );
