@@ -6,7 +6,7 @@ if [ -d "/ssl-certs-source" ]; then
     echo "Setting up SSL certificates..."
     mkdir -p /var/lib/postgresql/ssl/certs
     
-    # Copy certificates to specific locations
+    # Copy certificates to PostgreSQL expected locations
     cp -f /ssl-certs-source/server.crt /var/lib/postgresql/ssl/certs/server.crt
     cp -f /ssl-certs-source/server.key /var/lib/postgresql/ssl/certs/server.key
     cp -f /ssl-certs-source/ca.crt /var/lib/postgresql/ssl/certs/ca.crt
