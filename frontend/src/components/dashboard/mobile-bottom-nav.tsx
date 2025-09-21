@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
+import { QuickCreateActivityModal } from "~/components/activities/quick-create-modal";
 
 interface NavItem {
   href: string;
@@ -69,21 +70,6 @@ const mainNavItems: NavItem[] = [
     requiresActiveSupervision: true,
   },
   {
-    href: "/activities",
-    label: "Aktivitäten",
-    icon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-      </svg>
-    ),
-    activeIcon: (
-      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-      </svg>
-    ),
-    alwaysShow: true,
-  },
-  {
     href: "/staff",
     label: "Mitarbeiter",
     icon: (
@@ -111,8 +97,10 @@ interface AdditionalNavItem {
 }
 
 const additionalNavItems: AdditionalNavItem[] = [
-  { href: '/students/search', label: 'Kindersuche', requiresSupervision: true },
-  { href: '/statistics', label: 'Statistiken', requiresAdmin: true },
+  { href: '/students/search', label: 'Schüler Suche', requiresSupervision: true },
+  { href: '/activities', label: 'Aktivitäten', requiresAdmin: true },
+  // Temporarily disabled - not ready yet
+  // { href: '/statistics', label: 'Statistiken', requiresAdmin: true },
   { href: '/substitutions', label: 'Vertretungen', requiresAdmin: true },
   { href: '/database', label: 'Datenbank', requiresAdmin: true },
   { href: '/settings', label: 'Einstellungen', alwaysShow: true },
@@ -176,6 +164,7 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
   };
 
   // Quick create activity modal state
+  const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
 
   // Filter main navigation items based on permissions
   const filteredMainItems = mainNavItems.filter(item => {
@@ -235,7 +224,7 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
         ...filteredMainItems,
         {
           href: '/students/search',
-          label: 'Kindersuche',
+          label: 'Suchen',
           icon: (
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -329,6 +318,26 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
             </button>
           </div>
 
+          {/* Create Activity Button */}
+          <div className="px-6 pb-4">
+            <button
+              onClick={() => {
+                setIsQuickCreateOpen(true);
+                closeOverflowMenu();
+              }}
+              className="w-full flex items-center gap-3 px-4 py-4 bg-gradient-to-r from-[#83CD2D]/10 to-[#70B525]/10 border border-[#83CD2D]/30 rounded-2xl hover:from-[#83CD2D]/20 hover:to-[#70B525]/20 hover:border-[#83CD2D]/50 hover:shadow-lg hover:shadow-[#83CD2D]/20 transition-all duration-300 transform active:scale-[0.96] group"
+            >
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#83CD2D] to-[#70B525] flex items-center justify-center flex-shrink-0 shadow-md shadow-[#83CD2D]/30 transition-all duration-300 group-active:rotate-90">
+                <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </div>
+              <span className="flex-1 text-left font-semibold text-gray-800">Aktivität erstellen</span>
+              <svg className="h-5 w-5 text-[#83CD2D] group-active:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
+            </button>
+          </div>
 
           {/* Modern navigation grid aligned with header and bottom nav design */}
           <div className="relative px-6 pb-8">
@@ -385,9 +394,10 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
                       {item.href === '/activities' && (
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                       )}
+                      {/* Temporarily disabled - not ready yet
                       {item.href === '/statistics' && (
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      )}
+                      )} */}
                       {item.href === '/substitutions' && (
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       )}
@@ -535,6 +545,15 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
         <div className="h-safe-area-inset-bottom bg-white/80" />
       </nav>
 
+      {/* Quick Create Activity Modal */}
+      <QuickCreateActivityModal
+        isOpen={isQuickCreateOpen}
+        onClose={() => setIsQuickCreateOpen(false)}
+        onSuccess={() => {
+          setIsQuickCreateOpen(false);
+          // Optional: Show success notification or refresh data
+        }}
+      />
     </>
   );
 }

@@ -100,23 +100,24 @@ func (rs *Resource) Router() chi.Router {
 
 // StudentResponse represents a student response
 type StudentResponse struct {
-	ID                int64                    `json:"id"`
-	PersonID          int64                    `json:"person_id"`
-	FirstName         string                   `json:"first_name"`
-	LastName          string                   `json:"last_name"`
-	TagID             string                   `json:"tag_id,omitempty"`
-	SchoolClass       string                   `json:"school_class"`
-	Location          string                   `json:"location"`
-	Bus               bool                     `json:"bus"`
-	GuardianName      string                   `json:"guardian_name"`
-	GuardianContact   string                   `json:"guardian_contact"`
-	GuardianEmail     string                   `json:"guardian_email,omitempty"`
-	GuardianPhone     string                   `json:"guardian_phone,omitempty"`
-	GroupID           int64                    `json:"group_id,omitempty"`
-	GroupName         string                   `json:"group_name,omitempty"`
-	ScheduledCheckout *ScheduledCheckoutInfo   `json:"scheduled_checkout,omitempty"`
-	CreatedAt         time.Time                `json:"created_at"`
-	UpdatedAt         time.Time                `json:"updated_at"`
+	ID                int64                  `json:"id"`
+	PersonID          int64                  `json:"person_id"`
+	FirstName         string                 `json:"first_name"`
+	LastName          string                 `json:"last_name"`
+	TagID             string                 `json:"tag_id,omitempty"`
+	SchoolClass       string                 `json:"school_class"`
+	Location          string                 `json:"location"`
+	Bus               bool                   `json:"bus"`
+	GuardianName      string                 `json:"guardian_name"`
+	GuardianContact   string                 `json:"guardian_contact,omitempty"`
+	GuardianEmail     string                 `json:"guardian_email,omitempty"`
+	GuardianPhone     string                 `json:"guardian_phone,omitempty"`
+	GroupID           int64                  `json:"group_id,omitempty"`
+	GroupName         string                 `json:"group_name,omitempty"`
+	ScheduledCheckout *ScheduledCheckoutInfo `json:"scheduled_checkout,omitempty"`
+	ExtraInfo         string                 `json:"extra_info,omitempty"`
+	CreatedAt         time.Time              `json:"created_at"`
+	UpdatedAt         time.Time              `json:"updated_at"`
 }
 
 // ScheduledCheckoutInfo represents scheduled checkout information for a student
@@ -157,10 +158,11 @@ type StudentRequest struct {
 	GuardianContact string `json:"guardian_contact"`
 
 	// Optional fields
-	GuardianEmail string `json:"guardian_email,omitempty"`
-	GuardianPhone string `json:"guardian_phone,omitempty"`
-	GroupID       *int64 `json:"group_id,omitempty"`
-	Bus           *bool  `json:"bus,omitempty"` // Whether student takes the bus
+	GuardianEmail string  `json:"guardian_email,omitempty"`
+	GuardianPhone string  `json:"guardian_phone,omitempty"`
+	GroupID       *int64  `json:"group_id,omitempty"`
+	Bus           *bool   `json:"bus,omitempty"`        // Whether student takes the bus
+	ExtraInfo     *string `json:"extra_info,omitempty"` // Extra information visible to supervisors
 }
 
 // UpdateStudentRequest represents a student update request
@@ -177,7 +179,8 @@ type UpdateStudentRequest struct {
 	GuardianEmail   *string `json:"guardian_email,omitempty"`
 	GuardianPhone   *string `json:"guardian_phone,omitempty"`
 	GroupID         *int64  `json:"group_id,omitempty"`
-	Bus             *bool   `json:"bus,omitempty"` // Whether student takes the bus
+	Bus             *bool   `json:"bus,omitempty"`        // Whether student takes the bus
+	ExtraInfo       *string `json:"extra_info,omitempty"` // Extra information visible to supervisors
 }
 
 // RFIDAssignmentRequest represents an RFID tag assignment request
@@ -256,32 +259,36 @@ func (req *RFIDAssignmentRequest) Bind(r *http.Request) error {
 }
 
 // newStudentResponse creates a student response from a student and person model
-// includeLocation determines whether to include sensitive location data
-func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, includeLocation bool, activeService activeService.Service, personService userService.PersonService) StudentResponse {
+// hasFullAccess determines whether to include detailed location data and supervisor-only information (like extra info)
+func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, activeService activeService.Service, personService userService.PersonService) StudentResponse {
 	response := StudentResponse{
-		ID:              student.ID,
-		PersonID:        student.PersonID,
-		SchoolClass:     student.SchoolClass,
-		Bus:             student.Bus,
-		GuardianName:    student.GuardianName,
-		GuardianContact: student.GuardianContact,
-		CreatedAt:       student.CreatedAt,
-		UpdatedAt:       student.UpdatedAt,
+		ID:           student.ID,
+		PersonID:     student.PersonID,
+		SchoolClass:  student.SchoolClass,
+		Bus:          student.Bus,
+		GuardianName: student.GuardianName,
+		CreatedAt:    student.CreatedAt,
+		UpdatedAt:    student.UpdatedAt,
+	}
+
+	// Only include guardian contact info for users with full access
+	if hasFullAccess {
+		response.GuardianContact = student.GuardianContact
 	}
 
 	// Use real tracking data instead of deprecated flags
 	// Always check attendance status first - this is public information
 	attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, student.ID)
-	
+
 	if err == nil && attendanceStatus != nil && attendanceStatus.Status == "checked_in" {
 		// Student is checked in today
 		// Now check if they have an active visit (room assignment)
 		currentVisit, err := activeService.GetStudentCurrentVisit(ctx, student.ID)
-		
+
 		if err == nil && currentVisit != nil {
 			// Student has an active visit - they are present and in a specific activity
-			if includeLocation {
-				// Supervisors see detailed location/activity information
+			if hasFullAccess {
+				// Users with full access see detailed location/activity information
 				// Get the active group with room details
 				if currentVisit.ActiveGroupID > 0 {
 					activeGroup, err := activeService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
@@ -294,7 +301,7 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 					response.Location = "Anwesend - Aktivität"
 				}
 			} else {
-				// Non-supervisors see generic attendance status
+				// Users without full access see generic attendance status
 				response.Location = "Anwesend"
 			}
 		} else {
@@ -316,7 +323,7 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 				scheduledByName = person.FirstName + " " + person.LastName
 			}
 		}
-		
+
 		response.ScheduledCheckout = &ScheduledCheckoutInfo{
 			ID:           pendingCheckout.ID,
 			ScheduledFor: pendingCheckout.ScheduledFor,
@@ -328,17 +335,21 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 	if person != nil {
 		response.FirstName = person.FirstName
 		response.LastName = person.LastName
-		if person.TagID != nil {
+		// Only include RFID tag for users with full access
+		if hasFullAccess && person.TagID != nil {
 			response.TagID = *person.TagID
 		}
 	}
 
-	if student.GuardianEmail != nil {
-		response.GuardianEmail = *student.GuardianEmail
-	}
+	// Only include guardian email and phone for users with full access
+	if hasFullAccess {
+		if student.GuardianEmail != nil {
+			response.GuardianEmail = *student.GuardianEmail
+		}
 
-	if student.GuardianPhone != nil {
-		response.GuardianPhone = *student.GuardianPhone
+		if student.GuardianPhone != nil {
+			response.GuardianPhone = *student.GuardianPhone
+		}
 	}
 
 	if student.GroupID != nil {
@@ -347,6 +358,11 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 
 	if group != nil {
 		response.GroupName = group.Name
+	}
+
+	// Include extra info only for users with full access (supervisors/admins)
+	if hasFullAccess && student.ExtraInfo != nil && *student.ExtraInfo != "" {
+		response.ExtraInfo = *student.ExtraInfo
 	}
 
 	return response
@@ -370,7 +386,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// For search functionality, we show all students regardless of group supervision
 	// Permission checking will be done on individual student detail view
 	var allowedGroupIDs []int64
-	canAccessLocation := isAdmin
+	hasFullAccess := isAdmin
 
 	// If a specific group filter is requested, apply it
 	if groupIDStr != "" {
@@ -499,8 +515,8 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// Filter based on location (only if user can access location data)
-		if location != "" && canAccessLocation && student.GetLocation() != location && location != "Unknown" {
+		// Filter based on location (only if user has full access to location data)
+		if location != "" && hasFullAccess && student.GetLocation() != location && location != "Unknown" {
 			continue
 		}
 
@@ -513,7 +529,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		responses = append(responses, newStudentResponse(r.Context(), student, person, group, canAccessLocation, rs.ActiveService, rs.PersonService))
+		responses = append(responses, newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService))
 	}
 
 	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, totalCount, "Students retrieved successfully")
@@ -611,16 +627,12 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 
 		response.GroupSupervisors = supervisors
 
-		// Clear sensitive data for users without full access
-		// BUT keep basic attendance status (Anwesend/Abwesend) - this is public information
-		// Only clear if it contains detailed location info
+		// Note: Sensitive fields are already handled in newStudentResponse based on hasFullAccess
+		// No need to clear them here as they won't be set if user lacks access
+		// Location handling is special - we keep basic attendance status as it's public information
 		if response.Location != "Anwesend" && response.Location != "Abwesend" {
 			response.Location = ""
 		}
-		response.GuardianContact = ""
-		response.GuardianEmail = ""
-		response.GuardianPhone = ""
-		response.TagID = ""
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Student retrieved successfully")
@@ -684,6 +696,10 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		student.Bus = *req.Bus
 	}
 
+	if req.ExtraInfo != nil {
+		student.ExtraInfo = req.ExtraInfo
+	}
+
 	// Create student
 	if err := rs.StudentRepo.Create(r.Context(), student); err != nil {
 		// Clean up person if student creation fails
@@ -705,12 +721,12 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Admin users creating students can see full data including location
+	// Admin users creating students can see full data including detailed location
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	canAccessLocation := hasAdminPermissions(userPermissions)
+	hasFullAccess := hasAdminPermissions(userPermissions)
 
 	// Return the created student with person data
-	common.Respond(w, r, http.StatusCreated, newStudentResponse(r.Context(), student, person, group, canAccessLocation, rs.ActiveService, rs.PersonService), "Student created successfully")
+	common.Respond(w, r, http.StatusCreated, newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService), "Student created successfully")
 }
 
 // updateStudent handles updating an existing student
@@ -804,6 +820,9 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	if req.Bus != nil {
 		student.Bus = *req.Bus
 	}
+	if req.ExtraInfo != nil {
+		student.ExtraInfo = req.ExtraInfo
+	}
 
 	// Update student
 	if err := rs.StudentRepo.Update(r.Context(), student); err != nil {
@@ -831,12 +850,12 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Admin users updating students can see full data including location
+	// Admin users updating students can see full data including detailed location
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	canAccessLocation := hasAdminPermissions(userPermissions)
+	hasFullAccess := hasAdminPermissions(userPermissions)
 
 	// Return the updated student with person data
-	common.Respond(w, r, http.StatusOK, newStudentResponse(r.Context(), updatedStudent, person, group, canAccessLocation, rs.ActiveService, rs.PersonService), "Student updated successfully")
+	common.Respond(w, r, http.StatusOK, newStudentResponse(r.Context(), updatedStudent, person, group, hasFullAccess, rs.ActiveService, rs.PersonService), "Student updated successfully")
 }
 
 // deleteStudent handles deleting a student and their associated person record
@@ -915,7 +934,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	isAdmin := hasAdminPermissions(userPermissions)
 	staff, _ := rs.UserContextService.GetCurrentStaff(r.Context())
-	
+
 	// Determine if user has full access to student location details
 	hasFullAccess := isAdmin
 	if !hasFullAccess && staff != nil && student.GroupID != nil {
@@ -933,9 +952,9 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 
 	// Create location response structure
 	locationResponse := struct {
-		Location          string                   `json:"location"`
-		CurrentRoom       string                   `json:"current_room,omitempty"`
-		ScheduledCheckout *ScheduledCheckoutInfo   `json:"scheduled_checkout,omitempty"`
+		Location          string                 `json:"location"`
+		CurrentRoom       string                 `json:"current_room,omitempty"`
+		ScheduledCheckout *ScheduledCheckoutInfo `json:"scheduled_checkout,omitempty"`
 	}{
 		Location:          response.Location,
 		ScheduledCheckout: response.ScheduledCheckout,

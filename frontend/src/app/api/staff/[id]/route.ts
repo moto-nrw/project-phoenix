@@ -76,8 +76,8 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     return {
       id: String(staff.id), // This should be the staff ID since that's what we use for the API
       name: staff.person ? `${staff.person.first_name} ${staff.person.last_name}` : "",
-      firstName: staff.person?.first_name ?? "",
-      lastName: staff.person?.last_name ?? "",
+      first_name: staff.person?.first_name ?? "",
+      last_name: staff.person?.last_name ?? "",
       email: staff.person?.email ?? undefined,  // Include email from person object
       specialization: staff.specialization ?? "",
       role: staff.role ?? null,
@@ -93,6 +93,8 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       // Include both IDs for debugging
       staff_id: String(staff.id),
       teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
+      // Include person object if available
+      person: staff.person,
     };
   } catch (error) {
     console.error("Error fetching staff member:", error);
@@ -104,8 +106,8 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
 interface TeacherResponse {
   id: string;
   name: string;
-  firstName: string;
-  lastName: string;
+  first_name: string;
+  last_name: string;
   email?: string;
   specialization: string;
   role: string | null;
@@ -115,6 +117,19 @@ interface TeacherResponse {
   created_at: string;
   updated_at: string;
   person_id?: number;
+  account_id?: number;
+  staff_id?: string;
+  teacher_id?: string;
+  person?: {
+    id: number;
+    first_name: string;
+    last_name: string;
+    email?: string;
+    tag_id?: string;
+    account_id?: number;
+    created_at: string;
+    updated_at: string;
+  };
 }
 
 /**
@@ -142,8 +157,8 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
       return {
         id: String(response.id),
         name: response.person ? `${response.person.first_name} ${response.person.last_name}` : "",
-        firstName: response.person?.first_name ?? "",
-        lastName: response.person?.last_name ?? "",
+        first_name: response.person?.first_name ?? "",
+        last_name: response.person?.last_name ?? "",
         email: response.person?.email ?? undefined,  // Include email from person object
         specialization: response.specialization ?? "",
         role: response.role ?? null,
@@ -154,6 +169,10 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
         updated_at: response.updated_at,
         // Include account_id from person object
         account_id: response.person?.account_id,
+        // Include person_id for updates
+        person_id: response.person_id,
+        // Include person object if available
+        person: response.person,
       };
     } catch (error) {
       // Check for permission errors (403 Forbidden)

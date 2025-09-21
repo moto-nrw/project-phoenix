@@ -35,8 +35,6 @@ func (ae *AuthEvent) BeforeAppendModel(query any) error {
 	switch q := query.(type) {
 	case *bun.SelectQuery:
 		q.ModelTableExpr(`audit.auth_events AS "auth_event"`)
-	case *bun.InsertQuery:
-		q.ModelTableExpr("audit.auth_events")
 	case *bun.UpdateQuery:
 		q.ModelTableExpr("audit.auth_events")
 	case *bun.DeleteQuery:

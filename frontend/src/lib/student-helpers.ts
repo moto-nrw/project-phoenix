@@ -26,6 +26,7 @@ export interface BackendStudent {
     group_id?: number;
     group_name?: string;
     scheduled_checkout?: ScheduledCheckoutInfo;
+    extra_info?: string;
     created_at: string;
     updated_at: string;
 }
@@ -103,6 +104,8 @@ export interface Student {
     bus?: boolean; // Administrative permission flag (Buskind), not attendance status
     name_lg?: string;
     contact_lg?: string;
+    guardian_email?: string;
+    guardian_phone?: string;
     custom_users_id?: string;
     // Privacy consent data (fetched separately)
     privacy_consent?: PrivacyConsent;
@@ -112,6 +115,8 @@ export interface Student {
     // Additional fields for access control
     has_full_access?: boolean;
     group_supervisors?: SupervisorContact[];
+    // Extra information visible only to supervisors
+    extra_info?: string;
 }
 
 // Mapping functions
@@ -153,7 +158,10 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student & { 
         bus: backendStudent.bus, // Administrative permission flag (Buskind)
         name_lg: backendStudent.guardian_name,
         contact_lg: backendStudent.guardian_contact,
+        guardian_email: backendStudent.guardian_email,
+        guardian_phone: backendStudent.guardian_phone,
         custom_users_id: undefined, // Not provided by backend
+        extra_info: backendStudent.extra_info,
     };
     
     // Add scheduled checkout info if present
@@ -194,6 +202,7 @@ export function prepareStudentForBackend(student: Partial<Student> & {
     tag_id?: string;
     guardian_email?: string;
     guardian_phone?: string;
+    extra_info?: string;
 }): Partial<BackendStudent> {
     // Calculate location string from boolean flags (excluding bus)
     let location = "Unknown";
@@ -215,6 +224,7 @@ export function prepareStudentForBackend(student: Partial<Student> & {
         tag_id: student.tag_id,
         guardian_email: student.guardian_email,
         guardian_phone: student.guardian_phone,
+        extra_info: student.extra_info,
     };
 }
 
@@ -229,6 +239,7 @@ export interface CreateStudentRequest {
     tag_id?: string; // Optional RFID
     guardian_email?: string;
     guardian_phone?: string;
+    extra_info?: string;
 }
 
 export interface UpdateStudentRequest {
@@ -241,6 +252,7 @@ export interface UpdateStudentRequest {
     tag_id?: string;
     guardian_email?: string;
     guardian_phone?: string;
+    extra_info?: string;
 }
 
 // Backend request type (for actual API calls)
@@ -254,6 +266,7 @@ export interface BackendUpdateRequest {
     guardian_email?: string;
     guardian_phone?: string;
     group_id?: number;
+    extra_info?: string;
 }
 
 // Map privacy consent from backend to frontend
@@ -305,6 +318,9 @@ export function mapUpdateRequestToBackend(request: UpdateStudentRequest): Backen
     if (request.group_id !== undefined) {
         backendRequest.group_id = parseInt(request.group_id, 10);
     }
+    if (request.extra_info !== undefined) {
+        backendRequest.extra_info = request.extra_info;
+    }
     
     return backendRequest;
 }
@@ -326,6 +342,37 @@ export function formatStudentStatus(student: Student): string {
     if (student.school_yard) return 'Schulhof';
     if (student.bus) return 'Bus';
     return 'Zuhause';
+}
+
+/**
+ * Extracts guardian contact information with clear precedence rules.
+ * This function provides a consistent way to determine which contact
+ * information to display for a student's guardian.
+ * 
+ * Precedence order:
+ * 1. guardian_email - Primary contact method (if available)
+ * 2. contact_lg - Legacy contact field (fallback)
+ * 3. Empty string - Final fallback when no contact info is available
+ * 
+ * @param studentData - Object containing guardian contact fields
+ * @returns The most appropriate guardian contact information
+ */
+export function extractGuardianContact(studentData: {
+    guardian_email?: string;
+    contact_lg?: string;
+}): string {
+    // First priority: Use guardian_email if available
+    if (studentData.guardian_email) {
+        return studentData.guardian_email;
+    }
+    
+    // Second priority: Fall back to legacy contact_lg field
+    if (studentData.contact_lg) {
+        return studentData.contact_lg;
+    }
+    
+    // Final fallback: Return empty string when no contact info available
+    return "";
 }
 
 export function getStatusColor(student: Student): string {

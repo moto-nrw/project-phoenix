@@ -24,6 +24,7 @@ type Student struct {
 	GuardianEmail   *string `bun:"guardian_email" json:"guardian_email,omitempty"`
 	GuardianPhone   *string `bun:"guardian_phone" json:"guardian_phone,omitempty"`
 	GroupID         *int64  `bun:"group_id" json:"group_id,omitempty"`
+	ExtraInfo       *string `bun:"extra_info" json:"extra_info,omitempty"`
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
@@ -31,18 +32,17 @@ type Student struct {
 }
 
 // BeforeAppendModel sets the correct table expression
+// Note: Table aliases (AS "student") are only applied for SELECT, UPDATE, and DELETE queries.
+//       For INSERT queries, aliases should NOT be used, as they can cause issues with some database drivers.
 func (s *Student) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("users.students")
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr("users.students")
+		q.ModelTableExpr(`users.students AS "student"`)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("users.students")
+		q.ModelTableExpr(`users.students AS "student"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("users.students")
+		q.ModelTableExpr(`users.students AS "student"`)
 	}
 	return nil
 }

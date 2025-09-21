@@ -50,3 +50,23 @@ func (e *UserContextError) Error() string {
 func (e *UserContextError) Unwrap() error {
 	return e.Err
 }
+
+// PartialError represents an error where some operations succeeded but others failed
+type PartialError struct {
+	Op           string  // Operation that partially failed
+	SuccessCount int     // Number of successful operations
+	FailureCount int     // Number of failed operations
+	FailedIDs    []int64 // IDs of items that failed
+	LastErr      error   // Last error encountered
+}
+
+// Error returns the error message
+func (e *PartialError) Error() string {
+	return fmt.Sprintf("usercontext.%s: partial failure - %d succeeded, %d failed (last error: %v)",
+		e.Op, e.SuccessCount, e.FailureCount, e.LastErr)
+}
+
+// Unwrap returns the last error
+func (e *PartialError) Unwrap() error {
+	return e.LastErr
+}

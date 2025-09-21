@@ -144,6 +144,7 @@ interface BackendStudentRequest {
   guardian_phone?: string;
   group_id?: number;
   bus?: boolean;
+  extra_info?: string;
 }
 
 export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; }>(
@@ -207,7 +208,8 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
       guardian_email: guardianEmail ?? backendData.guardian_email,
       guardian_phone: guardianPhone ?? backendData.guardian_phone,
       group_id: backendData.group_id,
-      bus: backendData.bus
+      bus: backendData.bus,
+      extra_info: backendData.extra_info
     };
     
     try {

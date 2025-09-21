@@ -16,14 +16,14 @@ import (
 // createScheduledCheckout creates a new scheduled checkout for a student
 func (rs *Resource) createScheduledCheckout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	// Get user from JWT context
 	userClaims := jwt.ClaimsFromCtx(ctx)
 	if userClaims.ID == 0 {
 		common.RespondWithError(w, r, http.StatusUnauthorized, "Invalid token")
 		return
 	}
-	
+
 	// For now, use the account ID as the staff ID
 	// TODO: Properly resolve staff ID from account
 	staffID := int64(userClaims.ID)
@@ -36,14 +36,14 @@ func (rs *Resource) createScheduledCheckout(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid request body: " + err.Error())
+		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid request body: "+err.Error())
 		return
 	}
-	
+
 	// Parse the time string
 	scheduledTime, err := time.Parse(time.RFC3339, req.ScheduledFor)
 	if err != nil {
-		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid scheduled time format: " + err.Error())
+		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid scheduled time format: "+err.Error())
 		return
 	}
 
@@ -56,21 +56,21 @@ func (rs *Resource) createScheduledCheckout(w http.ResponseWriter, r *http.Reque
 	// Check if the user is authorized to schedule checkout for this student
 	// Only education group teachers can schedule checkouts for their students
 	isAuthorized := false
-	
+
 	// Get the person and staff info for the current user
 	person, err := rs.PersonService.FindByAccountID(ctx, int64(userClaims.ID))
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to get user information")
 		return
 	}
-	
+
 	if person != nil {
 		staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
 		if err != nil {
 			common.RespondWithError(w, r, http.StatusInternalServerError, "User is not a staff member")
 			return
 		}
-		
+
 		if staff != nil {
 			// Check if user is a teacher of the student's education group
 			hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staff.ID, req.StudentID)
@@ -84,7 +84,7 @@ func (rs *Resource) createScheduledCheckout(w http.ResponseWriter, r *http.Reque
 		common.RespondWithError(w, r, http.StatusForbidden, "You are not authorized to schedule checkout for this student")
 		return
 	}
-	
+
 	// Create scheduled checkout
 	checkout := &active.ScheduledCheckout{
 		StudentID:    req.StudentID,
@@ -207,8 +207,8 @@ func (rs *Resource) getPendingScheduledCheckout(w http.ResponseWriter, r *http.R
 
 	if checkout == nil {
 		common.RespondWithJSON(w, r, http.StatusOK, map[string]interface{}{
-			"status": "success",
-			"data":   nil,
+			"status":  "success",
+			"data":    nil,
 			"message": "No pending scheduled checkout found",
 		})
 		return
@@ -242,4 +242,3 @@ func (rs *Resource) processScheduledCheckouts(w http.ResponseWriter, r *http.Req
 		"message": fmt.Sprintf("Processed %d scheduled checkouts", result.CheckoutsExecuted),
 	})
 }
-
