@@ -1,6 +1,7 @@
 // components/dashboard/sidebar.tsx
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -235,5 +236,21 @@ function SidebarContent({ className = "" }: SidebarProps) {
 }
 
 export function Sidebar({ className = "" }: SidebarProps) {
-    return <SidebarContent className={className} />;
+    return (
+        <Suspense fallback={
+            <nav className={`bg-white border-r border-gray-200 ${className}`}>
+                <div className="flex flex-col h-full">
+                    <div className="flex-1 overflow-y-auto px-3 py-4">
+                        <div className="space-y-1">
+                            <div className="h-8 bg-gray-200 rounded animate-pulse" />
+                            <div className="h-8 bg-gray-200 rounded animate-pulse" />
+                            <div className="h-8 bg-gray-200 rounded animate-pulse" />
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        }>
+            <SidebarContent className={className} />
+        </Suspense>
+    );
 }
