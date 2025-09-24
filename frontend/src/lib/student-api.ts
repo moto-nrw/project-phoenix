@@ -264,12 +264,17 @@ export async function updateStudent(
         first_name: string;
         last_name: string;
         school_class: string;
+        birthday: string;
         guardian_name: string;
         guardian_contact: string;
         group_id: number;
         tag_id: string;
         guardian_email: string;
         guardian_phone: string;
+        bus: boolean;
+        health_info: string;
+        supervisor_notes: string;
+        extra_info: string;
     }>
 ): Promise<Student> {
     const useProxyApi = typeof window !== "undefined";

@@ -27,6 +27,9 @@ export interface BackendStudent {
     group_name?: string;
     scheduled_checkout?: ScheduledCheckoutInfo;
     extra_info?: string;
+    birthday?: string;
+    health_info?: string;
+    supervisor_notes?: string;
     created_at: string;
     updated_at: string;
 }
@@ -117,6 +120,9 @@ export interface Student {
     group_supervisors?: SupervisorContact[];
     // Extra information visible only to supervisors
     extra_info?: string;
+    birthday?: string;
+    health_info?: string;
+    supervisor_notes?: string;
 }
 
 // Mapping functions
@@ -162,8 +168,11 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student & { 
         guardian_phone: backendStudent.guardian_phone,
         custom_users_id: undefined, // Not provided by backend
         extra_info: backendStudent.extra_info,
+        birthday: backendStudent.birthday,
+        health_info: backendStudent.health_info,
+        supervisor_notes: backendStudent.supervisor_notes,
     };
-    
+
     // Add scheduled checkout info if present
     if (backendStudent.scheduled_checkout) {
         return {
@@ -198,11 +207,14 @@ export function mapStudentDetailResponse(backendStudent: BackendStudentDetail): 
 }
 
 // Prepare frontend student for backend
-export function prepareStudentForBackend(student: Partial<Student> & { 
+export function prepareStudentForBackend(student: Partial<Student> & {
     tag_id?: string;
     guardian_email?: string;
     guardian_phone?: string;
     extra_info?: string;
+    birthday?: string;
+    health_info?: string;
+    supervisor_notes?: string;
 }): Partial<BackendStudent> {
     // Calculate location string from boolean flags (excluding bus)
     let location = "Unknown";
@@ -225,6 +237,9 @@ export function prepareStudentForBackend(student: Partial<Student> & {
         guardian_email: student.guardian_email,
         guardian_phone: student.guardian_phone,
         extra_info: student.extra_info,
+        birthday: student.birthday,
+        health_info: student.health_info,
+        supervisor_notes: student.supervisor_notes,
     };
 }
 
@@ -253,6 +268,9 @@ export interface UpdateStudentRequest {
     guardian_email?: string;
     guardian_phone?: string;
     extra_info?: string;
+    birthday?: string;
+    health_info?: string;
+    supervisor_notes?: string;
 }
 
 // Backend request type (for actual API calls)
@@ -267,6 +285,9 @@ export interface BackendUpdateRequest {
     guardian_phone?: string;
     group_id?: number;
     extra_info?: string;
+    birthday?: string;
+    health_info?: string;
+    supervisor_notes?: string;
 }
 
 // Map privacy consent from backend to frontend
@@ -290,7 +311,7 @@ export function mapPrivacyConsentResponse(backendConsent: BackendPrivacyConsent)
 // Map frontend update request to backend format
 export function mapUpdateRequestToBackend(request: UpdateStudentRequest): BackendUpdateRequest {
     const backendRequest: BackendUpdateRequest = {};
-    
+
     if (request.first_name !== undefined) {
         backendRequest.first_name = request.first_name;
     }
@@ -321,7 +342,16 @@ export function mapUpdateRequestToBackend(request: UpdateStudentRequest): Backen
     if (request.extra_info !== undefined) {
         backendRequest.extra_info = request.extra_info;
     }
-    
+    if (request.birthday !== undefined) {
+        backendRequest.birthday = request.birthday;
+    }
+    if (request.health_info !== undefined) {
+        backendRequest.health_info = request.health_info;
+    }
+    if (request.supervisor_notes !== undefined) {
+        backendRequest.supervisor_notes = request.supervisor_notes;
+    }
+
     return backendRequest;
 }
 
