@@ -844,6 +844,9 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Track whether the user is a group supervisor (already verified above if not admin)
+	isGroupSupervisor := !isAdmin  // If not admin but got here, must be group supervisor
+
 	// Update person fields if provided
 	updatePerson := false
 	if req.FirstName != nil {
@@ -938,12 +941,8 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Admin users and group supervisors can see full data including detailed location
-	// (userPermissions already retrieved above)
-	// If we've made it this far without returning a 403, the user either:
-	// 1. Is an admin (isAdmin = true)
-	// 2. Is a supervisor of the student's group (checked above)
-	// In both cases, they should have full access to the student's data
-	hasFullAccess := true  // User has permission to update, so they get full access to view
+	// Explicitly verify access level based on the checks performed above
+	hasFullAccess := isAdmin || isGroupSupervisor  // Explicitly check for admin or group supervisor
 
 	// Return the updated student with person data
 	common.Respond(w, r, http.StatusOK, newStudentResponse(r.Context(), updatedStudent, person, group, hasFullAccess, rs.ActiveService, rs.PersonService), "Student updated successfully")
