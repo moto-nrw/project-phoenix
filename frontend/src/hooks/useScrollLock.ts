@@ -42,10 +42,17 @@ export function useScrollLock(isLocked: boolean) {
       // For iOS Safari - prevent background scrolling
       const handleTouchMove = (e: TouchEvent) => {
         // Allow scrolling inside the modal
-        const target = e.target as HTMLElement;
-        const isModalContent = target.closest('[data-modal-content="true"]');
-        
-        if (!isModalContent) {
+        const target = e.target;
+
+        // Check if target is an Element before calling closest
+        if (target instanceof Element) {
+          const isModalContent = target.closest('[data-modal-content="true"]');
+
+          if (!isModalContent) {
+            e.preventDefault();
+          }
+        } else {
+          // If target is not an Element, prevent scrolling
           e.preventDefault();
         }
       };
