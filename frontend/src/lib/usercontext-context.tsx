@@ -53,10 +53,12 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
         }
     }, [session?.user?.token]);
 
-    useEffect(() => {
-        // Skip API calls on login/register pages
-        const isAuthPage = pathname === "/" || pathname === "/register";
+    // Calculate isAuthPage outside the effect to avoid dependency issues
+    const isAuthPage = React.useMemo(() => {
+        return pathname === "/" || pathname === "/register";
+    }, [pathname]);
 
+    useEffect(() => {
         // Only fetch when session status is "authenticated" and we have a token and not on auth pages
         if (status === "authenticated" && session?.user?.token && !isAuthPage) {
             void fetchUserData();
@@ -66,8 +68,7 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
             setIsLoading(false);
             setError(null);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [status, session?.user?.token, fetchUserData]); // Removed pathname dependency to prevent refetch on navigation
+    }, [status, session?.user?.token, fetchUserData, isAuthPage]);
 
     const value: UserContextState = {
         educationalGroups,
