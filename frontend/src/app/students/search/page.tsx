@@ -29,29 +29,17 @@ function SearchPageContent() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // TODO: Implement mobile-specific features if needed
-  // const [isMobile, setIsMobile] = useState(false);
-  
+
   // OGS group tracking
   const [userOgsGroups, setUserOgsGroups] = useState<string[]>([]);
-  const [roomStatus, setRoomStatus] = useState<Record<string, { 
-    in_group_room: boolean; 
+  const [roomStatus, setRoomStatus] = useState<Record<string, {
+    in_group_room: boolean;
     current_room_id?: number;
     first_name?: string;
     last_name?: string;
     reason?: string;
   }>>({});
   const [roomIdToNameMap, setRoomIdToNameMap] = useState<Record<string, string>>({});
-
-  // TODO: Handle mobile detection if needed
-  // useEffect(() => {
-  //   const checkMobile = () => {
-  //     setIsMobile(window.innerWidth < 768);
-  //   };
-  //   checkMobile();
-  //   window.addEventListener('resize', checkMobile);
-  //   return () => window.removeEventListener('resize', checkMobile);
-  // }, []);
 
   const fetchStudentsData = useCallback(async (filters?: {
     search?: string;
