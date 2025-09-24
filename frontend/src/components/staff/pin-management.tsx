@@ -15,18 +15,13 @@ interface PINManagementProps {
 export function PINManagement({ onSuccess, onError }: PINManagementProps) {
   const [pinStatus, setPinStatus] = useState<PINStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
   
   // Form state
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Load PIN status on component mount
-  useEffect(() => {
-    void loadPinStatus();
-  }, []);
 
   const loadPinStatus = async () => {
     try {
@@ -51,6 +46,12 @@ export function PINManagement({ onSuccess, onError }: PINManagementProps) {
       setLoading(false);
     }
   };
+
+  // Load PIN status on component mount
+  useEffect(() => {
+    void loadPinStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const validateForm = (): string | null => {
     if (!newPin.trim()) {

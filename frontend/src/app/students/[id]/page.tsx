@@ -189,13 +189,13 @@ export default function StudentDetailPage() {
                     guardian_name: hasAccess ? (mappedStudent.name_lg ?? "") : "",
                     guardian_contact: hasAccess ? (mappedStudent.guardian_email ?? "") : "",
                     guardian_phone: hasAccess ? (mappedStudent.contact_lg ?? "") : "",
-                    birthday: mappedStudent.birthday,
-                    buskind: mappedStudent.bus,
+                    birthday: mappedStudent.birthday ?? undefined,
+                    buskind: mappedStudent.bus ?? false,
                     attendance_rate: undefined,
                     guardians,
-                    extra_info: hasAccess ? mappedStudent.extra_info : undefined,
-                    supervisor_notes: hasAccess ? mappedStudent.supervisor_notes : undefined,
-                    health_info: hasAccess ? mappedStudent.health_info : undefined
+                    extra_info: hasAccess ? (mappedStudent.extra_info ?? undefined) : undefined,
+                    supervisor_notes: hasAccess ? (mappedStudent.supervisor_notes ?? undefined) : undefined,
+                    health_info: hasAccess ? (mappedStudent.health_info ?? undefined) : undefined
                 };
 
                 setStudent(extendedStudent);

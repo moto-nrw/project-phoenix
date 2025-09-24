@@ -16,7 +16,7 @@ export function ModernInfoCard({
   icon,
   iconColor,
   iconBg,
-  index = 0,
+  index: _index = 0,
   disableHover = false
 }: ModernInfoCardProps) {
   return (

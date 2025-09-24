@@ -20,7 +20,7 @@ interface ModernStudentProfileProps {
 
 export function ModernStudentProfile({ 
   student, 
-  index = 0, 
+  index: _index = 0, 
   onBack: _onBack,
   backButtonStyle: _backButtonStyle = 'floating',
   backDestination: _backDestination = 'Meine Gruppe'

@@ -66,6 +66,7 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
             setIsLoading(false);
             setError(null);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [status, session?.user?.token, fetchUserData]); // Removed pathname dependency to prevent refetch on navigation
 
     const value: UserContextState = {

@@ -59,8 +59,9 @@ function SettingsContent() {
   const [pushNotifications, setPushNotifications] = useState(false);
   const [activityUpdates, setActivityUpdates] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
-  const [fontSize, setFontSize] = useState("medium");
-  const [language, setLanguage] = useState("de");
+  // TODO: Implement font size and language settings in the future
+  // const [fontSize, setFontSize] = useState("medium");
+  // const [language, setLanguage] = useState("de");
   const [dataSharing, setDataSharing] = useState(false);
   const [activityTracking, setActivityTracking] = useState(true);
   const [emailChannel, setEmailChannel] = useState(true);
@@ -345,7 +346,9 @@ function SettingsContent() {
                   <div className="flex-shrink-0">
                     <IOSToggle
                       checked={true}
-                      onChange={() => {}}
+                      onChange={() => {
+                        // Disabled toggle - no action needed
+                      }}
                       disabled={true}
                     />
                   </div>
