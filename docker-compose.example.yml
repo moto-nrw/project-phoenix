@@ -96,7 +96,9 @@ services:
       - 5432:5432
     volumes:
       - postgres:/var/lib/postgresql/data
-      - ./config/ssl/postgres:/var/lib/postgresql/ssl:ro
+      - ./config/ssl/postgres/certs/server.crt:/var/lib/postgresql/ssl/server.crt:ro
+      - ./config/ssl/postgres/certs/server.key:/var/lib/postgresql/ssl/server.key:ro
+      - ./config/ssl/postgres/certs/ca.crt:/var/lib/postgresql/ssl/ca.crt:ro
       - ./config/ssl/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
       - ./config/ssl/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     environment:
