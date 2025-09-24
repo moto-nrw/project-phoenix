@@ -46,7 +46,7 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
   tokenRef.current = session?.user?.token;
   
   // Use a ref for the refresh function to break dependency cycles
-  const refreshRef = React.useRef<(() => Promise<void>) | null>(null);
+  const refreshRef = React.useRef<((silent?: boolean) => Promise<void>) | null>(null);
 
   // Check if user has any groups (as teacher or representative)
   const checkGroups = useCallback(async () => {

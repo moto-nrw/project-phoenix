@@ -303,7 +303,8 @@ export default function StudentDetailPage() {
     // Update guardian field
     const handleUpdateGuardian = (index: number, field: keyof Guardian, value: string) => {
         const updated = [...editedGuardians];
-        updated[index] = { ...updated[index], [field]: value };
+        const currentGuardian = updated[index] ?? { name: '', email: '', phone: '' };
+        updated[index] = { ...currentGuardian, [field]: value };
         setEditedGuardians(updated);
     };
 

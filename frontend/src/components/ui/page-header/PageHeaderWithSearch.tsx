@@ -95,7 +95,7 @@ export function PageHeaderWithSearch({
 
       {/* Desktop Search & Filters */}
       <div className="hidden md:block mb-6">
-        {(search !== undefined || filters.length > 0 || (!title && badge) ?? actionButton) && (
+        {(search !== undefined || filters.length > 0 || ((!title && badge) ?? actionButton)) && (
           <div className="flex items-center gap-3 mb-3">
             {search && (
               <SearchBar
