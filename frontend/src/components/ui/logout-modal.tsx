@@ -33,8 +33,6 @@ const LogOutIcon = ({ className }: { className?: string }) => (
 export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  // const { data: session } = useSession(); // Currently unused
-  // const userName = session?.user?.name ?? "Benutzer"; // Currently unused
 
   const launchConfetti = () => {
     const confettiContainer = document.createElement('div');
