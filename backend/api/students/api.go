@@ -915,6 +915,16 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if user has permission to delete this student
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	authorized, authErr := canDeleteStudent(r.Context(), userPermissions, student, rs.UserContextService)
+	if !authorized {
+		if err := render.Render(w, r, ErrorForbidden(authErr)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
 	// Delete the student first
 	if err := rs.StudentRepo.Delete(r.Context(), id); err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
