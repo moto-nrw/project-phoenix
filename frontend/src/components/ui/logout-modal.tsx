@@ -10,6 +10,25 @@ interface LogoutModalProps {
   onClose: () => void;
 }
 
+// Confetti animation constants for better maintainability
+const CONFETTI_CONFIG = {
+  PIECE_COUNT: 100,
+  COLORS: ['#FF3130', '#F78C10', '#83CD2D', '#5080D8'],
+  SIZE: {
+    MIN_WIDTH: 5,
+    MAX_WIDTH: 10,
+    MIN_HEIGHT: 5,
+    MAX_HEIGHT: 5
+  },
+  ANIMATION: {
+    MIN_DURATION: 2000,
+    MAX_DURATION: 2000,
+    SPREAD_DISTANCE: 400,
+    MAX_ROTATION: 720,
+    STAGGER_DELAY: 300
+  }
+} as const;
+
 // Logout Icon als React Component
 const LogOutIcon = ({ className }: { className?: string }) => (
   <svg
@@ -45,18 +64,21 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
     confettiContainer.style.zIndex = '10000';
     document.body.appendChild(confettiContainer);
 
-    const colors = ['#FF3130', '#F78C10', '#83CD2D', '#5080D8'];
     const centerX = window.innerWidth / 2;
     const centerY = window.innerHeight / 2;
 
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < CONFETTI_CONFIG.PIECE_COUNT; i++) {
       setTimeout(() => {
         const confetti = document.createElement('div');
-        const color = colors[Math.floor(Math.random() * colors.length)]!;
+        const color = CONFETTI_CONFIG.COLORS[Math.floor(Math.random() * CONFETTI_CONFIG.COLORS.length)]!;
+
+        // Calculate random sizes using config
+        const width = Math.random() * CONFETTI_CONFIG.SIZE.MAX_WIDTH + CONFETTI_CONFIG.SIZE.MIN_WIDTH;
+        const height = Math.random() * CONFETTI_CONFIG.SIZE.MAX_HEIGHT + CONFETTI_CONFIG.SIZE.MIN_HEIGHT;
 
         confetti.style.position = 'absolute';
-        confetti.style.width = `${Math.random() * 10 + 5}px`;
-        confetti.style.height = `${Math.random() * 5 + 5}px`;
+        confetti.style.width = `${width}px`;
+        confetti.style.height = `${height}px`;
         confetti.style.backgroundColor = color;
         confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
         confetti.style.opacity = '0.8';
@@ -65,6 +87,12 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
 
         confettiContainer.appendChild(confetti);
 
+        // Calculate random spread and rotation
+        const spreadX = Math.random() * CONFETTI_CONFIG.ANIMATION.SPREAD_DISTANCE - (CONFETTI_CONFIG.ANIMATION.SPREAD_DISTANCE / 2);
+        const spreadY = Math.random() * CONFETTI_CONFIG.ANIMATION.SPREAD_DISTANCE - (CONFETTI_CONFIG.ANIMATION.SPREAD_DISTANCE / 2);
+        const rotation = Math.random() * CONFETTI_CONFIG.ANIMATION.MAX_ROTATION;
+        const duration = Math.random() * CONFETTI_CONFIG.ANIMATION.MAX_DURATION + CONFETTI_CONFIG.ANIMATION.MIN_DURATION;
+
         const animation = confetti.animate(
           [
             {
@@ -72,12 +100,12 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
               opacity: 0.8
             },
             {
-              transform: `translate(${Math.random() * 400 - 200}px, ${Math.random() * 400 - 200}px) rotate(${Math.random() * 720}deg)`,
+              transform: `translate(${spreadX}px, ${spreadY}px) rotate(${rotation}deg)`,
               opacity: 0
             }
           ],
           {
-            duration: Math.random() * 2000 + 2000,
+            duration: duration,
             easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)'
           }
         );
@@ -88,7 +116,7 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
             confettiContainer.remove();
           }
         };
-      }, Math.random() * 300);
+      }, Math.random() * CONFETTI_CONFIG.ANIMATION.STAGGER_DELAY);
     }
   };
 
