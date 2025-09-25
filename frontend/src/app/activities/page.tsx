@@ -19,6 +19,25 @@ import type { Staff } from "~/lib/usercontext-helpers";
 import { SimpleAlert, alertAnimationStyles } from "~/components/simple/SimpleAlert";
 import { useAlertVisibility } from "~/contexts/AlertContext";
 
+// FAB positioning constants for better maintainability
+const FAB_POSITIONS = {
+    // When navbar is hidden (scrolled down)
+    navHidden: {
+        default: '1.5rem',  // 24px from bottom
+        withAlert: '8rem'   // 128px from bottom to clear alert
+    },
+    // When navbar is visible (at top or scrolling up)
+    navVisible: {
+        default: '6rem',    // 96px from bottom to clear navbar
+        withAlert: '11rem'  // 176px from bottom to clear both navbar and alert
+    }
+} as const;
+
+// Helper function to compute FAB position based on UI state
+function getFabBottomPosition(isAlertShowing: boolean, isNavBarHidden: boolean): string {
+    const navState = isNavBarHidden ? FAB_POSITIONS.navHidden : FAB_POSITIONS.navVisible;
+    return isAlertShowing ? navState.withAlert : navState.default;
+}
 
 export default function ActivitiesPage() {
     const [loading, setLoading] = useState(true);
@@ -299,9 +318,7 @@ export default function ActivitiesPage() {
                     onClick={() => setIsQuickCreateOpen(true)}
                     className={`md:hidden fixed right-4 z-[9999] w-14 h-14 bg-gradient-to-br from-[#83CD2D] to-[#70B525] text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(131,205,45,0.3)] transition-all duration-300 flex items-center justify-center group active:scale-95`}
                     style={{
-                        bottom: isAlertShowing 
-                            ? (isNavBarHidden ? '8rem' : '11rem')  // 32 (128px) when alert showing and nav hidden, 44 (176px) when nav visible
-                            : (isNavBarHidden ? '1.5rem' : '6rem') // 6 (24px) when nav hidden, 24 (96px) when nav visible
+                        bottom: getFabBottomPosition(isAlertShowing, isNavBarHidden)
                     }}
                     aria-label="Aktivität erstellen"
                 >
