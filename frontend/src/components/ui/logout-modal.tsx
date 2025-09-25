@@ -57,7 +57,7 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
         confetti.style.position = 'absolute';
         confetti.style.width = `${Math.random() * 10 + 5}px`;
         confetti.style.height = `${Math.random() * 5 + 5}px`;
-        confetti.style.backgroundColor = color ?? '#FF3130';
+        confetti.style.backgroundColor = color ?? colors[0];
         confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
         confetti.style.opacity = '0.8';
         confetti.style.left = `${centerX}px`;
