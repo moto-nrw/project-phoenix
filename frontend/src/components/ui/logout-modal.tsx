@@ -52,12 +52,12 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
     for (let i = 0; i < 100; i++) {
       setTimeout(() => {
         const confetti = document.createElement('div');
-        const color = colors[Math.floor(Math.random() * colors.length)];
+        const color = colors[Math.floor(Math.random() * colors.length)]!;
 
         confetti.style.position = 'absolute';
         confetti.style.width = `${Math.random() * 10 + 5}px`;
         confetti.style.height = `${Math.random() * 5 + 5}px`;
-        confetti.style.backgroundColor = color ?? colors[0];
+        confetti.style.backgroundColor = color;
         confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
         confetti.style.opacity = '0.8';
         confetti.style.left = `${centerX}px`;

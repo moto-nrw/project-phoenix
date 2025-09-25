@@ -1,11 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-
-// Simple class name utility function
-function cn(...classes: (string | undefined | boolean)[]) {
-  return classes.filter(Boolean).join(' ');
-}
+import { cn } from "~/lib/utils";
 
 interface GradientBorderButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
