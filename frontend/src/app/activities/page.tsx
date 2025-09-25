@@ -17,6 +17,7 @@ import { QuickCreateActivityModal } from "~/components/activities/quick-create-m
 import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
 import { SimpleAlert, alertAnimationStyles } from "~/components/simple/SimpleAlert";
+import { useAlertVisibility } from "~/contexts/AlertContext";
 
 
 export default function ActivitiesPage() {
@@ -32,7 +33,7 @@ export default function ActivitiesPage() {
     const [isManagementModalOpen, setIsManagementModalOpen] = useState(false);
     const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
     const [currentStaff, setCurrentStaff] = useState<Staff | null>(null);
-    const [isAlertShowing, setIsAlertShowing] = useState(false);
+    const { isAlertShowing } = useAlertVisibility();
     const [isNavBarHidden, setIsNavBarHidden] = useState(false);
     const [showManagementSuccess, setShowManagementSuccess] = useState(false);
     const [managementSuccessMessage, setManagementSuccessMessage] = useState("");
@@ -48,19 +49,7 @@ export default function ActivitiesPage() {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    // Listen for alert show/hide events to move FAB
-    useEffect(() => {
-        const handleAlertShow = () => setIsAlertShowing(true);
-        const handleAlertHide = () => setIsAlertShowing(false);
-
-        window.addEventListener('alert-show', handleAlertShow);
-        window.addEventListener('alert-hide', handleAlertHide);
-
-        return () => {
-            window.removeEventListener('alert-show', handleAlertShow);
-            window.removeEventListener('alert-hide', handleAlertHide);
-        };
-    }, []);
+    // Alert visibility is now managed via context - no window events needed
 
     // Track scroll position to detect when mobile nav bar is hidden
     useEffect(() => {

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useContext } from "react";
+import { AlertContext } from "~/contexts/AlertContext";
 
 interface SimpleAlertProps {
   type: "success" | "error" | "info" | "warning";
@@ -44,18 +45,22 @@ export function SimpleAlert({
   autoClose = false,
   duration = 3000,
 }: SimpleAlertProps) {
-  // Dispatch event to notify FAB to move up on mobile
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('alert-show'));
-      return () => {
-        window.dispatchEvent(new CustomEvent('alert-hide'));
-      };
-    }
-  }, []);
+  // Use context safely - it's optional for backward compatibility
+  const alertContext = useContext(AlertContext);
+
   const styles = alertStyles[type];
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
+
+  // Notify context when alert is shown/hidden (if context is available)
+  useEffect(() => {
+    if (alertContext) {
+      alertContext.showAlert(type, message);
+      return () => {
+        alertContext.hideAlert();
+      };
+    }
+  }, [type, message, alertContext]);
 
   // Use ref to store the latest onClose callback without triggering effect re-runs
   const onCloseRef = useRef(onClose);
