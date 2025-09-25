@@ -1,12 +1,10 @@
 // components/dashboard/sidebar.tsx
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { UserContextProvider } from "~/lib/usercontext-context";
-import { QuickCreateActivityModal } from "~/components/activities/quick-create-modal";
 import { useSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 
@@ -53,7 +51,7 @@ const NAV_ITEMS: NavItem[] = [
     },
     {
         href: "/students/search",
-        label: "Suche",
+        label: "Kindersuche",
         icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
         requiresSupervision: true
     },
@@ -67,7 +65,7 @@ const NAV_ITEMS: NavItem[] = [
         href: "/activities",
         label: "Aktivitäten",
         icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
-        requiresAdmin: true
+        alwaysShow: true
     },
     // Temporarily disabled - not ready yet
     // {
@@ -105,9 +103,9 @@ interface SidebarProps {
 function SidebarContent({ className = "" }: SidebarProps) {
     // Aktuelle Route ermitteln
     const pathname = usePathname();
+    const searchParams = useSearchParams();
 
     // Quick create activity modal state
-    const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
 
     // Get session for role checking
     const { data: session } = useSession();
@@ -169,7 +167,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
             ...baseFilteredNavItems,
             {
                 href: "/students/search",
-                label: "Suche",
+                label: "Kindersuche",
                 icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
                 alwaysShow: true
             }
@@ -178,6 +176,21 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
     // Funktion zur Überprüfung, ob ein Link aktiv ist
     const isActiveLink = (href: string) => {
+        // Special handling for student detail pages
+        if (pathname.startsWith("/students/") && pathname !== "/students/search") {
+            // Check the referrer parameter to maintain the correct highlight
+            const from = searchParams.get("from");
+            if (from) {
+                // If we came from ogs_groups or myroom, highlight those
+                if (from.startsWith("/ogs_groups") && href === "/ogs_groups") return true;
+                if (from.startsWith("/myroom") && href === "/myroom") return true;
+                if (from.startsWith("/students/search") && href === "/students/search") return true;
+            } else {
+                // Default to student search if no referrer
+                return href === "/students/search";
+            }
+        }
+
         // Exakter Match für Dashboard
         if (href === "/dashboard") {
             return pathname === "/dashboard";
@@ -199,8 +212,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
     return (
         <>
             {/* Desktop sidebar */}
-            <aside className={`w-64 bg-white border-r border-gray-200 min-h-screen overflow-y-auto ${className}`}>
-                <div className="p-4">
+            <aside className={`w-64 bg-white border-r border-gray-200 min-h-screen ${className}`}>
+                <div className="sticky top-[73px] p-4">
                     <nav className="space-y-2">
                         {filteredNavItems.map((item) => (
                             <Link
@@ -215,44 +228,29 @@ function SidebarContent({ className = "" }: SidebarProps) {
                             </Link>
                         ))}
                     </nav>
-                    
-                    {/* Create Activity Button */}
-                    <div className="mt-6 pt-4 border-t border-gray-100">
-                        <button
-                            onClick={() => setIsQuickCreateOpen(true)}
-                            className="w-full flex items-center justify-center gap-2.5 px-4 py-3 text-sm font-medium text-gray-700 bg-gradient-to-r from-[#83CD2D]/10 to-[#70B525]/10 border border-[#83CD2D]/30 rounded-xl hover:from-[#83CD2D]/20 hover:to-[#70B525]/20 hover:border-[#83CD2D]/50 hover:shadow-md hover:shadow-[#83CD2D]/20 transition-all duration-300 group transform hover:scale-[1.02] active:scale-[0.98]"
-                        >
-                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#83CD2D] to-[#70B525] flex items-center justify-center shadow-sm group-hover:shadow-md group-hover:shadow-[#83CD2D]/30 transition-all duration-300 group-hover:rotate-90">
-                                <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                                </svg>
-                            </div>
-                            <span className="flex-1 text-left font-semibold text-gray-800">Aktivität erstellen</span>
-                            <svg className="h-4 w-4 text-[#83CD2D] group-hover:translate-x-1 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                            </svg>
-                        </button>
-                    </div>
                 </div>
             </aside>
 
-            {/* Quick Create Activity Modal */}
-            <QuickCreateActivityModal
-                isOpen={isQuickCreateOpen}
-                onClose={() => setIsQuickCreateOpen(false)}
-                onSuccess={() => {
-                    setIsQuickCreateOpen(false);
-                    // Optional: Show success notification or refresh data
-                }}
-            />
         </>
     );
 }
 
 export function Sidebar({ className = "" }: SidebarProps) {
     return (
-        <UserContextProvider>
+        <Suspense fallback={
+            <nav className={`bg-white border-r border-gray-200 ${className}`}>
+                <div className="flex flex-col h-full">
+                    <div className="flex-1 overflow-y-auto px-3 py-4">
+                        <div className="space-y-1">
+                            <div className="h-8 bg-gray-200 rounded animate-pulse" />
+                            <div className="h-8 bg-gray-200 rounded animate-pulse" />
+                            <div className="h-8 bg-gray-200 rounded animate-pulse" />
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        }>
             <SidebarContent className={className} />
-        </UserContextProvider>
+        </Suspense>
     );
 }

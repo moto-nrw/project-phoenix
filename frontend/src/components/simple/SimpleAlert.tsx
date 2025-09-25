@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState, useRef, useContext } from "react";
+import { AlertContext } from "~/contexts/AlertContext";
 
 interface SimpleAlertProps {
   type: "success" | "error" | "info" | "warning";
@@ -21,7 +22,7 @@ const alertStyles = {
     bg: "bg-[#FF3130]/10",
     border: "border-[#FF3130]/20",
     text: "text-[#CC2626]",
-    icon: "M6 18L18 6M6 6l12 12",
+    icon: "M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
   },
   info: {
     bg: "bg-[#5080D8]/10",
@@ -44,23 +45,71 @@ export function SimpleAlert({
   autoClose = false,
   duration = 3000,
 }: SimpleAlertProps) {
+  // Use context safely - it's optional for backward compatibility
+  const alertContext = useContext(AlertContext);
+
   const styles = alertStyles[type];
+  const [isVisible, setIsVisible] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
+
+  // Notify context when alert is shown/hidden (if context is available)
+  useEffect(() => {
+    if (alertContext) {
+      alertContext.showAlert(type, message);
+      return () => {
+        alertContext.hideAlert();
+      };
+    }
+  }, [type, message, alertContext]);
+
+  // Use ref to store the latest onClose callback without triggering effect re-runs
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
-    if (autoClose && onClose) {
-      const timer = setTimeout(onClose, duration);
-      return () => clearTimeout(timer);
+    // Trigger entrance animation
+    const showTimer = setTimeout(() => {
+      setIsVisible(true);
+    }, 10);
+
+    let autoCloseTimer: NodeJS.Timeout | undefined;
+    let exitTimer: NodeJS.Timeout | undefined;
+
+    if (autoClose) {
+      autoCloseTimer = setTimeout(() => {
+        // Start exit animation
+        setIsExiting(true);
+        // Actually close after animation
+        exitTimer = setTimeout(() => {
+          if (onCloseRef.current) {
+            onCloseRef.current();
+          }
+        }, 300);
+      }, duration);
     }
-  }, [autoClose, duration, onClose]);
+
+    return () => {
+      clearTimeout(showTimer);
+      if (autoCloseTimer) clearTimeout(autoCloseTimer);
+      if (exitTimer) clearTimeout(exitTimer);
+    };
+  }, [autoClose, duration]); // Remove onClose from dependencies to prevent timer reset
 
   return (
     <div
       className={`
-        fixed bottom-24 lg:bottom-6 right-6 z-50 max-w-sm
-        ${styles.bg} ${styles.border} 
+        fixed bottom-6 left-4 right-4 md:left-auto md:right-6 z-[9998] md:max-w-sm
+        ${styles.bg} ${styles.border}
         rounded-2xl border p-4 shadow-lg backdrop-blur-sm
-        animate-in slide-in-from-bottom-5 duration-300
+        transition-all duration-300 ease-out
+        ${isVisible && !isExiting ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}
       `}
+      style={{
+        transform: isVisible && !isExiting ? 'translateY(0)' : 'translateY(16px)',
+        opacity: isVisible && !isExiting ? 1 : 0,
+      }}
     >
       <div className="flex items-start gap-3">
         <div className={`flex-shrink-0 ${styles.text}`}>
@@ -103,11 +152,13 @@ export function SimpleAlert({
         )}
       </div>
       {autoClose && (
-        <div className="absolute bottom-0 left-0 right-0 h-1 overflow-hidden rounded-b-2xl">
+        <div className="absolute bottom-0 left-2 right-0 h-1 bg-gray-200/20 overflow-hidden rounded-b-2xl">
           <div
-            className={`h-full bg-current opacity-20 animate-[shrink_${duration}ms_linear_forwards]`}
+            className="h-full bg-current opacity-30"
             style={{
               animation: `shrink ${duration}ms linear forwards`,
+              transformOrigin: 'left',
+              width: '100%',
             }}
           />
         </div>
@@ -116,14 +167,16 @@ export function SimpleAlert({
   );
 }
 
-// Add this CSS to your global styles
-export const alertAnimation = `
-  @keyframes shrink {
-    from {
-      width: 100%;
+// Add this CSS to your global styles or as a style tag
+export const alertAnimationStyles = (
+  <style>{`
+    @keyframes shrink {
+      from {
+        transform: scaleX(1);
+      }
+      to {
+        transform: scaleX(0);
+      }
     }
-    to {
-      width: 0%;
-    }
-  }
-`;
+  `}</style>
+);

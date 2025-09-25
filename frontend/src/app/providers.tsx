@@ -3,10 +3,11 @@
 import { SessionProvider } from "next-auth/react";
 import { ModalProvider } from "@/components/dashboard/modal-context";
 import { SupervisionProvider } from "~/lib/supervision-context";
+import { AlertProvider } from "~/contexts/AlertContext";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider 
+    <SessionProvider
       // Check session every 4 minutes (240 seconds)
       // This ensures we attempt refresh before the 15-minute token expires
       refetchInterval={4 * 60}
@@ -15,7 +16,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     >
       <SupervisionProvider>
         <ModalProvider>
-          {children}
+          <AlertProvider>
+            {children}
+          </AlertProvider>
         </ModalProvider>
       </SupervisionProvider>
     </SessionProvider>

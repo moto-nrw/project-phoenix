@@ -187,9 +187,9 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
           </div>
 
           {/* Simple Password Requirements */}
-          <div className="bg-gray-50 rounded-lg p-4">
-            <p className="text-sm font-medium text-gray-700 mb-2">Passwort-Anforderungen:</p>
-            <ul className="space-y-1 text-sm text-gray-600">
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+            <h5 className="text-sm font-medium text-gray-900 mb-2">Passwort-Anforderungen</h5>
+            <ul className="text-xs text-gray-600 space-y-1">
               <li>• Mindestens 8 Zeichen</li>
               <li>• Groß- und Kleinbuchstaben empfohlen</li>
               <li>• Zahlen und Sonderzeichen empfohlen</li>
@@ -201,15 +201,15 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
             <button
               type="button"
               onClick={handleClose}
-              className="flex-1 px-4 py-3 text-gray-700 font-medium rounded-xl bg-white border border-gray-200 hover:bg-gray-50 active:scale-95 transition-all"
+              className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 hover:shadow-md hover:scale-105 active:scale-100 transition-all duration-200"
             >
               Abbrechen
             </button>
-            
+
             <button
               type="submit"
               disabled={isLoading}
-              className="flex-1 px-4 py-3 font-medium rounded-xl text-white bg-[#83CD2D] hover:bg-[#70B525] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2 rounded-lg bg-gray-900 text-sm font-medium text-white hover:bg-gray-700 hover:shadow-lg hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-200"
             >
               {isLoading ? (
                 <span className="flex items-center justify-center gap-2">

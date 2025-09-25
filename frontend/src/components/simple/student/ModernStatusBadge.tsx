@@ -73,14 +73,13 @@ export function ModernStatusBadge({ location, roomName }: ModernStatusBadgeProps
   const status = getStatusDetails();
 
   return (
-    <span 
-      className={`inline-flex items-center px-5 py-3 rounded-2xl text-base font-bold ${status.badgeColor} transition-all duration-300 hover:scale-105 shadow-lg`}
-      style={{ 
-        backgroundColor: status.bgColor,
-        boxShadow: status.shadow
+    <span
+      className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${status.badgeColor} transition-all duration-300`}
+      style={{
+        backgroundColor: status.bgColor
       }}
     >
-      <span className="w-3 h-3 bg-white/80 rounded-full mr-3 animate-pulse"></span>
+      <span className="w-2 h-2 bg-white/80 rounded-full mr-2 animate-pulse"></span>
       {status.label}
     </span>
   );

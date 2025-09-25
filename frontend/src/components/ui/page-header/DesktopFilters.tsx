@@ -96,23 +96,23 @@ function DropdownFilter({ filter, showIcons = false }: { filter: FilterConfig; s
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          flex items-center gap-2 px-3 py-2 bg-white rounded-xl shadow-sm text-sm font-medium transition-all h-10
+          flex items-center gap-2 px-3 py-2 bg-white rounded-xl shadow-sm text-sm font-medium transition-all h-10 whitespace-nowrap
           ${filter.value !== filter.options[0]?.value ? 'ring-2 ring-blue-500 ring-offset-1' : ''}
           ${isOpen ? 'bg-gray-50' : 'hover:bg-gray-50'}
         `}
       >
         {showIcons && selectedOption?.icon && (
-          <svg className="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="h-4 w-4 text-gray-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={selectedOption.icon} />
           </svg>
         )}
-        <span className={filter.value !== filter.options[0]?.value ? 'text-gray-900' : 'text-gray-600'}>
+        <span className={`whitespace-nowrap ${filter.value !== filter.options[0]?.value ? 'text-gray-900' : 'text-gray-600'}`}>
           {selectedOption?.label ?? filter.label}
         </span>
-        <svg 
-          className={`h-4 w-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
-          fill="none" 
-          viewBox="0 0 24 24" 
+        <svg
+          className={`h-4 w-4 text-gray-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
           stroke="currentColor"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

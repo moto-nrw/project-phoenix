@@ -7,10 +7,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import {
   Input,
-  Button,
   Alert,
   HelpButton,
 } from "~/components/ui";
+import { HoverBorderGradient } from "~/components/ui/hover-border-gradient";
 import { Suspense } from "react";
 import { refreshToken } from "~/lib/auth-api";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
@@ -296,7 +296,7 @@ function LoginForm() {
         </div>
 
         {/* Welcome Text */}
-        <h1 className="bg-gradient-to-r from-teal-600 to-blue-600 bg-clip-text text-4xl md:text-5xl font-bold text-transparent mb-2">
+        <h1 className="bg-gradient-to-r from-[#5080d8] to-[#83cd2d] bg-clip-text text-4xl md:text-5xl font-bold text-transparent mb-2">
           Willkommen bei moto!
         </h1>
         <p className="text-xl text-gray-700 mb-10">
@@ -362,14 +362,14 @@ function LoginForm() {
             </div>
           </div>
 
-          <Button
+          <HoverBorderGradient
             type="submit"
-            isLoading={isLoading}
-            loadingText="Anmeldung läuft..."
-            size="lg"
+            disabled={isLoading}
+            containerClassName=""
+            className="px-5 py-3 text-lg font-medium"
           >
-            Anmelden
-          </Button>
+            {isLoading ? "Anmeldung läuft..." : "Anmelden"}
+          </HoverBorderGradient>
         </form>
 
       </div>

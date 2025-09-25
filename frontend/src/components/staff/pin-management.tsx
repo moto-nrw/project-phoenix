@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Alert } from "~/components/ui";
-import { SimpleAlert } from "~/components/simple/SimpleAlert";
 
 interface PINStatus {
   has_pin: boolean;
@@ -10,26 +8,20 @@ interface PINStatus {
 }
 
 interface PINManagementProps {
-  onSuccess?: () => void;
+  onSuccess?: (message: string) => void;
+  onError?: (message: string) => void;
 }
 
-export function PINManagement({ onSuccess }: PINManagementProps) {
+export function PINManagement({ onSuccess, onError }: PINManagementProps) {
   const [pinStatus, setPinStatus] = useState<PINStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const [, setError] = useState<string | null>(null);
   
   // Form state
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Load PIN status on component mount
-  useEffect(() => {
-    void loadPinStatus();
-  }, []);
 
   const loadPinStatus = async () => {
     try {
@@ -45,11 +37,21 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
       setPinStatus(responseData.data);
     } catch (err) {
       console.error("Error loading PIN status:", err);
-      setError(err instanceof Error ? err.message : "Fehler beim Laden des PIN-Status");
+      const errorMessage = err instanceof Error ? err.message : "Fehler beim Laden des PIN-Status";
+      setError(errorMessage);
+      if (onError) {
+        onError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  // Load PIN status on component mount
+  useEffect(() => {
+    void loadPinStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const validateForm = (): string | null => {
     if (!newPin.trim()) {
@@ -82,6 +84,9 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
     const validationError = validateForm();
     if (validationError) {
       setError(validationError);
+      if (onError) {
+        onError(validationError);
+      }
       return;
     }
 
@@ -113,17 +118,20 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
       
       // Update PIN status
       void loadPinStatus();
-      
+
       // Show success message
-      setSuccessMessage(pinStatus?.has_pin ? "PIN erfolgreich geändert" : "PIN erfolgreich erstellt");
-      setShowSuccessAlert(true);
-      
-      // Call success callback
-      onSuccess?.();
+      const message = pinStatus?.has_pin ? "PIN erfolgreich geändert" : "PIN erfolgreich erstellt";
+
+      // Call success callback with message
+      onSuccess?.(message);
       
     } catch (err) {
       console.error("Error updating PIN:", err);
-      setError(err instanceof Error ? err.message : "Fehler beim Aktualisieren der PIN");
+      const errorMessage = err instanceof Error ? err.message : "Fehler beim Aktualisieren der PIN";
+      setError(errorMessage);
+      if (onError) {
+        onError(errorMessage);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -148,24 +156,17 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
     return (
       <div className="flex items-center justify-center py-8">
         <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-t-2 border-[#5080D8]"></div>
-        <span className="ml-2 text-sm text-gray-600">PIN-Status wird geladen...</span>
+        <span className="ml-2 text-xs text-gray-600">PIN-Status wird geladen...</span>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h4 className="text-lg font-semibold text-gray-900">RFID-PIN Verwaltung</h4>
-        <p className="mt-1 text-sm text-gray-600">
-          4-stellige PIN für RFID-Geräte
-        </p>
-      </div>
-
       {/* PIN Status Display */}
-      <div className={`rounded-xl p-4 border ${pinStatus?.has_pin ? "bg-green-50 border-green-200" : "bg-yellow-50 border-yellow-200"}`}>
+      <div className={`rounded-lg p-3 border ${pinStatus?.has_pin ? "bg-[#83CD2D]/10 border-[#83CD2D]/20" : "bg-yellow-50 border-yellow-200"}`}>
         <div className="flex items-center gap-3">
-          <div className={`flex-shrink-0 ${pinStatus?.has_pin ? "text-green-600" : "text-yellow-600"}`}>
+          <div className={`flex-shrink-0 ${pinStatus?.has_pin ? "text-[#83CD2D]" : "text-yellow-600"}`}>
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               {pinStatus?.has_pin ? (
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -175,18 +176,17 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
             </svg>
           </div>
           <div>
-            <p className="font-medium text-gray-900">
+            <p className="text-sm font-medium text-gray-900">
               {pinStatus?.has_pin ? "PIN ist eingerichtet" : "Keine PIN eingerichtet"}
             </p>
-            <p className="text-sm text-gray-600">
+            <p className="text-xs text-gray-600">
               Letzte Änderung: {formatLastChanged(pinStatus?.last_changed)}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Error Messages */}
-      {error && <Alert type="error" message={error} />}
+      {/* Error Messages are now handled by parent component */}
 
       {/* PIN Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -245,7 +245,7 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full px-6 py-3 bg-[#83CD2D] text-white font-medium rounded-xl hover:bg-[#70B525] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-gray-900 text-sm font-medium text-white rounded-lg hover:bg-gray-700 hover:shadow-lg hover:scale-105 active:scale-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
           >
             {isSubmitting ? (
               <span className="flex items-center justify-center gap-2">
@@ -262,21 +262,10 @@ export function PINManagement({ onSuccess }: PINManagementProps) {
         </div>
       </form>
 
-      {/* Success Alert */}
-      {showSuccessAlert && (
-        <SimpleAlert
-          type="success"
-          message={successMessage}
-          autoClose
-          duration={3000}
-          onClose={() => setShowSuccessAlert(false)}
-        />
-      )}
-
       {/* Simple Info Box */}
-      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-        <h5 className="font-medium text-gray-900 mb-2">PIN-Information</h5>
-        <ul className="text-sm text-gray-600 space-y-1">
+      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+        <h5 className="text-sm font-medium text-gray-900 mb-2">PIN-Information</h5>
+        <ul className="text-xs text-gray-600 space-y-1">
           <li>• Für RFID-Geräte-Authentifizierung</li>
           <li>• Genau 4 Ziffern erforderlich</li>
           <li>• Sicher aufbewahren</li>

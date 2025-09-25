@@ -410,6 +410,21 @@ export function filterStudentsBySearchTerm(students: ActivityStudent[], searchTe
     );
 }
 
+// Check if a user (staff member) is the creator of an activity
+export function isActivityCreator(activity: Activity, staffId: string | null | undefined): boolean {
+    if (!staffId || !activity.supervisors || activity.supervisors.length === 0) {
+        return false;
+    }
+    
+    // Find the primary supervisor (creator)
+    const primarySupervisor = activity.supervisors.find(s => s.is_primary);
+    
+    // If no primary supervisor is explicitly marked, consider the first supervisor as creator
+    const creator = primarySupervisor ?? activity.supervisors[0];
+    
+    return creator?.staff_id === staffId;
+}
+
 // Added: Map supervisor response
 export function mapSupervisorResponse(backendSupervisor: unknown): Supervisor {
     // Handle null or undefined input

@@ -3,6 +3,7 @@
 import React, { useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useModal } from "../dashboard/modal-context";
+import { useScrollLock } from "~/hooks/useScrollLock";
 
 interface ModalProps {
   isOpen: boolean;
@@ -22,6 +23,9 @@ export function Modal({
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isExiting, setIsExiting] = React.useState(false);
   const { openModal, closeModal } = useModal();
+
+  // Use scroll lock hook
+  useScrollLock(isOpen);
 
   // Enhanced close handler with exit animation
   const handleClose = useCallback(() => {
@@ -44,8 +48,6 @@ export function Modal({
 
     if (isOpen) {
       document.addEventListener("keydown", handleEscKey);
-      // Disable scrolling on body when modal is open
-      document.body.style.overflow = "hidden";
       // Trigger blur effect on layout
       openModal();
       // Dispatch custom event for ResponsiveLayout (help modal)
@@ -64,8 +66,6 @@ export function Modal({
 
     return () => {
       document.removeEventListener("keydown", handleEscKey);
-      // Re-enable scrolling when modal is closed
-      document.body.style.overflow = "";
       if (!isOpen) {
         setIsAnimating(false);
         setIsExiting(false);
@@ -115,14 +115,40 @@ export function Modal({
           animationFillMode: 'both'
         }}
       >
-        {/* Header with close button */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-100">
-          {title && (
+        {/* Header with close button - only show border if title exists */}
+        {title ? (
+          <div className="flex items-center justify-between p-6 border-b border-gray-100">
             <h3 className="text-xl font-semibold text-gray-900 pr-4">{title}</h3>
-          )}
+            <button
+              onClick={handleClose}
+              className="group relative flex-shrink-0 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95"
+              aria-label="Modal schließen"
+            >
+              {/* Animated X icon */}
+              <svg 
+                className="w-5 h-5 transition-transform duration-200 group-hover:rotate-90" 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              
+              {/* Subtle hover glow */}
+              <div 
+                className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                style={{
+                  boxShadow: '0 0 12px rgba(80,128,216,0.3)'
+                }}
+              />
+            </button>
+          </div>
+        ) : (
+          /* X button positioned absolutely in top-right when no title */
           <button
             onClick={handleClose}
-            className="group relative flex-shrink-0 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95"
+            className="absolute top-4 right-4 z-10 group p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95"
             aria-label="Modal schließen"
           >
             {/* Animated X icon */}
@@ -144,10 +170,10 @@ export function Modal({
               }}
             />
           </button>
-        </div>
+        )}
 
         {/* Content area with custom scrollbar and reveal animation */}
-        <div className="max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+        <div className="max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100" data-modal-content="true">
           <div className={`p-6 text-gray-700 leading-relaxed ${
             isAnimating && !isExiting ? 'animate-contentReveal' : 'opacity-0'
           }`}>

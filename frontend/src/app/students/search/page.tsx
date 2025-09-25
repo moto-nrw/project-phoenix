@@ -29,11 +29,11 @@ function SearchPageContent() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // OGS group tracking
   const [userOgsGroups, setUserOgsGroups] = useState<string[]>([]);
-  const [roomStatus, setRoomStatus] = useState<Record<string, { 
-    in_group_room: boolean; 
+  const [roomStatus, setRoomStatus] = useState<Record<string, {
+    in_group_room: boolean;
     current_room_id?: number;
     first_name?: string;
     last_name?: string;
@@ -391,10 +391,10 @@ function SearchPageContent() {
 
   return (
     <ResponsiveLayout>
-      <div className="w-full">
-        {/* Modern Header with PageHeaderWithSearch component */}
+      <div className="w-full -mt-1.5">
+        {/* PageHeaderWithSearch - No title */}
         <PageHeaderWithSearch
-          title="Schülersuche"
+          title=""
           badge={{
             icon: (
               <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">

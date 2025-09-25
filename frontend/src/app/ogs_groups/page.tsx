@@ -67,9 +67,22 @@ function OGSGroupPageContent() {
     
     // State for showing group selection (for 5+ groups)
     const [showGroupSelection, setShowGroupSelection] = useState(true);
-    
+
+    // State for mobile detection
+    const [isMobile, setIsMobile] = useState(false);
+
     // Get current selected group
     const currentGroup = allGroups[selectedGroupIndex] ?? null;
+
+    // Handle mobile detection
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     // Check access and fetch OGS group data
     useEffect(() => {
@@ -298,6 +311,11 @@ function OGSGroupPageContent() {
                 case "in_room":
                     if (!studentRoomStatus?.in_group_room) return false;
                     break;
+                case "foreign_room":
+                    // Student is in a room but NOT their group room
+                    // They have a current_room_id but in_group_room is false
+                    if (!studentRoomStatus?.current_room_id || studentRoomStatus?.in_group_room !== false) return false;
+                    break;
                 case "in_house":
                     // Check both the in_house flag and current_location
                     if (!student.in_house && student.current_location !== LOCATIONS.IN_HOUSE) return false;
@@ -325,8 +343,10 @@ function OGSGroupPageContent() {
         
         // Check if student is in group room
         if (studentRoomStatus?.in_group_room) {
+            // Use the actual room name instead of generic "Gruppenraum"
+            const roomLabel = currentGroup?.room_name ?? "Gruppenraum";
             return { 
-                label: "Gruppenraum", 
+                label: roomLabel, 
                 badgeColor: "text-white backdrop-blur-sm",
                 cardGradient: "from-emerald-50/80 to-green-100/80",
                 customBgColor: "#83CD2D",
@@ -403,6 +423,7 @@ function OGSGroupPageContent() {
             options: [
                 { value: "all", label: "Alle Orte", icon: "M4 6h16M4 12h16M4 18h16" },
                 { value: "in_room", label: "Gruppenraum", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
+                { value: "foreign_room", label: "Fremder Raum", icon: "M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" },
                 { value: "in_house", label: "Unterwegs", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
                 { value: "school_yard", label: "Schulhof", icon: "M21 12a9 9 0 11-18 0 9 9 0 0118 0zM12 12a8 8 0 008 4M7.5 13.5a12 12 0 008.5 6.5M12 12a8 8 0 00-7.464 4.928M12.951 7.353a12 12 0 00-9.88 4.111M12 12a8 8 0 00-.536-8.928M15.549 15.147a12 12 0 001.38-10.611" },
                 { value: "at_home", label: "Zuhause", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" }
@@ -525,18 +546,18 @@ function OGSGroupPageContent() {
 
     return (
         <ResponsiveLayout>
-            <div className="w-full">
-                {/* Modern Header with PageHeaderWithSearch component */}
+            <div className="w-full -mt-1.5">
+                {/* PageHeaderWithSearch - Title only on mobile */}
                 <PageHeaderWithSearch
-                    title={allGroups.length === 1 ? currentGroup?.name ?? "OGS Gruppen" : "OGS Gruppen"}
+                    title={isMobile ? (allGroups.length === 1 ? currentGroup?.name ?? "Meine Gruppe" : "Meine Gruppen") : ""}
                     badge={{
                         icon: (
                             <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                                       d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                             </svg>
                         ),
-                        count: allGroups.length === 1 
+                        count: allGroups.length === 1
                             ? currentGroup?.student_count ?? 0
                             : allGroups.reduce((sum, group) => sum + (group.student_count ?? 0), 0)
                     }}

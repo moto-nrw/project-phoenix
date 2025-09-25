@@ -16,71 +16,40 @@ export function ModernInfoCard({
   icon,
   iconColor,
   iconBg,
-  index = 0,
+  index: _index = 0,
   disableHover = false
 }: ModernInfoCardProps) {
   return (
     <>
-      {/* Mobile-optimized floating animation with reduced motion support */}
-      <style jsx>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px) rotate(${(index % 3 - 1) * 0.2}deg); }
-          50% { transform: translateY(-3px) rotate(${(index % 3 - 1) * 0.2}deg); }
-        }
-        
-        @media (prefers-reduced-motion: reduce) {
-          @keyframes float {
-            0%, 100% { transform: translateY(0px) rotate(0deg); }
-            50% { transform: translateY(0px) rotate(0deg); }
-          }
-        }
-      `}</style>
-      
-      <div 
-        className={`group relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 ${!disableHover ? 'md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white' : ''}`}
-        style={{
-          transform: `rotate(${(index % 3 - 1) * 0.2}deg)`, // Reduced rotation for mobile
-          animation: `float 8s ease-in-out infinite ${index * 0.7}s`
-        }}
+      <div
+        className={`group relative overflow-hidden rounded-xl bg-white border border-gray-200 transition-all duration-200 ${!disableHover ? 'hover:shadow-sm' : ''}`}
       >
-        {/* Modern gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03] rounded-3xl"></div>
-        {/* Subtle inner glow */}
-        <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-        {/* Modern border highlight */}
-        <div className={`absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 ${!disableHover ? 'md:group-hover:ring-blue-200/60' : ''}`}></div>
+        {/* Subtle gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-50/20 to-white/50 opacity-50"></div>
         
-        {/* Mobile-Optimized Content Container */}
-        <div className="relative p-4 sm:p-6 lg:p-8">
-          {/* Mobile-Optimized Header */}
-          <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
-            {/* Mobile-Optimized Icon Container */}
-            <div 
-              className={`relative h-10 w-10 sm:h-12 sm:w-12 rounded-2xl ${iconBg} flex items-center justify-center shadow-[0_8px_25px_rgba(80,128,216,0.3)] flex-shrink-0`}
+        {/* Content Container */}
+        <div className="relative p-4 sm:p-6">
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-4">
+            {/* Icon Container */}
+            <div
+              className={`h-10 w-10 rounded-lg ${iconBg} flex items-center justify-center flex-shrink-0`}
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-2xl"></div>
-              <div className={`relative z-10 ${iconColor}`}>
+              <div className={`${iconColor}`}>
                 {icon}
               </div>
             </div>
-            
-            <h2 className={`text-lg sm:text-xl font-bold text-gray-800 transition-colors duration-300 leading-tight ${!disableHover ? 'md:group-hover:text-blue-600' : ''}`}>
+
+            <h2 className="text-lg font-semibold text-gray-900">
               {title}
             </h2>
           </div>
 
-          {/* Mobile-Optimized Content */}
-          <div className="space-y-4 sm:space-y-6">
+          {/* Content */}
+          <div className="space-y-3">
             {children}
           </div>
-
-          {/* Decorative elements */}
-          <div className="absolute top-4 left-4 w-4 h-4 bg-white/20 rounded-full animate-ping"></div>
-          <div className="absolute bottom-4 right-4 w-3 h-3 bg-white/30 rounded-full"></div>
         </div>
-
-        {/* Glowing border effect */}
-        <div className={`absolute inset-0 rounded-3xl opacity-0 transition-opacity duration-300 bg-gradient-to-r from-transparent via-blue-100/30 to-transparent ${!disableHover ? 'md:group-hover:opacity-100' : ''}`}></div>
       </div>
     </>
   );

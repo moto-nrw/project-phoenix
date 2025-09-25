@@ -11,6 +11,7 @@ import {
     type BackendStudent,
     type BackendStudentDetail,
     type BackendPrivacyConsent,
+    type BackendUpdateRequest,
     type PrivacyConsent
 } from "./student-helpers";
 import {
@@ -260,17 +261,7 @@ export async function createStudent(studentData: {
 // Update a student
 export async function updateStudent(
     id: string,
-    studentData: Partial<{
-        first_name: string;
-        last_name: string;
-        school_class: string;
-        guardian_name: string;
-        guardian_contact: string;
-        group_id: number;
-        tag_id: string;
-        guardian_email: string;
-        guardian_phone: string;
-    }>
+    studentData: BackendUpdateRequest
 ): Promise<Student> {
     const useProxyApi = typeof window !== "undefined";
     const url = useProxyApi

@@ -116,6 +116,8 @@ type StudentResponse struct {
 	GroupName         string                 `json:"group_name,omitempty"`
 	ScheduledCheckout *ScheduledCheckoutInfo `json:"scheduled_checkout,omitempty"`
 	ExtraInfo         string                 `json:"extra_info,omitempty"`
+	HealthInfo        string                 `json:"health_info,omitempty"`
+	SupervisorNotes   string                 `json:"supervisor_notes,omitempty"`
 	CreatedAt         time.Time              `json:"created_at"`
 	UpdatedAt         time.Time              `json:"updated_at"`
 }
@@ -168,9 +170,10 @@ type StudentRequest struct {
 // UpdateStudentRequest represents a student update request
 type UpdateStudentRequest struct {
 	// Person details (optional for update)
-	FirstName *string `json:"first_name,omitempty"`
-	LastName  *string `json:"last_name,omitempty"`
-	TagID     *string `json:"tag_id,omitempty"`
+	FirstName *string    `json:"first_name,omitempty"`
+	LastName  *string    `json:"last_name,omitempty"`
+	Birthday  *time.Time `json:"birthday,omitempty"`
+	TagID     *string    `json:"tag_id,omitempty"`
 
 	// Student-specific details (optional for update)
 	SchoolClass     *string `json:"school_class,omitempty"`
@@ -180,6 +183,8 @@ type UpdateStudentRequest struct {
 	GuardianPhone   *string `json:"guardian_phone,omitempty"`
 	GroupID         *int64  `json:"group_id,omitempty"`
 	Bus             *bool   `json:"bus,omitempty"`        // Whether student takes the bus
+	HealthInfo      *string `json:"health_info,omitempty"` // Static health and medical information
+	SupervisorNotes *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
 	ExtraInfo       *string `json:"extra_info,omitempty"` // Extra information visible to supervisors
 }
 
@@ -360,9 +365,17 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 		response.GroupName = group.Name
 	}
 
-	// Include extra info only for users with full access (supervisors/admins)
-	if hasFullAccess && student.ExtraInfo != nil && *student.ExtraInfo != "" {
-		response.ExtraInfo = *student.ExtraInfo
+	// Include sensitive fields only for users with full access (supervisors/admins)
+	if hasFullAccess {
+		if student.ExtraInfo != nil && *student.ExtraInfo != "" {
+			response.ExtraInfo = *student.ExtraInfo
+		}
+		if student.HealthInfo != nil {
+			response.HealthInfo = *student.HealthInfo
+		}
+		if student.SupervisorNotes != nil {
+			response.SupervisorNotes = *student.SupervisorNotes
+		}
 	}
 
 	return response
@@ -767,6 +780,20 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Centralized permission check for updating student data
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
+	if !authorized {
+		if err := render.Render(w, r, ErrorForbidden(authErr)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Track whether the user is admin or group supervisor
+	isAdmin := hasAdminPermissions(userPermissions)
+	isGroupSupervisor := !isAdmin  // If not admin but authorized, must be group supervisor
+
 	// Update person fields if provided
 	updatePerson := false
 	if req.FirstName != nil {
@@ -775,6 +802,10 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.LastName != nil {
 		person.LastName = *req.LastName
+		updatePerson = true
+	}
+	if req.Birthday != nil {
+		person.Birthday = req.Birthday
 		updatePerson = true
 	}
 	if req.TagID != nil {
@@ -823,6 +854,12 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	if req.ExtraInfo != nil {
 		student.ExtraInfo = req.ExtraInfo
 	}
+	if req.HealthInfo != nil {
+		student.HealthInfo = req.HealthInfo
+	}
+	if req.SupervisorNotes != nil {
+		student.SupervisorNotes = req.SupervisorNotes
+	}
 
 	// Update student
 	if err := rs.StudentRepo.Update(r.Context(), student); err != nil {
@@ -850,9 +887,9 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Admin users updating students can see full data including detailed location
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	hasFullAccess := hasAdminPermissions(userPermissions)
+	// Admin users and group supervisors can see full data including detailed location
+	// Explicitly verify access level based on the checks performed above
+	hasFullAccess := isAdmin || isGroupSupervisor  // Explicitly check for admin or group supervisor
 
 	// Return the updated student with person data
 	common.Respond(w, r, http.StatusOK, newStudentResponse(r.Context(), updatedStudent, person, group, hasFullAccess, rs.ActiveService, rs.PersonService), "Student updated successfully")
@@ -873,6 +910,16 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	student, err := rs.StudentRepo.FindByID(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if user has permission to delete this student
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	authorized, authErr := canDeleteStudent(r.Context(), userPermissions, student, rs.UserContextService)
+	if !authorized {
+		if err := render.Render(w, r, ErrorForbidden(authErr)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
@@ -1107,6 +1154,67 @@ func hasAdminPermissions(permissions []string) bool {
 			return true
 		}
 	}
+	return false
+}
+
+// canModifyStudent centralizes the authorization logic for modifying student data (update/delete)
+func canModifyStudent(ctx context.Context, userPermissions []string, student *users.Student, userContextService userContextService.UserContextService, operation string) (bool, error) {
+	// Admin users have full access
+	if hasAdminPermissions(userPermissions) {
+		return true, nil
+	}
+
+	// Student must have a group for non-admin operations
+	if student.GroupID == nil {
+		return false, fmt.Errorf("only administrators can %s students without assigned groups", operation)
+	}
+
+	// Check if user is a staff member
+	staff, err := userContextService.GetCurrentStaff(ctx)
+	if err != nil || staff == nil {
+		return false, fmt.Errorf("insufficient permissions to %s this student's data", operation)
+	}
+
+	// Check if staff supervises the student's group
+	if supervised := isGroupSupervisor(ctx, *student.GroupID, userContextService); supervised {
+		return true, nil
+	}
+
+	return false, fmt.Errorf("you can only %s students in groups you supervise", operation)
+}
+
+// canUpdateStudent is a convenience wrapper for update operations
+func canUpdateStudent(ctx context.Context, userPermissions []string, student *users.Student, userContextService userContextService.UserContextService) (bool, error) {
+	return canModifyStudent(ctx, userPermissions, student, userContextService, "update")
+}
+
+// canDeleteStudent is a convenience wrapper for delete operations
+func canDeleteStudent(ctx context.Context, userPermissions []string, student *users.Student, userContextService userContextService.UserContextService) (bool, error) {
+	return canModifyStudent(ctx, userPermissions, student, userContextService, "delete")
+}
+
+// isGroupSupervisor checks if the current user supervises a specific group
+func isGroupSupervisor(ctx context.Context, groupID int64, userContextService userContextService.UserContextService) bool {
+	// Check education groups
+	educationGroups, err := userContextService.GetMyGroups(ctx)
+	if err == nil {
+		for _, g := range educationGroups {
+			if g.ID == groupID {
+				return true
+			}
+		}
+	}
+
+	// Also check active groups
+	activeGroups, err := userContextService.GetMyActiveGroups(ctx)
+	if err == nil {
+		for _, ag := range activeGroups {
+			if ag.GroupID == groupID {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 

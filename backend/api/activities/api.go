@@ -12,8 +12,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -54,40 +52,40 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 
-		// Basic Activity Group operations (Read)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/", rs.listActivities)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/{id}", rs.getActivity)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/categories", rs.listCategories)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/timespans", rs.getTimespans)
+		// Basic Activity Group operations (Read) - All authenticated users can read
+		r.Get("/", rs.listActivities)
+		r.Get("/{id}", rs.getActivity)
+		r.Get("/categories", rs.listCategories)
+		r.Get("/timespans", rs.getTimespans)
 
-		// Basic Activity Group operations (Write)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesCreate)).Post("/", rs.createActivity)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesCreate)).Post("/quick-create", rs.quickCreateActivity)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate)).Put("/{id}", rs.updateActivity)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesDelete)).Delete("/{id}", rs.deleteActivity)
+		// Basic Activity Group operations (Write) - All authenticated users can create/update/delete
+		r.Post("/", rs.createActivity)
+		r.Post("/quick-create", rs.quickCreateActivity)
+		r.Put("/{id}", rs.updateActivity)
+		r.Delete("/{id}", rs.deleteActivity)
 
-		// Schedule Management
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/{id}/schedules", rs.getActivitySchedules)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/{id}/schedules/{scheduleId}", rs.getActivitySchedule)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/schedules/available", rs.getAvailableTimeSlots)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate)).Post("/{id}/schedules", rs.createActivitySchedule)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate)).Put("/{id}/schedules/{scheduleId}", rs.updateActivitySchedule)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate)).Delete("/{id}/schedules/{scheduleId}", rs.deleteActivitySchedule)
+		// Schedule Management - All authenticated users can manage schedules
+		r.Get("/{id}/schedules", rs.getActivitySchedules)
+		r.Get("/{id}/schedules/{scheduleId}", rs.getActivitySchedule)
+		r.Get("/schedules/available", rs.getAvailableTimeSlots)
+		r.Post("/{id}/schedules", rs.createActivitySchedule)
+		r.Put("/{id}/schedules/{scheduleId}", rs.updateActivitySchedule)
+		r.Delete("/{id}/schedules/{scheduleId}", rs.deleteActivitySchedule)
 
-		// Supervisor Assignment
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/{id}/supervisors", rs.getActivitySupervisors)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/supervisors/available", rs.getAvailableSupervisors)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate)).Post("/{id}/supervisors", rs.assignSupervisor)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate)).Put("/{id}/supervisors/{supervisorId}", rs.updateSupervisorRole)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate)).Delete("/{id}/supervisors/{supervisorId}", rs.removeSupervisor)
+		// Supervisor Assignment - All authenticated users can manage supervisors
+		r.Get("/{id}/supervisors", rs.getActivitySupervisors)
+		r.Get("/supervisors/available", rs.getAvailableSupervisors)
+		r.Post("/{id}/supervisors", rs.assignSupervisor)
+		r.Put("/{id}/supervisors/{supervisorId}", rs.updateSupervisorRole)
+		r.Delete("/{id}/supervisors/{supervisorId}", rs.removeSupervisor)
 
-		// Student Enrollment
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/{id}/students", rs.getActivityStudents)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/students/{studentId}", rs.getStudentEnrollments)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/students/{studentId}/available", rs.getAvailableActivities)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesEnroll)).Post("/{id}/students/{studentId}", rs.enrollStudent)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesEnroll)).Delete("/{id}/students/{studentId}", rs.unenrollStudent)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesEnroll)).Put("/{id}/students", rs.updateGroupEnrollments)
+		// Student Enrollment - All authenticated users can manage enrollments
+		r.Get("/{id}/students", rs.getActivityStudents)
+		r.Get("/students/{studentId}", rs.getStudentEnrollments)
+		r.Get("/students/{studentId}/available", rs.getAvailableActivities)
+		r.Post("/{id}/students/{studentId}", rs.enrollStudent)
+		r.Delete("/{id}/students/{studentId}", rs.unenrollStudent)
+		r.Put("/{id}/students", rs.updateGroupEnrollments)
 	})
 
 	return r
@@ -625,14 +623,8 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Extract authenticated teacher from JWT context
-	teacher, err := rs.UserContextService.GetCurrentTeacher(r.Context())
-	if err != nil {
-		if err := render.Render(w, r, ErrorUnauthorized(errors.New("user is not a teacher"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
-		return
-	}
+	// Verify user is authenticated (JWT middleware already ensures this)
+	// We just need to make sure we can get staff info if available
 
 	// Create activity group with smart defaults
 	group := &activities.Group{
@@ -643,8 +635,14 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 		PlannedRoomID:   req.RoomID,
 	}
 
-	// Auto-assign authenticated teacher as primary supervisor
-	supervisorIDs := []int64{teacher.StaffID}
+	// Try to get staff info to auto-assign as supervisor
+	var supervisorIDs []int64
+	staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
+	if err == nil && staff != nil {
+		// If user is staff, auto-assign as primary supervisor
+		supervisorIDs = []int64{staff.ID}
+	}
+	// If user is not staff, create activity without supervisor (can be assigned later)
 
 	// Create the activity group with auto-assigned teacher supervision
 	createdGroup, err := rs.ActivityService.CreateGroup(r.Context(), group, supervisorIDs, nil)
@@ -676,9 +674,15 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 		response.RoomName = ""
 	}
 
-	// Add supervisor name to response
-	if teacher.Staff != nil && teacher.Staff.Person != nil {
-		response.SupervisorName = fmt.Sprintf("%s %s", teacher.Staff.Person.FirstName, teacher.Staff.Person.LastName)
+	// Add supervisor name to response if available
+	if staff != nil && staff.Person != nil {
+		response.SupervisorName = fmt.Sprintf("%s %s", staff.Person.FirstName, staff.Person.LastName)
+	} else {
+		// Try to get person info for non-staff users
+		person, _ := rs.UserContextService.GetCurrentPerson(r.Context())
+		if person != nil {
+			response.SupervisorName = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
+		}
 	}
 
 	common.Respond(w, r, http.StatusCreated, response, "Activity created successfully")

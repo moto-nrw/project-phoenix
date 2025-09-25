@@ -13,12 +13,13 @@ import { MobileSearchModal } from "./mobile-search-modal";
 import { NotificationCenter } from "./notification-center";
 import { MobileNotificationModal } from "./mobile-notification-modal";
 import { useSession } from "next-auth/react";
+import { LogoutModal } from "~/components/ui/logout-modal";
 
 // Function to get page title based on pathname
 function getPageTitle(pathname: string): string {
     // Check for /students/search first before other /students/ paths
     if (pathname === "/students/search") {
-        return "Suche";
+        return "Kindersuche";
     }
     
     // Handle specific routes with dynamic segments
@@ -107,6 +108,7 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
     const [isMobileNotificationOpen, setIsMobileNotificationOpen] = useState(false);
+    const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
     const pathname = usePathname();
     const helpContent = getHelpContent(pathname);
     const pageTitle = getPageTitle(pathname);
@@ -186,36 +188,34 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
                         </span>
                     </div>
 
-                    {/* Search bar centered horizontally - or session expiry warning */}
-                    <div className="hidden lg:flex absolute left-1/2 transform -translate-x-1/2">
-                        {session?.error === "RefreshTokenExpired" ? (
-                            <div className="flex items-center space-x-2 px-4 py-2 bg-red-50 border border-red-200 rounded-lg">
-                                <svg 
-                                    className="w-5 h-5 text-red-600 flex-shrink-0" 
-                                    fill="none" 
-                                    viewBox="0 0 24 24" 
-                                    stroke="currentColor"
-                                >
-                                    <path 
-                                        strokeLinecap="round" 
-                                        strokeLinejoin="round" 
-                                        strokeWidth={2} 
-                                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
-                                    />
-                                </svg>
-                                <span className="text-sm font-medium text-red-800">
-                                    Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.
-                                </span>
-                            </div>
-                        ) : (
-                            <GlobalSearch className="w-80" />
-                        )}
-                    </div>
-
-                    {/* Right section: Actions + Profile */}
+                    {/* Right section: Search + Actions + Profile */}
                     <div className="flex items-center space-x-3 ml-auto">{/* ml-auto pushes content to the right */}
                         {/* Quick action buttons (desktop only) */}
                         <div className="hidden lg:flex items-center space-x-2">
+                            {/* Search bar or session expiry warning */}
+                            {session?.error === "RefreshTokenExpired" ? (
+                                <div className="flex items-center space-x-2 px-4 py-2 bg-red-50 border border-red-200 rounded-lg">
+                                    <svg 
+                                        className="w-5 h-5 text-red-600 flex-shrink-0" 
+                                        fill="none" 
+                                        viewBox="0 0 24 24" 
+                                        stroke="currentColor"
+                                    >
+                                        <path 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round" 
+                                            strokeWidth={2} 
+                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                                        />
+                                    </svg>
+                                    <span className="text-sm font-medium text-red-800">
+                                        Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.
+                                    </span>
+                                </div>
+                            ) : (
+                                <GlobalSearch className="w-80 mr-2" />
+                            )}
+                            
                             {/* Notifications */}
                             <NotificationCenter />
 
@@ -338,19 +338,8 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
 
                                 {/* Menu items */}
                                 <div className="py-2">
-                                    <Link 
-                                        href="/profile" 
-                                        onClick={closeProfileMenu}
-                                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors duration-150"
-                                    >
-                                        <svg className="w-4 h-4 mr-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                        </svg>
-                                        Profil anzeigen
-                                    </Link>
-                                    
-                                    <Link 
-                                        href="/settings" 
+                                    <Link
+                                        href="/settings"
                                         onClick={closeProfileMenu}
                                         className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors duration-150"
                                     >
@@ -384,14 +373,17 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
                                     
                                     <div className="border-t border-gray-100 my-2"></div>
                                     
-                                    <Link 
-                                        href="/logout" 
-                                        onClick={closeProfileMenu}
-                                        className="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors duration-150"
+                                    <button 
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            closeProfileMenu();
+                                            setIsLogoutModalOpen(true);
+                                        }}
+                                        className="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors duration-150 w-full text-left"
                                     >
                                         <LogoutIcon className="w-4 h-4 mr-3" />
                                         Abmelden
-                                    </Link>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -409,6 +401,12 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
             <MobileNotificationModal 
                 isOpen={isMobileNotificationOpen} 
                 onClose={closeMobileNotification} 
+            />
+            
+            {/* Logout Modal */}
+            <LogoutModal
+                isOpen={isLogoutModalOpen}
+                onClose={() => setIsLogoutModalOpen(false)}
             />
         </header>
     );
