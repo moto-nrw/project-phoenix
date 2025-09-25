@@ -23,7 +23,7 @@ export function Modal({
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isExiting, setIsExiting] = React.useState(false);
   const { openModal, closeModal } = useModal();
-  
+
   // Use scroll lock hook
   useScrollLock(isOpen);
 

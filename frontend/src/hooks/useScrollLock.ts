@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'react';
  */
 export function useScrollLock(isLocked: boolean) {
   const scrollPosition = useRef(0);
+  const modalContentElements = useRef<WeakSet<Element>>(new WeakSet());
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -39,20 +40,48 @@ export function useScrollLock(isLocked: boolean) {
         padding-right: ${scrollBarWidth}px;
       `;
 
-      // For iOS Safari - prevent background scrolling
+      // Cache modal content elements for performance
+      const updateModalContentCache = () => {
+        modalContentElements.current = new WeakSet(
+          document.querySelectorAll('[data-modal-content="true"]')
+        );
+      };
+
+      // Initial cache update
+      updateModalContentCache();
+
+      // Update cache when DOM changes (for dynamic modals)
+      const observer = new MutationObserver(updateModalContentCache);
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['data-modal-content']
+      });
+
+      // For iOS Safari - prevent background scrolling with optimized check
       const handleTouchMove = (e: TouchEvent) => {
-        // Allow scrolling inside the modal
         const target = e.target;
 
-        // Check if target is an Element before calling closest
-        if (target instanceof Element) {
-          const isModalContent = target.closest('[data-modal-content="true"]');
+        // Check if target is an Element before processing
+        if (!(target instanceof Element)) {
+          e.preventDefault();
+          return;
+        }
 
-          if (!isModalContent) {
-            e.preventDefault();
+        // Check if we're inside a cached modal content element
+        let element: Element | null = target;
+        let isInsideModal = false;
+
+        while (element && element !== document.body) {
+          if (modalContentElements.current.has(element)) {
+            isInsideModal = true;
+            break;
           }
-        } else {
-          // If target is not an Element, prevent scrolling
+          element = element.parentElement;
+        }
+
+        if (!isInsideModal) {
           e.preventDefault();
         }
       };
@@ -70,6 +99,9 @@ export function useScrollLock(isLocked: boolean) {
 
         // Remove touch event listener
         document.removeEventListener('touchmove', handleTouchMove);
+
+        // Disconnect observer
+        observer.disconnect();
       };
     }
   }, [isLocked]);
