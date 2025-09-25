@@ -780,72 +780,19 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if user has permission to update this student's data
-	// Admin users have full access
+	// Centralized permission check for updating student data
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	isAdmin := hasAdminPermissions(userPermissions)
-
-	if !isAdmin {
-		// Check if user is a staff member who supervises the student's group
-		if student.GroupID != nil {
-			// Check if current user supervises this group
-			staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
-			if err != nil || staff == nil {
-				if err := render.Render(w, r, ErrorForbidden(errors.New("insufficient permissions to update this student's data"))); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-
-			// Check if staff supervises the student's group
-			educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-			if err != nil {
-				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-
-			// Check if the student's group is in the staff's supervised groups
-			isGroupSupervisor := false
-			for _, g := range educationGroups {
-				if g.ID == *student.GroupID {
-					isGroupSupervisor = true
-					break
-				}
-			}
-
-			// Also check active groups if the education group check fails
-			if !isGroupSupervisor {
-				activeGroups, err := rs.UserContextService.GetMyActiveGroups(r.Context())
-				if err == nil {
-					for _, ag := range activeGroups {
-						// Check if the student's group matches this active group
-						if ag.GroupID == *student.GroupID {
-							isGroupSupervisor = true
-							break
-						}
-					}
-				}
-			}
-
-			if !isGroupSupervisor {
-				if err := render.Render(w, r, ErrorForbidden(errors.New("you can only update students in groups you supervise"))); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-		} else {
-			// Student has no group - only admins can update them
-			if err := render.Render(w, r, ErrorForbidden(errors.New("only administrators can update students without assigned groups"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
-			return
+	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
+	if !authorized {
+		if err := render.Render(w, r, ErrorForbidden(authErr)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
 		}
+		return
 	}
 
-	// Track whether the user is a group supervisor (already verified above if not admin)
-	isGroupSupervisor := !isAdmin  // If not admin but got here, must be group supervisor
+	// Track whether the user is admin or group supervisor
+	isAdmin := hasAdminPermissions(userPermissions)
+	isGroupSupervisor := !isAdmin  // If not admin but authorized, must be group supervisor
 
 	// Update person fields if provided
 	updatePerson := false
@@ -1197,6 +1144,67 @@ func hasAdminPermissions(permissions []string) bool {
 			return true
 		}
 	}
+	return false
+}
+
+// canModifyStudent centralizes the authorization logic for modifying student data (update/delete)
+func canModifyStudent(ctx context.Context, userPermissions []string, student *users.Student, userContextService userContextService.UserContextService, operation string) (bool, error) {
+	// Admin users have full access
+	if hasAdminPermissions(userPermissions) {
+		return true, nil
+	}
+
+	// Student must have a group for non-admin operations
+	if student.GroupID == nil {
+		return false, fmt.Errorf("only administrators can %s students without assigned groups", operation)
+	}
+
+	// Check if user is a staff member
+	staff, err := userContextService.GetCurrentStaff(ctx)
+	if err != nil || staff == nil {
+		return false, fmt.Errorf("insufficient permissions to %s this student's data", operation)
+	}
+
+	// Check if staff supervises the student's group
+	if supervised := isGroupSupervisor(ctx, *student.GroupID, userContextService); supervised {
+		return true, nil
+	}
+
+	return false, fmt.Errorf("you can only %s students in groups you supervise", operation)
+}
+
+// canUpdateStudent is a convenience wrapper for update operations
+func canUpdateStudent(ctx context.Context, userPermissions []string, student *users.Student, userContextService userContextService.UserContextService) (bool, error) {
+	return canModifyStudent(ctx, userPermissions, student, userContextService, "update")
+}
+
+// canDeleteStudent is a convenience wrapper for delete operations
+func canDeleteStudent(ctx context.Context, userPermissions []string, student *users.Student, userContextService userContextService.UserContextService) (bool, error) {
+	return canModifyStudent(ctx, userPermissions, student, userContextService, "delete")
+}
+
+// isGroupSupervisor checks if the current user supervises a specific group
+func isGroupSupervisor(ctx context.Context, groupID int64, userContextService userContextService.UserContextService) bool {
+	// Check education groups
+	educationGroups, err := userContextService.GetMyGroups(ctx)
+	if err == nil {
+		for _, g := range educationGroups {
+			if g.ID == groupID {
+				return true
+			}
+		}
+	}
+
+	// Also check active groups
+	activeGroups, err := userContextService.GetMyActiveGroups(ctx)
+	if err == nil {
+		for _, ag := range activeGroups {
+			if ag.GroupID == groupID {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 
