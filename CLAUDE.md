@@ -55,6 +55,43 @@ The database uses multiple PostgreSQL schemas to organize tables by domain:
 - **feedback**: User feedback
 - **config**: System configuration
 
+## Critical Patterns & Gotchas ⚠️
+
+**Read these first to avoid common mistakes:**
+
+1. **BUN ORM Schema-Qualified Tables** - MUST quote aliases:
+   ```go
+   ModelTableExpr(`education.groups AS "group"`)  // ✓ CORRECT
+   ModelTableExpr(`education.groups AS group`)    // ✗ WRONG - causes "column not found"
+   ```
+
+2. **Docker Backend Rebuild** - Go code changes require rebuild:
+   ```bash
+   docker compose build server  # REQUIRED after Go changes
+   docker compose up -d server
+   ```
+
+3. **Frontend Quality Check** - Zero warnings policy enforced:
+   ```bash
+   npm run check  # MUST PASS before committing
+   ```
+
+4. **Type Mapping** - Backend int64 → Frontend string:
+   ```typescript
+   id: data.id.toString()  // Always convert IDs
+   ```
+
+5. **Git Workflow** - PRs target `development`, NOT `main`:
+   ```bash
+   gh pr create --base development  # Correct
+   ```
+
+6. **Student Location** - Use `active.visits`, NOT deprecated flags:
+   ```go
+   // ✓ CORRECT: active.visits + active.attendance
+   // ✗ WRONG: users.students (in_house, wc, school_yard) - broken!
+   ```
+
 ## Development Commands
 
 ### Quick Setup (New Development Environment)
@@ -137,11 +174,11 @@ npm run build                   # Build for production
 npm run start                   # Start production server
 npm run preview                 # Build and preview production
 
-# Code Quality (Run before committing!)
+# Code Quality (REQUIRED before committing - zero warnings policy!)
+npm run check                   # Run both lint and typecheck (MUST PASS)
 npm run lint                    # ESLint check (max-warnings=0)
 npm run lint:fix                # Auto-fix linting issues
 npm run typecheck               # TypeScript type checking
-npm run check                   # Run both lint and typecheck
 
 # Formatting
 npm run format:check            # Check Prettier formatting
@@ -158,6 +195,10 @@ docker compose up               # Start all services
 docker compose up -d postgres   # Start only database
 docker compose up -d            # Start all services in detached mode
 
+# CRITICAL: Backend code changes require rebuild
+docker compose build server     # MUST run after any Go code changes
+docker compose up -d server     # Restart with new build
+
 # Database Operations
 docker compose run server ./main migrate  # Run migrations
 docker compose run server ./main seed     # Populate with test data
@@ -170,7 +211,7 @@ docker compose logs frontend            # Check frontend logs
 # API Testing
 cd bruno
 ./dev-test.sh all                       # Run simplified test suite (~252ms)
-./dev-test.sh groups                    # Test groups API only (~44ms)  
+./dev-test.sh groups                    # Test groups API only (~44ms)
 bru run --env Local                     # Traditional Bruno CLI
 
 # Cleanup
@@ -731,15 +772,25 @@ ModelTableExpr(`users.teachers AS teacher`)
 
 ### Next.js 15+ Route Handlers
 
-Route handlers must properly type the context parameter for Next.js 15 compatibility:
+**BREAKING CHANGE**: Next.js 15 made `params` async - route wrappers handle this automatically:
 
 ```typescript
-// CORRECT - Properly typed params
+// Next.js 15: params are now Promise<Record<string, string | string[] | undefined>>
 export const GET = createGetHandler(async (request, token, params) => {
-    // params: Promise<Record<string, string | string[] | undefined>>
+    // Route wrapper automatically awaits params and extracts values
+    // Access params directly: params.id, params.groupId, etc.
     const response = await apiGet(`/api/resources`, token);
     return response.data;
 });
+
+// If writing custom route handlers without wrappers:
+export async function GET(
+    request: NextRequest,
+    context: { params: Promise<Record<string, string | string[] | undefined>> }
+) {
+    const { id } = await context.params;  // MUST await!
+    // ...
+}
 ```
 
 ### Type Mapping Between Backend and Frontend
