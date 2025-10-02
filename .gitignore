@@ -402,7 +402,6 @@ backend/test_compile
 ci-cd-best-practices-guide.md
 
 # Claude AI specific files
-.claude/
 *.local.md
 
 # Server logs and runtime files
