@@ -39,6 +39,7 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 		{"Hausaufgabenhilfe", "Unterstützung bei den Hausaufgaben", "#4A90E2"},
 		{"Natur & Forschen", "Naturerkundung und einfache Experimente", "#7ED321"},
 		{"Computer", "Grundlagen im Umgang mit dem Computer", "#9013FE"},
+		{"Schulhof", "Schulhof und Außenbereich", "#7ED321"},
 	}
 
 	for _, data := range categoryData {
@@ -104,6 +105,9 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 
 		// Computer
 		{"Computer-Grundlagen", "Erste Schritte am Computer", "Computer", 15, 8, 12, false, "Computerraum"},
+
+		// Schulhof
+		{"Schulhof Freispiel", "Freies Spiel im Schulhof", "Schulhof", 100, 6, 12, false, "Schulhof"},
 	}
 
 	// Map category names to IDs

@@ -67,6 +67,9 @@ func (s *Seeder) seedRooms(ctx context.Context) error {
 
 		// Administrative
 		{Name: "Lehrerzimmer", RoomNumber: "STAFF", Building: "Hauptgebäude", Floor: 0, Capacity: 40, RoomType: "staff_room", IsAccessible: true, HasProjector: true, HasSmartboard: true, Description: "Lehrerzimmer mit Arbeitsplätzen"},
+
+		// Outdoor areas
+		{Name: "Schulhof", RoomNumber: "OUTDOOR", Building: "Außenbereich", Floor: 0, Capacity: 100, RoomType: "schulhof", IsAccessible: true, HasProjector: false, HasSmartboard: false, Description: "Schulhof für Freispiel und Pausen"},
 	}
 
 	for _, data := range rooms {
@@ -125,6 +128,8 @@ func mapRoomTypeToCategory(roomType string) string {
 		return "Cafeteria"
 	case "staff_room":
 		return "Staff Room"
+	case "schulhof":
+		return "Schulhof"
 	default:
 		return "Other"
 	}
@@ -155,6 +160,8 @@ func getRoomColor(roomType string) string {
 		return "#D0021B" // Red
 	case "staff_room":
 		return "#9B9B9B" // Gray
+	case "schulhof":
+		return "#7ED321" // Green (outdoor/nature)
 	default:
 		return "#FFFFFF" // White
 	}
