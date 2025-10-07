@@ -12,7 +12,7 @@
   },
 
   "permissions": {
-    "defaultMode": "normal",
+    "defaultMode": "default",
 
     "deny": [
       "Read(./secrets/**)",
@@ -114,9 +114,14 @@
     ],
     "SessionStart": [
       {
-        "type": "command",
-        "command": ".claude/hooks/check-env-files.sh",
-        "description": "Verify environment files exist"
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-env-files.sh",
+            "description": "Verify environment files exist"
+          }
+        ]
       }
     ]
   }
