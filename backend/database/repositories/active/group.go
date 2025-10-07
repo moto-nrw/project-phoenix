@@ -544,23 +544,25 @@ func (r *GroupRepository) FindUnclaimed(ctx context.Context) ([]*active.Group, e
 
 	// Load relations manually for each group to avoid cross-schema issues
 	for i := range groups {
-		// Load room if room_id is set
+		// Load room if room_id is set (use schema-qualified table name)
 		if groups[i].RoomID > 0 {
 			room := new(facilities.Room)
 			if err := r.db.NewSelect().
 				Model(room).
-				Where("id = ?", groups[i].RoomID).
+				ModelTableExpr(`facilities.rooms AS "room"`).
+				Where(`"room".id = ?`, groups[i].RoomID).
 				Scan(ctx); err == nil {
 				groups[i].Room = room
 			}
 		}
 
-		// Load activity group if group_id is set
+		// Load activity group if group_id is set (use schema-qualified table name)
 		if groups[i].GroupID > 0 {
 			activityGroup := new(activities.Group)
 			if err := r.db.NewSelect().
 				Model(activityGroup).
-				Where("id = ?", groups[i].GroupID).
+				ModelTableExpr(`activities.groups AS "group"`).
+				Where(`"group".id = ?`, groups[i].GroupID).
 				Scan(ctx); err == nil {
 				groups[i].ActualGroup = activityGroup
 			}
