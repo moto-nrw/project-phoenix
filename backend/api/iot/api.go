@@ -1044,7 +1044,7 @@ func (rs *Resource) getSchulhofActivityGroup(ctx context.Context) (*activities.G
 
 	// Verify activity exists (should always exist from seed data)
 	if len(groups) == 0 {
-		return nil, errors.New("Schulhof Freispiel activity not found - run seed command")
+		return nil, errors.New("schulhof Freispiel activity not found - run seed command")
 	}
 
 	return groups[0], nil
@@ -1256,7 +1256,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 				schulhofActivity, err := rs.getSchulhofActivityGroup(r.Context())
 				if err != nil {
 					log.Printf("[CHECKIN] ERROR: Failed to find Schulhof activity: %v", err)
-					if err := render.Render(w, r, ErrorInternalServer(errors.New("Schulhof activity not configured"))); err != nil {
+					if err := render.Render(w, r, ErrorInternalServer(errors.New("schulhof activity not configured"))); err != nil {
 						log.Printf("Render error: %v", err)
 					}
 					return

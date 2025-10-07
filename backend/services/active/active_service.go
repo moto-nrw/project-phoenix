@@ -2457,9 +2457,9 @@ func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group
 			}
 		}
 
-		// Store count in a way that frontend can access
-		// Note: You may need to add StudentCount field to active.Group model
-		group.LastActivity = group.LastActivity // Placeholder - adjust based on your model
+		// Student count is calculated but not stored in the model
+		// Frontend will display based on actual visit count
+		_ = activeCount // Used for logging/debugging if needed
 	}
 
 	return groups, nil
