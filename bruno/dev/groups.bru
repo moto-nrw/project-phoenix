@@ -1,0 +1,23 @@
+meta {
+  name: Dev Groups
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/groups
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log(`✅ Groups API OK - ${res.body.data?.length || 0} groups`);
+  } else {
+    console.log("❌ Groups API failed");
+  }
+}

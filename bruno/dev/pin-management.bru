@@ -1,0 +1,23 @@
+meta {
+  name: PIN Status Test
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{baseUrl}}/api/staff/pin
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{teacherToken}}
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log("✅ PIN status retrieved:", JSON.stringify(res.body, null, 2));
+    bru.setVar("hasPIN", res.body.has_pin);
+  } else {
+    console.log("❌ PIN status failed:", res.status, res.body);
+  }
+}

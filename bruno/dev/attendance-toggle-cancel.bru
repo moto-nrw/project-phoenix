@@ -1,0 +1,35 @@
+meta {
+  name: Attendance Toggle - Cancel
+  type: http
+  seq: 42
+}
+
+post {
+  url: {{baseUrl}}/api/iot/attendance/toggle
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{staffPIN}}
+  X-Staff-ID: {{staffID}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "rfid": "1047722B7A0C88",
+    "action": "cancel"
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.status === "success") {
+    const data = res.body.data;
+    console.log(`✅ Attendance cancel OK - Action cancelled`);
+    console.log(`   Message: ${data.message || 'Action cancelled successfully'}`);
+  } else {
+    console.log("❌ Attendance cancel failed:", res.body?.message || `Status: ${res.status}`);
+  }
+}

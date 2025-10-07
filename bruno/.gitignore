@@ -1,0 +1,8 @@
+# Ignore actual environment files with credentials
+environments/*.bru
+
+# Keep example templates
+!environments/*.bru.example
+
+# Ignore macOS system files
+.DS_Store

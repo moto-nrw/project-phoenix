@@ -1,0 +1,12 @@
+vars {
+  baseUrl: http://localhost:8080
+  accessToken:
+  refreshToken:
+  deviceToken:
+  deviceApiKey: YOUR_DEVICE_API_KEY_HERE
+  staffPIN: YOUR_4_DIGIT_PIN
+  globalOgsPin: YOUR_4_DIGIT_PIN
+  staffID: YOUR_STAFF_ID
+  testStaffEmail: your.staff.email@example.com
+  testStaffPassword: YOUR_PASSWORD_HERE
+}

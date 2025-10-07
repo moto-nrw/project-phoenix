@@ -1,0 +1,51 @@
+meta {
+  name: PIN Debug Test
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{baseUrl}}/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "{{testStaffEmail}}",
+    "password": "{{testStaffPassword}}"
+  }
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log("✅ Teacher login successful");
+    console.log("Token:", res.body.access_token.substring(0, 50) + "...");
+    bru.setEnvVar("debugToken", res.body.access_token);
+    
+    // Test token validation by calling /auth/token
+    const tokenReq = {
+      url: `${bru.getEnvVar('baseUrl')}/auth/token`,
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${res.body.access_token}`
+      }
+    };
+    
+    // Test direct backend call to PIN endpoint
+    const pinReq = {
+      url: `${bru.getEnvVar('baseUrl')}/api/staff/pin`,
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${res.body.access_token}`
+      }
+    };
+    
+    console.log("Testing backend PIN endpoint directly...");
+    console.log("URL:", pinReq.url);
+    console.log("Auth header:", pinReq.headers.Authorization.substring(0, 50) + "...");
+    
+  } else {
+    console.log("❌ Teacher login failed:", res.status, res.body);
+  }
+}

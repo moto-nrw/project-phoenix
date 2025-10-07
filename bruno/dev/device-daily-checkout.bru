@@ -1,0 +1,57 @@
+meta {
+  name: Device Daily Checkout Test
+  type: http
+  seq: 99
+}
+
+post {
+  url: {{baseUrl}}/api/iot/checkin
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{staffPIN}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "student_rfid": "0717E589DBE0C0",
+    "action": "checkout"
+  }
+}
+
+tests {
+  test("Daily checkout action returned", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('status', 'success');
+    
+    // Log the actual action for debugging
+    console.log("Action returned:", res.getBody().data.action);
+    console.log("Student:", res.getBody().data.student_name);
+    console.log("Full response:", JSON.stringify(res.getBody(), null, 2));
+    
+    // Check if daily checkout is available (after 15:00 and in home room)
+    const action = res.getBody().data.action;
+    const currentHour = new Date().getHours();
+    
+    console.log("Current hour:", currentHour);
+    console.log("Student Paula Vogel (Klasse 1A) checking out from Room 101 (their home room)");
+    
+    if (currentHour >= 15) {
+      console.log("Time is after 15:00, expecting 'checked_out_daily' action");
+      expect(action).to.equal('checked_out_daily');
+    } else {
+      console.log("Time is before 15:00, expecting normal 'checked_out' action");
+      expect(action).to.equal('checked_out');
+    }
+  });
+  
+  test("Response structure is correct", function() {
+    expect(res.getBody().data).to.have.property('student_name', 'Paula Vogel');
+    expect(res.getBody().data).to.have.property('message');
+    expect(res.getBody().data).to.have.property('visit_id');
+  });
+}

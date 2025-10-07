@@ -1,0 +1,29 @@
+meta {
+  name: RFID Tag Unassigned
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/iot/rfid/TEST-UNASSIGNED-TAG
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{staffPIN}}
+}
+
+script:post-response {
+  if (res.status === 200) {
+    const data = res.body.data;
+    if (data && data.assigned === false) {
+      console.log("✅ Unassigned tag correctly returned false");
+    } else {
+      console.log("❌ Unassigned tag incorrectly shown as assigned");
+    }
+  } else {
+    console.log("❌ RFID tag lookup failed");
+  }
+}

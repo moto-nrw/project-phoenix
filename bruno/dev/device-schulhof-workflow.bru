@@ -1,0 +1,114 @@
+meta {
+  name: Schulhof Complete Workflow Test
+  type: http
+  seq: 102
+}
+
+post {
+  url: {{baseUrl}}/api/iot/checkin
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{staffPIN}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "student_rfid": "AD95A48E",
+    "action": "checkin",
+    "room_id": 3
+  }
+}
+
+docs {
+  # Complete Schulhof Workflow Test
+
+  This test suite verifies the entire workflow of students moving between regular rooms and Schulhof.
+
+  ## Test Workflow
+
+  ### Setup
+  - Student A (Leon): AD95A48E
+  - Student B (Emma): 71A1DC68
+  - Room 1 (Klassenzimmer 2A): ID 3 (has active group from seed data)
+  - Schulhof: ID 25 (no active group initially)
+
+  ### Test Sequence
+
+  1. **Student A → Room 1** (regular room check-in)
+     - Should succeed (room has active group)
+     - Creates visit for Student A in Room 1
+
+  2. **Student B → Schulhof** (first Schulhof check-in)
+     - Should auto-create Schulhof active group
+     - Creates visit for Student B in Schulhof
+
+  3. **Student A → Checkout from Room 1**
+     - Ends visit in Room 1
+
+  4. **Student A → Schulhof** (reuse existing group)
+     - Should reuse existing Schulhof group (created in step 2)
+     - Creates visit for Student A in Schulhof
+
+  5. **Student B → Checkout from Schulhof**
+     - Ends visit in Schulhof
+
+  6. **Student B → Room 1** (back to regular room)
+     - Should succeed (room still has active group)
+     - Creates visit for Student B in Room 1
+
+  ## Expected Results
+  - All check-ins succeed
+  - Schulhof group auto-created on first use
+  - Schulhof group reused for subsequent students
+  - Regular room behavior unchanged
+  - Check-outs work correctly
+
+  ## Run Instructions
+  Execute this test multiple times, changing the body:
+
+  1. Student A → Room 3:
+     {"student_rfid": "AD95A48E", "action": "checkin", "room_id": 3}
+
+  2. Student B → Schulhof:
+     {"student_rfid": "71A1DC68", "action": "checkin", "room_id": 25}
+
+  3. Student A → Checkout:
+     {"student_rfid": "AD95A48E", "action": "checkin"}
+
+  4. Student A → Schulhof:
+     {"student_rfid": "AD95A48E", "action": "checkin", "room_id": 25}
+
+  5. Student B → Checkout:
+     {"student_rfid": "71A1DC68", "action": "checkin"}
+
+  6. Student B → Room 3:
+     {"student_rfid": "71A1DC68", "action": "checkin", "room_id": 3}
+}
+
+tests {
+  test("Request successful", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('status', 'success');
+  });
+
+  test("Action performed", function() {
+    const data = res.getBody().data;
+    expect(data).to.have.property('action');
+    expect(['checked_in', 'checked_out']).to.include(data.action);
+  });
+
+  test("Student information present", function() {
+    expect(res.getBody().data).to.have.property('student_name');
+  });
+
+  test("Valid response structure", function() {
+    const data = res.getBody().data;
+    expect(data).to.have.property('message');
+    expect(data).to.have.property('processed_at');
+  });
+}

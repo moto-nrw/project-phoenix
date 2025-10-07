@@ -1,0 +1,37 @@
+meta {
+  name: Daily Checkout Complete Flow
+  type: http
+  seq: 100
+}
+
+post {
+  url: {{baseUrl}}/api/iot/checkin
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{staffPIN}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "student_rfid": "0717E589DBE0C0",
+    "action": "checkin",
+    "room_id": 1
+  }
+}
+
+tests {
+  test("Student checked into their home room", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('status', 'success');
+    expect(res.getBody().data).to.have.property('action', 'checked_in');
+    expect(res.getBody().data).to.have.property('student_name', 'Paula Vogel');
+    expect(res.getBody().data).to.have.property('room_name', '101');
+    
+    console.log("Student Paula Vogel checked into Room 101 (Klasse 1A home room)");
+  });
+}

@@ -1,0 +1,203 @@
+meta {
+  name: Update Session Supervisors - Edge Cases
+  type: http
+  seq: 62
+}
+
+put {
+  url: {{baseUrl}}/api/iot/session/{{activeGroupId}}/supervisors
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{deviceApiKey}}
+  X-Device-PIN: {{devicePin}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "supervisor_ids": {{testCase}}
+  }
+}
+
+script:pre-request {
+  // Define test cases
+  const testCases = [
+    {
+      name: "Empty supervisor list",
+      data: [],
+      expectError: true,
+      expectedMessage: "at least one supervisor is required"
+    },
+    {
+      name: "Invalid supervisor ID",
+      data: [999999],
+      expectError: true,
+      expectedMessage: "staff member with ID 999999 not found"
+    },
+    {
+      name: "Duplicate supervisor IDs",
+      data: [1, 2, 2, 3, 3, 3],
+      expectError: false,
+      expectedCount: 3  // Should deduplicate to [1, 2, 3]
+    },
+    {
+      name: "Single supervisor",
+      data: [1],
+      expectError: false,
+      expectedCount: 1
+    }
+  ];
+  
+  // Get current test case index
+  let testIndex = bru.getVar('testIndex') || 0;
+  const currentTest = testCases[testIndex];
+  
+  console.log(`\n=== TEST CASE ${testIndex + 1}/${testCases.length}: ${currentTest.name} ===`);
+  console.log('Input:', currentTest.data);
+  
+  // Store test case for validation
+  bru.setVar('currentTest', currentTest);
+  bru.setVar('testCase', JSON.stringify(currentTest.data));
+  
+  // Start a session if this is the first test
+  if (testIndex === 0) {
+    const startRequest = {
+      method: 'POST',
+      url: bru.getEnvVar('baseUrl') + '/api/iot/session/start',
+      headers: {
+        'X-API-Key': bru.getEnvVar('deviceApiKey'),
+        'X-Device-PIN': bru.getEnvVar('devicePin'),
+        'Content-Type': 'application/json'
+      },
+      body: {
+        mode: 'raw',
+        raw: JSON.stringify({
+          activity_id: 101,
+          room_id: 1,
+          supervisor_ids: [1, 2, 3],
+          force: true
+        })
+      }
+    };
+
+    const startResponse = await bru.http.request(startRequest);
+    
+    if (startResponse.status === 200 && startResponse.data.data) {
+      bru.setVar('activeGroupId', startResponse.data.data.active_group_id);
+      console.log('Started session with active group ID:', startResponse.data.data.active_group_id);
+    } else {
+      throw new Error('Failed to start session: ' + JSON.stringify(startResponse.data));
+    }
+  }
+  
+  // Move to next test case for next run
+  testIndex = (testIndex + 1) % testCases.length;
+  bru.setVar('testIndex', testIndex);
+}
+
+script:post-response {
+  const currentTest = bru.getVar('currentTest');
+  
+  if (currentTest.expectError) {
+    // Should fail
+    if (res.status !== 200) {
+      console.log('✓ Expected error occurred');
+      if (res.body.message && res.body.message.includes(currentTest.expectedMessage)) {
+        console.log('✓ Error message matches expected:', currentTest.expectedMessage);
+      } else {
+        console.error('✗ Unexpected error message:', res.body.message);
+        console.error('  Expected:', currentTest.expectedMessage);
+      }
+    } else {
+      console.error('✗ Expected error but request succeeded!');
+    }
+  } else {
+    // Should succeed
+    if (res.status === 200 && res.body.data) {
+      console.log('✓ Request succeeded as expected');
+      
+      const supervisorCount = res.body.data.supervisors.length;
+      if (supervisorCount === currentTest.expectedCount) {
+        console.log(`✓ Supervisor count matches expected: ${supervisorCount}`);
+      } else {
+        console.error(`✗ Supervisor count mismatch! Expected: ${currentTest.expectedCount}, Got: ${supervisorCount}`);
+      }
+      
+      // For duplicate test, verify deduplication
+      if (currentTest.name === "Duplicate supervisor IDs") {
+        const supervisorIds = res.body.data.supervisors.map(s => s.staff_id).sort();
+        const expectedIds = [1, 2, 3];
+        if (JSON.stringify(supervisorIds) === JSON.stringify(expectedIds)) {
+          console.log('✓ Duplicates were correctly deduplicated');
+        } else {
+          console.error('✗ Deduplication failed. Got:', supervisorIds);
+        }
+      }
+    } else {
+      console.error('✗ Expected success but request failed:', res.status, res.body);
+    }
+  }
+  
+  // Clean up after all tests
+  const testIndex = bru.getVar('testIndex');
+  if (testIndex === 0) {
+    console.log('\n=== All test cases completed ===');
+    
+    // End the session
+    const endRequest = {
+      method: 'POST',
+      url: bru.getEnvVar('baseUrl') + '/api/iot/session/end',
+      headers: {
+        'X-API-Key': bru.getEnvVar('deviceApiKey'),
+        'X-Device-PIN': bru.getEnvVar('devicePin')
+      }
+    };
+    
+    const endResponse = await bru.http.request(endRequest);
+    if (endResponse.status === 200) {
+      console.log('✓ Test session ended successfully');
+    }
+    
+    // Reset variables
+    bru.deleteVar('testIndex');
+    bru.deleteVar('activeGroupId');
+    bru.deleteVar('currentTest');
+  }
+}
+
+docs {
+  # Update Session Supervisors - Edge Cases
+  
+  This test file validates edge cases for the supervisor update endpoint:
+  
+  1. **Empty supervisor list** - Should fail with validation error
+  2. **Invalid supervisor ID** - Should fail when staff member doesn't exist
+  3. **Duplicate supervisor IDs** - Should deduplicate automatically
+  4. **Single supervisor** - Should work with just one supervisor
+  
+  ## How to Run
+  
+  Run this test multiple times (4 times) to execute all test cases.
+  Each run will execute a different test case in sequence.
+  
+  ## Test Case Details
+  
+  ### Empty List
+  - Input: `[]`
+  - Expected: 400 error with message "at least one supervisor is required"
+  
+  ### Invalid ID
+  - Input: `[999999]`
+  - Expected: Error with message "staff member with ID 999999 not found"
+  
+  ### Duplicates
+  - Input: `[1, 2, 2, 3, 3, 3]`
+  - Expected: Success with 3 supervisors (deduplicated)
+  
+  ### Single Supervisor
+  - Input: `[1]`
+  - Expected: Success with 1 supervisor
+}

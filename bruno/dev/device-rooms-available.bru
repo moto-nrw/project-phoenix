@@ -1,0 +1,93 @@
+meta {
+  name: Device Rooms Available
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/api/iot/rooms/available
+  body: none
+  auth: none
+}
+
+query {
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{staffPIN}}
+  X-Staff-ID: {{staffID}}
+}
+
+tests {
+  test("Status code is 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  
+  test("Response has success status", function() {
+    expect(res.getBody().status).to.equal("success");
+  });
+  
+  test("Response has data array", function() {
+    expect(res.getBody().data).to.be.an("array");
+  });
+  
+  test("Room data has required fields", function() {
+    const rooms = res.getBody().data;
+    if (rooms.length > 0) {
+      const room = rooms[0];
+      expect(room).to.have.property("id");
+      expect(room).to.have.property("name");
+      expect(room).to.have.property("capacity");
+      expect(room).to.have.property("category");
+      expect(room).to.have.property("floor");
+      expect(room).to.have.property("is_occupied");
+    }
+  });
+  
+  test("Rooms have positive capacity", function() {
+    const rooms = res.getBody().data;
+    rooms.forEach(room => {
+      expect(room.capacity).to.be.at.least(1);
+    });
+  });
+  
+  test("Room occupancy status is boolean", function() {
+    const rooms = res.getBody().data;
+    rooms.forEach(room => {
+      expect(room.is_occupied).to.be.a("boolean");
+    });
+  });
+}
+
+docs {
+  # Device Rooms Available Test
+  
+  Tests the RFID device endpoint for getting available rooms.
+  
+  **Headers Required:**
+  - `Authorization: Bearer <device_api_key>`
+  - `X-Staff-PIN: <4_digit_pin>`
+  
+  **Query Parameters:**
+  - `capacity` (optional): Minimum room capacity
+  
+  **Expected Response:**
+  ```json
+  {
+    "status": "success",
+    "data": [
+      {
+        "id": 1,
+        "name": "Room A1",
+        "building": "Main Building",
+        "floor": 1,
+        "capacity": 25,
+        "category": "Classroom",
+        "color": "#4CAF50",
+        "is_occupied": false
+      }
+    ]
+  }
+  ```
+}

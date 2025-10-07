@@ -1,0 +1,60 @@
+meta {
+  name: Device RFID Tag Assignment
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/students/2/rfid
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{staffPIN}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "rfid_tag": "DEADBEEF12345678"
+  }
+}
+
+tests {
+  test("RFID assignment successful", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('status', 'success');
+    expect(res.getBody()).to.have.property('data');
+    
+    const data = res.getBody().data;
+    expect(data).to.have.property('success', true);
+    expect(data).to.have.property('student_id');
+    expect(data).to.have.property('student_name');
+    expect(data).to.have.property('rfid_tag', 'DEADBEEF12345678');
+  });
+  
+  test("Response includes required fields", function() {
+    const data = res.getBody().data;
+    expect(data).to.have.property('message');
+    expect(data.message).to.include('successfully');
+  });
+}
+
+script:post-response {
+  if (res.status === 200) {
+    const data = res.body.data;
+    console.log("✅ RFID tag assignment successful");
+    console.log("Student:", data.student_name);
+    console.log("Tag assigned:", data.rfid_tag);
+    if (data.previous_tag) {
+      console.log("Previous tag replaced:", data.previous_tag);
+    }
+    console.log("Message:", data.message);
+  } else {
+    console.log("❌ RFID tag assignment failed");
+    console.log("Status:", res.status);
+    console.log("Response:", res.body);
+  }
+}

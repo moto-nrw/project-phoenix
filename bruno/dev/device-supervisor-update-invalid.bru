@@ -1,0 +1,44 @@
+meta {
+  name: Update Supervisors - Invalid Session
+  type: http
+  seq: 63
+}
+
+put {
+  url: {{baseUrl}}/api/iot/session/999999/supervisors
+  body: json
+  auth: none
+}
+
+headers {
+  X-API-Key: {{deviceApiKey}}
+  X-Device-PIN: {{devicePin}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "supervisor_ids": [1, 2, 3]
+  }
+}
+
+script:post-response {
+  if (res.status !== 200) {
+    console.log('✓ Request failed as expected for non-existent session');
+    if (res.body.message && res.body.message.includes('not found')) {
+      console.log('✓ Error message indicates session not found');
+    }
+  } else {
+    console.error('✗ Expected error but request succeeded for session ID 999999!');
+  }
+}
+
+docs {
+  # Update Supervisors - Invalid Session
+  
+  This test verifies that updating supervisors for a non-existent session fails appropriately.
+  
+  ## Expected Behavior
+  - Should return an error (not 200 status)
+  - Error message should indicate the session was not found
+}

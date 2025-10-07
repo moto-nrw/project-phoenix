@@ -1,0 +1,75 @@
+meta {
+  name: Schulhof Auto-Create Active Group
+  type: http
+  seq: 100
+}
+
+post {
+  url: {{baseUrl}}/api/iot/checkin
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{staffPIN}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "student_rfid": "AD95A48E",
+    "action": "checkin",
+    "room_id": 25
+  }
+}
+
+docs {
+  # Schulhof Auto-Create Feature Test
+
+  This test verifies the automatic creation of active groups for Schulhof (schoolyard) rooms.
+
+  ## Feature Description
+  - When a student checks into a Schulhof room with no active groups, the system automatically creates one
+  - Subsequent students reuse the existing active group
+  - The active group is cleaned up daily by the scheduler at 6 PM
+
+  ## Test Scenario
+  1. First student (Leon, RFID: AD95A48E) checks into Schulhof (room 25)
+     - Expected: Active group auto-created, check-in succeeds
+  2. Second student (Emma, RFID: 71A1DC68) checks into Schulhof
+     - Expected: Existing group reused, check-in succeeds
+
+  ## Prerequisites
+  - Schulhof room exists (ID: 25, category: "Schulhof")
+  - Schulhof Freispiel activity exists in seed data
+  - Students have RFID tags assigned
+
+  ## Notes
+  - This feature only works for rooms with category="Schulhof"
+  - Regular rooms still require pre-existing active groups
+  - No supervisor is required for auto-created Schulhof groups
+}
+
+tests {
+  test("First student: Check-in successful", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('status', 'success');
+    expect(res.getBody().data).to.have.property('action', 'checked_in');
+  });
+
+  test("First student: Student information correct", function() {
+    const data = res.getBody().data;
+    expect(data).to.have.property('student_name', 'Leon Lang');
+    expect(data.message).to.include('Leon');
+  });
+
+  test("First student: Room is Schulhof", function() {
+    expect(res.getBody().data).to.have.property('room_name', 'Schulhof');
+  });
+
+  test("First student: Visit created", function() {
+    expect(res.getBody().data).to.have.property('visit_id');
+    expect(res.getBody().data.visit_id).to.be.a('number');
+  });
+}

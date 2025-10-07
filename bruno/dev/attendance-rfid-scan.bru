@@ -1,0 +1,43 @@
+meta {
+  name: RFID Attendance Scan
+  type: http
+  seq: 31
+}
+
+post {
+  url: {{baseUrl}}/api/iot/attendance/scan
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{staffPIN}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "rfid_tag": "5940AE36"
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.data) {
+    const data = res.body.data;
+    console.log(`✅ Attendance scan OK - ${data.student_name} - Action: ${data.action_type}`);
+    
+    // Store student ID for departure confirmation test
+    bru.setVar("scannedStudentId", data.student_id);
+    bru.setVar("scannedStudentName", data.student_name);
+    bru.setVar("actionType", data.action_type);
+    
+    if (data.action_type === "arrival") {
+      console.log(`   ✓ Student checked in at ${new Date(data.check_in_time).toLocaleTimeString()}`);
+    } else {
+      console.log(`   ✓ Student ready for departure confirmation`);
+    }
+  } else {
+    console.log("❌ Attendance scan failed:", res.body?.message || "Unknown error");
+  }
+}
