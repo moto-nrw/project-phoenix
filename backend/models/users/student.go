@@ -33,7 +33,8 @@ type Student struct {
 
 // BeforeAppendModel sets the correct table expression
 // Note: Table aliases (AS "student") are only applied for SELECT, UPDATE, and DELETE queries.
-//       For INSERT queries, aliases should NOT be used, as they can cause issues with some database drivers.
+//
+//	For INSERT queries, aliases should NOT be used, as they can cause issues with some database drivers.
 func (s *Student) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
 		q.ModelTableExpr(`users.students AS "student"`)
