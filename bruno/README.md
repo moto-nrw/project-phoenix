@@ -14,15 +14,17 @@ Simplified API testing suite for Project Phoenix using [Bruno](https://usebruno.
 #### One Simple Runner
 ```bash
 ./dev-test.sh groups    # Test groups API (25 groups) - 44ms
-./dev-test.sh students  # Test students API (50 students) - 50ms  
+./dev-test.sh students  # Test students API (50 students) - 50ms
 ./dev-test.sh rooms     # Test rooms API (24 rooms) - 19ms
 ./dev-test.sh devices   # Test RFID device auth - 117ms
-./dev-test.sh all       # Test everything - 252ms
+./dev-test.sh all       # Test everything - 252ms (auto-runs cleanup first)
 ./dev-test.sh examples  # View API examples
 ./dev-test.sh manual    # Pre-release checks
 ```
 
 **How it works:** Each command gets a fresh admin token and tests the API.
+
+**Cleanup:** Running `./dev-test.sh all` automatically checks out all active students first to ensure a clean test state.
 
 #### Bruno GUI (Optional)
 1. Open Bruno app → Open Collection → Select this directory
@@ -59,6 +61,14 @@ Simplified API testing suite for Project Phoenix using [Bruno](https://usebruno.
    staffID: <your staff ID from database>
    testStaffEmail: <your staff email>
    testStaffPassword: <your password>
+
+   # Test student data (update if seed data changes)
+   testStudent1RFID: <RFID tag for first test student>
+   testStudent1Name: <Full name of first test student>
+   testStudent2RFID: <RFID tag for second test student>
+   testStudent2Name: <Full name of second test student>
+   testStudent3RFID: <RFID tag for third test student>
+   testStudent3Name: <Full name of third test student>
    ```
 
 5. **Verify Setup**:
@@ -75,6 +85,26 @@ Simplified API testing suite for Project Phoenix using [Bruno](https://usebruno.
 - **Staff PIN**: Set via API or use default from seed data (1234)
 - **Staff ID**: Query database or use your existing account
 - **Email/Password**: Your staff account credentials
+- **Test Student Data**: Query database for test students (RFIDs and names):
+  ```sql
+  SELECT p.first_name, p.last_name, p.tag_id,
+         CONCAT(p.first_name, ' ', p.last_name) as full_name
+  FROM users.persons p
+  JOIN users.students s ON s.person_id = p.id
+  WHERE p.tag_id IS NOT NULL
+  ORDER BY s.id
+  LIMIT 3;
+  ```
+  Use the first 3 students for testStudent1, testStudent2, testStudent3
+
+### Manual Cleanup
+
+If you need to manually checkout all students before running tests:
+```bash
+./cleanup-before-tests.sh
+```
+
+This is automatically run when using `./dev-test.sh all`.
 
 ### Security Notes
 

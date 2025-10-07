@@ -71,23 +71,23 @@ docs {
   ## Run Instructions
   Execute this test multiple times, changing the body:
 
-  1. Student A → Room 3:
-     {"student_rfid": "AD95A48E", "action": "checkin", "room_id": 3}
+  1. Student 1 → Room 3:
+     {"student_rfid": "{{testStudent1RFID}}", "action": "checkin", "room_id": 3}
 
-  2. Student B → Schulhof:
-     {"student_rfid": "71A1DC68", "action": "checkin", "room_id": 25}
+  2. Student 2 → Schulhof:
+     {"student_rfid": "{{testStudent2RFID}}", "action": "checkin", "room_id": 25}
 
-  3. Student A → Checkout:
-     {"student_rfid": "AD95A48E", "action": "checkin"}
+  3. Student 1 → Checkout:
+     {"student_rfid": "{{testStudent1RFID}}", "action": "checkin"}
 
-  4. Student A → Schulhof:
-     {"student_rfid": "AD95A48E", "action": "checkin", "room_id": 25}
+  4. Student 1 → Schulhof:
+     {"student_rfid": "{{testStudent1RFID}}", "action": "checkin", "room_id": 25}
 
-  5. Student B → Checkout:
-     {"student_rfid": "71A1DC68", "action": "checkin"}
+  5. Student 2 → Checkout:
+     {"student_rfid": "{{testStudent2RFID}}", "action": "checkin"}
 
-  6. Student B → Room 3:
-     {"student_rfid": "71A1DC68", "action": "checkin", "room_id": 3}
+  6. Student 2 → Room 3:
+     {"student_rfid": "{{testStudent2RFID}}", "action": "checkin", "room_id": 3}
 }
 
 tests {

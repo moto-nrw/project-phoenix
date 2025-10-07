@@ -20,8 +20,12 @@ echo "Step 1: Starting education group session..."
 echo "(Note: In real usage, this would be done via the webapp frontend)"
 echo ""
 
+# Note: Update these values to match testStudent3RFID and testStudent3Name in environments/Local.bru
+STUDENT_3_RFID="89D72485"
+STUDENT_3_NAME="Paul Brandt"
+
 # Step 2: Check in student to their home room
-echo "Step 2: Checking in student Paula Vogel (RFID: 0717E589DBE0C0) to Room 101..."
+echo "Step 2: Checking in student $STUDENT_3_NAME (RFID: $STUDENT_3_RFID) to Klassenzimmer 1A..."
 ./dev-test.sh device-daily-checkout-flow
 
 echo ""

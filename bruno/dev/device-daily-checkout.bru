@@ -18,7 +18,7 @@ headers {
 
 body:json {
   {
-    "student_rfid": "0717E589DBE0C0",
+    "student_rfid": "{{testStudent3RFID}}",
     "action": "checkout"
   }
 }
@@ -50,7 +50,8 @@ tests {
   });
   
   test("Response structure is correct", function() {
-    expect(res.getBody().data).to.have.property('student_name', 'Paula Vogel');
+    const expectedName = bru.getEnvVar('testStudent3Name');
+    expect(res.getBody().data).to.have.property('student_name', expectedName);
     expect(res.getBody().data).to.have.property('message');
     expect(res.getBody().data).to.have.property('visit_id');
   });

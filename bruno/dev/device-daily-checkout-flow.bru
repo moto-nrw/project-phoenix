@@ -18,7 +18,7 @@ headers {
 
 body:json {
   {
-    "student_rfid": "0717E589DBE0C0",
+    "student_rfid": "{{testStudent3RFID}}",
     "action": "checkin",
     "room_id": 1
   }
@@ -26,12 +26,13 @@ body:json {
 
 tests {
   test("Student checked into their home room", function() {
+    const expectedName = bru.getEnvVar('testStudent3Name');
     expect(res.getStatus()).to.equal(200);
     expect(res.getBody()).to.have.property('status', 'success');
     expect(res.getBody().data).to.have.property('action', 'checked_in');
-    expect(res.getBody().data).to.have.property('student_name', 'Paula Vogel');
-    expect(res.getBody().data).to.have.property('room_name', '101');
-    
-    console.log("Student Paula Vogel checked into Room 101 (Klasse 1A home room)");
+    expect(res.getBody().data).to.have.property('student_name', expectedName);
+    expect(res.getBody().data).to.have.property('room_name', 'Klassenzimmer 1A');
+
+    console.log(`Student ${expectedName} checked into Klassenzimmer 1A (home room)`);
   });
 }

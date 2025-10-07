@@ -18,7 +18,7 @@ headers {
 
 body:json {
   {
-    "student_rfid": "71A1DC68",
+    "student_rfid": "{{testStudent2RFID}}",
     "action": "checkin",
     "room_id": 25
   }
@@ -32,7 +32,7 @@ docs {
   ## Test Scenario
   Run this test AFTER `device-schulhof-auto-create.bru`
 
-  Second student (Emma, RFID: 71A1DC68) checks into Schulhof:
+  Second student (Emma, RFID from environment) checks into Schulhof:
   - Expected: Uses existing active group created by first student
   - Expected: No duplicate group created
   - Expected: Check-in succeeds
@@ -55,8 +55,9 @@ tests {
 
   test("Second student: Student information correct", function() {
     const data = res.getBody().data;
-    expect(data).to.have.property('student_name', 'Emma Horn');
-    expect(data.message).to.include('Emma');
+    const expectedName = bru.getEnvVar('testStudent2Name');
+    expect(data).to.have.property('student_name', expectedName);
+    expect(data.message).to.include(expectedName.split(' ')[0]); // First name only
   });
 
   test("Second student: Same Schulhof room", function() {

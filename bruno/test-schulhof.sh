@@ -48,15 +48,21 @@ if [ -z "$SCHULHOF_ROOM" ]; then
 fi
 echo "✅ Schulhof room ID: $SCHULHOF_ROOM"
 
+# Note: Update these RFIDs to match testStudent1RFID and testStudent2RFID in environments/Local.bru
+STUDENT_1_RFID="AD95A48E"
+STUDENT_1_NAME="Leon Lang"
+STUDENT_2_RFID="DEADBEEF12345678"
+STUDENT_2_NAME="Emma Horn"
+
 # Test 1: Check-in first student to Schulhof (should create active group)
 echo ""
 echo "4️⃣ TEST 1: First student checks into Schulhof"
-echo "   RFID: AD95A48E (Leon Lang)"
+echo "   RFID: $STUDENT_1_RFID ($STUDENT_1_NAME)"
 RESULT1=$(curl -s -X POST http://localhost:8080/api/iot/checkin \
   -H "X-Device-API-Key: $DEVICE_KEY" \
   -H "X-Staff-PIN: 1234" \
   -H "Content-Type: application/json" \
-  -d "{\"student_rfid\":\"AD95A48E\",\"action\":\"checkin\",\"room_id\":$SCHULHOF_ROOM}")
+  -d "{\"student_rfid\":\"$STUDENT_1_RFID\",\"action\":\"checkin\",\"room_id\":$SCHULHOF_ROOM}")
 
 echo "$RESULT1" | jq .
 STATUS1=$(echo "$RESULT1" | jq -r '.status')
@@ -74,13 +80,13 @@ fi
 # Test 2: Check-in second student to Schulhof (should reuse active group)
 echo ""
 echo "5️⃣ TEST 2: Second student checks into Schulhof"
-echo "   RFID: 71A1DC68 (Emma Horn)"
+echo "   RFID: $STUDENT_2_RFID ($STUDENT_2_NAME)"
 sleep 1
 RESULT2=$(curl -s -X POST http://localhost:8080/api/iot/checkin \
   -H "X-Device-API-Key: $DEVICE_KEY" \
   -H "X-Staff-PIN: 1234" \
   -H "Content-Type: application/json" \
-  -d "{\"student_rfid\":\"71A1DC68\",\"action\":\"checkin\",\"room_id\":$SCHULHOF_ROOM}")
+  -d "{\"student_rfid\":\"$STUDENT_2_RFID\",\"action\":\"checkin\",\"room_id\":$SCHULHOF_ROOM}")
 
 echo "$RESULT2" | jq .
 STATUS2=$(echo "$RESULT2" | jq -r '.status')

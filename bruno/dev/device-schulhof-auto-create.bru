@@ -18,7 +18,7 @@ headers {
 
 body:json {
   {
-    "student_rfid": "AD95A48E",
+    "student_rfid": "{{testStudent1RFID}}",
     "action": "checkin",
     "room_id": 25
   }
@@ -60,8 +60,9 @@ tests {
 
   test("First student: Student information correct", function() {
     const data = res.getBody().data;
-    expect(data).to.have.property('student_name', 'Leon Lang');
-    expect(data.message).to.include('Leon');
+    const expectedName = bru.getEnvVar('testStudent1Name');
+    expect(data).to.have.property('student_name', expectedName);
+    expect(data.message).to.include(expectedName.split(' ')[0]); // First name only
   });
 
   test("First student: Room is Schulhof", function() {

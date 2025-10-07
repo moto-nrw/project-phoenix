@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# Run cleanup before tests if running "all" suite
+if [ "$1" = "all" ]; then
+  echo "🧹 Running cleanup before full test suite..."
+  ./cleanup-before-tests.sh
+  echo ""
+fi
+
 # Get auth token if needed
 get_token() {
   curl -s -X POST http://localhost:8080/auth/login \

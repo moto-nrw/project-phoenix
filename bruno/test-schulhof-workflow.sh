@@ -5,13 +5,18 @@ API_KEY="9YUQWdt4dLa013foUTRKdnaeEUPBsWj7"
 PIN="1234"
 ROOM_1=3      # Klassenzimmer 2A
 SCHULHOF=25
-STUDENT_A="AD95A48E"  # Leon
-STUDENT_B="71A1DC68"  # Emma
+
+# Note: These RFID values should match testStudent1RFID and testStudent2RFID in environments/Local.bru
+# Update these values if seed data changes
+STUDENT_1_RFID="AD95A48E"      # Student 1 (default: Leon Lang)
+STUDENT_1_NAME="Leon Lang"
+STUDENT_2_RFID="DEADBEEF12345678"  # Student 2 (default: Emma Horn)
+STUDENT_2_NAME="Emma Horn"
 
 echo "🧪 Complete Schulhof Workflow Test"
 echo "===================================="
 echo ""
-echo "Students: Leon (A) & Emma (B)"
+echo "Students: ${STUDENT_1_NAME} & ${STUDENT_2_NAME}"
 echo "Rooms: Klassenzimmer 2A (3) & Schulhof (25)"
 echo ""
 
@@ -53,23 +58,23 @@ call_api() {
   echo ""
 }
 
-# Step 1: Student A → Room 1
-call_api "$STUDENT_A" "$ROOM_1" "1. Student A (Leon) → Room 1 (regular room)"
+# Step 1: Student 1 → Room 1
+call_api "$STUDENT_1_RFID" "$ROOM_1" "1. Student 1 (${STUDENT_1_NAME}) → Room 1 (regular room)"
 
-# Step 2: Student B → Schulhof (auto-create)
-call_api "$STUDENT_B" "$SCHULHOF" "2. Student B (Emma) → Schulhof (auto-create group)"
+# Step 2: Student 2 → Schulhof (auto-create)
+call_api "$STUDENT_2_RFID" "$SCHULHOF" "2. Student 2 (${STUDENT_2_NAME}) → Schulhof (auto-create group)"
 
-# Step 3: Student A → Checkout
-call_api "$STUDENT_A" "" "3. Student A (Leon) → Checkout from Room 1"
+# Step 3: Student 1 → Checkout
+call_api "$STUDENT_1_RFID" "" "3. Student 1 (${STUDENT_1_NAME}) → Checkout from Room 1"
 
-# Step 4: Student A → Schulhof (reuse group)
-call_api "$STUDENT_A" "$SCHULHOF" "4. Student A (Leon) → Schulhof (reuse group)"
+# Step 4: Student 1 → Schulhof (reuse group)
+call_api "$STUDENT_1_RFID" "$SCHULHOF" "4. Student 1 (${STUDENT_1_NAME}) → Schulhof (reuse group)"
 
-# Step 5: Student B → Checkout
-call_api "$STUDENT_B" "" "5. Student B (Emma) → Checkout from Schulhof"
+# Step 5: Student 2 → Checkout
+call_api "$STUDENT_2_RFID" "" "5. Student 2 (${STUDENT_2_NAME}) → Checkout from Schulhof"
 
-# Step 6: Student B → Room 1
-call_api "$STUDENT_B" "$ROOM_1" "6. Student B (Emma) → Room 1"
+# Step 6: Student 2 → Room 1
+call_api "$STUDENT_2_RFID" "$ROOM_1" "6. Student 2 (${STUDENT_2_NAME}) → Room 1"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🎉 COMPLETE WORKFLOW TEST PASSED!"
