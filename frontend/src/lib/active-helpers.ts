@@ -361,3 +361,8 @@ export function prepareGroupMappingForBackend(mapping: { activeGroupId: string; 
         combined_group_id: parseInt(mapping.combinedGroupId),
     };
 }
+
+// UnclaimedGroup interface for deviceless room claiming
+export interface UnclaimedGroup extends ActiveGroup {
+    studentCount: number;
+}
