@@ -21,12 +21,14 @@ export function UnclaimedRooms({ onClaimed }: UnclaimedRoomsProps) {
   async function loadUnclaimedGroups() {
     try {
       setLoading(true);
+      console.log("[UnclaimedRooms] Fetching unclaimed groups...");
       const groups = await activeService.getUnclaimedGroups();
+      console.log("[UnclaimedRooms] Got groups:", groups.length, groups);
       setUnclaimedGroups(groups);
       setError(null);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
-      console.error("Failed to load unclaimed groups:", errorMessage);
+      console.error("[UnclaimedRooms] Failed to load unclaimed groups:", errorMessage);
       setError("Fehler beim Laden der verfügbaren Räume");
     } finally {
       setLoading(false);
@@ -108,11 +110,13 @@ export function UnclaimedRooms({ onClaimed }: UnclaimedRoomsProps) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                           d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
-                  <div className="font-semibold text-gray-900">Raum verfügbar</div>
+                  <div className="font-semibold text-gray-900">
+                    {group.room?.name ?? `Raum ${group.roomId}`}
+                  </div>
                 </div>
 
                 <div className="text-sm text-gray-600 ml-7">
-                  Gruppe #{group.groupId}
+                  {group.actualGroup?.name ?? `Gruppe #${group.groupId}`}
                   {startTime && (
                     <span className="ml-2">
                       • Gestartet um {startTime.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}

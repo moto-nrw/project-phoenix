@@ -12,6 +12,15 @@ export interface BackendActiveGroup {
     notes?: string;
     visit_count?: number;
     supervisor_count?: number;
+    room?: {
+        id: number;
+        name: string;
+        category?: string;
+    };
+    actual_group?: {
+        id: number;
+        name: string;
+    };
     created_at: string;
     updated_at: string;
 }
@@ -85,6 +94,15 @@ export interface ActiveGroup {
     notes?: string;
     visitCount?: number;
     supervisorCount?: number;
+    room?: {
+        id: number;
+        name: string;
+        category?: string;
+    };
+    actualGroup?: {
+        id: number;
+        name: string;
+    };
     createdAt: Date;
     updatedAt: Date;
 }
@@ -159,6 +177,8 @@ export function mapActiveGroupResponse(backendActiveGroup: BackendActiveGroup): 
         notes: backendActiveGroup.notes,
         visitCount: backendActiveGroup.visit_count,
         supervisorCount: backendActiveGroup.supervisor_count,
+        room: backendActiveGroup.room,
+        actualGroup: backendActiveGroup.actual_group,
         createdAt: new Date(backendActiveGroup.created_at),
         updatedAt: new Date(backendActiveGroup.updated_at),
     };
