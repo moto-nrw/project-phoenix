@@ -100,6 +100,9 @@ func (m *SimpleGroupRepo) FindActiveByDeviceIDWithRelations(ctx context.Context,
 func (m *SimpleGroupRepo) FindInactiveSessions(ctx context.Context, inactiveDuration time.Duration) ([]*active.Group, error) {
 	return nil, nil
 }
+func (m *SimpleGroupRepo) FindUnclaimed(ctx context.Context) ([]*active.Group, error) {
+	return nil, nil
+}
 
 // Simple MockVisitRepository for testing
 type MockVisitRepository struct {
