@@ -72,15 +72,21 @@ case $1 in
     bru run dev/attendance.bru --env Local
     bru run dev/attendance-toggle.bru --env Local
     bru run dev/attendance-toggle-cancel.bru --env Local ;;
-  "all")      
+  "claim")
+    TOKEN=$(get_token)
+    bru run dev/claim-groups-list-unclaimed.bru --env Local --env-var accessToken="$TOKEN"
+    bru run dev/claim-groups-claim-schulhof.bru --env Local --env-var accessToken="$TOKEN"
+    bru run dev/claim-groups-verify-claimed.bru --env Local --env-var accessToken="$TOKEN"
+    bru run dev/claim-groups-already-claimed.bru --env Local --env-var accessToken="$TOKEN" ;;
+  "all")
     bru run dev/ --env Local ;;
   "examples") 
     bru run examples/ --env Local ;;
   "manual")   
     TOKEN=$(get_token)
     bru run manual/ --env Local --env-var accessToken="$TOKEN" ;;
-  *)          
-    echo "Usage: ./dev-test.sh [auth|groups|students|rooms|room-conflicts|devices|sessions|checkin|activities|attendance-web|attendance-rfid|attendance|all|examples|manual]"
+  *)
+    echo "Usage: ./dev-test.sh [auth|groups|students|rooms|room-conflicts|devices|sessions|checkin|activities|attendance-web|attendance-rfid|attendance|claim|all|examples|manual]"
     echo ""
     echo "Examples:"
     echo "  ./dev-test.sh groups          # Test groups API (25 groups) - ~44ms"
@@ -91,6 +97,7 @@ case $1 in
     echo "  ./dev-test.sh attendance-web  # Test web dashboard attendance endpoints"
     echo "  ./dev-test.sh attendance-rfid # Test RFID device attendance endpoints"
     echo "  ./dev-test.sh attendance      # Test both web and RFID attendance"
+    echo "  ./dev-test.sh claim           # Test unclaimed groups and claim workflow"
     echo "  ./dev-test.sh all             # Test everything - ~252ms"
     echo "  ./dev-test.sh examples        # View API examples"
     echo "  ./dev-test.sh manual          # Pre-release checks"

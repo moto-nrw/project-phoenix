@@ -517,3 +517,55 @@ func (r *GroupRepository) FindInactiveSessions(ctx context.Context, inactiveDura
 
 	return groups, nil
 }
+
+// FindUnclaimed finds all active groups that have no supervisors assigned
+// This is used to allow teachers to claim Schulhof or other deviceless rooms via the frontend
+func (r *GroupRepository) FindUnclaimed(ctx context.Context) ([]*active.Group, error) {
+	var groups []*active.Group
+
+	// Query active groups that have no supervisors using LEFT JOIN pattern
+	err := r.db.NewSelect().
+		Model(&groups).
+		ModelTableExpr(`active.groups AS "group"`).
+		Join(`LEFT JOIN active.group_supervisors AS "sup" ON "sup"."group_id" = "group"."id" AND ("sup"."end_date" IS NULL OR "sup"."end_date" > CURRENT_DATE)`).
+		// Only include active groups (no end_time)
+		Where(`"group"."end_time" IS NULL`).
+		// Only include groups where LEFT JOIN found no matching supervisor
+		Where(`"sup"."id" IS NULL`).
+		Order("start_time DESC").
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find unclaimed groups",
+			Err: err,
+		}
+	}
+
+	// Load relations manually for each group to avoid cross-schema issues
+	for i := range groups {
+		// Load room if room_id is set
+		if groups[i].RoomID > 0 {
+			room := new(facilities.Room)
+			if err := r.db.NewSelect().
+				Model(room).
+				Where("id = ?", groups[i].RoomID).
+				Scan(ctx); err == nil {
+				groups[i].Room = room
+			}
+		}
+
+		// Load activity group if group_id is set
+		if groups[i].GroupID > 0 {
+			activityGroup := new(activities.Group)
+			if err := r.db.NewSelect().
+				Model(activityGroup).
+				Where("id = ?", groups[i].GroupID).
+				Scan(ctx); err == nil {
+				groups[i].ActualGroup = activityGroup
+			}
+		}
+	}
+
+	return groups, nil
+}

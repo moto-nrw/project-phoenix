@@ -1,0 +1,134 @@
+meta {
+  name: Verify Supervisor Auto-End (Integration Test)
+  type: http
+  seq: 204
+}
+
+get {
+  url: {{baseUrl}}/api/active/groups/25/supervisors
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+}
+
+docs {
+  # Supervisor Auto-End Integration Test
+
+  This test verifies that supervisors are automatically ended when their groups end.
+
+  ## Background
+  When a teacher claims Schulhof and then goes home, their supervision should automatically
+  end when the Schulhof session ends at 6 PM (via scheduler).
+
+  ## Implementation
+  The `EndDailySessions()` service method now:
+  1. Ends all visits
+  2. Ends the group session (sets end_time)
+  3. **NEW:** Ends all supervisor records (sets end_date = today)
+
+  ## Testing Approach
+
+  ### Automated Test (This file)
+  Verifies that supervisor records exist and can be queried.
+
+  ### Manual Verification Steps
+
+  **Step 1: Setup**
+  ```bash
+  # Create active Schulhof with supervisor
+  # (Already done if you ran claim tests)
+  ```
+
+  **Step 2: Wait for Scheduler (6 PM)**
+  The scheduler automatically runs at 18:00 (SESSION_END_TIME in .env)
+
+  **Step 3: Check Logs**
+  ```bash
+  docker compose logs server | grep "session end completed"
+  ```
+  Expected output:
+  ```
+  Scheduled session end completed in Xs: ended N sessions, M visits, P supervisors, success: true
+  ```
+  The `P supervisors` count should be > 0 if groups had supervisors.
+
+  **Step 4: Verify Database**
+  ```sql
+  SELECT gs.id, gs.staff_id, gs.end_date,
+         ag.end_time as group_ended
+  FROM active.group_supervisors gs
+  LEFT JOIN active.groups ag ON ag.id = gs.group_id
+  WHERE ag.end_time IS NOT NULL
+  LIMIT 5;
+  ```
+  Expected: `end_date` should match or be close to `group_ended`
+
+  **Step 5: Test Unclaimed Next Day**
+  ```bash
+  # Next morning, create new Schulhof via student check-in
+  # Then list unclaimed groups
+  curl -H "Authorization: Bearer $TOKEN" \
+    http://localhost:8080/api/active/groups/unclaimed
+  ```
+  Expected: New Schulhof appears as unclaimed (yesterday's supervisors excluded)
+
+  ## Database State Expectations
+
+  ### Before 6 PM
+  ```sql
+  active.groups: end_time = NULL
+  active.group_supervisors: end_date = NULL
+  ```
+
+  ### After 6 PM (EndDailySessions runs)
+  ```sql
+  active.groups: end_time = 2025-10-07 18:00:00
+  active.group_supervisors: end_date = 2025-10-07
+  ```
+
+  ### Next Day (New Schulhof Created)
+  ```sql
+  -- Old group (yesterday)
+  active.groups(id=25): end_time = 2025-10-07 18:00:00
+  group_supervisors: end_date = 2025-10-07
+
+  -- New group (today)
+  active.groups(id=26): end_time = NULL
+  group_supervisors: (empty) <- appears in unclaimed!
+  ```
+
+  ## Quick Database Verification
+
+  ```sql
+  -- Count supervisors with NULL end_date on ended groups (SHOULD BE 0)
+  SELECT COUNT(*)
+  FROM active.group_supervisors gs
+  JOIN active.groups ag ON ag.id = gs.group_id
+  WHERE ag.end_time IS NOT NULL
+    AND gs.end_date IS NULL;
+  ```
+
+  If this returns > 0, the auto-end is NOT working.
+  If this returns 0, the auto-end IS working! ✅
+}
+
+tests {
+  test("Should return 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Should return supervisors array", function() {
+    expect(res.getBody()).to.have.property('status', 'success');
+    expect(res.getBody().data).to.be.an('array');
+  });
+
+  test("Can query supervisor records", function() {
+    // This test just confirms the endpoint works
+    // Actual validation of auto-end requires checking after 6 PM scheduler run
+    expect(res.getBody()).to.have.property('message');
+  });
+}
