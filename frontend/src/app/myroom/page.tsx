@@ -65,8 +65,10 @@ function MeinRaumPageContent() {
                 setIsLoading(true);
 
                 // Check if user has any active groups OR unclaimed groups available
-                const myActiveGroups = await userContextService.getMyActiveGroups();
-                const unclaimedGroups = await activeService.getUnclaimedGroups();
+                const [myActiveGroups, unclaimedGroups] = await Promise.all([
+                    userContextService.getMyActiveGroups(),
+                    activeService.getUnclaimedGroups()
+                ]);
 
                 if (myActiveGroups.length === 0 && unclaimedGroups.length === 0) {
                     // User has no active groups AND no unclaimed rooms to claim
