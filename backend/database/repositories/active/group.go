@@ -542,29 +542,76 @@ func (r *GroupRepository) FindUnclaimed(ctx context.Context) ([]*active.Group, e
 		}
 	}
 
-	// Load relations manually for each group to avoid cross-schema issues
+	// Batch load relations to avoid N+1 query performance issue
+	// Collect unique IDs for batch loading
+	roomIDs := make([]int64, 0)
+	groupIDs := make([]int64, 0)
+	roomIDMap := make(map[int64]bool)
+	groupIDMap := make(map[int64]bool)
+
+	for _, g := range groups {
+		if g.RoomID > 0 && !roomIDMap[g.RoomID] {
+			roomIDs = append(roomIDs, g.RoomID)
+			roomIDMap[g.RoomID] = true
+		}
+		if g.GroupID > 0 && !groupIDMap[g.GroupID] {
+			groupIDs = append(groupIDs, g.GroupID)
+			groupIDMap[g.GroupID] = true
+		}
+	}
+
+	// Batch load rooms (1 query instead of N)
+	var rooms []*facilities.Room
+	if len(roomIDs) > 0 {
+		if err := r.db.NewSelect().
+			Model(&rooms).
+			ModelTableExpr(`facilities.rooms AS "room"`).
+			Where(`"room".id IN (?)`, bun.In(roomIDs)).
+			Scan(ctx); err != nil {
+			return nil, &modelBase.DatabaseError{
+				Op:  "batch load rooms for unclaimed groups",
+				Err: err,
+			}
+		}
+	}
+
+	// Create room lookup map
+	roomMap := make(map[int64]*facilities.Room, len(rooms))
+	for _, room := range rooms {
+		roomMap[room.ID] = room
+	}
+
+	// Batch load activity groups (1 query instead of N)
+	var activityGroups []*activities.Group
+	if len(groupIDs) > 0 {
+		if err := r.db.NewSelect().
+			Model(&activityGroups).
+			ModelTableExpr(`activities.groups AS "group"`).
+			Where(`"group".id IN (?)`, bun.In(groupIDs)).
+			Scan(ctx); err != nil {
+			return nil, &modelBase.DatabaseError{
+				Op:  "batch load activity groups for unclaimed groups",
+				Err: err,
+			}
+		}
+	}
+
+	// Create activity group lookup map
+	activityGroupMap := make(map[int64]*activities.Group, len(activityGroups))
+	for _, ag := range activityGroups {
+		activityGroupMap[ag.ID] = ag
+	}
+
+	// Assign loaded relations to groups (no database queries)
 	for i := range groups {
-		// Load room if room_id is set (use schema-qualified table name)
 		if groups[i].RoomID > 0 {
-			room := new(facilities.Room)
-			if err := r.db.NewSelect().
-				Model(room).
-				ModelTableExpr(`facilities.rooms AS "room"`).
-				Where(`"room".id = ?`, groups[i].RoomID).
-				Scan(ctx); err == nil {
+			if room, ok := roomMap[groups[i].RoomID]; ok {
 				groups[i].Room = room
 			}
 		}
-
-		// Load activity group if group_id is set (use schema-qualified table name)
 		if groups[i].GroupID > 0 {
-			activityGroup := new(activities.Group)
-			if err := r.db.NewSelect().
-				Model(activityGroup).
-				ModelTableExpr(`activities.groups AS "group"`).
-				Where(`"group".id = ?`, groups[i].GroupID).
-				Scan(ctx); err == nil {
-				groups[i].ActualGroup = activityGroup
+			if ag, ok := activityGroupMap[groups[i].GroupID]; ok {
+				groups[i].ActualGroup = ag
 			}
 		}
 	}

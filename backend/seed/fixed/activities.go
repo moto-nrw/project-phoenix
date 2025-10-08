@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
@@ -107,7 +108,7 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 		{"Computer-Grundlagen", "Erste Schritte am Computer", "Computer", 15, 8, 12, false, "Computerraum"},
 
 		// Schulhof
-		{"Schulhof Freispiel", "Freies Spiel im Schulhof", "Schulhof", 100, 6, 12, false, "Schulhof"},
+		{constants.SchulhofActivityName, "Freies Spiel im Schulhof", "Schulhof", 100, 6, 12, false, "Schulhof"},
 	}
 
 	// Map category names to IDs

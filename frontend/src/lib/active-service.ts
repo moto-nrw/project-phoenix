@@ -1587,10 +1587,9 @@ export const activeService = {
                     throw new Error(`Get unclaimed groups failed: ${response.status}`);
                 }
 
-                const responseData = await response.json() as { success: boolean; data: { status: string; data: BackendActiveGroup[]; message: string }; message: string };
-                const actualData = responseData.data.data;
-                console.log("[active-service] Got unclaimed groups:", actualData.length);
-                return Array.isArray(actualData) ? actualData.map(mapActiveGroupResponse) : [];
+                const responseData = await response.json() as ApiResponse<BackendActiveGroup[]>;
+                console.log("[active-service] Got unclaimed groups:", responseData.data.length);
+                return responseData.data.map(mapActiveGroupResponse);
             } else {
                 const response = await api.get<ApiResponse<BackendActiveGroup[]>>(url);
                 return response.data.data.map(mapActiveGroupResponse);

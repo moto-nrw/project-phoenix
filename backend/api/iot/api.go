@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -1029,11 +1030,11 @@ func getStudentDailyCheckoutTime() (time.Time, error) {
 
 // getSchulhofActivityGroup finds the permanent Schulhof activity group from seed data
 func (rs *Resource) getSchulhofActivityGroup(ctx context.Context) (*activities.Group, error) {
-	// Build filter for "Schulhof Freispiel" activity
+	// Build filter for Schulhof activity using constant from seed data
 	// Use qualified column name to avoid ambiguity with category.name
 	options := base.NewQueryOptions()
 	filter := base.NewFilter()
-	filter.Equal("group.name", "Schulhof Freispiel")
+	filter.Equal("group.name", constants.SchulhofActivityName)
 	options.Filter = filter
 
 	// Query activities service
