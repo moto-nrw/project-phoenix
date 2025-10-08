@@ -1,0 +1,75 @@
+meta {
+  name: List Unclaimed Active Groups
+  type: http
+  seq: 200
+}
+
+get {
+  url: {{baseUrl}}/api/active/groups/unclaimed
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+  Content-Type: application/json
+}
+
+docs {
+  # List Unclaimed Active Groups
+
+  Returns all active groups that have no supervisors assigned.
+  This is used for deviceless rooms like Schulhof where teachers claim supervision via frontend.
+
+  ## Expected Response
+  ```json
+  {
+    "status": "success",
+    "data": [
+      {
+        "id": 25,
+        "group_id": 20,
+        "room_id": 25,
+        "room": { "name": "Schulhof", "category": "Schulhof" },
+        "actual_group": { "name": "Schulhof Freispiel" },
+        "start_time": "2025-10-07T14:30:00Z"
+      }
+    ]
+  }
+  ```
+
+  ## Prerequisites
+  - Valid teacher authentication token
+  - At least one active group with no supervisor (e.g., Schulhof from auto-create)
+}
+
+tests {
+  test("Should return 200 OK", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+
+  test("Should have success status", function() {
+    expect(res.getBody()).to.have.property('status', 'success');
+  });
+
+  test("Should return array of unclaimed groups", function() {
+    const body = res.getBody();
+    expect(body).to.have.property('data');
+    expect(body.data).to.be.an('array');
+  });
+
+  test("Should include Schulhof group if unclaimed", function() {
+    const data = res.getBody().data;
+    if (data.length > 0) {
+      const schulhof = data.find(g => g.room_id === 25);
+      if (schulhof) {
+        expect(schulhof).to.have.property('id');
+        expect(schulhof).to.have.property('group_id', 20);
+      }
+    }
+  });
+
+  test("Response message correct", function() {
+    expect(res.getBody().message).to.include('Unclaimed');
+  });
+}

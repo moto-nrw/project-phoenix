@@ -1,0 +1,33 @@
+meta {
+  name: Device Check-in Invalid RFID
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/iot/checkin
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{staffPIN}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "student_rfid": "INVALID_TAG",
+    "action": "checkin",
+    "room_id": 1
+  }
+}
+
+tests {
+  test("Invalid RFID tag returns 404", function() {
+    expect(res.getStatus()).to.equal(404);
+    expect(res.getBody()).to.have.property('status', 'error');
+    expect(res.getBody()).to.have.property('error');
+  });
+}

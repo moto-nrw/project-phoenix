@@ -1,6 +1,7 @@
 package iot
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -19,7 +20,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -1024,6 +1028,29 @@ func getStudentDailyCheckoutTime() (time.Time, error) {
 	return checkoutTime, nil
 }
 
+// getSchulhofActivityGroup finds the permanent Schulhof activity group from seed data
+func (rs *Resource) getSchulhofActivityGroup(ctx context.Context) (*activities.Group, error) {
+	// Build filter for Schulhof activity using constant from seed data
+	// Use qualified column name to avoid ambiguity with category.name
+	options := base.NewQueryOptions()
+	filter := base.NewFilter()
+	filter.Equal("group.name", constants.SchulhofActivityName)
+	options.Filter = filter
+
+	// Query activities service
+	groups, err := rs.ActivitiesService.ListGroups(ctx, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query Schulhof activity: %w", err)
+	}
+
+	// Verify activity exists (should always exist from seed data)
+	if len(groups) == 0 {
+		return nil, errors.New("schulhof Freispiel activity not found - run seed command")
+	}
+
+	return groups[0], nil
+}
+
 // deviceCheckin handles student check-in/check-out requests from RFID devices
 func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
@@ -1221,28 +1248,68 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if len(activeGroups) == 0 {
-			log.Printf("[CHECKIN] ERROR: No active groups found in room %d", *req.RoomID)
-			if err := render.Render(w, r, ErrorNotFound(errors.New("no active groups in specified room"))); err != nil {
-				log.Printf("Render error: %v", err)
-			}
-			return
-		}
-
-		// Use the first active group (in practice, there should typically be only one per room)
-		activeGroupID = activeGroups[0].ID
-		log.Printf("[CHECKIN] Found %d active groups in room %d, using group %d",
-			len(activeGroups), *req.RoomID, activeGroupID)
-
-		// Get actual room name if possible
-		if activeGroups[0].Room != nil {
-			roomName = activeGroups[0].Room.Name
-		} else {
-			// Try to load the room info to get the actual name
+			// Check if this is a Schulhof room - auto-create active group
 			room, err := rs.FacilityService.GetRoom(r.Context(), *req.RoomID)
-			if err == nil && room != nil {
+			if err == nil && room != nil && room.Category == "Schulhof" {
+				log.Printf("[CHECKIN] No active group in Schulhof room %d, auto-creating...", *req.RoomID)
+
+				// Get the permanent Schulhof activity group
+				schulhofActivity, err := rs.getSchulhofActivityGroup(r.Context())
+				if err != nil {
+					log.Printf("[CHECKIN] ERROR: Failed to find Schulhof activity: %v", err)
+					if err := render.Render(w, r, ErrorInternalServer(errors.New("schulhof activity not configured"))); err != nil {
+						log.Printf("Render error: %v", err)
+					}
+					return
+				}
+
+				// Create today's active group for Schulhof
+				newActiveGroup := &active.Group{
+					GroupID:      schulhofActivity.ID,
+					RoomID:       *req.RoomID,
+					StartTime:    time.Now(),
+					LastActivity: time.Now(),
+					// No EndTime - will be set by scheduler based on SESSION_END_TIME env var (default 18:00)
+					// No DeviceID - Schulhof not tied to specific device
+				}
+
+				if err := rs.ActiveService.CreateActiveGroup(r.Context(), newActiveGroup); err != nil {
+					log.Printf("[CHECKIN] ERROR: Failed to create Schulhof active group: %v", err)
+					if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to create Schulhof session"))); err != nil {
+						log.Printf("Render error: %v", err)
+					}
+					return
+				}
+
+				activeGroupID = newActiveGroup.ID
 				roomName = room.Name
+				log.Printf("[CHECKIN] SUCCESS: Auto-created Schulhof active group %d", activeGroupID)
+
 			} else {
-				roomName = fmt.Sprintf("Room %d", *req.RoomID)
+				// Not a Schulhof room - return original error
+				log.Printf("[CHECKIN] ERROR: No active groups found in room %d", *req.RoomID)
+				if err := render.Render(w, r, ErrorNotFound(errors.New("no active groups in specified room"))); err != nil {
+					log.Printf("Render error: %v", err)
+				}
+				return
+			}
+		} else {
+			// Active group(s) already exist - use first one
+			activeGroupID = activeGroups[0].ID
+			log.Printf("[CHECKIN] Found %d active groups in room %d, using group %d",
+				len(activeGroups), *req.RoomID, activeGroupID)
+
+			// Get actual room name if possible
+			if activeGroups[0].Room != nil {
+				roomName = activeGroups[0].Room.Name
+			} else {
+				// Try to load the room info to get the actual name
+				room, err := rs.FacilityService.GetRoom(r.Context(), *req.RoomID)
+				if err == nil && room != nil {
+					roomName = room.Name
+				} else {
+					roomName = fmt.Sprintf("Room %d", *req.RoomID)
+				}
 			}
 		}
 

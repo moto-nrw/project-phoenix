@@ -1,0 +1,33 @@
+meta {
+  name: Attendance Status Check
+  type: http
+  seq: 40
+}
+
+get {
+  url: {{baseUrl}}/api/iot/attendance/status/1047722B7A0C88
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{staffPIN}}
+  X-Staff-ID: {{staffID}}
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.status === "success") {
+    const data = res.body.data;
+    console.log(`✅ Attendance status OK - ${data.student.first_name} ${data.student.last_name}`);
+    console.log(`   Status: ${data.attendance.status}`);
+    
+    // Store for other tests
+    bru.setVar("testStudentRfid", "1047722B7A0C88");
+    bru.setVar("testStudentName", `${data.student.first_name} ${data.student.last_name}`);
+  } else if (res.status === 404) {
+    console.log("ℹ️  Student not found with RFID 1047722B7A0C88 - this is expected for first run");
+  } else {
+    console.log("❌ Attendance status check failed:", res.body?.message || `Status: ${res.status}`);
+  }
+}

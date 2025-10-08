@@ -1,0 +1,105 @@
+meta {
+  name: Device Session Start (Multi-Supervisor)
+  type: http
+  seq: 21
+}
+
+post {
+  url: {{baseUrl}}/api/iot/session/start
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{globalOgsPin}}
+}
+
+body:json {
+  {
+    "activity_id": 1,
+    "room_id": 1,
+    "supervisor_ids": [1, 2, 3],
+    "force": true
+  }
+}
+
+tests {
+  test("Multi-supervisor session starts successfully", function() {
+    expect(res.getStatus()).to.equal(200);
+    
+    // Check if response has data wrapper or direct fields
+    const responseData = res.getBody().data || res.getBody();
+    expect(responseData).to.have.property('active_group_id');
+    expect(responseData).to.have.property('activity_id');
+    expect(responseData).to.have.property('device_id');
+    expect(responseData).to.have.property('start_time');
+    expect(responseData).to.have.property('status', 'started');
+  });
+  
+  test("All supervisors are assigned", function() {
+    const responseData = res.getBody().data || res.getBody();
+    if (responseData && responseData.supervisors) {
+      expect(responseData.supervisors).to.be.an('array');
+      expect(responseData.supervisors.length).to.be.greaterThan(0);
+      
+      // Check each supervisor has required fields
+      responseData.supervisors.forEach(supervisor => {
+        expect(supervisor).to.have.property('staff_id');
+        expect(supervisor).to.have.property('first_name');
+        expect(supervisor).to.have.property('last_name');
+        expect(supervisor).to.have.property('display_name');
+        expect(supervisor).to.have.property('role', 'supervisor');
+      });
+    }
+  });
+}
+
+script:pre-request {
+  // Always set test supervisor IDs  
+  bru.setVar("testSupervisor1", 1);
+  bru.setVar("testSupervisor2", 2);
+  bru.setVar("testSupervisor3", 3);
+  
+  // Debug: log the values
+  console.log("Setting supervisor IDs:", 1, 2, 3);
+}
+
+script:post-response {
+  if (res.status === 200) {
+    // Debug the full response
+    console.log("Full response body:", JSON.stringify(res.body, null, 2));
+    
+    // Check if response has data wrapper or direct fields
+    const responseData = res.body.data || res.body;
+    console.log("✅ Multi-supervisor session started successfully");
+    console.log("Active Group ID:", responseData.active_group_id);
+    console.log("Activity ID:", responseData.activity_id);
+    console.log("Device ID:", responseData.device_id);
+    
+    // Store session ID for cleanup
+    bru.setVar("lastActiveGroupId", responseData.active_group_id);
+    
+    // Display supervisor details
+    if (responseData.supervisors && Array.isArray(responseData.supervisors)) {
+      console.log("Supervisors assigned:", responseData.supervisors.length);
+      console.log("\nAssigned Supervisors:");
+      responseData.supervisors.forEach(sup => {
+        console.log(`- ${sup.display_name} (Staff ID: ${sup.staff_id}, Role: ${sup.role})`);
+      });
+    } else {
+      console.log("No supervisors information in response");
+      console.log("responseData.supervisors:", responseData.supervisors);
+    }
+  } else if (res.status === 409) {
+    console.log("⚠️ Session conflict detected");
+    if (res.body.data && res.body.data.conflict_info) {
+      console.log("Conflict message:", res.body.data.conflict_info.conflict_message);
+      console.log("Can override:", res.body.data.conflict_info.can_override);
+    }
+  } else {
+    console.log("❌ Failed to start multi-supervisor session");
+    console.log("Status:", res.status);
+    console.log("Response:", res.body);
+  }
+}

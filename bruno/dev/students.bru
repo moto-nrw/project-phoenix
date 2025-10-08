@@ -1,0 +1,23 @@
+meta {
+  name: Dev Students
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/students
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log(`✅ Students API OK - ${res.body.data?.length || 0} students`);
+  } else {
+    console.log("❌ Students API failed");
+  }
+}

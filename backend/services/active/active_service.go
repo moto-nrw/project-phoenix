@@ -2215,6 +2215,28 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 		} else {
 			result.SessionsEnded++
 		}
+
+		// End all supervisor records for this group
+		supervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, group.ID)
+		if err != nil {
+			errMsg := fmt.Sprintf("Failed to get supervisors for group %d: %v", group.ID, err)
+			result.Errors = append(result.Errors, errMsg)
+			result.Success = false
+		} else {
+			for _, supervisor := range supervisors {
+				if supervisor.IsActive() {
+					now := time.Now()
+					supervisor.EndDate = &now
+					if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
+						errMsg := fmt.Sprintf("Failed to end supervisor %d: %v", supervisor.ID, err)
+						result.Errors = append(result.Errors, errMsg)
+						result.Success = false
+					} else {
+						result.SupervisorsEnded++
+					}
+				}
+			}
+		}
 	}
 
 	return result, nil
@@ -2405,4 +2427,61 @@ func (s *service) GetStudentScheduledCheckouts(ctx context.Context, studentID in
 		return nil, &ActiveError{Op: "GetStudentScheduledCheckouts", Err: err}
 	}
 	return checkouts, nil
+}
+
+// ======== Unclaimed Groups Management (Deviceless Claiming) ========
+
+// GetUnclaimedActiveGroups returns all active groups that have no supervisors
+// This is used for deviceless rooms like Schulhof where teachers claim supervision via frontend
+func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group, error) {
+	groups, err := s.groupRepo.FindUnclaimed(ctx)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetUnclaimedActiveGroups", Err: err}
+	}
+
+	return groups, nil
+}
+
+// ClaimActiveGroup allows a staff member to claim supervision of an active group
+// This is primarily used for deviceless rooms like Schulhof
+func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, role string) (*active.GroupSupervisor, error) {
+	// Verify group exists and is still active
+	group, err := s.groupRepo.FindByID(ctx, groupID)
+	if err != nil {
+		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: errors.New("active group not found")}
+	}
+
+	if group.EndTime != nil {
+		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: errors.New("cannot claim ended group")}
+	}
+
+	// Check if staff is already supervising this group
+	existingSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, groupID)
+	if err == nil {
+		for _, sup := range existingSupervisors {
+			if sup.StaffID == staffID && sup.IsActive() {
+				return nil, &ActiveError{Op: "ClaimActiveGroup", Err: ErrStaffAlreadySupervising}
+			}
+		}
+	}
+
+	// Create supervisor assignment
+	if role == "" {
+		role = "supervisor"
+	}
+
+	supervisor := &active.GroupSupervisor{
+		StaffID:   staffID,
+		GroupID:   groupID,
+		Role:      role,
+		StartDate: time.Now(),
+		// EndDate is nil (active supervision)
+	}
+
+	// Use existing CreateGroupSupervisor method for validation and creation
+	if err := s.CreateGroupSupervisor(ctx, supervisor); err != nil {
+		return nil, err
+	}
+
+	return supervisor, nil
 }

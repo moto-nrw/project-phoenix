@@ -1,0 +1,18 @@
+vars {
+  baseUrl: http://localhost:8080
+  accessToken:
+  refreshToken:
+  deviceToken:
+  deviceApiKey: YOUR_DEVICE_API_KEY_HERE
+  staffPIN: YOUR_4_DIGIT_PIN
+  globalOgsPin: YOUR_4_DIGIT_PIN
+  staffID: YOUR_STAFF_ID
+  testStaffEmail: your.teacher.email@schulzentrum.de
+  testStaffPassword: YOUR_PASSWORD_HERE
+  testStudent1RFID: STUDENT_1_RFID_TAG
+  testStudent1Name: Student 1 Full Name
+  testStudent2RFID: STUDENT_2_RFID_TAG
+  testStudent2Name: Student 2 Full Name
+  testStudent3RFID: STUDENT_3_RFID_TAG
+  testStudent3Name: Student 3 Full Name
+}

@@ -1,0 +1,34 @@
+meta {
+  name: Web Attendance Check-in
+  type: http
+  seq: 33
+}
+
+post {
+  url: {{baseUrl}}/api/active/attendance/check-in
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "student_id": 1
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.data) {
+    const data = res.body.data;
+    console.log(`✅ Web check-in OK - ${data.student_name}`);
+    console.log(`   ✓ Checked in at ${new Date(data.check_in_time).toLocaleTimeString()}`);
+    
+    // Store for checkout test
+    bru.setVar("checkedInStudentId", data.student_id);
+  } else {
+    console.log("❌ Web check-in failed:", res.body?.message || "Unknown error");
+  }
+}

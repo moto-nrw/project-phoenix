@@ -44,6 +44,9 @@ type GroupRepository interface {
 	UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error
 	FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*Group, error)
 	FindInactiveSessions(ctx context.Context, inactiveDuration time.Duration) ([]*Group, error)
+
+	// Unclaimed groups (for frontend claiming feature)
+	FindUnclaimed(ctx context.Context) ([]*Group, error)
 }
 
 // VisitRepository defines operations for managing active visits

@@ -1,0 +1,33 @@
+meta {
+  name: Device Check-out Without Active Visit
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/iot/checkin
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{staffPIN}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "student_rfid": "RFID-001031",
+    "action": "checkout"
+  }
+}
+
+tests {
+  test("Check-out without active visit returns error", function() {
+    expect(res.getStatus()).to.equal(400);
+    expect(res.getBody()).to.have.property('status', 'error');
+    expect(res.getBody()).to.have.property('error');
+    expect(res.getBody().error).to.include('not currently checked in');
+  });
+}

@@ -387,6 +387,12 @@ npm run typecheck             # Run TypeScript checks
 npm run check                 # Run all checks
 ```
 
+### API Testing with Bruno
+Quick integration tests for API endpoints using Bruno CLI. See [bruno/README.md](bruno/README.md) for setup instructions.
+```bash
+cd bruno && ./dev-test.sh all  # Run all API tests (~252ms)
+```
+
 ## Troubleshooting
 
 ### Common Issues

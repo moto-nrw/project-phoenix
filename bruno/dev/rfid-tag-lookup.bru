@@ -1,0 +1,31 @@
+meta {
+  name: RFID Tag Lookup
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/iot/rfid/RFID-001030
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{staffPIN}}
+}
+
+script:post-response {
+  if (res.status === 200) {
+    const data = res.body.data;
+    if (data && data.assigned === true && data.student) {
+      console.log(`✅ RFID tag assigned to: ${data.student.name} (${data.student.group})`);
+    } else if (data && data.assigned === false) {
+      console.log("✅ RFID tag unassigned");
+    } else {
+      console.log("⚠️ Unexpected response format:", res.body);
+    }
+  } else {
+    console.log("❌ RFID tag lookup failed:", res.status);
+  }
+}

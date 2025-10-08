@@ -1,0 +1,128 @@
+{
+  "model": "claude-sonnet-4-5-20250929",
+  "cleanupPeriodDays": 30,
+  "includeCoAuthoredBy": false,
+
+  "env": {
+    "MAX_MCP_OUTPUT_TOKENS": "50000",
+    "MAX_THINKING_TOKENS": "10000",
+    "USE_BUILTIN_RIPGREP": "1",
+    "BASH_DEFAULT_TIMEOUT_MS": "120000",
+    "BASH_MAX_OUTPUT_LENGTH": "50000"
+  },
+
+  "permissions": {
+    "defaultMode": "default",
+
+    "deny": [
+      "Read(./secrets/**)",
+      "Read(./**/secrets/**)",
+      "Read(./backend/public/uploads/**)",
+      "Read(./node_modules/**)",
+      "Read(./frontend/node_modules/**)",
+      "Read(./.next/**)",
+      "Read(./frontend/.next/**)",
+      "Read(./dist/**)",
+      "Read(./build/**)",
+      "Read(./backend/bin/**)",
+      "Read(./.turbo/**)",
+      "Read(./.cache/**)",
+      "Read(./backend/*.log)",
+      "Read(./**/*.log)",
+      "WebFetch",
+      "WebSearch"
+    ],
+
+    "ask": [
+      "Bash(npm install:*)",
+      "Bash(go get:*)",
+      "Bash(go mod:*)",
+      "Bash(rm -rf:*)",
+      "Bash(docker compose down:*)",
+      "Bash(git push:*)",
+      "Bash(git push --force:*)",
+      "Bash(git reset --hard:*)",
+      "Write(package.json)",
+      "Write(frontend/package.json)",
+      "Write(tsconfig.json)",
+      "Write(frontend/tsconfig.json)",
+      "Write(go.mod)",
+      "Write(backend/go.mod)",
+      "Write(docker-compose.yml)"
+    ],
+
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(npm test:*)",
+      "Bash(go run:*)",
+      "Bash(go test:*)",
+      "Bash(go fmt:*)",
+      "Bash(go build:*)",
+      "Bash(goimports:*)",
+      "Bash(golangci-lint:*)",
+      "Bash(docker compose up:*)",
+      "Bash(docker compose build:*)",
+      "Bash(docker compose exec:*)",
+      "Bash(docker compose logs:*)",
+      "Bash(docker compose ps:*)",
+      "Bash(docker compose restart:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(gh:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(cd:*)",
+      "Bash(pwd:*)"
+    ]
+  },
+
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/format-go.sh",
+            "description": "Auto-format Go files with gofmt and goimports"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/format-typescript.sh",
+            "description": "Auto-format TypeScript/JavaScript with Prettier"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash(git commit:*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-commit-message.sh",
+            "description": "Validate conventional commit format"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-env-files.sh",
+            "description": "Verify environment files exist"
+          }
+        ]
+      }
+    ]
+  }
+}

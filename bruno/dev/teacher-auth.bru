@@ -1,0 +1,27 @@
+meta {
+  name: Teacher Auth
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "{{testStaffEmail}}",
+    "password": "{{testStaffPassword}}"
+  }
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setEnvVar("teacherToken", res.body.access_token);
+    console.log("✅ Teacher login OK");
+  } else {
+    console.log("❌ Teacher login failed:", res.status, res.body);
+  }
+}

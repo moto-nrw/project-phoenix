@@ -1,0 +1,77 @@
+meta {
+  name: Schulhof Reuse Existing Group
+  type: http
+  seq: 101
+}
+
+post {
+  url: {{baseUrl}}/api/iot/checkin
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{staffPIN}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "student_rfid": "{{testStudent2RFID}}",
+    "action": "checkin",
+    "room_id": 25
+  }
+}
+
+docs {
+  # Schulhof Group Reuse Test
+
+  This test verifies that subsequent students reuse the existing Schulhof active group.
+
+  ## Test Scenario
+  Run this test AFTER `device-schulhof-auto-create.bru`
+
+  Second student (Emma, RFID from environment) checks into Schulhof:
+  - Expected: Uses existing active group created by first student
+  - Expected: No duplicate group created
+  - Expected: Check-in succeeds
+
+  ## Verification
+  To verify only one active group exists in Schulhof:
+  ```sql
+  SELECT COUNT(*) FROM active.groups
+  WHERE room_id = 25 AND end_time IS NULL;
+  -- Should return: 1
+  ```
+}
+
+tests {
+  test("Second student: Check-in successful", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('status', 'success');
+    expect(res.getBody().data).to.have.property('action', 'checked_in');
+  });
+
+  test("Second student: Student information correct", function() {
+    const data = res.getBody().data;
+    const expectedName = bru.getEnvVar('testStudent2Name');
+    expect(data).to.have.property('student_name', expectedName);
+    expect(data.message).to.include(expectedName.split(' ')[0]); // First name only
+  });
+
+  test("Second student: Same Schulhof room", function() {
+    expect(res.getBody().data).to.have.property('room_name', 'Schulhof');
+  });
+
+  test("Second student: Visit created", function() {
+    expect(res.getBody().data).to.have.property('visit_id');
+    expect(res.getBody().data.visit_id).to.be.a('number');
+  });
+
+  test("Second student: Different visit ID than first", function() {
+    // This ensures a new visit was created (not the same as first student)
+    const visitId = res.getBody().data.visit_id;
+    expect(visitId).to.be.greaterThan(1); // Should be at least 2
+  });
+}

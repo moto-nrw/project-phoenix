@@ -402,7 +402,6 @@ backend/test_compile
 ci-cd-best-practices-guide.md
 
 # Claude AI specific files
-.claude/
 *.local.md
 
 # Server logs and runtime files
@@ -434,8 +433,9 @@ docker-compose.prod.yml
 **/ssl/**/keys/
 config/ssl/**/certs/
 deployment/**/ssl/certs/
-# Bruno API testing collection
-/bruno
+# Bruno API testing - ignore local environment files only
+/bruno/environments/*.bru
+!/bruno/environments/*.bru.example
 /My API Tests
 
 # Test SQL files and scripts

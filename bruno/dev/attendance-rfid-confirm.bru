@@ -1,0 +1,44 @@
+meta {
+  name: RFID Confirm Departure
+  type: http
+  seq: 32
+}
+
+post {
+  url: {{baseUrl}}/api/iot/attendance/confirm-departure
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{staffPIN}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "student_id": 120,
+    "confirmed": true
+  }
+}
+
+script:pre-request {
+  // Use the student ID from the previous scan
+  const studentId = bru.getVar("scannedStudentId") || 120;
+  req.setBody({
+    student_id: studentId,
+    confirmed: true
+  });
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.data) {
+    const data = res.body.data;
+    console.log(`✅ Departure confirmed - ${data.student_name}`);
+    console.log(`   ✓ Checked out at ${new Date(data.checked_out_at).toLocaleTimeString()}`);
+    console.log(`   ✓ ${data.visits_ended} active visits ended`);
+  } else {
+    console.log("❌ Departure confirmation failed:", res.body?.message || "Unknown error");
+  }
+}

@@ -1563,4 +1563,72 @@ export const activeService = {
             throw error;
         }
     },
+
+    // Unclaimed Groups (Deviceless Claiming)
+    getUnclaimedGroups: async (): Promise<ActiveGroup[]> => {
+        const useProxyApi = typeof window !== "undefined";
+        const url = useProxyApi
+            ? "/api/active/groups/unclaimed"
+            : `${env.NEXT_PUBLIC_API_URL}/active/groups/unclaimed`;
+
+        try {
+            if (useProxyApi) {
+                const session = await getSession();
+                const response = await fetch(url, {
+                    headers: {
+                        Authorization: `Bearer ${session?.user?.token}`,
+                        "Content-Type": "application/json",
+                    },
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(`Get unclaimed groups error: ${response.status}`, errorText);
+                    throw new Error(`Get unclaimed groups failed: ${response.status}`);
+                }
+
+                const responseData = await response.json() as ApiResponse<BackendActiveGroup[]>;
+                console.log("[active-service] Got unclaimed groups:", responseData.data.length);
+                return responseData.data.map(mapActiveGroupResponse);
+            } else {
+                const response = await api.get<ApiResponse<BackendActiveGroup[]>>(url);
+                return response.data.data.map(mapActiveGroupResponse);
+            }
+        } catch (error) {
+            console.error("Get unclaimed groups error:", error);
+            throw error;
+        }
+    },
+
+    claimActiveGroup: async (groupId: string): Promise<void> => {
+        const useProxyApi = typeof window !== "undefined";
+        const url = useProxyApi
+            ? `/api/active/groups/${groupId}/claim`
+            : `${env.NEXT_PUBLIC_API_URL}/active/groups/${groupId}/claim`;
+
+        try {
+            if (useProxyApi) {
+                const session = await getSession();
+                const response = await fetch(url, {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${session?.user?.token}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ role: "supervisor" }),
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(`Claim group error: ${response.status}`, errorText);
+                    throw new Error(`Claim group failed: ${response.status}`);
+                }
+            } else {
+                await api.post(url, { role: "supervisor" });
+            }
+        } catch (error) {
+            console.error("Claim group error:", error);
+            throw error;
+        }
+    },
 };

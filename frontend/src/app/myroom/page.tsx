@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useMemo } from "react";
+import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
@@ -11,6 +11,7 @@ import { userContextService } from "~/lib/usercontext-api";
 import { activeService } from "~/lib/active-api";
 import { fetchStudent } from "~/lib/student-api";
 import type { Student } from "~/lib/student-helpers";
+import { UnclaimedRooms } from "~/components/active";
 
 // Extended student interface that includes visit information
 interface StudentWithVisit extends Student {
@@ -49,7 +50,8 @@ function MeinRaumPageContent() {
     const [groupFilter, setGroupFilter] = useState("all");
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    
+    const [refreshKey, setRefreshKey] = useState(0);
+
     // State for showing room selection (for 5+ rooms)
     const [showRoomSelection, setShowRoomSelection] = useState(true);
     
@@ -62,11 +64,14 @@ function MeinRaumPageContent() {
             try {
                 setIsLoading(true);
 
-                // First check if user has any active groups (active activities)
-                const myActiveGroups = await userContextService.getMyActiveGroups();
-                
-                if (myActiveGroups.length === 0) {
-                    // User has no active groups, redirect to dashboard
+                // Check if user has any active groups OR unclaimed groups available
+                const [myActiveGroups, unclaimedGroups] = await Promise.all([
+                    userContextService.getMyActiveGroups(),
+                    activeService.getUnclaimedGroups()
+                ]);
+
+                if (myActiveGroups.length === 0 && unclaimedGroups.length === 0) {
+                    // User has no active groups AND no unclaimed rooms to claim
                     setHasAccess(false);
                     redirect("/dashboard");
                     return;
@@ -202,7 +207,12 @@ function MeinRaumPageContent() {
         if (session?.user?.token) {
             void checkAccessAndFetchData();
         }
-    }, [session?.user?.token]);
+    }, [session?.user?.token, refreshKey]);
+
+    // Callback when a room is claimed - triggers refresh
+    const handleRoomClaimed = useCallback(() => {
+        setRefreshKey(prev => prev + 1);
+    }, []);
 
     // Function to switch between rooms
     const switchToRoom = async (roomIndex: number) => {
@@ -397,6 +407,9 @@ function MeinRaumPageContent() {
         return (
             <ResponsiveLayout>
                 <div className="w-full max-w-6xl mx-auto px-4">
+                    {/* Unclaimed Rooms Section - Also show in room selection view */}
+                    <UnclaimedRooms onClaimed={handleRoomClaimed} />
+
                     <div className="mb-8">
                         <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">Wählen Sie Ihren Raum</h1>
                         <p className="text-lg text-gray-600">Sie haben {allRooms.length} aktive Räume</p>
@@ -453,6 +466,9 @@ function MeinRaumPageContent() {
     return (
         <ResponsiveLayout>
             <div className="w-full">
+                {/* Unclaimed Rooms Section - Shows rooms available for claiming */}
+                <UnclaimedRooms onClaimed={handleRoomClaimed} />
+
                 {/* Modern Header with PageHeaderWithSearch component */}
                 <PageHeaderWithSearch
                     title={currentRoom?.room_name ?? currentRoom?.name ?? "Mein Raum"}

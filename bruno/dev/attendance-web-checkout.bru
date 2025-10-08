@@ -1,0 +1,29 @@
+meta {
+  name: Web Attendance Check-out
+  type: http
+  seq: 35
+}
+
+post {
+  url: {{baseUrl}}/api/active/attendance/check-out/1
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:pre-request {
+  // Use the student ID from check-in test
+  const studentId = bru.getVar("checkedInStudentId") || 1;
+  req.setUrl(`{{baseUrl}}/api/active/attendance/check-out/${studentId}`);
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log(`✅ Web check-out OK`);
+  } else {
+    console.log("❌ Web check-out failed:", res.body?.message || "Unknown error");
+  }
+}
