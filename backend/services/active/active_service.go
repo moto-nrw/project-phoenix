@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -2438,28 +2437,6 @@ func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group
 	groups, err := s.groupRepo.FindUnclaimed(ctx)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetUnclaimedActiveGroups", Err: err}
-	}
-
-	// For each group, count active visits to show how many students are present
-	for _, group := range groups {
-		visits, err := s.visitRepo.FindByActiveGroupID(ctx, group.ID)
-		if err != nil {
-			// Log error but don't fail - student count is optional info
-			log.Printf("Warning: Failed to count students for group %d: %v", group.ID, err)
-			continue
-		}
-
-		// Count only active visits (exit_time IS NULL)
-		activeCount := 0
-		for _, visit := range visits {
-			if visit.ExitTime == nil {
-				activeCount++
-			}
-		}
-
-		// Student count is calculated but not stored in the model
-		// Frontend will display based on actual visit count
-		_ = activeCount // Used for logging/debugging if needed
 	}
 
 	return groups, nil

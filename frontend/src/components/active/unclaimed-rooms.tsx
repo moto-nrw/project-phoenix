@@ -126,7 +126,7 @@ export function UnclaimedRooms({ onClaimed }: UnclaimedRoomsProps) {
               </div>
 
               <button
-                onClick={() => void handleClaim(groupIdStr, "Raum")}
+                onClick={() => void handleClaim(groupIdStr, group.room?.name ?? "Unbekannter Raum")}
                 disabled={isClaiming}
                 className={`
                   px-6 py-2 rounded-lg font-medium transition-all
