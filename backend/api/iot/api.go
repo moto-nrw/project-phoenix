@@ -1268,7 +1268,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 					RoomID:       *req.RoomID,
 					StartTime:    time.Now(),
 					LastActivity: time.Now(),
-					// No EndTime - will be set by scheduler at 6 PM
+					// No EndTime - will be set by scheduler based on SESSION_END_TIME env var (default 18:00)
 					// No DeviceID - Schulhof not tied to specific device
 				}
 
