@@ -2226,8 +2226,8 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 		} else {
 			for _, supervisor := range supervisors {
 				if supervisor.IsActive() {
-					today := time.Now()
-					supervisor.EndDate = &today
+					now := time.Now()
+					supervisor.EndDate = &now
 					if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
 						errMsg := fmt.Sprintf("Failed to end supervisor %d: %v", supervisor.ID, err)
 						result.Errors = append(result.Errors, errMsg)
