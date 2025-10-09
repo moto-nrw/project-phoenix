@@ -139,120 +139,27 @@ script:post-response {
       });
     })();
 
-    // Test 4: Web check-in
-    (async function() {
-      // First, get a student ID from the students list
-      await bru.sendRequest({
-        method: 'GET',
-        url: bru.getEnvVar("baseUrl") + "/api/students",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`
-        }
-      }, async function(err, studentsResponse) {
-        if (err || studentsResponse.status !== 200 || !studentsResponse.data.data || studentsResponse.data.data.length === 0) {
-          console.log("⚠️  No students found for web check-in test");
-          return;
-        }
+    // TODO: Web-based attendance features not yet implemented
+    // Uncomment when /api/active/attendance endpoints are added
 
-        const studentId = studentsResponse.data.data[0].id;
+    // Test 4: Web check-in (NOT IMPLEMENTED)
+    // (async function() {
+    //   await bru.sendRequest({
+    //     method: 'POST',
+    //     url: bru.getEnvVar("baseUrl") + "/api/active/attendance/check-in",
+    //     headers: {
+    //       "Authorization": `Bearer ${accessToken}`,
+    //       "Content-Type": "application/json"
+    //     },
+    //     data: { student_id: 1 }
+    //   }, function(err, response) {
+    //     console.log("✅ Web check-in (when implemented)");
+    //   });
+    // })();
 
-        await bru.sendRequest({
-          method: 'POST',
-          url: bru.getEnvVar("baseUrl") + "/api/active/attendance/check-in",
-          headers: {
-            "Authorization": `Bearer ${accessToken}`,
-            "Content-Type": "application/json"
-          },
-          data: {
-            student_id: studentId
-          }
-        }, function(err, webCheckinResponse) {
-          if (err) {
-            test("Web check-in", function() {
-              throw new Error(`Web check-in failed: ${err.message}`);
-            });
-            return;
-          }
+    // Test 5: Web present list (NOT IMPLEMENTED)
+    // Test 6: Web checkout (NOT IMPLEMENTED)
 
-          test("Web check-in succeeds", function() {
-            expect(webCheckinResponse.status).to.equal(200);
-            expect(webCheckinResponse.data).to.have.property('status', 'success');
-          });
-
-          if (webCheckinResponse.status === 200 && webCheckinResponse.data.data) {
-            bru.setVar("webAttendanceId", webCheckinResponse.data.data.id || webCheckinResponse.data.data.attendance_id);
-            bru.setVar("webStudentId", studentId);
-            console.log(`✅ Web check-in: student ${studentId}`);
-          }
-        });
-      });
-    })();
-
-    // Test 5: Web present list
-    (async function() {
-      await bru.sendRequest({
-        method: 'GET',
-        url: bru.getEnvVar("baseUrl") + "/api/active/attendance/present",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`
-        }
-      }, function(err, presentResponse) {
-        if (err) {
-          test("Web present list", function() {
-            throw new Error(`Present list failed: ${err.message}`);
-          });
-          return;
-        }
-
-        test("Web present list shows checked-in students", function() {
-          expect(presentResponse.status).to.equal(200);
-          expect(presentResponse.data).to.have.property('status', 'success');
-          expect(presentResponse.data.data).to.be.an('array');
-
-          const webStudentId = bru.getVar("webStudentId");
-          if (webStudentId) {
-            const found = presentResponse.data.data.some(student =>
-              student.id == webStudentId || student.student_id == webStudentId
-            );
-            expect(found).to.be.true;
-          }
-        });
-
-        console.log(`✅ Present list: ${presentResponse.data.data.length} students`);
-      });
-    })();
-
-    // Test 6: Web checkout (cleanup)
-    (async function() {
-      const webAttendanceId = bru.getVar("webAttendanceId");
-      if (!webAttendanceId) {
-        console.log("⚠️  No web attendance ID to clean up");
-        return;
-      }
-
-      await bru.sendRequest({
-        method: 'POST',
-        url: bru.getEnvVar("baseUrl") + `/api/active/attendance/check-out/${webAttendanceId}`,
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json"
-        },
-        data: {}
-      }, function(err, checkoutResponse) {
-        if (err) {
-          test("Web checkout cleanup", function() {
-            throw new Error(`Web checkout failed: ${err.message}`);
-          });
-          return;
-        }
-
-        test("Web checkout succeeds (cleanup)", function() {
-          expect(checkoutResponse.status).to.equal(200);
-          expect(checkoutResponse.data).to.have.property('status', 'success');
-        });
-
-        console.log("✅ Web checkout complete (cleanup)");
-      });
-    })();
+    console.log("⚠️  Web attendance endpoints not implemented - using RFID-only flow");
   }
 }

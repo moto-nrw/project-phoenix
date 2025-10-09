@@ -121,7 +121,7 @@ func (s *Seeder) seedAdminAccount(ctx context.Context) error {
 
 // seedPersonsWithAccounts creates persons with RFID cards and accounts
 func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng := rand.New(rand.NewSource(42))
 
 	// We need 150 persons total: 30 staff (20 teachers) + 120 students
 	totalPersons := 150
@@ -283,11 +283,8 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 
 // Helper functions
 func generateRFIDTag(rng *rand.Rand) string {
-	// Generate realistic RFID tag UIDs (4 or 7 bytes)
+	// Generate realistic RFID tag UIDs (always 4 bytes for deterministic seeding)
 	length := 4
-	if rng.Float32() < 0.3 {
-		length = 7
-	}
 
 	tag := make([]byte, length)
 	for i := range tag {

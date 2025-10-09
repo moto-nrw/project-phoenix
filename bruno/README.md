@@ -275,11 +275,11 @@ docker compose exec postgres psql -U your_user -d project_phoenix
 Tests assume the following seed data exists:
 
 - **Admin account**: admin@example.com / Test1234%
-- **Teacher account**: andreas.arndt@schulzentrum.de / Test1234% (Staff ID: 1)
+- **Teacher account**: First teacher from seed (Staff ID: 1)
 - **Students**: 50+ with RFID tags (3 configured in Local.bru)
 - **Rooms**: 25 rooms (including room 12 for sessions, room 25 for Schulhof)
 - **Activities**: 20+ activities for session testing
-- **Device**: API key in iot.devices table (9YUQWdt4dLa013foUTRKdnaeEUPBsWj7)
+- **Device**: API key in iot.devices table
 
 To repopulate seed data:
 ```bash
@@ -288,6 +288,51 @@ go run main.go seed --reset
 ```
 
 **Automatic Cleanup**: The test suite includes `00-cleanup.bru` which automatically ends all active sessions before running tests. This ensures reliable, repeatable test execution without manual intervention.
+
+### ⚠️ IMPORTANT: After Database Reset
+
+The seed data uses deterministic random generation (seed: 42), but **values still change between resets** because:
+- Random last name selection from pool
+- Random RFID byte generation
+- Random device API key generation
+
+**After each `seed --reset`, you MUST update `environments/Local.bru`:**
+
+```bash
+# 1. Get device API key
+docker compose exec -T postgres psql -U postgres -d postgres -c \
+  "SELECT device_id, api_key FROM iot.devices WHERE device_id = 'RFID-MAIN-001';"
+
+# 2. Get first teacher email
+docker compose exec -T postgres psql -U postgres -d postgres -c \
+  "SELECT a.email FROM auth.accounts a
+   JOIN users.persons p ON p.account_id = a.id
+   JOIN users.staff s ON s.person_id = p.id
+   JOIN users.teachers t ON t.staff_id = s.id
+   ORDER BY t.id LIMIT 1;"
+
+# 3. Get first 3 student RFID tags and names
+docker compose exec -T postgres psql -U postgres -d postgres -c \
+  "SELECT p.first_name, p.last_name, p.tag_id
+   FROM users.persons p
+   JOIN users.students s ON s.person_id = p.id
+   ORDER BY s.id LIMIT 3;"
+
+# 4. Update environments/Local.bru with these values:
+# - deviceApiKey: <from step 1>
+# - testStaffEmail: <from step 2>
+# - testStudent1RFID, testStudent2RFID, testStudent3RFID: <from step 3>
+# - testStudent1Name, testStudent2Name, testStudent3Name: <from step 3>
+```
+
+**Current values (with seed 42, 4-byte RFIDs only):**
+```
+deviceApiKey: ejpSOD5EEyMtbgsWBFNEoPU8MX0z553E
+testStaffEmail: andreas.krueger@schulzentrum.de
+testStudent1RFID: E83BE72F (Leon Huber)
+testStudent2RFID: CA5DE789 (Emma Schreiber)
+testStudent3RFID: 43385429 (Ben Sauer)
+```
 
 ## 🔗 Additional Resources
 

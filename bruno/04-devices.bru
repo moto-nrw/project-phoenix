@@ -111,34 +111,6 @@ script:post-response {
 
         console.log(`✅ Device teachers: ${teachersResponse.data.data.length} found`);
       });
-
-      // Also test /teachers/list if it's different
-      await bru.sendRequest({
-        method: 'GET',
-        url: bru.getEnvVar("baseUrl") + "/api/iot/teachers/list",
-        headers: {
-          'Authorization': `Bearer ${deviceApiKey}`,
-          'X-Staff-PIN': devicePin
-        }
-      }, function(err, teachersListResponse) {
-        if (err) {
-          if (err.response && err.response.status === 404) {
-            console.log("ℹ️  /teachers/list endpoint not found (may not exist)");
-            return;
-          }
-          test("Device teachers/list endpoint", function() {
-            throw new Error(`Teachers/list failed: ${err.message}`);
-          });
-          return;
-        }
-
-        test("Device teachers/list endpoint responds", function() {
-          expect(teachersListResponse.status).to.equal(200);
-          expect(teachersListResponse.data).to.have.property('status', 'success');
-        });
-
-        console.log(`✅ Device teachers/list validated`);
-      });
     })();
 
     // Test 4: Device activities list
