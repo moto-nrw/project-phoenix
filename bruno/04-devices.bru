@@ -1,0 +1,175 @@
+meta {
+  name: 04 - Device Endpoints
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/iot/rooms/available
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{devicePin}}
+}
+
+docs {
+  ## Device-Specific Endpoint Tests
+
+  Tests standalone device endpoints (excluding sessions/check-ins):
+  1. Available rooms without filters (main request)
+  2. Available rooms with capacity filter
+  3. Device teacher list endpoints
+  4. Device activities list
+
+  **Prerequisites:**
+  - deviceApiKey configured in environment
+  - devicePin (staffPIN) configured in environment
+  - Device API key must be valid in iot.devices table
+
+  **Authentication:**
+  Uses two-layer device auth: API key (Bearer) + Staff PIN (header)
+}
+
+script:post-response {
+  // Test 1: Available rooms (no filters)
+  test("Available rooms endpoint responds", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('status', 'success');
+    expect(res.getBody().data).to.be.an('array');
+  });
+
+  if (res.getStatus() === 200) {
+    const responseBody = res.getBody();
+    console.log(`✅ Available rooms (unfiltered): ${responseBody.data.length} found`);
+
+    const deviceApiKey = bru.getEnvVar("deviceApiKey");
+    const devicePin = bru.getEnvVar("devicePin");
+
+    // Test 2: Available rooms with capacity filter
+    (async function() {
+      await bru.sendRequest({
+        method: 'GET',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/rooms/available?capacity=100",
+        headers: {
+          'Authorization': `Bearer ${deviceApiKey}`,
+          'X-Staff-PIN': devicePin
+        }
+      }, function(err, capacityResponse) {
+        if (err) {
+          test("Available rooms with capacity filter", function() {
+            throw new Error(`Capacity filter failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Available rooms with capacity filter", function() {
+          expect(capacityResponse.status).to.equal(200);
+          expect(capacityResponse.data).to.have.property('status', 'success');
+          expect(capacityResponse.data.data).to.be.an('array');
+
+          // All returned rooms should meet capacity requirement
+          capacityResponse.data.data.forEach(room => {
+            if (room.capacity) {
+              expect(room.capacity).to.be.at.least(100);
+            }
+          });
+        });
+
+        console.log(`✅ Capacity-filtered rooms: ${capacityResponse.data.data.length} found`);
+      });
+    })();
+
+    // Test 3: Device teacher list endpoints
+    (async function() {
+      await bru.sendRequest({
+        method: 'GET',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/teachers",
+        headers: {
+          'Authorization': `Bearer ${deviceApiKey}`,
+          'X-Staff-PIN': devicePin
+        }
+      }, function(err, teachersResponse) {
+        if (err) {
+          if (err.response && err.response.status === 404) {
+            console.log("ℹ️  /teachers endpoint not found");
+            return;
+          }
+          test("Device teachers endpoints", function() {
+            throw new Error(`Teachers endpoint failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Device teachers list responds", function() {
+          expect(teachersResponse.status).to.equal(200);
+          expect(teachersResponse.data).to.have.property('status', 'success');
+          expect(teachersResponse.data.data).to.be.an('array');
+        });
+
+        console.log(`✅ Device teachers: ${teachersResponse.data.data.length} found`);
+      });
+
+      // Also test /teachers/list if it's different
+      await bru.sendRequest({
+        method: 'GET',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/teachers/list",
+        headers: {
+          'Authorization': `Bearer ${deviceApiKey}`,
+          'X-Staff-PIN': devicePin
+        }
+      }, function(err, teachersListResponse) {
+        if (err) {
+          if (err.response && err.response.status === 404) {
+            console.log("ℹ️  /teachers/list endpoint not found (may not exist)");
+            return;
+          }
+          test("Device teachers/list endpoint", function() {
+            throw new Error(`Teachers/list failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Device teachers/list endpoint responds", function() {
+          expect(teachersListResponse.status).to.equal(200);
+          expect(teachersListResponse.data).to.have.property('status', 'success');
+        });
+
+        console.log(`✅ Device teachers/list validated`);
+      });
+    })();
+
+    // Test 4: Device activities list
+    (async function() {
+      await bru.sendRequest({
+        method: 'GET',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/activities",
+        headers: {
+          'Authorization': `Bearer ${deviceApiKey}`,
+          'X-Staff-PIN': devicePin
+        }
+      }, function(err, activitiesResponse) {
+        if (err) {
+          if (err.response && err.response.status === 404) {
+            console.log("ℹ️  /iot/activities endpoint not found (may use general activities endpoint)");
+            return;
+          }
+          test("Device activities endpoint", function() {
+            throw new Error(`Activities endpoint failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Device activities list responds", function() {
+          expect(activitiesResponse.status).to.equal(200);
+          expect(activitiesResponse.data).to.have.property('status', 'success');
+          expect(activitiesResponse.data.data).to.be.an('array');
+        });
+
+        console.log(`✅ Device activities: ${activitiesResponse.data.data.length} found`);
+      });
+    })();
+  }
+}

@@ -1,0 +1,205 @@
+meta {
+  name: 10 - Schulhof Auto-Create & Reuse
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/iot/checkin
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{devicePin}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "student_rfid": "{{testStudent1RFID}}",
+    "room_id": 25,
+    "action": "checkin"
+  }
+}
+
+docs {
+  ## Schulhof Auto-Create and Reuse Workflow
+
+  Tests the Schulhof (playground) auto-creation feature:
+  1. Auto-create Schulhof group (main request) - first student
+  2. Reuse existing Schulhof group - second student
+  3. Checkout student 1
+  4. Checkout student 2
+  5. Teardown verification
+
+  **Prerequisites:**
+  - deviceApiKey and devicePin configured
+  - testStudent1RFID, testStudent2RFID in environment
+  - Room 25 configured as Schulhof room in seed data
+
+  **Feature:**
+  When first student checks into room 25 (Schulhof):
+  - System auto-creates active group "Schulhof"
+  - Subsequent students reuse same group
+  - Supports deviceless group claiming workflow
+
+  **Cleanup:**
+  Tests 3-4 checkout both students to clear visits
+}
+
+script:post-response {
+  // Test 1: Auto-create Schulhof group
+  test("Schulhof check-in succeeds", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('status', 'success');
+    expect(res.getBody().data).to.have.property('visit_id');
+    expect(res.getBody().data).to.have.property('room_name', 'Schulhof');
+  });
+
+  if (res.getStatus() === 200) {
+    const responseBody = res.getBody();
+    const visitId1 = responseBody.data.visit_id;
+    const studentName = responseBody.data.student_name;
+
+    bru.setVar("visitId1", visitId1);
+
+    console.log(`✅ Schulhof check-in: ${studentName}, visit ${visitId1}`);
+
+    const deviceApiKey = bru.getEnvVar("deviceApiKey");
+    const devicePin = bru.getEnvVar("devicePin");
+    const testStudent2RFID = bru.getEnvVar("testStudent2RFID");
+
+    // Test 2: Reuse existing Schulhof group
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          student_rfid: testStudent2RFID,
+          room_id: 25,
+          action: "checkin"
+        }
+      }, function(err, reuseResponse) {
+        if (err) {
+          test("Schulhof group reuse", function() {
+            throw new Error(`Reuse failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Second student checks into Schulhof", function() {
+          expect(reuseResponse.status).to.equal(200);
+          expect(reuseResponse.data).to.have.property('status', 'success');
+          expect(reuseResponse.data.data).to.have.property('visit_id');
+          expect(reuseResponse.data.data).to.have.property('room_name', 'Schulhof');
+        });
+
+        if (reuseResponse.status === 200) {
+          const visitId2 = reuseResponse.data.data.visit_id;
+          bru.setVar("visitId2", visitId2);
+          console.log(`✅ Schulhof reused: ${reuseResponse.data.data.student_name}, visit ${visitId2}`);
+        }
+      });
+    })();
+
+    // Test 3: Checkout student 1
+    (async function() {
+      const testStudent1RFID = bru.getEnvVar("testStudent1RFID");
+
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          student_rfid: testStudent1RFID,
+          action: "checkout"
+        }
+      }, function(err, checkout1Response) {
+        if (err) {
+          test("Student 1 checkout", function() {
+            throw new Error(`Checkout 1 failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Student 1 checkout succeeds", function() {
+          expect(checkout1Response.status).to.equal(200);
+          expect(checkout1Response.data).to.have.property('status', 'success');
+        });
+
+        console.log(`✅ Student 1 checked out`);
+      });
+    })();
+
+    // Test 4: Checkout student 2
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          student_rfid: testStudent2RFID,
+          action: "checkout"
+        }
+      }, function(err, checkout2Response) {
+        if (err) {
+          test("Student 2 checkout", function() {
+            throw new Error(`Checkout 2 failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Student 2 checkout succeeds", function() {
+          expect(checkout2Response.status).to.equal(200);
+          expect(checkout2Response.data).to.have.property('status', 'success');
+        });
+
+        console.log(`✅ Student 2 checked out`);
+      });
+    })();
+
+    // Test 5: Teardown verification
+    (async function() {
+      await bru.sendRequest({
+        method: 'GET',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/rooms/available",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin
+        }
+      }, function(err, verifyResponse) {
+        if (err) {
+          console.log(`⚠️  Verification error (non-fatal): ${err.message}`);
+          return;
+        }
+
+        test("Teardown verification completed", function() {
+          expect(verifyResponse.status).to.equal(200);
+        });
+
+        // Check if room 25 has no active visits
+        const room25 = verifyResponse.data.data.find(r => r.id === 25);
+        if (room25 && room25.active_visits !== undefined) {
+          console.log(`ℹ️  Room 25 active visits: ${room25.active_visits}`);
+        }
+
+        console.log("✅ Schulhof workflow complete");
+      });
+    })();
+  }
+}

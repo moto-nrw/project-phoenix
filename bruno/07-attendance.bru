@@ -1,0 +1,258 @@
+meta {
+  name: 07 - RFID & Web Attendance
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/iot/attendance/status/{{testStudent1RFID}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{devicePin}}
+}
+
+docs {
+  ## RFID and Web-Based Attendance Tests
+
+  Combined RFID device and web dashboard attendance flows:
+  1. RFID attendance status (main request)
+  2. Attendance toggle confirm
+  3. Attendance toggle cancel
+  4. Web check-in
+  5. Web present list
+  6. Web checkout (cleanup)
+
+  **Prerequisites:**
+  - deviceApiKey and devicePin for RFID tests
+  - accessToken for web-based tests
+  - testStudent1RFID configured
+  - Student must exist in database
+
+  **Two Systems:**
+  - RFID: Device-based attendance toggle (confirm/cancel)
+  - Web: Dashboard-based check-in/out for manual attendance
+
+  **Cleanup:**
+  Test 6 ensures web attendance records are cleaned up
+}
+
+script:pre-request {
+  // Ensure admin token exists for web tests
+  if (!bru.getEnvVar("accessToken")) {
+    await bru.sendRequest({
+      method: 'POST',
+      url: bru.getEnvVar("baseUrl") + "/auth/login",
+      headers: { "Content-Type": "application/json" },
+      data: {
+        email: "admin@example.com",
+        password: "Test1234%"
+      }
+    }, function(err, response) {
+      if (!err && response.status === 200) {
+        bru.setEnvVar("accessToken", response.data.access_token);
+      }
+    });
+  }
+}
+
+script:post-response {
+  // Test 1: RFID attendance status
+  test("RFID attendance endpoint responds", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('status', 'success');
+  });
+
+  if (res.status === 200) {
+    console.log("✅ RFID attendance status retrieved");
+
+    const deviceApiKey = bru.getEnvVar("deviceApiKey");
+    const devicePin = bru.getEnvVar("devicePin");
+    const testStudent1RFID = bru.getEnvVar("testStudent1RFID");
+    const accessToken = bru.getEnvVar("accessToken");
+
+    // Test 2: Attendance toggle confirm
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/attendance/toggle",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          student_rfid: testStudent1RFID,
+          action: "confirm"
+        }
+      }, function(err, response) {
+        if (err) {
+          test("Attendance toggle confirm", function() {
+            throw new Error(`Toggle confirm failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Attendance toggle confirm succeeds", function() {
+          expect(response.status).to.equal(200);
+          expect(response.data).to.have.property('status', 'success');
+        });
+
+        if (response.status === 200 && response.data.data) {
+          bru.setVar("attendanceId", response.data.data.id || response.data.data.attendance_id);
+          console.log("✅ Attendance confirmed");
+        }
+      });
+    })();
+
+    // Test 3: Attendance toggle cancel
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/attendance/toggle",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          student_rfid: testStudent1RFID,
+          action: "cancel"
+        }
+      }, function(err, response) {
+        if (err) {
+          test("Attendance toggle cancel", function() {
+            throw new Error(`Toggle cancel failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Attendance toggle cancel succeeds", function() {
+          expect(response.status).to.equal(200);
+          expect(response.data).to.have.property('status', 'success');
+        });
+
+        console.log("✅ Attendance cancelled");
+      });
+    })();
+
+    // Test 4: Web check-in
+    (async function() {
+      // First, get a student ID from the students list
+      await bru.sendRequest({
+        method: 'GET',
+        url: bru.getEnvVar("baseUrl") + "/api/students",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`
+        }
+      }, async function(err, studentsResponse) {
+        if (err || studentsResponse.status !== 200 || !studentsResponse.data.data || studentsResponse.data.data.length === 0) {
+          console.log("⚠️  No students found for web check-in test");
+          return;
+        }
+
+        const studentId = studentsResponse.data.data[0].id;
+
+        await bru.sendRequest({
+          method: 'POST',
+          url: bru.getEnvVar("baseUrl") + "/api/active/attendance/check-in",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          },
+          data: {
+            student_id: studentId
+          }
+        }, function(err, webCheckinResponse) {
+          if (err) {
+            test("Web check-in", function() {
+              throw new Error(`Web check-in failed: ${err.message}`);
+            });
+            return;
+          }
+
+          test("Web check-in succeeds", function() {
+            expect(webCheckinResponse.status).to.equal(200);
+            expect(webCheckinResponse.data).to.have.property('status', 'success');
+          });
+
+          if (webCheckinResponse.status === 200 && webCheckinResponse.data.data) {
+            bru.setVar("webAttendanceId", webCheckinResponse.data.data.id || webCheckinResponse.data.data.attendance_id);
+            bru.setVar("webStudentId", studentId);
+            console.log(`✅ Web check-in: student ${studentId}`);
+          }
+        });
+      });
+    })();
+
+    // Test 5: Web present list
+    (async function() {
+      await bru.sendRequest({
+        method: 'GET',
+        url: bru.getEnvVar("baseUrl") + "/api/active/attendance/present",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`
+        }
+      }, function(err, presentResponse) {
+        if (err) {
+          test("Web present list", function() {
+            throw new Error(`Present list failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Web present list shows checked-in students", function() {
+          expect(presentResponse.status).to.equal(200);
+          expect(presentResponse.data).to.have.property('status', 'success');
+          expect(presentResponse.data.data).to.be.an('array');
+
+          const webStudentId = bru.getVar("webStudentId");
+          if (webStudentId) {
+            const found = presentResponse.data.data.some(student =>
+              student.id == webStudentId || student.student_id == webStudentId
+            );
+            expect(found).to.be.true;
+          }
+        });
+
+        console.log(`✅ Present list: ${presentResponse.data.data.length} students`);
+      });
+    })();
+
+    // Test 6: Web checkout (cleanup)
+    (async function() {
+      const webAttendanceId = bru.getVar("webAttendanceId");
+      if (!webAttendanceId) {
+        console.log("⚠️  No web attendance ID to clean up");
+        return;
+      }
+
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + `/api/active/attendance/check-out/${webAttendanceId}`,
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        data: {}
+      }, function(err, checkoutResponse) {
+        if (err) {
+          test("Web checkout cleanup", function() {
+            throw new Error(`Web checkout failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Web checkout succeeds (cleanup)", function() {
+          expect(checkoutResponse.status).to.equal(200);
+          expect(checkoutResponse.data).to.have.property('status', 'success');
+        });
+
+        console.log("✅ Web checkout complete (cleanup)");
+      });
+    })();
+  }
+}
