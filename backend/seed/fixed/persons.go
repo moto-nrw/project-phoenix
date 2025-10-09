@@ -143,7 +143,16 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 		rfidCard := &users.RFIDCard{
 			Active: true,
 		}
-		rfidCard.ID = generateRFIDTag(rng)
+		// Use hardcoded RFID tags for first 3 students (for Bruno tests)
+		if i == 30 {
+			rfidCard.ID = "E83BE72F" // Leon Huber
+		} else if i == 31 {
+			rfidCard.ID = "CA5DE789" // Emma Schreiber
+		} else if i == 32 {
+			rfidCard.ID = "43385429" // Ben Sauer
+		} else {
+			rfidCard.ID = generateRFIDTag(rng)
+		}
 		rfidCard.CreatedAt = time.Now()
 		rfidCard.UpdatedAt = time.Now()
 
