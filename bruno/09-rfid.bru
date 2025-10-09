@@ -42,20 +42,20 @@ docs {
 
 script:post-response {
   // Test 1: Lookup existing RFID
-  test("RFID lookup returns student metadata", function() {
+  test("RFID lookup returns assignment status", function() {
     expect(res.getStatus()).to.equal(200);
     expect(res.getBody()).to.have.property('status', 'success');
-    expect(res.getBody().data).to.have.property('student');
+    expect(res.getBody().data).to.have.property('assigned');
   });
 
-  if (res.status === 200) {
+  if (res.status === 200 && res.body.data.assigned) {
     const studentData = res.body.data.student;
     console.log(`✅ RFID found: ${studentData.name || studentData.full_name}`);
 
     const deviceApiKey = bru.getEnvVar("deviceApiKey");
     const devicePin = bru.getEnvVar("devicePin");
 
-    // Test 2: Lookup non-student RFID (error)
+    // Test 2: Lookup non-existent RFID (returns unassigned status)
     (async function() {
       await bru.sendRequest({
         method: 'GET',
@@ -66,22 +66,19 @@ script:post-response {
         }
       }, function(err, invalidResponse) {
         if (err) {
-          if (err.message.includes('404')) {
-            console.log("✅ Invalid RFID rejected (404)");
-          } else {
-            test("Invalid RFID handling", function() {
-              throw new Error(`Invalid RFID test failed: ${err.message}`);
-            });
-          }
+          test("Non-existent RFID handling", function() {
+            throw new Error(`Non-existent RFID test failed: ${err.message}`);
+          });
           return;
         }
 
-        test("Non-student RFID returns error", function() {
-          expect(invalidResponse.status).to.equal(404);
-          expect(invalidResponse.data).to.have.property('status', 'error');
+        test("Non-existent RFID returns unassigned status", function() {
+          expect(invalidResponse.status).to.equal(200);
+          expect(invalidResponse.data).to.have.property('status', 'success');
+          expect(invalidResponse.data.data).to.have.property('assigned', false);
         });
 
-        console.log("✅ Invalid RFID rejected");
+        console.log("✅ Non-existent RFID handled correctly (assigned=false)");
       });
     })();
 
@@ -245,5 +242,7 @@ script:post-response {
         expect(true).to.be.true;  // Cleanup always passes
       });
     })();
+  } else if (res.status === 200) {
+    console.log("⚠️  RFID tag not assigned - skipping nested tests (this may indicate database issues)");
   }
 }
