@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 )
 
@@ -78,6 +79,49 @@ func ErrorRenderer(err error) render.Renderer {
 				return ErrorInternalServer(iotErr)
 			}
 			return ErrorInternalServer(iotErr)
+		}
+	}
+
+	// Check for Active Service errors
+	if activeErr, ok := err.(*activeSvc.ActiveError); ok {
+		switch {
+		// 409 Conflict - resource conflicts
+		case errors.Is(activeErr.Err, activeSvc.ErrRoomConflict),
+			errors.Is(activeErr.Err, activeSvc.ErrSessionConflict),
+			errors.Is(activeErr.Err, activeSvc.ErrStudentAlreadyInGroup),
+			errors.Is(activeErr.Err, activeSvc.ErrGroupAlreadyInCombination),
+			errors.Is(activeErr.Err, activeSvc.ErrStudentAlreadyActive),
+			errors.Is(activeErr.Err, activeSvc.ErrStaffAlreadySupervising),
+			errors.Is(activeErr.Err, activeSvc.ErrDeviceAlreadyActive):
+			return ErrorConflict(activeErr)
+
+		// 404 Not Found
+		case errors.Is(activeErr.Err, activeSvc.ErrActiveGroupNotFound),
+			errors.Is(activeErr.Err, activeSvc.ErrVisitNotFound),
+			errors.Is(activeErr.Err, activeSvc.ErrGroupSupervisorNotFound),
+			errors.Is(activeErr.Err, activeSvc.ErrCombinedGroupNotFound),
+			errors.Is(activeErr.Err, activeSvc.ErrGroupMappingNotFound),
+			errors.Is(activeErr.Err, activeSvc.ErrNoActiveSession),
+			errors.Is(activeErr.Err, activeSvc.ErrStaffNotFound):
+			return ErrorNotFound(activeErr)
+
+		// 400 Bad Request - validation errors
+		case errors.Is(activeErr.Err, activeSvc.ErrActiveGroupAlreadyEnded),
+			errors.Is(activeErr.Err, activeSvc.ErrVisitAlreadyEnded),
+			errors.Is(activeErr.Err, activeSvc.ErrSupervisionAlreadyEnded),
+			errors.Is(activeErr.Err, activeSvc.ErrCombinedGroupAlreadyEnded),
+			errors.Is(activeErr.Err, activeSvc.ErrInvalidTimeRange),
+			errors.Is(activeErr.Err, activeSvc.ErrCannotDeleteActiveGroup),
+			errors.Is(activeErr.Err, activeSvc.ErrInvalidData),
+			errors.Is(activeErr.Err, activeSvc.ErrInvalidActivitySession):
+			return ErrorInvalidRequest(activeErr)
+
+		// 500 Internal Server Error
+		case errors.Is(activeErr.Err, activeSvc.ErrDatabaseOperation):
+			return ErrorInternalServer(activeErr)
+
+		default:
+			return ErrorInternalServer(activeErr)
 		}
 	}
 

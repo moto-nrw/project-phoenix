@@ -12,6 +12,7 @@ var (
 	ErrGroupSupervisorNotFound   = errors.New("group supervisor not found")
 	ErrCombinedGroupNotFound     = errors.New("combined group not found")
 	ErrGroupMappingNotFound      = errors.New("group mapping not found")
+	ErrStaffNotFound             = errors.New("staff member not found")
 	ErrActiveGroupAlreadyEnded   = errors.New("active group session already ended")
 	ErrVisitAlreadyEnded         = errors.New("visit already ended")
 	ErrSupervisionAlreadyEnded   = errors.New("supervision already ended")

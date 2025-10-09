@@ -1363,7 +1363,7 @@ func (s *service) validateSupervisorIDs(ctx context.Context, supervisorIDs []int
 	for id := range uniqueIDs {
 		_, err := s.staffRepo.FindByID(ctx, id)
 		if err != nil {
-			return &ActiveError{Op: "ValidateSupervisors", Err: fmt.Errorf("staff member with ID %d not found", id)}
+			return &ActiveError{Op: "ValidateSupervisors", Err: ErrStaffNotFound}
 		}
 	}
 
