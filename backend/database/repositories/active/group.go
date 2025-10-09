@@ -35,7 +35,7 @@ func (r *GroupRepository) FindActiveByRoomID(ctx context.Context, roomID int64) 
 	err := r.db.NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where("room_id = ? AND end_time IS NULL", roomID).
+		Where(`"group".room_id = ? AND "group".end_time IS NULL`, roomID).
 		Scan(ctx)
 
 	if err != nil {
@@ -54,7 +54,7 @@ func (r *GroupRepository) FindActiveByGroupID(ctx context.Context, groupID int64
 	err := r.db.NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where("group_id = ? AND end_time IS NULL", groupID).
+		Where(`"group".group_id = ? AND "group".end_time IS NULL`, groupID).
 		Scan(ctx)
 
 	if err != nil {
@@ -92,7 +92,7 @@ func (r *GroupRepository) EndSession(ctx context.Context, id int64) error {
 		Model((*active.Group)(nil)).
 		ModelTableExpr(`active.groups AS "group"`).
 		Set("end_time = ?", time.Now()).
-		Where("id = ? AND end_time IS NULL", id).
+		Where(`"group".id = ? AND "group".end_time IS NULL`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -255,7 +255,7 @@ func (r *GroupRepository) FindActiveByGroupIDWithDevice(ctx context.Context, gro
 	err := r.db.NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where("group_id = ? AND end_time IS NULL", groupID).
+		Where(`"group".group_id = ? AND "group".end_time IS NULL`, groupID).
 		Scan(ctx)
 
 	if err != nil {
@@ -411,11 +411,11 @@ func (r *GroupRepository) CheckRoomConflict(ctx context.Context, roomID int64, e
 	query := r.db.NewSelect().
 		Model(&group).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where("room_id = ? AND end_time IS NULL", roomID)
+		Where(`"group".room_id = ? AND "group".end_time IS NULL`, roomID)
 
 	// Exclude the current group if specified (for updates)
 	if excludeGroupID > 0 {
-		query = query.Where("id != ?", excludeGroupID)
+		query = query.Where(`"group".id != ?`, excludeGroupID)
 	}
 
 	err := query.Scan(ctx)
@@ -441,7 +441,7 @@ func (r *GroupRepository) UpdateLastActivity(ctx context.Context, id int64, last
 		ModelTableExpr(`active.groups AS "group"`).
 		Set("last_activity = ?", lastActivity).
 		Set("updated_at = ?", time.Now()).
-		Where("id = ? AND end_time IS NULL", id)
+		Where(`"group".id = ? AND "group".end_time IS NULL`, id)
 
 	result, err := query.Exec(ctx)
 	if err != nil {
