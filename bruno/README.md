@@ -325,9 +325,13 @@ docker compose exec -T postgres psql -U postgres -d postgres -c \
 # - testStudent1Name, testStudent2Name, testStudent3Name: <from step 3>
 ```
 
-**Current values (with seed 42, 4-byte RFIDs only):**
+**⚠️ SECURITY WARNING: TEST DATA ONLY ⚠️**
+
+**These values are for local development/testing ONLY. They are generated from deterministic seed data (seed: 42) and are NOT secure for production use. DO NOT copy these values to production environments!**
+
+**Current test values (with seed 42, 4-byte RFIDs only):**
 ```
-deviceApiKey: ejpSOD5EEyMtbgsWBFNEoPU8MX0z553E
+deviceApiKey: ejpSOD5EEyMtbgsWBFNEoPU8MX0z553E (TEST ONLY - DO NOT USE IN PRODUCTION)
 testStaffEmail: andreas.krueger@schulzentrum.de
 testStudent1RFID: E83BE72F (Leon Huber)
 testStudent2RFID: CA5DE789 (Emma Schreiber)
