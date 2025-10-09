@@ -40,6 +40,25 @@ docs {
   Test 5 removes any assignments created during testing
 }
 
+script:pre-request {
+  // Ensure admin token exists for student list API
+  if (!bru.getEnvVar("accessToken")) {
+    await bru.sendRequest({
+      method: 'POST',
+      url: bru.getEnvVar("baseUrl") + "/auth/login",
+      headers: { "Content-Type": "application/json" },
+      data: {
+        email: "admin@example.com",
+        password: "Test1234%"
+      }
+    }, function(err, response) {
+      if (!err && response.status === 200) {
+        bru.setEnvVar("accessToken", response.data.access_token);
+      }
+    });
+  }
+}
+
 script:post-response {
   // Test 1: Lookup existing RFID
   test("RFID lookup returns assignment status", function() {
@@ -97,7 +116,7 @@ script:post-response {
           return;
         }
 
-        const testTag = "TESTRF" + Date.now();  // Unique test tag
+        const testTag = "AEDF" + Date.now();  // Unique hex test tag (AEDF = valid hex prefix)
         const studentId = studentsResponse.data.data[0]?.id;
 
         if (!studentId) {
@@ -186,7 +205,7 @@ script:post-response {
             "Content-Type": "application/json"
           },
           data: {
-            rfid_tag: "NEWTAG" + Date.now()
+            rfid_tag: "FADE" + Date.now()  // Valid hex tag
           }
         }, function(err, invalidStudentResponse) {
           if (err) {
