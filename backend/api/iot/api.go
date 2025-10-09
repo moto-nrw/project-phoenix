@@ -2533,7 +2533,7 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	normalizedRFID := normalizeTagID(req.RFID)
+	normalizedRFID := normalizeTagID(req.StudentRFID)
 
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)

@@ -39,14 +39,14 @@ type AttendanceGroupInfo struct {
 
 // AttendanceToggleRequest represents a request to toggle student attendance
 type AttendanceToggleRequest struct {
-	RFID   string `json:"rfid"`
-	Action string `json:"action"` // "confirm" or "cancel"
+	StudentRFID string `json:"student_rfid"`
+	Action      string `json:"action"` // "confirm" or "cancel"
 }
 
 // Bind validates the attendance toggle request
 func (req *AttendanceToggleRequest) Bind(r *http.Request) error {
 	return validation.ValidateStruct(req,
-		validation.Field(&req.RFID, validation.Required),
+		validation.Field(&req.StudentRFID, validation.Required),
 		validation.Field(&req.Action, validation.Required, validation.In("confirm", "cancel")),
 	)
 }
