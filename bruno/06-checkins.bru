@@ -212,36 +212,62 @@ script:post-response {
 
     // Test 6: Capacity/reservation edge case
     (async function() {
+      // Create session for room 5 first (regular classrooms require active sessions)
       await bru.sendRequest({
         method: 'POST',
-        url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
+        url: bru.getEnvVar("baseUrl") + "/api/iot/session/start",
         headers: {
           "Authorization": `Bearer ${deviceApiKey}`,
           "X-Staff-PIN": devicePin,
           "Content-Type": "application/json"
         },
         data: {
-          student_rfid: testStudent1RFID,
-          room_id: 5,  // Different room
-          action: "checkin"
+          activity_id: 1,
+          room_id: 5,
+          supervisor_ids: [1]
         }
-      }, function(err, response) {
-        if (err) {
-          test("Capacity/reservation check", function() {
-            throw new Error(`Capacity test failed: ${err.message}`);
+      }, async function(sessionErr, sessionResponse) {
+        if (sessionErr || sessionResponse.status !== 200) {
+          test("Session creation for capacity test", function() {
+            throw new Error(`Session creation failed: ${sessionErr?.message || sessionResponse.status}`);
           });
           return;
         }
 
-        test("Room capacity/reservation check passes", function() {
-          expect(response.status).to.equal(200);
-          expect(response.data).to.have.property('status', 'success');
-        });
+        bru.setVar("room5SessionId", sessionResponse.data.data.active_group_id);
 
-        if (response.status === 200) {
-          bru.setVar("visitId2", response.data.data.visit_id);
-          console.log(`✅ Capacity check passed (visit ${response.data.data.visit_id})`);
-        }
+        // Now attempt check-in to room 5
+        await bru.sendRequest({
+          method: 'POST',
+          url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
+          headers: {
+            "Authorization": `Bearer ${deviceApiKey}`,
+            "X-Staff-PIN": devicePin,
+            "Content-Type": "application/json"
+          },
+          data: {
+            student_rfid: testStudent1RFID,
+            room_id: 5,  // Different room
+            action: "checkin"
+          }
+        }, function(err, response) {
+          if (err) {
+            test("Capacity/reservation check", function() {
+              throw new Error(`Capacity test failed: ${err.message}`);
+            });
+            return;
+          }
+
+          test("Room capacity/reservation check passes", function() {
+            expect(response.status).to.equal(200);
+            expect(response.data).to.have.property('status', 'success');
+          });
+
+          if (response.status === 200) {
+            bru.setVar("visitId2", response.data.data.visit_id);
+            console.log(`✅ Capacity check passed (visit ${response.data.data.visit_id})`);
+          }
+        });
       });
     })();
 
@@ -291,6 +317,7 @@ script:post-response {
     (async function() {
       const visitId2 = bru.getVar("visitId2");
       const visitId3 = bru.getVar("visitId3");
+      const room5SessionId = bru.getVar("room5SessionId");
 
       // Checkout student 2 if checked in
       if (visitId2) {
@@ -303,12 +330,12 @@ script:post-response {
             "Content-Type": "application/json"
           },
           data: {
-            student_rfid: testStudent2RFID,
+            student_rfid: testStudent1RFID,
             action: "checkout"
           }
         }, function(err, response) {
           if (!err) {
-            console.log("🧹 Cleaned up: student 2 checked out");
+            console.log("🧹 Cleaned up: student checked out from room 5");
           }
         });
       }
@@ -331,6 +358,24 @@ script:post-response {
         }, function(err, response) {
           if (!err) {
             console.log("🧹 Cleaned up: student 3 checked out");
+          }
+        });
+      }
+
+      // End room 5 session if created
+      if (room5SessionId) {
+        await bru.sendRequest({
+          method: 'POST',
+          url: bru.getEnvVar("baseUrl") + "/api/iot/session/end",
+          headers: {
+            "Authorization": `Bearer ${deviceApiKey}`,
+            "X-Staff-PIN": devicePin,
+            "Content-Type": "application/json"
+          },
+          data: {}
+        }, function(err, response) {
+          if (!err) {
+            console.log("🧹 Cleaned up: room 5 session ended");
           }
         });
       }
