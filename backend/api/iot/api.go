@@ -2568,9 +2568,16 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Call ToggleStudentAttendance service without supervisor ID
-	result, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, 0, deviceCtx.ID) // Note: supervisor ID not available without staff context
+	// Get staff ID from device context
+	var staffID int64 = 1 // Default to admin ID if no staff context
+	if staffCtx := device.StaffFromCtx(r.Context()); staffCtx != nil {
+		staffID = staffCtx.ID
+	}
+
+	// Call ToggleStudentAttendance service with staff ID
+	result, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, staffID, deviceCtx.ID)
 	if err != nil {
+		log.Printf("[ATTENDANCE_TOGGLE] ERROR: Failed to toggle attendance for student %d: %v", student.ID, err)
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
