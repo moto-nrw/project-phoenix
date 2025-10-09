@@ -18,12 +18,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/format-go.sh",
+            "command": "bash /Users/yonnock/Developer/moto/project-phoenix/.claude/hooks/format-go.sh",
             "description": "Auto-format Go files with gofmt and goimports"
           },
           {
             "type": "command",
-            "command": ".claude/hooks/format-typescript.sh",
+            "command": "bash /Users/yonnock/Developer/moto/project-phoenix/.claude/hooks/format-typescript.sh",
             "description": "Auto-format TypeScript/JavaScript with Prettier"
           }
         ]
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/check-commit-message.sh",
+            "command": "bash /Users/yonnock/Developer/moto/project-phoenix/.claude/hooks/check-commit-message.sh",
             "description": "Validate conventional commit format"
           }
         ]
@@ -47,7 +47,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/check-env-files.sh",
+            "command": "bash /Users/yonnock/Developer/moto/project-phoenix/.claude/hooks/check-env-files.sh",
             "description": "Verify environment files exist"
           }
         ]
