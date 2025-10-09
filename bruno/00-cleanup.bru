@@ -100,6 +100,73 @@ script:post-response {
           await bru.sleep(50);
         }
 
+        // Clean up orphaned active visits
+        await bru.sendRequest({
+          method: 'GET',
+          url: bru.getEnvVar("baseUrl") + "/api/active/visits",
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        }, async function(err, visitsResponse) {
+          if (err || !visitsResponse.data?.data) {
+            return;  // No visits to clean up
+          }
+
+          const activeVisits = visitsResponse.data.data.filter(visit => !visit.end_time);
+          if (activeVisits.length > 0) {
+            console.log(`🧹 Found ${activeVisits.length} active visits to end`);
+
+            for (const visit of activeVisits) {
+              await bru.sendRequest({
+                method: 'POST',
+                url: bru.getEnvVar("baseUrl") + `/api/active/visits/${visit.id}/end`,
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json'
+                },
+                data: {}
+              }, function(err, endResponse) {
+                if (!err) {
+                  console.log(`🧹 Ended active visit ${visit.id}`);
+                }
+              });
+
+              await bru.sleep(50);
+            }
+          }
+        });
+
+        // Restore first 3 students' RFID tags to seed values (in case tests modified them)
+        const seedTags = [
+          { id: 31, tag: 'E83BE72F' },  // Leon Huber
+          { id: 32, tag: 'CA5DE789' },  // Emma
+          { id: 33, tag: '43385429' }   // Ben
+        ];
+
+        const deviceApiKey = bru.getEnvVar("deviceApiKey");
+        const devicePin = bru.getEnvVar("devicePin");
+
+        for (const student of seedTags) {
+          await bru.sendRequest({
+            method: 'POST',
+            url: bru.getEnvVar("baseUrl") + `/api/students/${student.id}/rfid`,
+            headers: {
+              'Authorization': `Bearer ${deviceApiKey}`,
+              'X-Staff-PIN': devicePin,
+              'Content-Type': 'application/json'
+            },
+            data: {
+              rfid_tag: student.tag
+            }
+          }, function(err, response) {
+            if (!err && response.status === 200) {
+              console.log(`🔄 Restored RFID tag for student ${student.id}`);
+            }
+          });
+
+          await bru.sleep(50);
+        }
+
         console.log("✅ Cleanup complete - test environment ready");
 
         test("Cleanup completed", function() {

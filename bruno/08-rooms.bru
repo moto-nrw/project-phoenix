@@ -168,7 +168,7 @@ script:post-response {
           start_time: "2025-10-09T14:10:00Z"
         }
       }, async function(err, occupyResponse) {
-        if (err || occupyResponse.status !== 200) {
+        if (err || occupyResponse.status !== 201) {  // 201 Created is correct
           return;
         }
 

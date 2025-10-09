@@ -116,13 +116,21 @@ script:post-response {
           return;
         }
 
-        const testTag = "AEDF" + Date.now();  // Unique hex test tag (AEDF = valid hex prefix)
-        const studentId = studentsResponse.data.data[0]?.id;
+        // Skip RFID assignment if student already has a tag (don't modify seed data)
+        const firstStudent = studentsResponse.data.data[0];
+        if (firstStudent?.rfid_tag) {
+          console.log(`⚠️  Student already has RFID tag (${firstStudent.rfid_tag}) - skipping assignment test to preserve seed data`);
+          return;  // Skip this test
+        }
+
+        const studentId = firstStudent?.id;
 
         if (!studentId) {
           console.log("⚠️  No students available for RFID assignment");
           return;
         }
+
+        const testTag = "AEDF" + Date.now();  // Unique hex test tag (AEDF = valid hex prefix)
 
         await bru.sendRequest({
           method: 'POST',
