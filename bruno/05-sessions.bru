@@ -67,7 +67,7 @@ script:post-response {
     const staffID = bru.getEnvVar("staffID");
 
     // Test 2: Conflict start (trying to create duplicate session in same room)
-    (async function() {
+    await (async function() {
       await bru.sendRequest({
         method: 'POST',
         url: bru.getEnvVar("baseUrl") + "/api/iot/session/start",
@@ -103,7 +103,7 @@ script:post-response {
     })();
 
     // Test 3: Current session verification
-    (async function() {
+    await (async function() {
       await bru.sendRequest({
         method: 'GET',
         url: bru.getEnvVar("baseUrl") + "/api/iot/session/current",
@@ -129,7 +129,7 @@ script:post-response {
     })();
 
     // Test 4: Update supervisors (happy path)
-    (async function() {
+    await (async function() {
       await bru.sendRequest({
         method: 'PUT',
         url: bru.getEnvVar("baseUrl") + `/api/iot/session/${sessionId}/supervisors`,
@@ -159,7 +159,7 @@ script:post-response {
     })();
 
     // Test 5: Empty supervisor list (validation error)
-    (async function() {
+    await (async function() {
       await bru.sendRequest({
         method: 'PUT',
         url: bru.getEnvVar("baseUrl") + `/api/iot/session/${sessionId}/supervisors`,
@@ -193,7 +193,7 @@ script:post-response {
     })();
 
     // Test 6: Invalid supervisor ID (not found)
-    (async function() {
+    await (async function() {
       await bru.sendRequest({
         method: 'PUT',
         url: bru.getEnvVar("baseUrl") + `/api/iot/session/${sessionId}/supervisors`,
@@ -227,7 +227,7 @@ script:post-response {
     })();
 
     // Test 7: Duplicate supervisor IDs (deduplication)
-    (async function() {
+    await (async function() {
       await bru.sendRequest({
         method: 'PUT',
         url: bru.getEnvVar("baseUrl") + `/api/iot/session/${sessionId}/supervisors`,
@@ -257,7 +257,7 @@ script:post-response {
     })();
 
     // Test 8: Invalid session ID
-    (async function() {
+    await (async function() {
       await bru.sendRequest({
         method: 'PUT',
         url: bru.getEnvVar("baseUrl") + "/api/iot/session/99999/supervisors",
@@ -291,7 +291,7 @@ script:post-response {
     })();
 
     // Test 9: Session conflict check endpoint
-    (async function() {
+    await (async function() {
       await bru.sendRequest({
         method: 'POST',
         url: bru.getEnvVar("baseUrl") + "/api/iot/session/check-conflict",
@@ -321,7 +321,7 @@ script:post-response {
     })();
 
     // Test 10: Session end (cleanup)
-    (async function() {
+    await (async function() {
       await bru.sendRequest({
         method: 'POST',
         url: bru.getEnvVar("baseUrl") + "/api/iot/session/end",
