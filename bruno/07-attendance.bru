@@ -85,7 +85,7 @@ script:post-response {
           "Content-Type": "application/json"
         },
         data: {
-          student_rfid: testStudent1RFID,
+          rfid: testStudent1RFID,
           action: "confirm"
         }
       }, function(err, response) {
@@ -119,7 +119,7 @@ script:post-response {
           "Content-Type": "application/json"
         },
         data: {
-          student_rfid: testStudent1RFID,
+          rfid: testStudent1RFID,
           action: "cancel"
         }
       }, function(err, response) {
