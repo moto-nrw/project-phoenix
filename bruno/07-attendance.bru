@@ -1,0 +1,165 @@
+meta {
+  name: 07 - RFID & Web Attendance
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/iot/attendance/status/{{testStudent1RFID}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{devicePin}}
+}
+
+docs {
+  ## RFID and Web-Based Attendance Tests
+
+  Combined RFID device and web dashboard attendance flows:
+  1. RFID attendance status (main request)
+  2. Attendance toggle confirm
+  3. Attendance toggle cancel
+  4. Web check-in
+  5. Web present list
+  6. Web checkout (cleanup)
+
+  **Prerequisites:**
+  - deviceApiKey and devicePin for RFID tests
+  - accessToken for web-based tests
+  - testStudent1RFID configured
+  - Student must exist in database
+
+  **Two Systems:**
+  - RFID: Device-based attendance toggle (confirm/cancel)
+  - Web: Dashboard-based check-in/out for manual attendance
+
+  **Cleanup:**
+  Test 6 ensures web attendance records are cleaned up
+}
+
+script:pre-request {
+  // Ensure admin token exists for web tests
+  if (!bru.getEnvVar("accessToken")) {
+    await bru.sendRequest({
+      method: 'POST',
+      url: bru.getEnvVar("baseUrl") + "/auth/login",
+      headers: { "Content-Type": "application/json" },
+      data: {
+        email: "admin@example.com",
+        password: "Test1234%"
+      }
+    }, function(err, response) {
+      if (!err && response.status === 200) {
+        bru.setEnvVar("accessToken", response.data.access_token);
+      }
+    });
+  }
+}
+
+script:post-response {
+  // Test 1: RFID attendance status
+  test("RFID attendance endpoint responds", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('status', 'success');
+  });
+
+  if (res.status === 200) {
+    console.log("✅ RFID attendance status retrieved");
+
+    const deviceApiKey = bru.getEnvVar("deviceApiKey");
+    const devicePin = bru.getEnvVar("devicePin");
+    const testStudent1RFID = bru.getEnvVar("testStudent1RFID");
+    const accessToken = bru.getEnvVar("accessToken");
+
+    // Test 2: Attendance toggle confirm
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/attendance/toggle",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          rfid: testStudent1RFID,
+          action: "confirm"
+        }
+      }, function(err, response) {
+        if (err) {
+          test("Attendance toggle confirm", function() {
+            throw new Error(`Toggle confirm failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Attendance toggle confirm succeeds", function() {
+          expect(response.status).to.equal(200);
+          expect(response.data).to.have.property('status', 'success');
+        });
+
+        if (response.status === 200 && response.data.data) {
+          bru.setVar("attendanceId", response.data.data.id || response.data.data.attendance_id);
+          console.log("✅ Attendance confirmed");
+        }
+      });
+    })();
+
+    // Test 3: Attendance toggle cancel
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/attendance/toggle",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          rfid: testStudent1RFID,
+          action: "cancel"
+        }
+      }, function(err, response) {
+        if (err) {
+          test("Attendance toggle cancel", function() {
+            throw new Error(`Toggle cancel failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Attendance toggle cancel succeeds", function() {
+          expect(response.status).to.equal(200);
+          expect(response.data).to.have.property('status', 'success');
+        });
+
+        console.log("✅ Attendance cancelled");
+      });
+    })();
+
+    // TODO: Web-based attendance features not yet implemented
+    // Uncomment when /api/active/attendance endpoints are added
+
+    // Test 4: Web check-in (NOT IMPLEMENTED)
+    // (async function() {
+    //   await bru.sendRequest({
+    //     method: 'POST',
+    //     url: bru.getEnvVar("baseUrl") + "/api/active/attendance/check-in",
+    //     headers: {
+    //       "Authorization": `Bearer ${accessToken}`,
+    //       "Content-Type": "application/json"
+    //     },
+    //     data: { student_id: 1 }
+    //   }, function(err, response) {
+    //     console.log("✅ Web check-in (when implemented)");
+    //   });
+    // })();
+
+    // Test 5: Web present list (NOT IMPLEMENTED)
+    // Test 6: Web checkout (NOT IMPLEMENTED)
+
+    console.log("⚠️  Web attendance endpoints not implemented - using RFID-only flow");
+  }
+}

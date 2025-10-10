@@ -388,10 +388,23 @@ npm run check                 # Run all checks
 ```
 
 ### API Testing with Bruno
-Quick integration tests for API endpoints using Bruno CLI. See [bruno/README.md](bruno/README.md) for setup instructions.
+Consolidated API test suite with 11 hermetic test files covering all critical workflows. See [bruno/README.md](bruno/README.md) for detailed documentation.
+
 ```bash
-cd bruno && ./dev-test.sh all  # Run all API tests (~252ms)
+# Install Bruno CLI
+brew install bruno-cli  # or: npm install -g @usebruno/cli
+
+# Run all tests (60 test scenarios, ~340ms with automatic cleanup)
+cd bruno
+bru run --env Local 0*.bru
+
+# Run specific test file
+bru run --env Local 05-sessions.bru
 ```
+
+**Test Coverage**: Automatic cleanup, authentication, resources, devices, sessions, check-ins, attendance, room conflicts, RFID, Schulhof workflow, group claiming
+
+**Note**: Test suite includes automatic cleanup (00-cleanup.bru) that ends all active sessions before running tests - no manual intervention needed.
 
 ## Troubleshooting
 

@@ -1,0 +1,252 @@
+meta {
+  name: 08 - Room Availability & Conflicts
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/active/groups
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "group_id": 1,
+    "room_id": 12,
+    "start_time": "2025-10-09T14:00:00Z"
+  }
+}
+
+docs {
+  ## Room Availability and Conflict Regression Tests
+
+  Validates room occupancy and conflict detection:
+  1. Create active group in room 12 (main request)
+  2. Attempt duplicate creation (conflict expected)
+  3. Update same group staying in room 12 (self-exclusion)
+  4. Attempt move to occupied room (conflict expected)
+  5. Cleanup - delete/complete active group
+
+  **Prerequisites:**
+  - accessToken configured (admin)
+  - Room 12 exists in seed data
+  - Room 13 exists for conflict testing
+
+  **Purpose:**
+  Regression test for Issue #3 - room conflict validation
+  ensures rooms cannot be double-booked
+
+  **Cleanup:**
+  Test 5 removes created group to restore state
+}
+
+script:pre-request {
+  // Ensure admin token exists
+  if (!bru.getEnvVar("accessToken")) {
+    await bru.sendRequest({
+      method: 'POST',
+      url: bru.getEnvVar("baseUrl") + "/auth/login",
+      headers: { "Content-Type": "application/json" },
+      data: {
+        email: "admin@example.com",
+        password: "Test1234%"
+      }
+    }, function(err, response) {
+      if (!err && response.status === 200) {
+        bru.setEnvVar("accessToken", response.data.access_token);
+      }
+    });
+  }
+}
+
+script:post-response {
+  // Test 1: Create active group
+  test("Active group created in room 12", function() {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.getBody()).to.have.property('status', 'success');
+    expect(res.getBody().data).to.have.property('id');
+    expect(res.getBody().data).to.have.property('room_id', 12);
+  });
+
+  if (res.getStatus() === 201) {
+    const responseBody = res.getBody();
+    const groupId = responseBody.data.id;
+    bru.setVar("activeGroupId", groupId);
+    console.log(`✅ Active group ${groupId} created in room 12`);
+
+    const accessToken = bru.getEnvVar("accessToken");
+
+    // Test 2: Attempt duplicate creation (conflict)
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/active/groups",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        data: {
+          group_id: 2,
+          room_id: 12,  // Same room
+          start_time: "2025-10-09T14:05:00Z"
+        }
+      }, function(err, conflictResponse) {
+        if (err) {
+          if (err.message.includes('409')) {
+            console.log("✅ Room conflict (409)");
+          } else {
+            test("Room conflict detection", function() {
+              throw new Error(`Conflict test failed: ${err.message}`);
+            });
+          }
+          return;
+        }
+
+        test("Duplicate room assignment causes conflict", function() {
+          expect(conflictResponse.status).to.equal(409);
+          expect(conflictResponse.data).to.have.property('status', 'error');
+          expect(conflictResponse.data.message).to.match(/room.*occupied|conflict/i);
+        });
+
+        console.log("✅ Room conflict detected correctly");
+      });
+    })();
+
+    // Test 3: Update same group staying in same room (self-exclusion)
+    (async function() {
+      await bru.sendRequest({
+        method: 'PUT',
+        url: bru.getEnvVar("baseUrl") + `/api/active/groups/${groupId}`,
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        data: {
+          group_id: 1,
+          room_id: 12,  // Same room - should succeed (self-exclusion)
+          start_time: "2025-10-09T14:00:00Z"
+        }
+      }, function(err, updateResponse) {
+        if (err) {
+          test("Self-exclusion update", function() {
+            throw new Error(`Self-exclusion failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Update same group in same room succeeds (self-exclusion)", function() {
+          expect(updateResponse.status).to.equal(200);
+          expect(updateResponse.data).to.have.property('status', 'success');
+        });
+
+        console.log("✅ Self-exclusion logic working");
+      });
+    })();
+
+    // Test 4: Attempt move to another occupied room
+    (async function() {
+      // First, create a group in room 13 to occupy it
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/active/groups",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        data: {
+          group_id: 3,
+          room_id: 13,
+          start_time: "2025-10-09T14:10:00Z"
+        }
+      }, async function(err, occupyResponse) {
+        if (err || occupyResponse.status !== 201) {  // 201 Created is correct
+          return;
+        }
+
+        const occupyGroupId = occupyResponse.data.data.id;
+        bru.setVar("occupyGroupId", occupyGroupId);
+
+        // Now try to move our original group to room 13
+        await bru.sendRequest({
+          method: 'PUT',
+          url: bru.getEnvVar("baseUrl") + `/api/active/groups/${groupId}`,
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          },
+          data: {
+            group_id: 1,
+            room_id: 13,  // Occupied room
+            start_time: "2025-10-09T14:00:00Z"
+          }
+        }, function(err, moveResponse) {
+          if (err) {
+            if (err.message.includes('409')) {
+              console.log("✅ Occupied room conflict (409)");
+            } else {
+              test("Occupied room move prevention", function() {
+                throw new Error(`Move conflict test failed: ${err.message}`);
+              });
+            }
+            return;
+          }
+
+          test("Move to occupied room causes conflict", function() {
+            expect(moveResponse.status).to.equal(409);
+            expect(moveResponse.data).to.have.property('status', 'error');
+          });
+
+          console.log("✅ Occupied room move blocked");
+        });
+      });
+    })();
+
+    // Test 5: Cleanup - delete both groups
+    (async function() {
+      const occupyGroupId = bru.getVar("occupyGroupId");
+
+      // Delete original group
+      await bru.sendRequest({
+        method: 'DELETE',
+        url: bru.getEnvVar("baseUrl") + `/api/active/groups/${groupId}`,
+        headers: {
+          "Authorization": `Bearer ${accessToken}`
+        }
+      }, function(err, response) {
+        if (!err) {
+          console.log(`🧹 Deleted active group ${groupId}`);
+        }
+      });
+
+      // Delete occupier group if it exists
+      if (occupyGroupId) {
+        await bru.sendRequest({
+          method: 'DELETE',
+          url: bru.getEnvVar("baseUrl") + `/api/active/groups/${occupyGroupId}`,
+          headers: {
+            "Authorization": `Bearer ${accessToken}`
+          }
+        }, function(err, response) {
+          if (!err) {
+            console.log(`🧹 Deleted occupier group ${occupyGroupId}`);
+          }
+        });
+      }
+
+      test("Cleanup completed", function() {
+        expect(true).to.be.true;  // Cleanup always passes
+      });
+
+      console.log("✅ Room test cleanup complete");
+    })();
+  }
+}

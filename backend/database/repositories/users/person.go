@@ -79,7 +79,7 @@ func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64)
 
 // LinkToAccount associates a person with an account
 func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, accountID int64) error {
-	_, err := r.db.NewUpdate().
+	result, err := r.db.NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set("account_id = ?", accountID).
@@ -93,12 +93,27 @@ func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, ac
 		}
 	}
 
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "link to account - check rows affected",
+			Err: err,
+		}
+	}
+
+	if rowsAffected == 0 {
+		return &modelBase.DatabaseError{
+			Op:  "link to account",
+			Err: fmt.Errorf("no person found with ID %d", personID),
+		}
+	}
+
 	return nil
 }
 
 // UnlinkFromAccount removes account association from a person
 func (r *PersonRepository) UnlinkFromAccount(ctx context.Context, personID int64) error {
-	_, err := r.db.NewUpdate().
+	result, err := r.db.NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set("account_id = NULL").
@@ -109,6 +124,21 @@ func (r *PersonRepository) UnlinkFromAccount(ctx context.Context, personID int64
 		return &modelBase.DatabaseError{
 			Op:  "unlink from account",
 			Err: err,
+		}
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "unlink from account - check rows affected",
+			Err: err,
+		}
+	}
+
+	if rowsAffected == 0 {
+		return &modelBase.DatabaseError{
+			Op:  "unlink from account",
+			Err: fmt.Errorf("no person found with ID %d", personID),
 		}
 	}
 
@@ -134,7 +164,7 @@ func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 	// Normalize the tag ID to match RFID card format
 	normalizedTagID := normalizeTagID(tagID)
 
-	_, err := r.db.NewUpdate().
+	result, err := r.db.NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set("tag_id = ?", normalizedTagID).
@@ -148,12 +178,27 @@ func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 		}
 	}
 
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "link to RFID card - check rows affected",
+			Err: err,
+		}
+	}
+
+	if rowsAffected == 0 {
+		return &modelBase.DatabaseError{
+			Op:  "link to RFID card",
+			Err: fmt.Errorf("no person found with ID %d", personID),
+		}
+	}
+
 	return nil
 }
 
 // UnlinkFromRFIDCard removes RFID card association from a person
 func (r *PersonRepository) UnlinkFromRFIDCard(ctx context.Context, personID int64) error {
-	_, err := r.db.NewUpdate().
+	result, err := r.db.NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set("tag_id = NULL").
@@ -164,6 +209,21 @@ func (r *PersonRepository) UnlinkFromRFIDCard(ctx context.Context, personID int6
 		return &modelBase.DatabaseError{
 			Op:  "unlink from RFID card",
 			Err: err,
+		}
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "unlink from RFID card - check rows affected",
+			Err: err,
+		}
+	}
+
+	if rowsAffected == 0 {
+		return &modelBase.DatabaseError{
+			Op:  "unlink from RFID card",
+			Err: fmt.Errorf("no person found with ID %d", personID),
 		}
 	}
 

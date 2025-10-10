@@ -1,0 +1,393 @@
+meta {
+  name: 06 - Check-in/Checkout Flows
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/iot/checkin
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{devicePin}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "student_rfid": "{{testStudent1RFID}}",
+    "room_id": 25,
+    "action": "checkin"
+  }
+}
+
+docs {
+  ## Check-in/Checkout Flow Tests
+
+  Comprehensive check-in/out workflow covering 8 test scenarios:
+  1. Happy path check-in (main request) - stores visit_id
+  2. Happy path checkout
+  3. Missing room on check-in (validation error)
+  4. Invalid RFID (not found)
+  5. Checkout when no active visit (error)
+  6. Capacity/reservation edge case (if applicable)
+  7. Multi-student check-in verification
+  8. Teardown - checkout all test students
+
+  **Prerequisites:**
+  - deviceApiKey and devicePin configured
+  - testStudent1RFID, testStudent2RFID in environment
+  - Room 25 (Schulhof) available in seed data
+  - Students must be in database with RFID tags
+
+  **Note:**
+  Uses Schulhof room (25) which allows check-ins without pre-existing sessions
+
+  **Cleanup:**
+  Test 8 ensures all checked-in students are checked out
+}
+
+script:post-response {
+  // Test 1: Happy path check-in
+  test("Student check-in succeeds", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('status', 'success');
+    expect(res.getBody().data).to.have.property('visit_id');
+    expect(res.getBody().data).to.have.property('action');
+  });
+
+  if (res.status === 200) {
+    const visitId = res.body.data.visit_id;
+    const studentName = res.body.data.student_name;
+    bru.setVar("visitId1", visitId);
+    console.log(`✅ Check-in: ${studentName} (visit ${visitId})`);
+
+    const deviceApiKey = bru.getEnvVar("deviceApiKey");
+    const devicePin = bru.getEnvVar("devicePin");
+    const testStudent1RFID = bru.getEnvVar("testStudent1RFID");
+    const testStudent2RFID = bru.getEnvVar("testStudent2RFID");
+
+    // Test 2: Happy path checkout
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          student_rfid: testStudent1RFID,
+          action: "checkout"
+        }
+      }, function(err, response) {
+        if (err) {
+          test("Student checkout", function() {
+            throw new Error(`Checkout failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Student checkout succeeds", function() {
+          expect(response.status).to.equal(200);
+          expect(response.data).to.have.property('status', 'success');
+          expect(response.data.data).to.have.property('action');
+          expect(['checked_out', 'checked_out_daily']).to.include(response.data.data.action);
+        });
+
+        console.log(`✅ Checkout: ${response.data.data.student_name}`);
+      });
+    })();
+
+    // Test 3: Missing room on check-in (validation error)
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          student_rfid: testStudent2RFID,
+          action: "checkin"
+          // Missing room_id
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('400')) {
+            console.log("✅ Missing room rejected (400)");
+          } else {
+            test("Missing room validation", function() {
+              throw new Error(`Missing room test failed: ${err.message}`);
+            });
+          }
+          return;
+        }
+
+        test("Missing room causes validation error", function() {
+          expect(response.status).to.equal(400);
+          expect(response.data).to.have.property('status', 'error');
+        });
+
+        console.log("✅ Missing room validation working");
+      });
+    })();
+
+    // Test 4: Invalid RFID (not found)
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          student_rfid: "INVALIDRFID999",
+          room_id: 3,
+          action: "checkin"
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('404')) {
+            console.log("✅ Invalid RFID rejected (404)");
+          } else {
+            test("Invalid RFID handling", function() {
+              throw new Error(`Invalid RFID test failed: ${err.message}`);
+            });
+          }
+          return;
+        }
+
+        test("Invalid RFID causes not found error", function() {
+          expect(response.status).to.equal(404);
+          expect(response.data).to.have.property('status', 'error');
+        });
+
+        console.log("✅ Invalid RFID rejected");
+      });
+    })();
+
+    // Test 5: Checkout when no active visit (error)
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          student_rfid: testStudent2RFID,  // Never checked in
+          action: "checkout"
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('400') || err.message.includes('404')) {
+            console.log("✅ No active visit rejected");
+          } else {
+            test("No active visit handling", function() {
+              throw new Error(`No visit test failed: ${err.message}`);
+            });
+          }
+          return;
+        }
+
+        test("Checkout without active visit causes error", function() {
+          expect([400, 404]).to.include(response.status);
+          expect(response.data).to.have.property('status', 'error');
+        });
+
+        console.log("✅ No active visit checkout rejected");
+      });
+    })();
+
+    // Test 6: Capacity/reservation edge case
+    (async function() {
+      // Create session for room 5 first (regular classrooms require active sessions)
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/session/start",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          activity_id: 1,
+          room_id: 5,
+          supervisor_ids: [1]
+        }
+      }, async function(sessionErr, sessionResponse) {
+        // Accept both 200 (created) and 409 (already exists) as valid
+        if (sessionErr && !sessionErr.message.includes('409')) {
+          test("Session creation for capacity test", function() {
+            throw new Error(`Session creation failed: ${sessionErr?.message}`);
+          });
+          return;
+        }
+
+        if (sessionResponse && sessionResponse.status === 200) {
+          bru.setVar("room5SessionId", sessionResponse.data.data.active_group_id);
+        }
+
+        // Now attempt check-in to room 5
+        await bru.sendRequest({
+          method: 'POST',
+          url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
+          headers: {
+            "Authorization": `Bearer ${deviceApiKey}`,
+            "X-Staff-PIN": devicePin,
+            "Content-Type": "application/json"
+          },
+          data: {
+            student_rfid: testStudent1RFID,
+            room_id: 5,  // Different room
+            action: "checkin"
+          }
+        }, function(err, response) {
+          if (err) {
+            test("Capacity/reservation check", function() {
+              throw new Error(`Capacity test failed: ${err.message}`);
+            });
+            return;
+          }
+
+          test("Room capacity/reservation check passes", function() {
+            expect(response.status).to.equal(200);
+            expect(response.data).to.have.property('status', 'success');
+          });
+
+          if (response.status === 200) {
+            bru.setVar("visitId2", response.data.data.visit_id);
+            console.log(`✅ Capacity check passed (visit ${response.data.data.visit_id})`);
+          }
+        });
+      });
+    })();
+
+    // Test 7: Multi-student check-in verification
+    (async function() {
+      const student3RFID = bru.getEnvVar("testStudent3RFID");
+      if (!student3RFID) {
+        console.log("⚠️  testStudent3RFID not configured, skipping multi-student test");
+        return;
+      }
+
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          student_rfid: student3RFID,
+          room_id: 25,  // Same room as first check-in (Schulhof)
+          action: "checkin"
+        }
+      }, function(err, response) {
+        if (err) {
+          test("Multi-student check-in", function() {
+            throw new Error(`Multi-student test failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Multi-student check-in creates unique visit IDs", function() {
+          expect(response.status).to.equal(200);
+          const newVisitId = response.data.data.visit_id;
+          expect(newVisitId).to.not.equal(visitId);  // Different from first check-in
+        });
+
+        if (response.status === 200) {
+          bru.setVar("visitId3", response.data.data.visit_id);
+          console.log(`✅ Multi-student: unique visit ${response.data.data.visit_id}`);
+        }
+      });
+    })();
+
+    // Test 8: Teardown - checkout all test students
+    (async function() {
+      const visitId2 = bru.getVar("visitId2");
+      const visitId3 = bru.getVar("visitId3");
+      const room5SessionId = bru.getVar("room5SessionId");
+
+      // Checkout student 2 if checked in
+      if (visitId2) {
+        await bru.sendRequest({
+          method: 'POST',
+          url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
+          headers: {
+            "Authorization": `Bearer ${deviceApiKey}`,
+            "X-Staff-PIN": devicePin,
+            "Content-Type": "application/json"
+          },
+          data: {
+            student_rfid: testStudent1RFID,
+            action: "checkout"
+          }
+        }, function(err, response) {
+          if (!err) {
+            console.log("🧹 Cleaned up: student checked out from room 5");
+          }
+        });
+      }
+
+      // Checkout student 3 if checked in
+      if (visitId3) {
+        const student3RFID = bru.getEnvVar("testStudent3RFID");
+        await bru.sendRequest({
+          method: 'POST',
+          url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
+          headers: {
+            "Authorization": `Bearer ${deviceApiKey}`,
+            "X-Staff-PIN": devicePin,
+            "Content-Type": "application/json"
+          },
+          data: {
+            student_rfid: student3RFID,
+            action: "checkout"
+          }
+        }, function(err, response) {
+          if (!err) {
+            console.log("🧹 Cleaned up: student 3 checked out");
+          }
+        });
+      }
+
+      // End room 5 session if created
+      if (room5SessionId) {
+        await bru.sendRequest({
+          method: 'POST',
+          url: bru.getEnvVar("baseUrl") + "/api/iot/session/end",
+          headers: {
+            "Authorization": `Bearer ${deviceApiKey}`,
+            "X-Staff-PIN": devicePin,
+            "Content-Type": "application/json"
+          },
+          data: {}
+        }, function(err, response) {
+          if (!err) {
+            console.log("🧹 Cleaned up: room 5 session ended");
+          }
+        });
+      }
+
+      test("Teardown completed", function() {
+        expect(true).to.be.true;  // Cleanup always passes
+      });
+
+      console.log("✅ Teardown complete - all students checked out");
+    })();
+  }
+}

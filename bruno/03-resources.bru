@@ -1,0 +1,200 @@
+meta {
+  name: 03 - Core Resource Listings
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/groups
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  ## Core Resource Listing Tests
+
+  Tests all primary resource endpoints returning lists of core entities:
+  1. Groups list (main request)
+  2. Students list
+  3. Rooms list
+  4. Activities catalog (requires teacher token)
+
+  **Prerequisites:**
+  - accessToken set in environment (from auth tests)
+  - teacherToken set in environment (for activities)
+  - Seed data populated in database
+
+  **Expected Seed Data:**
+  - Groups: ~25 educational groups
+  - Students: ~50 students with RFID tags
+  - Rooms: ~24 rooms across building
+  - Activities: Various activities for group sessions
+}
+
+script:pre-request {
+  // Ensure admin token exists
+  if (!bru.getEnvVar("accessToken")) {
+    await bru.sendRequest({
+      method: 'POST',
+      url: bru.getEnvVar("baseUrl") + "/auth/login",
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        email: "admin@example.com",
+        password: "Test1234%"
+      }
+    }, function(err, loginResponse) {
+      if (err || !loginResponse || loginResponse.status !== 200) {
+        throw new Error("Admin login failed: " + (err ? err.message : "Bad response"));
+      }
+
+      if (loginResponse.data) {
+        bru.setEnvVar("accessToken", loginResponse.data.access_token);
+        bru.setEnvVar("refreshToken", loginResponse.data.refresh_token);
+      }
+    });
+  }
+}
+
+script:post-response {
+  // Test 1: Groups list
+  test("Groups API returns data", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('status', 'success');
+    expect(res.getBody().data).to.be.an('array');
+    expect(res.getBody().data.length).to.be.greaterThan(0);
+  });
+
+  if (res.getStatus() === 200) {
+    const responseBody = res.getBody();
+    const groupCount = responseBody.data.length;
+    console.log(`✅ Groups: ${groupCount} found`);
+
+    const accessToken = bru.getEnvVar("accessToken");
+
+    // Test 2: Students list
+    (async function() {
+      await bru.sendRequest({
+        method: 'GET',
+        url: bru.getEnvVar("baseUrl") + "/api/students",
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }, function(err, studentsResponse) {
+        if (err) {
+          test("Students API returns data", function() {
+            throw new Error(`Students API failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Students API returns data", function() {
+          expect(studentsResponse.status).to.equal(200);
+          expect(studentsResponse.data).to.have.property('status', 'success');
+          expect(studentsResponse.data.data).to.be.an('array');
+          expect(studentsResponse.data.data.length).to.be.greaterThan(0);
+        });
+
+        console.log(`✅ Students: ${studentsResponse.data.data.length} found`);
+      });
+    })();
+
+    // Test 3: Rooms list
+    (async function() {
+      await bru.sendRequest({
+        method: 'GET',
+        url: bru.getEnvVar("baseUrl") + "/api/rooms",
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }, function(err, roomsResponse) {
+        if (err) {
+          test("Rooms API returns data", function() {
+            throw new Error(`Rooms API failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Rooms API returns data", function() {
+          expect(roomsResponse.status).to.equal(200);
+          expect(roomsResponse.data).to.have.property('status', 'success');
+          expect(roomsResponse.data.data).to.be.an('array');
+          expect(roomsResponse.data.data.length).to.be.greaterThan(0);
+        });
+
+        console.log(`✅ Rooms: ${roomsResponse.data.data.length} found`);
+      });
+    })();
+
+    // Test 4: Activities catalog (requires teacher token)
+    (async function() {
+      let teacherToken = bru.getEnvVar("teacherToken");
+
+      // If no teacher token, try to get one
+      if (!teacherToken) {
+        const teacherEmail = bru.getEnvVar("testStaffEmail");
+        const teacherPassword = bru.getEnvVar("testStaffPassword");
+
+        if (!teacherEmail || !teacherPassword) {
+          console.log("⚠️  Skipping activities test - teacher credentials not configured");
+          return;
+        }
+
+        await bru.sendRequest({
+          method: 'POST',
+          url: bru.getEnvVar("baseUrl") + "/auth/login",
+          headers: { 'Content-Type': 'application/json' },
+          data: {
+            email: teacherEmail,
+            password: teacherPassword
+          }
+        }, function(err, teacherLoginResponse) {
+          if (err || !teacherLoginResponse || teacherLoginResponse.status !== 200) {
+            console.log("⚠️  Teacher login failed, skipping activities test");
+            return;
+          }
+
+          if (teacherLoginResponse.data) {
+            teacherToken = teacherLoginResponse.data.access_token;
+            bru.setEnvVar("teacherToken", teacherToken);
+          }
+        });
+      }
+
+      // Wait a bit for async token setting
+      await bru.sleep(100);
+      teacherToken = bru.getEnvVar("teacherToken");
+
+      if (!teacherToken) {
+        console.log("⚠️  No teacher token available");
+        return;
+      }
+
+      await bru.sendRequest({
+        method: 'GET',
+        url: bru.getEnvVar("baseUrl") + "/api/activities",
+        headers: {
+          'Authorization': `Bearer ${teacherToken}`
+        }
+      }, function(err, activitiesResponse) {
+        if (err) {
+          test("Activities API returns data", function() {
+            throw new Error(`Activities API failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Activities API returns data", function() {
+          expect(activitiesResponse.status).to.equal(200);
+          expect(activitiesResponse.data).to.have.property('status', 'success');
+          expect(activitiesResponse.data.data).to.be.an('array');
+        });
+
+        console.log(`✅ Activities: ${activitiesResponse.data.data.length} found`);
+      });
+    })();
+  }
+}

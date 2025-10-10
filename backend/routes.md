@@ -102,12 +102,12 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.SetContentType.func2]()
 		- **/combined**
 			- **/**
-				- _GET_
-					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.4.RequiresPermission.1]()
-					- [oto-nrw/project-phoenix/api/active.(*Resource).listCombinedGroups-fm]()
 				- _POST_
 					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.4.RequiresPermission.5]()
 					- [oto-nrw/project-phoenix/api/active.(*Resource).createCombinedGroup-fm]()
+				- _GET_
+					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.4.RequiresPermission.1]()
+					- [oto-nrw/project-phoenix/api/active.(*Resource).listCombinedGroups-fm]()
 
 </details>
 <details>
@@ -141,15 +141,15 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.SetContentType.func2]()
 		- **/combined**
 			- **/{id}**
+				- _GET_
+					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.4.RequiresPermission.3]()
+					- [oto-nrw/project-phoenix/api/active.(*Resource).getCombinedGroup-fm]()
 				- _PUT_
 					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.4.RequiresPermission.6]()
 					- [oto-nrw/project-phoenix/api/active.(*Resource).updateCombinedGroup-fm]()
 				- _DELETE_
 					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.4.RequiresPermission.7]()
 					- [oto-nrw/project-phoenix/api/active.(*Resource).deleteCombinedGroup-fm]()
-				- _GET_
-					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.4.RequiresPermission.3]()
-					- [oto-nrw/project-phoenix/api/active.(*Resource).getCombinedGroup-fm]()
 
 </details>
 <details>
@@ -201,12 +201,12 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.SetContentType.func2]()
 		- **/groups**
 			- **/**
-				- _POST_
-					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.7]()
-					- [oto-nrw/project-phoenix/api/active.(*Resource).createActiveGroup-fm]()
 				- _GET_
 					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.1]()
 					- [oto-nrw/project-phoenix/api/active.(*Resource).listActiveGroups-fm]()
+				- _POST_
+					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.8]()
+					- [oto-nrw/project-phoenix/api/active.(*Resource).createActiveGroup-fm]()
 
 </details>
 <details>
@@ -223,7 +223,7 @@ MOTO REST API for RFID-based system.
 		- **/groups**
 			- **/group/{groupId}**
 				- _GET_
-					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.4]()
+					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.5]()
 					- [oto-nrw/project-phoenix/api/active.(*Resource).getActiveGroupsByGroup-fm]()
 
 </details>
@@ -241,8 +241,26 @@ MOTO REST API for RFID-based system.
 		- **/groups**
 			- **/room/{roomId}**
 				- _GET_
-					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.3]()
+					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.4]()
 					- [oto-nrw/project-phoenix/api/active.(*Resource).getActiveGroupsByRoom-fm]()
+
+</details>
+<details>
+<summary>`/api/active/groups/unclaimed`</summary>
+
+- [RequestID]()
+- [RealIP]()
+- [Logger]()
+- [Recoverer]()
+- [SecurityHeaders]()
+- **/api**
+	- **/active**
+		- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.SetContentType.func2]()
+		- **/groups**
+			- **/unclaimed**
+				- _GET_
+					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.2]()
+					- [oto-nrw/project-phoenix/api/active.(*Resource).listUnclaimedGroups-fm]()
 
 </details>
 <details>
@@ -258,15 +276,33 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.SetContentType.func2]()
 		- **/groups**
 			- **/{id}**
-				- _DELETE_
-					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.9]()
-					- [oto-nrw/project-phoenix/api/active.(*Resource).deleteActiveGroup-fm]()
 				- _GET_
-					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.2]()
+					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.3]()
 					- [oto-nrw/project-phoenix/api/active.(*Resource).getActiveGroup-fm]()
 				- _PUT_
-					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.8]()
+					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.9]()
 					- [oto-nrw/project-phoenix/api/active.(*Resource).updateActiveGroup-fm]()
+				- _DELETE_
+					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.10]()
+					- [oto-nrw/project-phoenix/api/active.(*Resource).deleteActiveGroup-fm]()
+
+</details>
+<details>
+<summary>`/api/active/groups/{id}/claim`</summary>
+
+- [RequestID]()
+- [RealIP]()
+- [Logger]()
+- [Recoverer]()
+- [SecurityHeaders]()
+- **/api**
+	- **/active**
+		- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.SetContentType.func2]()
+		- **/groups**
+			- **/{id}/claim**
+				- _POST_
+					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.12]()
+					- [oto-nrw/project-phoenix/api/active.(*Resource).claimGroup-fm]()
 
 </details>
 <details>
@@ -283,7 +319,7 @@ MOTO REST API for RFID-based system.
 		- **/groups**
 			- **/{id}/end**
 				- _POST_
-					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.10]()
+					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.11]()
 					- [oto-nrw/project-phoenix/api/active.(*Resource).endActiveGroup-fm]()
 
 </details>
@@ -301,7 +337,7 @@ MOTO REST API for RFID-based system.
 		- **/groups**
 			- **/{id}/supervisors**
 				- _GET_
-					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.6]()
+					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.7]()
 					- [oto-nrw/project-phoenix/api/active.(*Resource).getActiveGroupSupervisors-fm]()
 
 </details>
@@ -319,7 +355,7 @@ MOTO REST API for RFID-based system.
 		- **/groups**
 			- **/{id}/visits**
 				- _GET_
-					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.5]()
+					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.1.RequiresPermission.6]()
 					- [oto-nrw/project-phoenix/api/active.(*Resource).getActiveGroupVisits-fm]()
 
 </details>
@@ -480,12 +516,12 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.SetContentType.func2]()
 		- **/scheduled-checkouts**
 			- **/{id}**
-				- _GET_
-					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.7.RequiresPermission.3]()
-					- [oto-nrw/project-phoenix/api/active.(*Resource).getScheduledCheckout-fm]()
 				- _DELETE_
 					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.7.RequiresPermission.2]()
 					- [oto-nrw/project-phoenix/api/active.(*Resource).cancelScheduledCheckout-fm]()
+				- _GET_
+					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.7.RequiresPermission.3]()
+					- [oto-nrw/project-phoenix/api/active.(*Resource).getScheduledCheckout-fm]()
 
 </details>
 <details>
@@ -576,15 +612,15 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.SetContentType.func2]()
 		- **/supervisors**
 			- **/{id}**
-				- _DELETE_
-					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.3.RequiresPermission.8]()
-					- [oto-nrw/project-phoenix/api/active.(*Resource).deleteSupervisor-fm]()
 				- _GET_
 					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.3.RequiresPermission.2]()
 					- [oto-nrw/project-phoenix/api/active.(*Resource).getSupervisor-fm]()
 				- _PUT_
 					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.3.RequiresPermission.7]()
 					- [oto-nrw/project-phoenix/api/active.(*Resource).updateSupervisor-fm]()
+				- _DELETE_
+					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.3.RequiresPermission.8]()
+					- [oto-nrw/project-phoenix/api/active.(*Resource).deleteSupervisor-fm]()
 
 </details>
 <details>
@@ -711,15 +747,15 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.SetContentType.func2]()
 		- **/visits**
 			- **/{id}**
-				- _GET_
-					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.2.(*ResourceAuthorizer).RequiresResourceAccess.3]()
-					- [oto-nrw/project-phoenix/api/active.(*Resource).getVisit-fm]()
 				- _PUT_
 					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.2.RequiresPermission.8]()
 					- [oto-nrw/project-phoenix/api/active.(*Resource).updateVisit-fm]()
 				- _DELETE_
 					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.2.RequiresPermission.9]()
 					- [oto-nrw/project-phoenix/api/active.(*Resource).deleteVisit-fm]()
+				- _GET_
+					- [github.com/moto-nrw/project-phoenix/api/active.(*Resource).Router.func1.2.(*ResourceAuthorizer).RequiresResourceAccess.3]()
+					- [oto-nrw/project-phoenix/api/active.(*Resource).getVisit-fm]()
 
 </details>
 <details>
@@ -752,16 +788,14 @@ MOTO REST API for RFID-based system.
 	- **/activities**
 		- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.SetContentType.func2]()
 		- **/**
-			- _POST_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
-				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.5]()
-				- [oto-nrw/project-phoenix/api/activities.(*Resource).createActivity-fm]()
 			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.1]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).listActivities-fm]()
+			- _POST_
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
+				- [Authenticator]()
+				- [oto-nrw/project-phoenix/api/activities.(*Resource).createActivity-fm]()
 
 </details>
 <details>
@@ -777,9 +811,8 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.SetContentType.func2]()
 		- **/categories**
 			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.3]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).listCategories-fm]()
 
 </details>
@@ -796,9 +829,8 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.SetContentType.func2]()
 		- **/quick-create**
 			- _POST_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.6]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).quickCreateActivity-fm]()
 
 </details>
@@ -815,9 +847,8 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.SetContentType.func2]()
 		- **/schedules/available**
 			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.11]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).getAvailableTimeSlots-fm]()
 
 </details>
@@ -834,9 +865,8 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.SetContentType.func2]()
 		- **/students/{studentId}**
 			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.21]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).getStudentEnrollments-fm]()
 
 </details>
@@ -853,9 +883,8 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.SetContentType.func2]()
 		- **/students/{studentId}/available**
 			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.22]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).getAvailableActivities-fm]()
 
 </details>
@@ -872,9 +901,8 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.SetContentType.func2]()
 		- **/supervisors/available**
 			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.16]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).getAvailableSupervisors-fm]()
 
 </details>
@@ -891,9 +919,8 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.SetContentType.func2]()
 		- **/timespans**
 			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.4]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).getTimespans-fm]()
 
 </details>
@@ -910,19 +937,16 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.SetContentType.func2]()
 		- **/{id}**
 			- _DELETE_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.8]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).deleteActivity-fm]()
 			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.2]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).getActivity-fm]()
 			- _PUT_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.7]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).updateActivity-fm]()
 
 </details>
@@ -938,16 +962,14 @@ MOTO REST API for RFID-based system.
 	- **/activities**
 		- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.SetContentType.func2]()
 		- **/{id}/schedules**
-			- _POST_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
-				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.12]()
-				- [oto-nrw/project-phoenix/api/activities.(*Resource).createActivitySchedule-fm]()
 			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.9]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).getActivitySchedules-fm]()
+			- _POST_
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
+				- [Authenticator]()
+				- [oto-nrw/project-phoenix/api/activities.(*Resource).createActivitySchedule-fm]()
 
 </details>
 <details>
@@ -962,21 +984,18 @@ MOTO REST API for RFID-based system.
 	- **/activities**
 		- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.SetContentType.func2]()
 		- **/{id}/schedules/{scheduleId}**
-			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+			- _DELETE_
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.10]()
+				- [oto-nrw/project-phoenix/api/activities.(*Resource).deleteActivitySchedule-fm]()
+			- _GET_
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
+				- [Authenticator]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).getActivitySchedule-fm]()
 			- _PUT_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.13]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).updateActivitySchedule-fm]()
-			- _DELETE_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
-				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.14]()
-				- [oto-nrw/project-phoenix/api/activities.(*Resource).deleteActivitySchedule-fm]()
 
 </details>
 <details>
@@ -992,14 +1011,12 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.SetContentType.func2]()
 		- **/{id}/students**
 			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.20]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).getActivityStudents-fm]()
 			- _PUT_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.25]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).updateGroupEnrollments-fm]()
 
 </details>
@@ -1016,14 +1033,12 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.SetContentType.func2]()
 		- **/{id}/students/{studentId}**
 			- _POST_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.23]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).enrollStudent-fm]()
 			- _DELETE_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.24]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).unenrollStudent-fm]()
 
 </details>
@@ -1040,14 +1055,12 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.SetContentType.func2]()
 		- **/{id}/supervisors**
 			- _POST_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.17]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).assignSupervisor-fm]()
 			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.15]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).getActivitySupervisors-fm]()
 
 </details>
@@ -1064,14 +1077,12 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.SetContentType.func2]()
 		- **/{id}/supervisors/{supervisorId}**
 			- _PUT_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.18]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).updateSupervisorRole-fm]()
 			- _DELETE_
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.26]()
+				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.1]()
 				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/activities.(*Resource).Router.func1.RequiresPermission.19]()
 				- [oto-nrw/project-phoenix/api/activities.(*Resource).removeSupervisor-fm]()
 
 </details>
@@ -1087,16 +1098,16 @@ MOTO REST API for RFID-based system.
 	- **/config**
 		- [github.com/moto-nrw/project-phoenix/api/config.(*Resource).Router.SetContentType.func2]()
 		- **/**
-			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/config.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.17]()
-				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/config.(*Resource).Router.func1.RequiresPermission.1]()
-				- [oto-nrw/project-phoenix/api/config.(*Resource).listSettings-fm]()
 			- _POST_
 				- [github.com/moto-nrw/project-phoenix/api/config.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.17]()
 				- [Authenticator]()
 				- [github.com/moto-nrw/project-phoenix/api/config.(*Resource).Router.func1.RequiresPermission.7]()
 				- [oto-nrw/project-phoenix/api/config.(*Resource).createSetting-fm]()
+			- _GET_
+				- [github.com/moto-nrw/project-phoenix/api/config.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.17]()
+				- [Authenticator]()
+				- [github.com/moto-nrw/project-phoenix/api/config.(*Resource).Router.func1.RequiresPermission.1]()
+				- [oto-nrw/project-phoenix/api/config.(*Resource).listSettings-fm]()
 
 </details>
 <details>
@@ -1187,16 +1198,16 @@ MOTO REST API for RFID-based system.
 	- **/config**
 		- [github.com/moto-nrw/project-phoenix/api/config.(*Resource).Router.SetContentType.func2]()
 		- **/key/{key}**
-			- _PATCH_
-				- [github.com/moto-nrw/project-phoenix/api/config.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.17]()
-				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/config.(*Resource).Router.func1.RequiresPermission.9]()
-				- [oto-nrw/project-phoenix/api/config.(*Resource).updateSettingValue-fm]()
 			- _GET_
 				- [github.com/moto-nrw/project-phoenix/api/config.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.17]()
 				- [Authenticator]()
 				- [github.com/moto-nrw/project-phoenix/api/config.(*Resource).Router.func1.RequiresPermission.3]()
 				- [oto-nrw/project-phoenix/api/config.(*Resource).getSettingByKey-fm]()
+			- _PATCH_
+				- [github.com/moto-nrw/project-phoenix/api/config.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.17]()
+				- [Authenticator]()
+				- [github.com/moto-nrw/project-phoenix/api/config.(*Resource).Router.func1.RequiresPermission.9]()
+				- [oto-nrw/project-phoenix/api/config.(*Resource).updateSettingValue-fm]()
 
 </details>
 <details>
@@ -1458,16 +1469,16 @@ MOTO REST API for RFID-based system.
 	- **/feedback**
 		- [github.com/moto-nrw/project-phoenix/api/feedback.(*Resource).Router.SetContentType.func2]()
 		- **/{id}**
-			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/feedback.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.10]()
-				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/feedback.(*Resource).Router.func1.RequiresPermission.2]()
-				- [oto-nrw/project-phoenix/api/feedback.(*Resource).getFeedback-fm]()
 			- _DELETE_
 				- [github.com/moto-nrw/project-phoenix/api/feedback.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.10]()
 				- [Authenticator]()
 				- [github.com/moto-nrw/project-phoenix/api/feedback.(*Resource).Router.func1.RequiresPermission.9]()
 				- [oto-nrw/project-phoenix/api/feedback.(*Resource).deleteFeedback-fm]()
+			- _GET_
+				- [github.com/moto-nrw/project-phoenix/api/feedback.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.10]()
+				- [Authenticator]()
+				- [github.com/moto-nrw/project-phoenix/api/feedback.(*Resource).Router.func1.RequiresPermission.2]()
+				- [oto-nrw/project-phoenix/api/feedback.(*Resource).getFeedback-fm]()
 
 </details>
 <details>
@@ -1482,16 +1493,16 @@ MOTO REST API for RFID-based system.
 	- **/groups**
 		- [github.com/moto-nrw/project-phoenix/api/groups.(*Resource).Router.SetContentType.func2]()
 		- **/**
-			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/groups.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.10]()
-				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/groups.(*Resource).Router.func1.RequiresPermission.1]()
-				- [oto-nrw/project-phoenix/api/groups.(*Resource).listGroups-fm]()
 			- _POST_
 				- [github.com/moto-nrw/project-phoenix/api/groups.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.10]()
 				- [Authenticator]()
 				- [github.com/moto-nrw/project-phoenix/api/groups.(*Resource).Router.func1.RequiresPermission.7]()
 				- [oto-nrw/project-phoenix/api/groups.(*Resource).createGroup-fm]()
+			- _GET_
+				- [github.com/moto-nrw/project-phoenix/api/groups.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.10]()
+				- [Authenticator]()
+				- [github.com/moto-nrw/project-phoenix/api/groups.(*Resource).Router.func1.RequiresPermission.1]()
+				- [oto-nrw/project-phoenix/api/groups.(*Resource).listGroups-fm]()
 
 </details>
 <details>
@@ -1506,6 +1517,11 @@ MOTO REST API for RFID-based system.
 	- **/groups**
 		- [github.com/moto-nrw/project-phoenix/api/groups.(*Resource).Router.SetContentType.func2]()
 		- **/{id}**
+			- _DELETE_
+				- [github.com/moto-nrw/project-phoenix/api/groups.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.10]()
+				- [Authenticator]()
+				- [github.com/moto-nrw/project-phoenix/api/groups.(*Resource).Router.func1.RequiresPermission.9]()
+				- [oto-nrw/project-phoenix/api/groups.(*Resource).deleteGroup-fm]()
 			- _GET_
 				- [github.com/moto-nrw/project-phoenix/api/groups.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.10]()
 				- [Authenticator]()
@@ -1516,11 +1532,6 @@ MOTO REST API for RFID-based system.
 				- [Authenticator]()
 				- [github.com/moto-nrw/project-phoenix/api/groups.(*Resource).Router.func1.RequiresPermission.8]()
 				- [oto-nrw/project-phoenix/api/groups.(*Resource).updateGroup-fm]()
-			- _DELETE_
-				- [github.com/moto-nrw/project-phoenix/api/groups.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.10]()
-				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/groups.(*Resource).Router.func1.RequiresPermission.9]()
-				- [oto-nrw/project-phoenix/api/groups.(*Resource).deleteGroup-fm]()
 
 </details>
 <details>
@@ -2203,6 +2214,11 @@ MOTO REST API for RFID-based system.
 	- **/iot**
 		- [github.com/moto-nrw/project-phoenix/api/iot.(*Resource).Router.SetContentType.func5]()
 		- **/{id}**
+			- _GET_
+				- [github.com/moto-nrw/project-phoenix/api/iot.(*Resource).Router.func2.(*TokenAuth).Verifier.Verifier.Verify.18]()
+				- [Authenticator]()
+				- [github.com/moto-nrw/project-phoenix/api/iot.(*Resource).Router.func2.RequiresPermission.2]()
+				- [oto-nrw/project-phoenix/api/iot.(*Resource).getDevice-fm]()
 			- _PUT_
 				- [github.com/moto-nrw/project-phoenix/api/iot.(*Resource).Router.func2.(*TokenAuth).Verifier.Verifier.Verify.18]()
 				- [Authenticator]()
@@ -2213,11 +2229,6 @@ MOTO REST API for RFID-based system.
 				- [Authenticator]()
 				- [github.com/moto-nrw/project-phoenix/api/iot.(*Resource).Router.func2.RequiresPermission.13]()
 				- [oto-nrw/project-phoenix/api/iot.(*Resource).deleteDevice-fm]()
-			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/iot.(*Resource).Router.func2.(*TokenAuth).Verifier.Verifier.Verify.18]()
-				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/iot.(*Resource).Router.func2.RequiresPermission.2]()
-				- [oto-nrw/project-phoenix/api/iot.(*Resource).getDevice-fm]()
 
 </details>
 <details>
@@ -2448,13 +2459,13 @@ MOTO REST API for RFID-based system.
 	- **/rooms**
 		- [github.com/moto-nrw/project-phoenix/api/rooms.(*Resource).Router.SetContentType.func3]()
 		- **/**
+			- _GET_
+				- [oto-nrw/project-phoenix/api/rooms.(*Resource).listRooms-fm]()
 			- _POST_
 				- [github.com/moto-nrw/project-phoenix/api/rooms.(*Resource).Router.func2.(*TokenAuth).Verifier.Verifier.Verify.7]()
 				- [Authenticator]()
 				- [github.com/moto-nrw/project-phoenix/api/rooms.(*Resource).Router.func2.RequiresPermission.1]()
 				- [oto-nrw/project-phoenix/api/rooms.(*Resource).createRoom-fm]()
-			- _GET_
-				- [oto-nrw/project-phoenix/api/rooms.(*Resource).listRooms-fm]()
 
 </details>
 <details>
@@ -2542,8 +2553,6 @@ MOTO REST API for RFID-based system.
 	- **/rooms**
 		- [github.com/moto-nrw/project-phoenix/api/rooms.(*Resource).Router.SetContentType.func3]()
 		- **/{id}**
-			- _GET_
-				- [oto-nrw/project-phoenix/api/rooms.(*Resource).getRoom-fm]()
 			- _PUT_
 				- [github.com/moto-nrw/project-phoenix/api/rooms.(*Resource).Router.func2.(*TokenAuth).Verifier.Verifier.Verify.7]()
 				- [Authenticator]()
@@ -2554,6 +2563,8 @@ MOTO REST API for RFID-based system.
 				- [Authenticator]()
 				- [github.com/moto-nrw/project-phoenix/api/rooms.(*Resource).Router.func2.RequiresPermission.3]()
 				- [oto-nrw/project-phoenix/api/rooms.(*Resource).deleteRoom-fm]()
+			- _GET_
+				- [oto-nrw/project-phoenix/api/rooms.(*Resource).getRoom-fm]()
 
 </details>
 <details>
@@ -2620,12 +2631,12 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.SetContentType.func3]()
 		- **/dateframes**
 			- **/**
-				- _POST_
-					- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.func2.1.RequiresPermission.3]()
-					- [oto-nrw/project-phoenix/api/schedules.(*Resource).createDateframe-fm]()
 				- _GET_
 					- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.func2.1.RequiresPermission.1]()
 					- [oto-nrw/project-phoenix/api/schedules.(*Resource).listDateframes-fm]()
+				- _POST_
+					- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.func2.1.RequiresPermission.3]()
+					- [oto-nrw/project-phoenix/api/schedules.(*Resource).createDateframe-fm]()
 
 </details>
 <details>
@@ -2677,15 +2688,15 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.SetContentType.func3]()
 		- **/dateframes**
 			- **/{id}**
+				- _PUT_
+					- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.func2.1.RequiresPermission.4]()
+					- [oto-nrw/project-phoenix/api/schedules.(*Resource).updateDateframe-fm]()
 				- _DELETE_
 					- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.func2.1.RequiresPermission.5]()
 					- [oto-nrw/project-phoenix/api/schedules.(*Resource).deleteDateframe-fm]()
 				- _GET_
 					- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.func2.1.RequiresPermission.2]()
 					- [oto-nrw/project-phoenix/api/schedules.(*Resource).getDateframe-fm]()
-				- _PUT_
-					- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.func2.1.RequiresPermission.4]()
-					- [oto-nrw/project-phoenix/api/schedules.(*Resource).updateDateframe-fm]()
 
 </details>
 <details>
@@ -2720,12 +2731,12 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.SetContentType.func3]()
 		- **/recurrence-rules**
 			- **/**
-				- _POST_
-					- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.func2.3.RequiresPermission.3]()
-					- [oto-nrw/project-phoenix/api/schedules.(*Resource).createRecurrenceRule-fm]()
 				- _GET_
 					- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.func2.3.RequiresPermission.1]()
 					- [oto-nrw/project-phoenix/api/schedules.(*Resource).listRecurrenceRules-fm]()
+				- _POST_
+					- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.func2.3.RequiresPermission.3]()
+					- [oto-nrw/project-phoenix/api/schedules.(*Resource).createRecurrenceRule-fm]()
 
 </details>
 <details>
@@ -2876,15 +2887,15 @@ MOTO REST API for RFID-based system.
 		- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.SetContentType.func3]()
 		- **/timeframes**
 			- **/{id}**
+				- _GET_
+					- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.func2.2.RequiresPermission.2]()
+					- [oto-nrw/project-phoenix/api/schedules.(*Resource).getTimeframe-fm]()
 				- _PUT_
 					- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.func2.2.RequiresPermission.4]()
 					- [oto-nrw/project-phoenix/api/schedules.(*Resource).updateTimeframe-fm]()
 				- _DELETE_
 					- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.func2.2.RequiresPermission.5]()
 					- [oto-nrw/project-phoenix/api/schedules.(*Resource).deleteTimeframe-fm]()
-				- _GET_
-					- [github.com/moto-nrw/project-phoenix/api/schedules.(*Resource).Router.func2.2.RequiresPermission.2]()
-					- [oto-nrw/project-phoenix/api/schedules.(*Resource).getTimeframe-fm]()
 
 </details>
 <details>
@@ -2961,14 +2972,14 @@ MOTO REST API for RFID-based system.
 	- **/staff**
 		- [github.com/moto-nrw/project-phoenix/api/staff.(*Resource).Router.SetContentType.func2]()
 		- **/pin**
-			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/staff.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.10]()
-				- [Authenticator]()
-				- [oto-nrw/project-phoenix/api/staff.(*Resource).getPINStatus-fm]()
 			- _PUT_
 				- [github.com/moto-nrw/project-phoenix/api/staff.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.10]()
 				- [Authenticator]()
 				- [oto-nrw/project-phoenix/api/staff.(*Resource).updatePIN-fm]()
+			- _GET_
+				- [github.com/moto-nrw/project-phoenix/api/staff.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.10]()
+				- [Authenticator]()
+				- [oto-nrw/project-phoenix/api/staff.(*Resource).getPINStatus-fm]()
 
 </details>
 <details>
@@ -2983,11 +2994,6 @@ MOTO REST API for RFID-based system.
 	- **/staff**
 		- [github.com/moto-nrw/project-phoenix/api/staff.(*Resource).Router.SetContentType.func2]()
 		- **/{id}**
-			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/staff.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.10]()
-				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/staff.(*Resource).Router.func1.RequiresPermission.2]()
-				- [oto-nrw/project-phoenix/api/staff.(*Resource).getStaff-fm]()
 			- _PUT_
 				- [github.com/moto-nrw/project-phoenix/api/staff.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.10]()
 				- [Authenticator]()
@@ -2998,6 +3004,11 @@ MOTO REST API for RFID-based system.
 				- [Authenticator]()
 				- [github.com/moto-nrw/project-phoenix/api/staff.(*Resource).Router.func1.RequiresPermission.9]()
 				- [oto-nrw/project-phoenix/api/staff.(*Resource).deleteStaff-fm]()
+			- _GET_
+				- [github.com/moto-nrw/project-phoenix/api/staff.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.10]()
+				- [Authenticator]()
+				- [github.com/moto-nrw/project-phoenix/api/staff.(*Resource).Router.func1.RequiresPermission.2]()
+				- [oto-nrw/project-phoenix/api/staff.(*Resource).getStaff-fm]()
 
 </details>
 <details>
@@ -3074,6 +3085,11 @@ MOTO REST API for RFID-based system.
 	- **/students**
 		- [github.com/moto-nrw/project-phoenix/api/students.(*Resource).Router.SetContentType.func3]()
 		- **/{id}**
+			- _DELETE_
+				- [github.com/moto-nrw/project-phoenix/api/students.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.12]()
+				- [Authenticator]()
+				- [github.com/moto-nrw/project-phoenix/api/students.(*Resource).Router.func1.RequiresPermission.9]()
+				- [oto-nrw/project-phoenix/api/students.(*Resource).deleteStudent-fm]()
 			- _GET_
 				- [github.com/moto-nrw/project-phoenix/api/students.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.12]()
 				- [Authenticator]()
@@ -3084,11 +3100,6 @@ MOTO REST API for RFID-based system.
 				- [Authenticator]()
 				- [github.com/moto-nrw/project-phoenix/api/students.(*Resource).Router.func1.RequiresPermission.8]()
 				- [oto-nrw/project-phoenix/api/students.(*Resource).updateStudent-fm]()
-			- _DELETE_
-				- [github.com/moto-nrw/project-phoenix/api/students.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.12]()
-				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/students.(*Resource).Router.func1.RequiresPermission.9]()
-				- [oto-nrw/project-phoenix/api/students.(*Resource).deleteStudent-fm]()
 
 </details>
 <details>
@@ -3160,16 +3171,16 @@ MOTO REST API for RFID-based system.
 	- **/students**
 		- [github.com/moto-nrw/project-phoenix/api/students.(*Resource).Router.SetContentType.func3]()
 		- **/{id}/privacy-consent**
-			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/students.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.12]()
-				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/students.(*Resource).Router.func1.RequiresPermission.10]()
-				- [oto-nrw/project-phoenix/api/students.(*Resource).getStudentPrivacyConsent-fm]()
 			- _PUT_
 				- [github.com/moto-nrw/project-phoenix/api/students.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.12]()
 				- [Authenticator]()
 				- [github.com/moto-nrw/project-phoenix/api/students.(*Resource).Router.func1.RequiresPermission.11]()
 				- [oto-nrw/project-phoenix/api/students.(*Resource).updateStudentPrivacyConsent-fm]()
+			- _GET_
+				- [github.com/moto-nrw/project-phoenix/api/students.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.12]()
+				- [Authenticator]()
+				- [github.com/moto-nrw/project-phoenix/api/students.(*Resource).Router.func1.RequiresPermission.10]()
+				- [oto-nrw/project-phoenix/api/students.(*Resource).getStudentPrivacyConsent-fm]()
 
 </details>
 <details>
@@ -3220,16 +3231,16 @@ MOTO REST API for RFID-based system.
 	- **/substitutions**
 		- [github.com/moto-nrw/project-phoenix/api/substitutions.(*Resource).Router.SetContentType.func2]()
 		- **/**
-			- _POST_
-				- [github.com/moto-nrw/project-phoenix/api/substitutions.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.7]()
-				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/substitutions.(*Resource).Router.func1.RequiresPermission.4]()
-				- [oto-nrw/project-phoenix/api/substitutions.(*Resource).create-fm]()
 			- _GET_
 				- [github.com/moto-nrw/project-phoenix/api/substitutions.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.7]()
 				- [Authenticator]()
 				- [github.com/moto-nrw/project-phoenix/api/substitutions.(*Resource).Router.func1.RequiresPermission.1]()
 				- [oto-nrw/project-phoenix/api/substitutions.(*Resource).list-fm]()
+			- _POST_
+				- [github.com/moto-nrw/project-phoenix/api/substitutions.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.7]()
+				- [Authenticator]()
+				- [github.com/moto-nrw/project-phoenix/api/substitutions.(*Resource).Router.func1.RequiresPermission.4]()
+				- [oto-nrw/project-phoenix/api/substitutions.(*Resource).create-fm]()
 
 </details>
 <details>
@@ -3263,11 +3274,6 @@ MOTO REST API for RFID-based system.
 	- **/substitutions**
 		- [github.com/moto-nrw/project-phoenix/api/substitutions.(*Resource).Router.SetContentType.func2]()
 		- **/{id}**
-			- _PUT_
-				- [github.com/moto-nrw/project-phoenix/api/substitutions.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.7]()
-				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/substitutions.(*Resource).Router.func1.RequiresPermission.5]()
-				- [oto-nrw/project-phoenix/api/substitutions.(*Resource).update-fm]()
 			- _DELETE_
 				- [github.com/moto-nrw/project-phoenix/api/substitutions.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.7]()
 				- [Authenticator]()
@@ -3278,6 +3284,11 @@ MOTO REST API for RFID-based system.
 				- [Authenticator]()
 				- [github.com/moto-nrw/project-phoenix/api/substitutions.(*Resource).Router.func1.RequiresPermission.3]()
 				- [oto-nrw/project-phoenix/api/substitutions.(*Resource).get-fm]()
+			- _PUT_
+				- [github.com/moto-nrw/project-phoenix/api/substitutions.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.7]()
+				- [Authenticator]()
+				- [github.com/moto-nrw/project-phoenix/api/substitutions.(*Resource).Router.func1.RequiresPermission.5]()
+				- [oto-nrw/project-phoenix/api/substitutions.(*Resource).update-fm]()
 
 </details>
 <details>
@@ -3292,16 +3303,16 @@ MOTO REST API for RFID-based system.
 	- **/users**
 		- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.SetContentType.func2]()
 		- **/**
-			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.15]()
-				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.RequiresPermission.1]()
-				- [oto-nrw/project-phoenix/api/users.(*Resource).listPersons-fm]()
 			- _POST_
 				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.15]()
 				- [Authenticator]()
 				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.RequiresPermission.7]()
 				- [oto-nrw/project-phoenix/api/users.(*Resource).createPerson-fm]()
+			- _GET_
+				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.15]()
+				- [Authenticator]()
+				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.RequiresPermission.1]()
+				- [oto-nrw/project-phoenix/api/users.(*Resource).listPersons-fm]()
 
 </details>
 <details>
@@ -3421,16 +3432,16 @@ MOTO REST API for RFID-based system.
 	- **/users**
 		- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.SetContentType.func2]()
 		- **/{id}/account**
-			- _DELETE_
-				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.15]()
-				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.RequiresPermission.13]()
-				- [oto-nrw/project-phoenix/api/users.(*Resource).unlinkAccount-fm]()
 			- _PUT_
 				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.15]()
 				- [Authenticator]()
 				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.RequiresPermission.12]()
 				- [oto-nrw/project-phoenix/api/users.(*Resource).linkAccount-fm]()
+			- _DELETE_
+				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.15]()
+				- [Authenticator]()
+				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.RequiresPermission.13]()
+				- [oto-nrw/project-phoenix/api/users.(*Resource).unlinkAccount-fm]()
 
 </details>
 <details>
@@ -3464,16 +3475,16 @@ MOTO REST API for RFID-based system.
 	- **/users**
 		- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.SetContentType.func2]()
 		- **/{id}/rfid**
-			- _PUT_
-				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.15]()
-				- [Authenticator]()
-				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.RequiresPermission.10]()
-				- [oto-nrw/project-phoenix/api/users.(*Resource).linkRFID-fm]()
 			- _DELETE_
 				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.15]()
 				- [Authenticator]()
 				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.RequiresPermission.11]()
 				- [oto-nrw/project-phoenix/api/users.(*Resource).unlinkRFID-fm]()
+			- _PUT_
+				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.(*TokenAuth).Verifier.Verifier.Verify.15]()
+				- [Authenticator]()
+				- [github.com/moto-nrw/project-phoenix/api/users.(*Resource).Router.func1.RequiresPermission.10]()
+				- [oto-nrw/project-phoenix/api/users.(*Resource).linkRFID-fm]()
 
 </details>
 <details>
@@ -3731,12 +3742,12 @@ MOTO REST API for RFID-based system.
 		- **/{accountId}**
 			- **/tokens**
 				- **/**
-					- _DELETE_
-						- [github.com/moto-nrw/project-phoenix/api/auth.(*Resource).Router.func2.1.3.1.3.RequiresPermission.2]()
-						- [oto-nrw/project-phoenix/api/auth.(*Resource).revokeAllTokens-fm]()
 					- _GET_
 						- [github.com/moto-nrw/project-phoenix/api/auth.(*Resource).Router.func2.1.3.1.3.RequiresPermission.1]()
 						- [oto-nrw/project-phoenix/api/auth.(*Resource).getActiveTokens-fm]()
+					- _DELETE_
+						- [github.com/moto-nrw/project-phoenix/api/auth.(*Resource).Router.func2.1.3.1.3.RequiresPermission.2]()
+						- [oto-nrw/project-phoenix/api/auth.(*Resource).revokeAllTokens-fm]()
 
 </details>
 <details>
@@ -3783,12 +3794,12 @@ MOTO REST API for RFID-based system.
 	- [github.com/moto-nrw/project-phoenix/api/auth.(*Resource).Router.SetContentType.func3]()
 	- **/parent-accounts**
 		- **/**
-			- _POST_
-				- [github.com/moto-nrw/project-phoenix/api/auth.(*Resource).Router.func2.1.6.RequiresPermission.2]()
-				- [oto-nrw/project-phoenix/api/auth.(*Resource).createParentAccount-fm]()
 			- _GET_
 				- [github.com/moto-nrw/project-phoenix/api/auth.(*Resource).Router.func2.1.6.RequiresPermission.3]()
 				- [oto-nrw/project-phoenix/api/auth.(*Resource).listParentAccounts-fm]()
+			- _POST_
+				- [github.com/moto-nrw/project-phoenix/api/auth.(*Resource).Router.func2.1.6.RequiresPermission.2]()
+				- [oto-nrw/project-phoenix/api/auth.(*Resource).createParentAccount-fm]()
 
 </details>
 <details>
@@ -3907,12 +3918,12 @@ MOTO REST API for RFID-based system.
 	- [github.com/moto-nrw/project-phoenix/api/auth.(*Resource).Router.SetContentType.func3]()
 	- **/permissions**
 		- **/**
-			- _GET_
-				- [github.com/moto-nrw/project-phoenix/api/auth.(*Resource).Router.func2.1.2.RequiresPermission.3]()
-				- [oto-nrw/project-phoenix/api/auth.(*Resource).listPermissions-fm]()
 			- _POST_
 				- [github.com/moto-nrw/project-phoenix/api/auth.(*Resource).Router.func2.1.2.RequiresPermission.2]()
 				- [oto-nrw/project-phoenix/api/auth.(*Resource).createPermission-fm]()
+			- _GET_
+				- [github.com/moto-nrw/project-phoenix/api/auth.(*Resource).Router.func2.1.2.RequiresPermission.3]()
+				- [oto-nrw/project-phoenix/api/auth.(*Resource).listPermissions-fm]()
 
 </details>
 <details>
@@ -4004,15 +4015,15 @@ MOTO REST API for RFID-based system.
 	- **/roles**
 		- **/{id}**
 			- **/**
-				- _GET_
-					- [github.com/moto-nrw/project-phoenix/api/auth.(*Resource).Router.func2.1.1.1.RequiresPermission.1]()
-					- [oto-nrw/project-phoenix/api/auth.(*Resource).getRoleByID-fm]()
 				- _PUT_
 					- [github.com/moto-nrw/project-phoenix/api/auth.(*Resource).Router.func2.1.1.1.RequiresPermission.2]()
 					- [oto-nrw/project-phoenix/api/auth.(*Resource).updateRole-fm]()
 				- _DELETE_
 					- [github.com/moto-nrw/project-phoenix/api/auth.(*Resource).Router.func2.1.1.1.RequiresPermission.3]()
 					- [oto-nrw/project-phoenix/api/auth.(*Resource).deleteRole-fm]()
+				- _GET_
+					- [github.com/moto-nrw/project-phoenix/api/auth.(*Resource).Router.func2.1.1.1.RequiresPermission.1]()
+					- [oto-nrw/project-phoenix/api/auth.(*Resource).getRoleByID-fm]()
 
 </details>
 <details>
@@ -4101,4 +4112,4 @@ MOTO REST API for RFID-based system.
 
 </details>
 
-Total # of routes: 209
+Total # of routes: 211

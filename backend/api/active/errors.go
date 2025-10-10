@@ -99,6 +99,10 @@ func ErrorRenderer(err error) render.Renderer {
 	case errors.Is(err, activeSvc.ErrInvalidTimeRange):
 		renderer.HTTPStatusCode = http.StatusBadRequest
 		renderer.StatusText = "Invalid Time Range"
+
+	case errors.Is(err, activeSvc.ErrRoomConflict):
+		renderer.HTTPStatusCode = http.StatusConflict
+		renderer.StatusText = "Room Conflict"
 	}
 
 	return renderer
