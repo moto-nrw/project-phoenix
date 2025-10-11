@@ -141,6 +141,10 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/session/activity", rs.updateSessionActivity)
 		r.Post("/session/validate-timeout", rs.validateSessionTimeout)
 		r.Get("/session/timeout-info", rs.getSessionTimeoutInfo)
+
+		// Staff RFID tag management
+		r.Post("/staff/{staffId}/rfid", rs.assignStaffRFIDTag)
+		r.Delete("/staff/{staffId}/rfid", rs.unassignStaffRFIDTag)
 	})
 
 	return r
@@ -990,6 +994,35 @@ type RFIDTagAssignedStudent struct {
 	ID    int64  `json:"id"`
 	Name  string `json:"name"`
 	Group string `json:"group"`
+}
+
+// RFIDAssignmentRequest represents an RFID tag assignment request (for students and staff)
+type RFIDAssignmentRequest struct {
+	RFIDTag string `json:"rfid_tag"`
+}
+
+// RFIDAssignmentResponse represents an RFID tag assignment response (for students and staff)
+type RFIDAssignmentResponse struct {
+	Success     bool    `json:"success"`
+	StudentID   int64   `json:"student_id"`   // For students: student_id, for staff: staff_id
+	StudentName string  `json:"student_name"` // For students: student name, for staff: staff name
+	RFIDTag     string  `json:"rfid_tag"`
+	PreviousTag *string `json:"previous_tag,omitempty"`
+	Message     string  `json:"message"`
+}
+
+// Bind validates the RFID assignment request
+func (req *RFIDAssignmentRequest) Bind(r *http.Request) error {
+	if req.RFIDTag == "" {
+		return errors.New("rfid_tag is required")
+	}
+	if len(req.RFIDTag) < 8 {
+		return errors.New("rfid_tag must be at least 8 characters")
+	}
+	if len(req.RFIDTag) > 64 {
+		return errors.New("rfid_tag must be at most 64 characters")
+	}
+	return nil
 }
 
 // Bind validates the checkin request
@@ -2761,4 +2794,163 @@ func normalizeTagID(tagID string) string {
 
 	// Convert to uppercase
 	return strings.ToUpper(tagID)
+}
+
+// assignStaffRFIDTag handles assigning an RFID tag to a staff member (device-authenticated endpoint)
+func (rs *Resource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+
+	if deviceCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Parse staff ID from URL
+	staffID, err := strconv.ParseInt(chi.URLParam(r, "staffId"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Parse request
+	req := &RFIDAssignmentRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get the staff member
+	staffRepo := rs.UsersService.StaffRepository()
+	staff, err := staffRepo.FindByID(r.Context(), staffID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("staff not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get person details for the staff member
+	person, err := rs.UsersService.Get(r.Context(), staff.PersonID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for staff"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Store previous tag for response
+	var previousTag *string
+	if person.TagID != nil {
+		previousTag = person.TagID
+	}
+
+	// Assign the RFID tag (this handles unlinking old assignments automatically)
+	if err := rs.UsersService.LinkToRFIDCard(r.Context(), person.ID, req.RFIDTag); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Create response (reuse student response type with staff data)
+	response := RFIDAssignmentResponse{
+		Success:     true,
+		StudentID:   staff.ID, // Field name is StudentID but holds staff_id
+		StudentName: person.FirstName + " " + person.LastName,
+		RFIDTag:     req.RFIDTag,
+		PreviousTag: previousTag,
+		Message:     "RFID tag assigned successfully",
+	}
+
+	if previousTag != nil {
+		response.Message = "RFID tag assigned successfully (previous tag replaced)"
+	}
+
+	// Log assignment for audit trail
+	log.Printf("RFID tag assignment: device=%s, staff=%d, tag=%s, previous_tag=%v",
+		deviceCtx.DeviceID, staffID, req.RFIDTag, previousTag)
+
+	common.Respond(w, r, http.StatusOK, response, response.Message)
+}
+
+// unassignStaffRFIDTag handles removing an RFID tag from a staff member (device-authenticated endpoint)
+func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+
+	if deviceCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Parse staff ID from URL
+	staffID, err := strconv.ParseInt(chi.URLParam(r, "staffId"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get the staff member
+	staffRepo := rs.UsersService.StaffRepository()
+	staff, err := staffRepo.FindByID(r.Context(), staffID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("staff not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get person details for the staff member
+	person, err := rs.UsersService.Get(r.Context(), staff.PersonID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for staff"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if staff has an RFID tag assigned
+	if person.TagID == nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("staff has no RFID tag assigned"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Store removed tag for response
+	removedTag := *person.TagID
+
+	// Unlink the RFID tag
+	if err := rs.UsersService.UnlinkFromRFIDCard(r.Context(), person.ID); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Create response (reuse student response type with staff data)
+	response := RFIDAssignmentResponse{
+		Success:     true,
+		StudentID:   staff.ID, // Field name is StudentID but holds staff_id
+		StudentName: person.FirstName + " " + person.LastName,
+		RFIDTag:     removedTag,
+		Message:     "RFID tag unassigned successfully",
+	}
+
+	// Log unassignment for audit trail
+	log.Printf("RFID tag unassignment: device=%s, staff=%d, tag=%s",
+		deviceCtx.DeviceID, staffID, removedTag)
+
+	common.Respond(w, r, http.StatusOK, response, response.Message)
 }
