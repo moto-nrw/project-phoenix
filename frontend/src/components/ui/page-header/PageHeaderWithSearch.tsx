@@ -116,7 +116,7 @@ export function PageHeaderWithSearch({
                   <span className="text-gray-600 flex-shrink-0">{badge.icon}</span>
                 )}
                 <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                  <span className="hidden xl:inline">{badge.count} Kinder</span>
+                  <span className="hidden xl:inline">{badge.count} {badge.label ?? "Kinder"}</span>
                   <span className="xl:hidden">{badge.count}</span>
                 </span>
               </div>
