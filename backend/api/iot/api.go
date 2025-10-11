@@ -26,6 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -1099,26 +1100,42 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[CHECKIN] RFID tag %s belongs to person: %s %s (ID: %d)",
 		req.StudentRFID, person.FirstName, person.LastName, person.ID)
 
-	// Get student details from person
+	// Try to find student first
 	studentRepo := rs.UsersService.StudentRepository()
 	student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
-	if err != nil {
-		log.Printf("[CHECKIN] ERROR: Person %d is not a student: %v", person.ID, err)
-		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
+
+	// If student found, process student check-in/out
+	if student != nil {
+		log.Printf("[CHECKIN] Found student: ID %d, Class: %s", student.ID, student.SchoolClass)
+		// Continue with existing student logic below
+	} else {
+		// Student not found - try staff for supervisor authentication
+		log.Printf("[CHECKIN] Person %d is not a student, checking if staff...", person.ID)
+
+		staffRepo := rs.UsersService.StaffRepository()
+		staff, err := staffRepo.FindByPersonID(r.Context(), person.ID)
+		if err != nil {
+			log.Printf("[CHECKIN] ERROR: Failed to lookup staff for person %d: %v", person.ID, err)
+			if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to student or staff"))); err != nil {
+				log.Printf("Render error: %v", err)
+			}
+			return
+		}
+
+		if staff != nil {
+			// Handle supervisor authentication
+			log.Printf("[CHECKIN] Found staff: ID %d, routing to supervisor authentication", staff.ID)
+			rs.handleSupervisorScan(w, r, deviceCtx, staff, person)
+			return
+		}
+
+		// Neither student nor staff
+		log.Printf("[CHECKIN] ERROR: Person %d is neither student nor staff", person.ID)
+		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to student or staff"))); err != nil {
 			log.Printf("Render error: %v", err)
 		}
 		return
 	}
-
-	if student == nil {
-		log.Printf("[CHECKIN] ERROR: Person %d is not registered as a student", person.ID)
-		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
-		return
-	}
-
-	log.Printf("[CHECKIN] Found student: ID %d, Class: %s", student.ID, student.SchoolClass)
 
 	// Load person details for student name
 	student.Person = person
@@ -1429,6 +1446,98 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Student "+actionMsg+" successfully")
+}
+
+// handleSupervisorScan processes RFID scan for staff members (supervisor authentication)
+func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request, deviceCtx *iot.Device, staff *users.Staff, person *users.Person) {
+	ctx := r.Context()
+
+	log.Printf("[SUPERVISOR_AUTH] Staff %s %s (ID: %d) scanned at device %s",
+		person.FirstName, person.LastName, staff.ID, deviceCtx.DeviceID)
+
+	// 1. Get current session for device
+	session, err := rs.ActiveService.GetDeviceCurrentSession(ctx, deviceCtx.ID)
+	if err != nil {
+		log.Printf("[SUPERVISOR_AUTH] ERROR: No active session at device %s: %v", deviceCtx.DeviceID, err)
+		if err := render.Render(w, r, ErrorNotFound(errors.New("no active session - please start an activity first"))); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Get activity name and room name for response
+	activityName := "Unknown Activity"
+	roomName := "Unknown Room"
+
+	if session.ActualGroup != nil && session.ActualGroup.Name != "" {
+		activityName = session.ActualGroup.Name
+	}
+
+	if session.Room != nil && session.Room.Name != "" {
+		roomName = session.Room.Name
+	}
+
+	log.Printf("[SUPERVISOR_AUTH] Found active session ID %d for activity %s in room %s",
+		session.ID, activityName, roomName)
+
+	// 2. Get session with supervisors to check current list
+	supervisorsGroup, err := rs.ActiveService.GetActiveGroupWithSupervisors(ctx, session.ID)
+	if err != nil {
+		log.Printf("[SUPERVISOR_AUTH] ERROR: Failed to load supervisors: %v", err)
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// 3. Extract current supervisor IDs and check for duplicate
+	supervisorIDs := make([]int64, 0)
+	isDuplicate := false
+
+	if supervisorsGroup.Supervisors != nil {
+		for _, sup := range supervisorsGroup.Supervisors {
+			if sup.StaffID == staff.ID && sup.EndDate == nil {
+				isDuplicate = true
+				log.Printf("[SUPERVISOR_AUTH] Supervisor %d already assigned to session %d (idempotent)", staff.ID, session.ID)
+			}
+			if sup.EndDate == nil { // Only active supervisors
+				supervisorIDs = append(supervisorIDs, sup.StaffID)
+			}
+		}
+	}
+
+	// 4. Add new supervisor if not duplicate
+	if !isDuplicate {
+		supervisorIDs = append(supervisorIDs, staff.ID)
+
+		// Update supervisors
+		_, err = rs.ActiveService.UpdateActiveGroupSupervisors(ctx, session.ID, supervisorIDs)
+		if err != nil {
+			log.Printf("[SUPERVISOR_AUTH] ERROR: Failed to update supervisors: %v", err)
+			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+				log.Printf("Render error: %v", err)
+			}
+			return
+		}
+
+		log.Printf("[SUPERVISOR_AUTH] Added supervisor %d to session %d", staff.ID, session.ID)
+	}
+
+	// 5. Build response (reuse CheckinResponse structure)
+	response := &CheckinResponse{
+		StudentID:   staff.ID, // Reuse field for staff ID
+		StudentName: fmt.Sprintf("%s %s", person.FirstName, person.LastName),
+		Action:      "supervisor_authenticated",
+		RoomName:    roomName,
+		ProcessedAt: time.Now(),
+		Message:     fmt.Sprintf("Supervisor authenticated for %s", activityName),
+		Status:      "success",
+	}
+
+	log.Printf("[SUPERVISOR_AUTH] SUCCESS: Supervisor %s %s authenticated for session %d",
+		person.FirstName, person.LastName, session.ID)
+
+	common.Respond(w, r, http.StatusOK, response, "Supervisor authenticated")
 }
 
 // getTeacherStudents handles getting students supervised by the specified teachers (for RFID devices)
