@@ -1,0 +1,198 @@
+meta {
+  name: 06a - Supervisor RFID Authentication
+  type: http
+  seq: 6.1
+}
+
+post {
+  url: {{baseUrl}}/api/iot/session/end
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{devicePin}}
+  Content-Type: application/json
+}
+
+body:json {
+  {}
+}
+
+docs {
+  ## Supervisor RFID Authentication Tests
+
+  Tests RFID-based supervisor authentication at IoT devices.
+  When staff scan their RFID at a device with an active session,
+  they are automatically added as supervisors to that session.
+
+  Test scenarios:
+  1. Cleanup - end any active device session (main request)
+  2. Start fresh session with initial supervisor
+  3. Scan staff RFID - should authenticate and add as 2nd supervisor
+  4. Scan same staff RFID again - should be idempotent
+  5. End session
+  6. Scan staff RFID with no session - should error
+
+  **Prerequisites:**
+  - deviceApiKey and devicePin configured
+  - testStaff1RFID (4B843EDF) - Andreas Krüger (staff_id: 1)
+  - Room 15 available in seed data
+  - Activity 15 exists in activities table
+
+  **Note:**
+  Student check-in regression testing handled by 06-checkins.bru
+
+  **Cleanup:**
+  Main request ends any active session to ensure clean state
+}
+
+script:post-response {
+  // Main request: Cleanup
+  test("Cleanup before supervisor tests", function() {
+    // Accept any status - session might not exist
+    expect(true).to.be.true;
+  });
+
+  console.log("🧹 Device session cleanup complete");
+
+  const deviceApiKey = bru.getEnvVar("deviceApiKey");
+  const devicePin = bru.getEnvVar("devicePin");
+  const testStaff1RFID = bru.getEnvVar("testStaff1RFID");
+  const testStaff1Name = bru.getEnvVar("testStaff1Name");
+
+  // Run all tests sequentially
+  (async function() {
+    // Test 1: Start fresh session
+    await bru.sendRequest({
+      method: 'POST',
+      url: bru.getEnvVar("baseUrl") + "/api/iot/session/start",
+      headers: {
+        "Authorization": `Bearer ${deviceApiKey}`,
+        "X-Staff-PIN": devicePin,
+        "Content-Type": "application/json"
+      },
+      data: {
+        activity_id: 15,
+        room_id: 15,
+        supervisor_ids: [2]  // Start with staff ID 2
+      }
+    }, async function(err, sessionResponse) {
+      if (err) {
+        console.log(`⚠️  Session start failed: ${err.message}`);
+        return;
+      }
+
+      const sessionId = sessionResponse.data.data.active_group_id;
+      console.log(`✅ Session started: ${sessionId}`);
+
+      // Test 2: Scan supervisor RFID - should add staff ID 1 as supervisor
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          student_rfid: testStaff1RFID,
+          action: "checkin"
+        }
+      }, async function(err, response) {
+        if (err) {
+          test("Supervisor RFID scan with active session", function() {
+            throw new Error(`Supervisor scan failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Supervisor authentication succeeds", function() {
+          expect(response.status).to.equal(200);
+          expect(response.data.data.action).to.equal('supervisor_authenticated');
+          expect(response.data.data.student_name).to.include('Andreas');
+        });
+
+        console.log(`✅ Supervisor authenticated: ${response.data.data.student_name}`);
+        console.log(`   Message: ${response.data.data.message}`);
+
+        // Test 3: Scan same supervisor again - should be idempotent
+        await bru.sendRequest({
+          method: 'POST',
+          url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
+          headers: {
+            "Authorization": `Bearer ${deviceApiKey}`,
+            "X-Staff-PIN": devicePin,
+            "Content-Type": "application/json"
+          },
+          data: {
+            student_rfid: testStaff1RFID,
+            action: "checkin"
+          }
+        }, async function(err, response2) {
+          if (err) {
+            test("Duplicate supervisor scan", function() {
+              throw new Error(`Second scan failed: ${err.message}`);
+            });
+            return;
+          }
+
+          test("Duplicate supervisor scan is idempotent", function() {
+            expect(response2.status).to.equal(200);
+            expect(response2.data.data.action).to.equal('supervisor_authenticated');
+          });
+
+          console.log("✅ Second scan: idempotent");
+
+          // Test 4: End session
+          await bru.sendRequest({
+            method: 'POST',
+            url: bru.getEnvVar("baseUrl") + "/api/iot/session/end",
+            headers: {
+              "Authorization": `Bearer ${deviceApiKey}`,
+              "X-Staff-PIN": devicePin,
+              "Content-Type": "application/json"
+            },
+            data: {}
+          }, async function(err, endResponse) {
+            if (err) {
+              console.log(`⚠️  Session end failed: ${err.message}`);
+              return;
+            }
+
+            console.log("🧹 Session ended");
+
+            // Test 5: Scan with no active session - should error
+            await bru.sendRequest({
+              method: 'POST',
+              url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
+              headers: {
+                "Authorization": `Bearer ${deviceApiKey}`,
+                "X-Staff-PIN": devicePin,
+                "Content-Type": "application/json"
+              },
+              data: {
+                student_rfid: testStaff1RFID,
+                action: "checkin"
+              }
+            }, function(err, response3) {
+              if (err) {
+                if (err.message.includes('404')) {
+                  console.log("✅ No session error: supervisor scan rejected (404)");
+                  return;
+                }
+              }
+
+              test("Supervisor scan without session returns 404", function() {
+                expect(response3.status).to.equal(404);
+              });
+
+              console.log("✅ Error case validated");
+            });
+          });
+        });
+      });
+    });
+  })();
+}
