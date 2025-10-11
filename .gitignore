@@ -433,9 +433,7 @@ docker-compose.prod.yml
 **/ssl/**/keys/
 config/ssl/**/certs/
 deployment/**/ssl/certs/
-# Bruno API testing - ignore local environment files only
-/bruno/environments/*.bru
-!/bruno/environments/*.bru.example
+# Bruno API testing
 /My API Tests
 
 # Test SQL files and scripts

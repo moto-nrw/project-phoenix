@@ -1,6 +1,3 @@
-# Ignore actual environment files with credentials
-environments/*.bru
-
 # Keep example templates
 !environments/*.bru.example
 
