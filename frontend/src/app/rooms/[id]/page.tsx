@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ResponsiveLayout } from "@/components/dashboard";
+import { ResponsiveLayout } from "~/components/dashboard";
 import { useSession } from "next-auth/react";
 
 // Room interface
@@ -92,18 +92,18 @@ interface BackendRoomHistoryEntry {
 
 // Kategorie-zu-Farbe Mapping
 const categoryColors: Record<string, string> = {
-  "Gruppenraum": "#4F46E5", // Blau für Gruppenraum
-  "Lernen": "#10B981",      // Grün für Lernen
-  "Spielen": "#F59E0B",     // Orange für Spielen
-  "Bewegen/Ruhe": "#EC4899", // Pink für Bewegen/Ruhe
-  "Hauswirtschaft": "#EF4444", // Rot für Hauswirtschaft
-  "Natur": "#22C55E",       // Grün für Natur
-  "Kreatives/Musik": "#8B5CF6", // Lila für Kreatives/Musik
-  "NW/Technik": "#06B6D4",  // Türkis für NW/Technik
-  "Klassenzimmer": "#4F46E5", // Blau für Klassenzimmer (wie Gruppenraum)
+  "Gruppenraum": "#4F46E5",
+  "Lernen": "#10B981",
+  "Spielen": "#F59E0B",
+  "Bewegen/Ruhe": "#EC4899",
+  "Hauswirtschaft": "#EF4444",
+  "Natur": "#22C55E",
+  "Kreatives/Musik": "#8B5CF6",
+  "NW/Technik": "#06B6D4",
+  "Klassenzimmer": "#4F46E5",
 };
 
-// Helper function to convert Backend Room to Frontend Room
+// Helper functions
 function mapBackendToFrontendRoom(backendRoom: BackendRoom): Room {
   return {
     id: String(backendRoom.id),
@@ -122,7 +122,6 @@ function mapBackendToFrontendRoom(backendRoom: BackendRoom): Room {
   };
 }
 
-// Helper function to convert Backend History Entry to Frontend History Entry
 function mapBackendToFrontendHistoryEntry(backendEntry: BackendRoomHistoryEntry): RoomHistoryEntry {
   return {
     id: String(backendEntry.id),
@@ -138,6 +137,51 @@ function mapBackendToFrontendHistoryEntry(backendEntry: BackendRoomHistoryEntry)
   };
 }
 
+// Status Badge Component
+function StatusBadge({ isOccupied }: { isOccupied: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold ${
+        isOccupied
+          ? "bg-red-100 text-red-700"
+          : "bg-green-100 text-green-700"
+      }`}
+    >
+      <span className={`w-2 h-2 rounded-full mr-2 ${
+        isOccupied ? "bg-red-500 animate-pulse" : "bg-green-500"
+      }`} />
+      {isOccupied ? "Belegt" : "Frei"}
+    </span>
+  );
+}
+
+// InfoCard Component
+function InfoCard({ title, children, icon }: { title: string; children: React.ReactNode; icon: React.ReactNode }) {
+  return (
+    <div className="bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100 p-4 sm:p-6">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 flex-shrink-0">
+          {icon}
+        </div>
+        <h2 className="text-base sm:text-lg font-semibold text-gray-900">{title}</h2>
+      </div>
+      <div className="space-y-3">{children}</div>
+    </div>
+  );
+}
+
+// InfoItem Component
+function InfoItem({ label, value }: { label: string; value: string | React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-gray-500 mb-1">{label}</p>
+        <div className="text-sm text-gray-900 font-medium">{value}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function RoomDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -150,14 +194,12 @@ export default function RoomDetailPage() {
   const [roomHistory, setRoomHistory] = useState<RoomHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [errorStatus, setErrorStatus] = useState<number | null>(null);
 
-  // Fetch room data and room history
+  // Fetch room data and history
   useEffect(() => {
     const fetchRoomData = async () => {
       setLoading(true);
       setError(null);
-      setErrorStatus(null);
 
       try {
         const authHeaders = session?.user?.token
@@ -174,28 +216,15 @@ export default function RoomDetailPage() {
         });
 
         if (!roomResponse.ok) {
-          const statusCode = roomResponse.status;
-          setErrorStatus(statusCode);
-
-          if (statusCode === 404) {
-            throw new Error(`Der Raum mit der ID ${roomId} wurde nicht gefunden.`);
-          } else if (statusCode === 401 || statusCode === 403) {
-            throw new Error("Sie haben keine Berechtigung, diesen Raum anzuzeigen.");
-          } else {
-            const errorText = await roomResponse.text();
-            throw new Error(`Fehler beim Abrufen des Raums: ${errorText || statusCode}`);
-          }
+          throw new Error("Fehler beim Laden der Raumdaten");
         }
 
         const roomResponseData = await roomResponse.json() as { data?: BackendRoom } & BackendRoom;
-        console.log("Room page received data:", roomResponseData);
-        
-        // Handle wrapped response format
         const roomData = roomResponseData.data ?? roomResponseData;
         const frontendRoom = mapBackendToFrontendRoom(roomData);
         setRoom(frontendRoom);
 
-        // Fetch room history data
+        // Fetch room history
         const historyResponse = await fetch(`/api/rooms/${roomId}/history`, {
           credentials: "include",
           headers: {
@@ -204,23 +233,14 @@ export default function RoomDetailPage() {
           }
         });
 
-        if (!historyResponse.ok) {
-          const statusCode = historyResponse.status;
-          console.warn(`Warning: Failed to fetch room history: ${statusCode}`);
-          // We'll continue even if history fails - just won't show history
-        }
-        else {
-          // Parse history data, handling different response formats
+        if (historyResponse.ok) {
           const historyResponseData = await historyResponse.json() as BackendRoomHistoryEntry[] | { data: BackendRoomHistoryEntry[] };
-
-          // Handle possible response formats (direct array or data property)
           const backendHistoryEntries = Array.isArray(historyResponseData)
             ? historyResponseData
             : (historyResponseData?.data && Array.isArray(historyResponseData.data))
               ? historyResponseData.data
               : [];
 
-          // Convert backend history entries to frontend format
           const frontendHistoryEntries = backendHistoryEntries.map(
             (entry: BackendRoomHistoryEntry) => mapBackendToFrontendHistoryEntry(entry)
           );
@@ -229,13 +249,7 @@ export default function RoomDetailPage() {
         }
       } catch (err) {
         console.error("Error fetching data:", err);
-
-        // Extract error message
-        const errorMessage = err instanceof Error
-          ? err.message
-          : "Ein unbekannter Fehler ist aufgetreten.";
-
-        setError(errorMessage);
+        setError("Fehler beim Laden der Raumdaten.");
       } finally {
         setLoading(false);
       }
@@ -244,7 +258,7 @@ export default function RoomDetailPage() {
     void fetchRoomData();
   }, [roomId, session?.user?.token]);
 
-  // Format date for display
+  // Format date and time
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     return date.toLocaleDateString('de-DE', {
@@ -255,7 +269,6 @@ export default function RoomDetailPage() {
     });
   };
 
-  // Format time for display
   const formatTime = (dateString: string): string => {
     const date = new Date(dateString);
     return date.toLocaleTimeString('de-DE', {
@@ -264,17 +277,14 @@ export default function RoomDetailPage() {
     });
   };
 
-  // Calculate duration between two timestamps
   const calculateDuration = (entry: string, exit: string | null): number | null => {
     if (!exit) return null;
-
     const entryTime = new Date(entry);
     const exitTime = new Date(exit);
     const durationMs = exitTime.getTime() - entryTime.getTime();
-    return Math.round(durationMs / 60000); // Minutes
+    return Math.round(durationMs / 60000);
   };
 
-  // Format duration in hours and minutes
   const formatDuration = (minutes: number | null): string => {
     if (minutes === null) return "Aktiv";
     if (minutes <= 0) return "< 1 Min.";
@@ -289,17 +299,15 @@ export default function RoomDetailPage() {
     }
   };
 
-  // Group room history entries into activities (entry + exit pairs)
+  // Group room history entries into activities
   const groupHistoryByActivity = (history: RoomHistoryEntry[]): Activity[] => {
     const grouped: Activity[] = [];
     const entriesMap: Record<string, RoomHistoryEntry> = {};
 
-    // Sort entries by timestamp
     const sortedHistory = [...history].sort(
       (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
 
-    // First collect all entry records
     sortedHistory.forEach(entry => {
       if (entry.entry_type === "entry") {
         const key = `${entry.groupName}-${entry.activityName}`;
@@ -307,7 +315,6 @@ export default function RoomDetailPage() {
       }
     });
 
-    // Then find matching exit for each entry
     sortedHistory.forEach(exit => {
       if (exit.entry_type === "exit") {
         const key = `${exit.groupName}-${exit.activityName}`;
@@ -327,13 +334,11 @@ export default function RoomDetailPage() {
             reason: entry.reason
           });
 
-          // Remove entry so it's not used multiple times
           delete entriesMap[key];
         }
       }
     });
 
-    // Add remaining active entries (without exit)
     Object.values(entriesMap).forEach(entry => {
       grouped.push({
         id: entry.id,
@@ -352,7 +357,6 @@ export default function RoomDetailPage() {
     return grouped;
   };
 
-  // Group activities by date
   const groupByDate = (activities: Activity[]): DateGroup[] => {
     const groups: Record<string, Activity[]> = {};
 
@@ -362,7 +366,6 @@ export default function RoomDetailPage() {
       groups[date].push(activity);
     });
 
-    // Sort dates in descending order (newest first)
     return Object.keys(groups)
       .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
       .map(date => ({
@@ -373,11 +376,9 @@ export default function RoomDetailPage() {
       }));
   };
 
-  // Process room history data
   const activities = groupHistoryByActivity(roomHistory);
   const groupedActivities = groupByDate(activities);
 
-  // Render loading state
   if (loading) {
     return (
       <ResponsiveLayout>
@@ -391,60 +392,19 @@ export default function RoomDetailPage() {
     );
   }
 
-  // Render error state
   if (error || !room) {
-    // Get a user-friendly error message
-    let errorTitle = "Fehler";
-    let errorMessage = error ?? "Der Raum konnte nicht geladen werden.";
-
-    if (errorStatus === 404 || error?.includes("nicht gefunden")) {
-      errorTitle = "Raum nicht gefunden";
-      errorMessage = `Der Raum mit der ID ${roomId} existiert nicht oder wurde gelöscht.`;
-    } else if (errorStatus === 401 || errorStatus === 403) {
-      errorTitle = "Zugriff verweigert";
-      errorMessage = "Sie haben keine Berechtigung, diesen Raum anzuzeigen.";
-    } else if (errorStatus === 500) {
-      errorTitle = "Serverfehler";
-      errorMessage = "Es ist ein interner Serverfehler aufgetreten. Bitte versuchen Sie es später erneut.";
-    }
-
     return (
       <ResponsiveLayout>
-        <div className="flex min-h-[50vh] flex-col items-center justify-center">
-          <div className="w-full max-w-lg mx-auto p-6 bg-white rounded-lg shadow-sm">
-            <div className="flex items-center justify-center mb-6">
-              <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6 text-red-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                  />
-                </svg>
-              </div>
-            </div>
-            <h2 className="text-xl font-semibold text-center text-gray-800 mb-2">
-              {errorTitle}
-            </h2>
-            <p className="text-center text-gray-600 mb-6">
-              {errorMessage}
-            </p>
-            <div className="flex justify-center">
-              <button
-                onClick={() => router.push(referrer)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors"
-              >
-                Zurück zur Raumübersicht
-              </button>
-            </div>
+        <div className="flex min-h-[80vh] flex-col items-center justify-center">
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
+            {error ?? "Raum nicht gefunden"}
           </div>
+          <button
+            onClick={() => router.push(referrer)}
+            className="mt-4 rounded bg-blue-100 px-4 py-2 text-blue-800 transition-colors hover:bg-blue-200"
+          >
+            Zurück
+          </button>
         </div>
       </ResponsiveLayout>
     );
@@ -452,247 +412,184 @@ export default function RoomDetailPage() {
 
   return (
     <ResponsiveLayout>
-      <div className="max-w-7xl mx-auto">
-        {/* Back Button */}
-        <div className="mb-6">
-          <button
-            onClick={() => router.push(referrer)}
-            className="flex items-center text-gray-600 hover:text-blue-600 transition-colors"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5 mr-1"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 19l-7-7m0 0l7-7m-7 7h18"
-              />
-            </svg>
-            Zurück zur Raumübersicht
-          </button>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
+        {/* Back button - Mobile optimized */}
+        <button
+          onClick={() => router.push(referrer)}
+          className="flex items-center gap-2 mb-4 text-gray-600 hover:text-gray-900 transition-colors py-2 -ml-1 pl-1"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          <span className="text-sm font-medium">Zurück</span>
+        </button>
+
+        {/* Room Header - Mobile optimized */}
+        <div className="bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100 p-4 sm:p-6 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">
+                {room.name}
+              </h1>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2 text-sm text-gray-600">
+                <span>{room.building ?? "Unbekannt"} · Etage {room.floor}</span>
+                <span className="hidden sm:inline">•</span>
+                <span className="truncate">{room.category}</span>
+              </div>
+            </div>
+            <div className="flex-shrink-0">
+              <StatusBadge isOccupied={room.isOccupied} />
+            </div>
+          </div>
         </div>
 
-                  {/* Room Header with Status - Using blue gradient style from student view */}
-                  <div className="relative mb-8 overflow-hidden rounded-xl bg-gradient-to-r from-teal-500 to-blue-600 p-6 text-white shadow-md">
-                    <div className="flex items-center">
-                      <div className="mr-6 flex h-24 w-24 items-center justify-center rounded-full bg-white/30 text-4xl font-bold">
-                        {room.name.charAt(0)}
-                      </div>
-                      <div>
-                        <h1 className="text-3xl font-bold">{room.name}</h1>
-                        <div className="flex items-center mt-1">
-                          <span className="opacity-90">Gebäude: {room.building ?? "Unbekannt"}</span>
-                          <span className="mx-2">•</span>
-                          <span className="opacity-90">Etage: {room.floor}</span>
-                        </div>
-                        <div className="mt-3 flex items-center">
-                          <span className="text-white font-medium mr-2">Status:</span>
-                          <div className={`rounded-full px-3 py-1 ${room.isOccupied ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"
-                            } font-medium flex items-center`}>
-                            <span className={`mr-1.5 inline-block h-2.5 w-2.5 rounded-full ${room.isOccupied ? "bg-red-500" : "bg-green-500"
-                              }`}></span>
-                            {room.isOccupied ? "Belegt" : "Frei"}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+        <div className="space-y-4 sm:space-y-6">
+          {/* Room Information */}
+          <InfoCard
+            title="Rauminformationen"
+            icon={
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            }
+          >
+            <InfoItem label="Raumname" value={room.name} />
+            <InfoItem label="Gebäude" value={room.building ?? "Nicht angegeben"} />
+            <InfoItem label="Etage" value={`Etage ${room.floor}`} />
+            <InfoItem label="Kategorie" value={
+              <div className="flex items-center gap-2">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: room.color }}
+                ></span>
+                <span>{room.category}</span>
+              </div>
+            } />
+            <InfoItem label="Kapazität" value={`${room.capacity} Personen`} />
+            <InfoItem label="Status" value={room.isOccupied ? "Belegt" : "Frei"} />
+          </InfoCard>
+
+          {/* Current Occupation */}
+          {room.isOccupied && (
+            <InfoCard
+              title="Aktuelle Belegung"
+              icon={
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              }
+            >
+              {room.groupName && <InfoItem label="Gruppe" value={room.groupName} />}
+              {room.activityName && <InfoItem label="Aktivität" value={room.activityName} />}
+              {room.supervisorName && <InfoItem label="Aufsichtsperson" value={room.supervisorName} />}
+              {room.studentCount !== undefined && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-2">Belegung</p>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm text-gray-900 font-medium">
+                      {room.studentCount} / {room.capacity} Personen
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {Math.round((room.studentCount / room.capacity) * 100)}%
+                    </span>
                   </div>
-
-                  {/* Room Details */}
-                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2 mb-8">
-                    {/* General Information Card */}
-                    <div className="bg-white rounded-lg shadow-sm p-6">
-                      <h2 className="text-xl font-semibold mb-4 text-gray-800">Allgemeine Informationen</h2>
-                      <div className="space-y-3">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Name:</span>
-                          <span className="font-medium text-gray-900">{room.name}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Gebäude:</span>
-                          <span className="font-medium text-gray-900">{room.building ?? "Nicht angegeben"}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Etage:</span>
-                          <span className="font-medium text-gray-900">{room.floor}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Kapazität:</span>
-                          <span className="font-medium text-gray-900">{room.capacity} Personen</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Status:</span>
-                          <span className={`font-medium ${room.isOccupied ? "text-red-600" : "text-green-600"}`}>
-                            {room.isOccupied ? "Belegt" : "Frei"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Current Occupation Card */}
-                    <div className="bg-white rounded-lg shadow-sm p-6">
-                      <h2 className="text-xl font-semibold mb-4 text-gray-800">Aktuelle Belegung</h2>
-                      {room.isOccupied ? (
-                        <div className="space-y-3">
-                          {room.groupName && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Gruppe:</span>
-                              <span className="font-medium text-gray-900">{room.groupName}</span>
-                            </div>
-                          )}
-                          {room.activityName && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Aktivität:</span>
-                              <span className="font-medium text-gray-900">{room.activityName}</span>
-                            </div>
-                          )}
-                          {room.supervisorName && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Aufsichtsperson:</span>
-                              <span className="font-medium text-gray-900">{room.supervisorName}</span>
-                            </div>
-                          )}
-                          {room.studentCount !== undefined && (
-                            <div className="pt-2">
-                              <div className="flex justify-between mb-1">
-                                <span className="text-gray-600">Belegung:</span>
-                                <span className="font-medium text-gray-900">
-                                  {room.studentCount} / {room.capacity} Personen
-                                </span>
-                              </div>
-                              <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-200">
-                                <div
-                                  className="h-full rounded-full bg-blue-600"
-                                  style={{
-                                    width: `${Math.min((room.studentCount / room.capacity) * 100, 100)}%`
-                                  }}
-                                ></div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center h-32 text-gray-500">
-                          Dieser Raum ist aktuell nicht belegt.
-                        </div>
-                      )}
-                    </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                    <div
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{
+                        width: `${Math.min((room.studentCount / room.capacity) * 100, 100)}%`,
+                        backgroundColor: room.color
+                      }}
+                    ></div>
                   </div>
+                </div>
+              )}
+            </InfoCard>
+          )}
 
-                  {/* Room History */}
-                  <div className="bg-white rounded-lg shadow-sm p-6">
-                    <h2 className="text-2xl font-medium text-gray-800 mb-6">Belegungshistorie</h2>
+          {/* Room History */}
+          <InfoCard
+            title="Belegungshistorie"
+            icon={
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            }
+          >
+            {groupedActivities.length === 0 ? (
+              <div className="py-8 text-center text-gray-500">
+                Keine Belegungshistorie verfügbar.
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {groupedActivities.map(dateGroup => (
+                  <div key={dateGroup.date}>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                      {dateGroup.entries[0]?.entryTimestamp ? formatDate(dateGroup.entries[0].entryTimestamp) : ''}
+                    </h3>
 
-                    {groupedActivities.length === 0 ? (
-                      <div className="bg-white rounded-lg p-8 text-center">
-                        <p className="text-gray-500">Keine Belegungshistorie verfügbar.</p>
-                      </div>
-                    ) : (
-                      groupedActivities.map(dateGroup => (
-                        <div key={dateGroup.date} className="mb-8">
-                          <div className="flex items-center mb-4">
-                            <div className="h-6 w-1 bg-blue-600 rounded mr-3"></div>
-                            <h3 className="text-lg font-medium text-blue-800">
-                              {dateGroup.entries[0]?.entryTimestamp ? formatDate(dateGroup.entries[0].entryTimestamp) : ''}
-                            </h3>
-                          </div>
+                    <div className="space-y-3">
+                      {dateGroup.entries.map(activity => {
+                        const actualDuration = calculateDuration(
+                          activity.entryTimestamp,
+                          activity.exitTimestamp
+                        );
+                        const duration = activity.duration_minutes ?? actualDuration;
+                        const categoryColor = activity.category
+                          ? categoryColors[activity.category] ?? "#6B7280"
+                          : "#6B7280";
 
-                          <div className="space-y-4">
-                            {dateGroup.entries.map(activity => {
-                              const actualDuration = calculateDuration(
-                                activity.entryTimestamp,
-                                activity.exitTimestamp
-                              );
-                              const duration = activity.duration_minutes ?? actualDuration;
-                              const categoryColor = activity.category
-                                ? categoryColors[activity.category] ?? "#6B7280"
-                                : "#6B7280";
+                        return (
+                          <div
+                            key={activity.id}
+                            className="bg-white border border-gray-100 rounded-lg p-4 hover:shadow-md transition-shadow"
+                          >
+                            {/* Color indicator */}
+                            <div
+                              className="h-1 rounded-full mb-3 -mx-4 -mt-4"
+                              style={{ backgroundColor: categoryColor }}
+                            ></div>
 
-                              return (
-                                <div
-                                  key={activity.id}
-                                  className="bg-white border border-gray-100 rounded-lg shadow-sm overflow-hidden"
-                                >
-                                  <div
-                                    className="h-1.5"
+                            <div className="flex justify-between items-start mb-2">
+                              <h4 className="font-medium text-gray-900">{activity.activityName}</h4>
+                              <span className="text-xs text-gray-500">{formatDuration(duration)}</span>
+                            </div>
+
+                            <div className="space-y-1 text-sm text-gray-600">
+                              {activity.supervisorName && (
+                                <div>Aufsicht: {activity.supervisorName}</div>
+                              )}
+                              {activity.category && (
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="inline-block h-2 w-2 rounded-full"
                                     style={{ backgroundColor: categoryColor }}
-                                  ></div>
-
-                                  <div className="p-4">
-                                    <div className="flex justify-between">
-                                      <h4 className="text-lg font-medium text-gray-800">{activity.activityName}</h4>
-                                      <div className="flex items-center">
-                                        <span className="text-sm text-gray-500 mr-2">
-                                          Dauer: {formatDuration(duration)}
-                                        </span>
-                                        <span
-                                          className="inline-block h-3 w-3 rounded-full"
-                                          style={{ backgroundColor: categoryColor }}
-                                        ></span>
-                                      </div>
-                                    </div>
-
-                                    <div className="mt-2">
-                                      {activity.activityName === "Hausaufgabenbetreuung" && activity.groupName && (
-                                        <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 mr-2">
-                                          {activity.groupName}
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    <div className="mt-3 text-sm text-gray-600">
-                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                        <div>
-                                          <span className="font-medium">Aufsicht:</span> {activity.supervisorName}
-                                        </div>
-                                        <div>
-                                          <span className="font-medium">Kategorie:</span> {activity.category}
-                                        </div>
-                                        {activity.studentCount !== undefined && (
-                                          <div>
-                                            <span className="font-medium">Teilnehmer:</span> {activity.studentCount}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    <div className="mt-4 flex items-center justify-between border-t border-gray-200 pt-3">
-                                      <div className="flex items-center text-green-600">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        <span className="text-sm">Beginn: {formatTime(activity.entryTimestamp)}</span>
-                                      </div>
-
-                                      {activity.exitTimestamp ? (
-                                        <div className="flex items-center text-red-600">
-                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                          </svg>
-                                          <span className="text-sm">Ende: {formatTime(activity.exitTimestamp)}</span>
-                                        </div>
-                                      ) : (
-                                        <div className="flex items-center text-blue-600">
-                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                          </svg>
-                                          <span className="text-sm">Laufend</span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
+                                  ></span>
+                                  {activity.category}
                                 </div>
-                              );
-                            })}
+                              )}
+                              {activity.studentCount !== undefined && (
+                                <div>Teilnehmer: {activity.studentCount}</div>
+                              )}
+                            </div>
+
+                            <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between text-xs text-gray-500">
+                              <span>Beginn: {formatTime(activity.entryTimestamp)}</span>
+                              {activity.exitTimestamp ? (
+                                <span>Ende: {formatTime(activity.exitTimestamp)}</span>
+                              ) : (
+                                <span className="text-blue-600 font-medium">Laufend</span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))
-                    )}
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </InfoCard>
         </div>
       </div>
     </ResponsiveLayout>
