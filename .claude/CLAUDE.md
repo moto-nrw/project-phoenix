@@ -343,3 +343,4 @@ const { id } = await params;
 
 @CLAUDE.local.md  # User-specific preferences
 @README.md  # Project overview
+- always use qdrant to retrieve information and to save information. use qdrant mcp!
