@@ -166,8 +166,8 @@ func (s *Seeder) assignTeachersToGroups(ctx context.Context) error {
 	// Ensure teacher 1 is assigned to group 3 (2A) for Bruno API tests
 	// Group 3 is always "2A" (third in classData list)
 	if len(s.result.Teachers) > 0 && len(s.result.ClassGroups) >= 3 {
-		teacher1 := s.result.Teachers[0]       // First teacher (ID will be 1)
-		group3 := s.result.ClassGroups[2]      // Third class group "2A" (ID will be 3)
+		teacher1 := s.result.Teachers[0]  // First teacher (ID will be 1)
+		group3 := s.result.ClassGroups[2] // Third class group "2A" (ID will be 3)
 
 		groupTeacher := &education.GroupTeacher{
 			GroupID:   group3.ID,

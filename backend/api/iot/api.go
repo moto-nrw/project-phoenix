@@ -1102,7 +1102,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 
 	// Try to find student first
 	studentRepo := rs.UsersService.StudentRepository()
-	student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
+	student, _ := studentRepo.FindByPersonID(r.Context(), person.ID)
 
 	// If student found, process student check-in/out
 	if student != nil {
