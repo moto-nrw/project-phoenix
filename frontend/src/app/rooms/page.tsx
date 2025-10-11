@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
-import { Alert } from "~/components/ui/alert";
+import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
 interface Room {
@@ -23,20 +24,20 @@ interface Room {
     studentCount?: number;
 }
 
-// Kategorie-zu-Farbe Mapping - beibehalten, da es visuelle Stile definiert
+// Kategorie-zu-Farbe Mapping
 const categoryColors: Record<string, string> = {
-    "Gruppenraum": "#4F46E5", // Blau für Gruppenraum (circle1)
-    "Lernen": "#10B981",      // Grün für Lernen (circle2)
-    "Spielen": "#F59E0B",     // Orange für Spielen (circle3)
-    "Bewegen/Ruhe": "#EC4899", // Pink für Bewegen/Ruhe (circle4)
-    "Hauswirtschaft": "#EF4444", // Rot für Hauswirtschaft (circle5)
-    "Natur": "#22C55E",       // Grün für Natur (circle6)
-    "Kreatives/Musik": "#8B5CF6", // Lila für Kreatives/Musik (circle7)
-    "NW/Technik": "#06B6D4",  // Türkis für NW/Technik (circle8)
-    "Klassenzimmer": "#4F46E5", // Fallback für Standard-Klassenzimmer
+    "Gruppenraum": "#4F46E5",
+    "Lernen": "#10B981",
+    "Spielen": "#F59E0B",
+    "Bewegen/Ruhe": "#EC4899",
+    "Hauswirtschaft": "#EF4444",
+    "Natur": "#22C55E",
+    "Kreatives/Musik": "#8B5CF6",
+    "NW/Technik": "#06B6D4",
+    "Klassenzimmer": "#4F46E5",
 };
 
-export default function RoomsPage() {
+function RoomsPageContent() {
     const { status } = useSession({
         required: true,
         onUnauthenticated() {
@@ -46,13 +47,23 @@ export default function RoomsPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [searchFilter, setSearchFilter] = useState("");
-    const [buildingFilter, setBuildingFilter] = useState<string | null>(null);
-    const [floorFilter, setFloorFilter] = useState<string | null>(null);
-    const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
-    const [occupiedFilter, setOccupiedFilter] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [buildingFilter, setBuildingFilter] = useState("all");
+    const [floorFilter, setFloorFilter] = useState("all");
+    const [categoryFilter, setCategoryFilter] = useState("all");
+    const [occupiedFilter, setOccupiedFilter] = useState("all");
     const [rooms, setRooms] = useState<Room[]>([]);
-    const [filteredRooms, setFilteredRooms] = useState<Room[]>([]);
+    const [isMobile, setIsMobile] = useState(false);
+
+    // Handle mobile detection
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     // API Daten laden
     useEffect(() => {
@@ -60,7 +71,6 @@ export default function RoomsPage() {
             try {
                 setLoading(true);
 
-                // Ruft alle Räume vom API-Endpunkt ab
                 const response = await fetch('/api/rooms');
 
                 if (!response.ok) {
@@ -69,7 +79,6 @@ export default function RoomsPage() {
 
                 const data = await response.json() as Room[] | { data: Room[] };
 
-                // Überprüfen der Antwortstruktur und Extraktion der Raumdaten
                 let roomsData: Room[];
                 if (data && Array.isArray(data)) {
                     roomsData = data;
@@ -80,20 +89,17 @@ export default function RoomsPage() {
                     throw new Error("Unerwartetes Antwortformat");
                 }
 
-                // Stellt sicher, dass jeder Raum eine Farbe hat
                 roomsData = roomsData.map(room => ({
                     ...room,
                     color: room.color ?? categoryColors[room.category] ?? "#6B7280"
                 }));
 
                 setRooms(roomsData);
-                setFilteredRooms(roomsData);
                 setError(null);
             } catch (err) {
                 console.error("Fehler beim Laden der Räume:", err);
                 setError("Fehler beim Laden der Raumdaten. Bitte versuchen Sie es später erneut.");
                 setRooms([]);
-                setFilteredRooms([]);
             } finally {
                 setLoading(false);
             }
@@ -102,338 +108,367 @@ export default function RoomsPage() {
         void fetchRooms();
     }, []);
 
-    // Apply filters function
-    const applyFilters = () => {
-        setLoading(true);
-
+    // Apply filters
+    const filteredRooms = useMemo(() => {
         let filtered = [...rooms];
 
-        // Apply search filter
-        if (searchFilter) {
-            const searchLower = searchFilter.toLowerCase();
+        // Search filter
+        if (searchTerm) {
+            const searchLower = searchTerm.toLowerCase();
             filtered = filtered.filter(room =>
-                (room.name?.toLowerCase().includes(searchLower)) ??
-                (room.groupName?.toLowerCase().includes(searchLower)) ??
-                (room.activityName?.toLowerCase().includes(searchLower))
+                room.name?.toLowerCase().includes(searchLower) ||
+                room.groupName?.toLowerCase().includes(searchLower) ||
+                room.activityName?.toLowerCase().includes(searchLower)
             );
         }
 
-        // Apply building filter
-        if (buildingFilter) {
+        // Building filter
+        if (buildingFilter !== "all") {
             filtered = filtered.filter(room => room.building === buildingFilter);
         }
 
-        // Apply floor filter
-        if (floorFilter) {
+        // Floor filter
+        if (floorFilter !== "all") {
             filtered = filtered.filter(room => room.floor === parseInt(floorFilter));
         }
 
-        // Apply category filter
-        if (categoryFilter) {
+        // Category filter
+        if (categoryFilter !== "all") {
             filtered = filtered.filter(room => room.category === categoryFilter);
         }
 
-        // Apply occupied filter
-        if (occupiedFilter) {
-            const isOccupied = occupiedFilter === "true";
+        // Occupied filter
+        if (occupiedFilter !== "all") {
+            const isOccupied = occupiedFilter === "occupied";
             filtered = filtered.filter(room => room.isOccupied === isOccupied);
         }
 
-        setFilteredRooms(filtered);
-        setLoading(false);
-    };
+        // Sort by name
+        filtered.sort((a, b) => a.name.localeCompare(b.name, 'de'));
 
-    // Effect to apply filters when filter values change
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            applyFilters();
-        }, 300);
+        return filtered;
+    }, [rooms, searchTerm, buildingFilter, floorFilter, categoryFilter, occupiedFilter]);
 
-        return () => clearTimeout(timer);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchFilter, buildingFilter, floorFilter, categoryFilter, occupiedFilter, rooms]);
-
-    // Handle room selection - Navigiere zur Raumdetailseite
+    // Handle room selection
     const handleSelectRoom = (room: Room) => {
         router.push(`/rooms/${room.id}`);
     };
 
-    // Get all unique buildings for filter dropdown
-    const uniqueBuildings = Array.from(
-        new Set(rooms.map((room) => room.building).filter(Boolean))
+    // Get unique values for filters
+    const uniqueBuildings = useMemo(() =>
+        Array.from(new Set(rooms.map((room) => room.building).filter(Boolean))),
+        [rooms]
     );
 
-    // Get all unique floors for filter dropdown
-    const uniqueFloors = Array.from(
-        new Set(rooms.map((room) => room.floor.toString()))
-    ).sort((a, b) => parseInt(a) - parseInt(b));
-
-    // Get all unique categories for filter dropdown
-    const uniqueCategories = Array.from(
-        new Set(rooms.map((room) => room.category))
+    const uniqueFloors = useMemo(() =>
+        Array.from(new Set(rooms.map((room) => room.floor.toString())))
+            .sort((a, b) => parseInt(a) - parseInt(b)),
+        [rooms]
     );
 
-    // Reset all filters
-    const resetFilters = () => {
-        setSearchFilter("");
-        setBuildingFilter(null);
-        setFloorFilter(null);
-        setCategoryFilter(null);
-        setOccupiedFilter(null);
-    };
+    const uniqueCategories = useMemo(() =>
+        Array.from(new Set(rooms.map((room) => room.category))),
+        [rooms]
+    );
 
-    if (status === "loading" || (loading && rooms.length === 0)) {
+    // Prepare filter configurations
+    const filterConfigs: FilterConfig[] = useMemo(() => [
+        {
+            id: 'building',
+            label: 'Gebäude',
+            type: 'dropdown',
+            value: buildingFilter,
+            onChange: (value) => setBuildingFilter(value as string),
+            options: [
+                { value: "all", label: "Alle Gebäude" },
+                ...uniqueBuildings.map(building => ({
+                    value: building as string,
+                    label: building as string
+                }))
+            ]
+        },
+        {
+            id: 'floor',
+            label: 'Etage',
+            type: 'dropdown',
+            value: floorFilter,
+            onChange: (value) => setFloorFilter(value as string),
+            options: [
+                { value: "all", label: "Alle Etagen" },
+                ...uniqueFloors.map(floor => ({
+                    value: floor,
+                    label: `Etage ${floor}`
+                }))
+            ]
+        },
+        {
+            id: 'category',
+            label: 'Kategorie',
+            type: 'dropdown',
+            value: categoryFilter,
+            onChange: (value) => setCategoryFilter(value as string),
+            options: [
+                { value: "all", label: "Alle Kategorien" },
+                ...uniqueCategories.map(category => ({
+                    value: category,
+                    label: category
+                }))
+            ]
+        },
+        {
+            id: 'occupied',
+            label: 'Status',
+            type: 'buttons',
+            value: occupiedFilter,
+            onChange: (value) => setOccupiedFilter(value as string),
+            options: [
+                { value: "all", label: "Alle" },
+                { value: "occupied", label: "Belegt" },
+                { value: "free", label: "Frei" }
+            ]
+        }
+    ], [buildingFilter, floorFilter, categoryFilter, occupiedFilter, uniqueBuildings, uniqueFloors, uniqueCategories]);
+
+    // Prepare active filters
+    const activeFilters: ActiveFilter[] = useMemo(() => {
+        const filters: ActiveFilter[] = [];
+
+        if (searchTerm) {
+            filters.push({
+                id: 'search',
+                label: `"${searchTerm}"`,
+                onRemove: () => setSearchTerm("")
+            });
+        }
+
+        if (buildingFilter !== "all") {
+            filters.push({
+                id: 'building',
+                label: buildingFilter,
+                onRemove: () => setBuildingFilter("all")
+            });
+        }
+
+        if (floorFilter !== "all") {
+            filters.push({
+                id: 'floor',
+                label: `Etage ${floorFilter}`,
+                onRemove: () => setFloorFilter("all")
+            });
+        }
+
+        if (categoryFilter !== "all") {
+            filters.push({
+                id: 'category',
+                label: categoryFilter,
+                onRemove: () => setCategoryFilter("all")
+            });
+        }
+
+        if (occupiedFilter !== "all") {
+            const statusLabels = {
+                "occupied": "Belegt",
+                "free": "Frei"
+            };
+            filters.push({
+                id: 'occupied',
+                label: statusLabels[occupiedFilter as keyof typeof statusLabels] ?? occupiedFilter,
+                onRemove: () => setOccupiedFilter("all")
+            });
+        }
+
+        return filters;
+    }, [searchTerm, buildingFilter, floorFilter, categoryFilter, occupiedFilter]);
+
+    if (status === "loading" || loading) {
         return (
             <div className="flex min-h-screen items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
                     <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-                    <p className="text-gray-600">Daten werden geladen...</p>
+                    <p className="text-gray-600">Räume werden geladen...</p>
                 </div>
             </div>
         );
     }
 
-    // Common class for all dropdowns to ensure consistent height
-    const dropdownClass = "mt-1 block w-full rounded-lg border-0 px-4 py-3 h-12 shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none pr-8";
-
     return (
         <ResponsiveLayout>
-            <div className="max-w-7xl mx-auto">
-                <h1 className="mb-8 text-4xl font-bold text-gray-900">Raumübersicht</h1>
+            <div className="w-full -mt-1.5">
+                {/* PageHeaderWithSearch - Title only on mobile */}
+                <PageHeaderWithSearch
+                    title={isMobile ? "Räume" : ""}
+                    badge={{
+                        icon: (
+                            <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                        ),
+                        count: filteredRooms.length
+                    }}
+                    search={{
+                        value: searchTerm,
+                        onChange: setSearchTerm,
+                        placeholder: "Raum suchen..."
+                    }}
+                    filters={filterConfigs}
+                    activeFilters={activeFilters}
+                    onClearAllFilters={() => {
+                        setSearchTerm("");
+                        setBuildingFilter("all");
+                        setFloorFilter("all");
+                        setCategoryFilter("all");
+                        setOccupiedFilter("all");
+                    }}
+                />
 
-                            {/* Search and Filter Panel */}
-                            <div className="mb-8 overflow-hidden rounded-xl bg-white p-6 shadow-md">
-                                <h2 className="mb-4 text-xl font-bold text-gray-800">Filter</h2>
+                {/* Error Display */}
+                {error && (
+                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
+                        {error}
+                    </div>
+                )}
 
-                                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5">
-                                    {/* Search input */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">
-                                            Suche
-                                        </label>
-                                        <div className="relative mt-1">
-                                            <input
-                                                type="text"
-                                                placeholder="Raumname"
-                                                value={searchFilter}
-                                                onChange={(e) => setSearchFilter(e.target.value)}
-                                                className="block w-full rounded-lg border-0 px-4 py-3 pl-10 h-12 shadow-sm ring-1 ring-gray-200 transition-all duration-200 hover:bg-gray-50/50 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                            />
-                                            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                                                <svg
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    className="h-5 w-5 text-gray-400"
-                                                    fill="none"
-                                                    viewBox="0 0 24 24"
-                                                    stroke="currentColor"
-                                                >
-                                                    <path
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        strokeWidth={2}
-                                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                                                    />
-                                                </svg>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Building Filter */}
-                                    <div className="relative">
-                                        <label className="block text-sm font-medium text-gray-700">
-                                            Gebäude
-                                        </label>
-                                        <select
-                                            value={buildingFilter ?? ""}
-                                            onChange={(e) => setBuildingFilter(e.target.value || null)}
-                                            className={dropdownClass}
-                                        >
-                                            <option value="">Alle Gebäude</option>
-                                            {uniqueBuildings.map((building) => (
-                                                <option key={building} value={building}>
-                                                    {building}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                                            <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                            </svg>
-                                        </div>
-                                    </div>
-
-                                    {/* Floor Filter */}
-                                    <div className="relative">
-                                        <label className="block text-sm font-medium text-gray-700">
-                                            Etage
-                                        </label>
-                                        <select
-                                            value={floorFilter ?? ""}
-                                            onChange={(e) => setFloorFilter(e.target.value || null)}
-                                            className={dropdownClass}
-                                        >
-                                            <option value="">Alle Etagen</option>
-                                            {uniqueFloors.map((floor) => (
-                                                <option key={floor} value={floor}>
-                                                    {floor}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                                            <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                            </svg>
-                                        </div>
-                                    </div>
-
-                                    {/* Category Filter */}
-                                    <div className="relative">
-                                        <label className="block text-sm font-medium text-gray-700">
-                                            Kategorie
-                                        </label>
-                                        <select
-                                            value={categoryFilter ?? ""}
-                                            onChange={(e) => setCategoryFilter(e.target.value || null)}
-                                            className={dropdownClass}
-                                        >
-                                            <option value="">Alle Kategorien</option>
-                                            {uniqueCategories.map((category) => (
-                                                <option key={category} value={category}>
-                                                    {category}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                                            <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                            </svg>
-                                        </div>
-                                    </div>
-
-                                    {/* Occupied Filter */}
-                                    <div className="relative">
-                                        <label className="block text-sm font-medium text-gray-700">
-                                            Status
-                                        </label>
-                                        <select
-                                            value={occupiedFilter ?? ""}
-                                            onChange={(e) => setOccupiedFilter(e.target.value || null)}
-                                            className={dropdownClass}
-                                        >
-                                            <option value="">Alle</option>
-                                            <option value="true">Belegt</option>
-                                            <option value="false">Frei</option>
-                                        </select>
-                                        <div className="pointer-events-none absolute inset-y-0 right-0 mt-6 flex items-center pr-3">
-                                            <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                            </svg>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Filter Actions */}
-                                <div className="mt-6 flex flex-wrap justify-end gap-3">
-                                    <button
-                                        onClick={resetFilters}
-                                        className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-                                    >
-                                        Zurücksetzen
-                                    </button>
-                                    <button
-                                        onClick={applyFilters}
-                                        className="rounded-lg bg-gradient-to-r from-teal-500 to-blue-600 px-6 py-2 text-sm font-medium text-white shadow-sm transition-all hover:from-teal-600 hover:to-blue-700 hover:shadow-md"
-                                    >
-                                        Filtern
-                                    </button>
-                                </div>
+                {/* Room Cards Grid */}
+                {filteredRooms.length === 0 ? (
+                    <div className="py-12 text-center">
+                        <div className="flex flex-col items-center gap-4">
+                            <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                            <div>
+                                <h3 className="text-lg font-medium text-gray-900">Keine Räume gefunden</h3>
+                                <p className="text-gray-600">
+                                    Versuchen Sie Ihre Suchkriterien anzupassen.
+                                </p>
                             </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+                        {filteredRooms.map((room) => {
+                            const roomColor = categoryColors[room.category] ?? room.color ?? "#6B7280";
 
-                            {/* Error Alert */}
-                            {error && <Alert type="error" message={error} />}
+                            return (
+                                <div
+                                    key={room.id}
+                                    onClick={() => handleSelectRoom(room)}
+                                    className="group cursor-pointer relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.02] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] active:scale-[0.98]"
+                                >
+                                    {/* Modern gradient overlay */}
+                                    <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03] rounded-3xl"></div>
+                                    {/* Subtle inner glow */}
+                                    <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                                    {/* Modern border highlight */}
+                                    <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 md:group-hover:ring-blue-200/60 transition-all duration-300"></div>
 
-                            {/* Room Cards Grid */}
-                            {filteredRooms.length > 0 ? (
-                                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                                    {filteredRooms.map((room) => (
-                                        <div
-                                            key={room.id}
-                                            onClick={() => handleSelectRoom(room)}
-                                            className="cursor-pointer overflow-hidden rounded-lg bg-white shadow-md transition-all duration-200 hover:translate-y-[-2px] hover:shadow-lg"
-                                        >
-                                            {/* Top colored bar based on room category */}
-                                            <div
-                                                className="h-2"
-                                                style={{ backgroundColor: categoryColors[room.category] ?? room.color ?? "#6B7280" }}
-                                            />
-                                            <div className="p-4">
-                                                <div className="mb-2 flex items-center justify-between">
-                                                    <h3 className="text-lg font-semibold text-gray-800">{room.name}</h3>
-                                                    <span
-                                                        className={`inline-flex h-3 w-3 rounded-full ${
-                                                            room.isOccupied ? "bg-red-500" : "bg-green-500"
-                                                        }`}
-                                                        title={room.isOccupied ? "Belegt" : "Frei"}
-                                                    ></span>
-                                                </div>
-                                                <div className="text-sm text-gray-600">
-                                                    <p className="mb-1">Gebäude: {room.building ?? "Unbekannt"}, Etage {room.floor}</p>
-                                                    <p>Kapazität: {room.capacity} Personen</p>
-                                                </div>
-                                                {/* Zeige Kategorie, Aktivität etc. für alle Räume an, nicht nur für belegte */}
-                                                <div className="mt-2 border-t border-gray-100 pt-2">
-                                                    <p className="text-sm font-medium text-gray-700">
-                                                        <span className="block flex items-center">
-                                                            <span
-                                                                className="inline-block h-3 w-3 rounded-full mr-1.5"
-                                                                style={{ backgroundColor: categoryColors[room.category] ?? room.color ?? "#6B7280" }}
-                                                            ></span>
-                                                            Kategorie: {room.category}
-                                                        </span>
-                                                        {room.isOccupied && (
-                                                            <>
-                                                                {room.groupName && (
-                                                                    <span className="block mt-1">Gruppe: {room.groupName}</span>
-                                                                )}
-                                                                {room.activityName && (
-                                                                    <span className="block mt-1">Aktivität: {room.activityName}</span>
-                                                                )}
-                                                                {room.studentCount !== undefined && room.capacity > 0 && (
-                                                                    <span className="block mt-1">
-                                                                        Belegung: {room.studentCount} / {room.capacity}
-                                                                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
-                                                                            <div
-                                                                                className="h-full bg-gray-600"
-                                                                                style={{
-                                                                                    width: `${Math.min(
-                                                                                        (room.studentCount / room.capacity) * 100,
-                                                                                        100
-                                                                                    )}%`,
-                                                                                }}
-                                                                            ></div>
-                                                                        </div>
-                                                                    </span>
-                                                                )}
-                                                            </>
-                                                        )}
-                                                    </p>
-                                                </div>
+                                    <div className="relative p-6">
+                                        {/* Header with room name and status */}
+                                        <div className="flex items-start justify-between mb-3">
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="text-lg font-bold text-gray-800 whitespace-nowrap overflow-hidden text-ellipsis md:group-hover:text-blue-600 transition-colors duration-300">
+                                                    {room.name}
+                                                </h3>
+                                                <p className="text-sm text-gray-500 mt-0.5">
+                                                    {room.building ?? "Unbekannt"} · Etage {room.floor}
+                                                </p>
                                             </div>
+
+                                            {/* Status indicator */}
+                                            <span
+                                                className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ml-3 ${
+                                                    room.isOccupied
+                                                        ? "bg-red-100 text-red-700"
+                                                        : "bg-green-100 text-green-700"
+                                                }`}
+                                            >
+                                                <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                                                    room.isOccupied ? "bg-red-500 animate-pulse" : "bg-green-500"
+                                                }`}></span>
+                                                {room.isOccupied ? "Belegt" : "Frei"}
+                                            </span>
                                         </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="flex h-40 items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-white p-6">
-                                    <div className="text-center">
-                                        <p className="text-sm font-medium text-gray-500">
-                                            {searchFilter || buildingFilter || floorFilter || categoryFilter || occupiedFilter
-                                                ? "Keine Räume gefunden, die Ihren Filterkriterien entsprechen."
-                                                : "Keine Räume verfügbar."}
-                                        </p>
+
+                                        {/* Room details */}
+                                        <div className="space-y-2">
+                                            {/* Category with color dot */}
+                                            <div className="flex items-center text-sm text-gray-600">
+                                                <span
+                                                    className="inline-block h-2.5 w-2.5 rounded-full mr-2"
+                                                    style={{ backgroundColor: roomColor }}
+                                                ></span>
+                                                <span className="font-medium">{room.category}</span>
+                                            </div>
+
+                                            {/* Capacity */}
+                                            <div className="flex items-center text-sm text-gray-600">
+                                                <svg className="h-4 w-4 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                                </svg>
+                                                <span>Kapazität: {room.capacity}</span>
+                                            </div>
+
+                                            {/* Occupied details */}
+                                            {room.isOccupied && (
+                                                <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
+                                                    {room.groupName && (
+                                                        <div className="text-sm text-gray-700">
+                                                            <span className="font-medium">Gruppe:</span> {room.groupName}
+                                                        </div>
+                                                    )}
+                                                    {room.activityName && (
+                                                        <div className="text-sm text-gray-700">
+                                                            <span className="font-medium">Aktivität:</span> {room.activityName}
+                                                        </div>
+                                                    )}
+                                                    {room.studentCount !== undefined && room.capacity > 0 && (
+                                                        <div className="text-sm text-gray-700">
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <span className="font-medium">Belegung:</span>
+                                                                <span>{room.studentCount} / {room.capacity}</span>
+                                                            </div>
+                                                            <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                                                                <div
+                                                                    className="h-full rounded-full transition-all duration-300"
+                                                                    style={{
+                                                                        width: `${Math.min((room.studentCount / room.capacity) * 100, 100)}%`,
+                                                                        backgroundColor: roomColor
+                                                                    }}
+                                                                ></div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Decorative elements */}
+                                        <div className="absolute top-4 left-4 w-4 h-4 bg-white/20 rounded-full animate-ping"></div>
+                                        <div className="absolute bottom-4 right-4 w-2.5 h-2.5 bg-white/30 rounded-full"></div>
                                     </div>
+
+                                    {/* Glowing border effect on hover */}
+                                    <div className="absolute inset-0 rounded-3xl opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent via-blue-100/30 to-transparent"></div>
                                 </div>
-                            )}
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         </ResponsiveLayout>
+    );
+}
+
+// Main component with Suspense wrapper
+export default function RoomsPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex min-h-screen items-center justify-center">
+                <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+            </div>
+        }>
+            <RoomsPageContent />
+        </Suspense>
     );
 }
