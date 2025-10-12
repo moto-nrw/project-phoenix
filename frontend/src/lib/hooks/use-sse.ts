@@ -32,6 +32,7 @@ export function useSSE(
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
+  const reconnectAttemptsRef = useRef(0); // Track live count to avoid stale closure
 
   // Stable onMessage callback
   const stableOnMessage = useCallback(
@@ -79,7 +80,8 @@ export function useSSE(
           console.log("SSE connected");
           setIsConnected(true);
           setError(null);
-          setReconnectAttempts(0);
+          reconnectAttemptsRef.current = 0; // Reset ref
+          setReconnectAttempts(0); // Reset state
         };
 
         // Handle default message events
@@ -127,13 +129,18 @@ export function useSSE(
           eventSourceRef.current = null;
 
           // Attempt reconnection with exponential backoff
-          if (reconnectAttempts < maxReconnectAttempts) {
-            const delay = reconnectInterval * Math.pow(2, reconnectAttempts);
+          // Read from ref to get live count (not stale closure value)
+          const currentAttempts = reconnectAttemptsRef.current;
+
+          if (currentAttempts < maxReconnectAttempts) {
+            const delay = reconnectInterval * Math.pow(2, currentAttempts);
             console.log(
-              `SSE reconnecting in ${delay}ms... (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`
+              `SSE reconnecting in ${delay}ms... (attempt ${currentAttempts + 1}/${maxReconnectAttempts})`
             );
 
-            setReconnectAttempts((prev) => prev + 1);
+            // Update both ref (for next closure) and state (for UI)
+            reconnectAttemptsRef.current = currentAttempts + 1;
+            setReconnectAttempts(currentAttempts + 1);
 
             if (reconnectTimeoutRef.current) {
               clearTimeout(reconnectTimeoutRef.current);
