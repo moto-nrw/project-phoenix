@@ -12,6 +12,8 @@ import { activeService } from "~/lib/active-api";
 import { fetchStudent } from "~/lib/student-api";
 import type { Student } from "~/lib/student-helpers";
 import { UnclaimedRooms } from "~/components/active";
+import { useSSE } from "~/lib/hooks/use-sse";
+import type { SSEEvent } from "~/lib/sse-types";
 
 // Extended student interface that includes visit information
 interface StudentWithVisit extends Student {
@@ -54,9 +56,24 @@ function MeinRaumPageContent() {
 
     // State for showing room selection (for 5+ rooms)
     const [showRoomSelection, setShowRoomSelection] = useState(true);
-    
+
     // Get current selected room
     const currentRoom = allRooms[selectedRoomIndex] ?? null;
+
+    // SSE event handler - refetch data on any event for current room
+    const handleSSEEvent = useCallback((event: SSEEvent) => {
+        console.log("SSE event received:", event.type, event.active_group_id);
+        // Check if event is for current room
+        if (currentRoom && event.active_group_id === currentRoom.id) {
+            console.log("Event for current room - triggering refresh");
+            setRefreshKey(prev => prev + 1);
+        }
+    }, [currentRoom]);
+
+    // Connect to SSE for real-time updates
+    const { isConnected: sseConnected } = useSSE("/api/sse/events", {
+        onMessage: handleSSEEvent,
+    });
 
     // Check access and fetch active room data
     useEffect(() => {
@@ -469,13 +486,21 @@ function MeinRaumPageContent() {
                 {/* Unclaimed Rooms Section - Shows rooms available for claiming */}
                 <UnclaimedRooms onClaimed={handleRoomClaimed} />
 
+                {/* SSE Connection Status Indicator */}
+                <div className="mb-2 flex items-center gap-2 text-sm">
+                    <div className={`w-2 h-2 rounded-full ${sseConnected ? 'bg-green-500' : 'bg-gray-400'}`} />
+                    <span className="text-gray-600">
+                        {sseConnected ? 'Live-Updates aktiv' : 'Verbindung wird hergestellt...'}
+                    </span>
+                </div>
+
                 {/* Modern Header with PageHeaderWithSearch component */}
                 <PageHeaderWithSearch
                     title={currentRoom?.room_name ?? currentRoom?.name ?? "Mein Raum"}
                     badge={{
                         icon: (
                             <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                                       d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                             </svg>
                         ),
