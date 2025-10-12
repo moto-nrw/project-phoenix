@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 )
 
@@ -123,6 +124,23 @@ func ErrorRenderer(err error) render.Renderer {
 		default:
 			return ErrorInternalServer(activeErr)
 		}
+	}
+
+	// Check for Feedback Service errors
+	if feedbackErr, ok := err.(*feedbackSvc.InvalidEntryDataError); ok {
+		return ErrorInvalidRequest(feedbackErr)
+	}
+
+	// Check for other specific feedback errors
+	switch {
+	case errors.Is(err, feedbackSvc.ErrEntryNotFound):
+		return ErrorNotFound(err)
+	case errors.Is(err, feedbackSvc.ErrInvalidEntryData):
+		return ErrorInvalidRequest(err)
+	case errors.Is(err, feedbackSvc.ErrStudentNotFound):
+		return ErrorNotFound(err)
+	case errors.Is(err, feedbackSvc.ErrInvalidDateRange):
+		return ErrorInvalidRequest(err)
 	}
 
 	// For unknown errors, return a generic internal server error

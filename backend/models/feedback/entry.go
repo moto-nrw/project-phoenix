@@ -10,6 +10,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Feedback value constants for standardized feedback types
+const (
+	ValuePositive = "positive"
+	ValueNeutral  = "neutral"
+	ValueNegative = "negative"
+)
+
 // Entry represents a feedback entry from a student
 type Entry struct {
 	base.Model      `bun:"schema:feedback,table:entries"`
@@ -49,6 +56,11 @@ func (e *Entry) Validate() error {
 
 	// Trim spaces from feedback value
 	e.Value = strings.TrimSpace(e.Value)
+
+	// Validate feedback value is one of the allowed values
+	if e.Value != ValuePositive && e.Value != ValueNeutral && e.Value != ValueNegative {
+		return errors.New("value must be 'positive', 'neutral', or 'negative'")
+	}
 
 	if e.StudentID <= 0 {
 		return errors.New("student ID is required")
