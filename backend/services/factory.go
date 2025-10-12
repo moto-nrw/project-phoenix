@@ -2,9 +2,12 @@
 package services
 
 import (
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/auth"
@@ -17,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/uptrace/bun"
 )
 
 // Factory provides access to all services
@@ -35,10 +37,14 @@ type Factory struct {
 	Users         users.PersonService
 	UserContext   usercontext.UserContextService
 	Database      database.DatabaseService
+	RealtimeHub   *realtime.Hub // SSE event hub (shared by services and API)
 }
 
 // NewFactory creates a new services factory
 func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
+
+	// Create realtime hub for SSE broadcasting (single shared instance)
+	realtimeHub := realtime.NewHub()
 
 	// Initialize education service first (needed for active service)
 	educationService := education.NewService(
@@ -63,7 +69,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
-	// Initialize active service
+	// Initialize active service with SSE broadcaster
 	activeService := active.NewService(
 		repos.ActiveGroup,
 		repos.ActiveVisit,
@@ -83,6 +89,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.Teacher,
 		repos.Staff,
 		db,
+		realtimeHub, // Pass SSE broadcaster
 	)
 
 	// Initialize feedback service
@@ -212,5 +219,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		Users:         usersService,
 		UserContext:   userContextService,
 		Database:      databaseService,
+		RealtimeHub:   realtimeHub, // Expose SSE hub for API layer
 	}, nil
 }

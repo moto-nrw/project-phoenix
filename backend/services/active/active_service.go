@@ -13,10 +13,14 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
+
+// Broadcaster interface (re-exported from realtime for convenience)
+type Broadcaster = realtime.Broadcaster
 
 // Service implements the Active Service interface
 type service struct {
@@ -44,6 +48,9 @@ type service struct {
 
 	db        *bun.DB
 	txHandler *base.TxHandler
+
+	// SSE real-time event broadcasting (optional - can be nil for testing)
+	broadcaster Broadcaster
 }
 
 // NewService creates a new active service instance
@@ -66,6 +73,7 @@ func NewService(
 	teacherRepo userModels.TeacherRepository,
 	staffRepo userModels.StaffRepository,
 	db *bun.DB,
+	broadcaster Broadcaster, // SSE event broadcaster (optional - can be nil)
 ) Service {
 	return &service{
 		groupRepo:             groupRepo,
@@ -87,6 +95,7 @@ func NewService(
 		staffRepo:             staffRepo,
 		db:                    db,
 		txHandler:             base.NewTxHandler(db),
+		broadcaster:           broadcaster,
 	}
 }
 
@@ -172,6 +181,7 @@ func (s *service) WithTx(tx bun.Tx) interface{} {
 		staffRepo:          staffRepo,
 		db:                 s.db,
 		txHandler:          s.txHandler.WithTx(tx),
+		broadcaster:        s.broadcaster, // Propagate broadcaster to transactional clone
 	}
 }
 
