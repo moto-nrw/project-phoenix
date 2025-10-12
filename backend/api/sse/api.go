@@ -56,10 +56,12 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	// Get supervised active groups for this user
 	supervisions, err := rs.activeSvc.GetStaffActiveSupervisions(r.Context(), userID)
 	if err != nil {
-		logging.Logger.WithFields(map[string]interface{}{
-			"error":   err.Error(),
-			"user_id": userID,
-		}).Error("Failed to get staff active supervisions for SSE")
+		if logging.Logger != nil {
+			logging.Logger.WithFields(map[string]interface{}{
+				"error":   err.Error(),
+				"user_id": userID,
+			}).Error("Failed to get staff active supervisions for SSE")
+		}
 		http.Error(w, "Failed to determine supervised groups", http.StatusInternalServerError)
 		return
 	}
@@ -73,9 +75,11 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// If user has no active supervisions, return empty stream
 	if len(activeGroupIDs) == 0 {
-		logging.Logger.WithFields(map[string]interface{}{
-			"user_id": userID,
-		}).Info("SSE connection - no active supervisions")
+		if logging.Logger != nil {
+			logging.Logger.WithFields(map[string]interface{}{
+				"user_id": userID,
+			}).Info("SSE connection - no active supervisions")
+		}
 
 		// Send initial comment and keep connection open
 		fmt.Fprintf(w, ": no active supervisions\n\n")
@@ -122,11 +126,13 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 			// Marshal event data to JSON
 			eventData, err := json.Marshal(event)
 			if err != nil {
-				logging.Logger.WithFields(map[string]interface{}{
-					"error":      err.Error(),
-					"user_id":    userID,
-					"event_type": string(event.Type),
-				}).Error("Failed to marshal SSE event")
+				if logging.Logger != nil {
+					logging.Logger.WithFields(map[string]interface{}{
+						"error":      err.Error(),
+						"user_id":    userID,
+						"event_type": string(event.Type),
+					}).Error("Failed to marshal SSE event")
+				}
 				continue
 			}
 

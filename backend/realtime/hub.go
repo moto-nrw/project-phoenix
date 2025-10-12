@@ -41,12 +41,14 @@ func (h *Hub) Register(client *Client, activeGroupIDs []string) {
 		client.SubscribedGroups[groupID] = true
 	}
 
-	// Audit logging for GDPR compliance
-	logging.Logger.WithFields(map[string]interface{}{
-		"user_id":           client.UserID,
-		"subscribed_groups": activeGroupIDs,
-		"total_clients":     len(h.clients),
-	}).Info("SSE client connected")
+	// Audit logging for GDPR compliance (defensive nil check)
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"user_id":           client.UserID,
+			"subscribed_groups": activeGroupIDs,
+			"total_clients":     len(h.clients),
+		}).Info("SSE client connected")
+	}
 }
 
 // Unregister removes a client from the hub and all group subscriptions
@@ -79,10 +81,12 @@ func (h *Hub) Unregister(client *Client) {
 
 	close(client.Channel)
 
-	logging.Logger.WithFields(map[string]interface{}{
-		"user_id":       client.UserID,
-		"total_clients": len(h.clients),
-	}).Info("SSE client disconnected")
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"user_id":       client.UserID,
+			"total_clients": len(h.clients),
+		}).Info("SSE client disconnected")
+	}
 }
 
 // BroadcastToGroup sends an event to all clients subscribed to the specified active group
@@ -94,10 +98,12 @@ func (h *Hub) BroadcastToGroup(activeGroupID string, event Event) error {
 	clients := h.groupClients[activeGroupID]
 	if len(clients) == 0 {
 		// No subscribers for this group - not an error
-		logging.Logger.WithFields(map[string]interface{}{
-			"active_group_id": activeGroupID,
-			"event_type":      string(event.Type),
-		}).Debug("No SSE subscribers for group")
+		if logging.Logger != nil {
+			logging.Logger.WithFields(map[string]interface{}{
+				"active_group_id": activeGroupID,
+				"event_type":      string(event.Type),
+			}).Debug("No SSE subscribers for group")
+		}
 		return nil
 	}
 
@@ -109,20 +115,24 @@ func (h *Hub) BroadcastToGroup(activeGroupID string, event Event) error {
 			successCount++
 		default:
 			// Client's channel is full - skip this client
-			logging.Logger.WithFields(map[string]interface{}{
-				"user_id":         client.UserID,
-				"active_group_id": activeGroupID,
-				"event_type":      string(event.Type),
-			}).Warn("SSE client channel full, skipping event")
+			if logging.Logger != nil {
+				logging.Logger.WithFields(map[string]interface{}{
+					"user_id":         client.UserID,
+					"active_group_id": activeGroupID,
+					"event_type":      string(event.Type),
+				}).Warn("SSE client channel full, skipping event")
+			}
 		}
 	}
 
-	logging.Logger.WithFields(map[string]interface{}{
-		"active_group_id": activeGroupID,
-		"event_type":      string(event.Type),
-		"recipient_count": len(clients),
-		"successful":      successCount,
-	}).Debug("SSE event broadcast")
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]interface{}{
+			"active_group_id": activeGroupID,
+			"event_type":      string(event.Type),
+			"recipient_count": len(clients),
+			"successful":      successCount,
+		}).Debug("SSE event broadcast")
+	}
 
 	return nil
 }
