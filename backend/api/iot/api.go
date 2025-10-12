@@ -1531,6 +1531,27 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 
 	log.Printf("[FEEDBACK] Received feedback - StudentID: %d, Value: %s", req.StudentID, req.Value)
 
+	// Validate student exists before creating feedback
+	studentRepo := rs.UsersService.StudentRepository()
+	student, err := studentRepo.FindByID(r.Context(), req.StudentID)
+	if err != nil && !strings.Contains(err.Error(), "sql: no rows in result set") {
+		log.Printf("[FEEDBACK] ERROR: Failed to lookup student %d: %v", req.StudentID, err)
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	if student == nil || err != nil {
+		log.Printf("[FEEDBACK] ERROR: Student %d not found", req.StudentID)
+		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	log.Printf("[FEEDBACK] Student %d validated", student.ID)
+
 	// Create feedback entry with server-side timestamps
 	now := time.Now()
 	entry := &feedback.Entry{
@@ -1542,7 +1563,7 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Create feedback entry (validation happens in service layer)
-	if err := rs.FeedbackService.CreateEntry(r.Context(), entry); err != nil {
+	if err = rs.FeedbackService.CreateEntry(r.Context(), entry); err != nil {
 		log.Printf("[FEEDBACK] ERROR: Failed to create feedback entry: %v", err)
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
 			log.Printf("Render error: %v", err)
