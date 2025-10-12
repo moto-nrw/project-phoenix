@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/models/feedback"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -32,6 +33,7 @@ import (
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
+	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -45,10 +47,11 @@ type Resource struct {
 	ConfigService     configSvc.Service
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
+	FeedbackService   feedbackSvc.Service
 }
 
 // NewResource creates a new IoT resource
-func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activeService activeSvc.Service, activitiesService activitiesSvc.ActivityService, configService configSvc.Service, facilityService facilitiesSvc.Service, educationService educationSvc.Service) *Resource {
+func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activeService activeSvc.Service, activitiesService activitiesSvc.ActivityService, configService configSvc.Service, facilityService facilitiesSvc.Service, educationService educationSvc.Service, feedbackService feedbackSvc.Service) *Resource {
 	return &Resource{
 		IoTService:        iotService,
 		UsersService:      usersService,
@@ -57,6 +60,7 @@ func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService,
 		ConfigService:     configService,
 		FacilityService:   facilityService,
 		EducationService:  educationService,
+		FeedbackService:   feedbackService,
 	}
 }
 
@@ -118,6 +122,7 @@ func (rs *Resource) Router() chi.Router {
 		// Device endpoints that require device API key + staff PIN authentication
 		r.Post("/ping", rs.devicePing)
 		r.Post("/checkin", rs.deviceCheckin)
+		r.Post("/feedback", rs.deviceSubmitFeedback)
 		r.Get("/status", rs.deviceStatus)
 		r.Get("/students", rs.getTeacherStudents)
 		r.Get("/activities", rs.getTeacherActivities)
@@ -1025,6 +1030,24 @@ func (req *RFIDAssignmentRequest) Bind(r *http.Request) error {
 	return nil
 }
 
+// IoTFeedbackRequest represents a feedback submission request from an IoT device
+type IoTFeedbackRequest struct {
+	StudentID int64  `json:"student_id"`
+	Value     string `json:"value"` // "positive", "neutral", or "negative"
+}
+
+// Bind validates the feedback request
+func (req *IoTFeedbackRequest) Bind(r *http.Request) error {
+	if req.StudentID <= 0 {
+		return errors.New("student_id is required and must be positive")
+	}
+	if req.Value == "" {
+		return errors.New("value is required")
+	}
+	// Value validation is handled by the model's Validate() method
+	return nil
+}
+
 // Bind validates the checkin request
 func (req *CheckinRequest) Bind(r *http.Request) error {
 	return validation.ValidateStruct(req,
@@ -1479,6 +1502,67 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Student "+actionMsg+" successfully")
+}
+
+// deviceSubmitFeedback handles feedback submission from IoT devices
+func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+
+	if deviceCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	log.Printf("[FEEDBACK] Starting feedback submission - Device: %s (ID: %d)",
+		deviceCtx.DeviceID, deviceCtx.ID)
+
+	// Parse request
+	req := &IoTFeedbackRequest{}
+	if err := render.Bind(r, req); err != nil {
+		log.Printf("[FEEDBACK] ERROR: Invalid request from device %s: %v", deviceCtx.DeviceID, err)
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	log.Printf("[FEEDBACK] Received feedback - StudentID: %d, Value: %s", req.StudentID, req.Value)
+
+	// Create feedback entry with server-side timestamps
+	now := time.Now()
+	entry := &feedback.Entry{
+		StudentID:       req.StudentID,
+		Value:           req.Value,
+		Day:             now.Truncate(24 * time.Hour), // Date only
+		Time:            now,                          // Full timestamp
+		IsMensaFeedback: false,
+	}
+
+	// Create feedback entry (validation happens in service layer)
+	if err := rs.FeedbackService.CreateEntry(r.Context(), entry); err != nil {
+		log.Printf("[FEEDBACK] ERROR: Failed to create feedback entry: %v", err)
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	log.Printf("[FEEDBACK] Successfully created feedback entry ID: %d for student %d", entry.ID, req.StudentID)
+
+	// Prepare response
+	response := map[string]interface{}{
+		"id":         entry.ID,
+		"student_id": entry.StudentID,
+		"value":      entry.Value,
+		"day":        entry.GetFormattedDate(),
+		"time":       entry.GetFormattedTime(),
+		"created_at": entry.CreatedAt,
+	}
+
+	common.Respond(w, r, http.StatusCreated, response, "Feedback submitted successfully")
 }
 
 // handleSupervisorScan processes RFID scan for staff members (supervisor authentication)
