@@ -600,7 +600,7 @@ function SubstitutionPageContent() {
                             <select
                                 value={selectedGroup}
                                 onChange={(e) => setSelectedGroup(e.target.value)}
-                                className="block w-full rounded-lg border border-gray-200 pl-4 pr-10 py-3 text-base text-gray-900 bg-white appearance-none focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors cursor-pointer"
+                                className="block w-full rounded-lg border border-gray-200 pl-4 pr-10 py-3 text-lg text-gray-900 bg-white appearance-none focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors cursor-pointer"
                             >
                                 <option value="">Gruppe auswählen...</option>
                                 {groups.map((group) => (
