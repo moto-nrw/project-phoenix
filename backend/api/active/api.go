@@ -60,6 +60,7 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/room/{roomId}", rs.getActiveGroupsByRoom)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/group/{groupId}", rs.getActiveGroupsByGroup)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/visits", rs.getActiveGroupVisits)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/visits/display", rs.getActiveGroupVisitsWithDisplay)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/supervisors", rs.getActiveGroupSupervisors)
 
 			// Write operations
@@ -220,6 +221,19 @@ type VisitResponse struct {
 	ActiveGroupName string     `json:"active_group_name,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
+// VisitWithDisplayDataResponse represents a visit with student display data (optimized for bulk fetch)
+type VisitWithDisplayDataResponse struct {
+	ID            int64      `json:"id"`
+	StudentID     int64      `json:"student_id"`
+	ActiveGroupID int64      `json:"active_group_id"`
+	CheckInTime   time.Time  `json:"check_in_time"`
+	CheckOutTime  *time.Time `json:"check_out_time,omitempty"`
+	IsActive      bool       `json:"is_active"`
+	StudentName   string     `json:"student_name"`
+	SchoolClass   string     `json:"school_class"`
+	GroupName     string     `json:"group_name,omitempty"` // Student's OGS group
 }
 
 // SupervisorResponse represents a group supervisor API response
@@ -789,6 +803,86 @@ func (rs *Resource) getActiveGroupVisits(w http.ResponseWriter, r *http.Request)
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Active group visits retrieved successfully")
+}
+
+// getActiveGroupVisitsWithDisplay handles getting visits with student display data in one query (optimized for SSE)
+func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *http.Request) {
+	// Parse ID from URL
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid active group ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Verify active group exists
+	_, err = rs.ActiveService.GetActiveGroup(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Query visits with student display data in single JOIN query
+	type visitWithStudent struct {
+		VisitID       int64      `bun:"visit_id"`
+		StudentID     int64      `bun:"student_id"`
+		ActiveGroupID int64      `bun:"active_group_id"`
+		EntryTime     time.Time  `bun:"entry_time"`
+		ExitTime      *time.Time `bun:"exit_time"`
+		FirstName     string     `bun:"first_name"`
+		LastName      string     `bun:"last_name"`
+		SchoolClass   string     `bun:"school_class"`
+		OGSGroupName  string     `bun:"ogs_group_name"`
+	}
+
+	var results []visitWithStudent
+	err = rs.db.NewSelect().
+		ColumnExpr("v.id AS visit_id").
+		ColumnExpr("v.student_id").
+		ColumnExpr("v.active_group_id").
+		ColumnExpr("v.entry_time").
+		ColumnExpr("v.exit_time").
+		ColumnExpr("p.first_name").
+		ColumnExpr("p.last_name").
+		ColumnExpr("COALESCE(s.school_class, '') AS school_class").
+		ColumnExpr("COALESCE(g.name, '') AS ogs_group_name").
+		TableExpr("active.visits AS v").
+		Join("INNER JOIN users.students AS s ON s.id = v.student_id").
+		Join("INNER JOIN users.persons AS p ON p.id = s.person_id").
+		Join("LEFT JOIN education.groups AS g ON g.id = s.group_id").
+		Where("v.active_group_id = ?", id).
+		Where("v.exit_time IS NULL"). // Only active visits
+		OrderExpr("v.entry_time DESC").
+		Scan(r.Context(), &results)
+
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Build response with display data
+	responses := make([]VisitWithDisplayDataResponse, 0, len(results))
+	for _, result := range results {
+		studentName := result.FirstName + " " + result.LastName
+		responses = append(responses, VisitWithDisplayDataResponse{
+			ID:            result.VisitID,
+			StudentID:     result.StudentID,
+			ActiveGroupID: result.ActiveGroupID,
+			CheckInTime:   result.EntryTime,
+			CheckOutTime:  result.ExitTime,
+			IsActive:      result.ExitTime == nil,
+			StudentName:   studentName,
+			SchoolClass:   result.SchoolClass,
+			GroupName:     result.OGSGroupName,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Active group visits with display data retrieved successfully")
 }
 
 // getActiveGroupSupervisors handles getting supervisors for an active group
