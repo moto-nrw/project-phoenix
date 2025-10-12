@@ -215,6 +215,26 @@ export const activeService = {
         }
     },
 
+    // Bulk fetch visits with student display data (optimized for SSE - single query)
+    getActiveGroupVisitsWithDisplay: async (id: string): Promise<Visit[]> => {
+        const session = await getSession();
+        const response = await fetch(`/api/active/groups/${id}/visits/display`, {
+            headers: {
+                Authorization: `Bearer ${session?.user?.token}`,
+                "Content-Type": "application/json",
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Get visits with display error: ${response.status}`, errorText);
+            throw new Error(`Get visits with display failed: ${response.status}`);
+        }
+
+        const responseData = await response.json() as ApiResponse<BackendVisit[]>;
+        return responseData.data.map(mapVisitResponse);
+    },
+
     getActiveGroupSupervisors: async (id: string): Promise<Supervisor[]> => {
         const useProxyApi = typeof window !== "undefined";
         const url = useProxyApi
