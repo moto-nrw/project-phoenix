@@ -83,7 +83,7 @@ export function useSSE(
         eventSource.onmessage = (event) => {
           if (!mountedRef.current) return;
           try {
-            const parsed = JSON.parse(event.data) as SSEEvent;
+            const parsed = JSON.parse(String(event.data)) as SSEEvent;
             stableOnMessage(parsed);
           } catch (err) {
             console.error("Failed to parse SSE message:", err);
@@ -104,7 +104,7 @@ export function useSSE(
             if (!mountedRef.current) return;
             try {
               const messageEvent = event as MessageEvent;
-              const parsed = JSON.parse(messageEvent.data) as SSEEvent;
+              const parsed = JSON.parse(String(messageEvent.data)) as SSEEvent;
               stableOnMessage(parsed);
             } catch (err) {
               console.error(`Failed to parse ${eventType} event:`, err);

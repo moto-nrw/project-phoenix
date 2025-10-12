@@ -13,7 +13,7 @@ export const runtime = "nodejs";
  * not buffered JSON responses. EventSource API cannot set custom headers, so we inject
  * the JWT token server-side before proxying to the Go backend.
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   // Validate session
   const session = await auth();
 
