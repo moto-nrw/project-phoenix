@@ -2,6 +2,7 @@ package iot
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -1534,7 +1535,7 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 	// Validate student exists before creating feedback
 	studentRepo := rs.UsersService.StudentRepository()
 	student, err := studentRepo.FindByID(r.Context(), req.StudentID)
-	if err != nil && !strings.Contains(err.Error(), "sql: no rows in result set") {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		log.Printf("[FEEDBACK] ERROR: Failed to lookup student %d: %v", req.StudentID, err)
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Render error: %v", err)
@@ -1542,7 +1543,7 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if student == nil || err != nil {
+	if errors.Is(err, sql.ErrNoRows) {
 		log.Printf("[FEEDBACK] ERROR: Student %d not found", req.StudentID)
 		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
 			log.Printf("Render error: %v", err)
