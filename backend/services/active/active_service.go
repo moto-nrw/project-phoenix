@@ -372,6 +372,34 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
 	}
 
+	// Broadcast SSE event (fire-and-forget)
+	if s.broadcaster != nil {
+		activeGroupID := fmt.Sprintf("%d", visit.ActiveGroupID)
+		studentID := fmt.Sprintf("%d", visit.StudentID)
+
+		// Query student for display data
+		var studentName string
+		if student, err := s.studentRepo.FindByID(ctx, visit.StudentID); err == nil && student != nil {
+			if person, err := s.personRepo.FindByID(ctx, student.PersonID); err == nil && person != nil {
+				studentName = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
+			}
+		}
+
+		event := realtime.NewEvent(
+			realtime.EventStudentCheckIn,
+			activeGroupID,
+			realtime.EventData{
+				StudentID:   &studentID,
+				StudentName: &studentName,
+			},
+		)
+
+		if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
+			// Fire-and-forget: log but don't fail the operation
+			fmt.Printf("SSE broadcast failed for student_checkin: %v\n", err)
+		}
+	}
+
 	return nil
 }
 
@@ -440,6 +468,39 @@ func (s *service) EndVisit(ctx context.Context, id int64) error {
 	if err := s.visitRepo.EndVisit(ctx, id); err != nil {
 		return &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
 	}
+
+	// Broadcast SSE event (fire-and-forget)
+	if s.broadcaster != nil {
+		// Reload visit to get complete data for event payload
+		visit, err := s.visitRepo.FindByID(ctx, id)
+		if err == nil && visit != nil {
+			activeGroupID := fmt.Sprintf("%d", visit.ActiveGroupID)
+			studentID := fmt.Sprintf("%d", visit.StudentID)
+
+			// Query student for display data
+			var studentName string
+			if student, err := s.studentRepo.FindByID(ctx, visit.StudentID); err == nil && student != nil {
+				if person, err := s.personRepo.FindByID(ctx, student.PersonID); err == nil && person != nil {
+					studentName = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
+				}
+			}
+
+			event := realtime.NewEvent(
+				realtime.EventStudentCheckOut,
+				activeGroupID,
+				realtime.EventData{
+					StudentID:   &studentID,
+					StudentName: &studentName,
+				},
+			)
+
+			if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
+				// Fire-and-forget: log but don't fail the operation
+				fmt.Printf("SSE broadcast failed for student_checkout: %v\n", err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -1354,6 +1415,40 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 		return nil, &ActiveError{Op: "StartActivitySession", Err: err}
 	}
 
+	// Broadcast SSE event (fire-and-forget, outside transaction)
+	if s.broadcaster != nil && newGroup != nil {
+		activeGroupID := fmt.Sprintf("%d", newGroup.ID)
+		roomIDStr := fmt.Sprintf("%d", newGroup.RoomID)
+		supervisorIDs := []string{fmt.Sprintf("%d", staffID)}
+
+		// Query activity name
+		var activityName string
+		if activity, err := s.activityGroupRepo.FindByID(ctx, newGroup.GroupID); err == nil && activity != nil {
+			activityName = activity.Name
+		}
+
+		// Query room name
+		var roomName string
+		if room, err := s.roomRepo.FindByID(ctx, newGroup.RoomID); err == nil && room != nil {
+			roomName = room.Name
+		}
+
+		event := realtime.NewEvent(
+			realtime.EventActivityStart,
+			activeGroupID,
+			realtime.EventData{
+				ActivityName:  &activityName,
+				RoomID:        &roomIDStr,
+				RoomName:      &roomName,
+				SupervisorIDs: &supervisorIDs,
+			},
+		)
+
+		if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
+			fmt.Printf("SSE broadcast failed for activity_start: %v\n", err)
+		}
+	}
+
 	return newGroup, nil
 }
 
@@ -1491,6 +1586,45 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 
 	if err != nil {
 		return nil, &ActiveError{Op: "StartActivitySessionWithSupervisors", Err: err}
+	}
+
+	// Broadcast SSE event (fire-and-forget, outside transaction)
+	if s.broadcaster != nil && newGroup != nil {
+		activeGroupID := fmt.Sprintf("%d", newGroup.ID)
+		roomIDStr := fmt.Sprintf("%d", newGroup.RoomID)
+
+		// Convert supervisor IDs to strings
+		supervisorIDStrs := make([]string, len(supervisorIDs))
+		for i, id := range supervisorIDs {
+			supervisorIDStrs[i] = fmt.Sprintf("%d", id)
+		}
+
+		// Query activity name
+		var activityName string
+		if activity, err := s.activityGroupRepo.FindByID(ctx, newGroup.GroupID); err == nil && activity != nil {
+			activityName = activity.Name
+		}
+
+		// Query room name
+		var roomName string
+		if room, err := s.roomRepo.FindByID(ctx, newGroup.RoomID); err == nil && room != nil {
+			roomName = room.Name
+		}
+
+		event := realtime.NewEvent(
+			realtime.EventActivityStart,
+			activeGroupID,
+			realtime.EventData{
+				ActivityName:  &activityName,
+				RoomID:        &roomIDStr,
+				RoomName:      &roomName,
+				SupervisorIDs: &supervisorIDStrs,
+			},
+		)
+
+		if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
+			fmt.Printf("SSE broadcast failed for activity_start: %v\n", err)
+		}
 	}
 
 	return newGroup, nil
@@ -1845,6 +1979,42 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 
 	if err != nil {
 		return &ActiveError{Op: "EndActivitySession", Err: err}
+	}
+
+	// Broadcast SSE event (fire-and-forget, outside transaction)
+	if s.broadcaster != nil {
+		activeGroupIDStr := fmt.Sprintf("%d", activeGroupID)
+
+		// Reload group to get final state
+		if finalGroup, err := s.groupRepo.FindByID(ctx, activeGroupID); err == nil && finalGroup != nil {
+			roomIDStr := fmt.Sprintf("%d", finalGroup.RoomID)
+
+			// Query activity name
+			var activityName string
+			if activity, err := s.activityGroupRepo.FindByID(ctx, finalGroup.GroupID); err == nil && activity != nil {
+				activityName = activity.Name
+			}
+
+			// Query room name
+			var roomName string
+			if room, err := s.roomRepo.FindByID(ctx, finalGroup.RoomID); err == nil && room != nil {
+				roomName = room.Name
+			}
+
+			event := realtime.NewEvent(
+				realtime.EventActivityEnd,
+				activeGroupIDStr,
+				realtime.EventData{
+					ActivityName: &activityName,
+					RoomID:       &roomIDStr,
+					RoomName:     &roomName,
+				},
+			)
+
+			if err := s.broadcaster.BroadcastToGroup(activeGroupIDStr, event); err != nil {
+				fmt.Printf("SSE broadcast failed for activity_end: %v\n", err)
+			}
+		}
 	}
 
 	return nil
@@ -2375,6 +2545,34 @@ func (s *service) ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledC
 				continue
 			}
 			result.VisitsEnded++
+
+			// Broadcast SSE event (fire-and-forget, must NEVER block the loop)
+			if s.broadcaster != nil {
+				activeGroupIDStr := fmt.Sprintf("%d", visit.ActiveGroupID)
+				studentIDStr := fmt.Sprintf("%d", visit.StudentID)
+				source := "automated"
+
+				// Query student for display data
+				var studentName string
+				if student, err := s.studentRepo.FindByID(ctx, visit.StudentID); err == nil && student != nil {
+					if person, err := s.personRepo.FindByID(ctx, student.PersonID); err == nil && person != nil {
+						studentName = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
+					}
+				}
+
+				event := realtime.NewEvent(
+					realtime.EventStudentCheckOut,
+					activeGroupIDStr,
+					realtime.EventData{
+						StudentID:   &studentIDStr,
+						StudentName: &studentName,
+						Source:      &source,
+					},
+				)
+
+				// Fire-and-forget: NEVER block on broadcast failure
+				_ = s.broadcaster.BroadcastToGroup(activeGroupIDStr, event)
+			}
 		} else {
 			fmt.Printf("No active visit found for student %d\n", checkout.StudentID)
 		}
