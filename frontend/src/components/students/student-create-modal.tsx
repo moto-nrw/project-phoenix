@@ -203,23 +203,23 @@ export function StudentCreateModal({
                     </div>
                 </div>
             ) : (
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
                     {/* Submit Error */}
                     {errors.submit && (
-                        <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                            <p className="text-sm text-red-800">{errors.submit}</p>
+                        <div className="rounded-lg border border-red-200 bg-red-50 p-2 md:p-3">
+                            <p className="text-xs md:text-sm text-red-800">{errors.submit}</p>
                         </div>
                     )}
 
                     {/* Personal Information */}
-                    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-4">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                            <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+                        <h3 className="text-xs md:text-sm font-semibold text-gray-900 mb-3 md:mb-4 flex items-center gap-2">
+                            <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                             </svg>
                             Persönliche Daten
                         </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                             <div>
                                 <label className="block text-xs font-medium text-gray-700 mb-1">
                                     Vorname <span className="text-red-500">*</span>
@@ -303,10 +303,10 @@ export function StudentCreateModal({
                     </div>
 
                     {/* Guardian Information */}
-                    <div className="rounded-xl border border-gray-100 bg-purple-50/30 p-4">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                                <svg className="h-4 w-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+                        <div className="flex items-center justify-between mb-3 md:mb-4">
+                            <h3 className="text-xs md:text-sm font-semibold text-gray-900 flex items-center gap-2">
+                                <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                 </svg>
                                 Erziehungsberechtigte
@@ -422,9 +422,9 @@ export function StudentCreateModal({
                     </div>
 
                     {/* Health Information */}
-                    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-4">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                            <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+                        <h3 className="text-xs md:text-sm font-semibold text-gray-900 mb-3 md:mb-4 flex items-center gap-2">
+                            <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                             </svg>
                             Gesundheitsinformationen
@@ -432,16 +432,16 @@ export function StudentCreateModal({
                         <textarea
                             value={formData.health_info ?? ""}
                             onChange={(e) => handleChange("health_info", e.target.value)}
-                            rows={4}
-                            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors resize-none"
+                            rows={3}
+                            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs md:text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors resize-none"
                             placeholder="Allergien, Medikamente, gesundheitliche Einschränkungen..."
                         />
                     </div>
 
                     {/* Supervisor Notes */}
-                    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-4">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                            <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+                        <h3 className="text-xs md:text-sm font-semibold text-gray-900 mb-3 md:mb-4 flex items-center gap-2">
+                            <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
                             Betreuernotizen
@@ -449,16 +449,16 @@ export function StudentCreateModal({
                         <textarea
                             value={formData.supervisor_notes ?? ""}
                             onChange={(e) => handleChange("supervisor_notes", e.target.value)}
-                            rows={4}
-                            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors resize-none"
+                            rows={3}
+                            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs md:text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors resize-none"
                             placeholder="Interne Notizen für Betreuer..."
                         />
                     </div>
 
                     {/* Additional Information */}
-                    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-4">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                            <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+                        <h3 className="text-xs md:text-sm font-semibold text-gray-900 mb-3 md:mb-4 flex items-center gap-2">
+                            <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                             Zusätzliche Informationen
@@ -466,16 +466,16 @@ export function StudentCreateModal({
                         <textarea
                             value={additionalInfo}
                             onChange={(e) => setAdditionalInfo(e.target.value)}
-                            rows={4}
-                            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors resize-none"
+                            rows={3}
+                            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs md:text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors resize-none"
                             placeholder="Weitere Informationen über den Schüler..."
                         />
                     </div>
 
                     {/* Privacy & Data Retention */}
-                    <div className="rounded-xl border border-gray-100 bg-purple-50/30 p-4">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                            <svg className="h-4 w-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+                        <h3 className="text-xs md:text-sm font-semibold text-gray-900 mb-3 md:mb-4 flex items-center gap-2">
+                            <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                             </svg>
                             Datenschutz
@@ -537,19 +537,19 @@ export function StudentCreateModal({
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex gap-3 pt-4 border-t border-gray-100">
+                    <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm flex gap-2 md:gap-3 pt-3 md:pt-4 pb-3 md:pb-4 border-t border-gray-100 -mx-4 md:-mx-6 px-4 md:px-6 mt-4 md:mt-6">
                         <button
                             type="button"
                             onClick={onClose}
                             disabled={saveLoading}
-                            className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 hover:shadow-md hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                            className="flex-1 px-3 md:px-4 py-2 rounded-lg border border-gray-300 text-xs md:text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 hover:shadow-md md:hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                         >
                             Abbrechen
                         </button>
                         <button
                             type="submit"
                             disabled={saveLoading}
-                            className="flex-1 px-4 py-2 rounded-lg bg-gray-900 text-sm font-medium text-white hover:bg-gray-700 hover:shadow-lg hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                            className="flex-1 px-3 md:px-4 py-2 rounded-lg bg-gray-900 text-xs md:text-sm font-medium text-white hover:bg-gray-700 hover:shadow-lg md:hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                         >
                             {saveLoading ? (
                                 <span className="flex items-center justify-center gap-2">

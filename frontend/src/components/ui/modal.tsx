@@ -172,14 +172,28 @@ export function Modal({
           </button>
         )}
 
-        {/* Content area with custom scrollbar and reveal animation */}
-        <div className="max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100" data-modal-content="true">
-          <div className={`p-6 text-gray-700 leading-relaxed ${
+        {/* Content area with hidden scrollbar and reveal animation */}
+        <div
+          className="max-h-[70vh] md:max-h-[70vh] max-h-[calc(100vh-8rem)] overflow-y-auto modal-scrollbar-hidden"
+          data-modal-content="true"
+        >
+          <div className={`p-4 md:p-6 text-gray-700 leading-relaxed ${
             isAnimating && !isExiting ? 'animate-contentReveal' : 'opacity-0'
           }`}>
             {children}
           </div>
         </div>
+
+        {/* Hide scrollbar CSS */}
+        <style jsx>{`
+          .modal-scrollbar-hidden::-webkit-scrollbar {
+            display: none;
+          }
+          .modal-scrollbar-hidden {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+          }
+        `}</style>
 
         {/* Footer if provided */}
         {footer && (

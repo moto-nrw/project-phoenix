@@ -181,11 +181,29 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
                         
                         {/* Breadcrumb separator */}
                         <div className="hidden md:block w-px h-5 bg-gray-300"></div>
-                        
-                        {/* Context indicator */}
-                        <span className="hidden md:inline text-sm font-medium text-gray-600">
-                            {pageTitle}
-                        </span>
+
+                        {/* Breadcrumb navigation for database pages */}
+                        {pathname.startsWith("/database/") && pathname !== "/database" ? (
+                            <nav className="hidden md:flex items-center space-x-2 text-sm">
+                                <Link
+                                    href="/database"
+                                    className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                                >
+                                    Datenbank
+                                </Link>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <span className="font-medium text-gray-900">
+                                    {pageTitle.replace("Datenbank", "").trim()}
+                                </span>
+                            </nav>
+                        ) : (
+                            /* Context indicator for non-database pages */
+                            <span className="hidden md:inline text-sm font-medium text-gray-600">
+                                {pageTitle}
+                            </span>
+                        )}
                     </div>
 
                     {/* Right section: Search + Actions + Profile */}

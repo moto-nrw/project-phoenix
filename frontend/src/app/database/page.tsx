@@ -157,23 +157,18 @@ function DatabaseContent() {
   // Mobile detection
   useEffect(() => {
     const handleResize = () => {
-      const wasDesktop = !isMobile;
       const isNowMobile = window.innerWidth < 768;
       setIsMobile(isNowMobile);
 
-      // Reset to list view when switching to mobile
-      if (wasDesktop && isNowMobile) {
-        setActiveTab(null);
-      }
-      // Set data tab when switching to desktop
-      else if (!wasDesktop && !isNowMobile && activeTab === null) {
+      // Always show data tab
+      if (activeTab === null) {
         setActiveTab("data");
       }
     };
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [isMobile, activeTab]);
+  }, [activeTab]);
 
   // Fetch real counts from the database
   useEffect(() => {
@@ -411,8 +406,8 @@ function DatabaseContent() {
 
   return (
     <div className="w-full">
-      {/* Header - Only show on mobile list view */}
-      {isMobile && activeTab === null && (
+      {/* Header - Show on mobile */}
+      {isMobile && (
         <PageHeaderWithSearch
           title="Datenverwaltung"
         />
@@ -444,65 +439,102 @@ function DatabaseContent() {
         </div>
       )}
 
-      {/* Mobile Navigation */}
+      {/* Mobile Content - Always show data grid directly */}
       {isMobile && (
-        <>
-          {/* Mobile List View */}
-          {activeTab === null ? (
-            <div className="flex flex-col h-[calc(100vh-120px)]">
-              <div className="bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100 overflow-hidden">
-                {tabs.map((tab, index) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleTabSelect(tab.id)}
-                    className={`w-full flex items-center justify-between px-4 py-4 hover:bg-gray-50 active:bg-gray-100 transition-all ${
-                      index !== tabs.length - 1 ? "border-b border-gray-100" : ""
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
-                        <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} />
-                        </svg>
-                      </div>
-                      <div className="text-left">
-                        <p className="text-[15px] text-gray-900">{tab.label}</p>
-                      </div>
-                    </div>
-                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            /* Mobile Detail View */
-            <div className="flex flex-col h-[calc(100vh-120px)]">
-              {/* Mobile Header with Back Button */}
-              <div className="flex items-center gap-3 pb-4 mb-4">
-                <button
-                  onClick={handleBackToList}
-                  className="p-2 -ml-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-all"
+        <div className="min-h-[60vh]">
+          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            {baseDataSections.map((section) => {
+              // Check permissions for this section
+              const permissionKey = `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}` as keyof typeof permissions;
+              if (!permissions?.[permissionKey]) {
+                return null;
+              }
+
+              const countKey = section.id === 'permissions' ? 'permissionCount' : section.id;
+              const count = counts[countKey as keyof typeof counts] ?? 0;
+              const countText = countsLoading ? "Lade..." : `${count} ${count === 1 ? 'Eintrag' : 'Einträge'}`;
+
+              const getOverlayColors = (colorClass: string) => {
+                if (colorClass.includes('[#5080D8]')) return 'from-blue-50/80 to-cyan-100/80';
+                if (colorClass.includes('[#F78C10]')) return 'from-orange-50/80 to-amber-100/80';
+                if (colorClass.includes('[#83CD2D]')) return 'from-green-50/80 to-lime-100/80';
+                if (colorClass.includes('[#FF3130]')) return 'from-red-50/80 to-rose-100/80';
+                if (colorClass.includes('purple')) return 'from-purple-50/80 to-violet-100/80';
+                if (colorClass.includes('indigo')) return 'from-indigo-50/80 to-blue-100/80';
+                if (colorClass.includes('amber')) return 'from-amber-50/80 to-yellow-100/80';
+                if (colorClass.includes('pink')) return 'from-pink-50/80 to-rose-100/80';
+                return 'from-gray-50/80 to-slate-100/80';
+              };
+
+              const overlayColor = getOverlayColors(section.color);
+              const ringColor = section.color.includes('[#5080D8]') ? 'group-hover:ring-blue-200/60' :
+                              section.color.includes('[#F78C10]') ? 'group-hover:ring-orange-200/60' :
+                              section.color.includes('[#83CD2D]') ? 'group-hover:ring-green-200/60' :
+                              section.color.includes('[#FF3130]') ? 'group-hover:ring-red-200/60' :
+                              section.color.includes('purple') ? 'group-hover:ring-purple-200/60' :
+                              section.color.includes('indigo') ? 'group-hover:ring-indigo-200/60' :
+                              section.color.includes('amber') ? 'group-hover:ring-amber-200/60' :
+                              section.color.includes('pink') ? 'group-hover:ring-pink-200/60' :
+                              'group-hover:ring-gray-200/60';
+
+              const glowColor = section.color.includes('[#5080D8]') ? 'via-blue-100/30' :
+                              section.color.includes('[#F78C10]') ? 'via-orange-100/30' :
+                              section.color.includes('[#83CD2D]') ? 'via-green-100/30' :
+                              section.color.includes('[#FF3130]') ? 'via-red-100/30' :
+                              section.color.includes('purple') ? 'via-purple-100/30' :
+                              section.color.includes('indigo') ? 'via-indigo-100/30' :
+                              section.color.includes('amber') ? 'via-amber-100/30' :
+                              section.color.includes('pink') ? 'via-pink-100/30' :
+                              'via-gray-100/30';
+
+              return (
+                <Link
+                  key={section.id}
+                  href={section.href}
+                  className="group relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 hover:scale-[1.01] hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] active:scale-[0.98] min-h-[44px] touch-manipulation"
                 >
-                  <svg className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                <h2 className="text-lg font-semibold text-gray-900">
-                  {tabs.find(t => t.id === activeTab)?.label}
-                </h2>
-              </div>
-              {/* Scrollable Content */}
-              <div className="flex-1 overflow-y-auto -mx-4 px-4">
-                {renderTabContent()}
-              </div>
-            </div>
-          )}
-        </>
+                  <div className={`absolute inset-0 bg-gradient-to-br ${overlayColor} opacity-[0.03] rounded-3xl pointer-events-none`}></div>
+                  <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20 pointer-events-none"></div>
+                  <div className={`absolute inset-0 rounded-3xl ring-1 ring-white/20 ${ringColor} transition-all duration-300 pointer-events-none`}></div>
+
+                  <div className="relative p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className={`rounded-2xl bg-gradient-to-br ${section.color} p-3 text-white shadow-lg group-hover:shadow-xl transition-all duration-300`}>
+                        <Icon path={section.icon} className="h-6 w-6" />
+                      </div>
+                      <span className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-all duration-200 ${countsLoading
+                          ? "bg-gray-200 text-gray-400 animate-pulse"
+                          : "bg-gray-100 text-gray-600"
+                        }`}>
+                        {countText}
+                      </span>
+                    </div>
+
+                    <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-gray-800 transition-colors">
+                      {section.title}
+                    </h3>
+                    <p className="text-sm text-gray-600 line-clamp-2 mb-4">
+                      {section.description}
+                    </p>
+
+                    <div className="flex items-center text-gray-400 group-hover:text-gray-700 transition-colors">
+                      <span className="text-sm font-medium">Verwalten</span>
+                      <Icon
+                        path="M9 5l7 7-7 7"
+                        className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className={`absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent ${glowColor} to-transparent pointer-events-none`}></div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
       )}
 
-      {/* Desktop Content */}
+      {/* Desktop Content - Full tab functionality */}
       {!isMobile && (
         <div className="min-h-[60vh]">
           {renderTabContent()}

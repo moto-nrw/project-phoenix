@@ -182,8 +182,8 @@ function RoomsPageContent() {
             options: [
                 { value: "all", label: "Alle Gebäude" },
                 ...uniqueBuildings.map(building => ({
-                    value: building as string,
-                    label: building as string
+                    value: building!,
+                    label: building!
                 }))
             ]
         },
