@@ -54,6 +54,9 @@ export function useSSE(
   );
 
   useEffect(() => {
+    // Ensure mountedRef is true when effect runs (critical for reconnection)
+    mountedRef.current = true;
+
     // Check if EventSource is supported
     if (typeof EventSource === "undefined") {
       console.warn("EventSource not supported in this browser");
@@ -170,13 +173,13 @@ export function useSSE(
         eventSourceRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reconnectAttempts intentionally excluded to prevent cleanup/reconnect loop
   }, [
     endpoint,
     stableOnMessage,
     stableOnError,
     reconnectInterval,
     maxReconnectAttempts,
-    reconnectAttempts,
   ]);
 
   return {
