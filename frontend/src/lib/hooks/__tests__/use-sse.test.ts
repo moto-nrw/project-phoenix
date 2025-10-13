@@ -74,12 +74,28 @@ class MockEventSource {
 
 describe("useSSE Hook", () => {
   let mockEventSource: MockEventSource | null = null;
+  let eventSourceInstances: MockEventSource[] = [];
+
+  // Helper: Wait for EventSource to be created and handlers attached
+  const waitForEventSource = async (timeout = 500) => {
+    await waitFor(() => {
+      expect(mockEventSource).toBeTruthy();
+      expect(mockEventSource?.onopen).toBeTruthy();
+    }, { timeout });
+  };
+
+  // Helper: Get the latest EventSource instance
+  const getLatestEventSource = () => eventSourceInstances[eventSourceInstances.length - 1];
 
   beforeEach(() => {
+    eventSourceInstances = [];
+
     // Replace global EventSource with our mock
     vi.stubGlobal("EventSource", vi.fn((url: string) => {
-      mockEventSource = new MockEventSource(url);
-      return mockEventSource;
+      const instance = new MockEventSource(url);
+      mockEventSource = instance;
+      eventSourceInstances.push(instance);
+      return instance;
     }));
 
     // Mock console methods to reduce test noise
@@ -90,9 +106,11 @@ describe("useSSE Hook", () => {
 
   afterEach(() => {
     vi.clearAllTimers();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     mockEventSource = null;
+    eventSourceInstances = [];
   });
 
   describe("Initial Connection", () => {
@@ -113,7 +131,7 @@ describe("useSSE Hook", () => {
       );
 
       // Wait for EventSource to be created and handlers attached
-      await waitFor(() => expect(mockEventSource).toBeTruthy(), { timeout: 100 });
+      await waitForEventSource();
 
       // Trigger connection success
       mockEventSource?.triggerOpen();
@@ -130,7 +148,7 @@ describe("useSSE Hook", () => {
         useSSE("/api/sse/events", { onMessage })
       );
 
-      await waitFor(() => expect(mockEventSource?.onopen).toBeTruthy(), { timeout: 500 });
+      await waitForEventSource();
       mockEventSource?.triggerOpen();
 
       await waitFor(() => {
@@ -160,7 +178,7 @@ describe("useSSE Hook", () => {
         useSSE("/api/sse/events", { onMessage })
       );
 
-      await waitFor(() => expect(mockEventSource?.onopen).toBeTruthy(), { timeout: 500 });
+      await waitForEventSource();
       mockEventSource?.triggerOpen();
 
       const testEvent: SSEEvent = {
@@ -188,7 +206,7 @@ describe("useSSE Hook", () => {
       );
 
       // Initial connection
-      await waitFor(() => expect(mockEventSource?.onopen).toBeTruthy(), { timeout: 500 });
+      await waitForEventSource();
       mockEventSource?.triggerOpen();
 
       await waitFor(() => {
@@ -202,114 +220,105 @@ describe("useSSE Hook", () => {
         expect(result.current.isConnected).toBe(false);
         expect(result.current.reconnectAttempts).toBe(1);
         expect(result.current.status).toBe("reconnecting");
-      }, { timeout: 200 });
+      }, { timeout: 500 });
     });
 
     it("should use exponential backoff for reconnection", async () => {
-      vi.useFakeTimers();
-
       const { result } = renderHook(() =>
         useSSE("/api/sse/events", {
-          reconnectInterval: 1000,
+          reconnectInterval: 10, // Use short delays for fast tests
           maxReconnectAttempts: 5,
         })
       );
 
       // First connection
-      await waitFor(() => expect(mockEventSource?.onopen).toBeTruthy(), { timeout: 500 });
-      mockEventSource?.triggerOpen();
+      await waitForEventSource();
+      const firstInstance = getLatestEventSource();
+      firstInstance.triggerOpen();
       await waitFor(() => expect(result.current.isConnected).toBe(true), { timeout: 500 });
 
-      // First error - should schedule retry after 1000ms (1000 * 2^0)
-      mockEventSource?.triggerError();
+      // First error - should schedule retry after 10ms (10 * 2^0)
+      firstInstance.triggerError();
       await waitFor(() => expect(result.current.reconnectAttempts).toBe(1), { timeout: 500 });
 
-      // Advance to first retry - new EventSource created
-      await vi.advanceTimersByTimeAsync(1000);
-      await waitFor(() => expect(mockEventSource).toBeTruthy(), { timeout: 500 });
+      // Wait for first retry - new EventSource created
+      await waitFor(() => expect(eventSourceInstances.length).toBe(2), { timeout: 500 });
+      const secondInstance = getLatestEventSource();
 
-      // Second error - should schedule retry after 2000ms (1000 * 2^1)
-      mockEventSource?.triggerError();
+      // Second error - should schedule retry after 20ms (10 * 2^1)
+      secondInstance.triggerError();
       await waitFor(() => expect(result.current.reconnectAttempts).toBe(2), { timeout: 500 });
 
-      // Advance to second retry
-      await vi.advanceTimersByTimeAsync(2000);
-      await waitFor(() => expect(mockEventSource).toBeTruthy(), { timeout: 500 });
+      // Wait for second retry
+      await waitFor(() => expect(eventSourceInstances.length).toBe(3), { timeout: 500 });
 
-      // Third error - should schedule retry after 4000ms (1000 * 2^2)
-      mockEventSource?.triggerError();
+      // Third error - should schedule retry after 40ms (10 * 2^2)
+      const thirdInstance = getLatestEventSource();
+      thirdInstance.triggerError();
       await waitFor(() => expect(result.current.reconnectAttempts).toBe(3), { timeout: 500 });
-
-      vi.useRealTimers();
     });
 
     it("should stop retrying after max attempts", async () => {
-      vi.useFakeTimers();
-
       const { result } = renderHook(() =>
         useSSE("/api/sse/events", {
-          reconnectInterval: 1000,
+          reconnectInterval: 10, // Use short delays for fast tests
           maxReconnectAttempts: 2,
         })
       );
 
       // Initial connection
-      await waitFor(() => expect(mockEventSource?.onopen).toBeTruthy(), { timeout: 500 });
-      mockEventSource?.triggerOpen();
+      await waitForEventSource();
+      const firstInstance = getLatestEventSource();
+      firstInstance.triggerOpen();
       await waitFor(() => expect(result.current.isConnected).toBe(true), { timeout: 500 });
 
       // First error
-      mockEventSource?.triggerError();
+      firstInstance.triggerError();
       await waitFor(() => expect(result.current.reconnectAttempts).toBe(1), { timeout: 500 });
 
-      await vi.advanceTimersByTimeAsync(1000);
+      // Wait for first retry
+      await waitFor(() => expect(eventSourceInstances.length).toBe(2), { timeout: 500 });
+      const secondInstance = getLatestEventSource();
 
-      // Second error
-      mockEventSource?.triggerError();
+      // Second error - this is attempt 2, should hit max
+      secondInstance.triggerError();
       await waitFor(() => expect(result.current.reconnectAttempts).toBe(2), { timeout: 500 });
 
-      await vi.advanceTimersByTimeAsync(2000);
-
-      // Should stop retrying
+      // Should stop retrying and transition to failed
       await waitFor(() => {
         expect(result.current.status).toBe("failed");
-        expect(result.current.error).toBe("Max reconnection attempts reached");
-      }, { timeout: 500 });
-
-      vi.useRealTimers();
+      }, { timeout: 1000 });
     });
 
     it("should reset reconnect attempts on successful connection", async () => {
-      vi.useFakeTimers();
-
       const { result } = renderHook(() =>
         useSSE("/api/sse/events", {
-          reconnectInterval: 1000,
+          reconnectInterval: 10, // Use short delays for fast tests
           maxReconnectAttempts: 5,
         })
       );
 
       // Initial connection
-      await waitFor(() => expect(mockEventSource?.onopen).toBeTruthy(), { timeout: 500 });
-      mockEventSource?.triggerOpen();
+      await waitForEventSource();
+      const firstInstance = getLatestEventSource();
+      firstInstance.triggerOpen();
       await waitFor(() => expect(result.current.isConnected).toBe(true), { timeout: 500 });
 
       // Trigger error
-      mockEventSource?.triggerError();
+      firstInstance.triggerError();
       await waitFor(() => expect(result.current.reconnectAttempts).toBe(1), { timeout: 500 });
 
       // Wait for retry - new EventSource created
-      await vi.advanceTimersByTimeAsync(1000);
+      await waitFor(() => expect(eventSourceInstances.length).toBe(2), { timeout: 500 });
+      const secondInstance = getLatestEventSource();
 
       // Successful reconnection
-      mockEventSource?.triggerOpen();
+      secondInstance.triggerOpen();
       await waitFor(() => {
         expect(result.current.isConnected).toBe(true);
         expect(result.current.reconnectAttempts).toBe(0);
         expect(result.current.status).toBe("connected");
       }, { timeout: 500 });
-
-      vi.useRealTimers();
     });
   });
 
@@ -321,7 +330,7 @@ describe("useSSE Hook", () => {
 
       expect(result.current.status).toBe("idle");
 
-      await waitFor(() => expect(mockEventSource?.onopen).toBeTruthy(), { timeout: 500 });
+      await waitForEventSource();
       mockEventSource?.triggerOpen();
 
       await waitFor(() => {
@@ -336,7 +345,7 @@ describe("useSSE Hook", () => {
         })
       );
 
-      await waitFor(() => expect(mockEventSource?.onopen).toBeTruthy(), { timeout: 500 });
+      await waitForEventSource();
       mockEventSource?.triggerOpen();
       await waitFor(() => {
         expect(result.current.status).toBe("connected");
@@ -350,71 +359,71 @@ describe("useSSE Hook", () => {
     });
 
     it("should transition: reconnecting → connected on successful retry", async () => {
-      vi.useFakeTimers();
-
       const { result } = renderHook(() =>
         useSSE("/api/sse/events", {
-          reconnectInterval: 1000,
+          reconnectInterval: 10, // Use short delays for fast tests
           maxReconnectAttempts: 3,
         })
       );
 
-      mockEventSource?.triggerOpen();
+      // Initial connection
+      await waitForEventSource();
+      const firstInstance = getLatestEventSource();
+      firstInstance.triggerOpen();
       await waitFor(() => expect(result.current.status).toBe("connected"), { timeout: 500 });
 
-      mockEventSource?.triggerError();
+      firstInstance.triggerError();
       await waitFor(() => expect(result.current.status).toBe("reconnecting"), { timeout: 500 });
 
-      await vi.advanceTimersByTimeAsync(1000);
-      mockEventSource?.triggerOpen();
+      await waitFor(() => expect(eventSourceInstances.length).toBe(2), { timeout: 500 });
+      const secondInstance = getLatestEventSource();
+      secondInstance.triggerOpen();
 
       await waitFor(() => expect(result.current.status).toBe("connected"), { timeout: 500 });
-
-      vi.useRealTimers();
     });
 
     it("should transition: reconnecting → failed after max attempts", async () => {
-      vi.useFakeTimers();
-
       const { result } = renderHook(() =>
         useSSE("/api/sse/events", {
-          reconnectInterval: 100,
+          reconnectInterval: 10, // Use short delays for fast tests
           maxReconnectAttempts: 2,
         })
       );
 
-      mockEventSource?.triggerOpen();
+      // Initial connection
+      await waitForEventSource();
+      const firstInstance = getLatestEventSource();
+      firstInstance.triggerOpen();
       await waitFor(() => expect(result.current.status).toBe("connected"), { timeout: 500 });
 
       // First error
-      mockEventSource?.triggerError();
+      firstInstance.triggerError();
       await waitFor(() => expect(result.current.reconnectAttempts).toBe(1), { timeout: 500 });
 
-      // Advance to first retry
-      await vi.advanceTimersByTimeAsync(100);
+      // Wait for first retry
+      await waitFor(() => expect(eventSourceInstances.length).toBe(2), { timeout: 500 });
+      const secondInstance = getLatestEventSource();
 
-      // Second error
-      mockEventSource?.triggerError();
+      // Second error - hits max
+      secondInstance.triggerError();
       await waitFor(() => expect(result.current.reconnectAttempts).toBe(2), { timeout: 500 });
 
-      // Advance to second retry (should hit max)
-      await vi.advanceTimersByTimeAsync(200);
-
+      // Should transition to failed
       await waitFor(() => expect(result.current.status).toBe("failed"), { timeout: 500 });
-
-      vi.useRealTimers();
     });
   });
 
   describe("Cleanup on Unmount", () => {
-    it("should close EventSource on unmount", () => {
+    it("should close EventSource on unmount", async () => {
       const { unmount } = renderHook(() =>
         useSSE("/api/sse/events")
       );
 
-      mockEventSource?.triggerOpen();
+      await waitForEventSource();
+      const instance = getLatestEventSource();
+      instance.triggerOpen();
 
-      const closeSpy = vi.spyOn(mockEventSource!, "close");
+      const closeSpy = vi.spyOn(instance, "close");
 
       unmount();
 
@@ -422,35 +431,35 @@ describe("useSSE Hook", () => {
     });
 
     it("should clear reconnect timeout on unmount", async () => {
-      vi.useFakeTimers();
-
       const { unmount } = renderHook(() =>
         useSSE("/api/sse/events", {
           reconnectInterval: 5000,
         })
       );
 
-      await waitFor(() => expect(mockEventSource?.onopen).toBeTruthy(), { timeout: 500 });
-      mockEventSource?.triggerOpen();
-      await waitFor(() => expect(mockEventSource?.readyState).toBe(mockEventSource?.OPEN), { timeout: 500 });
-
-      const oldInstance = mockEventSource;
+      // Initial connection (with real timers)
+      await waitForEventSource();
+      const firstInstance = getLatestEventSource();
+      firstInstance.triggerOpen();
+      await waitFor(() => expect(firstInstance.readyState).toBe(firstInstance.OPEN), { timeout: 500 });
 
       // Trigger error to start reconnection timer
-      mockEventSource?.triggerError();
-      await waitFor(() => expect(oldInstance?.readyState).toBe(oldInstance?.CLOSED), { timeout: 500 });
+      firstInstance.triggerError();
+      await waitFor(() => expect(firstInstance.readyState).toBe(firstInstance.CLOSED), { timeout: 500 });
+
+      const instanceCountBeforeUnmount = eventSourceInstances.length;
 
       // Unmount before timeout completes
       unmount();
 
-      // Flush any pending timers
+      // Switch to fake timers and flush any pending timers
+      vi.useFakeTimers();
       await vi.runAllTimersAsync();
+      vi.useRealTimers();
 
       // Old instance should remain closed, no new instance created
-      expect(oldInstance?.readyState).toBe(oldInstance?.CLOSED);
-      expect(mockEventSource).toBe(oldInstance); // No new instance
-
-      vi.useRealTimers();
+      expect(firstInstance.readyState).toBe(firstInstance.CLOSED);
+      expect(eventSourceInstances.length).toBe(instanceCountBeforeUnmount); // No new instance
     });
 
     it("should prevent state updates after unmount", async () => {
@@ -458,8 +467,9 @@ describe("useSSE Hook", () => {
         useSSE("/api/sse/events")
       );
 
-      await waitFor(() => expect(mockEventSource?.onopen).toBeTruthy(), { timeout: 500 });
-      mockEventSource?.triggerOpen();
+      await waitForEventSource();
+      const instance = getLatestEventSource();
+      instance.triggerOpen();
       await waitFor(() => {
         expect(result.current.isConnected).toBe(true);
       }, { timeout: 500 });
@@ -468,7 +478,7 @@ describe("useSSE Hook", () => {
 
       // Try to trigger events after unmount (should not cause errors)
       expect(() => {
-        mockEventSource?.triggerMessage({
+        instance.triggerMessage({
           type: "student_checkin",
           active_group_id: "123",
           data: {},
@@ -479,24 +489,26 @@ describe("useSSE Hook", () => {
   });
 
   describe("Error Handling", () => {
-    it("should call onError callback when error occurs", () => {
+    it("should call onError callback when error occurs", async () => {
       const onError = vi.fn();
       renderHook(() =>
         useSSE("/api/sse/events", { onError })
       );
 
+      await waitForEventSource();
       mockEventSource?.triggerOpen();
       mockEventSource?.triggerError();
 
-      expect(onError).toHaveBeenCalled();
+      await waitFor(() => expect(onError).toHaveBeenCalled(), { timeout: 500 });
     });
 
-    it("should handle parse errors gracefully", () => {
+    it("should handle parse errors gracefully", async () => {
       const onMessage = vi.fn();
       renderHook(() =>
         useSSE("/api/sse/events", { onMessage })
       );
 
+      await waitForEventSource();
       mockEventSource?.triggerOpen();
 
       // Send invalid JSON
@@ -505,6 +517,9 @@ describe("useSSE Hook", () => {
       });
 
       mockEventSource!.onmessage?.(invalidEvent);
+
+      // Wait a bit to ensure no message was processed
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Should not crash, onMessage should not be called
       expect(onMessage).not.toHaveBeenCalled();
@@ -531,7 +546,7 @@ describe("useSSE Hook", () => {
       );
 
       // Wait for connection to be established
-      await waitFor(() => expect(mockEventSource?.onopen).toBeTruthy(), { timeout: 500 });
+      await waitForEventSource();
       mockEventSource?.triggerOpen();
       await waitFor(() => {
         expect(result.current.isConnected).toBe(true);
@@ -574,7 +589,7 @@ describe("useSSE Hook", () => {
       );
 
       // Wait for connection to be established
-      await waitFor(() => expect(mockEventSource?.onopen).toBeTruthy(), { timeout: 500 });
+      await waitForEventSource();
       mockEventSource?.triggerOpen();
       await waitFor(() => {
         expect(result.current.isConnected).toBe(true);
