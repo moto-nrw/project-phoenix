@@ -110,33 +110,34 @@ function MeinRaumPageContent() {
 
   // SSE event handler - direct refetch for affected room only
   const handleSSEEvent = useCallback(
-    async (event: SSEEvent) => {
+    (event: SSEEvent) => {
       console.log("SSE event received:", event.type, event.active_group_id);
       // Check if event is for current room
       if (currentRoom && event.active_group_id === currentRoom.id) {
         console.log("Event for current room - fetching updated data");
-        try {
-          const studentsFromVisits = await loadRoomVisits(currentRoom.id);
-          setStudents([...studentsFromVisits]);
+        void loadRoomVisits(currentRoom.id)
+          .then((studentsFromVisits) => {
+            setStudents([...studentsFromVisits]);
 
-          // Update room student count
-          setAllRooms((prev) =>
-            prev.map((room) =>
-              room.id === currentRoom.id
-                ? { ...room, student_count: studentsFromVisits.length }
-                : room,
-            ),
-          );
-        } catch (error) {
-          console.error("Error refetching room visits:", error);
-        }
+            // Update room student count
+            setAllRooms((prev) =>
+              prev.map((room) =>
+                room.id === currentRoom.id
+                  ? { ...room, student_count: studentsFromVisits.length }
+                  : room,
+              ),
+            );
+          })
+          .catch((error) => {
+            console.error("Error refetching room visits:", error);
+          });
       }
     },
     [currentRoom, loadRoomVisits],
   );
 
   // Connect to SSE for real-time updates
-  const { isConnected: sseConnected } = useSSE("/api/sse/events", {
+  const { status: sseStatus, reconnectAttempts } = useSSE("/api/sse/events", {
     onMessage: handleSSEEvent,
   });
 
@@ -245,7 +246,7 @@ function MeinRaumPageContent() {
     if (session?.user?.token) {
       void checkAccessAndFetchData();
     }
-  }, [session?.user?.token, refreshKey]);
+  }, [session?.user?.token, refreshKey, loadRoomVisits]);
 
   // Callback when a room is claimed - triggers refresh
   const handleRoomClaimed = useCallback(() => {
@@ -499,12 +500,24 @@ function MeinRaumPageContent() {
         {/* SSE Connection Status Indicator */}
         <div className="mb-2 flex items-center gap-2 text-sm">
           <div
-            className={`h-2 w-2 rounded-full ${sseConnected ? "bg-green-500" : "bg-gray-400"}`}
+            className={`h-2 w-2 rounded-full ${
+              sseStatus === "connected"
+                ? "bg-green-500"
+                : sseStatus === "reconnecting"
+                  ? "bg-yellow-500"
+                  : sseStatus === "failed"
+                    ? "bg-red-500"
+                    : "bg-gray-400"
+            }`}
           />
           <span className="text-gray-600">
-            {sseConnected
+            {sseStatus === "connected"
               ? "Live-Updates aktiv"
-              : "Verbindung wird hergestellt..."}
+              : sseStatus === "reconnecting"
+                ? `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`
+                : sseStatus === "failed"
+                  ? "Verbindung fehlgeschlagen"
+                  : "Verbindung wird hergestellt..."}
           </span>
         </div>
 

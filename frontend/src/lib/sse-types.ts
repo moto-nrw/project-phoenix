@@ -7,6 +7,9 @@ export type SSEEventType =
   | "activity_end"
   | "activity_update";
 
+// SSE Connection Status
+export type ConnectionStatus = "connected" | "reconnecting" | "failed" | "idle";
+
 export interface SSEEventData {
   // Student-related fields (for check-in/check-out events)
   student_id?: string;
@@ -42,4 +45,5 @@ export interface SSEHookState {
   isConnected: boolean;
   error: string | null;
   reconnectAttempts: number;
+  status: ConnectionStatus;
 }

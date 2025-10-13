@@ -130,7 +130,7 @@ function OGSGroupPageContent() {
 
   // SSE event handler - refetch room status when students check in/out
   const handleSSEEvent = useCallback(
-    async (event: SSEEvent) => {
+    (event: SSEEvent) => {
       console.log("SSE event received:", event.type, event.active_group_id);
 
       // Check if we have a current group selected
@@ -146,19 +146,16 @@ function OGSGroupPageContent() {
           "Student location changed - refetching room status for group:",
           currentGroup.id,
         );
-        await loadGroupRoomStatus(currentGroup.id);
+        void loadGroupRoomStatus(currentGroup.id);
       }
     },
     [currentGroup, loadGroupRoomStatus],
   );
 
   // Connect to SSE for real-time updates
-  const { isConnected: sseConnected, reconnectAttempts } = useSSE(
-    "/api/sse/events",
-    {
-      onMessage: handleSSEEvent,
-    },
-  );
+  const { status: sseStatus, reconnectAttempts } = useSSE("/api/sse/events", {
+    onMessage: handleSSEEvent,
+  });
 
   // Handle mobile detection
   useEffect(() => {
@@ -644,21 +641,23 @@ function OGSGroupPageContent() {
         <div className="mb-2 flex items-center gap-2 text-sm">
           <div
             className={`h-2 w-2 rounded-full ${
-              sseConnected
+              sseStatus === "connected"
                 ? "bg-green-500"
-                : reconnectAttempts > 0
-                  ? reconnectAttempts >= 5
+                : sseStatus === "reconnecting"
+                  ? "bg-yellow-500"
+                  : sseStatus === "failed"
                     ? "bg-red-500"
-                    : "bg-yellow-500"
-                  : "bg-gray-400"
+                    : "bg-gray-400"
             }`}
           />
           <span className="text-gray-600">
-            {sseConnected
+            {sseStatus === "connected"
               ? "Live-Updates aktiv"
-              : reconnectAttempts > 0
+              : sseStatus === "reconnecting"
                 ? `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`
-                : "Verbindung wird hergestellt..."}
+                : sseStatus === "failed"
+                  ? "Verbindung fehlgeschlagen"
+                  : "Verbindung wird hergestellt..."}
           </span>
         </div>
 

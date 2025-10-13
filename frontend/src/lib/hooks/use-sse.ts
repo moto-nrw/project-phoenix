@@ -1,5 +1,10 @@
-import { useEffect, useState, useRef, useCallback } from "react";
-import type { SSEEvent, SSEHookOptions, SSEHookState } from "../sse-types";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import type {
+  SSEEvent,
+  SSEHookOptions,
+  SSEHookState,
+  ConnectionStatus,
+} from "../sse-types";
 
 /**
  * React hook for Server-Sent Events (SSE) with auto-reconnection
@@ -180,7 +185,6 @@ export function useSSE(
         eventSourceRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reconnectAttempts intentionally excluded to prevent cleanup/reconnect loop
   }, [
     endpoint,
     stableOnMessage,
@@ -189,9 +193,18 @@ export function useSSE(
     maxReconnectAttempts,
   ]);
 
+  // Compute connection status based on state
+  const status = useMemo<ConnectionStatus>(() => {
+    if (isConnected) return "connected";
+    if (reconnectAttempts >= maxReconnectAttempts) return "failed";
+    if (reconnectAttempts > 0) return "reconnecting";
+    return "idle";
+  }, [isConnected, reconnectAttempts, maxReconnectAttempts]);
+
   return {
     isConnected,
     error,
     reconnectAttempts,
+    status,
   };
 }
