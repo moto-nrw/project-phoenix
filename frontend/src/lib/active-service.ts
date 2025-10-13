@@ -1607,9 +1607,52 @@ export const activeService = {
                     throw new Error(`Get unclaimed groups failed: ${response.status}`);
                 }
 
-                const responseData = await response.json() as ApiResponse<BackendActiveGroup[]>;
-                console.log("[active-service] Got unclaimed groups:", responseData.data.length);
-                return responseData.data.map(mapActiveGroupResponse);
+                const responseData = await response.json() as unknown;
+
+                // Safely extract array from various response shapes
+                let rawData: BackendActiveGroup[] = [];
+
+                if (Array.isArray(responseData)) {
+                    // Backend returned raw array
+                    rawData = responseData as BackendActiveGroup[];
+                } else if (responseData && typeof responseData === 'object') {
+                    const dataObj = responseData as Record<string, unknown>;
+
+                    if (Array.isArray(dataObj.data)) {
+                        // Standard { data: [...] } response
+                        rawData = dataObj.data as BackendActiveGroup[];
+                    } else if (dataObj.data && typeof dataObj.data === 'object') {
+                        const nestedData = dataObj.data as Record<string, unknown>;
+                        if (Array.isArray(nestedData.items)) {
+                            // Paginated { data: { items: [...] } } response
+                            rawData = nestedData.items as BackendActiveGroup[];
+                        }
+                    }
+                }
+
+                // Log warning only if unexpected shape with non-empty data
+                if (rawData.length === 0 && responseData) {
+                    // Only warn if data exists and is a non-empty object
+                    if (typeof responseData === 'object' && !Array.isArray(responseData)) {
+                        const dataObj = responseData as Record<string, unknown>;
+                        const hasData = dataObj.data !== undefined && dataObj.data !== null;
+
+                        // Check if data is an unexpected non-empty value
+                        if (hasData) {
+                            // Skip warning for valid empty responses
+                            const isValidEmpty =
+                                Array.isArray(dataObj.data) || // Empty array is valid
+                                (typeof dataObj.data === 'object' && Object.keys(dataObj.data!).length === 0); // Empty object is valid
+
+                            if (!isValidEmpty) {
+                                console.warn("[active-service] Unexpected unclaimed groups response shape:", responseData);
+                            }
+                        }
+                    }
+                }
+
+                console.log("[active-service] Got unclaimed groups:", rawData.length);
+                return rawData.map(mapActiveGroupResponse);
             } else {
                 const response = await api.get<ApiResponse<BackendActiveGroup[]>>(url);
                 return response.data.data.map(mapActiveGroupResponse);
