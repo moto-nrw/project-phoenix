@@ -21,5 +21,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
   }
 
   // Fetch group visits with display data from the API
-  return await apiGet(`/active/groups/${params.id}/visits/display`, token);
+  const response = await apiGet(`/api/active/groups/${params.id}/visits/display`, token);
+  // Extract the data array from the backend response to avoid double-wrapping
+  return response.data;
 });

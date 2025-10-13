@@ -1626,32 +1626,16 @@ export const activeService = {
                         if (Array.isArray(nestedData.items)) {
                             // Paginated { data: { items: [...] } } response
                             rawData = nestedData.items as BackendActiveGroup[];
+                        } else {
+                            // Unexpected nested object shape
+                            console.warn("[active-service] Unexpected unclaimed groups response shape:", responseData);
                         }
+                    } else if (dataObj.data !== undefined && dataObj.data !== null) {
+                        // data field exists but is neither array nor object with items
+                        console.warn("[active-service] Unexpected unclaimed groups response shape:", responseData);
                     }
                 }
 
-                // Log warning only if unexpected shape with non-empty data
-                if (rawData.length === 0 && responseData) {
-                    // Only warn if data exists and is a non-empty object
-                    if (typeof responseData === 'object' && !Array.isArray(responseData)) {
-                        const dataObj = responseData as Record<string, unknown>;
-                        const hasData = dataObj.data !== undefined && dataObj.data !== null;
-
-                        // Check if data is an unexpected non-empty value
-                        if (hasData) {
-                            // Skip warning for valid empty responses
-                            const isValidEmpty =
-                                Array.isArray(dataObj.data) || // Empty array is valid
-                                (typeof dataObj.data === 'object' && Object.keys(dataObj.data!).length === 0); // Empty object is valid
-
-                            if (!isValidEmpty) {
-                                console.warn("[active-service] Unexpected unclaimed groups response shape:", responseData);
-                            }
-                        }
-                    }
-                }
-
-                console.log("[active-service] Got unclaimed groups:", rawData.length);
                 return rawData.map(mapActiveGroupResponse);
             } else {
                 const response = await api.get<ApiResponse<BackendActiveGroup[]>>(url);
