@@ -46,8 +46,7 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*") // CORS support for development
-	w.Header().Set("X-Accel-Buffering", "no")          // Disable nginx buffering
+	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
 	// Extract user ID from JWT claims
 	claims := jwt.ClaimsFromCtx(r.Context())
@@ -82,7 +81,9 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Send initial comment and keep connection open
-		fmt.Fprintf(w, ": no active supervisions\n\n")
+		if _, err := fmt.Fprintf(w, ": no active supervisions\n\n"); err != nil {
+			return // Client disconnected
+		}
 		flusher.Flush()
 
 		// Keep connection alive with heartbeat only
@@ -94,7 +95,9 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 			case <-r.Context().Done():
 				return
 			case <-ticker.C:
-				fmt.Fprintf(w, ": heartbeat\n\n")
+				if _, err := fmt.Fprintf(w, ": heartbeat\n\n"); err != nil {
+					return // Client disconnected
+				}
 				flusher.Flush()
 			}
 		}
@@ -137,13 +140,19 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Send SSE event with proper format
-			fmt.Fprintf(w, "event: %s\n", event.Type)
-			fmt.Fprintf(w, "data: %s\n\n", eventData)
+			if _, err := fmt.Fprintf(w, "event: %s\n", event.Type); err != nil {
+				return // Client disconnected
+			}
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", eventData); err != nil {
+				return // Client disconnected
+			}
 			flusher.Flush()
 
 		case <-heartbeat.C:
 			// Send heartbeat comment to keep connection alive
-			fmt.Fprintf(w, ": heartbeat\n\n")
+			if _, err := fmt.Fprintf(w, ": heartbeat\n\n"); err != nil {
+				return // Client disconnected
+			}
 			flusher.Flush()
 		}
 	}

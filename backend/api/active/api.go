@@ -816,6 +816,35 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 
+	// Extract staff ID from JWT claims
+	claims := jwt.ClaimsFromCtx(r.Context())
+	staffID := int64(claims.ID)
+
+	// Verify user has permission to view this active group
+	supervisions, err := rs.ActiveService.GetStaffActiveSupervisions(r.Context(), staffID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if requested active_group_id is in supervised groups
+	hasPermission := false
+	for _, supervision := range supervisions {
+		if supervision.GroupID == id {
+			hasPermission = true
+			break
+		}
+	}
+
+	if !hasPermission {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("not authorized to view this group"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
 	// Verify active group exists
 	_, err = rs.ActiveService.GetActiveGroup(r.Context(), id)
 	if err != nil {

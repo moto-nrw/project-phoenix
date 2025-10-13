@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -396,7 +397,14 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 
 		if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
 			// Fire-and-forget: log but don't fail the operation
-			fmt.Printf("SSE broadcast failed for student_checkin: %v\n", err)
+			if logging.Logger != nil {
+				logging.Logger.WithFields(map[string]interface{}{
+					"error":           err.Error(),
+					"event_type":      "student_checkin",
+					"active_group_id": activeGroupID,
+					"student_id":      studentID,
+				}).Error("SSE broadcast failed")
+			}
 		}
 	}
 
@@ -496,7 +504,14 @@ func (s *service) EndVisit(ctx context.Context, id int64) error {
 
 			if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
 				// Fire-and-forget: log but don't fail the operation
-				fmt.Printf("SSE broadcast failed for student_checkout: %v\n", err)
+				if logging.Logger != nil {
+					logging.Logger.WithFields(map[string]interface{}{
+						"error":           err.Error(),
+						"event_type":      "student_checkout",
+						"active_group_id": activeGroupID,
+						"student_id":      studentID,
+					}).Error("SSE broadcast failed")
+				}
 			}
 		}
 	}
@@ -1445,7 +1460,14 @@ func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID
 		)
 
 		if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
-			fmt.Printf("SSE broadcast failed for activity_start: %v\n", err)
+			if logging.Logger != nil {
+				logging.Logger.WithFields(map[string]interface{}{
+					"error":           err.Error(),
+					"event_type":      "activity_start",
+					"active_group_id": activeGroupID,
+					"activity_name":   activityName,
+				}).Error("SSE broadcast failed")
+			}
 		}
 	}
 
@@ -1623,7 +1645,14 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 		)
 
 		if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
-			fmt.Printf("SSE broadcast failed for activity_start: %v\n", err)
+			if logging.Logger != nil {
+				logging.Logger.WithFields(map[string]interface{}{
+					"error":           err.Error(),
+					"event_type":      "activity_start",
+					"active_group_id": activeGroupID,
+					"activity_name":   activityName,
+				}).Error("SSE broadcast failed")
+			}
 		}
 	}
 
@@ -2012,7 +2041,14 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 			)
 
 			if err := s.broadcaster.BroadcastToGroup(activeGroupIDStr, event); err != nil {
-				fmt.Printf("SSE broadcast failed for activity_end: %v\n", err)
+				if logging.Logger != nil {
+					logging.Logger.WithFields(map[string]interface{}{
+						"error":           err.Error(),
+						"event_type":      "activity_end",
+						"active_group_id": activeGroupIDStr,
+						"activity_name":   activityName,
+					}).Error("SSE broadcast failed")
+				}
 			}
 		}
 	}
