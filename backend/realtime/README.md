@@ -253,12 +253,18 @@ Default channel buffer: **10 events**
 **Symptom**: SSE connection opens then immediately closes in DevTools
 
 **Possible Causes:**
-1. JWT token expired (15min default)
-   - Solution: Refresh page to get new token
+1. **JWT token expired** (15min default)
+   - Backend logs show `401 Unauthorized` or auth errors
+   - Solution: Frontend automatically refreshes token via NextAuth
+   - Manual workaround: Reload page to get new token
+   - Status indicator will show yellow (reconnecting) briefly, then green (connected)
 2. User not supervisor of any active groups
-   - Solution: Verify user has active sessions
+   - Backend logs show `INFO SSE connection - no active supervisions`
+   - Solution: Verify user has active sessions assigned
+   - Expected behavior: Connection stays open with heartbeat only (no events)
 3. Backend not running
    - Solution: Check `docker compose ps` and logs
+   - Frontend will show yellow (reconnecting) with exponential backoff
 
 ### Events Not Received
 
@@ -278,9 +284,62 @@ Default channel buffer: **10 events**
 
 **Possible Causes:**
 1. Backend rejecting connection (auth issue)
+   - Backend logs show repeated `401 Unauthorized` or JWT validation errors
    - Solution: Check backend logs for auth errors
+   - Verify JWT token hasn't been revoked or invalidated
+   - Check NextAuth session configuration
 2. Network proxy/firewall blocking EventSource
-   - Solution: Test with direct connection (no VPN)
+   - Browser shows connection errors in Network tab
+   - Solution: Test with direct connection (no VPN/proxy)
+   - Check nginx/reverse proxy configuration (`X-Accel-Buffering: no` required)
+
+### Token Expiry Handling
+
+**Expected Behavior**: JWT tokens expire after 15 minutes
+
+**How It Works:**
+1. Token expires → Backend returns 401 → Connection closes
+2. Frontend `useSSE` hook detects error → Status changes to `reconnecting` (yellow)
+3. NextAuth automatically refreshes token in background
+4. Hook retries connection with new token → Status returns to `connected` (green)
+
+**Troubleshooting Token Issues:**
+- If stuck in `reconnecting` state:
+  - Check browser console for NextAuth refresh errors
+  - Manually reload page to force new session
+- If repeatedly failing (red `failed` status):
+  - Session may be fully expired (refresh token also expired after 1hr)
+  - User must log in again
+
+### Max Reconnection Attempts
+
+**Symptom**: Status indicator shows red "Verbindung fehlgeschlagen" (failed)
+
+**Cause**: Connection failed 5 times with exponential backoff (1s → 2s → 4s → 8s → 16s)
+
+**Solutions:**
+1. Check backend status: `docker compose ps` and `docker compose logs server`
+2. Verify backend is accessible: `curl http://localhost:8080/health`
+3. Check browser console for specific error messages
+4. Manual recovery: Reload page to reset reconnection counter
+
+### Performance Issues
+
+**Symptom**: Events delayed or UI updates lag
+
+**Possible Causes:**
+1. **Channel buffer full** (10 events per client)
+   - Backend logs show: `SSE client channel full, skipping event`
+   - Impact: Some events skipped, but next event triggers full refetch (no data loss)
+   - Solution: Increase buffer size in `hub.go` if needed (default: 10)
+2. **Slow refetch endpoint**
+   - Check backend logs for slow query warnings
+   - Verify database indexes on `active.visits` table
+   - Use bulk endpoint `/api/active/groups/{id}/visits/display` (not individual fetches)
+3. **Too many concurrent connections**
+   - Check hub metrics: Total clients, group subscriber counts
+   - Each connection uses ~10KB memory
+   - 1000 connections = ~10MB overhead (acceptable for most systems)
 
 ## Security Considerations
 
