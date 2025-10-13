@@ -535,7 +535,7 @@ export function StudentEditModal({
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm flex gap-2 md:gap-3 pt-3 md:pt-4 pb-3 md:pb-4 border-t border-gray-100 -mx-4 md:-mx-6 px-4 md:px-6 mt-4 md:mt-6">
+                    <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm flex gap-2 md:gap-3 py-3 md:py-4 border-t border-gray-100 -mx-4 md:-mx-6 -mb-4 md:-mb-6 px-4 md:px-6 mt-4 md:mt-6">
                         <button
                             type="button"
                             onClick={onClose}

@@ -498,62 +498,60 @@ export function DatabaseForm<T = Record<string, unknown>>({
     : `from-${theme.primary.replace('500', '600')} to-${theme.secondary.replace('600', '700')}`;
 
   return (
-    <div className="overflow-hidden rounded-lg bg-white shadow-md">
-      <div className="p-4 md:p-6">
-        {(error ?? externalError) && (
-          <div className="mb-4 md:mb-6 rounded-lg bg-red-50 p-3 md:p-4 text-sm md:text-base text-red-800">
-            <p>{error ?? externalError}</p>
-          </div>
-        )}
+    <>
+      {(error ?? externalError) && (
+        <div className="mb-4 md:mb-6 rounded-lg bg-red-50 p-3 md:p-4 text-sm md:text-base text-red-800">
+          <p>{error ?? externalError}</p>
+        </div>
+      )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {sections.map((section, sectionIndex) => {
-            // Use custom background or theme background
-            const bgClass = section.backgroundColor ?? themeClasses.background;
-            const textClass = themeClasses.text;
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {sections.map((section, sectionIndex) => {
+          // Use custom background or theme background
+          const bgClass = section.backgroundColor ?? themeClasses.background;
+          const textClass = themeClasses.text;
 
-            return (
-              <div key={`section-${sectionIndex}`} className={`mb-6 md:mb-8 rounded-lg ${bgClass} p-3 md:p-4`}>
-                <h2 className={`mb-3 md:mb-4 text-base md:text-lg font-medium ${textClass}`}>
-                  {section.title}
-                </h2>
-                {section.subtitle && (
-                  <p className="mb-3 md:mb-4 text-xs md:text-sm text-gray-600">{section.subtitle}</p>
-                )}
-                <div className={`grid grid-cols-1 gap-4 ${section.columns === 2 ? 'md:grid-cols-2' : ''}`}>
-                  {section.fields.map((field) => (
-                    <div 
-                      key={field.name}
-                      className={field.colSpan === 2 && section.columns === 2 ? 'md:col-span-2' : ''}
-                    >
-                      {renderField(field, bgClass)}
-                    </div>
-                  ))}
-                </div>
+          return (
+            <div key={`section-${sectionIndex}`} className={`mb-6 md:mb-8 rounded-lg ${bgClass} p-3 md:p-4`}>
+              <h2 className={`mb-3 md:mb-4 text-base md:text-lg font-medium ${textClass}`}>
+                {section.title}
+              </h2>
+              {section.subtitle && (
+                <p className="mb-3 md:mb-4 text-xs md:text-sm text-gray-600">{section.subtitle}</p>
+              )}
+              <div className={`grid grid-cols-1 gap-4 ${section.columns === 2 ? 'md:grid-cols-2' : ''}`}>
+                {section.fields.map((field) => (
+                  <div
+                    key={field.name}
+                    className={field.colSpan === 2 && section.columns === 2 ? 'md:col-span-2' : ''}
+                  >
+                    {renderField(field, bgClass)}
+                  </div>
+                ))}
               </div>
-            );
-          })}
+            </div>
+          );
+        })}
 
-          {/* Form actions - matching StudentForm exactly */}
-          <div className="flex justify-end pt-4">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="mr-2 rounded-lg px-3 py-2 md:px-4 text-sm md:text-base text-gray-700 shadow-sm transition-colors hover:bg-gray-100"
-              disabled={isLoading}
-            >
-              Abbrechen
-            </button>
-            <button
-              type="submit"
-              className={`rounded-lg bg-gradient-to-r ${buttonGradient} px-4 py-2 md:px-6 text-sm md:text-base text-white transition-all duration-200 hover:${buttonHoverGradient} hover:shadow-lg`}
-              disabled={isLoading}
-            >
-              {isLoading ? "Wird gespeichert..." : submitLabel}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        {/* Form actions - matching StudentForm exactly */}
+        <div className="flex justify-end pt-6 pb-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="mr-2 rounded-lg px-3 py-2 md:px-4 text-sm md:text-base text-gray-700 shadow-sm transition-colors hover:bg-gray-100"
+            disabled={isLoading}
+          >
+            Abbrechen
+          </button>
+          <button
+            type="submit"
+            className={`rounded-lg bg-gradient-to-r ${buttonGradient} px-4 py-2 md:px-6 text-sm md:text-base text-white transition-all duration-200 hover:${buttonHoverGradient} hover:shadow-lg`}
+            disabled={isLoading}
+          >
+            {isLoading ? "Wird gespeichert..." : submitLabel}
+          </button>
+        </div>
+      </form>
+    </>
   );
 }

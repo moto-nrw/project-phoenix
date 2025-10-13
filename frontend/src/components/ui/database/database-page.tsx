@@ -590,9 +590,9 @@ export function DatabasePage<T extends { id: string }>({
           setIsEditing(false);
           setDetailError(null);
         }}
-        title={isEditing 
+        title={isEditing
           ? (config.labels?.editModalTitle ?? `${config.name.singular} bearbeiten`)
-          : (config.labels?.detailModalTitle ?? `${config.name.singular}details`)
+          : (config.labels?.detailModalTitle ?? '')
         }
         size="xl"
         loading={detailLoading}
