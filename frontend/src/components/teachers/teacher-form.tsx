@@ -9,6 +9,10 @@ interface TeacherFormProps {
     formTitle?: string;
     submitLabel?: string;
     rfidCards?: Array<{ id: string; label: string }>;
+    // When false, render without outer card container/headline (for edit modal minimal UI)
+    wrapInCard?: boolean;
+    // Show/hide RFID UI block (kept off by default to avoid confusion)
+    showRFID?: boolean;
 }
 
 export function TeacherForm({
@@ -19,6 +23,8 @@ export function TeacherForm({
                                         formTitle = "Details der pädagogischen Fachkraft",
                                         submitLabel = "Speichern",
                                         rfidCards: _rfidCards = [],
+                                        wrapInCard = true,
+                                        showRFID = false,
                                     }: TeacherFormProps) {
     // Form state
     const [firstName, setFirstName] = useState(initialData.first_name ?? "");
@@ -164,8 +170,10 @@ export function TeacherForm({
     };
 
     return (
-        <div className="rounded-lg border border-gray-100 bg-white p-4 md:p-6 shadow-sm">
-            <h3 className="mb-4 md:mb-6 text-base md:text-lg font-semibold text-gray-800">{formTitle}</h3>
+        <div className={wrapInCard ? "rounded-lg border border-gray-100 bg-white p-4 md:p-6 shadow-sm" : ""}>
+            {wrapInCard && formTitle && (
+                <h3 className="mb-4 md:mb-6 text-base md:text-lg font-semibold text-gray-800">{formTitle}</h3>
+            )}
 
             {submitError && (
                 <div className="mb-4 md:mb-6 rounded-lg border border-red-200 bg-red-50 p-3 md:p-4 text-xs md:text-sm text-red-800">
@@ -258,29 +266,31 @@ export function TeacherForm({
                             </div>
                         )}
 
-                        {/* RFID Tag - Disabled */}
-                        <div>
-                            <label
-                                htmlFor="tagId"
-                                className="mb-1 block text-sm font-medium text-gray-500"
-                            >
-                                RFID-Karte (Funktion nicht verfügbar)
-                            </label>
-                            <div className="relative">
-                                <select
-                                    id="tagId"
-                                    value=""
-                                    onChange={(e) => setTagId(e.target.value)}
-                                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-gray-500 cursor-not-allowed"
-                                    disabled={true}
+                        {/* RFID Tag UI intentionally hidden by default */}
+                        {showRFID && (
+                            <div>
+                                <label
+                                    htmlFor="tagId"
+                                    className="mb-1 block text-sm font-medium text-gray-500"
                                 >
-                                    <option value="">RFID-Funktion deaktiviert</option>
-                                </select>
-                                <p className="mt-1 text-xs text-gray-500">
-                                    Die RFID-Kartenzuweisung ist derzeit nicht verfügbar
-                                </p>
+                                    RFID-Karte (Funktion nicht verfügbar)
+                                </label>
+                                <div className="relative">
+                                    <select
+                                        id="tagId"
+                                        value=""
+                                        onChange={(e) => setTagId(e.target.value)}
+                                        className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-gray-500 cursor-not-allowed"
+                                        disabled={true}
+                                    >
+                                        <option value="">RFID-Funktion deaktiviert</option>
+                                    </select>
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        Die RFID-Kartenzuweisung ist derzeit nicht verfügbar
+                                    </p>
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Password - only for new teachers */}
                         {!initialData.id && (
@@ -423,7 +433,7 @@ export function TeacherForm({
                 </div>
 
                 {/* Form Actions */}
-                <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm flex gap-2 md:gap-3 pt-3 md:pt-4 pb-3 md:pb-4 border-t border-gray-100 -mx-4 md:-mx-6 px-4 md:px-6 mt-4 md:mt-6">
+                <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm flex gap-2 md:gap-3 pt-3 md:pt-4 pb-3 md:pb-4 border-t border-gray-100 -mx-4 md:-mx-6 -mb-4 md:-mb-6 px-4 md:px-6 mt-4 md:mt-6">
                     <button
                         type="button"
                         onClick={onCancelAction}

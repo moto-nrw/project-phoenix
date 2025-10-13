@@ -36,7 +36,9 @@ export function TeacherCreateModal({
                     onSubmitAction={onCreate}
                     onCancelAction={onClose}
                     isLoading={loading}
-                    submitLabel="Lehrkraft erstellen"
+                    formTitle=""
+                    wrapInCard={false}
+                    submitLabel="Erstellen"
                 />
             )}
         </Modal>

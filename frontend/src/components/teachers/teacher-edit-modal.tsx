@@ -40,7 +40,9 @@ export function TeacherEditModal({
                     onSubmitAction={onSave}
                     onCancelAction={onClose}
                     isLoading={loading}
-                    submitLabel="Änderungen speichern"
+                    formTitle=""
+                    wrapInCard={false}
+                    submitLabel="Speichern"
                 />
             )}
         </Modal>

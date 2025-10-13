@@ -456,7 +456,6 @@ export default function TeachersPage() {
                     isOpen={showEditModal}
                     onClose={() => {
                         setShowEditModal(false);
-                        setShowDetailModal(true);
                     }}
                     teacher={selectedTeacher}
                     onSave={handleEditTeacher}
