@@ -1,9 +1,17 @@
+import { Agent } from "undici";
 import { type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { env } from "~/env";
 
 // REQUIRED for streaming - must use Node.js runtime
 export const runtime = "nodejs";
+
+// Disable request/response timeouts for long-lived SSE connections
+const sseAgent = new Agent({
+  connect: { timeout: 0 },
+  headersTimeout: 0,
+  bodyTimeout: 0,
+});
 
 /**
  * SSE (Server-Sent Events) proxy endpoint
@@ -30,7 +38,9 @@ export async function GET(_request: NextRequest) {
           Authorization: `Bearer ${session.user.token}`,
           Accept: "text/event-stream",
         },
-        // Important: Don't set a timeout, SSE connections are long-lived
+        cache: "no-store",
+        // Use undici agent with disabled timeouts so the connection stays open
+        dispatcher: sseAgent,
       }
     );
 

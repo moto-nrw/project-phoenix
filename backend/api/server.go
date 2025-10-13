@@ -42,11 +42,13 @@ func NewServer() (*Server, error) {
 
 	srv := &Server{
 		Server: &http.Server{
-			Addr:         addr,
-			Handler:      api,
+			Addr:    addr,
+			Handler: api,
+			// ReadTimeout stays modest to protect against slowloris attacks,
+			// but WriteTimeout must be disabled to allow long-lived SSE streams.
 			ReadTimeout:  15 * time.Second,
-			WriteTimeout: 15 * time.Second,
-			IdleTimeout:  60 * time.Second,
+			WriteTimeout: 0,
+			IdleTimeout:  0,
 		},
 		scheduler: nil, // Will be initialized if cleanup is enabled
 	}
