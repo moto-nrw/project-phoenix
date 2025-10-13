@@ -225,6 +225,10 @@ export const activeService = {
             },
         });
 
+        if (response.status === 404) {
+            return [];
+        }
+
         if (!response.ok) {
             const errorText = await response.text();
             console.error(`Get visits with display error: ${response.status}`, errorText);
@@ -1591,6 +1595,85 @@ export const activeService = {
             ? "/api/active/groups/unclaimed"
             : `${env.NEXT_PUBLIC_API_URL}/active/groups/unclaimed`;
 
+        const metadataKeys = new Set(["status", "message", "success", "code", "meta", "pagination"]);
+
+        const extractGroupArray = (payload: unknown): BackendActiveGroup[] | undefined => {
+            if (Array.isArray(payload)) {
+                return payload as BackendActiveGroup[];
+            }
+
+            if (payload && typeof payload === "object") {
+                const obj = payload as Record<string, unknown>;
+
+                if ("data" in obj) {
+                    const fromData = extractGroupArray(obj.data);
+                    if (fromData !== undefined) {
+                        return fromData;
+                    }
+                }
+
+                if ("items" in obj) {
+                    const fromItems = extractGroupArray(obj.items);
+                    if (fromItems !== undefined) {
+                        return fromItems;
+                    }
+                }
+            }
+
+            return undefined;
+        };
+
+        const payloadIsEffectivelyEmpty = (payload: unknown): boolean => {
+            if (payload === null || payload === undefined) {
+                return true;
+            }
+
+            if (Array.isArray(payload)) {
+                return payload.length === 0;
+            }
+
+            if (typeof payload === "object") {
+                const obj = payload as Record<string, unknown>;
+
+                if ("data" in obj) {
+                    if (!payloadIsEffectivelyEmpty(obj.data)) {
+                        return false;
+                    }
+                }
+
+                if ("items" in obj) {
+                    if (!payloadIsEffectivelyEmpty(obj.items)) {
+                        return false;
+                    }
+                }
+
+                const remainingKeys = Object.keys(obj).filter((key) => key !== "data" && key !== "items");
+                const nonMetaKeys = remainingKeys.filter((key) => !metadataKeys.has(key));
+
+                if (nonMetaKeys.length > 0) {
+                    return false;
+                }
+
+                return true;
+            }
+
+            return false;
+        };
+
+        const parseUnclaimedGroupsPayload = (payload: unknown): BackendActiveGroup[] => {
+            const extracted = extractGroupArray(payload);
+
+            if (extracted !== undefined) {
+                return extracted;
+            }
+
+            if (!payloadIsEffectivelyEmpty(payload)) {
+                console.warn("[active-service] Unexpected unclaimed groups response shape:", payload);
+            }
+
+            return [];
+        };
+
         try {
             if (useProxyApi) {
                 const session = await getSession();
@@ -1608,38 +1691,12 @@ export const activeService = {
                 }
 
                 const responseData = await response.json() as unknown;
-
-                // Safely extract array from various response shapes
-                let rawData: BackendActiveGroup[] = [];
-
-                if (Array.isArray(responseData)) {
-                    // Backend returned raw array
-                    rawData = responseData as BackendActiveGroup[];
-                } else if (responseData && typeof responseData === 'object') {
-                    const dataObj = responseData as Record<string, unknown>;
-
-                    if (Array.isArray(dataObj.data)) {
-                        // Standard { data: [...] } response
-                        rawData = dataObj.data as BackendActiveGroup[];
-                    } else if (dataObj.data && typeof dataObj.data === 'object') {
-                        const nestedData = dataObj.data as Record<string, unknown>;
-                        if (Array.isArray(nestedData.items)) {
-                            // Paginated { data: { items: [...] } } response
-                            rawData = nestedData.items as BackendActiveGroup[];
-                        } else {
-                            // Unexpected nested object shape
-                            console.warn("[active-service] Unexpected unclaimed groups response shape:", responseData);
-                        }
-                    } else if (dataObj.data !== undefined && dataObj.data !== null) {
-                        // data field exists but is neither array nor object with items
-                        console.warn("[active-service] Unexpected unclaimed groups response shape:", responseData);
-                    }
-                }
-
-                return rawData.map(mapActiveGroupResponse);
+                const rawGroups = parseUnclaimedGroupsPayload(responseData);
+                return rawGroups.map(mapActiveGroupResponse);
             } else {
-                const response = await api.get<ApiResponse<BackendActiveGroup[]>>(url);
-                return response.data.data.map(mapActiveGroupResponse);
+                const response = await api.get<unknown>(url);
+                const rawGroups = parseUnclaimedGroupsPayload(response.data);
+                return rawGroups.map(mapActiveGroupResponse);
             }
         } catch (error) {
             console.error("Get unclaimed groups error:", error);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
+import { useState, useEffect, Suspense, useMemo, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
@@ -108,23 +108,29 @@ function MeinRaumPageContent() {
     [],
   );
 
+  const currentRoomRef = useRef<ActiveRoom | null>(null);
+  useEffect(() => {
+    currentRoomRef.current = currentRoom;
+  }, [currentRoom]);
+
   // SSE event handler - direct refetch for affected room only
   const handleSSEEvent = useCallback(
     (event: SSEEvent) => {
       console.log("SSE event received:", event.type, event.active_group_id);
-      // Check if event is for current room
-      if (currentRoom && event.active_group_id === currentRoom.id) {
+      const activeRoom = currentRoomRef.current;
+      if (activeRoom && event.active_group_id === activeRoom.id) {
+        const targetRoomId = activeRoom.id;
         console.log("Event for current room - fetching updated data");
-        void loadRoomVisits(currentRoom.id)
+        void loadRoomVisits(targetRoomId)
           .then((studentsFromVisits) => {
             setStudents([...studentsFromVisits]);
 
             // Update room student count
             setAllRooms((prev) =>
-              prev.map((room) =>
-                room.id === currentRoom.id
-                  ? { ...room, student_count: studentsFromVisits.length }
-                  : room,
+              prev.map((existingRoom) =>
+                existingRoom.id === targetRoomId
+                  ? { ...existingRoom, student_count: studentsFromVisits.length }
+                  : existingRoom,
               ),
             );
           })
@@ -133,7 +139,7 @@ function MeinRaumPageContent() {
           });
       }
     },
-    [currentRoom, loadRoomVisits],
+    [loadRoomVisits],
   );
 
   // Connect to SSE for real-time updates
