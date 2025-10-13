@@ -1,6 +1,8 @@
 // app/api/active/groups/[id]/visits/display/route.ts
 import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers";
+import type { ApiResponse } from "~/lib/api-helpers";
+import type { BackendVisit } from "~/lib/active-helpers";
 import { createGetHandler } from "~/lib/route-wrapper";
 
 /**
@@ -21,7 +23,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
   }
 
   // Fetch group visits with display data from the API
-  const response = await apiGet(`/api/active/groups/${params.id}/visits/display`, token);
+  const response = await apiGet<ApiResponse<BackendVisit[]>>(`/api/active/groups/${params.id}/visits/display`, token);
   // Extract the data array from the backend response to avoid double-wrapping
   return response.data;
 });

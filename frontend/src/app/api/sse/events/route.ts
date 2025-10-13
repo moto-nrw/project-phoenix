@@ -13,6 +13,8 @@ const sseAgent = new Agent({
   bodyTimeout: 0,
 });
 
+type NodeRequestInit = RequestInit & { dispatcher?: Agent };
+
 /**
  * SSE (Server-Sent Events) proxy endpoint
  * Streams real-time updates from backend to browser
@@ -31,17 +33,19 @@ export async function GET(_request: NextRequest) {
 
   try {
     // Fetch SSE stream from Go backend with JWT token
+    const requestInit: NodeRequestInit = {
+      headers: {
+        Authorization: `Bearer ${session.user.token}`,
+        Accept: "text/event-stream",
+      },
+      cache: "no-store",
+      // Use undici agent with disabled timeouts so the connection stays open
+      dispatcher: sseAgent,
+    };
+
     const backendResponse = await fetch(
       `${env.NEXT_PUBLIC_API_URL}/api/sse/events`,
-      {
-        headers: {
-          Authorization: `Bearer ${session.user.token}`,
-          Accept: "text/event-stream",
-        },
-        cache: "no-store",
-        // Use undici agent with disabled timeouts so the connection stays open
-        dispatcher: sseAgent,
-      }
+      requestInit
     );
 
     if (!backendResponse.ok) {

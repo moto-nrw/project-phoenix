@@ -9,11 +9,11 @@ class MockEventSource {
   public onopen: ((event: Event) => void) | null = null;
   public onmessage: ((event: MessageEvent) => void) | null = null;
   public onerror: ((event: Event) => void) | null = null;
-  public readyState: number = 0;
+  public readyState = 0;
   public CONNECTING = 0;
   public OPEN = 1;
   public CLOSED = 2;
-  private eventListeners: Map<string, ((event: Event) => void)[]> = new Map();
+  private eventListeners = new Map<string, ((event: Event) => void)[]>();
 
   constructor(url: string) {
     this.url = url;
@@ -86,6 +86,13 @@ describe("useSSE Hook", () => {
 
   // Helper: Get the latest EventSource instance
   const getLatestEventSource = () => eventSourceInstances[eventSourceInstances.length - 1];
+  const requireLatestEventSource = () => {
+    const instance = getLatestEventSource();
+    if (!instance) {
+      throw new Error("EventSource instance not initialized");
+    }
+    return instance;
+  };
 
   beforeEach(() => {
     eventSourceInstances = [];
@@ -99,9 +106,9 @@ describe("useSSE Hook", () => {
     }));
 
     // Mock console methods to reduce test noise
-    vi.spyOn(console, "log").mockImplementation(() => {});
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -233,7 +240,7 @@ describe("useSSE Hook", () => {
 
       // First connection
       await waitForEventSource();
-      const firstInstance = getLatestEventSource();
+      const firstInstance = requireLatestEventSource();
       firstInstance.triggerOpen();
       await waitFor(() => expect(result.current.isConnected).toBe(true), { timeout: 500 });
 
@@ -243,7 +250,7 @@ describe("useSSE Hook", () => {
 
       // Wait for first retry - new EventSource created
       await waitFor(() => expect(eventSourceInstances.length).toBe(2), { timeout: 500 });
-      const secondInstance = getLatestEventSource();
+      const secondInstance = requireLatestEventSource();
 
       // Second error - should schedule retry after 20ms (10 * 2^1)
       secondInstance.triggerError();
@@ -253,7 +260,7 @@ describe("useSSE Hook", () => {
       await waitFor(() => expect(eventSourceInstances.length).toBe(3), { timeout: 500 });
 
       // Third error - should schedule retry after 40ms (10 * 2^2)
-      const thirdInstance = getLatestEventSource();
+      const thirdInstance = requireLatestEventSource();
       thirdInstance.triggerError();
       await waitFor(() => expect(result.current.reconnectAttempts).toBe(3), { timeout: 500 });
     });
@@ -268,7 +275,7 @@ describe("useSSE Hook", () => {
 
       // Initial connection
       await waitForEventSource();
-      const firstInstance = getLatestEventSource();
+      const firstInstance = requireLatestEventSource();
       firstInstance.triggerOpen();
       await waitFor(() => expect(result.current.isConnected).toBe(true), { timeout: 500 });
 
@@ -278,7 +285,7 @@ describe("useSSE Hook", () => {
 
       // Wait for first retry
       await waitFor(() => expect(eventSourceInstances.length).toBe(2), { timeout: 500 });
-      const secondInstance = getLatestEventSource();
+      const secondInstance = requireLatestEventSource();
 
       // Second error - this is attempt 2, should hit max
       secondInstance.triggerError();
@@ -300,7 +307,7 @@ describe("useSSE Hook", () => {
 
       // Initial connection
       await waitForEventSource();
-      const firstInstance = getLatestEventSource();
+      const firstInstance = requireLatestEventSource();
       firstInstance.triggerOpen();
       await waitFor(() => expect(result.current.isConnected).toBe(true), { timeout: 500 });
 
@@ -310,7 +317,7 @@ describe("useSSE Hook", () => {
 
       // Wait for retry - new EventSource created
       await waitFor(() => expect(eventSourceInstances.length).toBe(2), { timeout: 500 });
-      const secondInstance = getLatestEventSource();
+      const secondInstance = requireLatestEventSource();
 
       // Successful reconnection
       secondInstance.triggerOpen();
@@ -368,7 +375,7 @@ describe("useSSE Hook", () => {
 
       // Initial connection
       await waitForEventSource();
-      const firstInstance = getLatestEventSource();
+      const firstInstance = requireLatestEventSource();
       firstInstance.triggerOpen();
       await waitFor(() => expect(result.current.status).toBe("connected"), { timeout: 500 });
 
@@ -376,7 +383,7 @@ describe("useSSE Hook", () => {
       await waitFor(() => expect(result.current.status).toBe("reconnecting"), { timeout: 500 });
 
       await waitFor(() => expect(eventSourceInstances.length).toBe(2), { timeout: 500 });
-      const secondInstance = getLatestEventSource();
+      const secondInstance = requireLatestEventSource();
       secondInstance.triggerOpen();
 
       await waitFor(() => expect(result.current.status).toBe("connected"), { timeout: 500 });
@@ -392,7 +399,7 @@ describe("useSSE Hook", () => {
 
       // Initial connection
       await waitForEventSource();
-      const firstInstance = getLatestEventSource();
+      const firstInstance = requireLatestEventSource();
       firstInstance.triggerOpen();
       await waitFor(() => expect(result.current.status).toBe("connected"), { timeout: 500 });
 
@@ -402,7 +409,7 @@ describe("useSSE Hook", () => {
 
       // Wait for first retry
       await waitFor(() => expect(eventSourceInstances.length).toBe(2), { timeout: 500 });
-      const secondInstance = getLatestEventSource();
+      const secondInstance = requireLatestEventSource();
 
       // Second error - hits max
       secondInstance.triggerError();
@@ -420,7 +427,7 @@ describe("useSSE Hook", () => {
       );
 
       await waitForEventSource();
-      const instance = getLatestEventSource();
+      const instance = requireLatestEventSource();
       instance.triggerOpen();
 
       const closeSpy = vi.spyOn(instance, "close");
@@ -439,7 +446,7 @@ describe("useSSE Hook", () => {
 
       // Initial connection (with real timers)
       await waitForEventSource();
-      const firstInstance = getLatestEventSource();
+      const firstInstance = requireLatestEventSource();
       firstInstance.triggerOpen();
       await waitFor(() => expect(firstInstance.readyState).toBe(firstInstance.OPEN), { timeout: 500 });
 
@@ -468,7 +475,7 @@ describe("useSSE Hook", () => {
       );
 
       await waitForEventSource();
-      const instance = getLatestEventSource();
+      const instance = requireLatestEventSource();
       instance.triggerOpen();
       await waitFor(() => {
         expect(result.current.isConnected).toBe(true);
@@ -565,21 +572,17 @@ describe("useSSE Hook", () => {
 
       mockEventSource?.triggerMessage(testEvent);
 
-      // Wait for message to be processed
-      await waitFor(
-        () => {
-          expect(onMessage).toHaveBeenCalledWith(
-            expect.objectContaining({
-              type: "activity_start",
-              active_group_id: "789",
-              data: expect.objectContaining({
-                activity_name: "Test Activity",
-              }),
-            })
-          );
-        },
-        { timeout: 500 }
-      );
+      await waitFor(() => {
+        expect(onMessage).toHaveBeenCalled();
+      }, { timeout: 500 });
+
+      const lastCall = onMessage.mock.calls.at(-1);
+      expect(lastCall).toBeDefined();
+
+      const [payload] = lastCall as [SSEEvent];
+      expect(payload.type).toBe("activity_start");
+      expect(payload.active_group_id).toBe("789");
+      expect(payload.data.activity_name).toBe("Test Activity");
     });
 
     it("should handle all event types", async () => {
