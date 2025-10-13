@@ -39,6 +39,7 @@ docs {
 
   **Prerequisites:**
   - deviceApiKey and devicePin configured
+  - accessToken configured (for capacity test session creation)
   - testStudent1RFID, testStudent2RFID in environment
   - Room 25 (Schulhof) available in seed data
   - Students must be in database with RFID tags
@@ -71,7 +72,7 @@ script:post-response {
     const testStudent2RFID = bru.getEnvVar("testStudent2RFID");
 
     // Test 2: Happy path checkout
-    (async function() {
+    await (async function() {
       await bru.sendRequest({
         method: 'POST',
         url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
@@ -104,7 +105,7 @@ script:post-response {
     })();
 
     // Test 3: Missing room on check-in (validation error)
-    (async function() {
+    await (async function() {
       await bru.sendRequest({
         method: 'POST',
         url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
@@ -140,7 +141,7 @@ script:post-response {
     })();
 
     // Test 4: Invalid RFID (not found)
-    (async function() {
+    await (async function() {
       await bru.sendRequest({
         method: 'POST',
         url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
@@ -176,7 +177,7 @@ script:post-response {
     })();
 
     // Test 5: Checkout when no active visit (error)
-    (async function() {
+    await (async function() {
       await bru.sendRequest({
         method: 'POST',
         url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
@@ -211,23 +212,24 @@ script:post-response {
     })();
 
     // Test 6: Capacity/reservation edge case
-    (async function() {
+    await (async function() {
       // Create session for room 5 first (regular classrooms require active sessions)
+      // Use admin API to avoid device conflict with test 05's active session
+      const accessToken = bru.getEnvVar("accessToken");
       await bru.sendRequest({
         method: 'POST',
-        url: bru.getEnvVar("baseUrl") + "/api/iot/session/start",
+        url: bru.getEnvVar("baseUrl") + "/api/active/groups",
         headers: {
-          "Authorization": `Bearer ${deviceApiKey}`,
-          "X-Staff-PIN": devicePin,
+          "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json"
         },
         data: {
-          activity_id: 1,
+          group_id: 1,
           room_id: 5,
-          supervisor_ids: [1]
+          start_time: new Date().toISOString()
         }
       }, async function(sessionErr, sessionResponse) {
-        // Accept both 200 (created) and 409 (already exists) as valid
+        // Accept both 201 (created) and 409 (already exists) as valid
         if (sessionErr && !sessionErr.message.includes('409')) {
           test("Session creation for capacity test", function() {
             throw new Error(`Session creation failed: ${sessionErr?.message}`);
@@ -235,8 +237,8 @@ script:post-response {
           return;
         }
 
-        if (sessionResponse && sessionResponse.status === 200) {
-          bru.setVar("room5SessionId", sessionResponse.data.data.active_group_id);
+        if (sessionResponse && sessionResponse.status === 201) {
+          bru.setVar("room5SessionId", sessionResponse.data.data.id);
         }
 
         // Now attempt check-in to room 5
@@ -275,7 +277,7 @@ script:post-response {
     })();
 
     // Test 7: Multi-student check-in verification
-    (async function() {
+    await (async function() {
       const student3RFID = bru.getEnvVar("testStudent3RFID");
       if (!student3RFID) {
         console.log("⚠️  testStudent3RFID not configured, skipping multi-student test");
@@ -317,7 +319,7 @@ script:post-response {
     })();
 
     // Test 8: Teardown - checkout all test students
-    (async function() {
+    await (async function() {
       const visitId2 = bru.getVar("visitId2");
       const visitId3 = bru.getVar("visitId3");
       const room5SessionId = bru.getVar("room5SessionId");
@@ -365,17 +367,15 @@ script:post-response {
         });
       }
 
-      // End room 5 session if created
+      // End room 5 session if created (use admin API for consistency)
       if (room5SessionId) {
+        const accessToken = bru.getEnvVar("accessToken");
         await bru.sendRequest({
-          method: 'POST',
-          url: bru.getEnvVar("baseUrl") + "/api/iot/session/end",
+          method: 'DELETE',
+          url: bru.getEnvVar("baseUrl") + `/api/active/groups/${room5SessionId}`,
           headers: {
-            "Authorization": `Bearer ${deviceApiKey}`,
-            "X-Staff-PIN": devicePin,
-            "Content-Type": "application/json"
-          },
-          data: {}
+            "Authorization": `Bearer ${accessToken}`
+          }
         }, function(err, response) {
           if (!err) {
             console.log("🧹 Cleaned up: room 5 session ended");
