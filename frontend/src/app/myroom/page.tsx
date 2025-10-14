@@ -53,6 +53,7 @@ function MeinRaumPageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [sseNonce, setSseNonce] = useState(() => Date.now());
 
   // State for showing room selection (for 5+ rooms)
   const [showRoomSelection, setShowRoomSelection] = useState(true);
@@ -109,6 +110,7 @@ function MeinRaumPageContent() {
   );
 
   const currentRoomRef = useRef<ActiveRoom | null>(null);
+  const hasSupervisionRef = useRef(false);
   useEffect(() => {
     currentRoomRef.current = currentRoom;
   }, [currentRoom]);
@@ -142,8 +144,13 @@ function MeinRaumPageContent() {
     [loadRoomVisits],
   );
 
+  const sseEndpoint = useMemo(
+    () => `/api/sse/events?nonce=${sseNonce}`,
+    [sseNonce],
+  );
+
   // Connect to SSE for real-time updates
-  const { status: sseStatus, reconnectAttempts } = useSSE("/api/sse/events", {
+  const { status: sseStatus, reconnectAttempts } = useSSE(sseEndpoint, {
     onMessage: handleSSEEvent,
   });
 
@@ -161,12 +168,20 @@ function MeinRaumPageContent() {
 
         if (myActiveGroups.length === 0 && unclaimedGroups.length === 0) {
           // User has no active groups AND no unclaimed rooms to claim
+          hasSupervisionRef.current = false;
           setHasAccess(false);
           redirect("/dashboard");
           return;
         }
 
         setHasAccess(true);
+
+        const gainedSupervisions =
+          !hasSupervisionRef.current && myActiveGroups.length > 0;
+        if (gainedSupervisions) {
+          setSseNonce((prev) => prev + 1);
+        }
+        hasSupervisionRef.current = myActiveGroups.length > 0;
 
         // Convert all active groups to ActiveRoom format
         const activeRooms: ActiveRoom[] = await Promise.all(
@@ -256,6 +271,7 @@ function MeinRaumPageContent() {
 
   // Callback when a room is claimed - triggers refresh
   const handleRoomClaimed = useCallback(() => {
+    setSseNonce((prev) => prev + 1);
     setRefreshKey((prev) => prev + 1);
   }, []);
 
