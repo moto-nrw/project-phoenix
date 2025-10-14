@@ -24,10 +24,6 @@ func (rs *Resource) createScheduledCheckout(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// For now, use the account ID as the staff ID
-	// TODO: Properly resolve staff ID from account
-	staffID := int64(userClaims.ID)
-
 	// Parse request body
 	var req struct {
 		StudentID    int64  `json:"student_id"`
@@ -53,10 +49,6 @@ func (rs *Resource) createScheduledCheckout(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Check if the user is authorized to schedule checkout for this student
-	// Only education group teachers can schedule checkouts for their students
-	isAuthorized := false
-
 	// Get the person and staff info for the current user
 	person, err := rs.PersonService.FindByAccountID(ctx, int64(userClaims.ID))
 	if err != nil {
@@ -64,23 +56,21 @@ func (rs *Resource) createScheduledCheckout(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if person != nil {
-		staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
-		if err != nil {
-			common.RespondWithError(w, r, http.StatusInternalServerError, "User is not a staff member")
-			return
-		}
-
-		if staff != nil {
-			// Check if user is a teacher of the student's education group
-			hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staff.ID, req.StudentID)
-			if err == nil && hasAccess {
-				isAuthorized = true
-			}
-		}
+	if person == nil {
+		common.RespondWithError(w, r, http.StatusForbidden, "User is not associated with a person record")
+		return
 	}
 
-	if !isAuthorized {
+	staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
+	if err != nil || staff == nil {
+		common.RespondWithError(w, r, http.StatusForbidden, "User is not a staff member")
+		return
+	}
+
+	// Check if the user is authorized to schedule checkout for this student
+	// Only education group teachers can schedule checkouts for their students
+	hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staff.ID, req.StudentID)
+	if err != nil || !hasAccess {
 		common.RespondWithError(w, r, http.StatusForbidden, "You are not authorized to schedule checkout for this student")
 		return
 	}
@@ -88,7 +78,7 @@ func (rs *Resource) createScheduledCheckout(w http.ResponseWriter, r *http.Reque
 	// Create scheduled checkout
 	checkout := &active.ScheduledCheckout{
 		StudentID:    req.StudentID,
-		ScheduledBy:  staffID,
+		ScheduledBy:  staff.ID,
 		ScheduledFor: scheduledTime,
 		Reason:       req.Reason,
 	}
@@ -138,8 +128,31 @@ func (rs *Resource) getScheduledCheckout(w http.ResponseWriter, r *http.Request)
 // cancelScheduledCheckout cancels a scheduled checkout
 func (rs *Resource) cancelScheduledCheckout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	// TODO: Extract current user from context
-	// currentUser := r.Context().Value("user").(*users.TokenUser)
+
+	// Get user from JWT context
+	userClaims := jwt.ClaimsFromCtx(ctx)
+	if userClaims.ID == 0 {
+		common.RespondWithError(w, r, http.StatusUnauthorized, "Invalid token")
+		return
+	}
+
+	// Resolve staff member performing the cancellation
+	person, err := rs.PersonService.FindByAccountID(ctx, int64(userClaims.ID))
+	if err != nil {
+		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to get user information")
+		return
+	}
+
+	if person == nil {
+		common.RespondWithError(w, r, http.StatusForbidden, "User is not associated with a person record")
+		return
+	}
+
+	staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
+	if err != nil || staff == nil {
+		common.RespondWithError(w, r, http.StatusForbidden, "User is not a staff member")
+		return
+	}
 
 	// Get ID from URL
 	idStr := chi.URLParam(r, "id")
@@ -150,7 +163,7 @@ func (rs *Resource) cancelScheduledCheckout(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Cancel scheduled checkout
-	if err := rs.ActiveService.CancelScheduledCheckout(ctx, id, 1); err != nil { // TODO: Get StaffID from current user
+	if err := rs.ActiveService.CancelScheduledCheckout(ctx, id, staff.ID); err != nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to cancel scheduled checkout")
 		return
 	}
