@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -2279,13 +2280,28 @@ func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int6
 
 // ToggleStudentAttendance toggles the attendance state (check-in or check-out)
 func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64) (*AttendanceResult, error) {
-	// Check teacher has access via CheckTeacherStudentAccess
-	hasAccess, err := s.CheckTeacherStudentAccess(ctx, staffID, studentID)
-	if err != nil {
-		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
-	}
-	if !hasAccess {
-		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("teacher does not have access to this student")}
+	// Check if this is an IoT device request
+	isIoTDevice := device.IsIoTDeviceRequest(ctx)
+
+	if !isIoTDevice {
+		// Web/manual flow - check teacher access
+		hasAccess, err := s.CheckTeacherStudentAccess(ctx, staffID, studentID)
+		if err != nil {
+			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
+		}
+		if !hasAccess {
+			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("teacher does not have access to this student")}
+		}
+	} else {
+		// IoT device flow - get supervisor from device's active group
+		supervisorStaffID, err := s.getDeviceSupervisorID(ctx, deviceID)
+		if err != nil {
+			return nil, &ActiveError{
+				Op:  "ToggleStudentAttendance",
+				Err: fmt.Errorf("device must have an active group with supervisors: %w", err),
+			}
+		}
+		staffID = supervisorStaffID
 	}
 
 	// Get current status
@@ -2340,6 +2356,42 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 			Timestamp:    now,
 		}, nil
 	}
+}
+
+// getDeviceSupervisorID retrieves the supervisor staff ID for a device's active group
+func (s *service) getDeviceSupervisorID(ctx context.Context, deviceID int64) (int64, error) {
+	// Find active group for device
+	activeGroup, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
+	if err != nil {
+		// Handle case where no active group exists for this device
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, fmt.Errorf("no active group assigned to device %d", deviceID)
+		}
+		return 0, fmt.Errorf("error finding active group for device %d: %w", deviceID, err)
+	}
+
+	if activeGroup == nil {
+		return 0, fmt.Errorf("no active group assigned to device %d", deviceID)
+	}
+
+	// Get supervisors for the active group
+	supervisors, err := s.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get supervisors for group %d: %w", activeGroup.ID, err)
+	}
+
+	if len(supervisors) == 0 {
+		return 0, fmt.Errorf("no supervisors assigned to active group %d", activeGroup.ID)
+	}
+
+	// Use first active supervisor
+	for _, supervisor := range supervisors {
+		if supervisor.IsActive() {
+			return supervisor.StaffID, nil
+		}
+	}
+
+	return 0, fmt.Errorf("no active supervisors found in group %d", activeGroup.ID)
 }
 
 // CheckTeacherStudentAccess checks if a teacher has access to mark attendance for a student

@@ -19,7 +19,7 @@ headers {
 body:json {
   {
     "student_rfid": "{{testStudent1RFID}}",
-    "room_id": 25,
+    "room_id": 12,
     "action": "checkin"
   }
 }
@@ -41,14 +41,62 @@ docs {
   - deviceApiKey and devicePin configured
   - accessToken configured (for capacity test session creation)
   - testStudent1RFID, testStudent2RFID in environment
-  - Room 25 (Schulhof) available in seed data
+  - Activity 2 and Room 12 available in seed data
   - Students must be in database with RFID tags
 
   **Note:**
-  Uses Schulhof room (25) which allows check-ins without pre-existing sessions
+  The suite starts its own IoT session for Room 12 (requires active session).
 
   **Cleanup:**
   Test 8 ensures all checked-in students are checked out
+}
+
+script:pre-request {
+  const baseUrl = bru.getEnvVar("baseUrl");
+  const deviceApiKey = bru.getEnvVar("deviceApiKey");
+  const devicePin = bru.getEnvVar("devicePin");
+  const activityId = 2;
+  const roomId = 12;
+  const supervisorIds = [1];
+
+  bru.setVar("checkinsRoomId", roomId);
+
+  await bru.sendRequest({
+    method: 'POST',
+    url: `${baseUrl}/api/iot/session/start`,
+    headers: {
+      "Authorization": `Bearer ${deviceApiKey}`,
+      "X-Staff-PIN": devicePin,
+      "Content-Type": "application/json"
+    },
+    data: {
+      activity_id: activityId,
+      room_id: roomId,
+      supervisor_ids: supervisorIds
+    }
+  }, function(err, response) {
+    if (!err && response.status === 200) {
+      const sessionId = response.data.data.active_group_id;
+      bru.setVar("checkinsSessionId", sessionId);
+      console.log(`✅ Check-ins session started: ${sessionId}`);
+    } else if (err && err.message && err.message.includes('409')) {
+      console.log("⚠️  Check-ins session already active - reusing existing session");
+      bru.sendRequest({
+        method: 'GET',
+        url: `${baseUrl}/api/iot/session/current`,
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin
+        }
+      }, function(currentErr, currentRes) {
+        if (!currentErr && currentRes.status === 200 && currentRes.data?.data?.active_group_id) {
+          bru.setVar("checkinsSessionId", currentRes.data.data.active_group_id);
+        }
+      });
+    } else {
+      throw new Error(`Failed to start check-ins session: ${err?.message ?? response.status}`);
+    }
+  });
 }
 
 script:post-response {
@@ -70,6 +118,25 @@ script:post-response {
     const devicePin = bru.getEnvVar("devicePin");
     const testStudent1RFID = bru.getEnvVar("testStudent1RFID");
     const testStudent2RFID = bru.getEnvVar("testStudent2RFID");
+
+    let accessToken = bru.getEnvVar("accessToken");
+    if (!accessToken) {
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/auth/login",
+        headers: { "Content-Type": "application/json" },
+        data: {
+          email: "admin@example.com",
+          password: "Test1234%"
+        }
+      }, function(err, response) {
+        if (!err && response.status === 200) {
+          bru.setEnvVar("accessToken", response.data.access_token);
+          console.log("✅ Admin token refreshed for capacity test");
+        }
+      });
+      accessToken = bru.getEnvVar("accessToken");
+    }
 
     // Test 2: Happy path checkout
     await (async function() {
@@ -215,7 +282,6 @@ script:post-response {
     await (async function() {
       // Create session for room 5 first (regular classrooms require active sessions)
       // Use admin API to avoid device conflict with test 05's active session
-      const accessToken = bru.getEnvVar("accessToken");
       await bru.sendRequest({
         method: 'POST',
         url: bru.getEnvVar("baseUrl") + "/api/active/groups",
@@ -294,7 +360,7 @@ script:post-response {
         },
         data: {
           student_rfid: student3RFID,
-          room_id: 25,  // Same room as first check-in (Schulhof)
+          room_id: bru.getVar("checkinsRoomId") || 12,
           action: "checkin"
         }
       }, function(err, response) {
@@ -389,5 +455,23 @@ script:post-response {
 
       console.log("✅ Teardown complete - all students checked out");
     })();
+
+    const sessionId = bru.getVar("checkinsSessionId");
+    if (sessionId) {
+      await bru.sendRequest({
+        method: 'DELETE',
+        url: `${bru.getEnvVar("baseUrl")}/api/iot/session/${sessionId}/end`,
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin
+        }
+      }, function(err) {
+        if (!err) {
+          console.log("🧹 Check-ins session ended");
+        } else if (err.message && err.message.includes('404')) {
+          console.log("⚠️  Check-ins session already ended");
+        }
+      });
+    }
   }
 }

@@ -613,6 +613,37 @@ Mark completed items with ✅ and in-progress with 🔄.
 - RFID tag normalization logic (normalizeTagID function)
 - Group lookups (education.groups table, not student.SchoolClass)
 
+### IoT Device Authorization Flow
+
+**Implementation**: The system now supports two distinct authorization flows:
+
+#### Web/Manual Flow (Heimatraum)
+- Requires JWT token authentication
+- Teacher must have explicit group access to student
+- `CheckTeacherStudentAccess` validates teacher-student relationship
+- Staff ID from JWT token used for audit trail
+
+#### IoT Device Flow (Kiosk/RFID)
+- Requires device API key + global OGS PIN authentication
+- **Bypasses** teacher-student access checks
+- System automatically determines supervisor from device's active group
+- Uses first active supervisor's staff ID for audit trail
+
+**Key Implementation Details**:
+
+1. **Context Flag**: `CtxIsIoTDevice` set by `DeviceAuthenticator` when global PIN is used
+2. **Service Layer Check**: `ToggleStudentAttendance` checks `device.IsIoTDeviceRequest(ctx)`
+3. **Supervisor Lookup**: `getDeviceSupervisorID` finds device's active group and returns first active supervisor
+4. **Fallback Behavior**: If no supervisors found, logs warning and continues with provided staffID (0)
+5. **Audit Trail**: Supervisor's staff ID recorded in `checked_in_by`/`checked_out_by` fields
+
+**Rationale**: Centralized IoT devices (e.g., entrance kiosk) don't have individual teacher authentication. The device's location and active group context provide sufficient authorization. Supervisors of the active group are automatically recorded for accountability.
+
+**Files Modified**:
+- `backend/auth/device/device_auth.go` - Added `CtxIsIoTDevice` flag and `IsIoTDeviceRequest` helper
+- `backend/services/active/active_service.go` - Modified `ToggleStudentAttendance` to support IoT bypass, added `getDeviceSupervisorID`
+- `backend/api/iot/api.go` - Removed default `staffID = 1` logic
+
 ### Error Handling Patterns
 Follow existing patterns:
 - ErrorNotFound for missing resources
