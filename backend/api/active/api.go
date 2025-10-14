@@ -816,12 +816,29 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// Extract staff ID from JWT claims
+	// Extract account ID from JWT claims and resolve to staff ID
 	claims := jwt.ClaimsFromCtx(r.Context())
-	staffID := int64(claims.ID)
+
+	// Get person from account ID
+	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(claims.ID))
+	if err != nil || person == nil {
+		if err := render.Render(w, r, ErrorUnauthorized(errors.New("account not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get staff from person ID
+	staff, err := rs.PersonService.StaffRepository().FindByPersonID(r.Context(), person.ID)
+	if err != nil || staff == nil {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("user is not a staff member"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
 
 	// Verify user has permission to view this active group
-	supervisions, err := rs.ActiveService.GetStaffActiveSupervisions(r.Context(), staffID)
+	supervisions, err := rs.ActiveService.GetStaffActiveSupervisions(r.Context(), staff.ID)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)

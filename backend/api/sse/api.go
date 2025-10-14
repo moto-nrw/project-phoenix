@@ -48,17 +48,30 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
-	// Extract user ID from JWT claims
+	// Extract account ID from JWT claims and resolve to staff ID
 	claims := jwt.ClaimsFromCtx(r.Context())
-	userID := int64(claims.ID)
 
-	// Get supervised active groups for this user
-	supervisions, err := rs.activeSvc.GetStaffActiveSupervisions(r.Context(), userID)
+	// Get person from account ID
+	person, err := rs.personSvc.FindByAccountID(r.Context(), int64(claims.ID))
+	if err != nil || person == nil {
+		http.Error(w, "Account not found", http.StatusUnauthorized)
+		return
+	}
+
+	// Get staff from person ID
+	staff, err := rs.personSvc.StaffRepository().FindByPersonID(r.Context(), person.ID)
+	if err != nil || staff == nil {
+		http.Error(w, "User is not a staff member", http.StatusForbidden)
+		return
+	}
+
+	// Get supervised active groups for this staff member
+	supervisions, err := rs.activeSvc.GetStaffActiveSupervisions(r.Context(), staff.ID)
 	if err != nil {
 		if logging.Logger != nil {
 			logging.Logger.WithFields(map[string]interface{}{
-				"error":   err.Error(),
-				"user_id": userID,
+				"error":    err.Error(),
+				"staff_id": staff.ID,
 			}).Error("Failed to get staff active supervisions for SSE")
 		}
 		http.Error(w, "Failed to determine supervised groups", http.StatusInternalServerError)
@@ -76,7 +89,7 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	if len(activeGroupIDs) == 0 {
 		if logging.Logger != nil {
 			logging.Logger.WithFields(map[string]interface{}{
-				"user_id": userID,
+				"staff_id": staff.ID,
 			}).Info("SSE connection - no active supervisions")
 		}
 
@@ -106,7 +119,7 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	// Create client for this connection
 	client := &realtime.Client{
 		Channel:          make(chan realtime.Event, 10), // Buffer up to 10 events
-		UserID:           userID,
+		UserID:           staff.ID,
 		SubscribedGroups: make(map[string]bool),
 	}
 
@@ -132,7 +145,7 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 				if logging.Logger != nil {
 					logging.Logger.WithFields(map[string]interface{}{
 						"error":      err.Error(),
-						"user_id":    userID,
+						"staff_id":   staff.ID,
 						"event_type": string(event.Type),
 					}).Error("Failed to marshal SSE event")
 				}
