@@ -234,6 +234,8 @@ type VisitWithDisplayDataResponse struct {
 	StudentName   string     `json:"student_name"`
 	SchoolClass   string     `json:"school_class"`
 	GroupName     string     `json:"group_name,omitempty"` // Student's OGS group
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
 // SupervisorResponse represents a group supervisor API response
@@ -882,6 +884,8 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		LastName      string     `bun:"last_name"`
 		SchoolClass   string     `bun:"school_class"`
 		OGSGroupName  string     `bun:"ogs_group_name"`
+		CreatedAt     time.Time  `bun:"created_at"`
+		UpdatedAt     time.Time  `bun:"updated_at"`
 	}
 
 	var results []visitWithStudent
@@ -891,6 +895,8 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		ColumnExpr("v.active_group_id").
 		ColumnExpr("v.entry_time").
 		ColumnExpr("v.exit_time").
+		ColumnExpr("v.created_at").
+		ColumnExpr("v.updated_at").
 		ColumnExpr("p.first_name").
 		ColumnExpr("p.last_name").
 		ColumnExpr("COALESCE(s.school_class, '') AS school_class").
@@ -925,6 +931,8 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 			StudentName:   studentName,
 			SchoolClass:   result.SchoolClass,
 			GroupName:     result.OGSGroupName,
+			CreatedAt:     result.CreatedAt,
+			UpdatedAt:     result.UpdatedAt,
 		})
 	}
 
