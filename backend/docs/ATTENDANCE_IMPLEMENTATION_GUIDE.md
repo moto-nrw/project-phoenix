@@ -17,7 +17,8 @@ This guide provides step-by-step instructions for implementing the attendance tr
 3. **Partial Records**: Check-out time can be null (student checked in but not yet out)
 4. **Device Tracking**: We track which device was used for each attendance action
 5. **Manual Process**: No automatic checkout at end of day
-6. **Permission Model**: Teachers can only mark attendance for students in their groups
+6. **Permission Model**: Teachers can only mark attendance for students in their groups (web/Heimatraum flows).  
+   IoT devices rely on the active session’s supervisors; those sessions must list the staff on duty.
 
 ### API Design
 - `GET /api/iot/attendance/status/{rfid}` - Check student's current attendance status
@@ -26,20 +27,15 @@ This guide provides step-by-step instructions for implementing the attendance tr
 ### API Documentation
 
 #### Authentication
-All attendance endpoints require **three headers** for two-layer device authentication:
+Attendance endpoints use two-layer device authentication:
 
 ```http
 Authorization: Bearer <device_api_key>
-X-Staff-PIN: <4_digit_pin>
-X-Staff-ID: <staff_id>
+X-Staff-PIN: <global_pin>
 ```
 
-**Example Headers:**
-```http
-Authorization: Bearer dev_cb1b1c9aae51924661797c4bfef08c5378fbd91bf5dc090109a54d392529c575
-X-Staff-PIN: 1234
-X-Staff-ID: 1
-```
+> **Important:** The supervising staff member is resolved from the device’s **active session**.  
+> Devices must start a session (`POST /api/iot/session/start`) with the list of on-duty supervisors before students begin scanning. The backend picks the first active supervisor from that session for auditing purposes.
 
 #### 1. GET /api/iot/attendance/status/{rfid}
 
@@ -420,11 +416,10 @@ r.Post("/attendance/toggle", rs.toggleAttendance)
 
 ```
 getAttendanceStatus:
-- Get device/staff from context
+- Get device (and optional staff) from context
 - Get RFID from URL, normalize it
 - Find person by RFID tag using usersService.FindByTagID
 - Get student from person using studentRepo.FindByPersonID
-- Check teacher has access to student
 - Get attendance status from service
 - Load student's group info:
   - If student.GroupID exists, use educationService.GetGroup(*student.GroupID)
@@ -432,12 +427,12 @@ getAttendanceStatus:
 - Build and return response
 
 toggleAttendance:
-- Get device/staff from context
+- Get device (and optional staff) from context
 - Parse request body
 - If action is "cancel": return cancelled response
 - Find person by RFID tag using usersService.FindByTagID
 - Get student from person using studentRepo.FindByPersonID
-- Call ToggleStudentAttendance service
+- Call ToggleStudentAttendance service (service resolves supervising staff from active session when device flag set)
 - Get updated status
 - Load student's group info (same pattern as status endpoint):
   - If student.GroupID exists, use educationService.GetGroup(*student.GroupID)
