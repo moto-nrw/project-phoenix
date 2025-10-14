@@ -11,8 +11,6 @@ import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { activitiesConfig } from "@/lib/database/configs/activities.config";
 import type { Activity } from "@/lib/activity-helpers";
-import { StudentEnrollmentModal } from "@/components/activities/student-enrollment-modal";
-import { TimeManagementModal } from "@/components/activities/time-management-modal";
 import { ActivityCreateModal, ActivityDetailModal, ActivityEditModal } from "@/components/activities";
 
 export default function ActivitiesPage() {
@@ -33,9 +31,7 @@ export default function ActivitiesPage() {
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  // Secondary management modals
-  const [studentModalOpen, setStudentModalOpen] = useState(false);
-  const [timeModalOpen, setTimeModalOpen] = useState(false);
+  // Secondary management modals (disabled for now)
 
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -215,15 +211,7 @@ export default function ActivitiesPage() {
     setShowEditModal(true);
   };
 
-  // Secondary actions from detail modal
-  const handleManageStudents = () => {
-    setShowDetailModal(false);
-    setStudentModalOpen(true);
-  };
-  const handleManageTimes = () => {
-    setShowDetailModal(false);
-    setTimeModalOpen(true);
-  };
+  // Secondary actions (removed in this update)
 
   if (status === "loading" || loading) {
     return (
@@ -358,14 +346,6 @@ export default function ActivitiesPage() {
                             {activity.category_name}
                           </span>
                         )}
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                          {(activity.participant_count ?? 0)}/{activity.max_participant}
-                        </span>
-                        {activity.supervisor_name && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                            {activity.supervisor_name}
-                          </span>
-                        )}
                       </div>
                     </div>
 
@@ -407,8 +387,6 @@ export default function ActivitiesPage() {
           activity={selectedActivity}
           onEdit={handleEditClick}
           onDelete={() => void handleDeleteActivity()}
-          onManageStudents={handleManageStudents}
-          onManageTimes={handleManageTimes}
           loading={detailLoading}
         />
       )}
@@ -424,23 +402,7 @@ export default function ActivitiesPage() {
         />
       )}
 
-      {/* Secondary management modals */}
-      {selectedActivity && (
-        <StudentEnrollmentModal
-          isOpen={studentModalOpen}
-          onClose={() => { setStudentModalOpen(false); setSelectedActivity(null); }}
-          activity={selectedActivity}
-          onUpdate={() => void fetchActivities()}
-        />
-      )}
-      {selectedActivity && (
-        <TimeManagementModal
-          isOpen={timeModalOpen}
-          onClose={() => { setTimeModalOpen(false); setSelectedActivity(null); }}
-          activity={selectedActivity}
-          onUpdate={() => void fetchActivities()}
-        />
-      )}
+      {/* Secondary management modals removed for this release */}
 
       {/* Success toast */}
       {showSuccessAlert && (

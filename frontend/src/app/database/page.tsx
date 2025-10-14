@@ -170,7 +170,7 @@ function DatabaseContent() {
     return () => window.removeEventListener('resize', handleResize);
   }, [activeTab]);
 
-  // Fetch real counts from the database
+  // Fetch real counts from the database via Next.js API route
   useEffect(() => {
     const fetchCounts = async () => {
       try {
@@ -200,7 +200,6 @@ function DatabaseContent() {
               };
             };
           };
-          console.log("Database counts response:", result);
           const data = result.data;
           setCounts({
             students: data.students,
@@ -222,12 +221,11 @@ function DatabaseContent() {
             canViewDevices: false,
             canViewPermissions: false,
           });
-          console.log("Permissions set to:", data.permissions);
         } else {
           console.error("Failed to fetch counts:", response.status);
         }
       } catch (error) {
-        console.error("Error fetching counts:", error);
+        console.error('Error fetching counts:', error);
       } finally {
         setCountsLoading(false);
       }

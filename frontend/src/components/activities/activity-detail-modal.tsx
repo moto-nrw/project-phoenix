@@ -9,8 +9,6 @@ interface ActivityDetailModalProps {
   activity: Activity | null;
   onEdit: () => void;
   onDelete: () => void;
-  onManageStudents: () => void;
-  onManageTimes: () => void;
   loading?: boolean;
 }
 
@@ -20,8 +18,6 @@ export function ActivityDetailModal({
   activity,
   onEdit,
   onDelete,
-  onManageStudents,
-  onManageTimes,
   loading = false
 }: ActivityDetailModalProps) {
   if (!activity) return null;
@@ -79,8 +75,6 @@ export function ActivityDetailModal({
           {/* Actions */}
           <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm flex flex-wrap gap-2 md:gap-3 py-3 md:py-4 border-t border-gray-100 -mx-4 md:-mx-6 -mb-4 md:-mb-6 px-4 md:px-6 mt-4 md:mt-6">
             <button type="button" onClick={onDelete} className="px-3 md:px-4 py-2 rounded-lg border border-red-300 text-xs md:text-sm font-medium text-red-700 hover:bg-red-50 hover:border-red-400 hover:shadow-md md:hover:scale-105 active:scale-100 transition-all duration-200">Löschen</button>
-            <button type="button" onClick={onManageStudents} className="px-3 md:px-4 py-2 rounded-lg bg-blue-600 text-xs md:text-sm font-medium text-white hover:bg-blue-700 hover:shadow-lg md:hover:scale-105 active:scale-100 transition-all duration-200">Schüler verwalten</button>
-            <button type="button" onClick={onManageTimes} className="px-3 md:px-4 py-2 rounded-lg bg-green-600 text-xs md:text-sm font-medium text-white hover:bg-green-700 hover:shadow-lg md:hover:scale-105 active:scale-100 transition-all duration-200">Zeiten verwalten</button>
             <button type="button" onClick={onEdit} className="flex-1 px-3 md:px-4 py-2 rounded-lg bg-gray-900 text-xs md:text-sm font-medium text-white hover:bg-gray-700 hover:shadow-lg md:hover:scale-105 active:scale-100 transition-all duration-200">Bearbeiten</button>
           </div>
         </div>
@@ -88,4 +82,3 @@ export function ActivityDetailModal({
     </Modal>
   );
 }
-

@@ -277,10 +277,20 @@ export default function ActivitiesPage() {
 
     return (
         <ResponsiveLayout>
-            <div className="w-full -mt-1.5">
+            <div className="w-full">
                 {/* PageHeaderWithSearch - Title only on mobile */}
+                <div className="relative z-30 mb-4">
                 <PageHeaderWithSearch
                     title={isMobile ? "Aktivitäten" : ""}
+                    badge={{
+                        icon: (
+                            <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                        ),
+                        count: filteredActivities.length,
+                        label: "Aktivitäten"
+                    }}
                     search={{
                         value: searchTerm,
                         onChange: setSearchTerm,
@@ -296,41 +306,32 @@ export default function ActivitiesPage() {
                     actionButton={!isMobile && (
                         <button
                             onClick={() => setIsQuickCreateOpen(true)}
-                            className="w-10 h-10 bg-gradient-to-br from-[#83CD2D] to-[#70B525] text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group hover:scale-110 active:scale-95"
+                            className="w-10 h-10 bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group hover:scale-110 active:scale-95"
                             aria-label="Aktivität erstellen"
                         >
-                            {/* Inner glow effect */}
                             <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-
-                            {/* Plus icon */}
                             <svg className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                             </svg>
-
-                            {/* Ripple effect on hover */}
                             <div className="absolute inset-0 rounded-full bg-white/20 scale-0 group-hover:scale-100 transition-transform duration-500 opacity-0 group-hover:opacity-100"></div>
                         </button>
                     )}
                 />
+                </div>
 
                 {/* Mobile FAB Create Button */}
                 <button
                     onClick={() => setIsQuickCreateOpen(true)}
-                    className={`md:hidden fixed right-4 z-[9999] w-14 h-14 bg-gradient-to-br from-[#83CD2D] to-[#70B525] text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(131,205,45,0.3)] transition-all duration-300 flex items-center justify-center group active:scale-95`}
+                    className={`md:hidden fixed right-4 z-[9999] w-14 h-14 bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(255,49,48,0.3)] transition-all duration-300 flex items-center justify-center group active:scale-95`}
                     style={{
                         bottom: getFabBottomPosition(isAlertShowing, isNavBarHidden)
                     }}
                     aria-label="Aktivität erstellen"
                 >
-                    {/* Inner glow effect */}
                     <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    
-                    {/* Plus icon */}
                     <svg className="relative h-6 w-6 transition-transform duration-300 group-active:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                     </svg>
-                    
-                    {/* Ripple effect on hover */}
                     <div className="absolute inset-0 rounded-full bg-white/20 scale-0 group-hover:scale-100 transition-transform duration-500 opacity-0 group-hover:opacity-100"></div>
                 </button>
 
@@ -351,7 +352,7 @@ export default function ActivitiesPage() {
                                 <div
                                     key={activity.id}
                                     onClick={() => handleSelectActivity(activity)}
-                                    className="group cursor-pointer relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.01] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-1 active:scale-[0.99] md:hover:border-blue-200/50"
+                                    className="group cursor-pointer relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.01] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-1 active:scale-[0.99] md:hover:border-red-200/50"
                                     style={{
                                         animationName: 'fadeInUp',
                                         animationDuration: '0.5s',
@@ -362,11 +363,11 @@ export default function ActivitiesPage() {
                                     }}
                                 >
                                     {/* Modern gradient overlay */}
-                                    <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03] rounded-3xl"></div>
+                                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-red-50/80 to-rose-100/80 opacity-[0.03] rounded-3xl"></div>
                                     {/* Subtle inner glow */}
                                     <div className={`absolute ${isGruppenraum ? 'top-px right-px bottom-px left-1.5' : 'inset-px'} rounded-3xl bg-gradient-to-br from-white/80 to-white/20`}></div>
                                     {/* Modern border highlight */}
-                                    <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 md:group-hover:ring-blue-200/60 transition-all duration-300"></div>
+                                    <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 md:group-hover:ring-red-200/60 transition-all duration-300"></div>
                                     
                                     {/* Gruppenraum indicator - accent bar */}
                                     {isGruppenraum && (
@@ -380,7 +381,7 @@ export default function ActivitiesPage() {
                                         {/* Left content */}
                                         <div className="flex-1 min-w-0">
                                             {/* Activity Name */}
-                                            <h3 className="text-lg font-semibold text-gray-900 md:group-hover:text-blue-600 transition-colors duration-300">
+                                            <h3 className="text-lg font-semibold text-gray-900 md:group-hover:text-red-600 transition-colors duration-300">
                                                 {activity.name}
                                             </h3>
                                             
@@ -417,9 +418,9 @@ export default function ActivitiesPage() {
                                                 className="relative"
                                                 aria-label="Aktivität bearbeiten"
                                             >
-                                                <div className="w-10 h-10 rounded-full bg-gray-100 md:group-hover:bg-blue-100 flex items-center justify-center transition-all duration-200 md:group-hover:scale-110">
+                                                <div className="w-10 h-10 rounded-full bg-gray-100 md:group-hover:bg-red-100 flex items-center justify-center transition-all duration-200 md:group-hover:scale-110">
                                                     <svg 
-                                                        className="w-5 h-5 text-gray-600 md:group-hover:text-blue-600 transition-colors" 
+                                                        className="w-5 h-5 text-gray-600 md:group-hover:text-red-600 transition-colors" 
                                                         fill="none" 
                                                         viewBox="0 0 24 24" 
                                                         stroke="currentColor"
@@ -434,13 +435,13 @@ export default function ActivitiesPage() {
                                                 </div>
                                                 
                                                 {/* Ripple effect on hover */}
-                                                <div className="absolute inset-0 rounded-full bg-blue-200/20 scale-0 md:group-hover:scale-100 transition-transform duration-300"></div>
+                                                <div className="absolute inset-0 rounded-full bg-red-200/20 scale-0 md:group-hover:scale-100 transition-transform duration-300"></div>
                                             </button>
                                         </div>
                                     </div>
 
                                     {/* Glowing border effect */}
-                                    <div className="absolute inset-0 rounded-3xl opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent via-blue-100/30 to-transparent"></div>
+                                    <div className="pointer-events-none absolute inset-0 rounded-3xl opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent via-red-100/30 to-transparent"></div>
                                 </div>
                             );
                         })}
