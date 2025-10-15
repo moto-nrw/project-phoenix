@@ -258,7 +258,6 @@ export function RolePermissionManagementModal({
                     <div key={permission.id} className="flex items-center justify-between p-3 md:p-3.5 hover:bg-gray-50">
                       <div className="flex-1 min-w-0 pr-3">
                         <div className="text-sm font-medium text-gray-900">{getPermissionDisplayName(permission)}</div>
-                        <div className="text-xs md:text-sm text-gray-600 mt-0.5">{permission.description}</div>
                         <div className="text-[11px] md:text-xs text-gray-500 mt-1">Ressource: {resourceLabels[permission.resource] ?? permission.resource} • Aktion: {actionLabels[permission.action] ?? permission.action}</div>
                       </div>
                       <button

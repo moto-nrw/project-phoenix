@@ -161,7 +161,7 @@ export default function DevicesPage() {
       <ResponsiveLayout>
         <div className="flex min-h-[50vh] items-center justify-center">
           <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-amber-500"></div>
+            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-yellow-500"></div>
             <p className="text-gray-600">Geräte werden geladen...</p>
           </div>
         </div>
@@ -198,7 +198,7 @@ export default function DevicesPage() {
             actionButton={!isMobile && (
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group hover:scale-110 active:scale-95"
+                className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-yellow-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group hover:scale-110 active:scale-95"
                 aria-label="Gerät registrieren"
               >
                 <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -211,7 +211,7 @@ export default function DevicesPage() {
 
         <button
           onClick={() => setShowCreateModal(true)}
-          className={`md:hidden fixed right-4 bottom-24 z-40 w-14 h-14 bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgba(245,158,11,0.3)] flex items-center justify-center group active:scale-95 transition-all duration-300 ease-out ${isFabVisible ? 'translate-y-0 opacity-100 pointer-events-auto' : 'translate-y-32 opacity-0 pointer-events-none'}`}
+          className={`md:hidden fixed right-4 bottom-24 z-40 w-14 h-14 bg-gradient-to-br from-yellow-500 to-yellow-600 text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgba(234,179,8,0.3)] flex items-center justify-center group active:scale-95 transition-all duration-300 ease-out ${isFabVisible ? 'translate-y-0 opacity-100 pointer-events-auto' : 'translate-y-32 opacity-0 pointer-events-none'}`}
           aria-label="Gerät registrieren"
         >
           <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
@@ -242,24 +242,24 @@ export default function DevicesPage() {
                 className="group cursor-pointer relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.01] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-1 active:scale-[0.99] md:hover:border-amber-300/60"
                 style={{ animationName: 'fadeInUp', animationDuration: '0.5s', animationTimingFunction: 'ease-out', animationFillMode: 'forwards', animationDelay: `${index * 0.03}s`, opacity: 0 }}
               >
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-50/80 to-orange-100/80 opacity-[0.03] rounded-3xl"></div>
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-yellow-50/80 to-yellow-100/80 opacity-[0.03] rounded-3xl"></div>
                 <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 md:group-hover:ring-amber-300/60 transition-all duration-300"></div>
+                <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 md:group-hover:ring-yellow-300/60 transition-all duration-300"></div>
 
                 <div className="relative flex items-center gap-4 p-5">
                   <div className="flex-shrink-0">
-                    <div className="h-12 w-12 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white font-semibold shadow-md md:group-hover:scale-110 transition-transform duration-300">
+                    <div className="h-12 w-12 rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 flex items-center justify-center text-white font-semibold shadow-md md:group-hover:scale-110 transition-transform duration-300">
                       {(device.name ?? device.device_id)?.charAt(0)?.toUpperCase() ?? 'D'}
                     </div>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-semibold text-gray-900 md:group-hover:text-amber-600 transition-colors duration-300">{device.name ?? device.device_id}</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 md:group-hover:text-yellow-600 transition-colors duration-300">{device.name ?? device.device_id}</h3>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">{getDeviceTypeDisplayName(device.device_type)}</span>
                     </div>
                   </div>
                   <div className="flex-shrink-0">
-                    <svg className="h-6 w-6 text-gray-400 md:group-hover:text-amber-600 md:group-hover:translate-x-1 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    <svg className="h-6 w-6 text-gray-400 md:group-hover:text-yellow-600 md:group-hover:translate-x-1 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                   </div>
                 </div>
 

@@ -7,6 +7,40 @@ import { databaseThemes } from '@/components/ui/database/themes';
 import type { Permission, BackendPermission } from '@/lib/auth-helpers';
 import { mapPermissionResponse } from '@/lib/auth-helpers';
 
+// Localized labels for resources/actions to present German UI strings
+const resourceLabels: Record<string, string> = {
+  users: 'Benutzer',
+  roles: 'Rollen',
+  permissions: 'Berechtigungen',
+  activities: 'Aktivitäten',
+  rooms: 'Räume',
+  groups: 'Gruppen',
+  visits: 'Besuche',
+  schedules: 'Zeitpläne',
+  config: 'Konfiguration',
+  feedback: 'Feedback',
+  iot: 'Geräte',
+  system: 'System',
+  admin: 'Administration',
+};
+const actionLabels: Record<string, string> = {
+  create: 'Erstellen',
+  read: 'Ansehen',
+  update: 'Bearbeiten',
+  delete: 'Löschen',
+  list: 'Auflisten',
+  manage: 'Verwalten',
+  assign: 'Zuweisen',
+  enroll: 'Anmelden',
+  '*': 'Alle',
+};
+
+function displayName(p: Permission) {
+  const res = resourceLabels[p.resource] ?? p.resource;
+  const act = actionLabels[p.action] ?? p.action;
+  return `${res}: ${act}`;
+}
+
 export const permissionsConfig = defineEntityConfig<Permission>({
   name: {
     singular: 'Berechtigung',
@@ -25,9 +59,9 @@ export const permissionsConfig = defineEntityConfig<Permission>({
     sections: [
       {
         title: 'Berechtigungsdetails',
-        backgroundColor: 'bg-indigo-50/30',
-        // Small icon in section header
-        iconPath: 'M15 7a2 2 0 012 2v1a2 2 0 11-4 0V9a2 2 0 012-2m-6 6h3l3 3 3-3 3 3-7 7-5-5v-2a2 2 0 012-2',
+        backgroundColor: 'bg-pink-50/30',
+        // Adjustments (horizontal sliders) to symbolize toggles/permissions
+        iconPath: 'M5 13l4 4L19 7',
         columns: 2,
         fields: [
           {
@@ -69,7 +103,7 @@ export const permissionsConfig = defineEntityConfig<Permission>({
 
   detail: {
     header: {
-      title: (p: Permission) => `${p.resource}: ${p.action}`,
+      title: (p: Permission) => displayName(p),
       subtitle: (p: Permission) => p.description || 'Keine Beschreibung',
       avatar: {
         text: (p: Permission) => (p.resource?.[0] ?? 'P').toUpperCase(),
@@ -110,7 +144,7 @@ export const permissionsConfig = defineEntityConfig<Permission>({
     minSearchLength: 0,
 
     item: {
-      title: (p: Permission) => `${p.resource}: ${p.action}`,
+      title: (p: Permission) => displayName(p),
       subtitle: (p: Permission) => p.name,
       description: (p: Permission) => p.description || '',
       avatar: {
@@ -138,4 +172,3 @@ export const permissionsConfig = defineEntityConfig<Permission>({
     deleteConfirmation: 'Diese Berechtigung wirklich löschen? Dies kann bestehende Rollen betreffen.',
   },
 });
-

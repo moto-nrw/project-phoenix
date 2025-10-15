@@ -33,7 +33,7 @@ export function DeviceDetailModal({
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="flex flex-col items-center gap-4">
-              <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-amber-500" />
+              <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-yellow-500" />
               <p className="text-gray-600">Daten werden geladen...</p>
             </div>
           </div>
@@ -41,7 +41,7 @@ export function DeviceDetailModal({
           <div className="space-y-4 md:space-y-6">
             {/* Header */}
             <div className="flex items-center gap-3 md:gap-4 pb-3 md:pb-4 border-b border-gray-100">
-              <div className="h-14 w-14 md:h-16 md:w-16 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white text-xl font-semibold shadow-md">
+              <div className="h-14 w-14 md:h-16 md:w-16 rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 flex items-center justify-center text-white text-xl font-semibold shadow-md">
                 {initials}
               </div>
               <div className="min-w-0">
@@ -52,9 +52,9 @@ export function DeviceDetailModal({
 
             {/* Details */}
             <div className="space-y-3 md:space-y-4">
-              <div className="rounded-xl border border-gray-100 bg-amber-50/30 p-3 md:p-4">
+              <div className="rounded-xl border border-gray-100 bg-yellow-50/30 p-3 md:p-4">
                 <h3 className="text-xs md:text-sm font-semibold text-gray-900 mb-2 md:mb-3 flex items-center gap-2">
-                  <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                  <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                   Gerätedetails
                 </h3>
                 <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 md:gap-x-4 gap-y-2 md:gap-y-3">
@@ -80,7 +80,7 @@ export function DeviceDetailModal({
               {device.api_key && (
                 <div className="rounded-xl border border-gray-100 bg-white p-3 md:p-4">
                   <h3 className="text-xs md:text-sm font-semibold text-gray-900 mb-2 md:mb-3 flex items-center gap-2">
-                    <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0-3.314 2.686-6 6-6a6 6 0 110 12 6 6 0 01-6-6zm-8 4a4 4 0 118 0v2a2 2 0 11-4 0" /></svg>
+                    <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0-3.314 2.686-6 6-6a6 6 0 110 12 6 6 0 01-6-6zm-8 4a4 4 0 118 0v2a2 2 0 11-4 0" /></svg>
                     API-Schlüssel (nur einmal sichtbar)
                   </h3>
                   <div className="space-y-2">
@@ -94,7 +94,7 @@ export function DeviceDetailModal({
                           if (wrapper.type === 'password') { wrapper.type = 'text'; (e.currentTarget as HTMLButtonElement).textContent = 'Verbergen'; }
                           else { wrapper.type = 'password'; (e.currentTarget as HTMLButtonElement).textContent = 'Anzeigen'; }
                         }}
-                        className="px-2 py-1 bg-amber-600 text-white text-xs rounded hover:bg-amber-700"
+                        className="px-2 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700"
                       >Anzeigen</button>
                       <button
                         type="button"
@@ -108,8 +108,8 @@ export function DeviceDetailModal({
                         className="px-2 py-1 bg-gray-900 text-white text-xs rounded hover:bg-gray-700"
                       >Kopieren</button>
                     </div>
-                    <div className="bg-amber-50 border border-amber-200 rounded-md p-2">
-                      <div className="text-xs text-amber-800">
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-md p-2">
+                      <div className="text-xs text-yellow-800">
                         Sicherheit: Bewahren Sie diesen Schlüssel sicher auf. Er ist nur bei der Erstellung sichtbar.
                       </div>
                     </div>

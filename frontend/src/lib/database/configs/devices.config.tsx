@@ -31,7 +31,7 @@ export const devicesConfig = defineEntityConfig<Device>({
     sections: [
       {
         title: 'Geräteinformationen',
-        backgroundColor: 'bg-amber-50/30',
+        backgroundColor: 'bg-yellow-50/30',
         iconPath: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
         columns: 2,
         fields: [
@@ -98,7 +98,7 @@ export const devicesConfig = defineEntityConfig<Device>({
     sections: [
       {
         title: 'Geräteinformationen',
-        titleColor: 'text-amber-800',
+        titleColor: 'text-yellow-800',
         items: [
           {
             label: 'Geräte-ID',
@@ -128,7 +128,7 @@ export const devicesConfig = defineEntityConfig<Device>({
       },
       {
         title: 'Systemdaten',
-        titleColor: 'text-amber-700',
+        titleColor: 'text-yellow-700',
         columns: 2,
         items: [
           {
@@ -143,7 +143,7 @@ export const devicesConfig = defineEntityConfig<Device>({
       },
       {
         title: 'API-Schlüssel',
-        titleColor: 'text-amber-700',
+        titleColor: 'text-yellow-700',
         items: [
           {
             label: 'API-Schlüssel',
@@ -154,7 +154,7 @@ export const devicesConfig = defineEntityConfig<Device>({
                     type="password" 
                     value={device.api_key} 
                     readOnly 
-                    className="font-mono text-xs bg-amber-50 border border-amber-200 px-2 py-1 rounded flex-1"
+                    className="font-mono text-xs bg-yellow-50 border border-yellow-200 px-2 py-1 rounded flex-1"
                     id={`api-key-${device.id}`}
                     onClick={(e) => (e.target as HTMLInputElement).select()}
                   />
@@ -186,7 +186,7 @@ export const devicesConfig = defineEntityConfig<Device>({
                         btn.textContent = originalText;
                       }, 2000);
                     }}
-                    className="px-2 py-1 bg-amber-600 text-white text-xs rounded hover:bg-amber-700"
+                    className="px-2 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700"
                   >
                     Kopieren
                   </button>

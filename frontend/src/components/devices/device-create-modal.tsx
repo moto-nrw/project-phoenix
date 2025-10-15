@@ -18,7 +18,7 @@ export function DeviceCreateModal({ isOpen, onClose, onCreate, loading = false }
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-amber-500" />
+            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-yellow-500" />
             <p className="text-gray-600">Daten werden geladen...</p>
           </div>
         </div>

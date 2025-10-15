@@ -94,24 +94,24 @@ export const databaseThemes = {
     avatarGradient: 'from-purple-400 to-indigo-500'
   },
   rooms: {
-    primary: 'green-500',
-    secondary: 'emerald-600',
-    accent: 'green',
-    background: 'green-50',
-    border: 'green-200',
-    textAccent: 'green-800',
+    primary: 'indigo-500',
+    secondary: 'indigo-600',
+    accent: 'indigo',
+    background: 'indigo-50',
+    border: 'indigo-200',
+    textAccent: 'indigo-800',
     icon: <BuildingIcon />,
-    avatarGradient: 'from-green-400 to-emerald-500'
+    avatarGradient: 'from-indigo-500 to-indigo-600'
   },
   activities: {
-    primary: 'orange-500',
-    secondary: 'red-600',
+    primary: 'red-500',
+    secondary: 'rose-600',
     accent: 'red',
-    background: 'orange-50',
-    border: 'orange-200',
+    background: 'red-50',
+    border: 'red-200',
     textAccent: 'red-800',
     icon: <CalendarIcon />,
-    avatarGradient: 'from-orange-400 to-red-500'
+    avatarGradient: 'from-[#FF3130] to-[#e02020]'
   },
   groups: {
     primary: 'green-500',
@@ -134,28 +134,28 @@ export const databaseThemes = {
     avatarGradient: 'from-purple-400 to-indigo-500'
   },
   permissions: {
-    primary: 'indigo-500',
-    secondary: 'purple-600',
-    accent: 'indigo',
-    background: 'indigo-50',
-    border: 'indigo-200',
-    textAccent: 'indigo-800',
+    primary: 'pink-500',
+    secondary: 'rose-600',
+    accent: 'pink',
+    background: 'pink-50',
+    border: 'pink-200',
+    textAccent: 'pink-800',
     icon: (
       <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2v1a2 2 0 11-4 0V9a2 2 0 012-2zm-6 6h3l3 3 3-3 3 3-7 7-5-5v-2a2 2 0 012-2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
       </svg>
     ),
-    avatarGradient: 'from-indigo-500 to-purple-600'
+    avatarGradient: 'from-pink-500 to-rose-600'
   },
   devices: {
     primary: 'amber-500',
-    secondary: 'orange-600',
+    secondary: 'yellow-600',
     accent: 'amber',
     background: 'amber-50',
     border: 'amber-200',
     textAccent: 'amber-800',
     icon: <DeviceIcon />,
-    avatarGradient: 'from-amber-400 to-orange-500'
+    avatarGradient: 'from-amber-400 to-yellow-500'
   }
 } as const;
 

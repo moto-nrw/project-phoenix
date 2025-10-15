@@ -18,7 +18,7 @@ export function PermissionCreateModal({ isOpen, onClose, onCreate, loading = fal
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-indigo-600" />
+            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-pink-600" />
             <p className="text-gray-600">Daten werden geladen...</p>
           </div>
         </div>
@@ -58,4 +58,3 @@ export function PermissionCreateModal({ isOpen, onClose, onCreate, loading = fal
     </Modal>
   );
 }
-
