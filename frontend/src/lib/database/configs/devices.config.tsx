@@ -31,7 +31,8 @@ export const devicesConfig = defineEntityConfig<Device>({
     sections: [
       {
         title: 'Geräteinformationen',
-        backgroundColor: 'bg-amber-50',
+        backgroundColor: 'bg-amber-50/30',
+        iconPath: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
         columns: 2,
         fields: [
           {
@@ -42,15 +43,7 @@ export const devicesConfig = defineEntityConfig<Device>({
             placeholder: 'z.B. RFID-001',
             helperText: 'Eindeutige Kennung für das Gerät',
           },
-          {
-            name: 'device_type',
-            label: 'Gerätetyp',
-            type: 'select',
-            required: true,
-            options: [
-              { value: 'rfid_reader', label: 'RFID-Leser' },
-            ],
-          },
+          // Gerätetyp ist immer RFID-Leser; Feld in der UI ausgeblendet (Default wird genutzt)
           {
             name: 'name',
             label: 'Gerätename',
@@ -96,21 +89,10 @@ export const devicesConfig = defineEntityConfig<Device>({
       title: (device) => device.name ?? device.device_id,
       subtitle: (device) => getDeviceTypeDisplayName(device.device_type),
       avatar: {
-        text: (device) => getDeviceTypeEmoji(device.device_type),
+        text: (device) => (device.name?.[0] ?? device.device_id?.[0] ?? 'D'),
         size: 'lg',
       },
-      badges: [
-        {
-          label: (device: Device) => getDeviceStatusDisplayName(device.status),
-          color: 'bg-blue-100 text-blue-800',
-          showWhen: () => true,
-        },
-        {
-          label: (device: Device) => device.is_online ? 'Online' : 'Offline',
-          color: 'bg-green-100 text-green-800',
-          showWhen: (device: Device) => device.status === 'active', // Only show online/offline for active devices
-        },
-      ],
+      badges: [],
     },
     
     sections: [
@@ -278,16 +260,6 @@ export const devicesConfig = defineEntityConfig<Device>({
           label: (device) => getDeviceTypeDisplayName(device.device_type),
           color: 'bg-blue-100 text-blue-800',
           showWhen: () => true,
-        },
-        {
-          label: (device: Device) => getDeviceStatusDisplayName(device.status),
-          color: 'bg-blue-100 text-blue-800',
-          showWhen: () => true,
-        },
-        {
-          label: () => '●',
-          color: 'bg-green-500 text-green-500 border-green-500',
-          showWhen: (device) => device.is_online,
         },
       ],
     },

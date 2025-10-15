@@ -2,35 +2,36 @@
 
 import { Modal } from "~/components/ui/modal";
 import { DatabaseForm } from "~/components/ui/database/database-form";
-import type { Activity } from "@/lib/activity-helpers";
-import { activitiesConfig } from "@/lib/database/configs/activities.config";
+import { groupsConfig } from "@/lib/database/configs/groups.config";
+import type { Group } from "@/lib/group-helpers";
 
-interface ActivityCreateModalProps {
+interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (data: Partial<Activity>) => Promise<void>;
+  group: Group | null;
+  onSave: (data: Partial<Group>) => Promise<void>;
   loading?: boolean;
 }
 
-export function ActivityCreateModal({ isOpen, onClose, onCreate, loading = false }: ActivityCreateModalProps) {
+export function GroupEditModal({ isOpen, onClose, group, onSave, loading = false }: Props) {
+  if (!group) return null;
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={activitiesConfig.labels?.createModalTitle ?? 'Neue Aktivität'}>
+    <Modal isOpen={isOpen} onClose={onClose} title={groupsConfig.labels?.editModalTitle ?? 'Gruppe bearbeiten'}>
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-[#FF3130]" />
+            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-[#83CD2D]" />
             <p className="text-gray-600">Daten werden geladen...</p>
           </div>
         </div>
       ) : (
         <DatabaseForm
-          theme={activitiesConfig.theme}
-          sections={activitiesConfig.form.sections.map(section => ({
+          theme={groupsConfig.theme}
+          sections={groupsConfig.form.sections.map(section => ({
             title: section.title,
             subtitle: section.subtitle,
             iconPath: (section as any).iconPath,
-            // Hide is_open_ags for now
-            fields: section.fields.filter(f => f.name !== 'is_open_ags').map(field => ({
+            fields: section.fields.map(field => ({
               name: field.name,
               label: field.label,
               type: field.type,
@@ -48,11 +49,11 @@ export function ActivityCreateModal({ isOpen, onClose, onCreate, loading = false
             columns: section.columns,
             backgroundColor: section.backgroundColor,
           }))}
-          initialData={activitiesConfig.form.defaultValues}
-          onSubmit={onCreate}
+          initialData={group}
+          onSubmit={onSave}
           onCancel={onClose}
           isLoading={loading}
-          submitLabel="Erstellen"
+          submitLabel="Speichern"
           stickyActions
         />
       )}

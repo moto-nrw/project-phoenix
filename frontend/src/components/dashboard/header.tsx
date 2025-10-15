@@ -36,6 +36,9 @@ function getPageTitle(pathname: string): string {
         if (pathname.includes("/students")) return "Schüler Datenbank";
         if (pathname.includes("/teachers")) return "Datenbank Betreuer";
         if (pathname.includes("/rooms")) return "Räume Datenbank";
+        if (pathname.includes("/roles")) return "Rollen Datenbank";
+        if (pathname.includes("/devices")) return "Geräte Datenbank";
+        if (pathname.includes("/permissions")) return "Berechtigungen Datenbank";
         return "Datenbank";
     }
 

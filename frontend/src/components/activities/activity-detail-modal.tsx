@@ -1,6 +1,7 @@
 "use client";
 
-import { Modal } from "~/components/ui/modal";
+import React, { useState } from "react";
+import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import type { Activity } from "@/lib/activity-helpers";
 
 interface ActivityDetailModalProps {
@@ -24,7 +25,10 @@ export function ActivityDetailModal({
 
   const initials = (activity.name?.slice(0,2) ?? 'AG').toUpperCase();
 
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
   return (
+    <>
     <Modal isOpen={isOpen} onClose={onClose} title="">
       {loading ? (
         <div className="flex items-center justify-center py-12">
@@ -59,8 +63,8 @@ export function ActivityDetailModal({
                   <dd className="text-sm font-medium text-gray-900 mt-0.5 break-words">{activity.category_name ?? 'Keine Kategorie'}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-gray-500">Teilnehmer</dt>
-                  <dd className="text-sm font-medium text-gray-900 mt-0.5 break-words">{(activity.participant_count ?? 0)}/{activity.max_participant}</dd>
+                  <dt className="text-xs text-gray-500">Maximale Teilnehmer</dt>
+                  <dd className="text-sm font-medium text-gray-900 mt-0.5 break-words">{activity.max_participant}</dd>
                 </div>
                 {activity.supervisor_name && (
                   <div className="sm:col-span-2">
@@ -74,11 +78,33 @@ export function ActivityDetailModal({
 
           {/* Actions */}
           <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm flex flex-wrap gap-2 md:gap-3 py-3 md:py-4 border-t border-gray-100 -mx-4 md:-mx-6 -mb-4 md:-mb-6 px-4 md:px-6 mt-4 md:mt-6">
-            <button type="button" onClick={onDelete} className="px-3 md:px-4 py-2 rounded-lg border border-red-300 text-xs md:text-sm font-medium text-red-700 hover:bg-red-50 hover:border-red-400 hover:shadow-md md:hover:scale-105 active:scale-100 transition-all duration-200">Löschen</button>
+            <button
+              type="button"
+              onClick={() => setConfirmOpen(true)}
+              className="px-3 md:px-4 py-2 rounded-lg border border-red-300 text-xs md:text-sm font-medium text-red-700 hover:bg-red-50 hover:border-red-400 hover:shadow-md md:hover:scale-105 active:scale-100 transition-all duration-200"
+            >
+              Löschen
+            </button>
             <button type="button" onClick={onEdit} className="flex-1 px-3 md:px-4 py-2 rounded-lg bg-gray-900 text-xs md:text-sm font-medium text-white hover:bg-gray-700 hover:shadow-lg md:hover:scale-105 active:scale-100 transition-all duration-200">Bearbeiten</button>
           </div>
         </div>
       )}
     </Modal>
+    
+    {/* Delete confirmation */}
+    <ConfirmationModal
+      isOpen={confirmOpen}
+      onClose={() => setConfirmOpen(false)}
+      onConfirm={() => { setConfirmOpen(false); onDelete(); }}
+      title="Aktivität löschen?"
+      confirmText="Löschen"
+      cancelText="Abbrechen"
+      confirmButtonClass="bg-red-600 hover:bg-red-700"
+    >
+      <p className="text-sm text-gray-700">
+        Möchten Sie die Aktivität <span className="font-medium">{activity?.name}</span> wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+      </p>
+    </ConfirmationModal>
+    </>
   );
 }

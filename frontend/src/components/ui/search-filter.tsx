@@ -15,6 +15,7 @@ export interface SearchFilterProps {
     onClick?: () => void;
   };
   className?: string;
+  accent?: 'blue' | 'purple' | 'green' | 'red' | 'indigo' | 'gray' | 'amber' | 'orange';
 }
 
 export function SearchFilter({
@@ -24,9 +25,21 @@ export function SearchFilter({
   filters,
   addButton,
   className = "",
+  accent = 'blue',
 }: SearchFilterProps) {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const hasFilters = Boolean(filters);
+  const accentMap = {
+    blue: { ring: 'focus:ring-blue-500', grad: 'from-blue-500 to-blue-600', hoverGrad: 'hover:from-blue-600 hover:to-blue-700' },
+    purple: { ring: 'focus:ring-purple-500', grad: 'from-purple-500 to-purple-600', hoverGrad: 'hover:from-purple-600 hover:to-purple-700' },
+    green: { ring: 'focus:ring-green-500', grad: 'from-green-500 to-green-600', hoverGrad: 'hover:from-green-600 hover:to-green-700' },
+    red: { ring: 'focus:ring-red-500', grad: 'from-red-500 to-red-600', hoverGrad: 'hover:from-red-600 hover:to-red-700' },
+    indigo: { ring: 'focus:ring-indigo-500', grad: 'from-indigo-500 to-indigo-600', hoverGrad: 'hover:from-indigo-600 hover:to-indigo-700' },
+    gray: { ring: 'focus:ring-gray-500', grad: 'from-gray-500 to-gray-600', hoverGrad: 'hover:from-gray-600 hover:to-gray-700' },
+    amber: { ring: 'focus:ring-amber-500', grad: 'from-amber-500 to-amber-600', hoverGrad: 'hover:from-amber-600 hover:to-amber-700' },
+    orange: { ring: 'focus:ring-orange-500', grad: 'from-orange-500 to-orange-600', hoverGrad: 'hover:from-orange-600 hover:to-orange-700' },
+  } as const;
+  const acc = accentMap[accent] ?? accentMap.blue;
 
   return (
     <div className={`mb-6 md:mb-8 ${className}`}>
@@ -38,7 +51,7 @@ export function SearchFilter({
             placeholder={searchPlaceholder}
             value={searchValue}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-4 py-3 pl-10 text-base transition-all duration-200 hover:border-gray-400 focus:shadow-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className={`w-full rounded-lg border border-gray-300 px-4 py-3 pl-10 text-base transition-all duration-200 hover:border-gray-400 focus:shadow-md focus:ring-2 ${acc.ring} focus:outline-none`}
           />
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
             <svg
@@ -64,7 +77,7 @@ export function SearchFilter({
         <div className="mb-4 md:hidden">
           <button
             onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
-            className="flex w-full items-center justify-between rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-gray-200 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-200"
+            className={`flex w-full items-center justify-between rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-gray-200 hover:ring-gray-300 focus:ring-2 ${acc.ring} focus:outline-none transition-all duration-200`}
           >
             <span className="text-sm font-medium text-gray-700">
               Filter & Optionen
@@ -104,7 +117,7 @@ export function SearchFilter({
                   placeholder={searchPlaceholder}
                   value={searchValue}
                   onChange={(e) => onSearchChange(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-3 pl-10 transition-all duration-200 hover:border-gray-400 focus:shadow-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className={`w-full rounded-lg border border-gray-300 px-4 py-3 pl-10 transition-all duration-200 hover:border-gray-400 focus:shadow-md focus:ring-2 ${acc.ring} focus:outline-none`}
                 />
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                   <svg
@@ -127,7 +140,7 @@ export function SearchFilter({
               {addButton && (
                 addButton.href ? (
                   <Link href={addButton.href}>
-                    <button className="group flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:from-blue-600 hover:to-blue-700 hover:shadow-md">
+                    <button className={`group flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r ${acc.grad} px-6 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 ${acc.hoverGrad}`}>
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
@@ -148,7 +161,7 @@ export function SearchFilter({
                 ) : (
                   <button 
                     onClick={addButton.onClick}
-                    className="group flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:from-blue-600 hover:to-blue-700 hover:shadow-md"
+                    className={`group flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r ${acc.grad} px-6 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 ${acc.hoverGrad}`}
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -183,7 +196,7 @@ export function SearchFilter({
               <div className="md:hidden">
                 {addButton.href ? (
                   <Link href={addButton.href}>
-                    <button className="group flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:from-blue-600 hover:to-blue-700 hover:shadow-md active:scale-[0.98]">
+                    <button className={`group flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r ${acc.grad} px-4 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 ${acc.hoverGrad} active:scale-[0.98]`}>
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
@@ -204,7 +217,7 @@ export function SearchFilter({
                 ) : (
                   <button 
                     onClick={addButton.onClick}
-                    className="group flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:from-blue-600 hover:to-blue-700 hover:shadow-md active:scale-[0.98]"
+                    className={`group flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r ${acc.grad} px-4 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 ${acc.hoverGrad} active:scale-[0.98]`}
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"

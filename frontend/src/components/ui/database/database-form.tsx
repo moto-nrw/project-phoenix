@@ -33,6 +33,7 @@ export interface FormSection {
   fields: FormField[];
   columns?: 1 | 2;
   backgroundColor?: string; // Override theme background
+  iconPath?: string; // Optional small header icon (heroicons path)
 }
 
 export interface DatabaseFormProps<T = Record<string, unknown>> {
@@ -45,6 +46,7 @@ export interface DatabaseFormProps<T = Record<string, unknown>> {
   error?: string | null;
   submitLabel: string;
   submitButtonGradient?: string; // Override default gradient
+  stickyActions?: boolean; // Render sticky action bar like other entity forms
 }
 
 export function DatabaseForm<T = Record<string, unknown>>({
@@ -57,6 +59,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
   error: externalError,
   submitLabel,
   submitButtonGradient,
+  stickyActions = false,
 }: DatabaseFormProps<T>) {
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +67,15 @@ export function DatabaseForm<T = Record<string, unknown>>({
   const [loadingOptions, setLoadingOptions] = useState<Record<string, boolean>>({});
   const loadedFieldsRef = useRef<Set<string>>(new Set());
   const themeClasses = getThemeClassNames(theme);
+  const accentTextClass = theme.accent === 'blue' ? 'text-blue-600'
+    : theme.accent === 'purple' ? 'text-purple-600'
+    : theme.accent === 'green' ? 'text-green-600'
+    : theme.accent === 'orange' ? 'text-orange-600'
+    : theme.accent === 'red' ? 'text-red-600'
+    : theme.accent === 'indigo' ? 'text-indigo-600'
+    : theme.accent === 'gray' ? 'text-gray-600'
+    : theme.accent === 'amber' ? 'text-amber-600'
+    : 'text-indigo-600';
 
   // Initialize form data from sections
   useEffect(() => {
@@ -233,14 +245,18 @@ export function DatabaseForm<T = Record<string, unknown>>({
   };
 
   const renderField = (field: FormField, sectionBackground: string) => {
-    // Determine focus ring color based on section background
-    const focusRingColor = sectionBackground.includes('blue') ? 'focus:ring-blue-500' 
-      : sectionBackground.includes('purple') ? 'focus:ring-purple-500'
-      : sectionBackground.includes('green') ? 'focus:ring-green-500'
-      : sectionBackground.includes('orange') ? 'focus:ring-orange-500'
+    // Determine focus ring color based on theme accent for consistency across neutral backgrounds
+    const focusRingColor = theme.accent === 'blue' ? 'focus:ring-blue-500'
+      : theme.accent === 'purple' ? 'focus:ring-purple-500'
+      : theme.accent === 'green' ? 'focus:ring-green-500'
+      : theme.accent === 'orange' ? 'focus:ring-orange-500'
+      : theme.accent === 'red' ? 'focus:ring-red-500'
+      : theme.accent === 'indigo' ? 'focus:ring-indigo-500'
+      : theme.accent === 'gray' ? 'focus:ring-gray-500'
+      : theme.accent === 'amber' ? 'focus:ring-amber-500'
       : 'focus:ring-indigo-500';
 
-    const baseInputClasses = `w-full rounded-lg border border-gray-300 px-3 py-2 md:px-4 md:py-2 text-sm md:text-base transition-all duration-200 focus:ring-2 ${focusRingColor} focus:outline-none`;
+    const baseInputClasses = `w-full rounded-lg border border-gray-300 px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 ${focusRingColor} focus:outline-none`;
 
     switch (field.type) {
       case 'custom':
@@ -292,7 +308,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
           <div>
             <label
               htmlFor={field.name}
-              className="mb-1 block text-xs md:text-sm font-medium text-gray-700"
+              className="mb-1.5 block text-xs font-medium text-gray-700"
             >
               {field.label}{field.required && '*'}
             </label>
@@ -307,46 +323,57 @@ export function DatabaseForm<T = Record<string, unknown>>({
               className={baseInputClasses}
             />
             {field.helperText && (
-              <p className="mt-1 text-xs md:text-sm text-gray-500">{field.helperText}</p>
+              <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
             )}
           </div>
         );
 
       case 'select':
-        const selectOptions = Array.isArray(field.options) 
-          ? field.options 
+        const selectOptions = Array.isArray(field.options)
+          ? field.options
           : (asyncOptions[field.name] ?? []);
-        
+
         return (
           <div>
             <label
               htmlFor={field.name}
-              className="mb-1 block text-xs md:text-sm font-medium text-gray-700"
+              className="mb-1.5 block text-xs font-medium text-gray-700"
             >
               {field.label}{field.required && '*'}
             </label>
-            <select
-              id={field.name}
-              name={field.name}
-              value={(formData[field.name] as string) ?? ''}
-              onChange={handleChange}
-              required={field.required}
-              className={baseInputClasses}
-              disabled={loadingOptions[field.name]}
-            >
-              <option value="">
-                {loadingOptions[field.name] 
-                  ? 'Optionen werden geladen...' 
-                  : (field.placeholder ?? 'Bitte wählen')}
-              </option>
-              {selectOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
+            <div className="relative">
+              <select
+                id={field.name}
+                name={field.name}
+                value={(formData[field.name] as string) ?? ''}
+                onChange={handleChange}
+                required={field.required}
+                className={`${baseInputClasses} appearance-none pr-10`}
+                disabled={loadingOptions[field.name]}
+              >
+                <option value="">
+                  {loadingOptions[field.name]
+                    ? 'Optionen werden geladen...'
+                    : (field.placeholder ?? 'Bitte wählen')}
                 </option>
-              ))}
-            </select>
+                {selectOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {/* Dropdown chevron */}
+              <svg
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
             {field.helperText && (
-              <p className="mt-1 text-xs md:text-sm text-gray-500">{field.helperText}</p>
+              <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
             )}
           </div>
         );
@@ -363,14 +390,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
           <div>
             <label
               htmlFor={field.name}
-              className="mb-2 block text-xs md:text-sm font-medium text-gray-700"
+              className="mb-1.5 block text-xs font-medium text-gray-700"
             >
               {field.label}{field.required && '*'}
             </label>
             
             {/* Selected items as tags */}
             {selectedValues.length > 0 && (
-              <div className="mb-2 flex flex-wrap gap-2">
+              <div className="mb-2 flex flex-wrap gap-1.5">
                 {selectedValues.map(value => {
                   const option = multiselectOptions.find(opt => opt.value === value);
                   if (!option) return null;
@@ -378,7 +405,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
                   return (
                     <span
                       key={value}
-                      className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800"
+                      className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800"
                     >
                       {option.label}
                       <button
@@ -389,7 +416,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
                             [field.name]: selectedValues.filter(v => v !== value),
                           }));
                         }}
-                        className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-200 text-blue-600 hover:bg-blue-300 hover:text-blue-700"
+                        className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-blue-200 text-blue-600 hover:bg-blue-300 hover:text-blue-700"
                         aria-label={`Remove ${option.label}`}
                       >
                         ×
@@ -401,37 +428,47 @@ export function DatabaseForm<T = Record<string, unknown>>({
             )}
             
             {/* Dropdown for adding new selections */}
-            <select
-              id={field.name}
-              value=""
-              onChange={(e) => {
-                const value = e.target.value;
-                if (value && !selectedValues.includes(value)) {
-                  setFormData(prev => ({
-                    ...prev,
-                    [field.name]: [...selectedValues, value],
-                  }));
-                }
-              }}
-              className={baseInputClasses}
-              disabled={loadingOptions[field.name]}
-            >
-              <option value="">
-                {loadingOptions[field.name] 
-                  ? 'Optionen werden geladen...' 
-                  : 'Weitere hinzufügen...'}
-              </option>
-              {multiselectOptions
-                .filter(option => !selectedValues.includes(option.value))
-                .map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-            </select>
+            <div className="relative">
+              <select
+                id={field.name}
+                value=""
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value && !selectedValues.includes(value)) {
+                    setFormData(prev => ({
+                      ...prev,
+                      [field.name]: [...selectedValues, value],
+                    }));
+                  }
+                }}
+                className={`${baseInputClasses} appearance-none pr-10`}
+                disabled={loadingOptions[field.name]}
+              >
+                <option value="">
+                  {loadingOptions[field.name]
+                    ? 'Optionen werden geladen...'
+                    : (field.placeholder ?? 'Weitere hinzufügen...')}
+                </option>
+                {multiselectOptions
+                  .filter(option => !selectedValues.includes(option.value))
+                  .map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+              </select>
+              <svg
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
             
             {field.helperText && (
-              <p className="mt-1 text-xs md:text-sm text-gray-500">{field.helperText}</p>
+              <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
             )}
           </div>
         );
@@ -441,7 +478,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
           <div>
             <label
               htmlFor={field.name}
-              className="mb-1 block text-xs md:text-sm font-medium text-gray-700"
+              className="mb-1.5 block text-xs font-medium text-gray-700"
             >
               {field.label}{field.required && '*'}
             </label>
@@ -458,7 +495,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
               className={baseInputClasses}
             />
             {field.helperText && (
-              <p className="mt-1 text-xs md:text-sm text-gray-500">{field.helperText}</p>
+              <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
             )}
           </div>
         );
@@ -468,7 +505,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
           <div>
             <label
               htmlFor={field.name}
-              className="mb-1 block text-xs md:text-sm font-medium text-gray-700"
+              className="mb-1.5 block text-xs font-medium text-gray-700"
             >
               {field.label}{field.required && '*'}
             </label>
@@ -484,7 +521,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
               className={baseInputClasses}
             />
             {field.helperText && (
-              <p className="mt-1 text-xs md:text-sm text-gray-500">{field.helperText}</p>
+              <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
             )}
           </div>
         );
@@ -509,17 +546,22 @@ export function DatabaseForm<T = Record<string, unknown>>({
         {sections.map((section, sectionIndex) => {
           // Use custom background or theme background
           const bgClass = section.backgroundColor ?? themeClasses.background;
-          const textClass = themeClasses.text;
+          const textClass = 'text-gray-900';
 
           return (
             <div key={`section-${sectionIndex}`} className={`mb-6 md:mb-8 rounded-lg ${bgClass} p-3 md:p-4`}>
-              <h2 className={`mb-3 md:mb-4 text-base md:text-lg font-medium ${textClass}`}>
-                {section.title}
+              <h2 className={`mb-2.5 md:mb-3 text-xs md:text-sm font-semibold ${textClass} flex items-center gap-2`}>
+                {section.iconPath && (
+                  <svg className={`h-3.5 w-3.5 md:h-4 md:w-4 ${accentTextClass}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={section.iconPath} />
+                  </svg>
+                )}
+                <span>{section.title}</span>
               </h2>
               {section.subtitle && (
-                <p className="mb-3 md:mb-4 text-xs md:text-sm text-gray-600">{section.subtitle}</p>
+                <p className="mb-2.5 md:mb-3 text-xs text-gray-600">{section.subtitle}</p>
               )}
-              <div className={`grid grid-cols-1 gap-4 ${section.columns === 2 ? 'md:grid-cols-2' : ''}`}>
+              <div className={`grid grid-cols-1 gap-3 md:gap-4 ${section.columns === 2 ? 'md:grid-cols-2' : ''}`}>
                 {section.fields.map((field) => (
                   <div
                     key={field.name}
@@ -533,24 +575,44 @@ export function DatabaseForm<T = Record<string, unknown>>({
           );
         })}
 
-        {/* Form actions - matching StudentForm exactly */}
-        <div className="flex justify-end pt-6 pb-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="mr-2 rounded-lg px-3 py-2 md:px-4 text-sm md:text-base text-gray-700 shadow-sm transition-colors hover:bg-gray-100"
-            disabled={isLoading}
-          >
-            Abbrechen
-          </button>
-          <button
-            type="submit"
-            className={`rounded-lg bg-gradient-to-r ${buttonGradient} px-4 py-2 md:px-6 text-sm md:text-base text-white transition-all duration-200 hover:${buttonHoverGradient} hover:shadow-lg`}
-            disabled={isLoading}
-          >
-            {isLoading ? "Wird gespeichert..." : submitLabel}
-          </button>
-        </div>
+        {/* Form actions */}
+        {stickyActions ? (
+          <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm flex gap-2 md:gap-3 pt-3 md:pt-4 pb-3 md:pb-4 border-t border-gray-100 -mx-4 md:-mx-6 -mb-4 md:-mb-6 px-4 md:px-6 mt-4 md:mt-6">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 px-3 md:px-4 py-2 rounded-lg border border-gray-300 text-xs md:text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 hover:shadow-md md:hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              disabled={isLoading}
+            >
+              Abbrechen
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-3 md:px-4 py-2 rounded-lg bg-gray-900 text-xs md:text-sm font-medium text-white hover:bg-gray-700 hover:shadow-lg md:hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              disabled={isLoading}
+            >
+              {isLoading ? "Wird gespeichert..." : submitLabel}
+            </button>
+          </div>
+        ) : (
+          <div className="flex justify-end pt-6 pb-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="mr-2 rounded-lg px-3 py-2 md:px-4 text-sm md:text-base text-gray-700 shadow-sm transition-colors hover:bg-gray-100"
+              disabled={isLoading}
+            >
+              Abbrechen
+            </button>
+            <button
+              type="submit"
+              className={`rounded-lg bg-gradient-to-r ${buttonGradient} px-4 py-2 md:px-6 text-sm md:text-base text-white transition-all duration-200 hover:${buttonHoverGradient} hover:shadow-lg`}
+              disabled={isLoading}
+            >
+              {isLoading ? "Wird gespeichert..." : submitLabel}
+            </button>
+          </div>
+        )}
       </form>
     </>
   );

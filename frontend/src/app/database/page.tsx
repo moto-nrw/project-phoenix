@@ -222,7 +222,32 @@ function DatabaseContent() {
             canViewPermissions: false,
           });
         } else {
-          console.error("Failed to fetch counts:", response.status);
+          // Gracefully handle unauthorized/forbidden without noisy logs
+          if (response.status === 401 || response.status === 403) {
+            // Keep zeros and disable all sections via permissions
+            setCounts({
+              students: 0,
+              teachers: 0,
+              rooms: 0,
+              activities: 0,
+              groups: 0,
+              roles: 0,
+              devices: 0,
+              permissionCount: 0,
+            });
+            setPermissions({
+              canViewStudents: false,
+              canViewTeachers: false,
+              canViewRooms: false,
+              canViewActivities: false,
+              canViewGroups: false,
+              canViewRoles: false,
+              canViewDevices: false,
+              canViewPermissions: false,
+            });
+          } else {
+            console.error("Failed to fetch counts:", response.status);
+          }
         }
       } catch (error) {
         console.error('Error fetching counts:', error);

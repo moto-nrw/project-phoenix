@@ -17,6 +17,7 @@ export interface DatabaseListItemProps {
     value: string | ReactNode;
   };
   className?: string;
+  accent?: 'blue' | 'purple' | 'green' | 'red' | 'indigo' | 'gray' | 'amber' | 'orange';
   minHeight?: "sm" | "md" | "lg";
 }
 
@@ -38,7 +39,52 @@ export function DatabaseListItem({
   indicator,
   className = "",
   minHeight = "sm",
+  accent = 'blue',
 }: DatabaseListItemProps) {
+  const accentClasses = {
+    blue: {
+      title: 'group-hover:text-blue-600',
+      arrow: 'group-hover:text-blue-500',
+      border: 'hover:border-blue-300',
+    },
+    purple: {
+      title: 'group-hover:text-purple-600',
+      arrow: 'group-hover:text-purple-500',
+      border: 'hover:border-purple-300',
+    },
+    green: {
+      title: 'group-hover:text-green-600',
+      arrow: 'group-hover:text-green-500',
+      border: 'hover:border-green-300',
+    },
+    red: {
+      title: 'group-hover:text-red-600',
+      arrow: 'group-hover:text-red-500',
+      border: 'hover:border-red-300',
+    },
+    indigo: {
+      title: 'group-hover:text-indigo-600',
+      arrow: 'group-hover:text-indigo-500',
+      border: 'hover:border-indigo-300',
+    },
+    gray: {
+      title: 'group-hover:text-gray-700',
+      arrow: 'group-hover:text-gray-500',
+      border: 'hover:border-gray-300',
+    },
+    amber: {
+      title: 'group-hover:text-amber-600',
+      arrow: 'group-hover:text-amber-500',
+      border: 'hover:border-amber-300',
+    },
+    orange: {
+      title: 'group-hover:text-orange-600',
+      arrow: 'group-hover:text-orange-500',
+      border: 'hover:border-orange-300',
+    },
+  } as const;
+  const accentCls = accentClasses[accent] ?? accentClasses.blue;
+
   const handleClick = () => {
     if (onClick) {
       onClick();
@@ -59,7 +105,7 @@ export function DatabaseListItem({
         <div className="flex flex-col min-w-0 flex-1 transition-transform duration-200 group-hover:translate-x-1">
           {/* Title and Indicator Row */}
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-gray-900 transition-colors duration-200 group-hover:text-blue-600 truncate">
+            <span className={`font-semibold text-gray-900 transition-colors duration-200 truncate ${accentCls.title}`}>
               {title}
             </span>
             {indicator?.type === "dot" && typeof indicator.value === "string" && (
@@ -107,7 +153,7 @@ export function DatabaseListItem({
       {/* Arrow Icon - Always Present */}
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        className="h-5 w-5 text-gray-400 transition-all duration-200 group-hover:translate-x-1 group-hover:transform group-hover:text-blue-500 flex-shrink-0"
+        className={`h-5 w-5 text-gray-400 transition-all duration-200 group-hover:translate-x-1 group-hover:transform flex-shrink-0 ${accentCls.arrow}`}
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -122,7 +168,7 @@ export function DatabaseListItem({
     </>
   );
 
-  const baseClasses = `group flex cursor-pointer items-center justify-between rounded-lg border border-gray-200 bg-white p-3 md:p-4 transition-all duration-200 hover:border-blue-300 hover:shadow-md active:scale-[0.99] relative ${minHeightStyles[minHeight]} ${className}`;
+  const baseClasses = `group flex cursor-pointer items-center justify-between rounded-lg border border-gray-200 bg-white p-3 md:p-4 transition-all duration-200 ${accentCls.border} hover:shadow-md active:scale-[0.99] relative ${minHeightStyles[minHeight]} ${className}`;
 
   // If href is provided, wrap in Link
   if (href) {

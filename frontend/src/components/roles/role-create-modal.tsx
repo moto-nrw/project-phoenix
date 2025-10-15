@@ -2,35 +2,34 @@
 
 import { Modal } from "~/components/ui/modal";
 import { DatabaseForm } from "~/components/ui/database/database-form";
-import type { Activity } from "@/lib/activity-helpers";
-import { activitiesConfig } from "@/lib/database/configs/activities.config";
+import { rolesConfig } from "@/lib/database/configs/roles.config";
+import type { Role } from "@/lib/auth-helpers";
 
-interface ActivityCreateModalProps {
+interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (data: Partial<Activity>) => Promise<void>;
+  onCreate: (data: Partial<Role>) => Promise<void>;
   loading?: boolean;
 }
 
-export function ActivityCreateModal({ isOpen, onClose, onCreate, loading = false }: ActivityCreateModalProps) {
+export function RoleCreateModal({ isOpen, onClose, onCreate, loading = false }: Props) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={activitiesConfig.labels?.createModalTitle ?? 'Neue Aktivität'}>
+    <Modal isOpen={isOpen} onClose={onClose} title={rolesConfig.labels?.createModalTitle ?? 'Neue Rolle'}>
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-[#FF3130]" />
+            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-purple-600" />
             <p className="text-gray-600">Daten werden geladen...</p>
           </div>
         </div>
       ) : (
         <DatabaseForm
-          theme={activitiesConfig.theme}
-          sections={activitiesConfig.form.sections.map(section => ({
+          theme={rolesConfig.theme}
+          sections={rolesConfig.form.sections.map(section => ({
             title: section.title,
             subtitle: section.subtitle,
             iconPath: (section as any).iconPath,
-            // Hide is_open_ags for now
-            fields: section.fields.filter(f => f.name !== 'is_open_ags').map(field => ({
+            fields: section.fields.map(field => ({
               name: field.name,
               label: field.label,
               type: field.type,
@@ -48,7 +47,7 @@ export function ActivityCreateModal({ isOpen, onClose, onCreate, loading = false
             columns: section.columns,
             backgroundColor: section.backgroundColor,
           }))}
-          initialData={activitiesConfig.form.defaultValues}
+          initialData={rolesConfig.form.defaultValues}
           onSubmit={onCreate}
           onCancel={onClose}
           isLoading={loading}

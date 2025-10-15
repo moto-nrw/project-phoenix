@@ -66,6 +66,7 @@ export interface DatabaseListPageProps<T = unknown> {
     total_records: number;
   } | null;
   onPageChange?: (page: number) => void;
+  accent?: 'blue' | 'purple' | 'green' | 'red' | 'indigo' | 'gray' | 'amber' | 'orange';
 }
 
 export function DatabaseListPage<T = unknown>({
@@ -91,7 +92,19 @@ export function DatabaseListPage<T = unknown>({
   itemLabel,
   pagination,
   onPageChange,
+  accent = 'blue',
 }: DatabaseListPageProps<T>) {
+  const accentSpinner = {
+    blue: 'border-blue-500',
+    purple: 'border-purple-500',
+    green: 'border-green-500',
+    red: 'border-red-500',
+    indigo: 'border-indigo-500',
+    gray: 'border-gray-500',
+    amber: 'border-amber-500',
+    orange: 'border-orange-500',
+  } as const;
+  const spinnerCls = accentSpinner[accent] ?? accentSpinner.blue;
   // Loading state
   if (loading) {
     return (
@@ -100,7 +113,7 @@ export function DatabaseListPage<T = unknown>({
           <DatabasePageHeader title={title} description={description} backUrl={backUrl} />
           <div className="flex flex-col items-center justify-center py-12 md:py-16">
             <div className="flex flex-col items-center gap-4">
-              <div className="h-10 w-10 md:h-12 md:w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+              <div className={`h-10 w-10 md:h-12 md:w-12 animate-spin rounded-full border-b-2 border-t-2 ${spinnerCls}`}></div>
               <p className="text-sm md:text-base text-gray-600">Daten werden geladen...</p>
             </div>
           </div>
@@ -155,6 +168,7 @@ export function DatabaseListPage<T = unknown>({
           onSearchChange={onSearchChange}
           filters={filters}
           addButton={addButton}
+          accent={accent}
         />
         
         {/* Info Section */}

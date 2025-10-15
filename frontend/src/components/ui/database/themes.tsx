@@ -106,32 +106,32 @@ export const databaseThemes = {
   activities: {
     primary: 'orange-500',
     secondary: 'red-600',
-    accent: 'orange',
+    accent: 'red',
     background: 'orange-50',
     border: 'orange-200',
-    textAccent: 'orange-800',
+    textAccent: 'red-800',
     icon: <CalendarIcon />,
     avatarGradient: 'from-orange-400 to-red-500'
   },
   groups: {
-    primary: 'indigo-500',
-    secondary: 'purple-600',
-    accent: 'indigo',
-    background: 'indigo-50',
-    border: 'indigo-200',
-    textAccent: 'indigo-800',
+    primary: 'green-500',
+    secondary: 'emerald-600',
+    accent: 'green',
+    background: 'green-50',
+    border: 'green-200',
+    textAccent: 'green-800',
     icon: <GroupIcon />,
-    avatarGradient: 'from-indigo-400 to-purple-500'
+    avatarGradient: 'from-green-400 to-emerald-500'
   },
   roles: {
-    primary: 'gray-500',
-    secondary: 'slate-600',
-    accent: 'gray',
-    background: 'gray-50',
-    border: 'gray-200',
-    textAccent: 'gray-800',
+    primary: 'purple-500',
+    secondary: 'purple-600',
+    accent: 'purple',
+    background: 'purple-50',
+    border: 'purple-200',
+    textAccent: 'purple-800',
     icon: <ShieldIcon />,
-    avatarGradient: 'from-gray-400 to-slate-500'
+    avatarGradient: 'from-purple-400 to-indigo-500'
   },
   devices: {
     primary: 'amber-500',
@@ -229,6 +229,7 @@ export function getThemeClassNames(theme: DatabaseTheme) {
       'text-purple-800': theme.textAccent === 'purple-800',
       'text-green-800': theme.textAccent === 'green-800',
       'text-orange-800': theme.textAccent === 'orange-800',
+      'text-red-800': theme.textAccent === 'red-800',
       'text-indigo-800': theme.textAccent === 'indigo-800',
       'text-gray-800': theme.textAccent === 'gray-800',
       'text-amber-800': theme.textAccent === 'amber-800',

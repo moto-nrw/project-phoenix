@@ -85,9 +85,13 @@ export const userContextService = {
                 });
 
                 if (!response.ok) {
+                    const status = response.status;
                     const errorText = await response.text();
-                    console.error(`Get current staff error: ${response.status}`, errorText);
-                    throw new Error(`Get current staff failed: ${response.status}`);
+                    // Do not spam console for the common "not linked" case
+                    if (status !== 404) {
+                        console.error(`Get current staff error: ${status}`, errorText);
+                    }
+                    throw new Error(`Get current staff failed: ${status}`);
                 }
 
                 const responseData = await response.json() as ApiResponse<BackendStaff>;
@@ -97,7 +101,10 @@ export const userContextService = {
                 return mapStaffResponse(response.data.data);
             }
         } catch (error) {
-            console.error("Get current staff error:", error);
+            // Suppress 404 logs (account not linked to a person) to avoid noisy console
+            if (!(error instanceof Error && error.message.includes('Get current staff failed: 404'))) {
+                console.error("Get current staff error:", error);
+            }
             throw error;
         }
     },

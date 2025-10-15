@@ -31,7 +31,9 @@ export function ActivityEditModal({ isOpen, onClose, activity, onSave, loading =
           sections={activitiesConfig.form.sections.map(section => ({
             title: section.title,
             subtitle: section.subtitle,
-            fields: section.fields.map(field => ({
+            iconPath: (section as any).iconPath,
+            // Hide is_open_ags for now
+            fields: section.fields.filter(f => f.name !== 'is_open_ags').map(field => ({
               name: field.name,
               label: field.label,
               type: field.type,
@@ -54,9 +56,9 @@ export function ActivityEditModal({ isOpen, onClose, activity, onSave, loading =
           onCancel={onClose}
           isLoading={loading}
           submitLabel="Speichern"
+          stickyActions
         />
       )}
     </Modal>
   );
 }
-
