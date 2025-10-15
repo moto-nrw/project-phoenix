@@ -133,6 +133,20 @@ export const databaseThemes = {
     icon: <ShieldIcon />,
     avatarGradient: 'from-purple-400 to-indigo-500'
   },
+  permissions: {
+    primary: 'indigo-500',
+    secondary: 'purple-600',
+    accent: 'indigo',
+    background: 'indigo-50',
+    border: 'indigo-200',
+    textAccent: 'indigo-800',
+    icon: (
+      <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2v1a2 2 0 11-4 0V9a2 2 0 012-2zm-6 6h3l3 3 3-3 3 3-7 7-5-5v-2a2 2 0 012-2z" />
+      </svg>
+    ),
+    avatarGradient: 'from-indigo-500 to-purple-600'
+  },
   devices: {
     primary: 'amber-500',
     secondary: 'orange-600',
