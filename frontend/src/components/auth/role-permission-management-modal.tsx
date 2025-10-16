@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { FormModal } from "~/components/ui";
 import { SimpleAlert } from "~/components/simple/SimpleAlert";
 import { authService } from "~/lib/auth-service";
-import { getPermissionDisplayName as formatDisplay, actionLabels, resourceLabels, localizeAction, localizeResource, formatPermissionDisplay } from "~/lib/permission-labels";
+import { localizeAction, localizeResource, formatPermissionDisplay } from "~/lib/permission-labels";
 import type { Role, Permission } from "~/lib/auth-helpers";
 
 interface RolePermissionManagementModalProps {
