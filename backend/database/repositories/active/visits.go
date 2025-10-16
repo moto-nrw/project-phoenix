@@ -345,3 +345,23 @@ func (r *VisitRepository) GetCurrentByStudentID(ctx context.Context, studentID i
 
 	return visit, nil
 }
+
+// FindActiveVisits finds all visits with no exit time (currently active)
+func (r *VisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit, error) {
+	var visits []*active.Visit
+	err := r.db.NewSelect().
+		Model(&visits).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Where(`"visit".exit_time IS NULL`).
+		Order(`entry_time ASC`).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active visits",
+			Err: err,
+		}
+	}
+
+	return visits, nil
+}

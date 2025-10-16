@@ -456,3 +456,4 @@ sonar-project.properties
 
 # OpenSpec - Ignore user-specific proposals and changes
 openspec/changes/
+.cursor/*

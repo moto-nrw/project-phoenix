@@ -954,8 +954,8 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	now := time.Now().UTC()
 	today := now.Truncate(24 * time.Hour)
 
-	// Get active visits first for presence calculation
-	activeVisits, err := s.visitRepo.List(ctx, nil)
+	// Get active visits first for presence calculation (optimized: only active visits)
+	activeVisits, err := s.visitRepo.FindActiveVisits(ctx)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
 	}
@@ -963,13 +963,11 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	// Create set of students with active visits
 	studentsWithActiveVisits := make(map[int64]bool)
 	for _, visit := range activeVisits {
-		if visit.IsActive() {
-			studentsWithActiveVisits[visit.StudentID] = true
-		}
+		studentsWithActiveVisits[visit.StudentID] = true
 	}
 
-	// Count students who are currently present (attendance records OR active visits)
-	allStudents, err := s.studentRepo.List(ctx, nil)
+	// Get all attendance records for today (optimized: single query instead of N queries)
+	todaysAttendance, err := s.attendanceRepo.FindForDate(ctx, today)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
 	}
@@ -978,19 +976,11 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	studentsPresent := make(map[int64]bool)
 	studentsWithAttendance := make(map[int64]bool)
 
-	// First collect students with attendance records for today
-	for _, student := range allStudents {
-		// Check if this student has active attendance (checked in but not out) for today
-		attendance, err := s.attendanceRepo.FindByStudentAndDate(ctx, student.ID, today)
-		if err == nil {
-			// Check if any attendance record shows student is still present (no check-out time)
-			for _, record := range attendance {
-				if record.CheckOutTime == nil {
-					studentsWithAttendance[student.ID] = true
-					studentsPresent[student.ID] = true
-					break // Count each student only once
-				}
-			}
+	// Collect students with active attendance (checked in but not out) for today
+	for _, record := range todaysAttendance {
+		if record.CheckOutTime == nil {
+			studentsWithAttendance[record.StudentID] = true
+			studentsPresent[record.StudentID] = true
 		}
 	}
 
@@ -1047,49 +1037,68 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		}
 	}
 
-	// Get active groups with visits preloaded
-	activeGroups, err := s.groupRepo.List(ctx, nil)
+	// Get active groups (optimized: only active groups instead of all groups)
+	activeGroups, err := s.groupRepo.FindActiveGroups(ctx)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
 	}
 
-	// Process active groups to calculate various metrics
-	activeGroupsCount := 0
+	// Build a map of active visits by group ID for efficient lookup (avoid N queries in loop)
+	visitsByGroupID := make(map[int64][]*active.Visit)
+	for _, visit := range activeVisits {
+		visitsByGroupID[visit.ActiveGroupID] = append(visitsByGroupID[visit.ActiveGroupID], visit)
+	}
+
+	// Collect all unique group IDs to batch load education groups (avoid N queries in loop)
+	groupIDs := make([]int64, 0, len(activeGroups))
+	for _, group := range activeGroups {
+		groupIDs = append(groupIDs, group.GroupID)
+	}
+
+	// Batch load all education groups in one query
+	educationGroupsMap := make(map[int64]bool)
+	if len(groupIDs) > 0 {
+		var eduGroups []*educationModels.Group
+		err = s.db.NewSelect().
+			Model(&eduGroups).
+			ModelTableExpr(`education.groups AS "group"`).
+			Where(`"group".id IN (?)`, bun.In(groupIDs)).
+			Scan(ctx)
+		if err == nil {
+			for _, eg := range eduGroups {
+				educationGroupsMap[eg.ID] = true
+			}
+		}
+	}
+
+	// Process active groups to calculate various metrics (now without N+1 queries!)
+	activeGroupsCount := len(activeGroups) // All groups from FindActiveGroups are active
 	ogsGroupsCount := 0
 	occupiedRooms := make(map[int64]bool)
 	roomStudentsMap := make(map[int64]map[int64]struct{})    // roomID -> set of unique student IDs
 	uniqueStudentsInRoomsOverall := make(map[int64]struct{}) // Track unique students across all rooms
 
 	for _, group := range activeGroups {
-		// Count all active groups regardless of start date - if they're active, they should be counted
-		if group.IsActive() {
-			activeGroupsCount++
-			occupiedRooms[group.RoomID] = true
+		occupiedRooms[group.RoomID] = true
 
-			// Initialize room student set if not exists
-			if roomStudentsMap[group.RoomID] == nil {
-				roomStudentsMap[group.RoomID] = make(map[int64]struct{})
-			}
+		// Initialize room student set if not exists
+		if roomStudentsMap[group.RoomID] == nil {
+			roomStudentsMap[group.RoomID] = make(map[int64]struct{})
+		}
 
-			// Count unique students for this group
-			groupVisits, err := s.visitRepo.FindByActiveGroupID(ctx, group.ID)
-			if err == nil {
-				for _, visit := range groupVisits {
-					if visit.IsActive() {
-						// Add student to room's unique student set (prevents double-counting within room)
-						roomStudentsMap[group.RoomID][visit.StudentID] = struct{}{}
-						// Add student to overall unique students set (prevents double-counting overall)
-						uniqueStudentsInRoomsOverall[visit.StudentID] = struct{}{}
-					}
-				}
+		// Count unique students for this group using pre-loaded visits
+		if groupVisits, ok := visitsByGroupID[group.ID]; ok {
+			for _, visit := range groupVisits {
+				// Add student to room's unique student set (prevents double-counting within room)
+				roomStudentsMap[group.RoomID][visit.StudentID] = struct{}{}
+				// Add student to overall unique students set (prevents double-counting overall)
+				uniqueStudentsInRoomsOverall[visit.StudentID] = struct{}{}
 			}
+		}
 
-			// Since all educational groups are OGS groups, we count all active education group sessions
-			eduGroup, err := s.educationGroupRepo.FindByID(ctx, group.GroupID)
-			if err == nil && eduGroup != nil {
-				// This is an OGS group (educational group)
-				ogsGroupsCount++
-			}
+		// Check if this is an OGS group using pre-loaded education groups map
+		if educationGroupsMap[group.GroupID] {
+			ogsGroupsCount++
 		}
 	}
 	analytics.ActiveOGSGroups = ogsGroupsCount

@@ -48,32 +48,66 @@ func (s *Seeder) seedRolesAndPermissions(ctx context.Context) error {
 		s.result.Roles = append(s.result.Roles, role)
 	}
 
-	// Create permissions
+	// Create permissions - ALL permissions from constants.go
 	allPermissions := []string{
 		// Users
+		permissions.UsersCreate,
 		permissions.UsersRead,
 		permissions.UsersUpdate,
 		permissions.UsersDelete,
+		permissions.UsersList,
+		permissions.UsersManage,
 
 		// Groups
+		permissions.GroupsCreate,
 		permissions.GroupsRead,
 		permissions.GroupsUpdate,
 		permissions.GroupsDelete,
+		permissions.GroupsList,
+		permissions.GroupsManage,
+		permissions.GroupsAssign,
 
 		// Activities
+		permissions.ActivitiesCreate,
 		permissions.ActivitiesRead,
 		permissions.ActivitiesUpdate,
 		permissions.ActivitiesDelete,
+		permissions.ActivitiesList,
+		permissions.ActivitiesManage,
+		permissions.ActivitiesEnroll,
+		permissions.ActivitiesAssign,
 
 		// Visits
+		permissions.VisitsCreate,
 		permissions.VisitsRead,
 		permissions.VisitsUpdate,
 		permissions.VisitsDelete,
+		permissions.VisitsList,
+		permissions.VisitsManage,
 
 		// Rooms
+		permissions.RoomsCreate,
 		permissions.RoomsRead,
 		permissions.RoomsUpdate,
 		permissions.RoomsDelete,
+		permissions.RoomsList,
+		permissions.RoomsManage,
+
+		// Substitutions
+		permissions.SubstitutionsCreate,
+		permissions.SubstitutionsRead,
+		permissions.SubstitutionsUpdate,
+		permissions.SubstitutionsDelete,
+		permissions.SubstitutionsList,
+		permissions.SubstitutionsManage,
+
+		// Schedules
+		permissions.SchedulesCreate,
+		permissions.SchedulesRead,
+		permissions.SchedulesUpdate,
+		permissions.SchedulesDelete,
+		permissions.SchedulesList,
+		permissions.SchedulesManage,
 
 		// IoT
 		permissions.IOTRead,
@@ -81,12 +115,19 @@ func (s *Seeder) seedRolesAndPermissions(ctx context.Context) error {
 		permissions.IOTManage,
 
 		// Feedback
-		permissions.FeedbackRead,
 		permissions.FeedbackCreate,
+		permissions.FeedbackRead,
+		permissions.FeedbackDelete,
+		permissions.FeedbackList,
+		permissions.FeedbackManage,
 
 		// Config
 		permissions.ConfigRead,
 		permissions.ConfigUpdate,
+		permissions.ConfigManage,
+
+		// Auth
+		permissions.AuthManage,
 	}
 
 	for _, permName := range allPermissions {
@@ -127,29 +168,98 @@ func (s *Seeder) seedRolesAndPermissions(ctx context.Context) error {
 	// Assign permissions to roles
 	rolePermissions := map[string][]string{
 		"admin": allPermissions, // Admin gets everything
+
 		"teacher": {
+			// Users - read and update students in their groups
 			permissions.UsersRead,
+			permissions.UsersUpdate,
+			permissions.UsersList,
+
+			// Groups - full management of their groups
+			permissions.GroupsCreate,
 			permissions.GroupsRead,
 			permissions.GroupsUpdate,
+			permissions.GroupsDelete,
+			permissions.GroupsList,
+			permissions.GroupsManage,
+			permissions.GroupsAssign,
+
+			// Activities - full management
+			permissions.ActivitiesCreate,
 			permissions.ActivitiesRead,
 			permissions.ActivitiesUpdate,
+			permissions.ActivitiesDelete,
+			permissions.ActivitiesList,
+			permissions.ActivitiesManage,
+			permissions.ActivitiesEnroll,
+			permissions.ActivitiesAssign,
+
+			// Visits - full management for their groups
+			permissions.VisitsCreate,
 			permissions.VisitsRead,
 			permissions.VisitsUpdate,
+			permissions.VisitsDelete,
+			permissions.VisitsList,
+
+			// Rooms - read access
 			permissions.RoomsRead,
+			permissions.RoomsList,
+
+			// Substitutions - full management of their own
+			permissions.SubstitutionsCreate,
+			permissions.SubstitutionsRead,
+			permissions.SubstitutionsUpdate,
+			permissions.SubstitutionsDelete,
+			permissions.SubstitutionsList,
+			permissions.SubstitutionsManage,
+
+			// Schedules - read access
+			permissions.SchedulesRead,
+			permissions.SchedulesList,
+
+			// Feedback - read access
 			permissions.FeedbackRead,
+			permissions.FeedbackList,
 		},
+
 		"staff": {
+			// Users - read only
+			permissions.UsersRead,
+			permissions.UsersList,
+
+			// Groups - read only
+			permissions.GroupsRead,
+			permissions.GroupsList,
+
+			// Activities - read only
+			permissions.ActivitiesRead,
+			permissions.ActivitiesList,
+
+			// Visits - full management (staff handles check-ins/outs)
+			permissions.VisitsCreate,
+			permissions.VisitsRead,
+			permissions.VisitsUpdate,
+			permissions.VisitsDelete,
+			permissions.VisitsList,
+
+			// Rooms - read only
+			permissions.RoomsRead,
+			permissions.RoomsList,
+
+			// Substitutions - read only
+			permissions.SubstitutionsRead,
+			permissions.SubstitutionsList,
+
+			// Schedules - read only
+			permissions.SchedulesRead,
+			permissions.SchedulesList,
+		},
+
+		"guardian": {
+			// Minimal access - limited to their children via policies
 			permissions.UsersRead,
 			permissions.GroupsRead,
-			permissions.ActivitiesRead,
 			permissions.VisitsRead,
-			permissions.VisitsUpdate,
-			permissions.RoomsRead,
-		},
-		"guardian": {
-			permissions.UsersRead,  // Limited to their children
-			permissions.GroupsRead, // Limited to their children's groups
-			permissions.VisitsRead, // Limited to their children's activities
 		},
 	}
 

@@ -518,6 +518,26 @@ func (r *GroupRepository) FindInactiveSessions(ctx context.Context, inactiveDura
 	return groups, nil
 }
 
+// FindActiveGroups finds all groups with no end time (currently active)
+func (r *GroupRepository) FindActiveGroups(ctx context.Context) ([]*active.Group, error) {
+	var groups []*active.Group
+	err := r.db.NewSelect().
+		Model(&groups).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".end_time IS NULL`).
+		Order(`start_time ASC`).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active groups",
+			Err: err,
+		}
+	}
+
+	return groups, nil
+}
+
 // FindUnclaimed finds all active groups that have no supervisors assigned
 // This is used to allow teachers to claim Schulhof or other deviceless rooms via the frontend
 func (r *GroupRepository) FindUnclaimed(ctx context.Context) ([]*active.Group, error) {

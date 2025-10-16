@@ -47,6 +47,9 @@ type GroupRepository interface {
 
 	// Unclaimed groups (for frontend claiming feature)
 	FindUnclaimed(ctx context.Context) ([]*Group, error)
+
+	// FindActiveGroups finds all groups with no end time (currently active)
+	FindActiveGroups(ctx context.Context) ([]*Group, error)
 }
 
 // VisitRepository defines operations for managing active visits
@@ -83,6 +86,9 @@ type VisitRepository interface {
 
 	// GetCurrentByStudentID finds the current active visit for a student
 	GetCurrentByStudentID(ctx context.Context, studentID int64) (*Visit, error)
+
+	// FindActiveVisits finds all visits with no exit time (currently active)
+	FindActiveVisits(ctx context.Context) ([]*Visit, error)
 }
 
 // GroupSupervisorRepository defines operations for managing active group supervisors
