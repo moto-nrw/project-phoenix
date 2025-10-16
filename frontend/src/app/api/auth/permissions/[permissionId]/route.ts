@@ -83,7 +83,9 @@ export async function PUT(
       return NextResponse.json({ error: errorText } as ErrorResponse, { status: response.status });
     }
 
-    return NextResponse.json({ success: true });
+    // Forward backend JSON (expected to contain the updated permission)
+    const data = await response.json() as ApiResponse<BackendPermission> | BackendPermission;
+    return NextResponse.json(data);
   } catch (error) {
     console.error("Update permission route error:", error);
     return NextResponse.json({ error: "Internal Server Error" } as ErrorResponse, { status: 500 });
@@ -119,10 +121,10 @@ export async function DELETE(
       return NextResponse.json({ error: errorText } as ErrorResponse, { status: response.status });
     }
 
-    return NextResponse.json({ success: true });
+    // Mirror a 204-style success so upstream code won't try to map a body
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error("Delete permission route error:", error);
     return NextResponse.json({ error: "Internal Server Error" } as ErrorResponse, { status: 500 });
   }
 }
-
