@@ -7,7 +7,7 @@ import { getThemeClassNames } from "./themes";
 export interface FormField {
   name: string;
   label: string;
-  type: 'text' | 'email' | 'select' | 'multiselect' | 'textarea' | 'password' | 'checkbox' | 'custom' | 'number';
+  type: 'text' | 'email' | 'select' | 'multiselect' | 'textarea' | 'password' | 'checkbox' | 'custom' | 'number' | 'date';
   required?: boolean;
   placeholder?: string;
   options?: Array<{ value: string; label: string }> | (() => Promise<Array<{ value: string; label: string }>>);
