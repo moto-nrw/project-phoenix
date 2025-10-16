@@ -32,17 +32,28 @@ export function StudentDetailModal({
 }: StudentDetailModalProps) {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+    // Type guards for safe JSON parsing
+    const isGuardian = (g: unknown): g is Guardian => {
+        return typeof g === 'object' && g !== null &&
+            typeof (g as { id?: unknown }).id === 'string' &&
+            typeof (g as { name?: unknown }).name === 'string';
+    };
+    const isGuardiansPayload = (x: unknown): x is { guardians: Guardian[] } => {
+        if (typeof x !== 'object' || x === null) return false;
+        const arr = (x as { guardians?: unknown }).guardians;
+        return Array.isArray(arr) && arr.every(isGuardian);
+    };
     // Parse guardians from student extra_info
-    const parseGuardians = (student: Student): Guardian[] | null => {
+    const parseGuardians = (s: Student): Guardian[] | null => {
         try {
-            if (student.extra_info) {
-                const parsed = JSON.parse(student.extra_info);
-                if (parsed.guardians && Array.isArray(parsed.guardians)) {
+            if (s.extra_info) {
+                const parsed: unknown = JSON.parse(s.extra_info);
+                if (isGuardiansPayload(parsed)) {
                     return parsed.guardians;
                 }
             }
         } catch {
-            // If parsing fails, return null
+            // Ignore parse errors and fall through
         }
         return null;
     };
@@ -231,7 +242,8 @@ export function StudentDetailModal({
                                         ))}
                                     </div>
                                 </div>
-                            ) : (student.name_lg || student.contact_lg || student.guardian_email || student.guardian_phone) && (
+                            ) : ([student.name_lg, student.contact_lg, student.guardian_email, student.guardian_phone]
+                                  .some(v => typeof v === 'string' && v.length > 0)) && (
                                 /* Legacy guardian display for backwards compatibility */
                                 <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
                                     <h3 className="text-xs md:text-sm font-semibold text-gray-900 mb-2 md:mb-3 flex items-center gap-2">

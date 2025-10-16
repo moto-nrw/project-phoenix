@@ -112,11 +112,14 @@ function SubstitutionPageContent() {
         // Apply search filter
         if (searchTerm) {
             const searchLower = searchTerm.toLowerCase();
-            filtered = filtered.filter(teacher =>
-                formatTeacherName(teacher).toLowerCase().includes(searchLower) ||
-                teacher.role?.toLowerCase().includes(searchLower) ||
-                teacher.regularGroup?.toLowerCase().includes(searchLower)
-            );
+            filtered = filtered.filter(teacher => {
+                const checks = [
+                    formatTeacherName(teacher).toLowerCase().includes(searchLower),
+                    teacher.role?.toLowerCase().includes(searchLower),
+                    teacher.regularGroup?.toLowerCase().includes(searchLower)
+                ];
+                return checks.some(Boolean);
+            });
         }
 
         // Apply status filter

@@ -150,7 +150,7 @@ export default function TeachersPage() {
         try {
             setDetailLoading(true);
             // Use staff_id if available, otherwise fall back to id
-            const idToFetch = teacher.staff_id || teacher.id;
+            const idToFetch = teacher.staff_id ?? teacher.id;
             const freshData = await service.getOne(idToFetch);
             setSelectedTeacher(freshData);
         } catch (err) {

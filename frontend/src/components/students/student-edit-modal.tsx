@@ -37,15 +37,25 @@ export function StudentEditModal({
     const [additionalInfo, setAdditionalInfo] = useState<string>("");
 
     // Parse guardians and additional info from student data
+    const isGuardian = (g: unknown): g is Guardian => {
+        return typeof g === 'object' && g !== null &&
+            typeof (g as { id?: unknown }).id === 'string' &&
+            typeof (g as { name?: unknown }).name === 'string';
+    };
+    const isPayload = (x: unknown): x is { guardians: Guardian[]; additionalInfo?: string } => {
+        if (typeof x !== 'object' || x === null) return false;
+        const arr = (x as { guardians?: unknown }).guardians;
+        return Array.isArray(arr) && arr.every(isGuardian);
+    };
     const parseGuardiansAndInfo = (student: Student): { guardians: Guardian[], additionalInfo: string } => {
         try {
             // Try to parse from extra_info if it contains guardian data
             if (student.extra_info) {
-                const parsed = JSON.parse(student.extra_info);
-                if (parsed.guardians && Array.isArray(parsed.guardians)) {
+                const parsed: unknown = JSON.parse(student.extra_info);
+                if (isPayload(parsed)) {
                     return {
                         guardians: parsed.guardians,
-                        additionalInfo: parsed.additionalInfo || ""
+                        additionalInfo: parsed.additionalInfo ?? ""
                     };
                 }
             }
@@ -64,7 +74,8 @@ export function StudentEditModal({
         };
 
         // Check if we have guardian data or just extra_info text
-        const hasGuardianData = legacyGuardian.name || legacyGuardian.contact || legacyGuardian.email || legacyGuardian.phone;
+        const hasGuardianData = [legacyGuardian.name, legacyGuardian.contact, legacyGuardian.email, legacyGuardian.phone]
+            .some(v => typeof v === 'string' && v.length > 0);
 
         return {
             guardians: hasGuardianData ? [legacyGuardian] : [],
@@ -268,7 +279,10 @@ export function StudentEditModal({
                                 <div className="relative">
                                     <select
                                         value={formData.group_id ?? ""}
-                                        onChange={(e) => handleChange("group_id", e.target.value || null)}
+                                        onChange={(e) => {
+                                            const v = e.target.value;
+                                            handleChange("group_id", v === "" ? null : v);
+                                        }}
                                         className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors appearance-none"
                                     >
                                         <option value="">Keine Gruppe</option>

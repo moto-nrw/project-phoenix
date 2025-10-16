@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { Suspense, useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect } from "react";
 
 // Icon component
 const Icon: React.FC<{ path: string; className?: string }> = ({ path, className }) => (

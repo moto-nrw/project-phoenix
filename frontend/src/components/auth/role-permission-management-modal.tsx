@@ -58,7 +58,7 @@ export function RolePermissionManagementModal({
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showWarningAlert, setShowWarningAlert] = useState(false);
-  const [warningMessage, setWarningMessage] = useState("");
+  const [warningMessage, _setWarningMessage] = useState("");
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
   const [rolePermissions, setRolePermissions] = useState<Permission[]>([]);
   const [assignedMap, setAssignedMap] = useState<Record<string, boolean>>({});

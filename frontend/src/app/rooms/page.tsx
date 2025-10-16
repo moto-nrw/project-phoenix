@@ -115,11 +115,14 @@ function RoomsPageContent() {
         // Search filter
         if (searchTerm) {
             const searchLower = searchTerm.toLowerCase();
-            filtered = filtered.filter(room =>
-                room.name?.toLowerCase().includes(searchLower) ||
-                room.groupName?.toLowerCase().includes(searchLower) ||
-                room.activityName?.toLowerCase().includes(searchLower)
-            );
+            filtered = filtered.filter(room => {
+                const checks = [
+                    room.name?.toLowerCase().includes(searchLower),
+                    room.groupName?.toLowerCase().includes(searchLower),
+                    room.activityName?.toLowerCase().includes(searchLower)
+                ];
+                return checks.some(Boolean);
+            });
         }
 
         // Building filter
