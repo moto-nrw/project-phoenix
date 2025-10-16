@@ -12,6 +12,9 @@ interface FormModalProps {
   children: ReactNode;
   footer?: ReactNode;
   size?: "sm" | "md" | "lg" | "xl";
+  // Where to position the modal on mobile viewports
+  // 'bottom' mimics a bottom sheet; 'center' behaves like a classic modal
+  mobilePosition?: "bottom" | "center";
 }
 
 export function FormModal({
@@ -20,7 +23,8 @@ export function FormModal({
   title,
   children,
   footer,
-  size = "lg"
+  size = "lg",
+  mobilePosition = "bottom"
 }: FormModalProps) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
@@ -86,9 +90,10 @@ export function FormModal({
     }
   };
 
+  const radiusClass = mobilePosition === 'bottom' ? 'rounded-t-2xl md:rounded-2xl' : 'rounded-2xl';
   const modalContent = (
     <div
-      className={`fixed inset-0 z-[9999] flex items-end md:items-center justify-center md:p-6 transition-all duration-400 ease-out ${
+      className={`fixed inset-0 z-[9999] flex ${mobilePosition === 'bottom' ? 'items-end' : 'items-center'} md:items-center justify-center md:p-6 transition-all duration-400 ease-out ${
         isAnimating && !isExiting 
           ? 'bg-black/40' 
           : 'bg-black/0'
@@ -104,7 +109,7 @@ export function FormModal({
       }}
     >
       <div
-        className={`relative w-full ${sizeClasses[size]} h-full md:h-auto max-h-[90vh] md:max-h-[85vh] rounded-t-2xl md:rounded-2xl shadow-2xl border border-gray-200/50 overflow-hidden transform ${
+        className={`relative w-full ${sizeClasses[size]} ${mobilePosition === 'bottom' ? 'h-full' : 'h-auto'} md:h-auto max-h-[90vh] md:max-h-[85vh] ${radiusClass} ${mobilePosition === 'center' ? 'mx-4' : ''} shadow-2xl border border-gray-200/50 overflow-hidden transform ${
           isAnimating && !isExiting
             ? 'animate-modalEnter' 
             : isExiting

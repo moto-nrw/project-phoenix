@@ -15,6 +15,7 @@ import { Suspense } from "react";
 import { refreshToken } from "~/lib/auth-api";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
 import { SupervisionProvider } from "~/lib/supervision-context";
+import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 
 function LoginForm() {
   const [email, setEmail] = useState("");
@@ -24,6 +25,7 @@ function LoginForm() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
@@ -360,6 +362,17 @@ function LoginForm() {
                 </button>
               </div>
             </div>
+
+            {/* Forgot Password Link */}
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => setIsResetModalOpen(true)}
+                className="text-sm text-gray-600 hover:text-gray-800 hover:underline transition-colors focus:outline-none focus:underline"
+              >
+                Passwort vergessen?
+              </button>
+            </div>
           </div>
 
           <HoverBorderGradient
@@ -373,6 +386,12 @@ function LoginForm() {
         </form>
 
       </div>
+
+      {/* Password Reset Modal */}
+      <PasswordResetModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+      />
     </div>
   );
 }

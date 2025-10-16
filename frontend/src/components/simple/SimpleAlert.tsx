@@ -60,7 +60,8 @@ export function SimpleAlert({
         alertContext.hideAlert();
       };
     }
-  }, [type, message, alertContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, message]);
 
   // Use ref to store the latest onClose callback without triggering effect re-runs
   const onCloseRef = useRef(onClose);

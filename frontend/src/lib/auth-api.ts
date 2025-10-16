@@ -163,6 +163,66 @@ export async function handleAuthFailure(): Promise<boolean> {
 }
 
 /**
+ * Request a password reset email for the given email address
+ * @param email - The email address to send the reset link to
+ * @returns Promise with success message or error
+ */
+export async function requestPasswordReset(email: string): Promise<{
+  message: string;
+}> {
+  try {
+    const response = await fetch("/api/auth/password-reset", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json() as { error: string };
+      throw new Error(error.error ?? "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail");
+    }
+
+    return await response.json() as { message: string };
+  } catch (error) {
+    console.error("Password reset request error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Confirm password reset with token and new password
+ * @param token - The reset token from the email link
+ * @param password - The new password
+ * @returns Promise with success message or error
+ */
+export async function confirmPasswordReset(
+  token: string,
+  password: string
+): Promise<{ message: string }> {
+  try {
+    const response = await fetch("/api/auth/password-reset/confirm", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ token, password }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json() as { error: string };
+      throw new Error(error.error ?? "Fehler beim Zurücksetzen des Passworts");
+    }
+
+    return await response.json() as { message: string };
+  } catch (error) {
+    console.error("Password reset confirmation error:", error);
+    throw error;
+  }
+}
+
+/**
  * Export the auth service for use throughout the application
  */
 export { authService };

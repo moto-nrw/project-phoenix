@@ -4,13 +4,15 @@ import type { ReactNode } from "react";
  * Theme configuration for database pages
  * Each entity type gets its own color scheme while maintaining consistent UX
  */
+export type AccentColor = 'blue' | 'purple' | 'green' | 'red' | 'indigo' | 'gray' | 'amber' | 'orange' | 'pink' | 'yellow';
+
 export interface DatabaseTheme {
   /** Main gradient start color (e.g., 'teal-500') */
   primary: string;
   /** Main gradient end color (e.g., 'blue-600') */
   secondary: string;
   /** Section header colors (e.g., 'blue') */
-  accent: string;
+  accent: AccentColor;
   /** Section background colors (e.g., 'blue-50') */
   background: string;
   /** Border colors for sections (e.g., 'blue-200') */
@@ -94,54 +96,68 @@ export const databaseThemes = {
     avatarGradient: 'from-purple-400 to-indigo-500'
   },
   rooms: {
+    primary: 'indigo-500',
+    secondary: 'indigo-600',
+    accent: 'indigo',
+    background: 'indigo-50',
+    border: 'indigo-200',
+    textAccent: 'indigo-800',
+    icon: <BuildingIcon />,
+    avatarGradient: 'from-indigo-500 to-indigo-600'
+  },
+  activities: {
+    primary: 'red-500',
+    secondary: 'rose-600',
+    accent: 'red',
+    background: 'red-50',
+    border: 'red-200',
+    textAccent: 'red-800',
+    icon: <CalendarIcon />,
+    avatarGradient: 'from-[#FF3130] to-[#e02020]'
+  },
+  groups: {
     primary: 'green-500',
     secondary: 'emerald-600',
     accent: 'green',
     background: 'green-50',
     border: 'green-200',
     textAccent: 'green-800',
-    icon: <BuildingIcon />,
+    icon: <GroupIcon />,
     avatarGradient: 'from-green-400 to-emerald-500'
   },
-  activities: {
-    primary: 'orange-500',
-    secondary: 'red-600',
-    accent: 'orange',
-    background: 'orange-50',
-    border: 'orange-200',
-    textAccent: 'orange-800',
-    icon: <CalendarIcon />,
-    avatarGradient: 'from-orange-400 to-red-500'
-  },
-  groups: {
-    primary: 'indigo-500',
-    secondary: 'purple-600',
-    accent: 'indigo',
-    background: 'indigo-50',
-    border: 'indigo-200',
-    textAccent: 'indigo-800',
-    icon: <GroupIcon />,
-    avatarGradient: 'from-indigo-400 to-purple-500'
-  },
   roles: {
-    primary: 'gray-500',
-    secondary: 'slate-600',
-    accent: 'gray',
-    background: 'gray-50',
-    border: 'gray-200',
-    textAccent: 'gray-800',
+    primary: 'purple-500',
+    secondary: 'purple-600',
+    accent: 'purple',
+    background: 'purple-50',
+    border: 'purple-200',
+    textAccent: 'purple-800',
     icon: <ShieldIcon />,
-    avatarGradient: 'from-gray-400 to-slate-500'
+    avatarGradient: 'from-purple-400 to-indigo-500'
+  },
+  permissions: {
+    primary: 'pink-500',
+    secondary: 'rose-600',
+    accent: 'pink',
+    background: 'pink-50',
+    border: 'pink-200',
+    textAccent: 'pink-800',
+    icon: (
+      <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+      </svg>
+    ),
+    avatarGradient: 'from-pink-500 to-rose-600'
   },
   devices: {
     primary: 'amber-500',
-    secondary: 'orange-600',
+    secondary: 'yellow-600',
     accent: 'amber',
     background: 'amber-50',
     border: 'amber-200',
     textAccent: 'amber-800',
     icon: <DeviceIcon />,
-    avatarGradient: 'from-amber-400 to-orange-500'
+    avatarGradient: 'from-amber-400 to-yellow-500'
   }
 } as const;
 
@@ -229,6 +245,7 @@ export function getThemeClassNames(theme: DatabaseTheme) {
       'text-purple-800': theme.textAccent === 'purple-800',
       'text-green-800': theme.textAccent === 'green-800',
       'text-orange-800': theme.textAccent === 'orange-800',
+      'text-red-800': theme.textAccent === 'red-800',
       'text-indigo-800': theme.textAccent === 'indigo-800',
       'text-gray-800': theme.textAccent === 'gray-800',
       'text-amber-800': theme.textAccent === 'amber-800',

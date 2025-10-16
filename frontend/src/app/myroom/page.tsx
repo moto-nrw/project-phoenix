@@ -58,8 +58,21 @@ function MeinRaumPageContent() {
   // State for showing room selection (for 5+ rooms)
   const [showRoomSelection, setShowRoomSelection] = useState(true);
 
+  // State for mobile detection
+  const [isMobile, setIsMobile] = useState(false);
+
   // Get current selected room
   const currentRoom = allRooms[selectedRoomIndex] ?? null;
+
+  // Handle mobile detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Helper function to load visits for a specific room
   const loadRoomVisits = useCallback(
@@ -545,7 +558,7 @@ function MeinRaumPageContent() {
 
         {/* Modern Header with PageHeaderWithSearch component */}
         <PageHeaderWithSearch
-          title={currentRoom?.room_name ?? currentRoom?.name ?? "Mein Raum"}
+          title={isMobile ? (allRooms.length === 1 ? currentRoom?.name ?? "Mein Raum" : "Meine Räume") : currentRoom?.room_name ?? currentRoom?.name ?? "Mein Raum"}
           badge={{
             icon: (
               <svg
@@ -563,6 +576,7 @@ function MeinRaumPageContent() {
               </svg>
             ),
             count: currentRoom?.student_count ?? 0,
+            label: "Schüler",
           }}
           tabs={
             allRooms.length > 1 && allRooms.length <= 4

@@ -61,11 +61,12 @@ function mapTeacherResponse(data: unknown): Teacher {
 }
 
 // Prepare teacher data for backend
-function prepareTeacherForBackend(data: Partial<Teacher> & { password?: string }): Record<string, unknown> {
+function prepareTeacherForBackend(data: Partial<Teacher> & { password?: string; birthday?: string }): Record<string, unknown> {
   return {
     first_name: data.first_name,
     last_name: data.last_name,
     email: data.email,
+    birthday: data.birthday,
     specialization: data.specialization,
     role: data.role,
     qualifications: data.qualifications,
@@ -117,6 +118,13 @@ export const teachersConfig = defineEntityConfig<Teacher>({
             type: 'email',
             placeholder: 'fachkraft@schule.de',
             helperText: 'Wird für die Anmeldung verwendet',
+          },
+          {
+            name: 'birthday',
+            label: 'Geburtstag',
+            type: 'date',
+            placeholder: 'TT.MM.JJJJ',
+            helperText: 'Optional - für Geburtstagsbenachrichtigungen',
           },
           {
             name: 'tag_id',
@@ -385,7 +393,6 @@ export const teachersConfig = defineEntityConfig<Teacher>({
     createButton: 'Neue pädagogische Fachkraft erstellen',
     createModalTitle: 'Neue pädagogische Fachkraft',
     editModalTitle: 'Pädagogische Fachkraft bearbeiten',
-    detailModalTitle: 'Details der pädagogischen Fachkraft',
     deleteConfirmation: 'Sind Sie sicher, dass Sie diese pädagogische Fachkraft löschen möchten?',
     emptyState: 'Keine pädagogischen Fachkräfte gefunden',
   },

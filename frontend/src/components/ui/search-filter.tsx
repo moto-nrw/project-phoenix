@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { getAccent } from "./database/accents";
 import type { ReactNode } from "react";
 
 export interface SearchFilterProps {
@@ -15,6 +16,7 @@ export interface SearchFilterProps {
     onClick?: () => void;
   };
   className?: string;
+  accent?: 'blue' | 'purple' | 'green' | 'red' | 'indigo' | 'gray' | 'amber' | 'orange' | 'pink' | 'yellow';
 }
 
 export function SearchFilter({
@@ -24,9 +26,11 @@ export function SearchFilter({
   filters,
   addButton,
   className = "",
+  accent = 'blue',
 }: SearchFilterProps) {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const hasFilters = Boolean(filters);
+  const acc = getAccent(accent);
 
   return (
     <div className={`mb-6 md:mb-8 ${className}`}>
@@ -38,7 +42,7 @@ export function SearchFilter({
             placeholder={searchPlaceholder}
             value={searchValue}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-4 py-3 pl-10 text-base transition-all duration-200 hover:border-gray-400 focus:shadow-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className={`w-full rounded-lg border border-gray-300 px-4 py-3 pl-10 text-base transition-all duration-200 hover:border-gray-400 focus:shadow-md focus:ring-2 ${acc.ring} focus:outline-none`}
           />
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
             <svg
@@ -64,7 +68,7 @@ export function SearchFilter({
         <div className="mb-4 md:hidden">
           <button
             onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
-            className="flex w-full items-center justify-between rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-gray-200 hover:ring-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all duration-200"
+            className={`flex w-full items-center justify-between rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-gray-200 hover:ring-gray-300 focus:ring-2 ${acc.ring} focus:outline-none transition-all duration-200`}
           >
             <span className="text-sm font-medium text-gray-700">
               Filter & Optionen
@@ -104,7 +108,7 @@ export function SearchFilter({
                   placeholder={searchPlaceholder}
                   value={searchValue}
                   onChange={(e) => onSearchChange(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-4 py-3 pl-10 transition-all duration-200 hover:border-gray-400 focus:shadow-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className={`w-full rounded-lg border border-gray-300 px-4 py-3 pl-10 transition-all duration-200 hover:border-gray-400 focus:shadow-md focus:ring-2 ${acc.ring} focus:outline-none`}
                 />
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                   <svg
@@ -127,7 +131,7 @@ export function SearchFilter({
               {addButton && (
                 addButton.href ? (
                   <Link href={addButton.href}>
-                    <button className="group flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:from-blue-600 hover:to-blue-700 hover:shadow-md">
+                    <button className={`group flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r ${acc.grad} px-6 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 ${acc.hoverGrad}`}>
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
@@ -148,7 +152,7 @@ export function SearchFilter({
                 ) : (
                   <button 
                     onClick={addButton.onClick}
-                    className="group flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:from-blue-600 hover:to-blue-700 hover:shadow-md"
+                    className={`group flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r ${acc.grad} px-6 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 ${acc.hoverGrad}`}
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -183,7 +187,7 @@ export function SearchFilter({
               <div className="md:hidden">
                 {addButton.href ? (
                   <Link href={addButton.href}>
-                    <button className="group flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:from-blue-600 hover:to-blue-700 hover:shadow-md active:scale-[0.98]">
+                    <button className={`group flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r ${acc.grad} px-4 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 ${acc.hoverGrad} active:scale-[0.98]`}>
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
@@ -204,7 +208,7 @@ export function SearchFilter({
                 ) : (
                   <button 
                     onClick={addButton.onClick}
-                    className="group flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:from-blue-600 hover:to-blue-700 hover:shadow-md active:scale-[0.98]"
+                    className={`group flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r ${acc.grad} px-4 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200 ${acc.hoverGrad} active:scale-[0.98]`}
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"

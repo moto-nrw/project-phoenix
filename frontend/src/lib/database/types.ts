@@ -13,7 +13,8 @@ export type FieldType =
   | 'multiselect'
   | 'checkbox' 
   | 'custom'
-  | 'number';
+  | 'number'
+  | 'date';
 
 // Base field configuration - extends the form field type
 export interface FieldConfig {
@@ -49,7 +50,7 @@ export interface FieldConfig {
 export interface FormField {
   name: string;
   label: string;
-  type: 'text' | 'email' | 'select' | 'multiselect' | 'textarea' | 'password' | 'checkbox' | 'custom' | 'number';
+  type: 'text' | 'email' | 'select' | 'multiselect' | 'textarea' | 'password' | 'checkbox' | 'custom' | 'number' | 'date';
   required?: boolean;
   placeholder?: string;
   options?: Array<{ value: string; label: string }> | (() => Promise<Array<{ value: string; label: string }>>);
@@ -76,6 +77,7 @@ export interface FormSection {
   fields: FormField[];
   columns?: 1 | 2;
   backgroundColor?: string;
+  iconPath?: string;
 }
 
 // Section configuration for forms
@@ -85,6 +87,7 @@ export interface SectionConfig {
   fields: FieldConfig[];
   columns?: 1 | 2;
   backgroundColor?: string;
+  iconPath?: string;
 }
 
 // Detail view item configuration
@@ -294,6 +297,7 @@ export function configToFormSection(section: SectionConfig): FormSection {
     })),
     columns: section.columns,
     backgroundColor: section.backgroundColor,
+    iconPath: section.iconPath,
   };
 }
 

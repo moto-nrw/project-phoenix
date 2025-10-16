@@ -8,10 +8,6 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { HelpButton } from "@/components/ui/help_button";
 import { getHelpContent } from "@/lib/help-content";
-import { GlobalSearch } from "./global-search";
-import { MobileSearchModal } from "./mobile-search-modal";
-import { NotificationCenter } from "./notification-center";
-import { MobileNotificationModal } from "./mobile-notification-modal";
 import { useSession } from "next-auth/react";
 import { LogoutModal } from "~/components/ui/logout-modal";
 
@@ -38,8 +34,11 @@ function getPageTitle(pathname: string): string {
         if (pathname.includes("/activities")) return "Aktivitäten Datenbank";
         if (pathname.includes("/groups")) return "Gruppen Datenbank";
         if (pathname.includes("/students")) return "Schüler Datenbank";
-        if (pathname.includes("/teachers")) return "Datenbank Pädagogische Fachkräfte";
+        if (pathname.includes("/teachers")) return "Datenbank Betreuer";
         if (pathname.includes("/rooms")) return "Räume Datenbank";
+        if (pathname.includes("/roles")) return "Rollen Datenbank";
+        if (pathname.includes("/devices")) return "Geräte Datenbank";
+        if (pathname.includes("/permissions")) return "Berechtigungen Datenbank";
         return "Datenbank";
     }
 
@@ -106,16 +105,11 @@ const LogoutIcon = ({ className }: { className?: string }) => (
 
 export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }: HeaderProps) {
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-    const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
-    const [isMobileNotificationOpen, setIsMobileNotificationOpen] = useState(false);
     const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
     const pathname = usePathname();
     const helpContent = getHelpContent(pathname);
     const pageTitle = getPageTitle(pathname);
     const { data: session } = useSession();
-
-    // Mock notification state for mobile button
-    const [hasUnreadNotifications] = useState(true); // This would come from global state
 
     const toggleProfileMenu = () => {
         setIsProfileMenuOpen(!isProfileMenuOpen);
@@ -123,22 +117,6 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
 
     const closeProfileMenu = () => {
         setIsProfileMenuOpen(false);
-    };
-
-    const openMobileSearch = () => {
-        setIsMobileSearchOpen(true);
-    };
-
-    const closeMobileSearch = () => {
-        setIsMobileSearchOpen(false);
-    };
-
-    const openMobileNotification = () => {
-        setIsMobileNotificationOpen(true);
-    };
-
-    const closeMobileNotification = () => {
-        setIsMobileNotificationOpen(false);
     };
 
 
@@ -181,43 +159,56 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
                         
                         {/* Breadcrumb separator */}
                         <div className="hidden md:block w-px h-5 bg-gray-300"></div>
-                        
-                        {/* Context indicator */}
-                        <span className="hidden md:inline text-sm font-medium text-gray-600">
-                            {pageTitle}
-                        </span>
+
+                        {/* Breadcrumb navigation for database pages */}
+                        {pathname.startsWith("/database/") && pathname !== "/database" ? (
+                            <nav className="hidden md:flex items-center space-x-2 text-sm">
+                                <Link
+                                    href="/database"
+                                    className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                                >
+                                    Datenbank
+                                </Link>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <span className="font-medium text-gray-900">
+                                    {pageTitle.replace("Datenbank", "").trim()}
+                                </span>
+                            </nav>
+                        ) : (
+                            /* Context indicator for non-database pages */
+                            <span className="hidden md:inline text-sm font-medium text-gray-600">
+                                {pageTitle}
+                            </span>
+                        )}
                     </div>
 
-                    {/* Right section: Search + Actions + Profile */}
+                    {/* Right section: Actions + Profile */}
                     <div className="flex items-center space-x-3 ml-auto">{/* ml-auto pushes content to the right */}
                         {/* Quick action buttons (desktop only) */}
                         <div className="hidden lg:flex items-center space-x-2">
-                            {/* Search bar or session expiry warning */}
-                            {session?.error === "RefreshTokenExpired" ? (
+                            {/* Session expiry warning */}
+                            {session?.error === "RefreshTokenExpired" && (
                                 <div className="flex items-center space-x-2 px-4 py-2 bg-red-50 border border-red-200 rounded-lg">
-                                    <svg 
-                                        className="w-5 h-5 text-red-600 flex-shrink-0" 
-                                        fill="none" 
-                                        viewBox="0 0 24 24" 
+                                    <svg
+                                        className="w-5 h-5 text-red-600 flex-shrink-0"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
                                         stroke="currentColor"
                                     >
-                                        <path 
-                                            strokeLinecap="round" 
-                                            strokeLinejoin="round" 
-                                            strokeWidth={2} 
-                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                                         />
                                     </svg>
                                     <span className="text-sm font-medium text-red-800">
                                         Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.
                                     </span>
                                 </div>
-                            ) : (
-                                <GlobalSearch className="w-80 mr-2" />
                             )}
-                            
-                            {/* Notifications */}
-                            <NotificationCenter />
 
                             {/* Help */}
                             <HelpButton
@@ -232,48 +223,20 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
                             {/* Session expiry warning for mobile */}
                             {session?.error === "RefreshTokenExpired" && (
                                 <div className="p-2 text-red-600">
-                                    <svg 
-                                        className="w-5 h-5" 
-                                        fill="none" 
-                                        viewBox="0 0 24 24" 
+                                    <svg
+                                        className="w-5 h-5"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
                                         stroke="currentColor"
                                     >
-                                        <path 
-                                            strokeLinecap="round" 
-                                            strokeLinejoin="round" 
-                                            strokeWidth={2} 
-                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                                         />
                                     </svg>
                                 </div>
-                            )}
-                            
-                            {/* Mobile notifications button */}
-                            <button 
-                                onClick={openMobileNotification}
-                                className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors duration-200 active:bg-gray-200"
-                                aria-label="Benachrichtigungen öffnen"
-                            >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                                </svg>
-                                {/* Mobile notification dot - only show when there are unread notifications */}
-                                {hasUnreadNotifications && (
-                                    <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></div>
-                                )}
-                            </button>
-
-                            {/* Mobile search button - hide when session expired */}
-                            {session?.error !== "RefreshTokenExpired" && (
-                                <button 
-                                    onClick={openMobileSearch}
-                                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors duration-200 active:bg-gray-200"
-                                    aria-label="Suche öffnen"
-                                >
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                    </svg>
-                                </button>
                             )}
                         </div>
 
@@ -390,19 +353,7 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
                     </div>
                 </div>
             </div>
-            
-            {/* Mobile Search Modal */}
-            <MobileSearchModal 
-                isOpen={isMobileSearchOpen} 
-                onClose={closeMobileSearch} 
-            />
-            
-            {/* Mobile Notification Modal */}
-            <MobileNotificationModal 
-                isOpen={isMobileNotificationOpen} 
-                onClose={closeMobileNotification} 
-            />
-            
+
             {/* Logout Modal */}
             <LogoutModal
                 isOpen={isLogoutModalOpen}

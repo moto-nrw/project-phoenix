@@ -2,6 +2,7 @@
 
 import { type ReactNode } from "react";
 import { ResponsiveLayout } from "@/components/dashboard";
+import { getAccentSpinner } from "./database/accents";
 import { SearchFilter } from "./search-filter";
 import { DatabasePageHeader } from "./database-page-header";
 import { DatabaseListSection } from "./database-list-section";
@@ -66,6 +67,7 @@ export interface DatabaseListPageProps<T = unknown> {
     total_records: number;
   } | null;
   onPageChange?: (page: number) => void;
+  accent?: 'blue' | 'purple' | 'green' | 'red' | 'indigo' | 'gray' | 'amber' | 'orange' | 'pink' | 'yellow';
 }
 
 export function DatabaseListPage<T = unknown>({
@@ -91,7 +93,9 @@ export function DatabaseListPage<T = unknown>({
   itemLabel,
   pagination,
   onPageChange,
+  accent = 'blue',
 }: DatabaseListPageProps<T>) {
+  const spinnerCls = getAccentSpinner(accent ?? 'blue');
   // Loading state
   if (loading) {
     return (
@@ -100,7 +104,7 @@ export function DatabaseListPage<T = unknown>({
           <DatabasePageHeader title={title} description={description} backUrl={backUrl} />
           <div className="flex flex-col items-center justify-center py-12 md:py-16">
             <div className="flex flex-col items-center gap-4">
-              <div className="h-10 w-10 md:h-12 md:w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+              <div className={`h-10 w-10 md:h-12 md:w-12 animate-spin rounded-full border-b-2 border-t-2 ${spinnerCls}`}></div>
               <p className="text-sm md:text-base text-gray-600">Daten werden geladen...</p>
             </div>
           </div>
@@ -155,6 +159,7 @@ export function DatabaseListPage<T = unknown>({
           onSearchChange={onSearchChange}
           filters={filters}
           addButton={addButton}
+          accent={accent}
         />
         
         {/* Info Section */}

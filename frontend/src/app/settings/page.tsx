@@ -502,14 +502,6 @@ function SettingsContent() {
             </div>
 
             <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-100">
-              <h3 className="text-base font-semibold text-gray-900 mb-3">System-Logs</h3>
-              <p className="text-sm text-gray-600 mb-4">Überprüfen Sie Systemaktivitäten und Fehlerprotokolle.</p>
-              <button className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 hover:shadow-md hover:scale-105 active:scale-100 transition-all duration-200">
-                Logs anzeigen
-              </button>
-            </div>
-
-            <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-100">
               <h3 className="text-base font-semibold text-gray-900 mb-3">Backup & Wiederherstellung</h3>
               <p className="text-sm text-gray-600 mb-4">Erstellen Sie Backups und stellen Sie Daten wieder her.</p>
               <div className="flex gap-3">
