@@ -939,6 +939,6 @@ For deployment instructions, please refer to the deployment documentation specif
 **DEFAULT PR TARGET BRANCH: development**
 
 NEVER create pull requests to the `main` branch unless EXPLICITLY instructed to do so. All pull requests should target the `development` branch by default. Only create PRs to `main` when the user specifically says "create a PR to main" or similar explicit instruction.
-- never credit claue in commit messages
+- never credit claude in commit messages
 - never credit claude
 - never credit claude code
