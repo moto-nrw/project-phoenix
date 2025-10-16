@@ -206,7 +206,7 @@ export function TeacherDetailModal({
                         )}
 
                         {/* Timestamps */}
-                        {(teacher.created_at || teacher.updated_at) && (
+                        {(teacher.created_at ?? teacher.updated_at) && (
                             <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
                                 <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 md:gap-x-4 gap-y-2 md:gap-y-3">
                                     {teacher.created_at && (

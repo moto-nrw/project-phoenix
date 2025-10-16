@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Modal } from "~/components/ui/modal";
 import type { Student } from "@/lib/api";
 
@@ -37,17 +37,17 @@ export function StudentEditModal({
     const [additionalInfo, setAdditionalInfo] = useState<string>("");
 
     // Parse guardians and additional info from student data
-    const isGuardian = (g: unknown): g is Guardian => {
+    const isGuardian = useCallback((g: unknown): g is Guardian => {
         return typeof g === 'object' && g !== null &&
             typeof (g as { id?: unknown }).id === 'string' &&
             typeof (g as { name?: unknown }).name === 'string';
-    };
-    const isPayload = (x: unknown): x is { guardians: Guardian[]; additionalInfo?: string } => {
+    }, []);
+    const isPayload = useCallback((x: unknown): x is { guardians: Guardian[]; additionalInfo?: string } => {
         if (typeof x !== 'object' || x === null) return false;
         const arr = (x as { guardians?: unknown }).guardians;
         return Array.isArray(arr) && arr.every(isGuardian);
-    };
-    const parseGuardiansAndInfo = (student: Student): { guardians: Guardian[], additionalInfo: string } => {
+    }, [isGuardian]);
+    const parseGuardiansAndInfo = useCallback((student: Student): { guardians: Guardian[], additionalInfo: string } => {
         try {
             // Try to parse from extra_info if it contains guardian data
             if (student.extra_info) {
@@ -81,7 +81,7 @@ export function StudentEditModal({
             guardians: hasGuardianData ? [legacyGuardian] : [],
             additionalInfo: !hasGuardianData && student.extra_info ? student.extra_info : ""
         };
-    };
+    }, [isPayload]);
 
     // Initialize form data when student changes
     useEffect(() => {
@@ -105,7 +105,7 @@ export function StudentEditModal({
             setAdditionalInfo(parsedInfo);
             setErrors({});
         }
-    }, [student]);
+    }, [student, parseGuardiansAndInfo]);
 
     const validateForm = (): boolean => {
         const newErrors: Record<string, string> = {};

@@ -57,8 +57,7 @@ export function RolePermissionManagementModal({
   const [successMessage, setSuccessMessage] = useState("");
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [showWarningAlert, setShowWarningAlert] = useState(false);
-  const [warningMessage, _setWarningMessage] = useState("");
+  // Warning alert disabled for now to reduce noise in UI
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
   const [rolePermissions, setRolePermissions] = useState<Permission[]>([]);
   const [assignedMap, setAssignedMap] = useState<Record<string, boolean>>({});
@@ -167,22 +166,7 @@ export function RolePermissionManagementModal({
     }
   };
 
-  const handleRemovePermission = async (permissionId: string) => {
-    try {
-      setSaving(true);
-      
-      await authService.removePermissionFromRole(role.id, permissionId);
-      
-      showSuccess("Berechtigung erfolgreich entfernt");
-      await fetchPermissions();
-      onUpdate();
-    } catch (error) {
-      console.error("Error removing permission:", error);
-      showError("Fehler beim Entfernen der Berechtigung");
-    } finally {
-      setSaving(false);
-    }
-  };
+  // Unused: handleRemovePermission kept for future quick actions in list
 
   const footer = (
     <div className="w-full flex gap-2 md:gap-3">
@@ -291,13 +275,7 @@ export function RolePermissionManagementModal({
           onClose={() => setShowErrorAlert(false)}
         />
       )}
-      {showWarningAlert && (
-        <SimpleAlert
-          type="warning"
-          message={warningMessage}
-          onClose={() => setShowWarningAlert(false)}
-        />
-      )}
+      {/* Warning alert intentionally disabled */}
     </>
   );
 }
