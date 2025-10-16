@@ -2,6 +2,7 @@
 
 import { type ReactNode } from "react";
 import { ResponsiveLayout } from "@/components/dashboard";
+import { getAccentSpinner } from "./database/accents";
 import { SearchFilter } from "./search-filter";
 import { DatabasePageHeader } from "./database-page-header";
 import { DatabaseListSection } from "./database-list-section";
@@ -94,19 +95,7 @@ export function DatabaseListPage<T = unknown>({
   onPageChange,
   accent = 'blue',
 }: DatabaseListPageProps<T>) {
-  const accentSpinner = {
-    blue: 'border-blue-500',
-    purple: 'border-purple-500',
-    green: 'border-green-500',
-    red: 'border-red-500',
-    indigo: 'border-indigo-500',
-    gray: 'border-gray-500',
-    amber: 'border-amber-500',
-    orange: 'border-orange-500',
-    pink: 'border-pink-500',
-    yellow: 'border-yellow-500',
-  } as const;
-  const spinnerCls = accentSpinner[accent] ?? accentSpinner.blue;
+  const spinnerCls = getAccentSpinner(accent ?? 'blue');
   // Loading state
   if (loading) {
     return (

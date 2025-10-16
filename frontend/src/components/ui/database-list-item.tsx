@@ -2,6 +2,7 @@
 
 import { type ReactNode } from "react";
 import Link from "next/link";
+import { getAccent } from "./database/accents";
 
 export interface DatabaseListItemProps {
   id: string | number;
@@ -41,59 +42,7 @@ export function DatabaseListItem({
   minHeight = "sm",
   accent = 'blue',
 }: DatabaseListItemProps) {
-  const accentClasses = {
-    blue: {
-      title: 'group-hover:text-blue-600',
-      arrow: 'group-hover:text-blue-500',
-      border: 'hover:border-blue-300',
-    },
-    purple: {
-      title: 'group-hover:text-purple-600',
-      arrow: 'group-hover:text-purple-500',
-      border: 'hover:border-purple-300',
-    },
-    green: {
-      title: 'group-hover:text-green-600',
-      arrow: 'group-hover:text-green-500',
-      border: 'hover:border-green-300',
-    },
-    red: {
-      title: 'group-hover:text-red-600',
-      arrow: 'group-hover:text-red-500',
-      border: 'hover:border-red-300',
-    },
-    indigo: {
-      title: 'group-hover:text-indigo-600',
-      arrow: 'group-hover:text-indigo-500',
-      border: 'hover:border-indigo-300',
-    },
-    gray: {
-      title: 'group-hover:text-gray-700',
-      arrow: 'group-hover:text-gray-500',
-      border: 'hover:border-gray-300',
-    },
-    amber: {
-      title: 'group-hover:text-amber-600',
-      arrow: 'group-hover:text-amber-500',
-      border: 'hover:border-amber-300',
-    },
-    orange: {
-      title: 'group-hover:text-orange-600',
-      arrow: 'group-hover:text-orange-500',
-      border: 'hover:border-orange-300',
-    },
-    pink: {
-      title: 'group-hover:text-pink-600',
-      arrow: 'group-hover:text-pink-500',
-      border: 'hover:border-pink-300',
-    },
-    yellow: {
-      title: 'group-hover:text-yellow-600',
-      arrow: 'group-hover:text-yellow-500',
-      border: 'hover:border-yellow-300',
-    },
-  } as const;
-  const accentCls = accentClasses[accent] ?? accentClasses.blue;
+  const accentCls = getAccent(accent ?? 'blue').listHover;
 
   const handleClick = () => {
     if (onClick) {

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { DatabaseTheme } from "./themes";
 import { getThemeClassNames } from "./themes";
+import { getAccentRing, getAccentText } from "./accents";
 
 export interface FormField {
   name: string;
@@ -67,17 +68,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
   const [loadingOptions, setLoadingOptions] = useState<Record<string, boolean>>({});
   const loadedFieldsRef = useRef<Set<string>>(new Set());
   const themeClasses = getThemeClassNames(theme);
-  const accentTextClass = theme.accent === 'blue' ? 'text-blue-600'
-    : theme.accent === 'purple' ? 'text-purple-600'
-    : theme.accent === 'green' ? 'text-green-600'
-    : theme.accent === 'orange' ? 'text-orange-600'
-    : theme.accent === 'red' ? 'text-red-600'
-    : theme.accent === 'indigo' ? 'text-indigo-600'
-    : theme.accent === 'gray' ? 'text-gray-600'
-    : theme.accent === 'amber' ? 'text-amber-600'
-    : theme.accent === 'pink' ? 'text-pink-600'
-    : theme.accent === 'yellow' ? 'text-yellow-600'
-    : 'text-indigo-600';
+  const accentTextClass = getAccentText(theme.accent);
 
   // Initialize form data from sections
   useEffect(() => {
@@ -248,17 +239,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
   const renderField = (field: FormField, _sectionBackground: string) => {
     // Determine focus ring color based on theme accent for consistency across neutral backgrounds
-    const focusRingColor = theme.accent === 'blue' ? 'focus:ring-blue-500'
-      : theme.accent === 'purple' ? 'focus:ring-purple-500'
-      : theme.accent === 'green' ? 'focus:ring-green-500'
-      : theme.accent === 'orange' ? 'focus:ring-orange-500'
-      : theme.accent === 'red' ? 'focus:ring-red-500'
-      : theme.accent === 'indigo' ? 'focus:ring-indigo-500'
-      : theme.accent === 'gray' ? 'focus:ring-gray-500'
-      : theme.accent === 'amber' ? 'focus:ring-amber-500'
-      : theme.accent === 'pink' ? 'focus:ring-pink-500'
-      : theme.accent === 'yellow' ? 'focus:ring-yellow-500'
-      : 'focus:ring-indigo-500';
+    const focusRingColor = getAccentRing(theme.accent);
 
     const baseInputClasses = `w-full rounded-lg border border-gray-300 px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 ${focusRingColor} focus:outline-none`;
 
