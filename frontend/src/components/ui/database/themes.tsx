@@ -4,13 +4,15 @@ import type { ReactNode } from "react";
  * Theme configuration for database pages
  * Each entity type gets its own color scheme while maintaining consistent UX
  */
+export type AccentColor = 'blue' | 'purple' | 'green' | 'red' | 'indigo' | 'gray' | 'amber' | 'orange' | 'pink' | 'yellow';
+
 export interface DatabaseTheme {
   /** Main gradient start color (e.g., 'teal-500') */
   primary: string;
   /** Main gradient end color (e.g., 'blue-600') */
   secondary: string;
   /** Section header colors (e.g., 'blue') */
-  accent: string;
+  accent: AccentColor;
   /** Section background colors (e.g., 'blue-50') */
   background: string;
   /** Border colors for sections (e.g., 'blue-200') */

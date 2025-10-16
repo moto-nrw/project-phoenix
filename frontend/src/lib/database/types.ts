@@ -13,7 +13,8 @@ export type FieldType =
   | 'multiselect'
   | 'checkbox' 
   | 'custom'
-  | 'number';
+  | 'number'
+  | 'date';
 
 // Base field configuration - extends the form field type
 export interface FieldConfig {
@@ -49,7 +50,7 @@ export interface FieldConfig {
 export interface FormField {
   name: string;
   label: string;
-  type: 'text' | 'email' | 'select' | 'multiselect' | 'textarea' | 'password' | 'checkbox' | 'custom' | 'number';
+  type: 'text' | 'email' | 'select' | 'multiselect' | 'textarea' | 'password' | 'checkbox' | 'custom' | 'number' | 'date';
   required?: boolean;
   placeholder?: string;
   options?: Array<{ value: string; label: string }> | (() => Promise<Array<{ value: string; label: string }>>);
