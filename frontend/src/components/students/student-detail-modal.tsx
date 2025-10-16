@@ -38,27 +38,31 @@ export function StudentDetailModal({
             typeof (g as { id?: unknown }).id === 'string' &&
             typeof (g as { name?: unknown }).name === 'string';
     };
-    const isGuardiansPayload = (x: unknown): x is { guardians: Guardian[] } => {
+    const isGuardiansPayload = (x: unknown): x is { guardians: Guardian[]; additionalInfo?: string } => {
         if (typeof x !== 'object' || x === null) return false;
         const arr = (x as { guardians?: unknown }).guardians;
         return Array.isArray(arr) && arr.every(isGuardian);
     };
-    // Parse guardians from student extra_info
-    const parseGuardians = (s: Student): Guardian[] | null => {
+    // Parse guardians and additional notes from student extra_info
+    const parseExtraInfo = (s: Student): { guardians: Guardian[] | null; additionalInfo: string | null } => {
         try {
             if (s.extra_info) {
                 const parsed: unknown = JSON.parse(s.extra_info);
                 if (isGuardiansPayload(parsed)) {
-                    return parsed.guardians;
+                    return {
+                        guardians: parsed.guardians,
+                        additionalInfo: typeof (parsed as { additionalInfo?: unknown }).additionalInfo === 'string'
+                          ? (parsed as { additionalInfo?: string }).additionalInfo!
+                          : null,
+                    };
                 }
             }
         } catch {
             // Ignore parse errors and fall through
         }
-        return null;
+        return { guardians: null, additionalInfo: null };
     };
-
-    const guardians = student ? parseGuardians(student) : null;
+    const { guardians, additionalInfo } = student ? parseExtraInfo(student) : { guardians: null, additionalInfo: null };
 
     // Reset confirmation state when modal closes
     useEffect(() => {
@@ -307,8 +311,21 @@ export function StudentDetailModal({
                                 </div>
                             )}
 
-                            {/* Additional Information - Only show if extra_info doesn't contain guardian JSON */}
-                            {student.extra_info && !guardians && (
+                            {/* Additional Information parsed from structured extra_info */}
+                            {additionalInfo && additionalInfo.trim().length > 0 && (
+                                <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+                                    <h3 className="text-xs md:text-sm font-semibold text-gray-900 mb-2 md:mb-3 flex items-center gap-2">
+                                        <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        Zusätzliche Informationen
+                                    </h3>
+                                    <p className="text-xs md:text-sm text-gray-700 whitespace-pre-wrap break-words">{additionalInfo}</p>
+                                </div>
+                            )}
+
+                            {/* Fallback: show raw extra_info only when it didn't contain guardians or structured notes */}
+                            {student.extra_info && !guardians && !(additionalInfo && additionalInfo.trim().length > 0) && (
                                 <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
                                     <h3 className="text-xs md:text-sm font-semibold text-gray-900 mb-2 md:mb-3 flex items-center gap-2">
                                         <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
