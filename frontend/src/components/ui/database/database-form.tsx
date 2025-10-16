@@ -75,6 +75,8 @@ export function DatabaseForm<T = Record<string, unknown>>({
     : theme.accent === 'indigo' ? 'text-indigo-600'
     : theme.accent === 'gray' ? 'text-gray-600'
     : theme.accent === 'amber' ? 'text-amber-600'
+    : theme.accent === 'pink' ? 'text-pink-600'
+    : theme.accent === 'yellow' ? 'text-yellow-600'
     : 'text-indigo-600';
 
   // Initialize form data from sections
@@ -254,6 +256,8 @@ export function DatabaseForm<T = Record<string, unknown>>({
       : theme.accent === 'indigo' ? 'focus:ring-indigo-500'
       : theme.accent === 'gray' ? 'focus:ring-gray-500'
       : theme.accent === 'amber' ? 'focus:ring-amber-500'
+      : theme.accent === 'pink' ? 'focus:ring-pink-500'
+      : theme.accent === 'yellow' ? 'focus:ring-yellow-500'
       : 'focus:ring-indigo-500';
 
     const baseInputClasses = `w-full rounded-lg border border-gray-300 px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 ${focusRingColor} focus:outline-none`;
