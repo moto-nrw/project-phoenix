@@ -15,7 +15,7 @@ export interface SearchFilterProps {
     onClick?: () => void;
   };
   className?: string;
-  accent?: 'blue' | 'purple' | 'green' | 'red' | 'indigo' | 'gray' | 'amber' | 'orange';
+  accent?: 'blue' | 'purple' | 'green' | 'red' | 'indigo' | 'gray' | 'amber' | 'orange' | 'pink' | 'yellow';
 }
 
 export function SearchFilter({
@@ -38,6 +38,8 @@ export function SearchFilter({
     gray: { ring: 'focus:ring-gray-500', grad: 'from-gray-500 to-gray-600', hoverGrad: 'hover:from-gray-600 hover:to-gray-700' },
     amber: { ring: 'focus:ring-amber-500', grad: 'from-amber-500 to-amber-600', hoverGrad: 'hover:from-amber-600 hover:to-amber-700' },
     orange: { ring: 'focus:ring-orange-500', grad: 'from-orange-500 to-orange-600', hoverGrad: 'hover:from-orange-600 hover:to-orange-700' },
+    pink: { ring: 'focus:ring-pink-500', grad: 'from-pink-500 to-rose-600', hoverGrad: 'hover:from-pink-600 hover:to-rose-700' },
+    yellow: { ring: 'focus:ring-yellow-500', grad: 'from-yellow-500 to-yellow-600', hoverGrad: 'hover:from-yellow-600 hover:to-yellow-700' },
   } as const;
   const acc = accentMap[accent] ?? accentMap.blue;
 

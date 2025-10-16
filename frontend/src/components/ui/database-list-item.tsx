@@ -17,7 +17,7 @@ export interface DatabaseListItemProps {
     value: string | ReactNode;
   };
   className?: string;
-  accent?: 'blue' | 'purple' | 'green' | 'red' | 'indigo' | 'gray' | 'amber' | 'orange';
+  accent?: 'blue' | 'purple' | 'green' | 'red' | 'indigo' | 'gray' | 'amber' | 'orange' | 'pink' | 'yellow';
   minHeight?: "sm" | "md" | "lg";
 }
 
@@ -81,6 +81,16 @@ export function DatabaseListItem({
       title: 'group-hover:text-orange-600',
       arrow: 'group-hover:text-orange-500',
       border: 'hover:border-orange-300',
+    },
+    pink: {
+      title: 'group-hover:text-pink-600',
+      arrow: 'group-hover:text-pink-500',
+      border: 'hover:border-pink-300',
+    },
+    yellow: {
+      title: 'group-hover:text-yellow-600',
+      arrow: 'group-hover:text-yellow-500',
+      border: 'hover:border-yellow-300',
     },
   } as const;
   const accentCls = accentClasses[accent] ?? accentClasses.blue;

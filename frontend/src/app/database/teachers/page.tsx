@@ -166,7 +166,7 @@ export default function TeachersPage() {
             setCreateLoading(true);
             await service.create(data);
             setShowCreateModal(false);
-            setSuccessMessage(getDbOperationMessage("teacher", "create"));
+            setSuccessMessage(getDbOperationMessage('create', teachersConfig.name.singular));
             setShowSuccessAlert(true);
             await fetchTeachers();
         } catch (err) {
@@ -186,7 +186,7 @@ export default function TeachersPage() {
             await service.update(selectedTeacher.id, data);
             setShowEditModal(false);
             setShowDetailModal(false);
-            setSuccessMessage(getDbOperationMessage("teacher", "update"));
+            setSuccessMessage(getDbOperationMessage('update', teachersConfig.name.singular));
             setShowSuccessAlert(true);
             await fetchTeachers();
             setSelectedTeacher(null);
@@ -206,7 +206,7 @@ export default function TeachersPage() {
             setDetailLoading(true);
             await service.delete(selectedTeacher.id);
             setShowDetailModal(false);
-            setSuccessMessage(getDbOperationMessage("teacher", "delete"));
+            setSuccessMessage(getDbOperationMessage('delete', teachersConfig.name.singular));
             setShowSuccessAlert(true);
             await fetchTeachers();
             setSelectedTeacher(null);
