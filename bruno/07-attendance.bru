@@ -18,29 +18,64 @@ headers {
 docs {
   ## RFID and Web-Based Attendance Tests
 
-  Combined RFID device and web dashboard attendance flows:
+  Self-contained attendance test with session management:
+  0. Session start (pre-request setup)
   1. RFID attendance status (main request)
   2. Attendance toggle confirm
   3. Attendance toggle cancel
-  4. Web check-in
-  5. Web present list
-  6. Web checkout (cleanup)
+  4. Web check-in (not implemented)
+  5. Web present list (not implemented)
+  6. Web checkout (not implemented)
+  7. Session end (cleanup)
 
   **Prerequisites:**
   - deviceApiKey and devicePin for RFID tests
-  - accessToken for web-based tests
+  - accessToken for web-based tests (future)
   - testStudent1RFID configured
   - Student must exist in database
+  - Activity 1 and room 12 available
+
+  **IoT Authorization:**
+  - Device must have active group with supervisors
+  - Test creates its own session with supervisor [1]
+  - Supervisor's staff ID used for attendance audit trail
 
   **Two Systems:**
   - RFID: Device-based attendance toggle (confirm/cancel)
-  - Web: Dashboard-based check-in/out for manual attendance
+  - Web: Dashboard-based check-in/out (not implemented)
 
   **Cleanup:**
-  Test 6 ensures web attendance records are cleaned up
+  Test cleanup ensures session is properly ended
 }
 
 script:pre-request {
+  // Start a session first for IoT attendance tests (device needs active group with supervisors)
+  const deviceApiKey = bru.getEnvVar("deviceApiKey");
+  const devicePin = bru.getEnvVar("devicePin");
+
+  await bru.sendRequest({
+    method: 'POST',
+    url: bru.getEnvVar("baseUrl") + "/api/iot/session/start",
+    headers: {
+      "Authorization": `Bearer ${deviceApiKey}`,
+      "X-Staff-PIN": devicePin,
+      "Content-Type": "application/json"
+    },
+    data: {
+      activity_id: 1,
+      room_id: 12,
+      supervisor_ids: [1]
+    }
+  }, function(err, response) {
+    if (!err && response.status === 200) {
+      const sessionId = response.data.data.active_group_id;
+      bru.setVar("attendanceSessionId", sessionId);
+      console.log(`✅ Attendance test session started: ${sessionId}`);
+    } else if (err) {
+      console.log(`⚠️  Session start failed: ${err.message}`);
+    }
+  });
+
   // Ensure admin token exists for web tests
   if (!bru.getEnvVar("accessToken")) {
     await bru.sendRequest({
@@ -161,5 +196,24 @@ script:post-response {
     // Test 6: Web checkout (NOT IMPLEMENTED)
 
     console.log("⚠️  Web attendance endpoints not implemented - using RFID-only flow");
+
+    // Cleanup: End attendance test session
+    (async function() {
+      const sessionId = bru.getVar("attendanceSessionId");
+      if (sessionId) {
+        await bru.sendRequest({
+          method: 'DELETE',
+          url: bru.getEnvVar("baseUrl") + `/api/iot/session/${sessionId}/end`,
+          headers: {
+            "Authorization": `Bearer ${deviceApiKey}`,
+            "X-Staff-PIN": devicePin
+          }
+        }, function(err, response) {
+          if (!err) {
+            console.log("✅ Attendance test session ended");
+          }
+        });
+      }
+    })();
   }
 }

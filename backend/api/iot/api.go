@@ -2816,13 +2816,14 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get staff ID from device context
-	var staffID int64 = 1 // Default to admin ID if no staff context
+	// Get staff ID from device context (service will handle supervisor lookup for IoT devices)
+	var staffID int64
 	if staffCtx := device.StaffFromCtx(r.Context()); staffCtx != nil {
 		staffID = staffCtx.ID
 	}
 
-	// Call ToggleStudentAttendance service with staff ID
+	// Call ToggleStudentAttendance service
+	// For IoT device requests, the service will automatically fetch supervisors from active group
 	result, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, staffID, deviceCtx.ID)
 	if err != nil {
 		log.Printf("[ATTENDANCE_TOGGLE] ERROR: Failed to toggle attendance for student %d: %v", student.ID, err)

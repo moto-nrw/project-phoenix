@@ -327,32 +327,11 @@ script:post-response {
       });
     })();
 
-    // Test 10: Session end (cleanup)
-    await (async function() {
-      await bru.sendRequest({
-        method: 'POST',
-        url: bru.getEnvVar("baseUrl") + "/api/iot/session/end",
-        headers: {
-          "Authorization": `Bearer ${deviceApiKey}`,
-          "X-Staff-PIN": devicePin,
-          "Content-Type": "application/json"
-        },
-        data: {}
-      }, function(err, response) {
-        if (err) {
-          test("Session end cleanup", function() {
-            throw new Error(`Session end failed: ${err.message}`);
-          });
-          return;
-        }
-
-        test("Session ends successfully (cleanup)", function() {
-          expect(response.status).to.equal(200);
-          expect(response.data).to.have.property('status', 'success');
-        });
-
-        console.log("✅ Session ended (cleanup complete)");
-      });
-    })();
+    // Test 10: Session end moved to test 06a for proper test dependency
+    // Test 06a needs the session to be active, so we don't end it here
+    console.log("✅ Session kept active for test 06a-supervisor-rfid");
+    test("Session ready for next test", function() {
+      expect(sessionId).to.be.a('number');
+    });
   }
 }

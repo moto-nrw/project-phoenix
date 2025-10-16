@@ -20,6 +20,7 @@ type CtxKey int
 const (
 	CtxDevice CtxKey = iota
 	CtxStaff
+	CtxIsIoTDevice
 )
 
 // DeviceFromCtx retrieves the authenticated device from request context.
@@ -38,6 +39,13 @@ func StaffFromCtx(ctx context.Context) *users.Staff {
 		return nil
 	}
 	return staff
+}
+
+// IsIoTDeviceRequest checks if the request is from an IoT device using global PIN.
+// Returns true when a device has authenticated with API key + global OGS PIN.
+func IsIoTDeviceRequest(ctx context.Context) bool {
+	isIoT, ok := ctx.Value(CtxIsIoTDevice).(bool)
+	return ok && isIoT
 }
 
 // DeviceAuthenticator is a middleware that validates device API keys and the global OGS PIN.
@@ -115,6 +123,7 @@ func DeviceAuthenticator(iotService iotSvc.Service, usersService usersSvc.Person
 
 			// Authentication successful - set device context only (no staff context needed)
 			ctx := context.WithValue(r.Context(), CtxDevice, device)
+			ctx = context.WithValue(ctx, CtxIsIoTDevice, true)
 
 			// Log successful authentication for audit trail
 			logging.GetLogEntry(r).Info("Device authentication successful",

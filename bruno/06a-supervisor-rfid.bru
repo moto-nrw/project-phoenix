@@ -31,12 +31,12 @@ docs {
   1. Main request: Verify session exists from test 05
   2. Scan staff RFID - should authenticate and add as supervisor
   3. Scan same staff RFID again - should be idempotent
-  4. Cleanup session (shared with test 05)
-  5. Scan staff RFID with no session - should error
+  4. End the session (cleanup from test 05)
+  5. Scan staff RFID with no session - should error (404)
 
   **Note:**
   - Reuses session from 05-sessions.bru (no session creation here)
-  - Session cleanup handled by test 05
+  - Session cleanup handled HERE (moved from test 05 to avoid dependency issues)
   - Student regression testing in 06-checkins.bru
 }
 
@@ -63,7 +63,7 @@ script:post-response {
   console.log(`🔗 Using session ${sessionId} from test 05`);
 
   // Test 1: Scan staff RFID - should authenticate and add as supervisor
-  (async function() {
+  await (async function() {
     await bru.sendRequest({
       method: 'POST',
       url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
@@ -100,7 +100,7 @@ script:post-response {
   })();
 
   // Test 2: Idempotent - scan same supervisor again
-  (async function() {
+  await (async function() {
     await bru.sendRequest({
       method: 'POST',
       url: bru.getEnvVar("baseUrl") + "/api/iot/checkin",
@@ -130,10 +130,37 @@ script:post-response {
     });
   })();
 
-  // Test 3: Wait for test 05 to end session, then test error case
-  // This runs after test 05 cleanup in the test sequence
-  (async function() {
-    // Add small delay to ensure test 05 cleanup completes
+  // Test 3: End the session (cleanup from test 05)
+  await (async function() {
+    await bru.sendRequest({
+      method: 'POST',
+      url: bru.getEnvVar("baseUrl") + "/api/iot/session/end",
+      headers: {
+        "Authorization": `Bearer ${deviceApiKey}`,
+        "X-Staff-PIN": devicePin,
+        "Content-Type": "application/json"
+      },
+      data: {}
+    }, function(err, response) {
+      if (err) {
+        test("Session end cleanup", function() {
+          throw new Error(`Session end failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("Session ends successfully (cleanup from test 05)", function() {
+        expect(response.status).to.equal(200);
+        expect(response.data).to.have.property('status', 'success');
+      });
+
+      console.log("✅ Session ended (cleanup from test 05)");
+    });
+  })();
+
+  // Test 4: Verify error when no active session exists
+  await (async function() {
+    // Small delay for cleanup to propagate
     await new Promise(resolve => setTimeout(resolve, 100));
 
     await bru.sendRequest({
@@ -154,14 +181,13 @@ script:post-response {
           console.log("✅ No session error: supervisor scan rejected (404)");
           return;
         }
-        // If session still exists, that's OK too (timing issue)
-        console.log("⚠️  Session still active (timing) - test 05 cleanup pending");
+        console.log("⚠️  Unexpected error:", err.message);
         return;
       }
 
-      // If we get 200, session still exists (test 05 cleanup pending)
+      // If we get 200, session wasn't properly ended
       if (response.status === 200) {
-        console.log("⚠️  Session still active - test 05 cleanup pending");
+        console.log("⚠️  Unexpected: session still active after cleanup");
         return;
       }
 

@@ -20,6 +20,7 @@ import (
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
+	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
@@ -48,6 +49,7 @@ type API struct {
 	Config        *configAPI.Resource
 	Active        *activeAPI.Resource
 	IoT           *iotAPI.Resource
+	SSE           *sseAPI.Resource
 	Users         *usersAPI.Resource
 	UserContext   *usercontextAPI.Resource
 	Substitutions *substitutionsAPI.Resource
@@ -154,6 +156,7 @@ func New(enableCORS bool) (*API, error) {
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, db)
 	api.IoT = iotAPI.NewResource(api.Services.IoT, api.Services.Users, api.Services.Active, api.Services.Activities, api.Services.Config, api.Services.Facilities, api.Services.Education, api.Services.Feedback)
+	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users)
 	api.Users = usersAPI.NewResource(api.Services.Users)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
@@ -262,6 +265,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount database resources
 		r.Mount("/database", a.Database.Router())
+
+		// Mount SSE resources (Server-Sent Events for real-time updates)
+		r.Mount("/sse", a.SSE.Router())
 
 		// Add other resource routes here as they are implemented
 	})

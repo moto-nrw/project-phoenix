@@ -137,3 +137,13 @@ func ErrorForbidden(err error) render.Renderer {
 		ErrorText:      err.Error(),
 	}
 }
+
+// ErrorUnauthorized returns an ErrResponse for unauthorized actions
+func ErrorUnauthorized(err error) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusUnauthorized,
+		StatusText:     "Unauthorized",
+		ErrorText:      err.Error(),
+	}
+}

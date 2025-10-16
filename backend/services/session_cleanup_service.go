@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"log"
+	"sync"
 	"time"
 
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -13,8 +14,10 @@ type SessionCleanupService struct {
 	activeService activeSvc.Service
 	logger        *log.Logger
 	ticker        *time.Ticker
-	stopChan      chan bool
+	ctx           context.Context
+	cancel        context.CancelFunc
 	isRunning     bool
+	mu            sync.Mutex
 }
 
 // NewSessionCleanupService creates a new session cleanup service
@@ -22,20 +25,25 @@ func NewSessionCleanupService(activeService activeSvc.Service, logger *log.Logge
 	return &SessionCleanupService{
 		activeService: activeService,
 		logger:        logger,
-		stopChan:      make(chan bool),
 		isRunning:     false,
 	}
 }
 
 // Start begins the background cleanup process
 func (s *SessionCleanupService) Start() {
+	s.mu.Lock()
 	if s.isRunning {
+		s.mu.Unlock()
 		s.logger.Println("Session cleanup service is already running")
 		return
 	}
 
 	s.logger.Println("Starting session cleanup service...")
+
+	// Create new context for this session
+	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.isRunning = true
+	s.mu.Unlock()
 
 	// Check for abandoned sessions every 15 minutes (not aggressive)
 	s.ticker = time.NewTicker(15 * time.Minute)
@@ -54,7 +62,7 @@ func (s *SessionCleanupService) Start() {
 			case <-s.ticker.C:
 				s.cleanupAbandonedSessions()
 
-			case <-s.stopChan:
+			case <-s.ctx.Done():
 				s.logger.Println("Session cleanup service stopped")
 				return
 			}
@@ -66,6 +74,9 @@ func (s *SessionCleanupService) Start() {
 
 // Stop halts the background cleanup process
 func (s *SessionCleanupService) Stop() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if !s.isRunning {
 		return
 	}
@@ -77,7 +88,11 @@ func (s *SessionCleanupService) Stop() {
 		s.ticker.Stop()
 	}
 
-	close(s.stopChan)
+	if s.cancel != nil {
+		s.cancel()
+		s.cancel = nil // Prevent double-cancel
+	}
+
 	s.logger.Println("Session cleanup service stopped")
 }
 

@@ -215,6 +215,30 @@ export const activeService = {
         }
     },
 
+    // Bulk fetch visits with student display data (optimized for SSE - single query)
+    getActiveGroupVisitsWithDisplay: async (id: string): Promise<Visit[]> => {
+        const session = await getSession();
+        const response = await fetch(`/api/active/groups/${id}/visits/display`, {
+            headers: {
+                Authorization: `Bearer ${session?.user?.token}`,
+                "Content-Type": "application/json",
+            },
+        });
+
+        if (response.status === 404) {
+            return [];
+        }
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Get visits with display error: ${response.status}`, errorText);
+            throw new Error(`Get visits with display failed: ${response.status}`);
+        }
+
+        const responseData = await response.json() as ApiResponse<BackendVisit[]>;
+        return responseData.data.map(mapVisitResponse);
+    },
+
     getActiveGroupSupervisors: async (id: string): Promise<Supervisor[]> => {
         const useProxyApi = typeof window !== "undefined";
         const url = useProxyApi
@@ -1571,6 +1595,85 @@ export const activeService = {
             ? "/api/active/groups/unclaimed"
             : `${env.NEXT_PUBLIC_API_URL}/active/groups/unclaimed`;
 
+        const metadataKeys = new Set(["status", "message", "success", "code", "meta", "pagination"]);
+
+        const extractGroupArray = (payload: unknown): BackendActiveGroup[] | undefined => {
+            if (Array.isArray(payload)) {
+                return payload as BackendActiveGroup[];
+            }
+
+            if (payload && typeof payload === "object") {
+                const obj = payload as Record<string, unknown>;
+
+                if ("data" in obj) {
+                    const fromData = extractGroupArray(obj.data);
+                    if (fromData !== undefined) {
+                        return fromData;
+                    }
+                }
+
+                if ("items" in obj) {
+                    const fromItems = extractGroupArray(obj.items);
+                    if (fromItems !== undefined) {
+                        return fromItems;
+                    }
+                }
+            }
+
+            return undefined;
+        };
+
+        const payloadIsEffectivelyEmpty = (payload: unknown): boolean => {
+            if (payload === null || payload === undefined) {
+                return true;
+            }
+
+            if (Array.isArray(payload)) {
+                return payload.length === 0;
+            }
+
+            if (typeof payload === "object") {
+                const obj = payload as Record<string, unknown>;
+
+                if ("data" in obj) {
+                    if (!payloadIsEffectivelyEmpty(obj.data)) {
+                        return false;
+                    }
+                }
+
+                if ("items" in obj) {
+                    if (!payloadIsEffectivelyEmpty(obj.items)) {
+                        return false;
+                    }
+                }
+
+                const remainingKeys = Object.keys(obj).filter((key) => key !== "data" && key !== "items");
+                const nonMetaKeys = remainingKeys.filter((key) => !metadataKeys.has(key));
+
+                if (nonMetaKeys.length > 0) {
+                    return false;
+                }
+
+                return true;
+            }
+
+            return false;
+        };
+
+        const parseUnclaimedGroupsPayload = (payload: unknown): BackendActiveGroup[] => {
+            const extracted = extractGroupArray(payload);
+
+            if (extracted !== undefined) {
+                return extracted;
+            }
+
+            if (!payloadIsEffectivelyEmpty(payload)) {
+                console.warn("[active-service] Unexpected unclaimed groups response shape:", payload);
+            }
+
+            return [];
+        };
+
         try {
             if (useProxyApi) {
                 const session = await getSession();
@@ -1587,12 +1690,13 @@ export const activeService = {
                     throw new Error(`Get unclaimed groups failed: ${response.status}`);
                 }
 
-                const responseData = await response.json() as ApiResponse<BackendActiveGroup[]>;
-                console.log("[active-service] Got unclaimed groups:", responseData.data.length);
-                return responseData.data.map(mapActiveGroupResponse);
+                const responseData = await response.json() as unknown;
+                const rawGroups = parseUnclaimedGroupsPayload(responseData);
+                return rawGroups.map(mapActiveGroupResponse);
             } else {
-                const response = await api.get<ApiResponse<BackendActiveGroup[]>>(url);
-                return response.data.data.map(mapActiveGroupResponse);
+                const response = await api.get<unknown>(url);
+                const rawGroups = parseUnclaimedGroupsPayload(response.data);
+                return rawGroups.map(mapActiveGroupResponse);
             }
         } catch (error) {
             console.error("Get unclaimed groups error:", error);

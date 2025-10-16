@@ -135,3 +135,27 @@ func (r *AttendanceRepository) GetTodayByStudentID(ctx context.Context, studentI
 	// This is the same as GetStudentCurrentStatus - just call that method
 	return r.GetStudentCurrentStatus(ctx, studentID)
 }
+
+// FindForDate finds all attendance records for a specific date
+func (r *AttendanceRepository) FindForDate(ctx context.Context, date time.Time) ([]*active.Attendance, error) {
+	var attendance []*active.Attendance
+
+	// Extract date only (ignore time component) - use UTC to match other methods
+	dateOnly := date.Truncate(24 * time.Hour)
+
+	err := r.db.NewSelect().
+		Model(&attendance).
+		ModelTableExpr(`active.attendance AS "attendance"`).
+		Where(`"attendance".date = ?`, dateOnly).
+		Order(`student_id ASC, check_in_time ASC`).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find for date",
+			Err: err,
+		}
+	}
+
+	return attendance, nil
+}
