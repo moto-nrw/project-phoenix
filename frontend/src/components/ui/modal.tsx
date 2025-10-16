@@ -174,7 +174,7 @@ export function Modal({
 
         {/* Content area with hidden scrollbar and reveal animation */}
         <div
-          className="max-h-[70vh] md:max-h-[70vh] max-h-[calc(100vh-8rem)] overflow-y-auto modal-scrollbar-hidden"
+          className="max-h-[calc(100vh-8rem)] md:max-h-[70vh] overflow-y-auto modal-scrollbar-hidden"
           data-modal-content="true"
         >
           <div className={`p-4 md:p-6 text-gray-700 leading-relaxed ${
