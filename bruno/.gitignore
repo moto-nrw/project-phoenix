@@ -1,0 +1,5 @@
+# Keep example templates
+!environments/*.bru.example
+
+# Ignore macOS system files
+.DS_Store

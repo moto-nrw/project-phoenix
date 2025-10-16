@@ -108,6 +108,10 @@ type Service interface {
 	CancelScheduledCheckout(ctx context.Context, id int64, cancelledBy int64) error
 	ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledCheckoutResult, error)
 	GetStudentScheduledCheckouts(ctx context.Context, studentID int64) ([]*active.ScheduledCheckout, error)
+
+	// Unclaimed groups management (deviceless claiming)
+	GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group, error)
+	ClaimActiveGroup(ctx context.Context, groupID, staffID int64, role string) (*active.GroupSupervisor, error)
 }
 
 // DashboardAnalytics represents aggregated analytics for dashboard
@@ -275,11 +279,12 @@ type AttendanceResult struct {
 
 // DailySessionCleanupResult represents the result of ending daily sessions
 type DailySessionCleanupResult struct {
-	SessionsEnded int       `json:"sessions_ended"`
-	VisitsEnded   int       `json:"visits_ended"`
-	ExecutedAt    time.Time `json:"executed_at"`
-	Success       bool      `json:"success"`
-	Errors        []string  `json:"errors,omitempty"`
+	SessionsEnded    int       `json:"sessions_ended"`
+	VisitsEnded      int       `json:"visits_ended"`
+	SupervisorsEnded int       `json:"supervisors_ended"`
+	ExecutedAt       time.Time `json:"executed_at"`
+	Success          bool      `json:"success"`
+	Errors           []string  `json:"errors,omitempty"`
 }
 
 // AttendanceCleanupResult represents the result of cleaning stale attendance records

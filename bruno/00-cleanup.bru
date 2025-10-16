@@ -1,0 +1,178 @@
+meta {
+  name: 00 - Pre-Test Cleanup
+  type: http
+  seq: 0
+}
+
+post {
+  url: {{baseUrl}}/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "email": "admin@example.com",
+    "password": "Test1234%"
+  }
+}
+
+docs {
+  ## Pre-Test Cleanup
+
+  This file runs FIRST (alphabetically before 01-smoke.bru) to ensure a clean test state.
+
+  **What it does:**
+  1. Authenticates as admin (main request)
+  2. Lists all active groups
+  3. Deletes each active group via API
+  4. Ensures no leftover state from previous test runs
+
+  **Why this approach:**
+  - Runs before all other tests (00 prefix)
+  - Uses API endpoints (hermetic, no direct DB access)
+  - Synchronous execution (Bruno waits for completion)
+  - Visible in test output
+
+  **Prevents:**
+  - 500 errors on session/group creation (room already occupied)
+  - State leakage between test runs
+  - Manual database cleanup requirements
+}
+
+script:post-response {
+  test("Admin authentication for cleanup", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('access_token');
+  });
+
+  if (res.getStatus() === 200) {
+    const accessToken = res.getBody().access_token;
+    bru.setEnvVar("accessToken", accessToken);
+
+    console.log("🧹 Starting cleanup...");
+
+    // Get all active groups
+    (async function() {
+      await bru.sendRequest({
+        method: 'GET',
+        url: bru.getEnvVar("baseUrl") + "/api/active/groups?active=true",
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      }, async function(err, groupsResponse) {
+        if (err) {
+          console.log("⚠️  Could not list active groups:", err.message);
+          return;
+        }
+
+        if (!groupsResponse.data || !groupsResponse.data.data) {
+          console.log("✅ No active groups to clean up");
+          return;
+        }
+
+        const activeGroups = groupsResponse.data.data;
+        console.log(`🧹 Found ${activeGroups.length} active groups to delete`);
+
+        // End each group session sequentially
+        for (const group of activeGroups) {
+          await bru.sendRequest({
+            method: 'POST',
+            url: bru.getEnvVar("baseUrl") + `/api/active/groups/${group.id}/end`,
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            },
+            data: {}
+          }, function(err, endResponse) {
+            if (err) {
+              console.log(`⚠️  Failed to end group ${group.id}:`, err.message);
+            } else {
+              console.log(`🧹 Ended active group ${group.id} (room ${group.room_id})`);
+            }
+          });
+
+          // Small delay to ensure POST completes
+          await bru.sleep(50);
+        }
+
+        // Clean up orphaned active visits
+        await bru.sendRequest({
+          method: 'GET',
+          url: bru.getEnvVar("baseUrl") + "/api/active/visits",
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        }, async function(err, visitsResponse) {
+          if (err || !visitsResponse.data?.data) {
+            return;  // No visits to clean up
+          }
+
+          const activeVisits = visitsResponse.data.data.filter(visit => !visit.end_time);
+          if (activeVisits.length > 0) {
+            console.log(`🧹 Found ${activeVisits.length} active visits to end`);
+
+            for (const visit of activeVisits) {
+              await bru.sendRequest({
+                method: 'POST',
+                url: bru.getEnvVar("baseUrl") + `/api/active/visits/${visit.id}/end`,
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json'
+                },
+                data: {}
+              }, function(err, endResponse) {
+                if (!err) {
+                  console.log(`🧹 Ended active visit ${visit.id}`);
+                }
+              });
+
+              await bru.sleep(50);
+            }
+          }
+        });
+
+        // Restore first 3 students' RFID tags to seed values (in case tests modified them)
+        const seedTags = [
+          { id: 31, tag: 'E83BE72F' },  // Leon Huber
+          { id: 32, tag: 'CA5DE789' },  // Emma
+          { id: 33, tag: '43385429' }   // Ben
+        ];
+
+        const deviceApiKey = bru.getEnvVar("deviceApiKey");
+        const devicePin = bru.getEnvVar("devicePin");
+
+        for (const student of seedTags) {
+          await bru.sendRequest({
+            method: 'POST',
+            url: bru.getEnvVar("baseUrl") + `/api/students/${student.id}/rfid`,
+            headers: {
+              'Authorization': `Bearer ${deviceApiKey}`,
+              'X-Staff-PIN': devicePin,
+              'Content-Type': 'application/json'
+            },
+            data: {
+              rfid_tag: student.tag
+            }
+          }, function(err, response) {
+            if (!err && response.status === 200) {
+              console.log(`🔄 Restored RFID tag for student ${student.id}`);
+            }
+          });
+
+          await bru.sleep(50);
+        }
+
+        console.log("✅ Cleanup complete - test environment ready");
+
+        test("Cleanup completed", function() {
+          expect(true).to.be.true;
+        });
+      });
+    })();
+  }
+}

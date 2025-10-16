@@ -1,3 +1,22 @@
+<!-- OPENSPEC:START -->
+# OpenSpec Instructions
+
+These instructions are for AI assistants working in this project.
+
+Always open `@/openspec/AGENTS.md` when the request:
+- Mentions planning or proposals (words like proposal, spec, change, plan)
+- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
+- Sounds ambiguous and you need the authoritative spec before coding
+
+Use `@/openspec/AGENTS.md` to learn:
+- How to create and apply change proposals
+- Spec format and conventions
+- Project structure and guidelines
+
+Keep this managed block so 'openspec update' can refresh the instructions.
+
+<!-- OPENSPEC:END -->
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -54,6 +73,43 @@ The database uses multiple PostgreSQL schemas to organize tables by domain:
 - **iot**: Device management
 - **feedback**: User feedback
 - **config**: System configuration
+
+## Critical Patterns & Gotchas ⚠️
+
+**Read these first to avoid common mistakes:**
+
+1. **BUN ORM Schema-Qualified Tables** - MUST quote aliases:
+   ```go
+   ModelTableExpr(`education.groups AS "group"`)  // ✓ CORRECT
+   ModelTableExpr(`education.groups AS group`)    // ✗ WRONG - causes "column not found"
+   ```
+
+2. **Docker Backend Rebuild** - Go code changes require rebuild:
+   ```bash
+   docker compose build server  # REQUIRED after Go changes
+   docker compose up -d server
+   ```
+
+3. **Frontend Quality Check** - Zero warnings policy enforced:
+   ```bash
+   npm run check  # MUST PASS before committing
+   ```
+
+4. **Type Mapping** - Backend int64 → Frontend string:
+   ```typescript
+   id: data.id.toString()  // Always convert IDs
+   ```
+
+5. **Git Workflow** - PRs target `development`, NOT `main`:
+   ```bash
+   gh pr create --base development  # Correct
+   ```
+
+6. **Student Location** - Use `active.visits`, NOT deprecated flags:
+   ```go
+   // ✓ CORRECT: active.visits + active.attendance
+   // ✗ WRONG: users.students (in_house, wc, school_yard) - broken!
+   ```
 
 ## Development Commands
 
@@ -116,7 +172,7 @@ go run main.go gendoc --openapi # Creates docs/openapi.yaml for external tools
 
 # 3. API Testing Integration
 # Generated documentation integrates with Bruno API testing:
-cd bruno && ./dev-test.sh examples  # Test endpoints from gendoc output
+cd bruno && bru run --env Local 0*.bru  # Test all endpoints (~270ms)
 
 # Code Quality
 go fmt ./...                    # Format code
@@ -137,11 +193,11 @@ npm run build                   # Build for production
 npm run start                   # Start production server
 npm run preview                 # Build and preview production
 
-# Code Quality (Run before committing!)
+# Code Quality (REQUIRED before committing - zero warnings policy!)
+npm run check                   # Run both lint and typecheck (MUST PASS)
 npm run lint                    # ESLint check (max-warnings=0)
 npm run lint:fix                # Auto-fix linting issues
 npm run typecheck               # TypeScript type checking
-npm run check                   # Run both lint and typecheck
 
 # Formatting
 npm run format:check            # Check Prettier formatting
@@ -158,6 +214,10 @@ docker compose up               # Start all services
 docker compose up -d postgres   # Start only database
 docker compose up -d            # Start all services in detached mode
 
+# CRITICAL: Backend code changes require rebuild
+docker compose build server     # MUST run after any Go code changes
+docker compose up -d server     # Restart with new build
+
 # Database Operations
 docker compose run server ./main migrate  # Run migrations
 docker compose run server ./main seed     # Populate with test data
@@ -169,9 +229,9 @@ docker compose logs frontend            # Check frontend logs
 
 # API Testing
 cd bruno
-./dev-test.sh all                       # Run simplified test suite (~252ms)
-./dev-test.sh groups                    # Test groups API only (~44ms)  
-bru run --env Local                     # Traditional Bruno CLI
+bru run --env Local 0*.bru              # Run all tests (~270ms, 59 scenarios)
+bru run --env Local 05-sessions.bru    # Run specific test file
+bru run --env Local 0[1-5]-*.bru       # Run tests 01-05 only
 
 # Cleanup
 docker compose down             # Stop all services
@@ -379,12 +439,10 @@ go run main.go gendoc --routes
 ```bash
 # Use Bruno API tests with generated documentation
 cd bruno
-./dev-test.sh examples          # Test key endpoints
-./dev-test.sh all              # Comprehensive API testing (~252ms)
-
-# Test specific domains discovered from routes.md:
-./dev-test.sh groups           # Educational group endpoints
-./dev-test.sh students         # Student management endpoints
+bru run --env Local 0*.bru              # Run all tests (~270ms)
+bru run --env Local 05-sessions.bru    # Test session lifecycle
+bru run --env Local 06-checkins.bru    # Test check-in/out flows
+bru run --env Local 10-schulhof.bru    # Test Schulhof auto-create
 ```
 
 **3. Schema Enhancement:**
@@ -610,35 +668,38 @@ func TestUserLogin(t *testing.T) {
 Test helpers are in `test/helpers.go`. Integration tests use a real test database.
 
 ### API Testing with Bruno
-Bruno provides a simplified API testing suite optimized for development workflow:
+Bruno provides a consolidated, hermetic API test suite optimized for reliability:
 
 ```bash
 cd bruno
 
-# Simplified test runner (gets fresh admin token automatically)
-./dev-test.sh groups    # Test groups API (25 groups) - ~44ms
-./dev-test.sh students  # Test students API (50 students) - ~50ms  
-./dev-test.sh rooms     # Test rooms API (24 rooms) - ~19ms
-./dev-test.sh devices   # Test RFID device auth - ~117ms
-./dev-test.sh all       # Test everything - ~252ms
-./dev-test.sh examples  # View API examples
-./dev-test.sh manual    # Pre-release checks
+# Run all tests (recommended)
+bru run --env Local 0*.bru              # 59 scenarios across 11 files (~270ms)
 
-# Traditional Bruno CLI (requires manual token management)
-bru run --env Local     # Run all tests
-bru run dev/groups.bru --env Local --env-var accessToken="$TOKEN"
+# Run specific test files
+bru run --env Local 01-smoke.bru        # Health checks
+bru run --env Local 05-sessions.bru    # Session lifecycle (10 tests)
+bru run --env Local 06-checkins.bru    # Check-in/out flows (8 tests)
+bru run --env Local 10-schulhof.bru    # Schulhof auto-create workflow
+
+# Run subset of tests
+bru run --env Local 0[1-5]-*.bru       # Run tests 01-05 only
+
+# Clean up before tests (if needed)
+docker compose exec -T postgres psql -U postgres -d postgres \
+  -c "DELETE FROM active.groups WHERE end_time IS NULL;"
 
 # Bruno GUI (optional)
 # Open Bruno app → Open Collection → Select bruno/ directory
 ```
 
 **Bruno Implementation Features:**
-- **Smart Authentication**: Fresh admin tokens per test (no persistence issues)
-- **Simple Structure**: Only 9 test files (dev/, examples/, manual/)
-- **Fast Execution**: Complete test suite runs in ~252ms
-- **Development Focus**: Quick confidence checks, not comprehensive testing
+- **Hermetic Testing**: Each file self-contained with setup and cleanup
+- **Consolidated Structure**: 11 numbered test files (62 → 11 file reduction)
+- **Fast Execution**: Complete test suite runs in ~270ms (59 test scenarios)
+- **No External Dependencies**: Pure Bruno CLI, no shell scripts
 - **RFID Testing**: Two-layer device authentication (API key + PIN)
-- **Test Accounts**: admin@example.com / Test1234%, y.wenger@gmx.de / Test1234% (PIN: 1234)
+- **Test Accounts**: admin@example.com / Test1234%, andreas.arndt@schulzentrum.de / Test1234% (Staff ID: 1, PIN: 1234)
 
 ### Frontend Testing
 - Component testing with React Testing Library
@@ -731,15 +792,25 @@ ModelTableExpr(`users.teachers AS teacher`)
 
 ### Next.js 15+ Route Handlers
 
-Route handlers must properly type the context parameter for Next.js 15 compatibility:
+**BREAKING CHANGE**: Next.js 15 made `params` async - route wrappers handle this automatically:
 
 ```typescript
-// CORRECT - Properly typed params
+// Next.js 15: params are now Promise<Record<string, string | string[] | undefined>>
 export const GET = createGetHandler(async (request, token, params) => {
-    // params: Promise<Record<string, string | string[] | undefined>>
+    // Route wrapper automatically awaits params and extracts values
+    // Access params directly: params.id, params.groupId, etc.
     const response = await apiGet(`/api/resources`, token);
     return response.data;
 });
+
+// If writing custom route handlers without wrappers:
+export async function GET(
+    request: NextRequest,
+    context: { params: Promise<Record<string, string | string[] | undefined>> }
+) {
+    const { id } = await context.params;  // MUST await!
+    // ...
+}
 ```
 
 ### Type Mapping Between Backend and Frontend
@@ -786,7 +857,7 @@ export default function Page() {
 5. Implement service business logic
 6. Create API handlers in `api/{domain}/`
 7. **Generate API documentation**: `go run main.go gendoc --routes`
-8. **Test API endpoints**: `cd bruno && ./dev-test.sh {domain}`
+8. **Test API endpoints**: `cd bruno && bru run --env Local 0*.bru`
 9. Write tests for repository and service layers
 10. Run linter: `golangci-lint run --timeout 10m`
 11. Test with seed data: `go run main.go seed`

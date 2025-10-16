@@ -402,7 +402,6 @@ backend/test_compile
 ci-cd-best-practices-guide.md
 
 # Claude AI specific files
-.claude/
 *.local.md
 
 # Server logs and runtime files
@@ -434,8 +433,7 @@ docker-compose.prod.yml
 **/ssl/**/keys/
 config/ssl/**/certs/
 deployment/**/ssl/certs/
-# Bruno API testing collection
-/bruno
+# Bruno API testing
 /My API Tests
 
 # Test SQL files and scripts
@@ -455,3 +453,7 @@ sonar-reports/
 .env.sonar
 docker-compose.sonar.yml
 sonar-project.properties
+
+# OpenSpec - Ignore user-specific proposals and changes
+openspec/changes/
+.cursor/*

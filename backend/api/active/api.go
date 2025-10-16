@@ -55,10 +55,12 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/groups", func(r chi.Router) {
 			// Read operations
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.listActiveGroups)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/unclaimed", rs.listUnclaimedGroups)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getActiveGroup)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/room/{roomId}", rs.getActiveGroupsByRoom)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/group/{groupId}", rs.getActiveGroupsByGroup)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/visits", rs.getActiveGroupVisits)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/visits/display", rs.getActiveGroupVisitsWithDisplay)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/supervisors", rs.getActiveGroupSupervisors)
 
 			// Write operations
@@ -66,6 +68,7 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateActiveGroup)
 			r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteActiveGroup)
 			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post("/{id}/end", rs.endActiveGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post("/{id}/claim", rs.claimGroup)
 		})
 
 		// Visits
@@ -218,6 +221,21 @@ type VisitResponse struct {
 	ActiveGroupName string     `json:"active_group_name,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
+// VisitWithDisplayDataResponse represents a visit with student display data (optimized for bulk fetch)
+type VisitWithDisplayDataResponse struct {
+	ID            int64      `json:"id"`
+	StudentID     int64      `json:"student_id"`
+	ActiveGroupID int64      `json:"active_group_id"`
+	CheckInTime   time.Time  `json:"check_in_time"`
+	CheckOutTime  *time.Time `json:"check_out_time,omitempty"`
+	IsActive      bool       `json:"is_active"`
+	StudentName   string     `json:"student_name"`
+	SchoolClass   string     `json:"school_class"`
+	GroupName     string     `json:"group_name,omitempty"` // Student's OGS group
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
 // SupervisorResponse represents a group supervisor API response
@@ -787,6 +805,138 @@ func (rs *Resource) getActiveGroupVisits(w http.ResponseWriter, r *http.Request)
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Active group visits retrieved successfully")
+}
+
+// getActiveGroupVisitsWithDisplay handles getting visits with student display data in one query (optimized for SSE)
+func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *http.Request) {
+	// Parse ID from URL
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid active group ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Extract account ID from JWT claims and resolve to staff ID
+	claims := jwt.ClaimsFromCtx(r.Context())
+
+	// Get person from account ID
+	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(claims.ID))
+	if err != nil || person == nil {
+		if err := render.Render(w, r, ErrorUnauthorized(errors.New("account not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get staff from person ID
+	staff, err := rs.PersonService.StaffRepository().FindByPersonID(r.Context(), person.ID)
+	if err != nil || staff == nil {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("user is not a staff member"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Verify user has permission to view this active group
+	supervisions, err := rs.ActiveService.GetStaffActiveSupervisions(r.Context(), staff.ID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if requested active_group_id is in supervised groups
+	hasPermission := false
+	for _, supervision := range supervisions {
+		if supervision.GroupID == id {
+			hasPermission = true
+			break
+		}
+	}
+
+	if !hasPermission {
+		if err := render.Render(w, r, ErrorForbidden(errors.New("not authorized to view this group"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Verify active group exists
+	_, err = rs.ActiveService.GetActiveGroup(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Query visits with student display data in single JOIN query
+	type visitWithStudent struct {
+		VisitID       int64      `bun:"visit_id"`
+		StudentID     int64      `bun:"student_id"`
+		ActiveGroupID int64      `bun:"active_group_id"`
+		EntryTime     time.Time  `bun:"entry_time"`
+		ExitTime      *time.Time `bun:"exit_time"`
+		FirstName     string     `bun:"first_name"`
+		LastName      string     `bun:"last_name"`
+		SchoolClass   string     `bun:"school_class"`
+		OGSGroupName  string     `bun:"ogs_group_name"`
+		CreatedAt     time.Time  `bun:"created_at"`
+		UpdatedAt     time.Time  `bun:"updated_at"`
+	}
+
+	var results []visitWithStudent
+	err = rs.db.NewSelect().
+		ColumnExpr("v.id AS visit_id").
+		ColumnExpr("v.student_id").
+		ColumnExpr("v.active_group_id").
+		ColumnExpr("v.entry_time").
+		ColumnExpr("v.exit_time").
+		ColumnExpr("v.created_at").
+		ColumnExpr("v.updated_at").
+		ColumnExpr("p.first_name").
+		ColumnExpr("p.last_name").
+		ColumnExpr("COALESCE(s.school_class, '') AS school_class").
+		ColumnExpr("COALESCE(g.name, '') AS ogs_group_name").
+		TableExpr("active.visits AS v").
+		Join("INNER JOIN users.students AS s ON s.id = v.student_id").
+		Join("INNER JOIN users.persons AS p ON p.id = s.person_id").
+		Join("LEFT JOIN education.groups AS g ON g.id = s.group_id").
+		Where("v.active_group_id = ?", id).
+		Where("v.exit_time IS NULL"). // Only active visits
+		OrderExpr("v.entry_time DESC").
+		Scan(r.Context(), &results)
+
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Build response with display data
+	responses := make([]VisitWithDisplayDataResponse, 0, len(results))
+	for _, result := range results {
+		studentName := result.FirstName + " " + result.LastName
+		responses = append(responses, VisitWithDisplayDataResponse{
+			ID:            result.VisitID,
+			StudentID:     result.StudentID,
+			ActiveGroupID: result.ActiveGroupID,
+			CheckInTime:   result.EntryTime,
+			CheckOutTime:  result.ExitTime,
+			IsActive:      result.ExitTime == nil,
+			StudentName:   studentName,
+			SchoolClass:   result.SchoolClass,
+			GroupName:     result.OGSGroupName,
+			CreatedAt:     result.CreatedAt,
+			UpdatedAt:     result.UpdatedAt,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Active group visits with display data retrieved successfully")
 }
 
 // getActiveGroupSupervisors handles getting supervisors for an active group
@@ -2129,4 +2279,65 @@ func (rs *Resource) getDashboardAnalytics(w http.ResponseWriter, r *http.Request
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Dashboard analytics retrieved successfully")
+}
+
+// ======== Unclaimed Groups Management (Deviceless Claiming) ========
+
+// listUnclaimedGroups returns all active groups that have no supervisors
+// This is used for deviceless rooms like Schulhof where teachers claim via frontend
+func (rs *Resource) listUnclaimedGroups(w http.ResponseWriter, r *http.Request) {
+	groups, err := rs.ActiveService.GetUnclaimedActiveGroups(r.Context())
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, groups, "Unclaimed groups retrieved successfully")
+}
+
+// claimGroup allows authenticated staff to claim supervision of an active group
+func (rs *Resource) claimGroup(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get group ID from URL
+	groupIDStr := chi.URLParam(r, "id")
+	groupID, err := strconv.ParseInt(groupIDStr, 10, 64)
+	if err != nil {
+		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid group ID")
+		return
+	}
+
+	// Get authenticated user from JWT token
+	claims := jwt.ClaimsFromCtx(ctx)
+	if claims.ID == 0 {
+		common.RespondWithError(w, r, http.StatusUnauthorized, "Invalid token")
+		return
+	}
+
+	// Get person from account ID
+	person, err := rs.PersonService.FindByAccountID(ctx, int64(claims.ID))
+	if err != nil || person == nil {
+		common.RespondWithError(w, r, http.StatusUnauthorized, "Account not found")
+		return
+	}
+
+	// Get staff record from person
+	staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
+	if err != nil || staff == nil {
+		common.RespondWithError(w, r, http.StatusUnauthorized, "Staff authentication required")
+		return
+	}
+
+	// Claim the group (default role: "supervisor")
+	supervisor, err := rs.ActiveService.ClaimActiveGroup(ctx, groupID, staff.ID, "supervisor")
+	if err != nil {
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, supervisor, "Successfully claimed supervision")
 }

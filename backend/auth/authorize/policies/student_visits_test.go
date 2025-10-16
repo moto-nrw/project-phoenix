@@ -1189,3 +1189,11 @@ func (m *SimpleMockActiveService) GetStudentScheduledCheckouts(ctx context.Conte
 	}
 	return args.Get(0).([]*active.ScheduledCheckout), args.Error(1)
 }
+
+func (m *SimpleMockActiveService) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group, error) {
+	return nil, nil
+}
+
+func (m *SimpleMockActiveService) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, role string) (*active.GroupSupervisor, error) {
+	return nil, nil
+}

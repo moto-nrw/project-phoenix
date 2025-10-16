@@ -449,10 +449,11 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 	}
 
 	duration := time.Since(startTime)
-	log.Printf("Scheduled session end completed in %v: ended %d sessions, %d visits, success: %v",
+	log.Printf("Scheduled session end completed in %v: ended %d sessions, %d visits, %d supervisors, success: %v",
 		duration.Round(time.Second),
 		result.SessionsEnded,
 		result.VisitsEnded,
+		result.SupervisorsEnded,
 		result.Success,
 	)
 

@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	AddStudentExtendedFieldsVersion     = "1.6.9"
-	AddStudentExtendedFieldsDescription = "Add birthday, supervisor notes, and health info fields to students"
+	AddStudentExtendedFieldsVersion     = "1.6.10"
+	AddStudentExtendedFieldsDescription = "Add supervisor notes and health info fields to students"
 )
 
 func init() {
@@ -19,10 +19,10 @@ func init() {
 	MigrationRegistry[AddStudentExtendedFieldsVersion] = &Migration{
 		Version:     AddStudentExtendedFieldsVersion,
 		Description: AddStudentExtendedFieldsDescription,
-		DependsOn:   []string{"1.3.5", "1.2.1"}, // Depends on students and persons tables
+		DependsOn:   []string{"1.3.5"}, // Depends on students table
 	}
 
-	// Migration 1.6.9: Add extended fields to students
+	// Migration 1.6.10: Add extended fields to students
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return addStudentExtendedFieldsUp(ctx, db)
@@ -33,9 +33,9 @@ func init() {
 	)
 }
 
-// addStudentExtendedFieldsUp adds birthday to persons and notes fields to students
+// addStudentExtendedFieldsUp adds notes fields to students
 func addStudentExtendedFieldsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.9: Adding extended fields to students and persons...")
+	fmt.Println("Migration 1.6.10: Adding extended fields to students...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -47,17 +47,6 @@ func addStudentExtendedFieldsUp(ctx context.Context, db *bun.DB) error {
 			log.Printf("Error rolling back transaction: %v", err)
 		}
 	}()
-
-	// Add birthday field to persons table (since all students are persons)
-	_, err = tx.ExecContext(ctx, `
-		ALTER TABLE users.persons
-		ADD COLUMN IF NOT EXISTS birthday DATE;
-
-		COMMENT ON COLUMN users.persons.birthday IS 'Date of birth of the person';
-	`)
-	if err != nil {
-		return fmt.Errorf("error adding birthday to persons table: %w", err)
-	}
 
 	// Add supervisor_notes field to students table (editable by supervisors)
 	_, err = tx.ExecContext(ctx, `
@@ -81,21 +70,13 @@ func addStudentExtendedFieldsUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error adding health_info to students table: %w", err)
 	}
 
-	// Create index on birthday for potential age-based queries
-	_, err = tx.ExecContext(ctx, `
-		CREATE INDEX IF NOT EXISTS idx_persons_birthday ON users.persons(birthday);
-	`)
-	if err != nil {
-		return fmt.Errorf("error creating birthday index: %w", err)
-	}
-
 	// Commit the transaction
 	return tx.Commit()
 }
 
 // addStudentExtendedFieldsDown removes the added fields
 func addStudentExtendedFieldsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.6.9: Removing extended fields from students and persons...")
+	fmt.Println("Rolling back migration 1.6.10: Removing extended fields from students...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -108,19 +89,8 @@ func addStudentExtendedFieldsDown(ctx context.Context, db *bun.DB) error {
 		}
 	}()
 
-	// Drop the index first
+	// Remove fields from students table
 	_, err = tx.ExecContext(ctx, `
-		DROP INDEX IF EXISTS users.idx_persons_birthday;
-	`)
-	if err != nil {
-		return fmt.Errorf("error dropping birthday index: %w", err)
-	}
-
-	// Remove fields from tables
-	_, err = tx.ExecContext(ctx, `
-		ALTER TABLE users.persons
-		DROP COLUMN IF EXISTS birthday;
-
 		ALTER TABLE users.students
 		DROP COLUMN IF EXISTS supervisor_notes;
 

@@ -14,7 +14,7 @@ func TestEntry_Validate(t *testing.T) {
 		{
 			name: "Valid entry",
 			entry: Entry{
-				Value:     "Great lunch today!",
+				Value:     "positive",
 				Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
 				Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 				StudentID: 1,
@@ -32,9 +32,19 @@ func TestEntry_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "Invalid enum value",
+			entry: Entry{
+				Value:     "good",
+				Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+				Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
+				StudentID: 1,
+			},
+			wantErr: true,
+		},
+		{
 			name: "Invalid student ID",
 			entry: Entry{
-				Value:     "Great lunch today!",
+				Value:     "positive",
 				Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
 				Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 				StudentID: 0,
@@ -44,7 +54,7 @@ func TestEntry_Validate(t *testing.T) {
 		{
 			name: "Missing day",
 			entry: Entry{
-				Value:     "Great lunch today!",
+				Value:     "neutral",
 				Day:       time.Time{},
 				Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 				StudentID: 1,
@@ -54,7 +64,7 @@ func TestEntry_Validate(t *testing.T) {
 		{
 			name: "Missing time",
 			entry: Entry{
-				Value:     "Great lunch today!",
+				Value:     "negative",
 				Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
 				Time:      time.Time{},
 				StudentID: 1,
@@ -64,7 +74,7 @@ func TestEntry_Validate(t *testing.T) {
 		{
 			name: "Value trimming",
 			entry: Entry{
-				Value:     "  Great lunch today!  ",
+				Value:     "  positive  ",
 				Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
 				Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 				StudentID: 1,
@@ -83,7 +93,7 @@ func TestEntry_Validate(t *testing.T) {
 			}
 
 			// Check value trimming
-			if !tt.wantErr && tt.name == "Value trimming" && tt.entry.Value != "Great lunch today!" {
+			if !tt.wantErr && tt.name == "Value trimming" && tt.entry.Value != "positive" {
 				t.Errorf("Value was not trimmed properly, got %s", tt.entry.Value)
 			}
 		})
@@ -92,7 +102,7 @@ func TestEntry_Validate(t *testing.T) {
 
 func TestEntry_GetTimestamp(t *testing.T) {
 	entry := Entry{
-		Value:     "Great lunch today!",
+		Value:     "positive",
 		Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
 		Time:      time.Date(0, 0, 0, 12, 30, 45, 0, time.UTC),
 		StudentID: 1,
@@ -108,7 +118,7 @@ func TestEntry_GetTimestamp(t *testing.T) {
 
 func TestEntry_IsForMensa(t *testing.T) {
 	entry := Entry{
-		Value:           "Great lunch today!",
+		Value:           "positive",
 		Day:             time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
 		Time:            time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 		StudentID:       1,
@@ -127,7 +137,7 @@ func TestEntry_IsForMensa(t *testing.T) {
 
 func TestEntry_FormatMethods(t *testing.T) {
 	entry := Entry{
-		Value:     "Great lunch today!",
+		Value:     "neutral",
 		Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
 		Time:      time.Date(0, 0, 0, 12, 30, 45, 0, time.UTC),
 		StudentID: 1,

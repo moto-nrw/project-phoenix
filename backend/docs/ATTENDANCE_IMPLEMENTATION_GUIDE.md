@@ -17,7 +17,8 @@ This guide provides step-by-step instructions for implementing the attendance tr
 3. **Partial Records**: Check-out time can be null (student checked in but not yet out)
 4. **Device Tracking**: We track which device was used for each attendance action
 5. **Manual Process**: No automatic checkout at end of day
-6. **Permission Model**: Teachers can only mark attendance for students in their groups
+6. **Permission Model**: Teachers can only mark attendance for students in their groups (web/Heimatraum flows).  
+   IoT devices rely on the active session’s supervisors; those sessions must list the staff on duty.
 
 ### API Design
 - `GET /api/iot/attendance/status/{rfid}` - Check student's current attendance status
@@ -26,20 +27,15 @@ This guide provides step-by-step instructions for implementing the attendance tr
 ### API Documentation
 
 #### Authentication
-All attendance endpoints require **three headers** for two-layer device authentication:
+Attendance endpoints use two-layer device authentication:
 
 ```http
 Authorization: Bearer <device_api_key>
-X-Staff-PIN: <4_digit_pin>
-X-Staff-ID: <staff_id>
+X-Staff-PIN: <global_pin>
 ```
 
-**Example Headers:**
-```http
-Authorization: Bearer dev_cb1b1c9aae51924661797c4bfef08c5378fbd91bf5dc090109a54d392529c575
-X-Staff-PIN: 1234
-X-Staff-ID: 1
-```
+> **Important:** The supervising staff member is resolved from the device’s **active session**.  
+> Devices must start a session (`POST /api/iot/session/start`) with the list of on-duty supervisors before students begin scanning. The backend picks the first active supervisor from that session for auditing purposes.
 
 #### 1. GET /api/iot/attendance/status/{rfid}
 
@@ -420,11 +416,10 @@ r.Post("/attendance/toggle", rs.toggleAttendance)
 
 ```
 getAttendanceStatus:
-- Get device/staff from context
+- Get device (and optional staff) from context
 - Get RFID from URL, normalize it
 - Find person by RFID tag using usersService.FindByTagID
 - Get student from person using studentRepo.FindByPersonID
-- Check teacher has access to student
 - Get attendance status from service
 - Load student's group info:
   - If student.GroupID exists, use educationService.GetGroup(*student.GroupID)
@@ -432,12 +427,12 @@ getAttendanceStatus:
 - Build and return response
 
 toggleAttendance:
-- Get device/staff from context
+- Get device (and optional staff) from context
 - Parse request body
 - If action is "cancel": return cancelled response
 - Find person by RFID tag using usersService.FindByTagID
 - Get student from person using studentRepo.FindByPersonID
-- Call ToggleStudentAttendance service
+- Call ToggleStudentAttendance service (service resolves supervising staff from active session when device flag set)
 - Get updated status
 - Load student's group info (same pattern as status endpoint):
   - If student.GroupID exists, use educationService.GetGroup(*student.GroupID)
@@ -612,6 +607,37 @@ Mark completed items with ✅ and in-progress with 🔄.
 - Group-Teacher relationships (via education.groups)
 - RFID tag normalization logic (normalizeTagID function)
 - Group lookups (education.groups table, not student.SchoolClass)
+
+### IoT Device Authorization Flow
+
+**Implementation**: The system now supports two distinct authorization flows:
+
+#### Web/Manual Flow (Heimatraum)
+- Requires JWT token authentication
+- Teacher must have explicit group access to student
+- `CheckTeacherStudentAccess` validates teacher-student relationship
+- Staff ID from JWT token used for audit trail
+
+#### IoT Device Flow (Kiosk/RFID)
+- Requires device API key + global OGS PIN authentication
+- **Bypasses** teacher-student access checks
+- System automatically determines supervisor from device's active group
+- Uses first active supervisor's staff ID for audit trail
+
+**Key Implementation Details**:
+
+1. **Context Flag**: `CtxIsIoTDevice` set by `DeviceAuthenticator` when global PIN is used
+2. **Service Layer Check**: `ToggleStudentAttendance` checks `device.IsIoTDeviceRequest(ctx)`
+3. **Supervisor Lookup**: `getDeviceSupervisorID` finds device's active group and returns first active supervisor
+4. **Fallback Behavior**: If no supervisors found, logs warning and continues with provided staffID (0)
+5. **Audit Trail**: Supervisor's staff ID recorded in `checked_in_by`/`checked_out_by` fields
+
+**Rationale**: Centralized IoT devices (e.g., entrance kiosk) don't have individual teacher authentication. The device's location and active group context provide sufficient authorization. Supervisors of the active group are automatically recorded for accountability.
+
+**Files Modified**:
+- `backend/auth/device/device_auth.go` - Added `CtxIsIoTDevice` flag and `IsIoTDeviceRequest` helper
+- `backend/services/active/active_service.go` - Modified `ToggleStudentAttendance` to support IoT bypass, added `getDeviceSupervisorID`
+- `backend/api/iot/api.go` - Removed default `staffID = 1` logic
 
 ### Error Handling Patterns
 Follow existing patterns:

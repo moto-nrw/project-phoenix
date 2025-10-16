@@ -35,7 +35,7 @@ func (r *GroupRepository) FindActiveByRoomID(ctx context.Context, roomID int64) 
 	err := r.db.NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where("room_id = ? AND end_time IS NULL", roomID).
+		Where(`"group".room_id = ? AND "group".end_time IS NULL`, roomID).
 		Scan(ctx)
 
 	if err != nil {
@@ -54,7 +54,7 @@ func (r *GroupRepository) FindActiveByGroupID(ctx context.Context, groupID int64
 	err := r.db.NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where("group_id = ? AND end_time IS NULL", groupID).
+		Where(`"group".group_id = ? AND "group".end_time IS NULL`, groupID).
 		Scan(ctx)
 
 	if err != nil {
@@ -92,7 +92,7 @@ func (r *GroupRepository) EndSession(ctx context.Context, id int64) error {
 		Model((*active.Group)(nil)).
 		ModelTableExpr(`active.groups AS "group"`).
 		Set("end_time = ?", time.Now()).
-		Where("id = ? AND end_time IS NULL", id).
+		Where(`"group".id = ? AND "group".end_time IS NULL`, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -255,7 +255,7 @@ func (r *GroupRepository) FindActiveByGroupIDWithDevice(ctx context.Context, gro
 	err := r.db.NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where("group_id = ? AND end_time IS NULL", groupID).
+		Where(`"group".group_id = ? AND "group".end_time IS NULL`, groupID).
 		Scan(ctx)
 
 	if err != nil {
@@ -411,11 +411,11 @@ func (r *GroupRepository) CheckRoomConflict(ctx context.Context, roomID int64, e
 	query := r.db.NewSelect().
 		Model(&group).
 		ModelTableExpr(`active.groups AS "group"`).
-		Where("room_id = ? AND end_time IS NULL", roomID)
+		Where(`"group".room_id = ? AND "group".end_time IS NULL`, roomID)
 
 	// Exclude the current group if specified (for updates)
 	if excludeGroupID > 0 {
-		query = query.Where("id != ?", excludeGroupID)
+		query = query.Where(`"group".id != ?`, excludeGroupID)
 	}
 
 	err := query.Scan(ctx)
@@ -441,7 +441,7 @@ func (r *GroupRepository) UpdateLastActivity(ctx context.Context, id int64, last
 		ModelTableExpr(`active.groups AS "group"`).
 		Set("last_activity = ?", lastActivity).
 		Set("updated_at = ?", time.Now()).
-		Where("id = ? AND end_time IS NULL", id)
+		Where(`"group".id = ? AND "group".end_time IS NULL`, id)
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -512,6 +512,127 @@ func (r *GroupRepository) FindInactiveSessions(ctx context.Context, inactiveDura
 		return nil, &modelBase.DatabaseError{
 			Op:  "find inactive sessions",
 			Err: err,
+		}
+	}
+
+	return groups, nil
+}
+
+// FindActiveGroups finds all groups with no end time (currently active)
+func (r *GroupRepository) FindActiveGroups(ctx context.Context) ([]*active.Group, error) {
+	var groups []*active.Group
+	err := r.db.NewSelect().
+		Model(&groups).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".end_time IS NULL`).
+		Order(`start_time ASC`).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active groups",
+			Err: err,
+		}
+	}
+
+	return groups, nil
+}
+
+// FindUnclaimed finds all active groups that have no supervisors assigned
+// This is used to allow teachers to claim Schulhof or other deviceless rooms via the frontend
+func (r *GroupRepository) FindUnclaimed(ctx context.Context) ([]*active.Group, error) {
+	var groups []*active.Group
+
+	// Query active groups that have no supervisors using LEFT JOIN pattern
+	err := r.db.NewSelect().
+		Model(&groups).
+		ModelTableExpr(`active.groups AS "group"`).
+		Join(`LEFT JOIN active.group_supervisors AS "sup" ON "sup"."group_id" = "group"."id" AND ("sup"."end_date" IS NULL OR "sup"."end_date" > CURRENT_DATE)`).
+		// Only include active groups (no end_time)
+		Where(`"group"."end_time" IS NULL`).
+		// Only include groups where LEFT JOIN found no matching supervisor
+		Where(`"sup"."id" IS NULL`).
+		Order("start_time DESC").
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find unclaimed groups",
+			Err: err,
+		}
+	}
+
+	// Batch load relations to avoid N+1 query performance issue
+	// Collect unique IDs for batch loading
+	roomIDs := make([]int64, 0)
+	groupIDs := make([]int64, 0)
+	roomIDMap := make(map[int64]bool)
+	groupIDMap := make(map[int64]bool)
+
+	for _, g := range groups {
+		if g.RoomID > 0 && !roomIDMap[g.RoomID] {
+			roomIDs = append(roomIDs, g.RoomID)
+			roomIDMap[g.RoomID] = true
+		}
+		if g.GroupID > 0 && !groupIDMap[g.GroupID] {
+			groupIDs = append(groupIDs, g.GroupID)
+			groupIDMap[g.GroupID] = true
+		}
+	}
+
+	// Batch load rooms (1 query instead of N)
+	var rooms []*facilities.Room
+	if len(roomIDs) > 0 {
+		if err := r.db.NewSelect().
+			Model(&rooms).
+			ModelTableExpr(`facilities.rooms AS "room"`).
+			Where(`"room".id IN (?)`, bun.In(roomIDs)).
+			Scan(ctx); err != nil {
+			return nil, &modelBase.DatabaseError{
+				Op:  "batch load rooms for unclaimed groups",
+				Err: err,
+			}
+		}
+	}
+
+	// Create room lookup map
+	roomMap := make(map[int64]*facilities.Room, len(rooms))
+	for _, room := range rooms {
+		roomMap[room.ID] = room
+	}
+
+	// Batch load activity groups (1 query instead of N)
+	var activityGroups []*activities.Group
+	if len(groupIDs) > 0 {
+		if err := r.db.NewSelect().
+			Model(&activityGroups).
+			ModelTableExpr(`activities.groups AS "group"`).
+			Where(`"group".id IN (?)`, bun.In(groupIDs)).
+			Scan(ctx); err != nil {
+			return nil, &modelBase.DatabaseError{
+				Op:  "batch load activity groups for unclaimed groups",
+				Err: err,
+			}
+		}
+	}
+
+	// Create activity group lookup map
+	activityGroupMap := make(map[int64]*activities.Group, len(activityGroups))
+	for _, ag := range activityGroups {
+		activityGroupMap[ag.ID] = ag
+	}
+
+	// Assign loaded relations to groups (no database queries)
+	for i := range groups {
+		if groups[i].RoomID > 0 {
+			if room, ok := roomMap[groups[i].RoomID]; ok {
+				groups[i].Room = room
+			}
+		}
+		if groups[i].GroupID > 0 {
+			if ag, ok := activityGroupMap[groups[i].GroupID]; ok {
+				groups[i].ActualGroup = ag
+			}
 		}
 	}
 

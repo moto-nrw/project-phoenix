@@ -1,6 +1,8 @@
 package iot
 
 import (
+	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -19,14 +21,20 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/models/feedback"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
+	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -40,10 +48,11 @@ type Resource struct {
 	ConfigService     configSvc.Service
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
+	FeedbackService   feedbackSvc.Service
 }
 
 // NewResource creates a new IoT resource
-func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activeService activeSvc.Service, activitiesService activitiesSvc.ActivityService, configService configSvc.Service, facilityService facilitiesSvc.Service, educationService educationSvc.Service) *Resource {
+func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activeService activeSvc.Service, activitiesService activitiesSvc.ActivityService, configService configSvc.Service, facilityService facilitiesSvc.Service, educationService educationSvc.Service, feedbackService feedbackSvc.Service) *Resource {
 	return &Resource{
 		IoTService:        iotService,
 		UsersService:      usersService,
@@ -52,6 +61,7 @@ func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService,
 		ConfigService:     configService,
 		FacilityService:   facilityService,
 		EducationService:  educationService,
+		FeedbackService:   feedbackService,
 	}
 }
 
@@ -113,6 +123,7 @@ func (rs *Resource) Router() chi.Router {
 		// Device endpoints that require device API key + staff PIN authentication
 		r.Post("/ping", rs.devicePing)
 		r.Post("/checkin", rs.deviceCheckin)
+		r.Post("/feedback", rs.deviceSubmitFeedback)
 		r.Get("/status", rs.deviceStatus)
 		r.Get("/students", rs.getTeacherStudents)
 		r.Get("/activities", rs.getTeacherActivities)
@@ -136,6 +147,10 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/session/activity", rs.updateSessionActivity)
 		r.Post("/session/validate-timeout", rs.validateSessionTimeout)
 		r.Get("/session/timeout-info", rs.getSessionTimeoutInfo)
+
+		// Staff RFID tag management
+		r.Post("/staff/{staffId}/rfid", rs.assignStaffRFIDTag)
+		r.Delete("/staff/{staffId}/rfid", rs.unassignStaffRFIDTag)
 	})
 
 	return r
@@ -987,6 +1002,53 @@ type RFIDTagAssignedStudent struct {
 	Group string `json:"group"`
 }
 
+// RFIDAssignmentRequest represents an RFID tag assignment request (for students and staff)
+type RFIDAssignmentRequest struct {
+	RFIDTag string `json:"rfid_tag"`
+}
+
+// RFIDAssignmentResponse represents an RFID tag assignment response (for students and staff)
+type RFIDAssignmentResponse struct {
+	Success     bool    `json:"success"`
+	StudentID   int64   `json:"student_id"`   // For students: student_id, for staff: staff_id
+	StudentName string  `json:"student_name"` // For students: student name, for staff: staff name
+	RFIDTag     string  `json:"rfid_tag"`
+	PreviousTag *string `json:"previous_tag,omitempty"`
+	Message     string  `json:"message"`
+}
+
+// Bind validates the RFID assignment request
+func (req *RFIDAssignmentRequest) Bind(r *http.Request) error {
+	if req.RFIDTag == "" {
+		return errors.New("rfid_tag is required")
+	}
+	if len(req.RFIDTag) < 8 {
+		return errors.New("rfid_tag must be at least 8 characters")
+	}
+	if len(req.RFIDTag) > 64 {
+		return errors.New("rfid_tag must be at most 64 characters")
+	}
+	return nil
+}
+
+// IoTFeedbackRequest represents a feedback submission request from an IoT device
+type IoTFeedbackRequest struct {
+	StudentID int64  `json:"student_id"`
+	Value     string `json:"value"` // "positive", "neutral", or "negative"
+}
+
+// Bind validates the feedback request
+func (req *IoTFeedbackRequest) Bind(r *http.Request) error {
+	if req.StudentID <= 0 {
+		return errors.New("student_id is required and must be positive")
+	}
+	if req.Value == "" {
+		return errors.New("value is required")
+	}
+	// Value validation is handled by the model's Validate() method
+	return nil
+}
+
 // Bind validates the checkin request
 func (req *CheckinRequest) Bind(r *http.Request) error {
 	return validation.ValidateStruct(req,
@@ -1022,6 +1084,29 @@ func getStudentDailyCheckoutTime() (time.Time, error) {
 	now := time.Now()
 	checkoutTime := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
 	return checkoutTime, nil
+}
+
+// getSchulhofActivityGroup finds the permanent Schulhof activity group from seed data
+func (rs *Resource) getSchulhofActivityGroup(ctx context.Context) (*activities.Group, error) {
+	// Build filter for Schulhof activity using constant from seed data
+	// Use qualified column name to avoid ambiguity with category.name
+	options := base.NewQueryOptions()
+	filter := base.NewFilter()
+	filter.Equal("group.name", constants.SchulhofActivityName)
+	options.Filter = filter
+
+	// Query activities service
+	groups, err := rs.ActivitiesService.ListGroups(ctx, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query Schulhof activity: %w", err)
+	}
+
+	// Verify activity exists (should always exist from seed data)
+	if len(groups) == 0 {
+		return nil, errors.New("schulhof Freispiel activity not found - run seed command")
+	}
+
+	return groups[0], nil
 }
 
 // deviceCheckin handles student check-in/check-out requests from RFID devices
@@ -1072,26 +1157,42 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[CHECKIN] RFID tag %s belongs to person: %s %s (ID: %d)",
 		req.StudentRFID, person.FirstName, person.LastName, person.ID)
 
-	// Get student details from person
+	// Try to find student first
 	studentRepo := rs.UsersService.StudentRepository()
-	student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
-	if err != nil {
-		log.Printf("[CHECKIN] ERROR: Person %d is not a student: %v", person.ID, err)
-		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
+	student, _ := studentRepo.FindByPersonID(r.Context(), person.ID)
+
+	// If student found, process student check-in/out
+	if student != nil {
+		log.Printf("[CHECKIN] Found student: ID %d, Class: %s", student.ID, student.SchoolClass)
+		// Continue with existing student logic below
+	} else {
+		// Student not found - try staff for supervisor authentication
+		log.Printf("[CHECKIN] Person %d is not a student, checking if staff...", person.ID)
+
+		staffRepo := rs.UsersService.StaffRepository()
+		staff, err := staffRepo.FindByPersonID(r.Context(), person.ID)
+		if err != nil {
+			log.Printf("[CHECKIN] ERROR: Failed to lookup staff for person %d: %v", person.ID, err)
+			if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to student or staff"))); err != nil {
+				log.Printf("Render error: %v", err)
+			}
+			return
+		}
+
+		if staff != nil {
+			// Handle supervisor authentication
+			log.Printf("[CHECKIN] Found staff: ID %d, routing to supervisor authentication", staff.ID)
+			rs.handleSupervisorScan(w, r, deviceCtx, staff, person)
+			return
+		}
+
+		// Neither student nor staff
+		log.Printf("[CHECKIN] ERROR: Person %d is neither student nor staff", person.ID)
+		if err := render.Render(w, r, ErrorNotFound(errors.New("RFID tag not assigned to student or staff"))); err != nil {
 			log.Printf("Render error: %v", err)
 		}
 		return
 	}
-
-	if student == nil {
-		log.Printf("[CHECKIN] ERROR: Person %d is not registered as a student", person.ID)
-		if err := render.Render(w, r, ErrorNotFound(errors.New("person is not a student"))); err != nil {
-			log.Printf("Render error: %v", err)
-		}
-		return
-	}
-
-	log.Printf("[CHECKIN] Found student: ID %d, Class: %s", student.ID, student.SchoolClass)
 
 	// Load person details for student name
 	student.Person = person
@@ -1221,28 +1322,68 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if len(activeGroups) == 0 {
-			log.Printf("[CHECKIN] ERROR: No active groups found in room %d", *req.RoomID)
-			if err := render.Render(w, r, ErrorNotFound(errors.New("no active groups in specified room"))); err != nil {
-				log.Printf("Render error: %v", err)
-			}
-			return
-		}
-
-		// Use the first active group (in practice, there should typically be only one per room)
-		activeGroupID = activeGroups[0].ID
-		log.Printf("[CHECKIN] Found %d active groups in room %d, using group %d",
-			len(activeGroups), *req.RoomID, activeGroupID)
-
-		// Get actual room name if possible
-		if activeGroups[0].Room != nil {
-			roomName = activeGroups[0].Room.Name
-		} else {
-			// Try to load the room info to get the actual name
+			// Check if this is a Schulhof room - auto-create active group
 			room, err := rs.FacilityService.GetRoom(r.Context(), *req.RoomID)
-			if err == nil && room != nil {
+			if err == nil && room != nil && room.Category == "Schulhof" {
+				log.Printf("[CHECKIN] No active group in Schulhof room %d, auto-creating...", *req.RoomID)
+
+				// Get the permanent Schulhof activity group
+				schulhofActivity, err := rs.getSchulhofActivityGroup(r.Context())
+				if err != nil {
+					log.Printf("[CHECKIN] ERROR: Failed to find Schulhof activity: %v", err)
+					if err := render.Render(w, r, ErrorInternalServer(errors.New("schulhof activity not configured"))); err != nil {
+						log.Printf("Render error: %v", err)
+					}
+					return
+				}
+
+				// Create today's active group for Schulhof
+				newActiveGroup := &active.Group{
+					GroupID:      schulhofActivity.ID,
+					RoomID:       *req.RoomID,
+					StartTime:    time.Now(),
+					LastActivity: time.Now(),
+					// No EndTime - will be set by scheduler based on SESSION_END_TIME env var (default 18:00)
+					// No DeviceID - Schulhof not tied to specific device
+				}
+
+				if err := rs.ActiveService.CreateActiveGroup(r.Context(), newActiveGroup); err != nil {
+					log.Printf("[CHECKIN] ERROR: Failed to create Schulhof active group: %v", err)
+					if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to create Schulhof session"))); err != nil {
+						log.Printf("Render error: %v", err)
+					}
+					return
+				}
+
+				activeGroupID = newActiveGroup.ID
 				roomName = room.Name
+				log.Printf("[CHECKIN] SUCCESS: Auto-created Schulhof active group %d", activeGroupID)
+
 			} else {
-				roomName = fmt.Sprintf("Room %d", *req.RoomID)
+				// Not a Schulhof room - return original error
+				log.Printf("[CHECKIN] ERROR: No active groups found in room %d", *req.RoomID)
+				if err := render.Render(w, r, ErrorNotFound(errors.New("no active groups in specified room"))); err != nil {
+					log.Printf("Render error: %v", err)
+				}
+				return
+			}
+		} else {
+			// Active group(s) already exist - use first one
+			activeGroupID = activeGroups[0].ID
+			log.Printf("[CHECKIN] Found %d active groups in room %d, using group %d",
+				len(activeGroups), *req.RoomID, activeGroupID)
+
+			// Get actual room name if possible
+			if activeGroups[0].Room != nil {
+				roomName = activeGroups[0].Room.Name
+			} else {
+				// Try to load the room info to get the actual name
+				room, err := rs.FacilityService.GetRoom(r.Context(), *req.RoomID)
+				if err == nil && room != nil {
+					roomName = room.Name
+				} else {
+					roomName = fmt.Sprintf("Room %d", *req.RoomID)
+				}
 			}
 		}
 
@@ -1362,6 +1503,180 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Student "+actionMsg+" successfully")
+}
+
+// deviceSubmitFeedback handles feedback submission from IoT devices
+func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+
+	if deviceCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	log.Printf("[FEEDBACK] Starting feedback submission - Device: %s (ID: %d)",
+		deviceCtx.DeviceID, deviceCtx.ID)
+
+	// Parse request
+	req := &IoTFeedbackRequest{}
+	if err := render.Bind(r, req); err != nil {
+		log.Printf("[FEEDBACK] ERROR: Invalid request from device %s: %v", deviceCtx.DeviceID, err)
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	log.Printf("[FEEDBACK] Received feedback - StudentID: %d, Value: %s", req.StudentID, req.Value)
+
+	// Validate student exists before creating feedback
+	studentRepo := rs.UsersService.StudentRepository()
+	student, err := studentRepo.FindByID(r.Context(), req.StudentID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		log.Printf("[FEEDBACK] ERROR: Failed to lookup student %d: %v", req.StudentID, err)
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	if errors.Is(err, sql.ErrNoRows) {
+		log.Printf("[FEEDBACK] ERROR: Student %d not found", req.StudentID)
+		if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	log.Printf("[FEEDBACK] Student %d validated", student.ID)
+
+	// Create feedback entry with server-side timestamps
+	now := time.Now()
+	entry := &feedback.Entry{
+		StudentID:       req.StudentID,
+		Value:           req.Value,
+		Day:             now.Truncate(24 * time.Hour), // Date only
+		Time:            now,                          // Full timestamp
+		IsMensaFeedback: false,
+	}
+
+	// Create feedback entry (validation happens in service layer)
+	if err = rs.FeedbackService.CreateEntry(r.Context(), entry); err != nil {
+		log.Printf("[FEEDBACK] ERROR: Failed to create feedback entry: %v", err)
+		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	log.Printf("[FEEDBACK] Successfully created feedback entry ID: %d for student %d", entry.ID, req.StudentID)
+
+	// Prepare response
+	response := map[string]interface{}{
+		"id":         entry.ID,
+		"student_id": entry.StudentID,
+		"value":      entry.Value,
+		"day":        entry.GetFormattedDate(),
+		"time":       entry.GetFormattedTime(),
+		"created_at": entry.CreatedAt,
+	}
+
+	common.Respond(w, r, http.StatusCreated, response, "Feedback submitted successfully")
+}
+
+// handleSupervisorScan processes RFID scan for staff members (supervisor authentication)
+func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request, deviceCtx *iot.Device, staff *users.Staff, person *users.Person) {
+	ctx := r.Context()
+
+	log.Printf("[SUPERVISOR_AUTH] Staff %s %s (ID: %d) scanned at device %s",
+		person.FirstName, person.LastName, staff.ID, deviceCtx.DeviceID)
+
+	// 1. Get current session for device
+	session, err := rs.ActiveService.GetDeviceCurrentSession(ctx, deviceCtx.ID)
+	if err != nil {
+		log.Printf("[SUPERVISOR_AUTH] ERROR: No active session at device %s: %v", deviceCtx.DeviceID, err)
+		if err := render.Render(w, r, ErrorNotFound(errors.New("no active session - please start an activity first"))); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// Get activity name and room name for response
+	activityName := "Unknown Activity"
+	roomName := "Unknown Room"
+
+	if session.ActualGroup != nil && session.ActualGroup.Name != "" {
+		activityName = session.ActualGroup.Name
+	}
+
+	if session.Room != nil && session.Room.Name != "" {
+		roomName = session.Room.Name
+	}
+
+	log.Printf("[SUPERVISOR_AUTH] Found active session ID %d for activity %s in room %s",
+		session.ID, activityName, roomName)
+
+	// 2. Get session with supervisors to check current list
+	supervisorsGroup, err := rs.ActiveService.GetActiveGroupWithSupervisors(ctx, session.ID)
+	if err != nil {
+		log.Printf("[SUPERVISOR_AUTH] ERROR: Failed to load supervisors: %v", err)
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Render error: %v", err)
+		}
+		return
+	}
+
+	// 3. Extract current supervisor IDs and check for duplicate
+	supervisorIDs := make([]int64, 0)
+	isDuplicate := false
+
+	if supervisorsGroup.Supervisors != nil {
+		for _, sup := range supervisorsGroup.Supervisors {
+			if sup.StaffID == staff.ID && sup.EndDate == nil {
+				isDuplicate = true
+				log.Printf("[SUPERVISOR_AUTH] Supervisor %d already assigned to session %d (idempotent)", staff.ID, session.ID)
+			}
+			if sup.EndDate == nil { // Only active supervisors
+				supervisorIDs = append(supervisorIDs, sup.StaffID)
+			}
+		}
+	}
+
+	// 4. Add new supervisor if not duplicate
+	if !isDuplicate {
+		supervisorIDs = append(supervisorIDs, staff.ID)
+
+		// Update supervisors
+		_, err = rs.ActiveService.UpdateActiveGroupSupervisors(ctx, session.ID, supervisorIDs)
+		if err != nil {
+			log.Printf("[SUPERVISOR_AUTH] ERROR: Failed to update supervisors: %v", err)
+			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+				log.Printf("Render error: %v", err)
+			}
+			return
+		}
+
+		log.Printf("[SUPERVISOR_AUTH] Added supervisor %d to session %d", staff.ID, session.ID)
+	}
+
+	// 5. Build response (reuse CheckinResponse structure)
+	response := &CheckinResponse{
+		StudentID:   staff.ID, // Reuse field for staff ID
+		StudentName: fmt.Sprintf("%s %s", person.FirstName, person.LastName),
+		Action:      "supervisor_authenticated",
+		RoomName:    roomName,
+		ProcessedAt: time.Now(),
+		Message:     fmt.Sprintf("Supervisor authenticated for %s", activityName),
+		Status:      "success",
+	}
+
+	log.Printf("[SUPERVISOR_AUTH] SUCCESS: Supervisor %s %s authenticated for session %d",
+		person.FirstName, person.LastName, session.ID)
+
+	common.Respond(w, r, http.StatusOK, response, "Supervisor authenticated")
 }
 
 // getTeacherStudents handles getting students supervised by the specified teachers (for RFID devices)
@@ -2501,9 +2816,17 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Call ToggleStudentAttendance service without supervisor ID
-	result, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, 0, deviceCtx.ID) // Note: supervisor ID not available without staff context
+	// Get staff ID from device context (service will handle supervisor lookup for IoT devices)
+	var staffID int64
+	if staffCtx := device.StaffFromCtx(r.Context()); staffCtx != nil {
+		staffID = staffCtx.ID
+	}
+
+	// Call ToggleStudentAttendance service
+	// For IoT device requests, the service will automatically fetch supervisors from active group
+	result, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, staffID, deviceCtx.ID)
 	if err != nil {
+		log.Printf("[ATTENDANCE_TOGGLE] ERROR: Failed to toggle attendance for student %d: %v", student.ID, err)
 		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -2578,4 +2901,163 @@ func normalizeTagID(tagID string) string {
 
 	// Convert to uppercase
 	return strings.ToUpper(tagID)
+}
+
+// assignStaffRFIDTag handles assigning an RFID tag to a staff member (device-authenticated endpoint)
+func (rs *Resource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+
+	if deviceCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Parse staff ID from URL
+	staffID, err := strconv.ParseInt(chi.URLParam(r, "staffId"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Parse request
+	req := &RFIDAssignmentRequest{}
+	if err := render.Bind(r, req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get the staff member
+	staffRepo := rs.UsersService.StaffRepository()
+	staff, err := staffRepo.FindByID(r.Context(), staffID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("staff not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get person details for the staff member
+	person, err := rs.UsersService.Get(r.Context(), staff.PersonID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for staff"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Store previous tag for response
+	var previousTag *string
+	if person.TagID != nil {
+		previousTag = person.TagID
+	}
+
+	// Assign the RFID tag (this handles unlinking old assignments automatically)
+	if err := rs.UsersService.LinkToRFIDCard(r.Context(), person.ID, req.RFIDTag); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Create response (reuse student response type with staff data)
+	response := RFIDAssignmentResponse{
+		Success:     true,
+		StudentID:   staff.ID, // Field name is StudentID but holds staff_id
+		StudentName: person.FirstName + " " + person.LastName,
+		RFIDTag:     req.RFIDTag,
+		PreviousTag: previousTag,
+		Message:     "RFID tag assigned successfully",
+	}
+
+	if previousTag != nil {
+		response.Message = "RFID tag assigned successfully (previous tag replaced)"
+	}
+
+	// Log assignment for audit trail
+	log.Printf("RFID tag assignment: device=%s, staff=%d, tag=%s, previous_tag=%v",
+		deviceCtx.DeviceID, staffID, req.RFIDTag, previousTag)
+
+	common.Respond(w, r, http.StatusOK, response, response.Message)
+}
+
+// unassignStaffRFIDTag handles removing an RFID tag from a staff member (device-authenticated endpoint)
+func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated device from context
+	deviceCtx := device.DeviceFromCtx(r.Context())
+
+	if deviceCtx == nil {
+		if err := render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		}
+		return
+	}
+
+	// Parse staff ID from URL
+	staffID, err := strconv.ParseInt(chi.URLParam(r, "staffId"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid staff ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get the staff member
+	staffRepo := rs.UsersService.StaffRepository()
+	staff, err := staffRepo.FindByID(r.Context(), staffID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("staff not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get person details for the staff member
+	person, err := rs.UsersService.Get(r.Context(), staff.PersonID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get person data for staff"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Check if staff has an RFID tag assigned
+	if person.TagID == nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("staff has no RFID tag assigned"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Store removed tag for response
+	removedTag := *person.TagID
+
+	// Unlink the RFID tag
+	if err := rs.UsersService.UnlinkFromRFIDCard(r.Context(), person.ID); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Create response (reuse student response type with staff data)
+	response := RFIDAssignmentResponse{
+		Success:     true,
+		StudentID:   staff.ID, // Field name is StudentID but holds staff_id
+		StudentName: person.FirstName + " " + person.LastName,
+		RFIDTag:     removedTag,
+		Message:     "RFID tag unassigned successfully",
+	}
+
+	// Log unassignment for audit trail
+	log.Printf("RFID tag unassignment: device=%s, staff=%d, tag=%s",
+		deviceCtx.DeviceID, staffID, removedTag)
+
+	common.Respond(w, r, http.StatusOK, response, response.Message)
 }

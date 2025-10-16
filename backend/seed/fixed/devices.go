@@ -25,7 +25,7 @@ func (s *Seeder) seedIoTDevices(ctx context.Context) error {
 
 	// Device placements with room assignments
 	placements := []devicePlacement{
-		{"RFID-MAIN-001", "rfid_reader", "Haupteingang-Scanner", "Lehrerzimmer", generateAPIKey()},
+		{"RFID-MAIN-001", "rfid_reader", "Haupteingang-Scanner", "Lehrerzimmer", "ejpSOD5EEyMtbgsWBFNEoPU8MX0z553E"}, // Hardcoded for Bruno tests
 		{"RFID-MENSA-001", "rfid_reader", "Mensa-Leser", "Mensa", generateAPIKey()},
 		{"RFID-OGS-001", "rfid_reader", "OGS-Bereich-Scanner", "OGS-Raum 1", generateAPIKey()},
 		{"RFID-SPORT-001", "rfid_reader", "Sporthalle-Terminal", "Sporthalle", generateAPIKey()},

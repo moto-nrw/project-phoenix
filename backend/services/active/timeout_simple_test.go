@@ -18,7 +18,7 @@ type SimpleGroupRepo struct {
 }
 
 func (m *SimpleGroupRepo) FindActiveByDeviceID(ctx context.Context, deviceID int64) (*active.Group, error) {
-	args := m.Called(mock.Anything, deviceID)
+	args := m.Called(ctx, deviceID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -26,7 +26,7 @@ func (m *SimpleGroupRepo) FindActiveByDeviceID(ctx context.Context, deviceID int
 }
 
 func (m *SimpleGroupRepo) FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*active.Group, error) {
-	args := m.Called(mock.Anything, deviceID)
+	args := m.Called(ctx, deviceID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -34,7 +34,7 @@ func (m *SimpleGroupRepo) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 }
 
 func (m *SimpleGroupRepo) FindByID(ctx context.Context, id interface{}) (*active.Group, error) {
-	args := m.Called(mock.Anything, id)
+	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -42,12 +42,12 @@ func (m *SimpleGroupRepo) FindByID(ctx context.Context, id interface{}) (*active
 }
 
 func (m *SimpleGroupRepo) UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error {
-	args := m.Called(mock.Anything, id, mock.Anything)
+	args := m.Called(ctx, id, lastActivity)
 	return args.Error(0)
 }
 
 func (m *SimpleGroupRepo) FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*active.Group, error) {
-	args := m.Called(mock.Anything, mock.Anything)
+	args := m.Called(ctx, cutoffTime)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -100,6 +100,12 @@ func (m *SimpleGroupRepo) FindActiveByDeviceIDWithRelations(ctx context.Context,
 func (m *SimpleGroupRepo) FindInactiveSessions(ctx context.Context, inactiveDuration time.Duration) ([]*active.Group, error) {
 	return nil, nil
 }
+func (m *SimpleGroupRepo) FindUnclaimed(ctx context.Context) ([]*active.Group, error) {
+	return nil, nil
+}
+func (m *SimpleGroupRepo) FindActiveGroups(ctx context.Context) ([]*active.Group, error) {
+	return nil, nil
+}
 
 // Simple MockVisitRepository for testing
 type MockVisitRepository struct {
@@ -147,6 +153,9 @@ func (m *MockVisitRepository) CountExpiredVisits(ctx context.Context) (int64, er
 	return 0, nil
 }
 func (m *MockVisitRepository) GetCurrentByStudentID(ctx context.Context, studentID int64) (*active.Visit, error) {
+	return nil, nil
+}
+func (m *MockVisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit, error) {
 	return nil, nil
 }
 

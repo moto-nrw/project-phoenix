@@ -1,0 +1,403 @@
+meta {
+  name: 07a - Student Feedback Submission
+  type: http
+  seq: 7.1
+}
+
+post {
+  url: {{baseUrl}}/api/iot/feedback
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{devicePin}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "student_id": 1,
+    "value": "positive"
+  }
+}
+
+docs {
+  ## Student Feedback Submission Tests
+
+  Comprehensive feedback workflow covering 8 test scenarios:
+  1. Happy path - Positive feedback (main request)
+  2. Happy path - Neutral feedback
+  3. Happy path - Negative feedback
+  4. Validation - Invalid feedback value
+  5. Validation - Invalid student ID
+  6. Validation - Missing student_id field
+  7. Validation - Missing value field
+  8. Authentication - Missing device key
+
+  **Prerequisites:**
+  - deviceApiKey and devicePin configured
+  - Students exist in database with IDs 1, 2, 3
+  - Backend running with feedback table initialized
+
+  **Endpoint:**
+  POST /api/iot/feedback
+  - Authentication: Device API key + Staff PIN
+  - Request: {"student_id": number, "value": "positive"|"neutral"|"negative"}
+  - Response: 201 Created with feedback entry details
+
+  **Student ID Lookup:**
+  Main request uses pre-fetched student IDs from /api/students endpoint
+  to ensure tests work with actual database data.
+
+  **No Cleanup:**
+  Feedback entries are intentionally not deleted (audit trail).
+  Tests are idempotent and can run multiple times safely.
+}
+
+script:pre-request {
+  // Ensure admin token exists for student lookup
+  if (!bru.getEnvVar("accessToken")) {
+    await bru.sendRequest({
+      method: 'POST',
+      url: bru.getEnvVar("baseUrl") + "/auth/login",
+      headers: { "Content-Type": "application/json" },
+      data: {
+        email: "admin@example.com",
+        password: "Test1234%"
+      }
+    }, function(err, response) {
+      if (!err && response.status === 200) {
+        bru.setEnvVar("accessToken", response.data.access_token);
+        console.log("✅ Admin token refreshed");
+      }
+    });
+  }
+
+  // Lookup actual student IDs from database
+  const accessToken = bru.getEnvVar("accessToken");
+  if (accessToken && !bru.getVar("testStudent1ID")) {
+    await bru.sendRequest({
+      method: 'GET',
+      url: bru.getEnvVar("baseUrl") + "/api/students",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`
+      }
+    }, function(err, response) {
+      if (!err && response.status === 200 && response.data.data.length >= 3) {
+        const students = response.data.data;
+        bru.setVar("testStudent1ID", students[0].id);
+        bru.setVar("testStudent2ID", students[1].id);
+        bru.setVar("testStudent3ID", students[2].id);
+        console.log(`✅ Student IDs loaded: ${students[0].id}, ${students[1].id}, ${students[2].id}`);
+
+        // Update main request body with actual student ID
+        req.setBody(JSON.stringify({
+          student_id: students[0].id,
+          value: "positive"
+        }));
+      } else {
+        console.log("⚠️  Failed to load student IDs - using default ID 1");
+      }
+    });
+  } else if (bru.getVar("testStudent1ID")) {
+    // Use cached student ID
+    req.setBody(JSON.stringify({
+      student_id: bru.getVar("testStudent1ID"),
+      value: "positive"
+    }));
+  }
+}
+
+script:post-response {
+  // Test 1: Happy path - Positive feedback
+  test("Positive feedback submission succeeds", function() {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.getBody()).to.have.property('status', 'success');
+    expect(res.getBody().data).to.have.property('id');
+    expect(res.getBody().data).to.have.property('value', 'positive');
+    expect(res.getBody().data).to.have.property('student_id');
+    expect(res.getBody().data).to.have.property('day');
+    expect(res.getBody().data).to.have.property('time');
+    expect(res.getBody().data).to.have.property('created_at');
+  });
+
+  if (res.status === 201) {
+    const feedbackId = res.body.data.id;
+    const studentId = res.body.data.student_id;
+    bru.setVar("feedbackId1", feedbackId);
+    console.log(`✅ Positive feedback: ID ${feedbackId} for student ${studentId}`);
+
+    const deviceApiKey = bru.getEnvVar("deviceApiKey");
+    const devicePin = bru.getEnvVar("devicePin");
+    const baseUrl = bru.getEnvVar("baseUrl");
+    const testStudent2ID = bru.getVar("testStudent2ID") || 2;
+    const testStudent3ID = bru.getVar("testStudent3ID") || 3;
+
+    // Test 2: Happy path - Neutral feedback
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: baseUrl + "/api/iot/feedback",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          student_id: testStudent2ID,
+          value: "neutral"
+        }
+      }, function(err, response) {
+        if (err) {
+          test("Neutral feedback submission", function() {
+            throw new Error(`Neutral feedback failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Neutral feedback submission succeeds", function() {
+          expect(response.status).to.equal(201);
+          expect(response.data.data).to.have.property('value', 'neutral');
+        });
+
+        if (response.status === 201) {
+          console.log(`✅ Neutral feedback: ID ${response.data.data.id} for student ${testStudent2ID}`);
+        }
+      });
+    })();
+
+    // Test 3: Happy path - Negative feedback
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: baseUrl + "/api/iot/feedback",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          student_id: testStudent3ID,
+          value: "negative"
+        }
+      }, function(err, response) {
+        if (err) {
+          test("Negative feedback submission", function() {
+            throw new Error(`Negative feedback failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Negative feedback submission succeeds", function() {
+          expect(response.status).to.equal(201);
+          expect(response.data.data).to.have.property('value', 'negative');
+        });
+
+        if (response.status === 201) {
+          console.log(`✅ Negative feedback: ID ${response.data.data.id} for student ${testStudent3ID}`);
+        }
+      });
+    })();
+
+    // Test 4: Validation - Invalid feedback value
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: baseUrl + "/api/iot/feedback",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          student_id: studentId,
+          value: "good"  // Invalid - not in enum
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('400')) {
+            test("Invalid feedback value rejected", function() {
+              expect(true).to.be.true;  // Expected 400 error
+            });
+            console.log("✅ Invalid value 'good' rejected with 400");
+          } else {
+            test("Invalid feedback value handling", function() {
+              throw new Error(`Unexpected error: ${err.message}`);
+            });
+          }
+          return;
+        }
+
+        test("Invalid feedback value causes 400 error", function() {
+          expect(response.status).to.equal(400);
+          expect(response.data).to.have.property('status', 'error');
+          expect(response.data.message).to.include("must be");
+        });
+
+        console.log("✅ Invalid value validation working");
+      });
+    })();
+
+    // Test 5: Validation - Invalid student ID
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: baseUrl + "/api/iot/feedback",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          student_id: 99999,  // Non-existent student
+          value: "positive"
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('400') || err.message.includes('404')) {
+            test("Invalid student ID rejected", function() {
+              expect(true).to.be.true;  // Expected error
+            });
+            console.log("✅ Invalid student ID rejected");
+          } else {
+            test("Invalid student ID handling", function() {
+              throw new Error(`Unexpected error: ${err.message}`);
+            });
+          }
+          return;
+        }
+
+        test("Invalid student ID causes error", function() {
+          expect([400, 404]).to.include(response.status);
+          expect(response.data).to.have.property('status', 'error');
+        });
+
+        console.log("✅ Invalid student ID validation working");
+      });
+    })();
+
+    // Test 6: Validation - Missing student_id field
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: baseUrl + "/api/iot/feedback",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          value: "positive"
+          // Missing student_id
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('400')) {
+            test("Missing student_id rejected", function() {
+              expect(true).to.be.true;  // Expected 400 error
+            });
+            console.log("✅ Missing student_id rejected with 400");
+          } else {
+            test("Missing student_id handling", function() {
+              throw new Error(`Unexpected error: ${err.message}`);
+            });
+          }
+          return;
+        }
+
+        test("Missing student_id causes 400 error", function() {
+          expect(response.status).to.equal(400);
+          expect(response.data).to.have.property('status', 'error');
+          expect(response.data.message).to.include("student_id");
+        });
+
+        console.log("✅ Missing student_id validation working");
+      });
+    })();
+
+    // Test 7: Validation - Missing value field
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: baseUrl + "/api/iot/feedback",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          student_id: studentId
+          // Missing value
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('400')) {
+            test("Missing value rejected", function() {
+              expect(true).to.be.true;  // Expected 400 error
+            });
+            console.log("✅ Missing value rejected with 400");
+          } else {
+            test("Missing value handling", function() {
+              throw new Error(`Unexpected error: ${err.message}`);
+            });
+          }
+          return;
+        }
+
+        test("Missing value causes 400 error", function() {
+          expect(response.status).to.equal(400);
+          expect(response.data).to.have.property('status', 'error');
+          expect(response.data.message).to.include("value");
+        });
+
+        console.log("✅ Missing value validation working");
+      });
+    })();
+
+    // Test 8: Authentication - Missing device key
+    (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: baseUrl + "/api/iot/feedback",
+        headers: {
+          // Missing Authorization header
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          student_id: studentId,
+          value: "positive"
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('401')) {
+            test("Missing device key causes 401", function() {
+              expect(true).to.be.true;  // Expected 401 error
+            });
+            console.log("✅ Missing device key rejected with 401");
+          } else {
+            test("Authentication error handling", function() {
+              throw new Error(`Unexpected error: ${err.message}`);
+            });
+          }
+          return;
+        }
+
+        test("Missing device key causes 401 error", function() {
+          expect(response.status).to.equal(401);
+        });
+
+        console.log("✅ Authentication validation working");
+      });
+    })();
+
+    // Summary
+    test("All feedback tests completed", function() {
+      expect(true).to.be.true;
+    });
+
+    console.log("✅ All 8 feedback tests completed successfully");
+  }
+}

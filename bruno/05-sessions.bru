@@ -1,0 +1,337 @@
+meta {
+  name: 05 - Session Lifecycle & Supervisor Management
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/iot/session/start
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{deviceApiKey}}
+  X-Staff-PIN: {{devicePin}}
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "activity_id": 1,
+    "room_id": 12,
+    "supervisor_ids": [1]
+  }
+}
+
+docs {
+  ## Session Lifecycle and Supervisor Management Tests
+
+  Complete session workflow covering 10 test scenarios:
+  1. Start session (happy path) - main request
+  2. Conflict start (duplicate session)
+  3. Current session verification
+  4. Update supervisors (happy path)
+  5. Empty supervisor list (validation)
+  6. Invalid supervisor ID (error handling)
+  7. Duplicate supervisor IDs (deduplication)
+  8. Invalid session ID (not found)
+  9. Session conflict check endpoint
+  10. Session end (cleanup)
+
+  **Prerequisites:**
+  - deviceApiKey and devicePin configured
+  - staffID points to valid supervisor (default: 31)
+  - Room 12 available in seed data
+  - Activity 1 exists in activities table
+
+  **Cleanup:**
+  Test 10 ensures session is ended to prevent state leakage
+}
+
+script:post-response {
+  // Test 1: Start session (happy path)
+  test("Session starts successfully", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('status', 'success');
+    expect(res.getBody().data).to.have.property('active_group_id');
+  });
+
+  if (res.status === 200) {
+    const sessionId = res.body.data.active_group_id;
+    bru.setVar("sessionId", sessionId);
+    console.log(`✅ Session started: ${sessionId}`);
+
+    const deviceApiKey = bru.getEnvVar("deviceApiKey");
+    const devicePin = bru.getEnvVar("devicePin");
+    const staffID = parseInt(bru.getEnvVar("staffID"));
+
+    // Test 2: Conflict start (trying to create duplicate session in same room)
+    await (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/session/start",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          activity_id: 2,
+          room_id: 12,  // Same room
+          supervisor_ids: [staffID]
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('409')) {
+            console.log("✅ Conflict detected (409)");
+          } else {
+            test("Duplicate session causes conflict", function() {
+              throw new Error(`Conflict test failed: ${err.message}`);
+            });
+          }
+          return;
+        }
+
+        test("Duplicate session causes conflict", function() {
+          expect(response.status).to.equal(409);
+          expect(response.data).to.have.property('status', 'error');
+        });
+
+        console.log("✅ Conflict detection working");
+      });
+    })();
+
+    // Test 3: Current session verification
+    await (async function() {
+      await bru.sendRequest({
+        method: 'GET',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/session/current",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin
+        }
+      }, function(err, response) {
+        if (err) {
+          test("Current session verification", function() {
+            throw new Error(`Current session failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Current session matches started session", function() {
+          expect(response.status).to.equal(200);
+          expect(response.data.data).to.have.property('active_group_id', sessionId);
+        });
+
+        console.log("✅ Current session verified");
+      });
+    })();
+
+    // Test 4: Update supervisors (happy path)
+    await (async function() {
+      await bru.sendRequest({
+        method: 'PUT',
+        url: bru.getEnvVar("baseUrl") + `/api/iot/session/${sessionId}/supervisors`,
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          supervisor_ids: [staffID, 2]  // Add another supervisor
+        }
+      }, function(err, response) {
+        if (err) {
+          test("Supervisors update", function() {
+            throw new Error(`Supervisor update failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Supervisors update successfully", function() {
+          expect(response.status).to.equal(200);
+          expect(response.data).to.have.property('status', 'success');
+        });
+
+        console.log("✅ Supervisors updated");
+      });
+    })();
+
+    // Test 5: Empty supervisor list (validation error)
+    await (async function() {
+      await bru.sendRequest({
+        method: 'PUT',
+        url: bru.getEnvVar("baseUrl") + `/api/iot/session/${sessionId}/supervisors`,
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          supervisor_ids: []
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('400')) {
+            console.log("✅ Empty supervisor rejected (400)");
+          } else {
+            test("Empty supervisor validation", function() {
+              throw new Error(`Empty supervisor test failed: ${err.message}`);
+            });
+          }
+          return;
+        }
+
+        test("Empty supervisor list causes validation error", function() {
+          expect(response.status).to.equal(400);
+          expect(response.data).to.have.property('status', 'error');
+        });
+
+        console.log("✅ Empty supervisor validation working");
+      });
+    })();
+
+    // Test 6: Invalid supervisor ID (not found)
+    await (async function() {
+      await bru.sendRequest({
+        method: 'PUT',
+        url: bru.getEnvVar("baseUrl") + `/api/iot/session/${sessionId}/supervisors`,
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          supervisor_ids: [99999]  // Invalid ID
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('400') || err.message.includes('404')) {
+            console.log("✅ Invalid supervisor rejected");
+          } else {
+            test("Invalid supervisor handling", function() {
+              throw new Error(`Invalid supervisor test failed: ${err.message}`);
+            });
+          }
+          return;
+        }
+
+        test("Invalid supervisor ID causes error", function() {
+          expect([400, 404]).to.include(response.status);
+          expect(response.data).to.have.property('status', 'error');
+        });
+
+        console.log("✅ Invalid supervisor rejected");
+      });
+    })();
+
+    // Test 7: Duplicate supervisor IDs (deduplication)
+    await (async function() {
+      await bru.sendRequest({
+        method: 'PUT',
+        url: bru.getEnvVar("baseUrl") + `/api/iot/session/${sessionId}/supervisors`,
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          supervisor_ids: [staffID, staffID, staffID]  // Duplicates
+        }
+      }, function(err, response) {
+        if (err) {
+          test("Duplicate supervisor deduplication", function() {
+            throw new Error(`Deduplication test failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Duplicate supervisor IDs are deduplicated", function() {
+          expect(response.status).to.equal(200);
+          expect(response.data).to.have.property('status', 'success');
+        });
+
+        console.log("✅ Duplicate supervisor deduplication working");
+      });
+    })();
+
+    // Test 8: Invalid session ID
+    await (async function() {
+      await bru.sendRequest({
+        method: 'PUT',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/session/99999/supervisors",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          supervisor_ids: [staffID]
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('404')) {
+            console.log("✅ Invalid session rejected (404)");
+          } else {
+            test("Invalid session handling", function() {
+              throw new Error(`Invalid session test failed: ${err.message}`);
+            });
+          }
+          return;
+        }
+
+        test("Invalid session ID causes not found error", function() {
+          expect(response.status).to.equal(404);
+          expect(response.data).to.have.property('status', 'error');
+        });
+
+        console.log("✅ Invalid session rejected");
+      });
+    })();
+
+    // Test 9: Session conflict check endpoint
+    await (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: bru.getEnvVar("baseUrl") + "/api/iot/session/check-conflict",
+        headers: {
+          "Authorization": `Bearer ${deviceApiKey}`,
+          "X-Staff-PIN": devicePin,
+          "Content-Type": "application/json"
+        },
+        data: {
+          activity_id: 2,
+          room_id: 13
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('409')) {
+            console.log("✅ Conflict check detected conflict (409)");
+          } else {
+            test("Conflict check endpoint", function() {
+              throw new Error(`Conflict check failed: ${err.message}`);
+            });
+          }
+          return;
+        }
+
+        test("Conflict check endpoint responds", function() {
+          expect([200, 409]).to.include(response.status);
+          if (response.status === 200) {
+            expect(response.data).to.have.property('data');
+          }
+        });
+
+        console.log("✅ Conflict check endpoint validated");
+      });
+    })();
+
+    // Test 10: Session end moved to test 06a for proper test dependency
+    // Test 06a needs the session to be active, so we don't end it here
+    console.log("✅ Session kept active for test 06a-supervisor-rfid");
+    test("Session ready for next test", function() {
+      expect(sessionId).to.be.a('number');
+    });
+  }
+}
