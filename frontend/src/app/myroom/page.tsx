@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { redirect, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -30,13 +30,14 @@ interface ActiveRoom {
 }
 
 function MeinRaumPageContent() {
+    const router = useRouter();
     const { data: session, status } = useSession({
         required: true,
         onUnauthenticated() {
-            redirect("/");
+            // Use client-side navigation in client components
+            router.push("/");
         },
     });
-    const router = useRouter();
 
     // Check if user has access to active rooms
     const [hasAccess, setHasAccess] = useState<boolean | null>(null);
@@ -81,7 +82,7 @@ function MeinRaumPageContent() {
                 if (myActiveGroups.length === 0) {
                     // User has no active groups, redirect to dashboard
                     setHasAccess(false);
-                    redirect("/dashboard");
+                    router.push("/dashboard");
                     return;
                 }
 
@@ -401,7 +402,7 @@ function MeinRaumPageContent() {
 
     // If user doesn't have access, redirect to dashboard
     if (hasAccess === false) {
-        redirect("/dashboard");
+        router.push("/dashboard");
         return null;
     }
 
