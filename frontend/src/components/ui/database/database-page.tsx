@@ -502,7 +502,7 @@ export function DatabasePage<T extends { id: string }>({
         error={error}
         onRetry={() => fetchItems(searchFilter, filters, currentPage)}
         itemLabel={{ singular: config.name.singular, plural: config.name.plural }}
-        accent={config.theme.accent as any}
+        accent={config.theme.accent}
         renderItem={(item: T) => {
           if (CustomListItem) {
             return <CustomListItem item={item} onClick={handleSelectItem} />;
@@ -514,7 +514,7 @@ export function DatabasePage<T extends { id: string }>({
               title={config.list.item.title(item)}
               subtitle={config.list.item.subtitle?.(item) ?? config.list.item.description?.(item)}
               onClick={() => handleSelectItem(item)}
-              accent={config.theme.accent as any}
+              accent={config.theme.accent}
               leftIcon={config.list.item.avatar ? (
                 <div
                   className={`h-10 w-10 rounded-full bg-gradient-to-br ${config.theme.avatarGradient} flex items-center justify-center text-white font-medium`}
@@ -556,7 +556,7 @@ export function DatabasePage<T extends { id: string }>({
           sections={config.form.sections.map(section => ({
             title: section.title,
             subtitle: section.subtitle,
-            iconPath: (section as any).iconPath,
+            iconPath: section.iconPath,
             fields: section.fields.map(field => ({
               name: field.name,
               label: field.label,
@@ -646,7 +646,7 @@ export function DatabasePage<T extends { id: string }>({
             ).map(section => ({
               title: section.title,
               subtitle: section.subtitle,
-              iconPath: (section as any).iconPath,
+              iconPath: section.iconPath,
               fields: section.fields.map(field => ({
                 name: field.name,
                 label: field.label,

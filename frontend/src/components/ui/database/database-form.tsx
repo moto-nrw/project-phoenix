@@ -244,7 +244,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
     }
   };
 
-  const renderField = (field: FormField, sectionBackground: string) => {
+  const renderField = (field: FormField, _sectionBackground: string) => {
     // Determine focus ring color based on theme accent for consistency across neutral backgrounds
     const focusRingColor = theme.accent === 'blue' ? 'focus:ring-blue-500'
       : theme.accent === 'purple' ? 'focus:ring-purple-500'

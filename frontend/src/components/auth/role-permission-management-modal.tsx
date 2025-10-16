@@ -77,10 +77,7 @@ export function RolePermissionManagementModal({
     setShowErrorAlert(true);
   };
 
-  const showWarning = (message: string) => {
-    setWarningMessage(message);
-    setShowWarningAlert(true);
-  };
+  // showWarning helper currently unused
 
   // Fetch all permissions and role permissions
   const fetchPermissions = async () => {

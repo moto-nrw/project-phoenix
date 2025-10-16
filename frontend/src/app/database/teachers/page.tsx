@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
-import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header/types";
+import type { ActiveFilter } from "~/components/ui/page-header/types";
 import { SimpleAlert } from "@/components/simple/SimpleAlert";
 import { TeacherRoleManagementModal, TeacherPermissionManagementModal } from "@/components/teachers";
 import { TeacherDetailModal } from "@/components/teachers/teacher-detail-modal";
@@ -119,8 +119,8 @@ export default function TeachersPage() {
 
         // Sort alphabetically by name
         filtered.sort((a, b) => {
-            const nameA = a.name || `${a.first_name} ${a.last_name}`;
-            const nameB = b.name || `${b.first_name} ${b.last_name}`;
+            const nameA = a.name ?? `${a.first_name} ${a.last_name}`;
+            const nameB = b.name ?? `${b.first_name} ${b.last_name}`;
             return nameA.localeCompare(nameB, 'de');
         });
 

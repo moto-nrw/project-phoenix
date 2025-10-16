@@ -30,7 +30,7 @@ export function DeviceEditModal({ isOpen, onClose, device, onSave, loading = fal
           sections={devicesConfig.form.sections.map(section => ({
             title: section.title,
             subtitle: section.subtitle,
-            iconPath: (section as any).iconPath,
+            iconPath: section.iconPath,
             fields: section.fields.map(field => ({
               name: field.name,
               label: field.label,

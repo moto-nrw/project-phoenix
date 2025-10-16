@@ -21,9 +21,8 @@ export function GroupDetailModal({
   onDelete,
   loading = false,
 }: GroupDetailModalProps) {
-  if (!group) return null;
-
   const [confirmOpen, setConfirmOpen] = useState(false);
+  if (!group) return null;
 
   const initials = (group.name?.slice(0, 2) ?? "GR").toUpperCase();
 

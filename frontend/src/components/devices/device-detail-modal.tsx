@@ -22,9 +22,8 @@ export function DeviceDetailModal({
   onDelete,
   loading = false,
 }: Props) {
-  if (!device) return null;
-
   const [confirmOpen, setConfirmOpen] = useState(false);
+  if (!device) return null;
   const initials = (device.name?.slice(0, 2) ?? device.device_id.slice(0,2) ?? 'DE').toUpperCase();
 
   return (

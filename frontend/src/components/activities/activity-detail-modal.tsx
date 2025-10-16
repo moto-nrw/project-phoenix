@@ -21,11 +21,10 @@ export function ActivityDetailModal({
   onDelete,
   loading = false
 }: ActivityDetailModalProps) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
   if (!activity) return null;
 
   const initials = (activity.name?.slice(0,2) ?? 'AG').toUpperCase();
-
-  const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
     <>

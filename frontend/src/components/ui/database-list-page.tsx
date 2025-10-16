@@ -66,7 +66,7 @@ export interface DatabaseListPageProps<T = unknown> {
     total_records: number;
   } | null;
   onPageChange?: (page: number) => void;
-  accent?: 'blue' | 'purple' | 'green' | 'red' | 'indigo' | 'gray' | 'amber' | 'orange';
+  accent?: 'blue' | 'purple' | 'green' | 'red' | 'indigo' | 'gray' | 'amber' | 'orange' | 'pink' | 'yellow';
 }
 
 export function DatabaseListPage<T = unknown>({
@@ -103,6 +103,8 @@ export function DatabaseListPage<T = unknown>({
     gray: 'border-gray-500',
     amber: 'border-amber-500',
     orange: 'border-orange-500',
+    pink: 'border-pink-500',
+    yellow: 'border-yellow-500',
   } as const;
   const spinnerCls = accentSpinner[accent] ?? accentSpinner.blue;
   // Loading state

@@ -23,9 +23,8 @@ export function RoleDetailModal({
   onManagePermissions,
   loading = false,
 }: Props) {
-  if (!role) return null;
-
   const [confirmOpen, setConfirmOpen] = useState(false);
+  if (!role) return null;
   const initials = (role.name?.slice(0, 2) ?? "RO").toUpperCase();
 
   return (

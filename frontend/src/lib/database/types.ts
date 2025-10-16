@@ -76,6 +76,7 @@ export interface FormSection {
   fields: FormField[];
   columns?: 1 | 2;
   backgroundColor?: string;
+  iconPath?: string;
 }
 
 // Section configuration for forms
@@ -85,6 +86,7 @@ export interface SectionConfig {
   fields: FieldConfig[];
   columns?: 1 | 2;
   backgroundColor?: string;
+  iconPath?: string;
 }
 
 // Detail view item configuration
@@ -294,6 +296,7 @@ export function configToFormSection(section: SectionConfig): FormSection {
     })),
     columns: section.columns,
     backgroundColor: section.backgroundColor,
+    iconPath: section.iconPath,
   };
 }
 

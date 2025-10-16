@@ -31,7 +31,7 @@ export function ActivityEditModal({ isOpen, onClose, activity, onSave, loading =
           sections={activitiesConfig.form.sections.map(section => ({
             title: section.title,
             subtitle: section.subtitle,
-            iconPath: (section as any).iconPath,
+            iconPath: section.iconPath,
             // Hide is_open_ags for now
             fields: section.fields.filter(f => f.name !== 'is_open_ags').map(field => ({
               name: field.name,

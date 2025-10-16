@@ -21,9 +21,8 @@ export function PermissionDetailModal({
   onDelete,
   loading = false,
 }: Props) {
-  if (!permission) return null;
-
   const [confirmOpen, setConfirmOpen] = useState(false);
+  if (!permission) return null;
   const initials = (permission.resource?.slice(0, 2) ?? "PE").toUpperCase();
   const resourceLabels: Record<string, string> = {
     users: 'Benutzer', roles: 'Rollen', permissions: 'Berechtigungen', activities: 'Aktivitäten',

@@ -28,7 +28,7 @@ export function RoleCreateModal({ isOpen, onClose, onCreate, loading = false }: 
           sections={rolesConfig.form.sections.map(section => ({
             title: section.title,
             subtitle: section.subtitle,
-            iconPath: (section as any).iconPath,
+            iconPath: section.iconPath,
             fields: section.fields.map(field => ({
               name: field.name,
               label: field.label,

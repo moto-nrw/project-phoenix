@@ -144,15 +144,7 @@ function DatabaseContent() {
   });
   const [countsLoading, setCountsLoading] = useState(true);
 
-  // Handle back navigation on mobile
-  const handleBackToList = useCallback(() => {
-    setActiveTab(null);
-  }, []);
-
-  // Handle tab selection
-  const handleTabSelect = useCallback((tabId: string) => {
-    setActiveTab(tabId);
-  }, []);
+  // (removed unused local handlers to satisfy lint)
 
   // Mobile detection
   useEffect(() => {
