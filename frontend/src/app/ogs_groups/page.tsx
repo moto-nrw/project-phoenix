@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { redirect, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -38,13 +38,13 @@ interface OGSGroup {
 }
 
 function OGSGroupPageContent() {
+  const router = useRouter();
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
-      redirect("/");
+      router.push("/");
     },
   });
-  const router = useRouter();
 
   // Check if user has access to OGS groups
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
@@ -179,7 +179,7 @@ function OGSGroupPageContent() {
         if (myGroups.length === 0) {
           // User has no OGS groups, redirect to dashboard
           setHasAccess(false);
-          redirect("/dashboard");
+          router.push("/dashboard");
           return;
         }
 
@@ -270,7 +270,7 @@ function OGSGroupPageContent() {
     if (session?.user?.token) {
       void checkAccessAndFetchData();
     }
-  }, [session?.user?.token, loadGroupRoomStatus]);
+  }, [session?.user?.token, loadGroupRoomStatus, router]);
 
   // Function to switch between groups
   const switchToGroup = async (groupIndex: number) => {
@@ -560,7 +560,7 @@ function OGSGroupPageContent() {
 
   // If user doesn't have access, redirect to dashboard
   if (hasAccess === false) {
-    redirect("/dashboard");
+    router.push("/dashboard");
     return null;
   }
 
