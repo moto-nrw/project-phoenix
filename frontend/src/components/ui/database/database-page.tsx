@@ -9,7 +9,6 @@ import {
   CreateFormModal, 
   DetailFormModal, 
 } from "@/components/ui";
-import type { AccentColor } from "@/components/ui/database/themes";
 import { DatabaseForm } from "./database-form";
 import { DatabaseDetailView } from "./database-detail-view";
 import { DatabaseListItem } from "../database-list-item";
