@@ -72,7 +72,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
     const response = await apiGet<{ status: string; data: BackendTimeframe[] }>('/api/schedules/timeframes', token);
     
     // Handle response structure
-    if (response && response.status === "success" && Array.isArray(response.data)) {
+    if (response?.status === "success" && Array.isArray(response.data)) {
       // Filter only active timeframes and map them
       return response.data
         .filter(tf => tf.is_active)

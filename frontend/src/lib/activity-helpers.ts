@@ -557,7 +557,7 @@ export function formatActivityTimes(activity: Activity | ActivitySchedule[]): st
     // Handle case when activity is an Activity object
     if ('times' in activity && Array.isArray(activity.times)) {
         const times = activity.times;
-        if (!times || times.length === 0) return "Keine Zeiten festgelegt";
+        if (times?.length === 0) return "Keine Zeiten festgelegt";
         
         return times.map(time => {
             const weekday = formatWeekday(time.weekday);

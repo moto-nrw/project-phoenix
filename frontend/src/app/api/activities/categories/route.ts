@@ -13,7 +13,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
   const response = await apiGet<{ status: string; data: BackendActivityCategory[] }>('/api/activities/categories', token);
   
   // Handle response structure
-  if (response && response.status === "success" && Array.isArray(response.data)) {
+  if (response?.status === "success" && Array.isArray(response.data)) {
     return response.data.map(mapActivityCategoryResponse);
   }
   

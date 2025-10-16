@@ -47,7 +47,7 @@ export default function TeacherList({
             {teachers.map((teacher) => (
                 <div
                     key={teacher.id}
-                    onClick={() => onTeacherClick && onTeacherClick(teacher)}
+                    onClick={() => onTeacherClick?.(teacher)}
                     className={`group rounded-lg border border-gray-100 p-4 transition-all hover:border-blue-200 hover:bg-blue-50 ${
                         onTeacherClick ? "cursor-pointer" : ""
                     }`}
