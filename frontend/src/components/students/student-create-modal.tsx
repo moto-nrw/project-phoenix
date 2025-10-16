@@ -501,7 +501,10 @@ export function StudentCreateModal({
                                     min="1"
                                     max="31"
                                     value={formData.data_retention_days ?? 30}
-                                    onChange={(e) => handleChange("data_retention_days", parseInt(e.target.value) ?? 30)}
+                                    onChange={(e) => {
+                                        const v = parseInt(e.target.value, 10);
+                                        handleChange("data_retention_days", Number.isNaN(v) ? 30 : v);
+                                    }}
                                     className={`block w-full rounded-lg border px-3 py-2 text-sm transition-colors ${
                                         errors.data_retention_days
                                             ? "border-red-300 bg-red-50"
