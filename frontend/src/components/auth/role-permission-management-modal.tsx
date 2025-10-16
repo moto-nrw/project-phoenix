@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { FormModal } from "~/components/ui";
 import { SimpleAlert } from "~/components/simple/SimpleAlert";
 import { authService } from "~/lib/auth-service";
+import { getPermissionDisplayName as formatDisplay, actionLabels, resourceLabels, localizeAction, localizeResource, formatPermissionDisplay } from "~/lib/permission-labels";
 import type { Role, Permission } from "~/lib/auth-helpers";
 
 interface RolePermissionManagementModalProps {
@@ -19,40 +20,7 @@ export function RolePermissionManagementModal({
   role,
   onUpdate,
 }: RolePermissionManagementModalProps) {
-  // Localized labels for resources/actions to avoid exposing raw keys like "roles:create"
-  const resourceLabels: Record<string, string> = {
-    users: 'Benutzer',
-    roles: 'Rollen',
-    permissions: 'Berechtigungen',
-    activities: 'Aktivitäten',
-    rooms: 'Räume',
-    groups: 'Gruppen',
-    visits: 'Besuche',
-    schedules: 'Zeitpläne',
-    config: 'Konfiguration',
-    feedback: 'Feedback',
-    iot: 'Geräte',
-    system: 'System',
-    admin: 'Administration',
-  };
-  const actionLabels: Record<string, string> = {
-    create: 'Erstellen',
-    read: 'Ansehen',
-    update: 'Bearbeiten',
-    delete: 'Löschen',
-    list: 'Auflisten',
-    manage: 'Verwalten',
-    assign: 'Zuweisen',
-    enroll: 'Anmelden',
-    '*': 'Alle',
-  };
-
-  const getPermissionDisplayName = (p: Permission) => {
-    // Prefer explicit description if it's clearly localized; otherwise build from resource/action
-    const res = resourceLabels[p.resource] ?? p.resource;
-    const act = actionLabels[p.action] ?? p.action;
-    return `${res}: ${act}`;
-  };
+  const getPermissionDisplayName = (p: Permission) => formatPermissionDisplay(p.resource, p.action);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [showErrorAlert, setShowErrorAlert] = useState(false);
@@ -239,7 +207,7 @@ export function RolePermissionManagementModal({
                     <div key={permission.id} className="flex items-center justify-between p-3 md:p-3.5 hover:bg-gray-50">
                       <div className="flex-1 min-w-0 pr-3">
                         <div className="text-sm font-medium text-gray-900">{getPermissionDisplayName(permission)}</div>
-                        <div className="text-[11px] md:text-xs text-gray-500 mt-1">Ressource: {resourceLabels[permission.resource] ?? permission.resource} • Aktion: {actionLabels[permission.action] ?? permission.action}</div>
+                        <div className="text-[11px] md:text-xs text-gray-500 mt-1">Ressource: {localizeResource(permission.resource)} • Aktion: {localizeAction(permission.action)}</div>
                       </div>
                       <button
                         type="button"

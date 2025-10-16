@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import type { Permission } from "@/lib/auth-helpers";
+import { formatPermissionDisplay } from "@/lib/permission-labels";
 
 interface Props {
   isOpen: boolean;
@@ -24,16 +25,7 @@ export function PermissionDetailModal({
   const [confirmOpen, setConfirmOpen] = useState(false);
   if (!permission) return null;
   const initials = (permission.resource?.slice(0, 2) ?? "PE").toUpperCase();
-  const resourceLabels: Record<string, string> = {
-    users: 'Benutzer', roles: 'Rollen', permissions: 'Berechtigungen', activities: 'Aktivitäten',
-    rooms: 'Räume', groups: 'Gruppen', visits: 'Besuche', schedules: 'Zeitpläne', config: 'Konfiguration',
-    feedback: 'Feedback', iot: 'Geräte', system: 'System', admin: 'Administration',
-  };
-  const actionLabels: Record<string, string> = {
-    create: 'Erstellen', read: 'Ansehen', update: 'Bearbeiten', delete: 'Löschen', list: 'Auflisten',
-    manage: 'Verwalten', assign: 'Zuweisen', enroll: 'Anmelden', '*': 'Alle',
-  };
-  const displayTitle = `${resourceLabels[permission.resource] ?? permission.resource}: ${actionLabels[permission.action] ?? permission.action}`;
+  const displayTitle = formatPermissionDisplay(permission.resource, permission.action);
 
   return (
     <>

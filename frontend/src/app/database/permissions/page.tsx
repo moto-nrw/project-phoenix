@@ -12,6 +12,7 @@ import { createCrudService } from "@/lib/database/service-factory";
 import { permissionsConfig } from "@/lib/database/configs/permissions.config";
 import type { Permission } from "@/lib/auth-helpers";
 import { PermissionCreateModal, PermissionDetailModal, PermissionEditModal } from "@/components/permissions";
+import { formatPermissionDisplay, localizeAction, localizeResource } from "@/lib/permission-labels";
 
 export default function PermissionsPage() {
   const [loading, setLoading] = useState(true);
@@ -76,17 +77,7 @@ export default function PermissionsPage() {
 
   useEffect(() => { void fetchPermissions(); }, [fetchPermissions]);
 
-  // Lokalisierung für Ressource/Aktion und typische englische Bezeichnungen
-  const resourceLabels: Record<string, string> = {
-    users: 'Benutzer', roles: 'Rollen', permissions: 'Berechtigungen', activities: 'Aktivitäten',
-    rooms: 'Räume', groups: 'Gruppen', visits: 'Besuche', schedules: 'Zeitpläne', config: 'Konfiguration',
-    feedback: 'Feedback', iot: 'Geräte', system: 'System', admin: 'Administration',
-  };
-  const actionLabels: Record<string, string> = {
-    create: 'Erstellen', read: 'Ansehen', update: 'Bearbeiten', delete: 'Löschen', list: 'Auflisten',
-    manage: 'Verwalten', assign: 'Zuweisen', enroll: 'Anmelden', '*': 'Alle',
-  };
-  const toDisplay = (p: Permission) => `${resourceLabels[p.resource] ?? p.resource}: ${actionLabels[p.action] ?? p.action}`;
+  const toDisplay = (p: Permission) => formatPermissionDisplay(p.resource, p.action);
 
   // Anzeigename + Beschreibung exakt wie in den Daten anzeigen; bei fehlendem Anzeigenamen auf Ressource:Aktion ausweichen
   const displayTitle = (p: Permission) => p.name?.trim() ? p.name : toDisplay(p);
@@ -272,6 +263,7 @@ export default function PermissionsPage() {
                     {perm.description && (
                       <p className="text-sm text-gray-600 mt-0.5 line-clamp-1">{perm.description}</p>
                     )}
+                    <div className="text-xs text-gray-500 mt-1 line-clamp-1">Ressource: {localizeResource(perm.resource)} • Aktion: {localizeAction(perm.action)}</div>
                   </div>
                   <div className="flex-shrink-0">
                     <svg className="h-6 w-6 text-gray-400 md:group-hover:text-indigo-600 md:group-hover:translate-x-1 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>

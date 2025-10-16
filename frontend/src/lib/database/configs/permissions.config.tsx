@@ -6,39 +6,10 @@ import { defineEntityConfig } from '../types';
 import { databaseThemes } from '@/components/ui/database/themes';
 import type { Permission, BackendPermission } from '@/lib/auth-helpers';
 import { mapPermissionResponse } from '@/lib/auth-helpers';
-
-// Localized labels for resources/actions to present German UI strings
-const resourceLabels: Record<string, string> = {
-  users: 'Benutzer',
-  roles: 'Rollen',
-  permissions: 'Berechtigungen',
-  activities: 'Aktivitäten',
-  rooms: 'Räume',
-  groups: 'Gruppen',
-  visits: 'Besuche',
-  schedules: 'Zeitpläne',
-  config: 'Konfiguration',
-  feedback: 'Feedback',
-  iot: 'Geräte',
-  system: 'System',
-  admin: 'Administration',
-};
-const actionLabels: Record<string, string> = {
-  create: 'Erstellen',
-  read: 'Ansehen',
-  update: 'Bearbeiten',
-  delete: 'Löschen',
-  list: 'Auflisten',
-  manage: 'Verwalten',
-  assign: 'Zuweisen',
-  enroll: 'Anmelden',
-  '*': 'Alle',
-};
+import { formatPermissionDisplay } from '@/lib/permission-labels';
 
 function displayName(p: Permission) {
-  const res = resourceLabels[p.resource] ?? p.resource;
-  const act = actionLabels[p.action] ?? p.action;
-  return `${res}: ${act}`;
+  return formatPermissionDisplay(p.resource, p.action);
 }
 
 export const permissionsConfig = defineEntityConfig<Permission>({
