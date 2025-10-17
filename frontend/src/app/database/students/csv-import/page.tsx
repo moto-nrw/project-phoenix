@@ -595,12 +595,11 @@ export default function StudentCSVImportPage() {
                             </Link>
                             <button
                                 disabled={stats.errors > 0}
-                                className="flex-1 px-6 py-3 rounded-lg text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 disabled:hover:scale-100"
+                                className="flex-1 px-6 py-3 rounded-lg text-sm font-medium text-white disabled:cursor-not-allowed shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 disabled:hover:scale-100"
                                 style={{
                                     background: stats.errors > 0
-                                        ? 'linear-gradient(to bottom right, #83CD2D, #70b525)'
-                                        : 'linear-gradient(to bottom right, #83CD2D, #70b525)',
-                                    opacity: stats.errors > 0 ? 0.5 : 1
+                                        ? 'linear-gradient(to bottom right, #d1d5db, #9ca3af)'
+                                        : 'linear-gradient(to bottom right, #83CD2D, #70b525)'
                                 }}
                                 onMouseEnter={(e) => {
                                     if (stats.errors === 0) {
