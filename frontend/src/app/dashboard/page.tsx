@@ -397,7 +397,9 @@ function DashboardContent() {
                   <div className="p-4 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50">
                     <p className="text-xs text-green-700 font-medium mb-1">Kinder je Betreuer</p>
                     <p className="text-2xl font-bold text-green-900">
-                      {Math.round(dashboardData.studentsPresent / dashboardData.supervisorsToday)}
+                      {dashboardData.supervisorsToday > 0
+                        ? Math.round(dashboardData.studentsPresent / dashboardData.supervisorsToday)
+                        : '-'}
                     </p>
                     <p className="text-xs text-green-600 mt-1">Betreuungsschlüssel</p>
                   </div>
