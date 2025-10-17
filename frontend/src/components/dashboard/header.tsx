@@ -31,14 +31,14 @@ function getPageTitle(pathname: string): string {
     }
     
     if (pathname.startsWith("/database/")) {
-        if (pathname.includes("/activities")) return "Aktivitäten Datenbank";
-        if (pathname.includes("/groups")) return "Gruppen Datenbank";
-        if (pathname.includes("/students")) return "Schüler Datenbank";
-        if (pathname.includes("/teachers")) return "Datenbank Betreuer";
-        if (pathname.includes("/rooms")) return "Räume Datenbank";
-        if (pathname.includes("/roles")) return "Rollen Datenbank";
-        if (pathname.includes("/devices")) return "Geräte Datenbank";
-        if (pathname.includes("/permissions")) return "Berechtigungen Datenbank";
+        if (pathname.includes("/activities")) return "Aktivitäten";
+        if (pathname.includes("/groups")) return "Gruppen";
+        if (pathname.includes("/students")) return "Kinder";
+        if (pathname.includes("/teachers")) return "Betreuer";
+        if (pathname.includes("/rooms")) return "Räume";
+        if (pathname.includes("/roles")) return "Rollen";
+        if (pathname.includes("/devices")) return "Geräte";
+        if (pathname.includes("/permissions")) return "Berechtigungen";
         return "Datenbank";
     }
 
@@ -172,9 +172,28 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
                                 <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                 </svg>
-                                <span className="font-medium text-gray-900">
-                                    {pageTitle.replace("Datenbank", "").trim()}
-                                </span>
+
+                                {/* Check if we're on a sub-page (e.g., /database/students/csv-import) */}
+                                {pathname.split('/').length > 3 ? (
+                                    <>
+                                        <Link
+                                            href={pathname.split('/').slice(0, 3).join('/')}
+                                            className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                                        >
+                                            {pageTitle}
+                                        </Link>
+                                        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                        <span className="font-medium text-gray-900">
+                                            {pathname.includes('csv-import') ? 'CSV-Import' : pathname.split('/').pop()}
+                                        </span>
+                                    </>
+                                ) : (
+                                    <span className="font-medium text-gray-900">
+                                        {pageTitle}
+                                    </span>
+                                )}
                             </nav>
                         ) : (
                             /* Context indicator for non-database pages */

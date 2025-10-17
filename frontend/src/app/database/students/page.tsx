@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header/types";
@@ -311,7 +312,7 @@ export default function StudentsPage() {
                 )}
 
                 {/* PageHeaderWithSearch - Title only on mobile */}
-                <div className="relative z-20 mb-4">
+                <div className="mb-4">
                     <PageHeaderWithSearch
                         title={isMobile ? "Schüler" : ""}
                         badge={{
@@ -336,17 +337,31 @@ export default function StudentsPage() {
                             setGroupFilter("all");
                         }}
                         actionButton={!isMobile && (
-                            <button
-                                onClick={() => setShowCreateModal(true)}
-                                className="w-10 h-10 bg-gradient-to-br from-[#5080D8] to-[#4070c8] text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group hover:scale-110 active:scale-95"
-                                aria-label="Schüler erstellen"
-                            >
-                                <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                                <svg className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                                </svg>
-                                <div className="absolute inset-0 rounded-full bg-white/20 scale-0 group-hover:scale-100 transition-transform duration-500 opacity-0 group-hover:opacity-100"></div>
-                            </button>
+                            <div className="flex items-center gap-3">
+                                <Link
+                                    href="/database/students/csv-import"
+                                    className="relative flex items-center gap-2 px-4 h-10 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 group hover:scale-105 active:scale-95"
+                                    aria-label="CSV Import"
+                                >
+                                    <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                                    <svg className="relative h-5 w-5 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                    </svg>
+                                    <span className="relative text-sm font-semibold">CSV Import</span>
+                                    <div className="absolute inset-0 rounded-full bg-white/20 scale-0 group-hover:scale-100 transition-transform duration-500 opacity-0 group-hover:opacity-100 pointer-events-none"></div>
+                                </Link>
+                                <button
+                                    onClick={() => setShowCreateModal(true)}
+                                    className="relative w-10 h-10 bg-gradient-to-br from-[#5080D8] to-[#4070c8] text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group hover:scale-110 active:scale-95"
+                                    aria-label="Schüler erstellen"
+                                >
+                                    <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+                                    <svg className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                    </svg>
+                                    <div className="absolute inset-0 rounded-full bg-white/20 scale-0 group-hover:scale-100 transition-transform duration-500 opacity-0 group-hover:opacity-100 pointer-events-none"></div>
+                                </button>
+                            </div>
                         )}
                     />
                 </div>
