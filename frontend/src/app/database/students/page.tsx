@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -38,6 +38,9 @@ export default function StudentsPage() {
     const [showSuccessAlert, setShowSuccessAlert] = useState(false);
     const [successMessage, setSuccessMessage] = useState("");
 
+    // Track mounted state to prevent race conditions
+    const isMountedRef = useRef(true);
+
     const { status } = useSession({
         required: true,
         onUnauthenticated() {
@@ -47,6 +50,13 @@ export default function StudentsPage() {
 
     // Create service instance
     const service = useMemo(() => createCrudService(studentsConfig), []);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
 
     // Handle mobile detection
     useEffect(() => {
@@ -189,11 +199,17 @@ export default function StudentsPage() {
         try {
             setDetailLoading(true);
             const freshData = await service.getOne(student.id);
+
+            // Only update state if still mounted
+            if (!isMountedRef.current) return;
+
             setSelectedStudent(freshData);
         } catch (err) {
             console.error("Error fetching student details:", err);
         } finally {
-            setDetailLoading(false);
+            if (isMountedRef.current) {
+                setDetailLoading(false);
+            }
         }
     };
 
@@ -208,6 +224,9 @@ export default function StudentsPage() {
 
             const newStudent = await service.create(studentData);
 
+            // Only update state if still mounted
+            if (!isMountedRef.current) return;
+
             const displayName = studentsConfig.list.item.title(newStudent);
             setSuccessMessage(getDbOperationMessage('create', studentsConfig.name.singular, displayName));
             setShowSuccessAlert(true);
@@ -215,7 +234,9 @@ export default function StudentsPage() {
             setShowCreateModal(false);
             await fetchStudents();
         } finally {
-            setCreateLoading(false);
+            if (isMountedRef.current) {
+                setCreateLoading(false);
+            }
         }
     };
 
@@ -232,12 +253,19 @@ export default function StudentsPage() {
 
             await service.update(selectedStudent.id, studentData);
 
+            // Only update state if still mounted
+            if (!isMountedRef.current) return;
+
             const displayName = studentsConfig.list.item.title(selectedStudent);
             setSuccessMessage(getDbOperationMessage('update', studentsConfig.name.singular, displayName));
             setShowSuccessAlert(true);
 
             // Refresh student data
             const refreshedStudent = await service.getOne(selectedStudent.id);
+
+            // Check again before updating state after second async operation
+            if (!isMountedRef.current) return;
+
             setSelectedStudent(refreshedStudent);
 
             // Close edit modal and show updated detail modal
@@ -249,7 +277,9 @@ export default function StudentsPage() {
             console.error("Error updating student:", err);
             throw err;
         } finally {
-            setDetailLoading(false);
+            if (isMountedRef.current) {
+                setDetailLoading(false);
+            }
         }
     };
 
@@ -261,6 +291,9 @@ export default function StudentsPage() {
             setDetailLoading(true);
             await service.delete(selectedStudent.id);
 
+            // Only update state if still mounted
+            if (!isMountedRef.current) return;
+
             const displayName = studentsConfig.list.item.title(selectedStudent);
             setSuccessMessage(getDbOperationMessage('delete', studentsConfig.name.singular, displayName));
             setShowSuccessAlert(true);
@@ -271,7 +304,9 @@ export default function StudentsPage() {
         } catch (err) {
             console.error("Error deleting student:", err);
         } finally {
-            setDetailLoading(false);
+            if (isMountedRef.current) {
+                setDetailLoading(false);
+            }
         }
     };
 
