@@ -17,7 +17,7 @@ function getPageTitle(pathname: string): string {
     if (pathname === "/students/search") {
         return "Kindersuche";
     }
-    
+
     // Handle specific routes with dynamic segments
     if (pathname.startsWith("/students/") && pathname !== "/students") {
         if (pathname.includes("/feedback_history")) return "Feedback Historie";
@@ -25,11 +25,11 @@ function getPageTitle(pathname: string): string {
         if (pathname.includes("/room_history")) return "Raum Historie";
         return "Schüler Details";
     }
-    
+
     if (pathname.startsWith("/rooms/") && pathname !== "/rooms") {
         return "Raum Details";
     }
-    
+
     if (pathname.startsWith("/database/")) {
         if (pathname.includes("/activities")) return "Aktivitäten";
         if (pathname.includes("/groups")) return "Gruppen";
@@ -72,6 +72,26 @@ function getPageTitle(pathname: string): string {
         default:
             return "Home";
     }
+}
+
+// Helper function to get human-readable label for sub-pages in breadcrumbs
+function getSubPageLabel(pathname: string): string {
+    // Extract the last segment of the path
+    const segments = pathname.split('/').filter(Boolean);
+    const lastSegment = segments[segments.length - 1];
+
+    // Map known sub-page paths to human-readable labels
+    const subPageLabels: Record<string, string> = {
+        'csv-import': 'CSV-Import',
+        'create': 'Erstellen',
+        'edit': 'Bearbeiten',
+        'details': 'Details',
+        'permissions': 'Berechtigungen',
+    };
+
+    // Return mapped label or capitalized last segment as fallback
+    return subPageLabels[lastSegment ?? ''] ??
+           (lastSegment ? lastSegment.charAt(0).toUpperCase() + lastSegment.slice(1) : 'Unbekannt');
 }
 
 
@@ -186,7 +206,7 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                         </svg>
                                         <span className="font-medium text-gray-900">
-                                            {pathname.includes('csv-import') ? 'CSV-Import' : pathname.split('/').pop()}
+                                            {getSubPageLabel(pathname)}
                                         </span>
                                     </>
                                 ) : (
