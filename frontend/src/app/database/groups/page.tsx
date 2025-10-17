@@ -195,7 +195,7 @@ export default function GroupsPage() {
           </button>
         )}
 
-        <div className="relative z-30 mb-4">
+        <div className="mb-4">
           <PageHeaderWithSearch
             title={isMobile ? "Gruppen" : ""}
             badge={{
@@ -214,12 +214,12 @@ export default function GroupsPage() {
             actionButton={!isMobile && (
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="w-10 h-10 bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group hover:scale-110 active:scale-95"
+                className="relative w-10 h-10 bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group hover:scale-110 active:scale-95"
                 aria-label="Gruppe erstellen"
               >
-                <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
                 <svg className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                <div className="absolute inset-0 rounded-full bg-white/20 scale-0 group-hover:scale-100 transition-transform duration-500 opacity-0 group-hover:opacity-100"></div>
+                <div className="absolute inset-0 rounded-full bg-white/20 scale-0 group-hover:scale-100 transition-transform duration-500 opacity-0 group-hover:opacity-100 pointer-events-none"></div>
               </button>
             )}
           />
