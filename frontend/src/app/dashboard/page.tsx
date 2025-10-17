@@ -25,6 +25,57 @@ const Icon: React.FC<{ path: string; className?: string }> = ({ path, className 
   </svg>
 );
 
+// Color theme types and helper
+type ColorTheme = {
+  overlay: string;
+  ring: string;
+};
+
+const COLOR_THEMES: Record<string, ColorTheme> = {
+  '[#5080D8]': {
+    overlay: 'from-blue-50/80 to-cyan-100/80',
+    ring: 'ring-blue-200/60'
+  },
+  '[#83CD2D]': {
+    overlay: 'from-green-50/80 to-lime-100/80',
+    ring: 'ring-green-200/60'
+  },
+  '[#FF3130]': {
+    overlay: 'from-red-50/80 to-rose-100/80',
+    ring: 'ring-red-200/60'
+  },
+  'orange-500': {
+    overlay: 'from-orange-50/80 to-orange-100/80',
+    ring: 'ring-orange-200/60'
+  },
+  'yellow-400': {
+    overlay: 'from-yellow-50/80 to-yellow-100/80',
+    ring: 'ring-yellow-200/60'
+  },
+  'emerald': {
+    overlay: 'from-emerald-50/80 to-green-100/80',
+    ring: 'ring-emerald-200/60'
+  },
+  'purple': {
+    overlay: 'from-purple-50/80 to-violet-100/80',
+    ring: 'ring-purple-200/60'
+  },
+  'indigo': {
+    overlay: 'from-indigo-50/80 to-blue-100/80',
+    ring: 'ring-indigo-200/60'
+  }
+};
+
+const DEFAULT_THEME: ColorTheme = {
+  overlay: 'from-gray-50/80 to-slate-100/80',
+  ring: 'ring-gray-200/60'
+};
+
+function getColorTheme(color: string): ColorTheme {
+  const matchedKey = Object.keys(COLOR_THEMES).find(key => color.includes(key));
+  return matchedKey ? COLOR_THEMES[matchedKey]! : DEFAULT_THEME;
+}
+
 // Stat Card Component - matches database page style
 interface StatCardProps {
   title: string;
@@ -36,31 +87,13 @@ interface StatCardProps {
 }
 
 const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color, subtitle, loading }) => {
-  const overlayColor = color.includes("[#5080D8]") ? "from-blue-50/80 to-cyan-100/80" :
-                       color.includes("[#83CD2D]") ? "from-green-50/80 to-lime-100/80" :
-                       color.includes("[#FF3130]") ? "from-red-50/80 to-rose-100/80" :
-                       color.includes("orange-500") ? "from-orange-50/80 to-orange-100/80" :
-                       color.includes("yellow-400") ? "from-yellow-50/80 to-yellow-100/80" :
-                       color.includes("emerald") ? "from-emerald-50/80 to-green-100/80" :
-                       color.includes("purple") ? "from-purple-50/80 to-violet-100/80" :
-                       color.includes("indigo") ? "from-indigo-50/80 to-blue-100/80" :
-                       "from-gray-50/80 to-slate-100/80";
-
-  const ringColor = color.includes("[#5080D8]") ? "ring-blue-200/60" :
-                    color.includes("[#83CD2D]") ? "ring-green-200/60" :
-                    color.includes("[#FF3130]") ? "ring-red-200/60" :
-                    color.includes("orange-500") ? "ring-orange-200/60" :
-                    color.includes("yellow-400") ? "ring-yellow-200/60" :
-                    color.includes("emerald") ? "ring-emerald-200/60" :
-                    color.includes("purple") ? "ring-purple-200/60" :
-                    color.includes("indigo") ? "ring-indigo-200/60" :
-                    "ring-gray-200/60";
+  const theme = getColorTheme(color);
 
   return (
     <div className="relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300">
-      <div className={`absolute inset-0 bg-gradient-to-br ${overlayColor} opacity-[0.03] rounded-3xl pointer-events-none`}></div>
+      <div className={`absolute inset-0 bg-gradient-to-br ${theme.overlay} opacity-[0.03] rounded-3xl pointer-events-none`}></div>
       <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20 pointer-events-none"></div>
-      <div className={`absolute inset-0 rounded-3xl ring-1 ring-white/20 ${ringColor} pointer-events-none`}></div>
+      <div className={`absolute inset-0 rounded-3xl ring-1 ring-white/20 ${theme.ring} pointer-events-none`}></div>
 
       <div className="relative p-4 md:p-6">
         <div className="flex items-start justify-between mb-3">
