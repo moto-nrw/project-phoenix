@@ -1,327 +1,14 @@
-// app/dashboard/page.tsx
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ResponsiveLayout } from "~/components/dashboard";
+import { useSession } from "next-auth/react";
+import { redirect, useRouter } from "next/navigation";
 import Link from "next/link";
+import { ResponsiveLayout } from "~/components/dashboard";
+import { UserContextProvider } from "~/lib/usercontext-context";
+import { fetchWithAuth } from "~/lib/fetch-with-auth";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import { formatRecentActivityTime, getActivityStatusColor, getGroupStatusColor } from "~/lib/dashboard-helpers";
-import { UserContextProvider, useHasEducationalGroups } from "~/lib/usercontext-context";
-import { QuickCreateActivityModal } from "~/components/activities/quick-create-modal";
-import { fetchWithAuth } from "~/lib/fetch-with-auth";
-
-// Info Card Component with proper TypeScript types and responsive design
-interface InfoCardProps {
-  title: string;
-  children: React.ReactNode;
-  href?: string;
-  className?: string;
-}
-
-const InfoCard: React.FC<InfoCardProps> = ({ title, children, href, className }) => (
-  <div className={`rounded-lg border border-gray-100 bg-white p-4 md:p-6 shadow-md h-full ${className ?? ""}`}>
-    <div className="mb-3 md:mb-4 flex items-start md:items-center justify-between flex-col md:flex-row gap-2 md:gap-0">
-      <h3 className="text-base md:text-lg font-semibold">{title}</h3>
-      {href && (
-        <Link
-          href={href}
-          className="text-xs md:text-sm font-medium text-purple-600 hover:text-purple-800 self-end md:self-auto"
-        >
-          <span className="hidden md:inline">
-            {title.includes("OGS") ? "Meine OGS-Gruppe →" : "Alle anzeigen →"}
-          </span>
-          <span className="md:hidden">
-            {title.includes("OGS") ? "OGS →" : "Alle →"}
-          </span>
-        </Link>
-      )}
-    </div>
-    {children}
-  </div>
-);
-
-// Student Stats Component
-interface StudentStatsProps {
-    data: DashboardAnalytics | null;
-    isLoading: boolean;
-}
-
-const StudentStats: React.FC<StudentStatsProps> = ({ data, isLoading }) => (
-    <InfoCard title="Schülerübersicht" href="/students/search">
-        <div className="grid grid-cols-2 gap-2 md:gap-4">
-            <div className="rounded-lg bg-blue-50 p-2 md:p-3">
-                <p className="text-xs md:text-sm text-blue-800">Anwesend</p>
-                <p className="text-xl md:text-2xl font-bold text-blue-900">
-                    {isLoading ? "..." : data?.studentsPresent ?? 0}
-                </p>
-            </div>
-            <div className="rounded-lg bg-orange-50 p-2 md:p-3">
-                <p className="text-xs md:text-sm text-orange-800">Unterwegs</p>
-                <p className="text-xl md:text-2xl font-bold text-orange-900">
-                    {isLoading ? "..." : data?.studentsInTransit ?? 0}
-                </p>
-            </div>
-            <div className="rounded-lg bg-amber-50 p-2 md:p-3">
-                <p className="text-xs md:text-sm text-amber-800">Schulhof</p>
-                <p className="text-xl md:text-2xl font-bold text-amber-900">
-                    {isLoading ? "..." : data?.studentsOnPlayground ?? 0}
-                </p>
-            </div>
-            <div className="rounded-lg bg-purple-50 p-2 md:p-3">
-                <p className="text-xs md:text-sm text-purple-800">In Räumen</p>
-                <p className="text-xl md:text-2xl font-bold text-purple-900">
-                    {isLoading ? "..." : data?.studentsInRooms ?? 0}
-                </p>
-            </div>
-        </div>
-        {data?.recentActivity && data.recentActivity.length > 0 && (
-            <div className="mt-3 md:mt-4">
-                <h4 className="mb-2 text-xs md:text-sm font-medium text-gray-700">
-                    Letzte Aktivitäten
-                </h4>
-                <ul className="divide-y divide-gray-200">
-                    {data.recentActivity.slice(0, 3).map((activity, index) => (
-                        <li key={index} className="py-1.5 md:py-2">
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs md:text-sm text-gray-900 truncate pr-2">
-                                    {activity.groupName} → {activity.roomName}
-                                    {activity.count > 1 && ` (${activity.count} Schüler)`}
-                                </span>
-                                <span className="text-xs text-gray-500 flex-shrink-0">
-                                    {formatRecentActivityTime(activity.timestamp)}
-                                </span>
-                            </div>
-                        </li>
-                    ))}
-                </ul>
-            </div>
-        )}
-    </InfoCard>
-);
-
-// Activity Stats Component
-interface ActivityStatsProps {
-    data: DashboardAnalytics | null;
-    isLoading: boolean;
-}
-
-const ActivityStats: React.FC<ActivityStatsProps> = ({ data, isLoading }) => (
-    <InfoCard title="Aktivitäten und Räume" href="/database/activities">
-        <div className="grid grid-cols-2 gap-2 md:gap-4">
-            <div className="rounded-lg bg-purple-50 p-2 md:p-3">
-                <p className="text-xs md:text-sm text-purple-800">Aktuelle Aktivitäten</p>
-                <p className="text-xl md:text-2xl font-bold text-purple-900">
-                    {isLoading ? "..." : data?.activeActivities ?? 0}
-                </p>
-            </div>
-            <div className="rounded-lg bg-green-50 p-2 md:p-3">
-                <p className="text-xs md:text-sm text-green-800">Freie Räume</p>
-                <p className="text-xl md:text-2xl font-bold text-green-900">
-                    {isLoading ? "..." : data?.freeRooms ?? 0}
-                </p>
-            </div>
-            <div className="rounded-lg bg-blue-50 p-2 md:p-3">
-                <p className="text-xs md:text-sm text-blue-800">Kapazität genutzt</p>
-                <p className="text-xl md:text-2xl font-bold text-blue-900">
-                    {isLoading ? "..." : data ? `${Math.round(data.capacityUtilization * 100)}%` : "0%"}
-                </p>
-            </div>
-            <div className="rounded-lg bg-amber-50 p-2 md:p-3">
-                <p className="text-xs md:text-sm text-amber-800">Kategorien</p>
-                <p className="text-xl md:text-2xl font-bold text-amber-900">
-                    {isLoading ? "..." : data?.activityCategories ?? 0}
-                </p>
-            </div>
-        </div>
-        {data?.currentActivities && data.currentActivities.length > 0 && (
-            <div className="mt-3 md:mt-4">
-                <h4 className="mb-2 text-xs md:text-sm font-medium text-gray-700">
-                    Aktuelle Aktivitäten
-                </h4>
-                <ul className="divide-y divide-gray-200">
-                    {data.currentActivities.slice(0, 2).map((activity, index) => (
-                        <li key={index} className="py-1.5 md:py-2">
-                            <div className="flex justify-between items-center">
-                                <div className="min-w-0 flex-1 pr-2">
-                                    <p className="text-xs md:text-sm font-medium text-gray-900 truncate">{activity.name}</p>
-                                    <p className="text-xs text-gray-500 truncate">
-                                        {activity.category} • {activity.participants}/{activity.maxCapacity} Teilnehmer
-                                    </p>
-                                </div>
-                                <div className={`h-2 w-2 flex-shrink-0 rounded-full ${getActivityStatusColor(activity.status)}`}></div>
-                            </div>
-                        </li>
-                    ))}
-                </ul>
-            </div>
-        )}
-    </InfoCard>
-);
-
-// OGS Groups Stats Component
-interface OGSGroupsStatsProps {
-    data: DashboardAnalytics | null;
-    isLoading: boolean;
-}
-
-const OGSGroupsStats: React.FC<OGSGroupsStatsProps> = ({ data, isLoading }) => (
-    <InfoCard title="OGS-Gruppen Übersicht" href="/ogs_groups">
-        <div className="grid grid-cols-2 gap-2 md:gap-4">
-            <div className="rounded-lg bg-amber-50 p-2 md:p-3">
-                <p className="text-xs md:text-sm text-amber-800">Aktive Gruppen</p>
-                <p className="text-xl md:text-2xl font-bold text-amber-900">
-                    {isLoading ? "..." : data?.activeOGSGroups ?? 0}
-                </p>
-            </div>
-            <div className="rounded-lg bg-purple-50 p-2 md:p-3">
-                <p className="text-xs md:text-sm text-purple-800">In Gruppenräumen</p>
-                <p className="text-xl md:text-2xl font-bold text-purple-900">
-                    {isLoading ? "..." : data?.studentsInGroupRooms ?? 0}
-                </p>
-            </div>
-            <div className="rounded-lg bg-blue-50 p-2 md:p-3">
-                <p className="text-xs md:text-sm text-blue-800">Betreuer heute</p>
-                <p className="text-xl md:text-2xl font-bold text-blue-900">
-                    {isLoading ? "..." : data?.supervisorsToday ?? 0}
-                </p>
-            </div>
-            <div className="rounded-lg bg-green-50 p-2 md:p-3">
-                <p className="text-xs md:text-sm text-green-800">In Heimatraum</p>
-                <p className="text-xl md:text-2xl font-bold text-green-900">
-                    {isLoading ? "..." : data?.studentsInHomeRoom ?? 0}
-                </p>
-            </div>
-        </div>
-        {data?.activeGroupsSummary && data.activeGroupsSummary.length > 0 && (
-            <div className="mt-3 md:mt-4">
-                <h4 className="mb-2 text-xs md:text-sm font-medium text-gray-700">
-                    Letzte Gruppenaktivitäten
-                </h4>
-                <ul className="divide-y divide-gray-200">
-                    {data.activeGroupsSummary.slice(0, 2).map((group, index) => (
-                        <li key={index} className="py-1.5 md:py-2">
-                            <div className="flex justify-between items-center">
-                                <div className="min-w-0 flex-1 pr-2">
-                                    <p className="text-xs md:text-sm font-medium text-gray-900 truncate">{group.name}</p>
-                                    <p className="text-xs text-gray-500 truncate">
-                                        {group.location} • {group.studentCount} Kinder
-                                    </p>
-                                </div>
-                                <div className={`h-2 w-2 flex-shrink-0 rounded-full ${getGroupStatusColor(group.status)}`}></div>
-                            </div>
-                        </li>
-                    ))}
-                </ul>
-            </div>
-        )}
-    </InfoCard>
-);
-
-// Quick Actions Component
-interface QuickActionsProps {
-    showOGSGroups: boolean;
-}
-
-const QuickActions: React.FC<QuickActionsProps> = ({ showOGSGroups }) => {
-    const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
-
-    return (
-        <>
-            <InfoCard title="Schnellzugriff">
-                <div className="grid grid-cols-1 gap-2 md:gap-3">
-                    {/* Quick Create Activity Button */}
-                    <button
-                        onClick={() => setIsQuickCreateOpen(true)}
-                        className="flex items-center rounded-lg border border-gray-200 p-2 md:p-3 transition-all hover:border-blue-500 hover:bg-blue-50 active:bg-blue-100 w-full text-left"
-                    >
-                        <div className="mr-2 md:mr-3 p-1.5 md:p-2 rounded-lg bg-blue-100">
-                            <svg className="h-4 w-4 md:h-5 md:w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                            </svg>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <h4 className="text-sm md:text-base font-medium text-gray-900">Schnell-Aktivität</h4>
-                            <p className="text-xs text-gray-500 truncate">Neue Aktivität schnell erstellen</p>
-                        </div>
-                    </button>
-            <Link
-                href="/students/search"
-                className="flex items-center rounded-lg border border-gray-200 p-2 md:p-3 transition-all hover:border-blue-500 hover:bg-blue-50 active:bg-blue-100"
-            >
-                <div className="mr-2 md:mr-3 p-1.5 md:p-2 rounded-lg bg-blue-100">
-                    <svg className="h-4 w-4 md:h-5 md:w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                </div>
-                <div className="min-w-0 flex-1">
-                    <h4 className="text-sm md:text-base font-medium text-gray-900">Schüler finden</h4>
-                    <p className="text-xs text-gray-500 truncate">Schnellsuche nach Namen oder Klasse</p>
-                </div>
-            </Link>
-
-            {showOGSGroups && (
-                <Link
-                    href="/ogs_groups"
-                    className="flex items-center rounded-lg border border-gray-200 p-2 md:p-3 transition-all hover:border-green-500 hover:bg-green-50 active:bg-green-100"
-                >
-                    <div className="mr-2 md:mr-3 p-1.5 md:p-2 rounded-lg bg-green-100">
-                        <svg className="h-4 w-4 md:h-5 md:w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                        </svg>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <h4 className="text-sm md:text-base font-medium text-gray-900">OGS Gruppe</h4>
-                        <p className="text-xs text-gray-500 truncate">Informationen meiner Gruppe</p>
-                    </div>
-                </Link>
-            )}
-
-      {/* <Link
-        href="/statistics"
-        className="flex items-center rounded-lg border border-gray-200 p-2 md:p-3 transition-all hover:border-amber-500 hover:bg-amber-50 active:bg-amber-100"
-      >
-        <div className="mr-2 md:mr-3 p-1.5 md:p-2 rounded-lg bg-amber-100">
-          <svg className="h-4 w-4 md:h-5 md:w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-        </div>
-        <div className="min-w-0 flex-1">
-          <h4 className="text-sm md:text-base font-medium text-gray-900">Statistiken</h4>
-          <p className="text-xs text-gray-500 truncate">Schulweite Kennzahlen und Daten</p>
-        </div>
-      </Link> */}
-
-      <Link
-        href="/substitutions"
-        className="flex items-center rounded-lg border border-gray-200 p-2 md:p-3 transition-all hover:border-purple-500 hover:bg-purple-50 active:bg-purple-100"
-      >
-        <div className="mr-2 md:mr-3 p-1.5 md:p-2 rounded-lg bg-purple-100">
-          <svg className="h-4 w-4 md:h-5 md:w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-        </div>
-        <div className="min-w-0 flex-1">
-          <h4 className="text-sm md:text-base font-medium text-gray-900">Vertretungen</h4>
-          <p className="text-xs text-gray-500 truncate">Personalausfälle verwalten</p>
-        </div>
-      </Link>
-                </div>
-            </InfoCard>
-            
-            {/* Quick Create Activity Modal */}
-            <QuickCreateActivityModal
-                isOpen={isQuickCreateOpen}
-                onClose={() => setIsQuickCreateOpen(false)}
-                onSuccess={() => {
-                    setIsQuickCreateOpen(false);
-                    // Optional: Show success notification or refresh data
-                }}
-            />
-        </>
-    );
-};
 
 // Helper function to get time-based greeting
 function getTimeBasedGreeting(): string {
@@ -331,146 +18,410 @@ function getTimeBasedGreeting(): string {
   return "Guten Abend";
 }
 
-// Helper function to get current date in German format
-function getCurrentDate(): string {
-  const today = new Date();
-  const options: Intl.DateTimeFormatOptions = {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  };
-  return today.toLocaleDateString('de-DE', options);
+// Icon component
+const Icon: React.FC<{ path: string; className?: string }> = ({ path, className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d={path} />
+  </svg>
+);
+
+// Stat Card Component - matches database page style
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  icon: string;
+  color: string;
+  subtitle?: string;
+  loading?: boolean;
 }
 
-// Dashboard Content Component that uses the context
+const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color, subtitle, loading }) => {
+  const overlayColor = color.includes("[#5080D8]") ? "from-blue-50/80 to-cyan-100/80" :
+                       color.includes("[#83CD2D]") ? "from-green-50/80 to-lime-100/80" :
+                       color.includes("[#FF3130]") ? "from-red-50/80 to-rose-100/80" :
+                       color.includes("orange-500") ? "from-orange-50/80 to-orange-100/80" :
+                       color.includes("yellow-400") ? "from-yellow-50/80 to-yellow-100/80" :
+                       color.includes("emerald") ? "from-emerald-50/80 to-green-100/80" :
+                       color.includes("purple") ? "from-purple-50/80 to-violet-100/80" :
+                       color.includes("indigo") ? "from-indigo-50/80 to-blue-100/80" :
+                       "from-gray-50/80 to-slate-100/80";
+
+  const ringColor = color.includes("[#5080D8]") ? "ring-blue-200/60" :
+                    color.includes("[#83CD2D]") ? "ring-green-200/60" :
+                    color.includes("[#FF3130]") ? "ring-red-200/60" :
+                    color.includes("orange-500") ? "ring-orange-200/60" :
+                    color.includes("yellow-400") ? "ring-yellow-200/60" :
+                    color.includes("emerald") ? "ring-emerald-200/60" :
+                    color.includes("purple") ? "ring-purple-200/60" :
+                    color.includes("indigo") ? "ring-indigo-200/60" :
+                    "ring-gray-200/60";
+
+  return (
+    <div className="relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300">
+      <div className={`absolute inset-0 bg-gradient-to-br ${overlayColor} opacity-[0.03] rounded-3xl pointer-events-none`}></div>
+      <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20 pointer-events-none"></div>
+      <div className={`absolute inset-0 rounded-3xl ring-1 ring-white/20 ${ringColor} pointer-events-none`}></div>
+
+      <div className="relative p-4 md:p-6">
+        <div className="flex items-start justify-between mb-3">
+          <div className={`rounded-2xl bg-gradient-to-br ${color} p-2.5 md:p-3 text-white shadow-lg`}>
+            <Icon path={icon} className="h-5 w-5 md:h-6 md:w-6" />
+          </div>
+          {loading && (
+            <div className="h-2 w-2 rounded-full bg-gray-400 animate-pulse"></div>
+          )}
+        </div>
+        <div className="space-y-1">
+          <p className="text-xs md:text-sm text-gray-600 font-medium">{title}</p>
+          <p className="text-2xl md:text-3xl font-bold text-gray-900">
+            {loading ? "..." : value}
+          </p>
+          {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Info Card Component for lists
+interface InfoCardProps {
+  title: string;
+  children: React.ReactNode;
+  icon?: string;
+  href?: string;
+}
+
+const InfoCard: React.FC<InfoCardProps> = ({ title, children, icon, href }) => (
+  <div className="relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+    <div className="absolute inset-0 bg-gradient-to-br from-gray-50/80 to-slate-100/80 opacity-[0.03] rounded-3xl pointer-events-none"></div>
+    <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20 pointer-events-none"></div>
+    <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 pointer-events-none"></div>
+
+    <div className="relative p-4 md:p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          {icon && (
+            <div className="rounded-xl bg-gray-100 p-2">
+              <Icon path={icon} className="h-4 w-4 md:h-5 md:w-5 text-gray-600" />
+            </div>
+          )}
+          <h3 className="text-base md:text-lg font-semibold text-gray-900">{title}</h3>
+        </div>
+        {href && (
+          <Link href={href} className="text-xs md:text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors">
+            Alle →
+          </Link>
+        )}
+      </div>
+      {children}
+    </div>
+  </div>
+);
+
 function DashboardContent() {
-    const router = useRouter();
-    const { data: session, status } = useSession({
-        required: true,
-        onUnauthenticated() {
-            router.push("/");
-        },
-    });
+  const router = useRouter();
+  const { data: session, status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      redirect("/");
+    },
+  });
 
-    const [dashboardData, setDashboardData] = useState<DashboardAnalytics | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardAnalytics | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-    // Check if user has educational groups
-    const { hasEducationalGroups, isLoading: groupsLoading } = useHasEducationalGroups();
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetchWithAuth("/api/dashboard/analytics");
 
-    useEffect(() => {
-        const fetchDashboardData = async () => {
-            try {
-                setIsLoading(true);
-                const response = await fetchWithAuth("/api/dashboard/analytics");
-                
-                // fetchWithAuth will handle 401 and retry, so if we get here with !ok, it's a real error
-                if (!response.ok) {
-                    console.error(`Dashboard API returned status ${response.status}`);
-                    throw new Error("Failed to fetch dashboard data");
-                }
-
-                const data = await response.json() as { data: DashboardAnalytics };
-                setDashboardData(data.data);
-                setError(null);
-            } catch (err) {
-                console.error("Error fetching dashboard data:", err);
-                setError("Fehler beim Laden der Dashboard-Daten");
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        // Check for session errors
-        if (status === "authenticated" && session) {
-            // Type assertion to access error property
-            const sessionWithError = session as typeof session & { error?: string };
-            if (sessionWithError.error === "RefreshTokenExpired") {
-                console.log("Session refresh token expired, redirecting to login");
-                router.push("/");
-                return;
-            }
-            
-            // Only fetch if we have a valid token
-            if (session.user?.token) {
-                void fetchDashboardData();
-            } else {
-                console.log("No valid token in session, redirecting to login");
-                router.push("/");
-            }
-
-            // Refresh data every 5 minutes
-            const interval = setInterval(() => {
-                void fetchDashboardData();
-            }, 5 * 60 * 1000);
-
-            return () => clearInterval(interval);
+        if (!response.ok) {
+          console.error(`Dashboard API returned status ${response.status}`);
+          throw new Error("Failed to fetch dashboard data");
         }
-    }, [status, session, router]);
 
-    if (status === "loading") {
-        return (
-            <div className="flex min-h-screen items-center justify-center">
-                <p>Loading...</p>
-            </div>
-        );
+        const data = await response.json() as { data: DashboardAnalytics };
+        setDashboardData(data.data);
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching dashboard data:", err);
+        setError("Fehler beim Laden der Dashboard-Daten");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (status === "authenticated" && session) {
+      const sessionWithError = session as typeof session & { error?: string };
+      if (sessionWithError.error === "RefreshTokenExpired") {
+        console.log("Session refresh token expired, redirecting to login");
+        router.push("/");
+        return;
+      }
+
+      if (session.user?.token) {
+        void fetchDashboardData();
+      } else {
+        console.log("No valid token in session, redirecting to login");
+        router.push("/");
+      }
+
+      // Refresh data every 5 minutes
+      const interval = setInterval(() => {
+        void fetchDashboardData();
+      }, 5 * 60 * 1000);
+
+      return () => clearInterval(interval);
     }
+  }, [status, session, router]);
 
-    const firstName = session?.user?.name?.split(' ')[0] ?? "Root";
-    const greeting = getTimeBasedGreeting();
-    const currentDate = getCurrentDate();
-
+  if (status === "loading") {
     return (
-        <ResponsiveLayout>
-            <div className="max-w-7xl mx-auto">
-                {/* Welcome Header with Time Context - Mobile Responsive */}
-                <div className="mb-6 md:mb-8">
-                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-1 md:mb-2">
-                        {greeting}, {firstName}!
-                    </h1>
-                    <div className="text-gray-600 text-base md:text-lg">
-                        {/* Mobile: Split date and description into separate lines */}
-                        <div className="block md:hidden">
-                            <div className="text-sm">{currentDate}</div>
-                            <div className="text-sm mt-1">Deine Übersicht für heute</div>
-                        </div>
-                        {/* Desktop: Single line with bullet */}
-                        <div className="hidden md:block">
-                            {currentDate} • Hier ist deine Übersicht für heute
-                        </div>
-                    </div>
-                </div>
-
-                {/* Error Message */}
-                {error && (
-                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
-                        {error}
-                    </div>
-                )}
-
-                {/* Stats Grid - Mobile Responsive with Equal Heights */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mb-6 md:mb-8">
-                    <div className="flex flex-col gap-4 md:gap-6">
-                        <QuickActions showOGSGroups={!groupsLoading && hasEducationalGroups} />
-                        <StudentStats data={dashboardData} isLoading={isLoading} />
-                    </div>
-                    <div className="flex flex-col gap-4 md:gap-6">
-                        <OGSGroupsStats data={dashboardData} isLoading={isLoading} />
-                        <ActivityStats data={dashboardData} isLoading={isLoading} />
-                    </div>
-                </div>
-            </div>
-        </ResponsiveLayout>
+      <ResponsiveLayout>
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-gray-900"></div>
+            <p className="text-gray-600">Dashboard wird geladen...</p>
+          </div>
+        </div>
+      </ResponsiveLayout>
     );
+  }
+
+  const firstName = session?.user?.name?.split(" ")[0] ?? "User";
+  const greeting = getTimeBasedGreeting();
+
+  return (
+    <ResponsiveLayout>
+      <div className="w-full max-w-7xl mx-auto">
+        {/* Greeting Section */}
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">
+            {greeting}, {firstName}!
+          </h1>
+          <p className="text-gray-600 text-sm md:text-base">
+            Hier ist die aktuelle Übersicht
+          </p>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl text-red-800 text-sm">
+            {error}
+          </div>
+        )}
+
+        {/* Main Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
+          <StatCard
+            title="Kinder anwesend"
+            value={dashboardData?.studentsPresent ?? 0}
+            icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+            color="from-[#5080D8] to-[#4070c8]"
+            loading={isLoading}
+          />
+          <StatCard
+            title="In Räumen"
+            value={dashboardData?.studentsInRooms ?? 0}
+            icon="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+            color="from-indigo-500 to-indigo-600"
+            loading={isLoading}
+          />
+          <StatCard
+            title="Aktive Gruppen"
+            value={dashboardData?.activeOGSGroups ?? 0}
+            icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+            color="from-[#83CD2D] to-[#70b525]"
+            loading={isLoading}
+          />
+          <StatCard
+            title="Aktivitäten"
+            value={dashboardData?.activeActivities ?? 0}
+            icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+            color="from-[#FF3130] to-[#e02020]"
+            loading={isLoading}
+          />
+        </div>
+
+        {/* Secondary Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
+          <StatCard
+            title="Unterwegs"
+            value={dashboardData?.studentsInTransit ?? 0}
+            icon="M13 10V3L4 14h7v7l9-11h-7z"
+            color="from-orange-500 to-orange-600"
+            subtitle="zwischen Räumen"
+            loading={isLoading}
+          />
+          <StatCard
+            title="Schulhof"
+            value={dashboardData?.studentsOnPlayground ?? 0}
+            icon="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"
+            color="from-yellow-400 to-yellow-500"
+            subtitle="im Freien"
+            loading={isLoading}
+          />
+          <StatCard
+            title="Freie Räume"
+            value={dashboardData?.freeRooms ?? 0}
+            icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+            color="from-emerald-500 to-green-600"
+            subtitle="verfügbar"
+            loading={isLoading}
+          />
+          <StatCard
+            title="Auslastung"
+            value={dashboardData ? `${Math.round(dashboardData.capacityUtilization * 100)}%` : "0%"}
+            icon="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+            color="from-purple-500 to-purple-600"
+            subtitle="Kapazität"
+            loading={isLoading}
+          />
+        </div>
+
+        {/* Activity Lists Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+          {/* Recent Activity */}
+          <InfoCard
+            title="Letzte Bewegungen"
+            icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+          >
+            {isLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-12 bg-gray-100 rounded-lg animate-pulse"></div>
+                ))}
+              </div>
+            ) : dashboardData?.recentActivity && dashboardData.recentActivity.length > 0 ? (
+              <div className="space-y-2">
+                {dashboardData.recentActivity.slice(0, 5).map((activity, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 rounded-xl bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {activity.groupName} → {activity.roomName}
+                      </p>
+                      {activity.count > 1 && (
+                        <p className="text-xs text-gray-500">{activity.count} Kinder</p>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-500 ml-2 flex-shrink-0">
+                      {formatRecentActivityTime(activity.timestamp)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-8">Keine aktuellen Bewegungen</p>
+            )}
+          </InfoCard>
+
+          {/* Current Activities */}
+          <InfoCard
+            title="Laufende Aktivitäten"
+            icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+            href="/activities"
+          >
+            {isLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-14 bg-gray-100 rounded-lg animate-pulse"></div>
+                ))}
+              </div>
+            ) : dashboardData?.currentActivities && dashboardData.currentActivities.length > 0 ? (
+              <div className="space-y-2">
+                {dashboardData.currentActivities.slice(0, 5).map((activity, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 rounded-xl bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{activity.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {activity.category} • {activity.participants}/{activity.maxCapacity} Teilnehmer
+                      </p>
+                    </div>
+                    <div className={`h-2.5 w-2.5 rounded-full ${getActivityStatusColor(activity.status)} flex-shrink-0 ml-2`}></div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-8">Keine laufenden Aktivitäten</p>
+            )}
+          </InfoCard>
+
+          {/* Active Groups */}
+          <InfoCard
+            title="Aktive Gruppen"
+            icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+            href="/ogs_groups"
+          >
+            {isLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-14 bg-gray-100 rounded-lg animate-pulse"></div>
+                ))}
+              </div>
+            ) : dashboardData?.activeGroupsSummary && dashboardData.activeGroupsSummary.length > 0 ? (
+              <div className="space-y-2">
+                {dashboardData.activeGroupsSummary.slice(0, 5).map((group, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 rounded-xl bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{group.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {group.location} • {group.studentCount} Kinder
+                      </p>
+                    </div>
+                    <div className={`h-2.5 w-2.5 rounded-full ${getGroupStatusColor(group.status)} flex-shrink-0 ml-2`}></div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-8">Keine aktiven Gruppen</p>
+            )}
+          </InfoCard>
+
+          {/* Betreuer Summary */}
+          <InfoCard
+            title="Personal heute"
+            icon="M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"
+            href="/staff"
+          >
+            {isLoading ? (
+              <div className="h-32 bg-gray-100 rounded-lg animate-pulse"></div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-cyan-50">
+                  <p className="text-xs text-blue-700 font-medium mb-1">Betreuer im Dienst</p>
+                  <p className="text-2xl font-bold text-blue-900">{dashboardData?.supervisorsToday ?? 0}</p>
+                </div>
+                {dashboardData && dashboardData.studentsPresent > 0 && dashboardData.supervisorsToday > 0 ? (
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50">
+                    <p className="text-xs text-green-700 font-medium mb-1">Kinder je Betreuer</p>
+                    <p className="text-2xl font-bold text-green-900">
+                      {Math.round(dashboardData.studentsPresent / dashboardData.supervisorsToday)}
+                    </p>
+                    <p className="text-xs text-green-600 mt-1">Betreuungsschlüssel</p>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-gray-50 to-slate-50">
+                    <p className="text-xs text-gray-600 font-medium mb-1">Kinder je Betreuer</p>
+                    <p className="text-2xl font-bold text-gray-700">-</p>
+                    <p className="text-xs text-gray-500 mt-1">Keine Daten</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </InfoCard>
+        </div>
+      </div>
+    </ResponsiveLayout>
+  );
 }
 
 // Main Dashboard Page Component
 export default function DashboardPage() {
-    return (
-        <UserContextProvider>
-            <DashboardContent />
-        </UserContextProvider>
-    );
+  return (
+    <UserContextProvider>
+      <DashboardContent />
+    </UserContextProvider>
+  );
 }
