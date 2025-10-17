@@ -36,7 +36,6 @@ interface CSVStudent {
 export default function StudentCSVImportPage() {
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
     const [csvData, setCsvData] = useState<CSVStudent[]>([]);
-    const [_isProcessing, setIsProcessing] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
     const [showEditModal, setShowEditModal] = useState(false);
@@ -71,7 +70,6 @@ export default function StudentCSVImportPage() {
     // Handle file upload and parsing
     const handleFileUpload = useCallback((file: File) => {
         setUploadedFile(file);
-        setIsProcessing(true);
 
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -129,7 +127,6 @@ export default function StudentCSVImportPage() {
             });
 
             setCsvData(parsedData);
-            setIsProcessing(false);
         };
 
         reader.readAsText(file);
