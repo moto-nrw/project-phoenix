@@ -46,34 +46,29 @@ For production deployments, you can use a system cron job for better reliability
 
 ### Option 3: Docker with Built-in Scheduler (Recommended)
 
-For containerized deployments, use the built-in scheduler by enabling it in your environment.
+For containerized deployments, the built-in scheduler is **enabled by default** in `docker-compose.yml`.
 
 **Usage:**
 ```bash
-# Start server with scheduler enabled
-docker compose -f docker-compose.yml -f docker-compose.scheduler.yml up -d server-with-scheduler
+# Scheduler runs automatically with default settings
+docker compose up -d
 
 # Or run cleanup manually
-docker compose -f docker-compose.scheduler.yml run cleanup-manual
+docker compose exec server ./main cleanup visits
 ```
 
 **Configuration:**
-- Set `CLEANUP_SCHEDULER_ENABLED=true` in environment
-- Set `CLEANUP_SCHEDULER_TIME` (default: "02:00")
-- The scheduler runs as part of the main application
+The scheduler is enabled by default with these environment variables (in `docker-compose.yml`):
+- `CLEANUP_SCHEDULER_ENABLED=true` (enabled by default)
+- `CLEANUP_SCHEDULER_TIME=02:00` (runs at 2:00 AM by default)
+- `CLEANUP_SCHEDULER_TIMEOUT_MINUTES=30` (30 minute timeout)
+- `SESSION_END_SCHEDULER_ENABLED=true` (enabled by default)
+- `SESSION_END_TIME=18:00` (ends sessions at 6:00 PM by default)
 
-### Option 4: Docker with System Cron (Alternative)
+**To disable the scheduler:**
+Set `CLEANUP_SCHEDULER_ENABLED=false` in your `.env` file.
 
-If you prefer using system cron, you'll need to install dcron in the Dockerfile:
-
-**Dockerfile modification:**
-```dockerfile
-RUN apk --no-cache add ca-certificates bash dcron
-```
-
-Then use the original docker-compose.cleanup.yml configuration.
-
-### Option 5: Kubernetes CronJob
+### Option 4: Kubernetes CronJob
 
 For Kubernetes deployments, create a CronJob resource:
 
