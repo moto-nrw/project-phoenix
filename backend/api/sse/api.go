@@ -85,19 +85,44 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 		activeGroupIDs = append(activeGroupIDs, strconv.FormatInt(supervision.GroupID, 10))
 	}
 
-	// If user has no active supervisions, return empty stream
+	// Emit initial connected event so clients know the stream is ready
+	initialEvent := struct {
+		Status               string   `json:"status"`
+		SupervisedGroupCount int      `json:"supervisedGroupCount"`
+		ActiveGroupIDs       []string `json:"activeGroupIds"`
+	}{
+		Status:               "ready",
+		SupervisedGroupCount: len(activeGroupIDs),
+		ActiveGroupIDs:       activeGroupIDs,
+	}
+
+	initialData, err := json.Marshal(initialEvent)
+	if err != nil {
+		if logging.Logger != nil {
+			logging.Logger.WithFields(map[string]interface{}{
+				"error":    err.Error(),
+				"staff_id": staff.ID,
+			}).Error("Failed to marshal initial SSE event")
+		}
+		http.Error(w, "Failed to initialize SSE stream", http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := fmt.Fprintf(w, "event: connected\n"); err != nil {
+		return
+	}
+	if _, err := fmt.Fprintf(w, "data: %s\n\n", initialData); err != nil {
+		return
+	}
+	flusher.Flush()
+
+	// If user has no active supervisions, keep connection alive with heartbeat only
 	if len(activeGroupIDs) == 0 {
 		if logging.Logger != nil {
 			logging.Logger.WithFields(map[string]interface{}{
 				"staff_id": staff.ID,
 			}).Info("SSE connection - no active supervisions")
 		}
-
-		// Send initial comment and keep connection open
-		if _, err := fmt.Fprintf(w, ": no active supervisions\n\n"); err != nil {
-			return // Client disconnected
-		}
-		flusher.Flush()
 
 		// Keep connection alive with heartbeat only
 		ticker := time.NewTicker(30 * time.Second)
