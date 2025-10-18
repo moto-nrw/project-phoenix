@@ -7,6 +7,9 @@ devices:
   - device_id: RFID-LIB-001
     api_key: duXtnmh1fa60iMWswHw1FT57MBY5Fy4S
     teacher_ids: [1, 2]
+    default_session:
+      activity_id: 13
+      room_id: 10
   - device_id: RFID-MAIN-001
     api_key: ejpSOD5EEyMtbgsWBFNEoPU8MX0z553E
     teacher_ids: [1, 2]
@@ -16,9 +19,15 @@ devices:
   - device_id: RFID-OGS-001
     api_key: hXgo5rnEZyUt0pU9zLh6r2Zz2bEii9NU
     teacher_ids: [3]
+    default_session:
+      activity_id: 15
+      room_id: 21
   - device_id: RFID-SPORT-001
     api_key: otuqhf4DB7UD3e7bcvCducJ8ZopL5vH4
     teacher_ids: [4]
+    default_session:
+      activity_id: 1
+      room_id: 19
   - device_id: TEMP-CLASS-001
     api_key: TY4fKtGqHrzoenlQVtd8Lmp6sDIyoFcf
   - device_id: TEMP-MENSA-001

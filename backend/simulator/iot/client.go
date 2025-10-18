@@ -1,6 +1,7 @@
 package iot
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -91,6 +92,65 @@ func (c *Client) FetchActivities(ctx context.Context, device DeviceConfig) ([]io
 		return nil, err
 	}
 	return result, nil
+}
+
+// StartSession starts a default session for the device.
+func (c *Client) StartSession(ctx context.Context, device DeviceConfig, session *SessionConfig) (*iotapi.SessionStartResponse, error) {
+	if session == nil {
+		return nil, fmt.Errorf("session config is required")
+	}
+
+	payload := map[string]interface{}{
+		"activity_id": session.ActivityID,
+		"room_id":     session.RoomID,
+	}
+	if len(session.SupervisorIDs) > 0 {
+		payload["supervisor_ids"] = session.SupervisorIDs
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal session payload: %w", err)
+	}
+
+	req, err := c.newRequest(ctx, device, http.MethodPost, "/api/iot/session/start", nil, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("build session start request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("call session start endpoint: %w", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return nil, fmt.Errorf("unexpected status %d from /api/iot/session/start: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var envelope apiResponse
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, fmt.Errorf("decode response from /api/iot/session/start: %w", err)
+	}
+
+	if envelope.Status != "success" {
+		return nil, fmt.Errorf("session start failed: %s", envelope.Message)
+	}
+
+	if len(envelope.Data) == 0 || string(envelope.Data) == "null" {
+		return nil, fmt.Errorf("session start returned empty payload")
+	}
+
+	var result iotapi.SessionStartResponse
+	if err := json.Unmarshal(envelope.Data, &result); err != nil {
+		return nil, fmt.Errorf("decode session start payload: %w", err)
+	}
+
+	return &result, nil
 }
 
 func (c *Client) get(ctx context.Context, device DeviceConfig, path string, query url.Values, out interface{}) error {

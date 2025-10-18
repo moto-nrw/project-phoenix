@@ -25,10 +25,18 @@ type Config struct {
 
 // DeviceConfig holds credentials and metadata for a simulated device.
 type DeviceConfig struct {
-	DeviceID        string  `yaml:"device_id"`
-	APIKey          string  `yaml:"api_key"`
-	TeacherIDs      []int64 `yaml:"teacher_ids,omitempty"`
+	DeviceID        string         `yaml:"device_id"`
+	APIKey          string         `yaml:"api_key"`
+	TeacherIDs      []int64        `yaml:"teacher_ids,omitempty"`
+	DefaultSession  *SessionConfig `yaml:"default_session,omitempty"`
 	teacherIDsParam string
+}
+
+// SessionConfig defines a default session a device should maintain.
+type SessionConfig struct {
+	ActivityID    int64   `yaml:"activity_id"`
+	RoomID        int64   `yaml:"room_id"`
+	SupervisorIDs []int64 `yaml:"supervisor_ids,omitempty"`
 }
 
 type yamlConfig struct {
@@ -116,6 +124,19 @@ func (c *Config) Validate() error {
 		for _, teacherID := range device.TeacherIDs {
 			if teacherID <= 0 {
 				return fmt.Errorf("device %d (%s) has invalid teacher_id %d", idx, device.DeviceID, teacherID)
+			}
+		}
+		if device.DefaultSession != nil {
+			if device.DefaultSession.ActivityID <= 0 {
+				return fmt.Errorf("device %d (%s) default_session missing activity_id", idx, device.DeviceID)
+			}
+			if device.DefaultSession.RoomID <= 0 {
+				return fmt.Errorf("device %d (%s) default_session missing room_id", idx, device.DeviceID)
+			}
+			for _, supID := range device.DefaultSession.SupervisorIDs {
+				if supID <= 0 {
+					return fmt.Errorf("device %d (%s) default_session has invalid supervisor_id %d", idx, device.DeviceID, supID)
+				}
 			}
 		}
 	}

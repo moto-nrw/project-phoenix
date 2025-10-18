@@ -8,11 +8,14 @@ import (
 
 // DeviceState caches the most recent snapshot of device-related data.
 type DeviceState struct {
-	Session       *iotapi.SessionCurrentResponse
-	Students      []iotapi.TeacherStudentResponse
-	Rooms         []iotapi.DeviceRoomResponse
-	Activities    []iotapi.TeacherActivityResponse
-	LastRefreshed time.Time
+	Session                 *iotapi.SessionCurrentResponse
+	Students                []iotapi.TeacherStudentResponse
+	Rooms                   []iotapi.DeviceRoomResponse
+	Activities              []iotapi.TeacherActivityResponse
+	LastRefreshed           time.Time
+	SessionManaged          bool
+	ManagedSessionID        *int64
+	LastSessionStartAttempt time.Time
 }
 
 func (s *DeviceState) sessionActive() bool {

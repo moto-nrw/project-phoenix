@@ -16,6 +16,8 @@ var (
 	ErrPartialAuthentication = errors.New("one or more devices failed to authenticate")
 )
 
+const sessionStartRetryInterval = 30 * time.Second
+
 // Run executes the simulator discovery phase: authenticate devices and keep their state in sync.
 func Run(ctx context.Context, cfg *Config) error {
 	globalPIN := getGlobalPIN()
@@ -54,7 +56,17 @@ func Run(ctx context.Context, cfg *Config) error {
 		if state, err := refreshDeviceState(ctx, client, device); err != nil {
 			log.Printf("[simulator] Device %s initial sync failed: %v", device.DeviceID, err)
 		} else {
+			if prev := states[device.DeviceID]; prev != nil {
+				state.SessionManaged = prev.SessionManaged
+				state.ManagedSessionID = prev.ManagedSessionID
+				state.LastSessionStartAttempt = prev.LastSessionStartAttempt
+				if !state.sessionActive() && prev.SessionManaged {
+					state.SessionManaged = false
+					state.ManagedSessionID = nil
+				}
+			}
 			states[device.DeviceID] = state
+			maybeStartDefaultSession(ctx, client, device, state)
 			logDeviceState(device.DeviceID, state)
 		}
 	}
@@ -93,7 +105,18 @@ func Run(ctx context.Context, cfg *Config) error {
 					continue
 				}
 
+				if prev := states[device.DeviceID]; prev != nil {
+					state.SessionManaged = prev.SessionManaged
+					state.ManagedSessionID = prev.ManagedSessionID
+					state.LastSessionStartAttempt = prev.LastSessionStartAttempt
+					if !state.sessionActive() && prev.SessionManaged {
+						state.SessionManaged = false
+						state.ManagedSessionID = nil
+					}
+				}
+
 				states[device.DeviceID] = state
+				maybeStartDefaultSession(ctx, client, device, state)
 				logDeviceState(device.DeviceID, state)
 			}
 		}
@@ -162,4 +185,40 @@ func logDeviceState(deviceID string, state *DeviceState) {
 
 func getGlobalPIN() string {
 	return strings.TrimSpace(os.Getenv("OGS_DEVICE_PIN"))
+}
+
+func maybeStartDefaultSession(ctx context.Context, client *Client, device DeviceConfig, state *DeviceState) {
+	if device.DefaultSession == nil {
+		return
+	}
+
+	if state.sessionActive() {
+		return
+	}
+
+	if time.Since(state.LastSessionStartAttempt) < sessionStartRetryInterval {
+		return
+	}
+
+	state.LastSessionStartAttempt = time.Now()
+
+	resp, err := client.StartSession(ctx, device, device.DefaultSession)
+	if err != nil {
+		log.Printf("[simulator] Device %s session start failed: %v", device.DeviceID, err)
+		return
+	}
+
+	log.Printf("[simulator] Device %s session started (room=%d activity=%d supervisors=%v)", device.DeviceID, device.DefaultSession.RoomID, device.DefaultSession.ActivityID, device.DefaultSession.SupervisorIDs)
+
+	id := resp.ActiveGroupID
+	state.SessionManaged = true
+	state.ManagedSessionID = &id
+	state.LastSessionStartAttempt = time.Now()
+
+	session, err := client.FetchSession(ctx, device)
+	if err != nil {
+		log.Printf("[simulator] Device %s failed to refresh session after start: %v", device.DeviceID, err)
+		return
+	}
+	state.Session = session
 }
