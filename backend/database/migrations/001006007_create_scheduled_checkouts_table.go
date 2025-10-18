@@ -76,8 +76,8 @@ func createScheduledCheckoutsTable(ctx context.Context, db *bun.DB) error {
 
 	// Grant permissions to app_user
 	grantQuery := `
-		GRANT ALL ON active.scheduled_checkouts TO app_user;
-		GRANT USAGE ON SEQUENCE active.scheduled_checkouts_id_seq TO app_user;
+		GRANT ALL ON active.scheduled_checkouts TO CURRENT_USER;
+		GRANT USAGE ON SEQUENCE active.scheduled_checkouts_id_seq TO CURRENT_USER;
 	`
 	if _, err := db.ExecContext(ctx, grantQuery); err != nil {
 		return fmt.Errorf("failed to grant permissions on scheduled_checkouts: %w", err)

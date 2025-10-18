@@ -236,19 +236,19 @@ func (s *Seeder) createActiveSessions(ctx context.Context, currentTime time.Time
 
 		// Assign activity supervisors
 		var supervisors []struct {
-			StaffID int64 `bun:"staff_id"`
-			IsLead  bool  `bun:"is_lead"`
+			StaffID   int64 `bun:"staff_id"`
+			IsPrimary bool  `bun:"is_primary"`
 		}
 		err = s.tx.NewSelect().
-			Table("activities.supervisor_assignments").
-			Column("staff_id", "is_lead").
-			Where("activity_group_id = ?", activity.ID).
+			Table("activities.supervisors").
+			Column("staff_id", "is_primary").
+			Where("group_id = ?", activity.ID).
 			Scan(ctx, &supervisors)
 
 		if err == nil {
 			for _, sup := range supervisors {
 				role := "supervisor"
-				if sup.IsLead {
+				if sup.IsPrimary {
 					role = "lead_supervisor"
 				}
 				supervisor := &active.GroupSupervisor{
@@ -310,7 +310,7 @@ func (s *Seeder) checkInStudents(ctx context.Context, currentTime time.Time) err
 			err := s.tx.NewSelect().
 				Table("activities.student_enrollments").
 				Column("student_id").
-				Where("activity_group_id = ? AND status = 'active'", activeGroup.GroupID).
+				Where("activity_group_id = ?", activeGroup.GroupID).
 				Scan(ctx, &studentIDs)
 			if err != nil {
 				continue
@@ -405,7 +405,6 @@ func (s *Seeder) createAttendanceRecords(ctx context.Context, currentTime time.T
 			attendance.UpdatedAt = time.Now()
 
 			_, err := s.tx.NewInsert().Model(attendance).ModelTableExpr("active.attendance").
-				On("CONFLICT (student_id, date) DO NOTHING").
 				Exec(ctx)
 			if err == nil {
 				s.result.Attendance = append(s.result.Attendance, attendance)
@@ -445,28 +444,24 @@ func (s *Seeder) createCombinedGroup(ctx context.Context, currentTime time.Time)
 	// Link first two active groups to the combined group
 	for i := 0; i < 2 && i < len(s.result.ActiveGroups); i++ {
 		mapping := struct {
-			CombinedGroupID int64     `bun:"combined_group_id"`
-			ActiveGroupID   int64     `bun:"active_group_id"`
-			CreatedAt       time.Time `bun:"created_at"`
-			UpdatedAt       time.Time `bun:"updated_at"`
+			CombinedGroupID int64 `bun:"active_combined_group_id"`
+			ActiveGroupID   int64 `bun:"active_group_id"`
 		}{
 			CombinedGroupID: combined.ID,
 			ActiveGroupID:   s.result.ActiveGroups[i].ID,
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
 		}
 
 		_, err = s.tx.NewInsert().
-			Table("active.group_mappings").
 			Model(&mapping).
+			ModelTableExpr("active.group_mappings").
 			Exec(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to create group mapping: %w", err)
 		}
 
 		s.result.GroupMappings = append(s.result.GroupMappings, GroupMapping{
-			CombinedGroupID: combined.ID,
-			ActiveGroupID:   s.result.ActiveGroups[i].ID,
+			CombinedGroupID: mapping.CombinedGroupID,
+			ActiveGroupID:   mapping.ActiveGroupID,
 		})
 	}
 
