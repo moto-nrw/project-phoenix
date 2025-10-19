@@ -1,7 +1,9 @@
-# IoT simulator configuration.
-# When running inside Docker Compose, the API is reachable via http://server:8080
+# IoT simulator configuration template.
+# Copy this file to simulator.yaml and run ./scripts/update-simulator-keys.sh
+# to inject the current device API keys from the database.
 base_url: http://server:8080
 refresh_interval: 30s
+
 event:
   interval: 5s
   max_events_per_tick: 3
@@ -21,35 +23,36 @@ event:
       weight: 0.6
     - type: supervisor_swap
       weight: 0.3
+
 devices:
   - device_id: RFID-LIB-001
-    api_key: pWZddP36SQ3IXf5nEBxztlOjNKHoetdy
+    api_key: CHANGE_ME
     teacher_ids: [1, 2]
     default_session:
       activity_id: 13
       room_id: 10
       supervisor_ids: [1]
   - device_id: RFID-MAIN-001
-    api_key: ejpSOD5EEyMtbgsWBFNEoPU8MX0z553E
+    api_key: CHANGE_ME
     teacher_ids: [1, 2]
   - device_id: RFID-MENSA-001
-    api_key: cJME3WFQgK89rHHKUsIRzezPsyZK3ocY
+    api_key: CHANGE_ME
     teacher_ids: [1, 2]
   - device_id: RFID-OGS-001
-    api_key: KzRcy8MHGWwkU7o8nUQxbLKHgyO0n5LT
+    api_key: CHANGE_ME
     teacher_ids: [3]
     default_session:
       activity_id: 15
       room_id: 21
       supervisor_ids: [3]
   - device_id: RFID-SPORT-001
-    api_key: 7rrkeiBVlfs4LEuWdxkUE1luN4aJFh3L
+    api_key: CHANGE_ME
     teacher_ids: [4]
     default_session:
       activity_id: 1
       room_id: 19
       supervisor_ids: [4]
   - device_id: TEMP-CLASS-001
-    api_key: hHMcv9ij9TpMHpjucSEmxwa24TkIPc1L
+    api_key: CHANGE_ME
   - device_id: TEMP-MENSA-001
-    api_key: qx6FCTGQzzsUwypcOO0LA9mcQr5Nfabq
+    api_key: CHANGE_ME

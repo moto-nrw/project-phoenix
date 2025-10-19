@@ -9,6 +9,11 @@ This simulator fakes device traffic (check-ins, attendance, supervisor updates) 
 
 ## Workflow Overview
 
+0. **(First time)** copy the template config
+   ```bash
+   cp backend/simulator/iot/simulator.example.yaml backend/simulator/iot/simulator.yaml
+   ```
+
 1. **Build images** (first run or after Dockerfile changes)
    ```bash
    docker compose build
@@ -16,7 +21,7 @@ This simulator fakes device traffic (check-ins, attendance, supervisor updates) 
 
 2. **Start Postgres** (daemon mode keeps the DB running for commands)
    ```bash
-   docker compose up -d postgres
+   docker compose up -d
    ```
 
 3. **Apply migrations**
