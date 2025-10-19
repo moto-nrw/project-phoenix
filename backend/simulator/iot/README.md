@@ -51,6 +51,12 @@ The simulator authenticates each configured device, keeps state in sync, and emi
 
 ## Tips
 
+- If you ran the simulator previously, make sure no stale open visits remain before reseeding. Either run the seed against a fresh volume (`docker compose down -v` before step 2) or close them manually:
+  ```sql
+  UPDATE active.visits
+  SET exit_time = NOW()
+  WHERE exit_time IS NULL;
+  ```
 - Rerun steps 4–6 whenever you need fresh data (the seed resets tables, so pull again before simulating).
 - If you change `simulator.yaml` (e.g. add devices), re-run step 5 so the API keys stay in sync with the DB.
 - Logs show weighted action mix (`tick summary`) and any API failures; tail them to verify the traffic you expect.

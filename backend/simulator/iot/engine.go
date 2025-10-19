@@ -382,15 +382,24 @@ func (e *Engine) executeCheckOut(ctx context.Context, action ActionConfig) error
 		Action:      "checkout",
 	})
 	if err != nil {
+		missingVisit := isVisitMissingError(err)
+
 		e.stateMu.Lock()
 		if state := e.states[selected.deviceID]; state != nil {
 			if student := state.StudentStates[selected.studentID]; student != nil {
 				ts := time.Now()
 				student.LastEventAt = ts
 				student.VisitCooldownUntil = ts.Add(visitCooldown)
+				if missingVisit {
+					student.HasActiveVisit = false
+					student.CurrentRoomID = nil
+				}
 			}
 		}
 		e.stateMu.Unlock()
+		if missingVisit {
+			return nil
+		}
 		return err
 	}
 
@@ -529,15 +538,24 @@ func (e *Engine) executeSchulhofHop(ctx context.Context, action ActionConfig) er
 
 	_, err := e.client.PerformCheckAction(ctx, deviceCfg, payload)
 	if err != nil {
+		missingVisit := payload.Action == "checkout" && isVisitMissingError(err)
+
 		e.stateMu.Lock()
 		if state := e.states[selected.deviceID]; state != nil {
 			if student := state.StudentStates[selected.studentID]; student != nil {
 				ts := time.Now()
 				student.LastEventAt = ts
 				student.VisitCooldownUntil = ts.Add(visitCooldown)
+				if missingVisit {
+					student.HasActiveVisit = false
+					student.CurrentRoomID = nil
+				}
 			}
 		}
 		e.stateMu.Unlock()
+		if missingVisit {
+			return nil
+		}
 		return err
 	}
 
@@ -901,4 +919,14 @@ func (e *Engine) randIntn(n int) int {
 func ptrInt64(v int64) *int64 {
 	vv := v
 	return &vv
+}
+
+func isVisitMissingError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "visit not found") ||
+		strings.Contains(msg, "no active visit") ||
+		strings.Contains(msg, "room_id is required for check-in")
 }
