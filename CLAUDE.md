@@ -74,6 +74,13 @@ The database uses multiple PostgreSQL schemas to organize tables by domain:
 - **feedback**: User feedback
 - **config**: System configuration
 
+## Email & Auth Workflows
+
+- **SMTP Configuration**: All environments load email settings from `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, `EMAIL_SMTP_PASSWORD`, `EMAIL_FROM_NAME`, `EMAIL_FROM_ADDRESS`, `FRONTEND_URL`, `INVITATION_TOKEN_EXPIRY_HOURS`, and `PASSWORD_RESET_TOKEN_EXPIRY_MINUTES`. Production builds require `FRONTEND_URL` to be HTTPS; development falls back to the mock mailer.
+- **Password Reset**: Reset tokens now expire after 30 minutes. The backend emits a `Retry-After` header when per-email rate limiting (3 requests/hour) is triggered, and the frontend surfaces the countdown in the modal.
+- **Invitation Workflow**: Administrators can invite new users via the `/invitations` admin route. Invite acceptance runs at `/invite?token=…` where teachers set their password, satisfying the same strength policy as password reset.
+- **Cleanup Operations**: Nightly scheduler runs invitation and rate-limit cleanup alongside existing token jobs. Manual CLI commands (`go run main.go cleanup invitations` and `go run main.go cleanup rate-limits`) are available for operations teams.
+
 ## Critical Patterns & Gotchas ⚠️
 
 **Read these first to avoid common mistakes:**

@@ -1,0 +1,596 @@
+# Implementation Tasks
+
+## 1. Email Service Configuration and Integration
+- [x] 1.1 Add SMTP configuration to environment templates used by local/dev and Docker setups:
+  - [x] Update repository root `.env.example` (and `.env` in local dev) with EMAIL_* entries so docker compose picks them up
+  - [x] Add the same variables to `backend/dev.env.example` for direct backend runs
+  - [x] EMAIL_SMTP_HOST (default: smtp.strato.de)
+  - [x] EMAIL_SMTP_PORT (default: 587)
+  - [x] EMAIL_SMTP_USER
+  - [x] EMAIL_SMTP_PASSWORD
+  - [x] EMAIL_FROM_NAME (default: moto)
+  - [x] EMAIL_FROM_ADDRESS
+  - [x] FRONTEND_URL (for email links)
+  - [x] INVITATION_TOKEN_EXPIRY_HOURS (default: 48)
+  - [x] PASSWORD_RESET_TOKEN_EXPIRY_MINUTES (default: 30)
+- [x] 1.2 Update `backend/email/smtp.go`:
+  - [x] Add defaultFrom field to SMTPMailer struct
+  - [x] Store from email in NewMailer() from viper config
+  - [x] Default message.From if empty before sending (line 52-69)
+  - [x] **Add audit logging in Send() method**:
+    - [x] Before send: log.Printf("Sending email to=%s subject=%s template=%s", email.To.Address, email.Subject, email.Template)
+    - [x] After success: log.Printf("Email sent successfully to=%s", email.To.Address)
+    - [x] On error: log.Printf("Email send failed to=%s error=%v", email.To.Address, err)
+  - [x] Update `backend/email/mockMailer.go` to log only recipient/subject/template (avoid dumping full content with tokens)
+- [x] 1.3 Update `services/factory.go`:
+  - [x] Import `"github.com/moto-nrw/project-phoenix/email"`
+  - [x] Add mailer initialization in `NewFactory()` using `email.NewMailer()`
+  - [x] Store mailer in Factory struct (add `Mailer email.Mailer` field)
+  - [x] Handle mailer initialization errors (log warning if config missing, use MockMailer)
+  - [x] Create defaultFrom email.Email from viper config
+  - [x] Read `INVITATION_TOKEN_EXPIRY_HOURS` and `PASSWORD_RESET_TOKEN_EXPIRY_MINUTES`, clamp to sane defaults, and keep the derived `time.Duration` values on the factory
+  - [x] Pass mailer, defaultFrom, frontendURL, and the computed durations to auth + invitation services
+- [x] 1.4 Update `services/auth/auth_service.go` struct:
+  - [x] Add `mailer email.Mailer` field
+  - [x] Add `frontendURL string` field (from viper config)
+  - [x] Add `defaultFrom email.Email` field
+  - [x] Add `passwordResetExpiry time.Duration` field populated from factory
+  - [x] Update `WithTx` to carry these new fields so transactional clones can send mail and build URLs
+- [x] 1.5 Update `services/auth/auth_service.go` constructor (NewService):
+  - [x] Accept mailer parameter
+  - [x] Accept frontendURL parameter
+  - [x] Accept defaultFrom parameter
+  - [x] Accept `passwordResetExpiry` parameter
+  - [x] Store all four in service struct
+- [x] 1.6 Update `InitiatePasswordReset()` method (backend/services/auth/auth_service.go:1312):
+  - [x] **CRITICAL**: Use the configured `passwordResetExpiry` duration instead of the hard-coded 24h constant
+  - [x] Use existing account variable (already fetched at line 1317, no need to re-fetch)
+  - [x] Normalize `s.frontendURL` once (e.g., trim trailing `/`) and build reset URL with query param: `fmt.Sprintf("%s/reset-password?token=%s", s.frontendURL, resetToken.Token)` (frontend expects ?token=, not /{token})
+  - [x] Create email.Message with password-reset.html template
+  - [x] Set message.From = s.defaultFrom
+  - [x] Set message.To = email.NewEmail("", account.Email) (use account.Email from line 1317)
+  - [x] Pass ResetURL and ExpiryMinutes (30) to template
+  - [x] **Send email asynchronously**: `go func() { if err := s.mailer.Send(message); err != nil { log.Printf(...) } }()`
+  - [x] This prevents SMTP latency from blocking API response (true fire-and-forget)
+- [x] 1.7 Update `backend/templates/email/footer.html`:
+  - [x] Change "sent by GoBase" to "sent by moto Project Phoenix" or just "moto"
+  - [x] Ensure branding consistency with other templates
+- [x] 1.8 Create `backend/templates/email/password-reset.html`:
+  - [x] Use {{template "header" .}} for consistency
+  - [x] Add moto branding (logo URL from {FRONTEND_URL}/images/moto_transparent.png, colors: #5080d8 blue, #83cd2d green)
+  - [x] Include {{.ResetURL}} as CTA button (URL will be /reset-password?token=...)
+  - [x] Display {{.ExpiryMinutes}} for urgency ("This link expires in 30 minutes")
+  - [x] **Required security disclaimer**: "If you didn't request this password reset, you can safely ignore this email. Your password won't change unless you click the link above."
+  - [x] Subject line MUST be: "Password Reset Request"
+  - [x] Use {{template "footer" .}}
+- [x] 1.9 Update `backend/templates/email/styles.html`:
+  - [x] Add button styles (padding: 12px 24px, border-radius: 6px, moto-blue background)
+  - [x] Add h1 color (#5080d8)
+  - [x] Add .highlight class (#83cd2d)
+  - [x] Ensure responsive design (max-width for mobile)
+- [x] 1.10 Add HTTPS URL validation:
+  - [x] In services/factory.go when reading FRONTEND_URL config:
+    - [x] If environment is production and URL doesn't start with "https://", log.Fatal or log warning
+    - [x] For development, allow http://localhost
+  - [x] Document FRONTEND_URL must be HTTPS in production in root `.env.example` and `backend/dev.env.example`
+
+## 2. Rate Limiting Infrastructure
+- [x] 2.1 Create `backend/models/auth/password_reset_rate_limit.go`:
+  - [x] PasswordResetRateLimit struct WITHOUT base.Model (email is PK, not id)
+  - [x] Fields: Email (string, PK), Attempts (int), WindowStart (time.Time)
+  - [x] TableName() returns "auth.password_reset_rate_limits"
+  - [x] IsExpired() checks if window_start > 1 hour ago
+  - [x] IncrementAttempts() increments counter
+  - [x] Reset() sets attempts to 1, window_start to now
+  - [x] BeforeAppendModel() sets ModelTableExpr with quoted alias
+  - [x] Define `RateLimitState` DTO with `Attempts int`, `RetryAt time.Time`, and helper to compute `RetryAfterSeconds() int`
+- [x] 2.2 Create `backend/database/migrations/*_auth_password_reset_rate_limits.go`:
+  - [x] CREATE TABLE auth.password_reset_rate_limits (email TEXT PRIMARY KEY, attempts INT DEFAULT 1, window_start TIMESTAMPTZ DEFAULT NOW())
+  - [x] Create index on window_start for cleanup queries
+  - [x] Write rollback function (DROP TABLE CASCADE)
+- [x] 2.3 Run migration:
+  - [x] Execute `go run main.go migrate`
+  - [x] Verify table created in PostgreSQL
+- [x] 2.4 Update `backend/models/auth/repository.go`:
+  - [x] Add PasswordResetRateLimitRepository interface
+  - [x] Methods: `CheckRateLimit(ctx, email string) (*auth.RateLimitState, error)` and `IncrementAttempts(ctx, email string) (*auth.RateLimitState, error)` returning attempts + retry deadline, plus `CleanupExpired(ctx context.Context) (int, error)`
+- [x] 2.5 Create `backend/database/repositories/auth/password_reset_rate_limit.go`:
+  - [x] Implement CheckRateLimit(): reads current row (if any) and returns the state struct with attempts + retryAt, setting attempts to threshold when missing so the caller can short-circuit quickly
+  - [x] Implement IncrementAttempts(): atomic upsert (`INSERT ... ON CONFLICT ... DO UPDATE`) that increments or resets as needed and returns the new state (attempts + retryAt)
+  - [x] Implement CleanupExpired(): delete where window_start < NOW() - INTERVAL '24 hours'
+  - [x] Ensure both methods share the SQL that calculates `retry_at := window_start + INTERVAL '1 hour'` so callers never have to re-derive it
+- [x] 2.6 Update `backend/database/repositories/factory.go`:
+  - [x] Add PasswordResetRateLimit field to Factory struct
+  - [x] Initialize in NewFactory()
+- [x] 2.7 Update `services/auth/auth_service.go`:
+  - [x] Add rateLimitRepo field
+  - [x] Accept in NewService() constructor
+  - [x] In InitiatePasswordReset(), call `rateLimitRepo.CheckRateLimit` first; if it reports the threshold hit, bubble `ErrRateLimitExceeded` with the provided retryAt timestamp
+  - [x] Otherwise call `rateLimitRepo.IncrementAttempts` for every request (including when no account is found) so the limiter tracks per email string consistently; capture the returned retryAt/attempts
+  - [x] Surface the retryAt information alongside `ErrRateLimitExceeded` so the API layer can set `Retry-After`
+  - [x] **Add audit logging**: log.Printf("Password reset requested for email=%s", email) after validation
+  - [x] Log success: log.Printf("Password reset token created for account=%d", account.ID) after token created
+- [x] 2.8 Update `backend/services/auth/interface.go`:
+  - [x] Add CleanupExpiredRateLimits(ctx context.Context) (int, error) method to AuthService interface
+- [x] 2.9 Add CleanupExpiredRateLimits() method to auth_service.go implementation:
+  - [x] Call rateLimitRepo.CleanupExpired()
+  - [x] Log number of deleted records
+  - [x] Return count and error
+
+## 3. Structured Error Types
+- [x] 3.1 Update `backend/services/auth/errors.go`:
+  - [x] Add `ErrInvitationNotFound = errors.New("invitation not found")`
+  - [x] Add `ErrInvitationExpired = errors.New("invitation has expired")`
+  - [x] Add `ErrInvitationUsed = errors.New("invitation has already been used")`
+  - [x] Add `ErrRateLimitExceeded = errors.New("too many password reset requests")`
+- [x] 3.2 Update `backend/api/auth/api.go` error handling in resetPassword() handler:
+  - [x] Add error type checking before ErrorInternalServer
+  - [x] Check for ErrInvalidToken → return 400 Bad Request "Invalid or expired reset token"
+  - [x] Check for errors wrapping sql.ErrNoRows → return 400 Bad Request
+  - [x] Check for ErrPasswordTooWeak (and other validation errors from `validatePasswordStrength`) → return 400 with details
+  - [x] **Log failed attempts**: log.Printf("Password reset failed token=%s reason=%v", req.Token, err)
+  - [x] Only return 500 for unexpected errors
+  - [x] Add audit logging on success: log.Printf("Password reset completed for token=%s", req.Token)
+- [x] 3.3 Update `backend/api/auth/api.go` error handling in initiatePasswordReset():
+  - [x] Map ErrRateLimitExceeded → 429 Too Many Requests
+  - [x] When 429, set `Retry-After` header from the struct returned by the service (prefer seconds delta; fall back to RFC1123-time)
+  - [x] Add audit logging: log.Printf("Password reset initiated for email=%s", req.Email)
+- [x] 3.4 Add error mapping for invitation handlers (in invitation_handlers.go):
+  - [x] Map ErrInvitationNotFound → 404 Not Found
+  - [x] Map ErrInvitationExpired → 410 Gone
+  - [x] Map ErrInvitationUsed → 410 Gone
+
+## 4. Password Helpers Extraction
+- [x] 4.1 Create `backend/services/auth/password_helpers.go`:
+  - [x] Extract `hashPassword(password string) (string, error)` from auth_service.go
+  - [x] Extract `validatePasswordStrength(password string) error` from auth_service.go
+  - [x] Ensure both are exported (capital first letter)
+- [x] 4.2 Update `backend/services/auth/auth_service.go`:
+  - [x] Replace inline password hashing with calls to hashPassword()
+  - [x] Replace inline password validation with calls to validatePasswordStrength()
+
+## 5. Invitation Database Schema
+- [x] 5.1 Create `backend/database/migrations/*_auth_invitation_tokens.go`:
+  - [x] Migration version depends on auth.accounts and auth.roles
+  - [x] CREATE TABLE auth.invitation_tokens (id, created_at, updated_at, email, token, role_id, created_by, expires_at, used_at, first_name, last_name)
+  - [x] Add foreign keys: role_id → auth.roles(id), created_by → auth.accounts(id)
+  - [x] Create indexes on token (unique), email, expires_at
+  - [x] Create updated_at trigger
+  - [x] Write rollback function (DROP TABLE CASCADE)
+- [x] 5.2 Run migration:
+  - [x] Execute `go run main.go migrate`
+  - [x] Verify table created in PostgreSQL: `\d auth.invitation_tokens`
+  - [x] Verify indexes created
+- [x] 5.3 Create `backend/models/auth/invitation_token.go`:
+  - [x] InvitationToken struct with base.Model embed
+  - [x] Fields: ID, Email, Token, RoleID, CreatedBy, ExpiresAt, UsedAt, FirstName, LastName
+  - [x] Relations: Role *Role, Creator *Account
+  - [x] TableName() returns "auth.invitation_tokens"
+  - [x] BeforeAppendModel() sets ModelTableExpr with quoted alias ("invitation")
+  - [x] Validate() checks email, token, role_id, created_by, expiry
+  - [x] IsExpired() checks expiry time
+  - [x] IsValid() checks not expired and not used
+  - [x] MarkAsUsed() sets UsedAt to now
+  - [x] SetExpiry(duration) sets expires_at
+- [x] 5.4 Update `backend/models/auth/repository.go`:
+  - [x] Add InvitationTokenRepository interface
+  - [x] Methods: FindByToken, FindValidByToken, FindByEmail, MarkAsUsed, InvalidateByEmail, DeleteExpired, List (with filters)
+- [x] 5.5 Create `backend/database/repositories/auth/invitation_token.go`:
+  - [x] InvitationTokenRepository struct embedding base.Repository
+  - [x] NewInvitationTokenRepository() constructor
+  - [x] Implement all interface methods with proper error handling
+  - [x] Use ModelTableExpr with quoted aliases
+  - [x] FindValidByToken() checks expiry > now AND used_at IS NULL
+  - [x] List() supports filters: pending (used_at IS NULL AND expires_at > now), expired, used
+- [x] 5.6 Update `backend/database/repositories/factory.go`:
+  - [x] Add InvitationToken field to Factory struct
+  - [x] Initialize in NewFactory(): `InvitationToken: auth.NewInvitationTokenRepository(db)`
+
+## 6. Invitation Service Layer
+- [x] 6.1 Create `backend/services/auth/invitation_interface.go`:
+  - [x] InvitationService interface with methods:
+    - CreateInvitation(ctx, InvitationRequest) (*auth.InvitationToken, error)
+    - ValidateInvitation(ctx, token string) (*InvitationValidationResult, error)
+    - AcceptInvitation(ctx, token string, userData UserRegistrationData) (*auth.Account, error)
+    - ResendInvitation(ctx, invitationID int64) error
+    - ListPendingInvitations(ctx) ([]*auth.InvitationToken, error)
+    - RevokeInvitation(ctx, invitationID int64) error
+    - CleanupExpiredInvitations(ctx) (int, error)
+  - [x] Define InvitationRequest struct (Email, RoleID, FirstName, LastName, CreatedBy)
+  - [x] Define UserRegistrationData struct (FirstName, LastName, Password)
+  - [x] Define InvitationValidationResult struct (Email, RoleName, FirstName, LastName, ExpiresAt)
+- [x] 6.2 Create `backend/services/auth/invitation_service.go`:
+  - [x] InvitationServiceImpl struct with:
+    - invitationRepo auth.InvitationTokenRepository
+    - accountRepo auth.AccountRepository
+    - roleRepo auth.RoleRepository
+    - accountRoleRepo auth.AccountRoleRepository (for role assignment)
+    - personRepo users.PersonRepository (for creating person records)
+    - mailer email.Mailer
+    - frontendURL string
+    - defaultFrom email.Email
+    - invitationExpiry time.Duration
+    - db *bun.DB (for transactions)
+  - [x] NewInvitationService() constructor with all dependencies
+  - [x] Implement `WithTx` (or equivalent) so transactional clones retain mailer, frontendURL, defaultFrom, and invitationExpiry references
+  - [x] Implement CreateInvitation():
+    - Validate email format
+    - Call invitationRepo.InvalidateByEmail(email) to revoke old invitations
+    - Generate UUID v4 token using `uuid.Must(uuid.NewV4()).String()`
+    - Calculate expiry using the configured `invitationExpiry` duration
+    - Create invitation token record
+    - **Send invitation email asynchronously**: `go func() { ... }()` to avoid blocking API response
+    - In goroutine: normalize `frontendURL` (trim trailing `/`) and build invitation URL with query param `/invite?token={token}` (NOT /invite/{token})
+    - Load role name for email template
+    - Create email message with invitation.html template
+    - Send and log errors (fire-and-forget)
+    - Add audit logging: log.Printf("Invitation token=%s created by account=%d for email=%s", invitation.Token, req.CreatedBy, email)
+    - Return invitation token immediately (don't wait for email)
+  - [x] Implement ValidateInvitation():
+    - Find token by value
+    - Check if valid (not expired, not used)
+    - If expired, return ErrInvitationExpired
+    - If used, return ErrInvitationUsed
+    - If not found, return ErrInvitationNotFound
+    - Load role information
+    - Return validation result
+  - [x] Implement AcceptInvitation():
+    - Validate token (reuse ValidateInvitation logic)
+    - Validate password using validatePasswordStrength() helper
+    - Hash password using hashPassword() helper
+    - Start transaction
+    - Check whether an account already exists for invitation.Email and return ErrEmailAlreadyExists if so (avoid violating unique constraint)
+    - Create Person record (first_name, last_name from input, using invitation defaults when missing)
+    - Create Account record (email, hashed password) and link it to the Person via `personRepo`
+    - Assign role using accountRoleRepo.Create()
+    - Mark invitation as used
+    - Commit transaction (or rollback on error)
+    - Add audit logging: log.Printf("Invitation token=%s accepted, account=%d created", token, account.ID)
+    - Return created account
+  - [x] Implement ResendInvitation():
+    - Load invitation by ID
+    - Check if still valid (not expired, not used)
+    - If expired, return ErrInvitationExpired
+    - Load role name for email template
+    - Build invitation URL with query param: `/invite?token={token}`
+    - **Send email asynchronously in goroutine** (same pattern as CreateInvitation, prevents blocking)
+    - Update invitation updated_at timestamp before returning
+    - Add audit logging: log.Printf("Invitation token=%s resent by account=%d", invitation.Token, actorAccountID)
+    - Return immediately without waiting for email
+  - [x] Implement ListPendingInvitations():
+    - Query invitations where used_at IS NULL AND expires_at > now
+    - Load relations (Role, Creator using Relation())
+    - Return list
+  - [x] Implement RevokeInvitation():
+    - Load invitation by ID
+    - Mark as used (soft delete pattern)
+    - Add audit logging: log.Printf("Invitation token=%s revoked by account=%d", invitation.Token, actorAccountID)
+    - Return success
+  - [x] Implement CleanupExpiredInvitations():
+    - Delete invitations where (expires_at < now OR used_at IS NOT NULL)
+    - Return count of deleted records
+- [x] 6.3 Create `backend/templates/email/invitation.html`:
+  - [x] Use {{template "header" .}} for consistency
+  - [x] Welcome message with {{if .FirstName}} {{.FirstName}}{{end}} personalization
+  - [x] Display role name: "You've been invited as {{.RoleName}}"
+  - [x] CTA button with {{.InvitationURL}} (URL will be /invite?token=...)
+  - [x] Expiry notice ("This invitation expires in 48 hours")
+  - [x] **Required disclaimer**: "If you didn't expect this invitation, you can safely ignore this email."
+  - [x] Subject line MUST be: "You're Invited to Project Phoenix"
+  - [x] Use {{template "footer" .}}
+- [x] 6.4 Update `backend/services/factory.go`:
+  - [x] Add Invitation field to Factory struct (InvitationService)
+  - [x] Initialize in NewFactory():
+    - Create invitation service with repos, mailer, frontendURL, defaultFrom, and the configured `invitationExpiry`
+    - Store in Factory.Invitation
+
+## 7. Scheduler Extension
+- [x] 7.1 Update `backend/services/scheduler/scheduler.go`:
+  - [x] Add `invitationService interface{}` field to Scheduler struct (keep as interface{} to avoid circular dependency)
+  - [x] Update NewScheduler() constructor signature to accept invitationService parameter
+  - [x] **CREATE NEW METHOD** RunCleanupJobs() using reflection (consistent with existing pattern):
+    - Use reflection to call authService.CleanupExpiredPasswordResetTokens() (like existing executeTokenCleanup at line ~280)
+    - Use reflection to call invitationService.CleanupExpiredInvitations() (new)
+    - Use reflection to call authService.CleanupExpiredRateLimits() (new)
+    - Pattern: `reflect.ValueOf(s.authService).MethodByName("CleanupExpiredPasswordResetTokens")`
+    - Extract count and error from results using reflection
+    - Log each cleanup operation with count using log.Printf()
+    - Collect all errors in slice
+    - Return first error if any (for simplicity)
+    - Guard against nil services; skip individual calls gracefully if the relevant dependencies are not wired in (maintain current resilience)
+  - [x] **MODIFY** existing executeTokenCleanup() method (around line 280):
+    - Replace existing reflection call with call to s.RunCleanupJobs()
+    - Keep existing locking/timing/NextRun logic (defer block)
+    - This ensures all token cleanups run together on same hourly schedule
+- [x] 7.2 Update scheduler initialization in `backend/api/server.go:58`:
+  - [x] Add services.Invitation as 4th parameter to scheduler.NewScheduler()
+  - [x] Pass as interface{} (no type assertion needed at call site)
+- [x] 7.3 Update `backend/cmd/cleanup.go`:
+  - [x] Add "invitations" subcommand to cleanup command
+  - [x] In command handler:
+    - Initialize service factory
+    - Call services.Invitation.CleanupExpiredInvitations()
+    - Print count of deleted invitations
+    - Exit with appropriate code
+  - [x] Add "rate-limits" subcommand to cleanup command
+  - [x] In command handler:
+    - Call services.Auth.CleanupExpiredRateLimits()
+    - Print count of deleted rate limit records
+  - [x] Update cleanup command help text to include new subcommands
+
+## 8. API Endpoints
+- [x] 8.1 Create `backend/api/auth/invitation_handlers.go`:
+  - [x] CreateInvitationRequest struct (email, role_id, first_name, last_name)
+  - [x] Bind() method validates email format, role_id > 0
+  - [x] createInvitation() handler:
+    - Parse request body
+    - Get creator user ID from JWT claims using jwt.ClaimsFromCtx(r.Context()) (NOT ctx.Value("user") which would panic)
+    - Extract userID from claims.ID
+    - Create InvitationRequest with CreatedBy = claims.ID
+    - Call service.CreateInvitation()
+    - Return 201 Created with invitation details
+    - Add audit logging: log.Printf("Invitation created by account=%d for email=%s", claims.ID, req.Email)
+  - [x] validateInvitation() handler:
+    - Extract token from URL params: chi.URLParam(r, "token")
+    - Call service.ValidateInvitation()
+    - If ErrInvitationNotFound, return 404
+    - If ErrInvitationExpired or ErrInvitationUsed, return 410 Gone
+    - Return validation result
+    - Add audit logging: log.Printf("Invitation validation requested token=%s", token)
+  - [x] AcceptInvitationRequest struct (first_name, last_name, password, confirm_password)
+  - [x] Bind() method validates password strength and match
+  - [x] acceptInvitation() handler:
+    - Extract token from URL params
+    - Parse request body
+    - Create UserRegistrationData from request
+    - Call service.AcceptInvitation()
+    - If ErrWeakPassword, return 400 with details
+    - If ErrEmailAlreadyExists, return 409 Conflict with guidance to ask an admin for help
+    - If ErrInvitationExpired/Used/NotFound, map to appropriate status
+    - Return 201 Created with account details
+    - Add audit logging: log.Printf("Invitation accepted token=%s account=%d", token, account.ID)
+  - [x] listPendingInvitations() handler:
+    - Call service.ListPendingInvitations()
+    - Return list (no pagination for now, can add later)
+  - [x] resendInvitation() handler:
+    - Extract ID from URL params, convert to int64
+    - Call service.ResendInvitation()
+    - If ErrInvitationExpired, return 400 Bad Request
+    - Return 200 OK
+    - Add audit logging: log.Printf("Invitation resend requested id=%d by account=%d", id, claims.ID)
+  - [x] revokeInvitation() handler:
+    - Extract ID from URL params
+    - Call service.RevokeInvitation()
+    - Return 204 No Content
+    - Add audit logging: log.Printf("Invitation revoked id=%d by account=%d", id, claims.ID)
+- [x] 8.2 Update `backend/api/auth/resource.go`:
+  - [x] Add invitationService field to Resource struct
+  - [x] Update NewResource() to accept invitation service parameter
+- [x] 8.3 Update `backend/api/auth/api.go` Router():
+  - [x] Add PUBLIC routes (no auth required):
+    - GET /invitations/{token} → validateInvitation
+    - POST /invitations/{token}/accept → acceptInvitation
+  - [x] Add PROTECTED admin routes (after JWT middleware):
+    - POST /invitations → createInvitation (requires users:create permission)
+    - GET /invitations → listPendingInvitations (requires users:list permission)
+    - POST /invitations/{id}/resend → resendInvitation (requires users:manage permission)
+    - DELETE /invitations/{id} → revokeInvitation (requires users:manage permission)
+  - [x] Ensure public invitation routes are registered outside JWT middleware and admin routes stay within the protected group
+- [x] 8.4 Update `backend/api/base.go`:
+  - [x] Pass services.Invitation to auth.NewResource()
+- [x] 8.5 Update `backend/api/auth/api.go` error handling in initiatePasswordReset():
+  - [x] Check for ErrRateLimitExceeded
+  - [x] Return 429 Too Many Requests with clear message
+  - [x] Include `Retry-After` header based on remaining cooldown so the frontend timer can use server timing
+- [x] 8.6 Generate API documentation:
+  - [x] Run `go run main.go gendoc`
+  - [x] Verify new routes appear in `docs/routes.md`
+
+## 9. Frontend - Update Existing Password Reset Flow
+- [x] 9.1 Update `frontend/src/lib/auth-api.ts`:
+  - [x] Verify requestPasswordReset(email) exists and works (line 170)
+  - [x] Verify resetPassword(token, newPassword) exists and works
+  - [x] Add error handling for 429 rate limit responses
+- [x] 9.2 Update `frontend/src/app/api/auth/password-reset/route.ts`:
+  - [x] Verify it proxies to backend /auth/password-reset
+  - [x] Ensure token is passed correctly
+  - [x] Add error handling for 429 responses
+- [x] 9.3 Update `frontend/src/app/api/auth/password-reset/confirm/route.ts`:
+  - [x] Verify it proxies to backend /auth/password-reset/confirm
+  - [x] Ensure proper error handling
+- [x] 9.4 Update `frontend/src/app/reset-password/page.tsx`:
+  - [x] Verify token parameter handling
+  - [x] Ensure password strength requirements displayed
+  - [x] Add error message for expired/used tokens (400 status, per backend spec)
+  - [x] Add error message for rate limiting (429 status)
+- [x] 9.5 Update `frontend/src/components/ui/password-reset-modal.tsx` (line 51):
+  - [x] Verify password strength validation
+  - [x] Add rate limit error display (429 response handling)
+  - [x] **Add countdown timer**: When 429 received, calculate retry time using `Retry-After` seconds when provided, otherwise default to 1 hour from the stored window start
+  - [x] Display countdown: "Too many attempts. Try again in 45:32"
+  - [x] Disable submit button during countdown
+  - [x] Re-enable submit button when countdown reaches zero
+  - [x] Store rate limit end time in localStorage (survives page refresh)
+  - [x] Use `Retry-After` header from backend when present to set countdown baseline
+  - [x] Ensure success message after reset
+
+## 10. Frontend - New Invitation Features
+- [x] 10.1 Create `frontend/src/lib/invitation-helpers.ts`:
+  - [x] InvitationValidation interface (email, roleName, firstName, lastName, expiresAt)
+  - [x] InvitationAcceptRequest interface (firstName, lastName, password)
+  - [x] CreateInvitationRequest interface (email, roleId, firstName, lastName)
+  - [x] PendingInvitation interface (id, email, roleName, createdBy, expiresAt)
+  - [x] mapInvitationValidationResponse() for backend → frontend type conversion
+- [x] 10.2 Create `frontend/src/lib/invitation-api.ts`:
+  - [x] validateInvitation(token: string): Promise<InvitationValidation>
+  - [x] acceptInvitation(token: string, data: InvitationAcceptRequest): Promise<void>
+  - [x] createInvitation(data: CreateInvitationRequest): Promise<PendingInvitation>
+  - [x] listPendingInvitations(): Promise<PendingInvitation[]>
+  - [x] resendInvitation(id: string): Promise<void>
+  - [x] revokeInvitation(id: string): Promise<void>
+  - [x] Handle 404, 410, 400, 429 errors with meaningful messages
+- [x] 10.3 Create `frontend/src/app/api/invitations/route.ts`:
+  - [x] GET handler for listing (proxy to backend)
+  - [x] POST handler for creation (proxy to backend)
+  - [x] Require admin token
+- [x] 10.4 Create `frontend/src/app/api/invitations/[id]/resend/route.ts`:
+  - [x] POST handler for resend
+- [x] 10.5 Create `frontend/src/app/api/invitations/[id]/route.ts`:
+  - [x] DELETE handler for revoke
+- [x] 10.6 Create `frontend/src/app/api/invitations/validate/route.ts`:
+  - [x] GET handler for validation (public, no auth)
+  - [x] Extract token from query parameter
+  - [x] Proxy to backend GET /auth/invitations/{token}
+- [x] 10.6b Create `frontend/src/app/api/invitations/accept/route.ts`:
+  - [x] POST handler for acceptance (public, no auth)
+  - [x] Extract token from request body
+  - [x] Proxy to backend POST /auth/invitations/{token}/accept
+- [x] 10.7 Create `frontend/src/components/auth/invitation-accept-form.tsx`:
+  - [x] Display invitation details (email, role, prefilled name)
+  - [x] Form fields: first_name, last_name, password, confirm_password
+  - [x] Password strength indicator
+  - [x] Handle form submission with acceptInvitation()
+  - [x] Redirect to login page on success
+  - [x] Show error messages for validation failures
+  - [x] Handle 410 errors (expired/used) with clear message
+- [x] 10.8 Create `frontend/src/app/(public)/invite/page.tsx`:
+  - [x] **Use query param, NOT path param**: Extract token from searchParams.get("token")
+  - [x] Client component with useSearchParams() hook
+  - [x] Wrap in Suspense boundary (required for useSearchParams)
+  - [x] Fetch invitation validation on page load
+  - [x] Handle expired/invalid/used tokens (show error message)
+  - [x] Render InvitationAcceptForm with validation data
+- [x] 10.9 Create `frontend/src/components/admin/invitation-form.tsx`:
+  - [x] Form fields: email, role (dropdown), first_name (optional), last_name (optional)
+  - [x] Role dropdown populated from roles API
+  - [x] Handle form submission with createInvitation()
+  - [x] Show success message with invitation link for manual sharing
+  - [x] Clear form after successful creation
+- [x] 10.10 Create `frontend/src/components/admin/pending-invitations-list.tsx`:
+  - [x] Table: email, role, created_by, expires_at, actions
+  - [x] Actions: resend button, revoke button
+  - [x] Confirmation modal for revoke
+  - [x] Refresh list after actions
+  - [x] Handle errors (expired invitations can't be resent)
+- [x] 10.11 Create `frontend/src/app/invitations/page.tsx`:
+  - [x] Render InvitationForm at top
+  - [x] Render PendingInvitationsList below
+  - [x] Require admin permission (check session role)
+  - [x] Add page title and description
+
+## 11. Testing
+- [x] 11.1 Unit tests for rate limiting:
+  - [x] Test CheckRateLimit allows first 3 requests
+  - [x] Test CheckRateLimit blocks 4th request
+  - [x] Test window reset after 1 hour
+  - [x] Test IncrementAttempts increments counter
+- [x] 11.2 Unit tests for invitation service:
+  - [x] Test CreateInvitation success
+  - [x] Test CreateInvitation invalidates existing tokens
+  - [x] Test ValidateInvitation with valid token
+  - [x] Test ValidateInvitation returns ErrInvitationExpired
+  - [x] Test ValidateInvitation returns ErrInvitationUsed
+  - [x] Test AcceptInvitation creates account and person
+  - [x] Test AcceptInvitation in transaction (rollback on error)
+  - [x] Test password validation in AcceptInvitation
+  - [x] Test ResendInvitation sends email
+  - [x] Test ResendInvitation fails for expired invitation
+  - [x] Test RevokeInvitation marks as used
+- [x] 11.3 Integration tests for password reset:
+  - [x] Test InitiatePasswordReset sends email
+  - [x] Test InitiatePasswordReset creates 30-min token (not 24h)
+  - [x] Test ResetPassword with valid token
+  - [x] Test ResetPassword with expired token
+  - [x] Test rate limiting blocks after 3 attempts
+- [ ] 11.4 Bruno API tests:
+  - [ ] Password reset: request → check email → reset (mock SMTP)
+  - [ ] Rate limiting: 4 password reset requests → 429 on 4th
+  - [ ] Create invitation (admin auth)
+  - [ ] Validate invitation token (public)
+  - [ ] Accept invitation with weak password → 400
+  - [ ] Accept invitation success → creates account
+  - [ ] List pending invitations (admin auth)
+  - [ ] Resend invitation (admin auth)
+  - [ ] Resend expired invitation → 400
+  - [ ] Revoke invitation (admin auth)
+  - [ ] Accept revoked invitation → 410
+- [ ] 11.5 Manual end-to-end test:
+  - [ ] Admin creates invitation
+  - [ ] Invitation email received (check logs if mock mailer)
+  - [ ] User clicks link, sees acceptance page
+  - [ ] User fills form with weak password → validation error
+  - [ ] User fills form with strong password → account created
+  - [ ] User can login with new credentials
+  - [ ] Password reset flow: request → email → reset → login
+  - [ ] Rate limit test: 4 password resets → 429 error
+
+## 12. Documentation
+- [x] 12.1 Update `backend/CLAUDE.md`:
+  - [x] Document email service configuration
+  - [x] Document invitation service pattern
+  - [x] Document password helpers
+  - [x] Document rate limiting implementation
+  - [x] Document scheduler extension
+  - [x] Document new cleanup commands (invitations, rate-limits) and when to run them
+- [x] 12.2 Update `frontend/CLAUDE.md`:
+  - [x] Document invitation acceptance flow
+  - [x] Document admin invitation management
+  - [x] Update password reset flow documentation
+- [x] 12.3 Update root `CLAUDE.md`:
+  - [x] Add email service to architecture overview
+  - [x] Document SMTP configuration in environment variables
+  - [x] Add user invitation workflow to development guide
+  - [x] Document password reset token expiry change
+- [x] 12.4 Update `README.md`:
+  - [x] Add SMTP setup instructions
+  - [x] Document email templates location
+  - [x] Add invitation workflow to features list
+  - [x] Add rate limiting to security features
+  - [x] Mention new cleanup subcommands (invitations, rate-limits) and scheduler behaviour
+- [x] 12.5 Create `docs/email-templates.md`:
+  - [x] Document template structure
+  - [x] Document available template variables
+  - [x] Document how to customize branding
+  - [x] Show example template usage
+
+## Dependencies
+- Phase 1 (email config) must complete before Phase 6 (invitation service needs mailer)
+- Phase 2 (rate limiting) must complete before Phase 1.6 (password reset uses rate limiter)
+- Phase 3 (error types) must complete before Phase 6 and 8 (services and API use them)
+- Phase 4 (password helpers) must complete before Phase 6 (invitation service uses them)
+- Phase 5 (invitation schema) must complete before Phase 6 (service needs repo)
+- Phase 6 (invitation service) must complete before Phase 7 (scheduler needs it)
+- Phase 8 (API) must complete before Phase 10 (frontend needs backend)
+- Phase 9 (password reset updates) can happen in parallel with Phase 10
+
+## Parallelizable Work
+- **Email config (1.x)** and **rate limiting (2.x)** and **error types (3.x)** can start simultaneously
+- **Invitation schema (5.x)** can start while password helpers (4.x) are being extracted
+- **Frontend updates (9.x, 10.x)** can be developed in parallel once 8.x complete
+- **Testing (11.x)** and **documentation (12.x)** can overlap
+
+## Critical Path
+2.x (rate limiting) → 3.x (errors) → 4.x (helpers) → 1.x (email + password reset) → 5.x (schema) → 6.x (invitation service) → 7.x (scheduler) → 8.x (API) → 9.x/10.x (frontend) → 11.x (testing)
+
+## Validation Criteria
+- [x] Password reset email received with correct link
+- [x] Password reset token expires after 30 minutes (not 24 hours)
+- [x] Rate limiting blocks 4th password reset request within 1 hour
+- [x] Invitation email received with correct link
+- [x] Invitation acceptance creates both account and person atomically
+- [ ] Can login with newly created account
+- [ ] Password reset flow works end-to-end
+- [ ] Admin can list pending invitations
+- [ ] Admin can resend invitation email
+- [ ] Admin can revoke invitation
+- [ ] Expired invitations cannot be accepted (410 Gone)
+- [ ] Used invitations cannot be reused (410 Gone)
+- [x] Resending expired invitation returns 400 error
+- [ ] Email templates render correctly in Gmail, Outlook, Apple Mail
+- [ ] All Bruno API tests pass
+- [x] All unit tests pass
+- [ ] Zero lint/type errors in frontend
+- [ ] Scheduler runs invitation cleanup daily
+- [x] Documentation updated and accurate
+- [ ] Password strength validation works in both services
+- [ ] Error types map to correct HTTP status codes (404, 410, 429)
