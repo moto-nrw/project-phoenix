@@ -157,9 +157,15 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 		rfidCard.CreatedAt = time.Now()
 		rfidCard.UpdatedAt = time.Now()
 
-		_, err := s.tx.NewInsert().Model(rfidCard).ModelTableExpr("users.rfid_cards").Exec(ctx)
+		_, err := s.tx.NewInsert().Model(rfidCard).
+			ModelTableExpr("users.rfid_cards").
+			On("CONFLICT (id) DO UPDATE").
+			Set("active = EXCLUDED.active").
+			Set("updated_at = EXCLUDED.updated_at").
+			Returning("id, created_at, updated_at").
+			Exec(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to create RFID card: %w", err)
+			return fmt.Errorf("failed to upsert RFID card: %w", err)
 		}
 		s.result.RFIDCards = append(s.result.RFIDCards, rfidCard)
 
@@ -169,28 +175,6 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 			email := fmt.Sprintf("%s.%s@schulzentrum.de",
 				normalizeForEmail(firstName),
 				normalizeForEmail(lastName))
-
-			// Check for duplicate emails and add number if needed
-			emailExists := true
-			emailCounter := 1
-			for emailExists {
-				count, err := s.tx.NewSelect().
-					Table("auth.accounts").
-					Where("email = ?", email).
-					Count(ctx)
-				if err != nil {
-					return fmt.Errorf("failed to check email existence: %w", err)
-				}
-				if count > 0 {
-					email = fmt.Sprintf("%s.%s%d@schulzentrum.de",
-						normalizeForEmail(firstName),
-						normalizeForEmail(lastName),
-						emailCounter)
-					emailCounter++
-				} else {
-					emailExists = false
-				}
-			}
 
 			// Generate PIN for staff
 			pin := fmt.Sprintf("%04d", 1000+i)
@@ -212,18 +196,26 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 			account.CreatedAt = time.Now()
 			account.UpdatedAt = time.Now()
 
-			// Use raw SQL to avoid BUN adding aliases on INSERT
 			var id int64
+			var createdAt time.Time
+			var updatedAt time.Time
 			err = s.tx.QueryRowContext(ctx, `
 				INSERT INTO auth.accounts (created_at, updated_at, email, password_hash, pin_hash, active)
 				VALUES (?, ?, ?, ?, ?, ?)
-				RETURNING id`,
+				ON CONFLICT (email) DO UPDATE SET
+					password_hash = EXCLUDED.password_hash,
+					pin_hash = EXCLUDED.pin_hash,
+					active = EXCLUDED.active,
+					updated_at = EXCLUDED.updated_at
+				RETURNING id, created_at, updated_at`,
 				account.CreatedAt, account.UpdatedAt, account.Email,
-				account.PasswordHash, account.PINHash, account.Active).Scan(&id)
+				account.PasswordHash, account.PINHash, account.Active).Scan(&id, &createdAt, &updatedAt)
 			if err != nil {
-				return fmt.Errorf("failed to create account for %s: %w", email, err)
+				return fmt.Errorf("failed to upsert account for %s: %w", email, err)
 			}
 			account.ID = id
+			account.CreatedAt = createdAt
+			account.UpdatedAt = updatedAt
 
 			accountID = &account.ID
 			s.result.Accounts = append(s.result.Accounts, account)
@@ -257,7 +249,12 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 				accountRole.CreatedAt = time.Now()
 				accountRole.UpdatedAt = time.Now()
 
-				_, err = s.tx.NewInsert().Model(accountRole).ModelTableExpr("auth.account_roles").Exec(ctx)
+				_, err = s.tx.NewInsert().Model(accountRole).
+					ModelTableExpr("auth.account_roles").
+					On("CONFLICT (account_id, role_id) DO UPDATE").
+					Set("updated_at = EXCLUDED.updated_at").
+					Returning("created_at, updated_at").
+					Exec(ctx)
 				if err != nil {
 					return fmt.Errorf("failed to assign role: %w", err)
 				}
@@ -274,9 +271,17 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 		person.CreatedAt = time.Now()
 		person.UpdatedAt = time.Now()
 
-		_, err = s.tx.NewInsert().Model(person).ModelTableExpr("users.persons").Exec(ctx)
+		_, err = s.tx.NewInsert().Model(person).
+			ModelTableExpr("users.persons").
+			On("CONFLICT (tag_id) DO UPDATE").
+			Set("first_name = EXCLUDED.first_name").
+			Set("last_name = EXCLUDED.last_name").
+			Set("account_id = EXCLUDED.account_id").
+			Set("updated_at = EXCLUDED.updated_at").
+			Returning("id, created_at, updated_at").
+			Exec(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to create person %s %s: %w", firstName, lastName, err)
+			return fmt.Errorf("failed to upsert person %s %s: %w", firstName, lastName, err)
 		}
 
 		s.result.Persons = append(s.result.Persons, person)

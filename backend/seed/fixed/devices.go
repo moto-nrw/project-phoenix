@@ -65,9 +65,20 @@ func (s *Seeder) seedIoTDevices(ctx context.Context) error {
 		device.CreatedAt = time.Now()
 		device.UpdatedAt = time.Now()
 
-		_, err := s.tx.NewInsert().Model(device).ModelTableExpr("iot.devices").Exec(ctx)
+		_, err := s.tx.NewInsert().Model(device).
+			ModelTableExpr("iot.devices").
+			On("CONFLICT (device_id) DO UPDATE").
+			Set("device_type = EXCLUDED.device_type").
+			Set("name = EXCLUDED.name").
+			Set("status = EXCLUDED.status").
+			Set("api_key = EXCLUDED.api_key").
+			Set("last_seen = EXCLUDED.last_seen").
+			Set("registered_by_id = EXCLUDED.registered_by_id").
+			Set("updated_at = EXCLUDED.updated_at").
+			Returning("id, created_at, updated_at").
+			Exec(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to create device %s: %w", placement.name, err)
+			return fmt.Errorf("failed to upsert device %s: %w", placement.name, err)
 		}
 
 		s.result.Devices = append(s.result.Devices, device)

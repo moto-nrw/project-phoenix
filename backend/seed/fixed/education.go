@@ -48,9 +48,15 @@ func (s *Seeder) seedEducationGroups(ctx context.Context) error {
 		group.CreatedAt = time.Now()
 		group.UpdatedAt = time.Now()
 
-		_, err := s.tx.NewInsert().Model(group).ModelTableExpr("education.groups").Exec(ctx)
+		_, err := s.tx.NewInsert().Model(group).
+			ModelTableExpr("education.groups").
+			On("CONFLICT (name) DO UPDATE").
+			Set("room_id = EXCLUDED.room_id").
+			Set("updated_at = EXCLUDED.updated_at").
+			Returning("id, created_at, updated_at").
+			Exec(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to create class group %s: %w", data.name, err)
+			return fmt.Errorf("failed to upsert class group %s: %w", data.name, err)
 		}
 
 		s.result.EducationGroups = append(s.result.EducationGroups, group)
@@ -99,9 +105,15 @@ func (s *Seeder) seedEducationGroups(ctx context.Context) error {
 		group.CreatedAt = time.Now()
 		group.UpdatedAt = time.Now()
 
-		_, err := s.tx.NewInsert().Model(group).ModelTableExpr("education.groups").Exec(ctx)
+		_, err := s.tx.NewInsert().Model(group).
+			ModelTableExpr("education.groups").
+			On("CONFLICT (name) DO UPDATE").
+			Set("room_id = EXCLUDED.room_id").
+			Set("updated_at = EXCLUDED.updated_at").
+			Returning("id, created_at, updated_at").
+			Exec(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to create supervision group %s: %w", data.name, err)
+			return fmt.Errorf("failed to upsert supervision group %s: %w", data.name, err)
 		}
 
 		s.result.EducationGroups = append(s.result.EducationGroups, group)

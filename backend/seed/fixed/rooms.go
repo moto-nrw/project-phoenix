@@ -87,9 +87,19 @@ func (s *Seeder) seedRooms(ctx context.Context) error {
 		room.CreatedAt = time.Now()
 		room.UpdatedAt = time.Now()
 
-		_, err := s.tx.NewInsert().Model(room).ModelTableExpr("facilities.rooms").Exec(ctx)
+		_, err := s.tx.NewInsert().Model(room).
+			ModelTableExpr("facilities.rooms").
+			On("CONFLICT (name) DO UPDATE").
+			Set("building = EXCLUDED.building").
+			Set("floor = EXCLUDED.floor").
+			Set("capacity = EXCLUDED.capacity").
+			Set("category = EXCLUDED.category").
+			Set("color = EXCLUDED.color").
+			Set("updated_at = EXCLUDED.updated_at").
+			Returning("id, created_at, updated_at").
+			Exec(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to create room %s: %w", data.Name, err)
+			return fmt.Errorf("failed to upsert room %s: %w", data.Name, err)
 		}
 
 		s.result.Rooms = append(s.result.Rooms, room)
