@@ -15,14 +15,15 @@ import (
 
 // Scheduler manages scheduled tasks
 type Scheduler struct {
-	activeService  active.Service
-	cleanupService active.CleanupService
-	authService    interface{} // Using interface to avoid circular dependency
-	tasks          map[string]*ScheduledTask
-	mu             sync.RWMutex
-	ctx            context.Context
-	cancel         context.CancelFunc
-	wg             sync.WaitGroup
+	activeService     active.Service
+	cleanupService    active.CleanupService
+	authService       interface{} // Using interface to avoid circular dependency
+	invitationService interface{}
+	tasks             map[string]*ScheduledTask
+	mu                sync.RWMutex
+	ctx               context.Context
+	cancel            context.CancelFunc
+	wg                sync.WaitGroup
 }
 
 // ScheduledTask represents a scheduled task
@@ -36,15 +37,16 @@ type ScheduledTask struct {
 }
 
 // NewScheduler creates a new scheduler
-func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService interface{}) *Scheduler {
+func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService interface{}, invitationService interface{}) *Scheduler {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Scheduler{
-		activeService:  activeService,
-		cleanupService: cleanupService,
-		authService:    authService,
-		tasks:          make(map[string]*ScheduledTask),
-		ctx:            ctx,
-		cancel:         cancel,
+		activeService:     activeService,
+		cleanupService:    cleanupService,
+		authService:       authService,
+		invitationService: invitationService,
+		tasks:             make(map[string]*ScheduledTask),
+		ctx:               ctx,
+		cancel:            cancel,
 	}
 }
 
@@ -298,30 +300,67 @@ func (s *Scheduler) executeTokenCleanup(task *ScheduledTask) {
 	startTime := time.Now()
 
 	// Use reflection to call CleanupExpiredTokens method
-	if s.authService != nil {
-		method := reflect.ValueOf(s.authService).MethodByName("CleanupExpiredTokens")
-		if method.IsValid() {
-			ctx := context.Background()
-			ctxValue := reflect.ValueOf(ctx)
-			results := method.Call([]reflect.Value{ctxValue})
+	if err := s.RunCleanupJobs(); err != nil {
+		log.Printf("ERROR: Token cleanup failed: %v", err)
+		return
+	}
 
-			if len(results) == 2 {
-				count := results[0].Int()
-				errInterface := results[1].Interface()
+	duration := time.Since(startTime)
+	log.Printf("Token cleanup completed in %v", duration.Round(time.Millisecond))
+}
 
-				if errInterface != nil {
-					if err, ok := errInterface.(error); ok && err != nil {
-						log.Printf("ERROR: Token cleanup failed: %v", err)
-						return
-					}
-				}
+// RunCleanupJobs executes all token-related cleanup tasks in sequence.
+func (s *Scheduler) RunCleanupJobs() error {
+	var errs []error
 
-				duration := time.Since(startTime)
-				log.Printf("Token cleanup completed in %v: deleted %d expired tokens",
-					duration.Round(time.Millisecond), count)
-			}
+	convertCount := func(v reflect.Value) int {
+		switch v.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return int(v.Int())
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return int(v.Uint())
+		default:
+			return 0
 		}
 	}
+
+	invoke := func(service interface{}, methodName, description string) {
+		if service == nil {
+			return
+		}
+
+		method := reflect.ValueOf(service).MethodByName(methodName)
+		if !method.IsValid() {
+			return
+		}
+
+		ctx := context.Background()
+		results := method.Call([]reflect.Value{reflect.ValueOf(ctx)})
+		if len(results) != 2 {
+			return
+		}
+
+		count := convertCount(results[0])
+		if errInterface := results[1].Interface(); errInterface != nil {
+			if err, ok := errInterface.(error); ok {
+				log.Printf("ERROR: %s failed: %v", description, err)
+				errs = append(errs, err)
+				return
+			}
+		}
+
+		log.Printf("%s removed %d records", description, count)
+	}
+
+	invoke(s.authService, "CleanupExpiredTokens", "Auth token cleanup")
+	invoke(s.authService, "CleanupExpiredPasswordResetTokens", "Password reset token cleanup")
+	invoke(s.invitationService, "CleanupExpiredInvitations", "Invitation cleanup")
+	invoke(s.authService, "CleanupExpiredRateLimits", "Password reset rate limit cleanup")
+
+	if len(errs) > 0 {
+		return errs[0]
+	}
+	return nil
 }
 
 // scheduleSessionEndTask schedules the daily session end task
