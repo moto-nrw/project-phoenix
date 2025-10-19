@@ -29,24 +29,25 @@ func (s *DeviceState) sessionActive() bool {
 
 // StudentState captures mutable data about a simulated student.
 type StudentState struct {
-	StudentID        int64
-	PersonID         int64
-	FirstName        string
-	LastName         string
-	RFIDTag          string
-	CurrentPhase     RotationPhase
-	NextPhase        RotationPhase
-	CurrentRoomID    *int64
-	RotationIndex    int
-	AGHopCount       int
-	AGHopTarget      int
-	VisitedAGs       map[int64]time.Time
-	AttendanceStatus string
-	LastAttendance   time.Time
-	LastEventAt      time.Time
-	HomeRoomID       *int64
-	HomeDeviceID     string
-	HasActiveVisit   bool
+	StudentID          int64
+	PersonID           int64
+	FirstName          string
+	LastName           string
+	RFIDTag            string
+	CurrentPhase       RotationPhase
+	NextPhase          RotationPhase
+	CurrentRoomID      *int64
+	RotationIndex      int
+	AGHopCount         int
+	AGHopTarget        int
+	VisitedAGs         map[int64]time.Time
+	AttendanceStatus   string
+	LastAttendance     time.Time
+	LastEventAt        time.Time
+	HomeRoomID         *int64
+	HomeDeviceID       string
+	HasActiveVisit     bool
+	VisitCooldownUntil time.Time
 }
 
 // StaffState captures roster info for supervisor rotation.

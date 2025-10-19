@@ -16,6 +16,8 @@ var (
 	ErrNoEligibleCandidates = errors.New("no eligible candidates for action")
 )
 
+const visitCooldown = 3 * time.Second
+
 // Engine drives simulated events against the API based on cached discovery state.
 type Engine struct {
 	cfg     *Config
@@ -169,6 +171,7 @@ func (e *Engine) executeCheckIn(ctx context.Context, action ActionConfig) error 
 	}
 
 	candidates := make([]candidate, 0)
+	now := time.Now()
 
 	e.stateMu.RLock()
 	for deviceID, state := range e.states {
@@ -193,6 +196,9 @@ func (e *Engine) executeCheckIn(ctx context.Context, action ActionConfig) error 
 				continue
 			}
 			if student.HasActiveVisit {
+				continue
+			}
+			if !student.VisitCooldownUntil.IsZero() && student.VisitCooldownUntil.After(now) {
 				continue
 			}
 			nextPhase := student.NextPhase
@@ -241,17 +247,19 @@ func (e *Engine) executeCheckIn(ctx context.Context, action ActionConfig) error 
 		e.stateMu.Lock()
 		if state := e.states[selected.deviceID]; state != nil {
 			if student := state.StudentStates[selected.studentID]; student != nil {
-				student.LastEventAt = time.Now()
+				ts := time.Now()
+				student.LastEventAt = ts
 				if strings.Contains(err.Error(), "student already has an active visit") {
 					student.HasActiveVisit = true
 				}
+				student.VisitCooldownUntil = ts.Add(visitCooldown)
 			}
 		}
 		e.stateMu.Unlock()
 		return err
 	}
 
-	now := time.Now()
+	eventTime := time.Now()
 
 	e.stateMu.Lock()
 	defer e.stateMu.Unlock()
@@ -268,8 +276,9 @@ func (e *Engine) executeCheckIn(ctx context.Context, action ActionConfig) error 
 	roomID := selected.roomID
 	student.CurrentRoomID = ptrInt64(roomID)
 	student.CurrentPhase = selected.phase
-	student.LastEventAt = now
+	student.LastEventAt = eventTime
 	student.HasActiveVisit = true
+	student.VisitCooldownUntil = eventTime.Add(visitCooldown)
 
 	switch selected.phase {
 	case RotationPhaseAG:
@@ -279,7 +288,7 @@ func (e *Engine) executeCheckIn(ctx context.Context, action ActionConfig) error 
 		if _, seen := student.VisitedAGs[roomID]; !seen {
 			student.AGHopCount++
 		}
-		student.VisitedAGs[roomID] = now
+		student.VisitedAGs[roomID] = eventTime
 		if student.AGHopTarget <= 0 {
 			student.AGHopTarget = generateAGHopTarget(e.cfg.Event)
 		}
@@ -313,7 +322,8 @@ func (e *Engine) executeCheckOut(ctx context.Context, action ActionConfig) error
 	}
 
 	candidates := make([]candidate, 0)
-	cutoff := time.Now().Add(-e.cfg.Event.Interval / 2)
+	now := time.Now()
+	cutoff := now.Add(-e.cfg.Event.Interval / 2)
 
 	e.stateMu.RLock()
 	for deviceID, state := range e.states {
@@ -334,6 +344,12 @@ func (e *Engine) executeCheckOut(ctx context.Context, action ActionConfig) error
 				continue
 			}
 			if student.CurrentRoomID == nil {
+				continue
+			}
+			if !student.HasActiveVisit {
+				continue
+			}
+			if !student.VisitCooldownUntil.IsZero() && student.VisitCooldownUntil.After(now) {
 				continue
 			}
 			if !student.LastEventAt.IsZero() && student.LastEventAt.After(cutoff) {
@@ -369,14 +385,16 @@ func (e *Engine) executeCheckOut(ctx context.Context, action ActionConfig) error
 		e.stateMu.Lock()
 		if state := e.states[selected.deviceID]; state != nil {
 			if student := state.StudentStates[selected.studentID]; student != nil {
-				student.LastEventAt = time.Now()
+				ts := time.Now()
+				student.LastEventAt = ts
+				student.VisitCooldownUntil = ts.Add(visitCooldown)
 			}
 		}
 		e.stateMu.Unlock()
 		return err
 	}
 
-	now := time.Now()
+	eventTime := time.Now()
 
 	e.stateMu.Lock()
 	defer e.stateMu.Unlock()
@@ -391,8 +409,9 @@ func (e *Engine) executeCheckOut(ctx context.Context, action ActionConfig) error
 	}
 
 	student.CurrentRoomID = nil
-	student.LastEventAt = now
+	student.LastEventAt = eventTime
 	student.HasActiveVisit = false
+	student.VisitCooldownUntil = eventTime.Add(visitCooldown)
 
 	switch student.CurrentPhase {
 	case RotationPhaseAG:
@@ -428,7 +447,8 @@ func (e *Engine) executeSchulhofHop(ctx context.Context, action ActionConfig) er
 	}
 
 	candidates := make([]candidate, 0)
-	cutoff := time.Now().Add(-e.cfg.Event.Interval / 2)
+	now := time.Now()
+	cutoff := now.Add(-e.cfg.Event.Interval / 2)
 
 	e.stateMu.RLock()
 	for deviceID, state := range e.states {
@@ -450,6 +470,12 @@ func (e *Engine) executeSchulhofHop(ctx context.Context, action ActionConfig) er
 				continue
 			}
 			if student.CurrentPhase == RotationPhaseSchulhof && student.CurrentRoomID != nil {
+				if !student.HasActiveVisit {
+					continue
+				}
+				if !student.VisitCooldownUntil.IsZero() && student.VisitCooldownUntil.After(now) {
+					continue
+				}
 				if !student.LastEventAt.IsZero() && student.LastEventAt.After(cutoff) {
 					continue
 				}
@@ -464,6 +490,12 @@ func (e *Engine) executeSchulhofHop(ctx context.Context, action ActionConfig) er
 			}
 
 			if student.NextPhase == RotationPhaseSchulhof && student.CurrentRoomID == nil {
+				if student.HasActiveVisit {
+					continue
+				}
+				if !student.VisitCooldownUntil.IsZero() && student.VisitCooldownUntil.After(now) {
+					continue
+				}
 				candidates = append(candidates, candidate{
 					deviceID:    deviceID,
 					studentID:   student.StudentID,
@@ -500,14 +532,16 @@ func (e *Engine) executeSchulhofHop(ctx context.Context, action ActionConfig) er
 		e.stateMu.Lock()
 		if state := e.states[selected.deviceID]; state != nil {
 			if student := state.StudentStates[selected.studentID]; student != nil {
-				student.LastEventAt = time.Now()
+				ts := time.Now()
+				student.LastEventAt = ts
+				student.VisitCooldownUntil = ts.Add(visitCooldown)
 			}
 		}
 		e.stateMu.Unlock()
 		return err
 	}
 
-	now := time.Now()
+	eventTime := time.Now()
 
 	e.stateMu.Lock()
 	defer e.stateMu.Unlock()
@@ -525,17 +559,19 @@ func (e *Engine) executeSchulhofHop(ctx context.Context, action ActionConfig) er
 		student.CurrentRoomID = ptrInt64(selected.roomID)
 		student.CurrentPhase = RotationPhaseSchulhof
 		student.NextPhase = RotationPhaseHeimatraum
-		student.LastEventAt = now
+		student.LastEventAt = eventTime
 		student.HasActiveVisit = true
+		student.VisitCooldownUntil = eventTime.Add(visitCooldown)
 	} else {
 		student.CurrentRoomID = nil
 		student.CurrentPhase = RotationPhaseSchulhof
 		student.NextPhase = RotationPhaseHeimatraum
-		student.LastEventAt = now
+		student.LastEventAt = eventTime
 		student.AGHopCount = 0
 		student.VisitedAGs = make(map[int64]time.Time)
 		student.AGHopTarget = generateAGHopTarget(e.cfg.Event)
 		student.HasActiveVisit = false
+		student.VisitCooldownUntil = eventTime.Add(visitCooldown)
 	}
 
 	log.Printf("[engine] schulhof_%s -> device=%s student=%d", selected.apiAction, selected.deviceID, selected.studentID)
