@@ -663,13 +663,13 @@ export default function StudentDetailPage() {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="text-xs text-gray-500 mb-1 block">Zusätzliche Informationen</label>
+                                                <label className="text-xs text-gray-500 mb-1 block">Elternnotizen</label>
                                                 <textarea
                                                     value={editedStudent.extra_info ?? ''}
                                                     onChange={(e) => setEditedStudent({ ...editedStudent, extra_info: e.target.value })}
                                                     className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[60px]"
                                                     rows={2}
-                                                    placeholder="Weitere Informationen"
+                                                    placeholder="Notizen der Eltern"
                                                 />
                                             </div>
                                         </>
@@ -682,7 +682,7 @@ export default function StudentDetailPage() {
                                             <InfoItem label="Buskind" value={student.buskind ? 'Ja' : 'Nein'} />
                                             {student.health_info && <InfoItem label="Gesundheitsinformationen" value={student.health_info} />}
                                             {student.supervisor_notes && <InfoItem label="Betreuernotizen" value={student.supervisor_notes} />}
-                                            {student.extra_info && <InfoItem label="Zusätzliche Informationen" value={student.extra_info} />}
+                                            {student.extra_info && <InfoItem label="Elternnotizen" value={student.extra_info} />}
                                         </>
                                     )}
                                 </div>
