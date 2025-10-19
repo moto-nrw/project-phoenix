@@ -36,6 +36,7 @@ type Factory struct {
 	Activities               activities.ActivityService
 	Education                education.Service
 	Facilities               facilities.Service
+	Invitation               auth.InvitationService
 	Feedback                 feedback.Service
 	IoT                      iot.Service
 	Config                   config.Service
@@ -214,6 +215,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		return nil, err
 	}
 
+	invitationService := auth.NewInvitationService(
+		repos.InvitationToken,
+		repos.Account,
+		repos.Role,
+		repos.AccountRole,
+		repos.Person,
+		mailer,
+		frontendURL,
+		defaultFrom,
+		invitationTokenExpiry,
+		db,
+	)
+
 	// Initialize authorization
 	authorizationService := authorize.NewAuthorizationService()
 
@@ -277,6 +291,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		UserContext:              userContextService,
 		Database:                 databaseService,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
+		Invitation:               invitationService,
 		Mailer:                   mailer,
 		DefaultFrom:              defaultFrom,
 		FrontendURL:              frontendURL,
