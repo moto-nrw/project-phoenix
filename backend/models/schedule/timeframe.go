@@ -19,13 +19,13 @@ type Timeframe struct {
 
 func (t *Timeframe) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("schedule.timeframes")
+		q.ModelTableExpr(`schedule.timeframes AS "timeframe"`)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("schedule.timeframes")
+		q.ModelTableExpr(`schedule.timeframes AS "timeframe"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("schedule.timeframes")
+		q.ModelTableExpr(`schedule.timeframes AS "timeframe"`)
 	}
 	return nil
 }

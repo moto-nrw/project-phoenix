@@ -132,7 +132,7 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 
 		existing := new(activities.Group)
 		err := s.tx.NewSelect().Model(existing).
-			ModelTableExpr("activities.groups").
+			ModelTableExpr(`activities.groups AS "group"`).
 			Where("name = ?", data.name).
 			Limit(1).
 			Scan(ctx)
@@ -146,7 +146,7 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 			existing.UpdatedAt = time.Now()
 
 			if _, err := s.tx.NewUpdate().Model(existing).
-				ModelTableExpr("activities.groups").
+				ModelTableExpr(`activities.groups AS "group"`).
 				Column("category_id", "max_participants", "planned_room_id", "is_open", "updated_at").
 				WherePK().
 				Exec(ctx); err != nil {
@@ -168,7 +168,7 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 			group.UpdatedAt = group.CreatedAt
 
 			if _, err := s.tx.NewInsert().Model(group).
-				ModelTableExpr("activities.groups").
+				ModelTableExpr(`activities.groups AS "group"`).
 				Returning("id, created_at, updated_at").
 				Exec(ctx); err != nil {
 				return fmt.Errorf("failed to create activity group %s: %w", data.name, err)
@@ -271,7 +271,7 @@ func (s *Seeder) seedTimeframes(ctx context.Context) error {
 
 		existing := new(schedule.Timeframe)
 		err := s.tx.NewSelect().Model(existing).
-			ModelTableExpr("schedule.timeframes").
+			ModelTableExpr(`schedule.timeframes AS "timeframe"`).
 			Where("description = ?", data.description).
 			Limit(1).
 			Scan(ctx)
@@ -283,7 +283,7 @@ func (s *Seeder) seedTimeframes(ctx context.Context) error {
 			existing.UpdatedAt = time.Now()
 
 			if _, err := s.tx.NewUpdate().Model(existing).
-				ModelTableExpr("schedule.timeframes").
+				ModelTableExpr(`schedule.timeframes AS "timeframe"`).
 				Column("start_time", "end_time", "updated_at").
 				WherePK().
 				Exec(ctx); err != nil {
@@ -301,7 +301,7 @@ func (s *Seeder) seedTimeframes(ctx context.Context) error {
 			timeframe.UpdatedAt = timeframe.CreatedAt
 
 			if _, err := s.tx.NewInsert().Model(timeframe).
-				ModelTableExpr("schedule.timeframes").
+				ModelTableExpr(`schedule.timeframes AS "timeframe"`).
 				Returning("id, created_at, updated_at").
 				Exec(ctx); err != nil {
 				return fmt.Errorf("failed to create timeframe %s: %w", data.description, err)
@@ -380,7 +380,7 @@ func (s *Seeder) seedActivitySchedules(ctx context.Context) error {
 
 				_, err := s.tx.NewInsert().Model(sched).
 					ModelTableExpr("activities.schedules").
-					On("CONFLICT (activity_group_id, weekday, timeframe_id) DO UPDATE").
+					On("CONFLICT (weekday, timeframe_id, activity_group_id) WHERE (timeframe_id IS NOT NULL) DO UPDATE").
 					Set("updated_at = EXCLUDED.updated_at").
 					Returning("id, created_at, updated_at").
 					Exec(ctx)

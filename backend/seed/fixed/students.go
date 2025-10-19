@@ -161,15 +161,6 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 	guardianCount := 0
 	for _, student := range s.result.Students {
 		if rng.Float32() < 0.2 {
-			// Find guardian role
-			var guardianRoleID int64
-			for _, role := range s.result.Roles {
-				if role.Name == "guardian" {
-					guardianRoleID = role.ID
-					break
-				}
-			}
-
 			// Create guardian account
 			if student.GuardianEmail == nil {
 				continue
@@ -178,7 +169,7 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("failed to hash password: %w", err)
 			}
-			account := &auth.Account{
+			account := &auth.AccountParent{
 				Email:        *student.GuardianEmail,
 				PasswordHash: &passwordHash,
 				Active:       true,
@@ -190,7 +181,7 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 			var createdAt time.Time
 			var updatedAt time.Time
 			err = s.tx.QueryRowContext(ctx, `
-				INSERT INTO auth.accounts (created_at, updated_at, email, password_hash, active)
+				INSERT INTO auth.accounts_parents (created_at, updated_at, email, password_hash, active)
 				VALUES (?, ?, ?, ?, ?)
 				ON CONFLICT (email) DO UPDATE SET
 					password_hash = EXCLUDED.password_hash,
@@ -206,24 +197,6 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 			account.CreatedAt = createdAt
 			account.UpdatedAt = updatedAt
 
-			// Assign guardian role
-			accountRole := &auth.AccountRole{
-				AccountID: account.ID,
-				RoleID:    guardianRoleID,
-			}
-			accountRole.CreatedAt = time.Now()
-			accountRole.UpdatedAt = time.Now()
-
-			_, err = s.tx.NewInsert().Model(accountRole).
-				ModelTableExpr("auth.account_roles").
-				On("CONFLICT (account_id, role_id) DO UPDATE").
-				Set("updated_at = EXCLUDED.updated_at").
-				Returning("created_at, updated_at").
-				Exec(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to assign guardian role: %w", err)
-			}
-
 			// Create student-guardian relationship
 			guardianRel := &users.StudentGuardian{
 				StudentID:          student.ID,
@@ -237,10 +210,9 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 			guardianRel.UpdatedAt = time.Now()
 
 			_, err = s.tx.NewInsert().
-				Model(&guardianRel).
+				Model(guardianRel).
 				ModelTableExpr("users.students_guardians").
-				On("CONFLICT (student_id, guardian_account_id) DO UPDATE").
-				Set("relationship_type = EXCLUDED.relationship_type").
+				On("CONFLICT (student_id, guardian_account_id, relationship_type) DO UPDATE").
 				Set("is_primary = EXCLUDED.is_primary").
 				Set("is_emergency_contact = EXCLUDED.is_emergency_contact").
 				Set("can_pickup = EXCLUDED.can_pickup").
