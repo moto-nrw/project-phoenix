@@ -40,6 +40,11 @@ var (
 
 	// ErrRateLimitExceeded returned when password reset attempts exceed rate limit
 	ErrRateLimitExceeded = errors.New("too many password reset requests")
+
+	// Invitation errors
+	ErrInvitationNotFound = errors.New("invitation not found")
+	ErrInvitationExpired  = errors.New("invitation has expired")
+	ErrInvitationUsed     = errors.New("invitation has already been used")
 )
 
 // AuthError represents an authentication-related error

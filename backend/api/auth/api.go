@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"database/sql"
 	"errors"
 	"log"
 	"net"
@@ -1559,8 +1560,32 @@ func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Always return success to avoid revealing whether email exists
-	_, _ = rs.AuthService.InitiatePasswordReset(r.Context(), req.Email)
+	// Always return success to avoid revealing whether email exists, but handle rate limiting
+	_, err := rs.AuthService.InitiatePasswordReset(r.Context(), req.Email)
+	if err != nil {
+		var rateErr *authService.RateLimitError
+		if errors.As(err, &rateErr) {
+			// Prefer Retry-After seconds, fallback to RFC1123 format
+			retryAfterSeconds := rateErr.RetryAfterSeconds(time.Now())
+			if retryAfterSeconds > 0 {
+				w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds))
+			} else if !rateErr.RetryAt.IsZero() {
+				w.Header().Set("Retry-After", rateErr.RetryAt.UTC().Format(http.TimeFormat))
+			}
+
+			if renderErr := render.Render(w, r, common.ErrorTooManyRequests(authService.ErrRateLimitExceeded)); renderErr != nil {
+				log.Printf("Render error: %v", renderErr)
+			}
+			return
+		}
+
+		if renderErr := render.Render(w, r, ErrorInternalServer(err)); renderErr != nil {
+			log.Printf("Render error: %v", renderErr)
+		}
+		return
+	}
+
+	log.Printf("Password reset initiated for email=%s", req.Email)
 
 	common.Respond(w, r, http.StatusOK, nil, "If the email exists, a password reset link has been sent")
 }
@@ -1576,11 +1601,36 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.ResetPassword(r.Context(), req.Token, req.NewPassword); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+		log.Printf("Password reset failed token=%s reason=%v", req.Token, err)
+
+		var authErr *authService.AuthError
+		if errors.As(err, &authErr) {
+			switch {
+			case errors.Is(authErr.Err, authService.ErrInvalidToken):
+				if renderErr := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid or expired reset token"))); renderErr != nil {
+					log.Printf("Render error: %v", renderErr)
+				}
+				return
+			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
+				if renderErr := render.Render(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak)); renderErr != nil {
+					log.Printf("Render error: %v", renderErr)
+				}
+				return
+			case errors.Is(authErr.Err, sql.ErrNoRows):
+				if renderErr := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid or expired reset token"))); renderErr != nil {
+					log.Printf("Render error: %v", renderErr)
+				}
+				return
+			}
+		}
+
+		if renderErr := render.Render(w, r, ErrorInternalServer(err)); renderErr != nil {
+			log.Printf("Render error: %v", renderErr)
 		}
 		return
 	}
+
+	log.Printf("Password reset completed for token=%s", req.Token)
 
 	common.Respond(w, r, http.StatusOK, nil, "Password reset successfully")
 }
