@@ -197,6 +197,15 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 			account.CreatedAt = createdAt
 			account.UpdatedAt = updatedAt
 
+			// Delete existing guardian relationships for this student to ensure idempotent seeding
+			_, err = s.tx.NewDelete().
+				Table("users.students_guardians").
+				Where("student_id = ?", student.ID).
+				Exec(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to clear guardian relationships for student %d: %w", student.ID, err)
+			}
+
 			// Create student-guardian relationship
 			guardianRel := &users.StudentGuardian{
 				StudentID:          student.ID,
