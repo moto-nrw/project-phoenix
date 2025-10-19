@@ -201,6 +201,15 @@ func (s *Seeder) assignActivitySupervisors(ctx context.Context) error {
 
 	// Each activity needs 1-2 supervisors
 	for _, activity := range s.result.ActivityGroups {
+		// Delete existing supervisors for this activity to ensure idempotent seeding
+		_, err := s.tx.NewDelete().
+			Table("activities.supervisors").
+			Where("group_id = ?", activity.ID).
+			Exec(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to clear supervisors for activity %d: %w", activity.ID, err)
+		}
+
 		numSupervisors := rng.Intn(2) + 1 // 1 or 2
 
 		// Create shuffled staff list
