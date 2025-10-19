@@ -189,10 +189,14 @@ func refreshDeviceState(ctx context.Context, client *Client, cfg *Config, device
 		return nil, fmt.Errorf("fetch students: %w", err)
 	}
 
-	teachers, err := client.FetchTeachers(ctx, device)
-	if err != nil {
-		log.Printf("[simulator] Device %s teacher refresh failed: %v", device.DeviceID, err)
-		teachers = nil
+	var teachers []iotapi.DeviceTeacherResponse
+	if len(device.TeacherIDs) > 0 || device.DefaultSession != nil {
+		var fetchErr error
+		teachers, fetchErr = client.FetchTeachers(ctx, device)
+		if fetchErr != nil {
+			log.Printf("[simulator] Device %s teacher refresh failed: %v", device.DeviceID, fetchErr)
+			teachers = nil
+		}
 	}
 
 	state := &DeviceState{
