@@ -36,6 +36,9 @@ func (s *Seeder) CreateInitialState(ctx context.Context) (*Result, error) {
 	// Set the time context - let's say it's 2:30 PM on a Wednesday
 	now := time.Now()
 	currentTime := time.Date(now.Year(), now.Month(), now.Day(), 14, 30, 0, 0, time.Local)
+	if currentTime.After(now) {
+		currentTime = now
+	}
 
 	// 1. Create active sessions for some groups
 	if err := s.createActiveSessions(ctx, currentTime); err != nil {
