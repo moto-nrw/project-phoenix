@@ -144,6 +144,10 @@
       "Bash(netcat -l:*)"
     ]
   },
+  "statusLine": {
+    "type": "command",
+    "command": "python3 .claude/scripts/context-monitor.py"
+  },
   "hooks": {
     "PostToolUse": [
       {
