@@ -1,19 +1,9 @@
-import { Agent } from "undici";
 import { type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { env } from "~/env";
 
 // REQUIRED for streaming - must use Node.js runtime
 export const runtime = "nodejs";
-
-// Disable request/response timeouts for long-lived SSE connections
-const sseAgent = new Agent({
-  connect: { timeout: 0 },
-  headersTimeout: 0,
-  bodyTimeout: 0,
-});
-
-type NodeRequestInit = RequestInit & { dispatcher?: Agent };
 
 /**
  * SSE (Server-Sent Events) proxy endpoint
@@ -22,6 +12,9 @@ type NodeRequestInit = RequestInit & { dispatcher?: Agent };
  * This endpoint bypasses route-wrapper.ts because SSE requires streaming responses,
  * not buffered JSON responses. EventSource API cannot set custom headers, so we inject
  * the JWT token server-side before proxying to the Go backend.
+ *
+ * Note: Node.js 18+ includes native fetch with undici, which handles long-lived
+ * connections appropriately. No need for explicit timeout configuration.
  */
 export async function GET(_request: NextRequest) {
   // Validate session
@@ -33,19 +26,17 @@ export async function GET(_request: NextRequest) {
 
   try {
     // Fetch SSE stream from Go backend with JWT token
-    const requestInit: NodeRequestInit = {
-      headers: {
-        Authorization: `Bearer ${session.user.token}`,
-        Accept: "text/event-stream",
-      },
-      cache: "no-store",
-      // Use undici agent with disabled timeouts so the connection stays open
-      dispatcher: sseAgent,
-    };
-
     const backendResponse = await fetch(
       `${env.NEXT_PUBLIC_API_URL}/api/sse/events`,
-      requestInit
+      {
+        headers: {
+          Authorization: `Bearer ${session.user.token}`,
+          Accept: "text/event-stream",
+        },
+        cache: "no-store",
+        // @ts-expect-error - Node.js fetch supports keepalive for long connections
+        keepalive: true,
+      }
     );
 
     if (!backendResponse.ok) {
