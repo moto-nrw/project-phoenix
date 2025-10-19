@@ -3,6 +3,26 @@
 base_url: http://server:8080
 refresh_interval: 30s
 
+event:
+  interval: 5s
+  max_events_per_tick: 3
+  rotation:
+    order: [heimatraum, ag, schulhof, heimatraum]
+    min_ag_hops: 2
+    max_ag_hops: 3
+  actions:
+    - type: checkin
+      weight: 1.0
+    - type: checkout
+      weight: 0.8
+    - type: schulhof_hop
+      weight: 0.5
+      device_ids: [RFID-OGS-001]
+    - type: attendance_toggle
+      weight: 0.6
+    - type: supervisor_swap
+      weight: 0.3
+
 devices:
   - device_id: RFID-LIB-001
     api_key: duXtnmh1fa60iMWswHw1FT57MBY5Fy4S

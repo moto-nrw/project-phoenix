@@ -94,6 +94,156 @@ func (c *Client) FetchActivities(ctx context.Context, device DeviceConfig) ([]io
 	return result, nil
 }
 
+// FetchTeachers retrieves the available staff roster for the device.
+func (c *Client) FetchTeachers(ctx context.Context, device DeviceConfig) ([]iotapi.DeviceTeacherResponse, error) {
+	var result []iotapi.DeviceTeacherResponse
+	if err := c.get(ctx, device, "/api/iot/teachers", nil, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// CheckActionPayload wraps checkin/checkout requests.
+type CheckActionPayload struct {
+	StudentRFID string `json:"student_rfid"`
+	Action      string `json:"action"`
+	RoomID      *int64 `json:"room_id,omitempty"`
+}
+
+// PerformCheckAction submits a checkin/checkout action for a student.
+func (c *Client) PerformCheckAction(ctx context.Context, device DeviceConfig, payload CheckActionPayload) (*iotapi.CheckinResponse, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal check action payload: %w", err)
+	}
+
+	req, err := c.newRequest(ctx, device, http.MethodPost, "/api/iot/checkin", nil, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("build checkin request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("call checkin endpoint: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return nil, fmt.Errorf("unexpected status %d from /api/iot/checkin: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var envelope apiResponse
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, fmt.Errorf("decode response from /api/iot/checkin: %w", err)
+	}
+	if envelope.Status != "success" {
+		return nil, fmt.Errorf("checkin action failed: %s", envelope.Message)
+	}
+
+	var result iotapi.CheckinResponse
+	if len(envelope.Data) > 0 && string(envelope.Data) != "null" {
+		if err := json.Unmarshal(envelope.Data, &result); err != nil {
+			return nil, fmt.Errorf("decode checkin payload: %w", err)
+		}
+	}
+
+	return &result, nil
+}
+
+// AttendanceTogglePayload wraps attendance toggle requests.
+type AttendanceTogglePayload struct {
+	RFID   string `json:"rfid"`
+	Action string `json:"action"`
+}
+
+// ToggleAttendance toggles a student's attendance state.
+func (c *Client) ToggleAttendance(ctx context.Context, device DeviceConfig, payload AttendanceTogglePayload) (*iotapi.AttendanceToggleResponse, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal attendance payload: %w", err)
+	}
+
+	req, err := c.newRequest(ctx, device, http.MethodPost, "/api/iot/attendance/toggle", nil, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("build attendance toggle request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("call attendance toggle endpoint: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return nil, fmt.Errorf("unexpected status %d from /api/iot/attendance/toggle: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var envelope apiResponse
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, fmt.Errorf("decode attendance toggle response: %w", err)
+	}
+	if envelope.Status != "success" {
+		return nil, fmt.Errorf("attendance toggle failed: %s", envelope.Message)
+	}
+
+	var result iotapi.AttendanceToggleResponse
+	if len(envelope.Data) > 0 && string(envelope.Data) != "null" {
+		if err := json.Unmarshal(envelope.Data, &result); err != nil {
+			return nil, fmt.Errorf("decode attendance payload: %w", err)
+		}
+	}
+
+	return &result, nil
+}
+
+// UpdateSessionSupervisors updates the supervisors assigned to a session.
+func (c *Client) UpdateSessionSupervisors(ctx context.Context, device DeviceConfig, sessionID int64, supervisorIDs []int64) (*iotapi.UpdateSupervisorsResponse, error) {
+	payload := &iotapi.UpdateSupervisorsRequest{SupervisorIDs: supervisorIDs}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal supervisor payload: %w", err)
+	}
+
+	path := fmt.Sprintf("/api/iot/session/%d/supervisors", sessionID)
+	req, err := c.newRequest(ctx, device, http.MethodPut, path, nil, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("build supervisor update request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("call supervisor update endpoint: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return nil, fmt.Errorf("unexpected status %d from %s: %s", resp.StatusCode, path, strings.TrimSpace(string(body)))
+	}
+
+	var envelope apiResponse
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, fmt.Errorf("decode supervisor update response: %w", err)
+	}
+	if envelope.Status != "success" {
+		return nil, fmt.Errorf("supervisor update failed: %s", envelope.Message)
+	}
+
+	var result iotapi.UpdateSupervisorsResponse
+	if len(envelope.Data) > 0 && string(envelope.Data) != "null" {
+		if err := json.Unmarshal(envelope.Data, &result); err != nil {
+			return nil, fmt.Errorf("decode supervisor payload: %w", err)
+		}
+	}
+
+	return &result, nil
+}
+
 // StartSession starts a default session for the device.
 func (c *Client) StartSession(ctx context.Context, device DeviceConfig, session *SessionConfig) (*iotapi.SessionStartResponse, error) {
 	if session == nil {
