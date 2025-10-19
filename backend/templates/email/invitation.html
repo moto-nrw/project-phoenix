@@ -1,0 +1,25 @@
+{{define "invitation.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <div class="brand">
+        <img src="{{.LogoURL}}" alt="moto logo" width="160" height="48" />
+    </div>
+    <h1>You're Invited to Project Phoenix</h1>
+    {{if .FirstName}}
+    <p>Hello {{.FirstName}},</p>
+    {{else}}
+    <p>Hello,</p>
+    {{end}}
+    <p>You've been invited as <strong>{{.RoleName}}</strong> on the moto Project Phoenix platform. Click the button below to set up your account.</p>
+    <p class="button-wrapper">
+        <a class="button" href="{{.InvitationURL}}">Accept Invitation</a>
+    </p>
+    <p class="highlight">This invitation expires in {{.ExpiryHours}} hours.</p>
+    <p>If the button above does not work, copy and paste this link into your browser:</p>
+    <p><a href="{{.InvitationURL}}">{{.InvitationURL}}</a></p>
+    <p class="security-note">If you didn't expect this invitation, you can safely ignore this email.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}
