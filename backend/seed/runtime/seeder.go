@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/seed/fixed"
 	"github.com/uptrace/bun"
 )
@@ -75,131 +75,17 @@ func (s *Seeder) CreateInitialState(ctx context.Context) (*Result, error) {
 func (s *Seeder) createActiveSessions(ctx context.Context, currentTime time.Time) error {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	// Create active sessions for:
-	// 1. Some class groups (during school hours)
-	// 2. Lunch supervision
-	// 3. Some afternoon activities
+	// Create a shuffled copy of activity groups so we pick different ones each run
+	activities := make([]*activities.Group, len(s.fixedData.ActivityGroups))
+	copy(activities, s.fixedData.ActivityGroups)
+	rng.Shuffle(len(activities), func(i, j int) {
+		activities[i], activities[j] = activities[j], activities[i]
+	})
 
-	// Active class sessions (3-4 classes)
-	activeClasses := 4
-	for i := 0; i < activeClasses && i < len(s.fixedData.ClassGroups); i++ {
-		classGroup := s.fixedData.ClassGroups[i]
+	createdActivities := make(map[int64]struct{})
+	targetMinimum := 3
 
-		// Skip if room already has an active session
-		if classGroup.RoomID != nil {
-			if _, exists := s.result.ActiveGroupsByRoom[*classGroup.RoomID]; exists {
-				continue
-			}
-		}
-
-		// Find a device for this room
-		var deviceID *int64
-		if classGroup.RoomID != nil {
-			if device, ok := s.fixedData.DevicesByRoom[*classGroup.RoomID]; ok {
-				deviceID = &device.ID
-			}
-		}
-
-		activeGroup := &active.Group{
-			StartTime:      currentTime.Add(-90 * time.Minute), // Started 90 minutes ago
-			LastActivity:   currentTime.Add(-5 * time.Minute),  // Last activity 5 minutes ago
-			TimeoutMinutes: 30,
-			GroupID:        classGroup.ID,
-			DeviceID:       deviceID,
-			RoomID:         *classGroup.RoomID,
-		}
-		activeGroup.CreatedAt = time.Now()
-		activeGroup.UpdatedAt = time.Now()
-
-		_, err := s.tx.NewInsert().Model(activeGroup).ModelTableExpr("active.groups").Exec(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to create active group for %s: %w", classGroup.Name, err)
-		}
-
-		s.result.ActiveGroups = append(s.result.ActiveGroups, activeGroup)
-		if classGroup.RoomID != nil {
-			s.result.ActiveGroupsByRoom[*classGroup.RoomID] = activeGroup
-		}
-
-		// Skip supervisor assignment - no representative in education groups anymore
-	}
-
-	// Lunch supervision in Mensa
-	var mensaID int64
-	for _, room := range s.fixedData.Rooms {
-		if room.Name == "Mensa" {
-			mensaID = room.ID
-			break
-		}
-	}
-
-	if mensaID > 0 {
-		// Find lunch supervision group
-		var lunchGroup *education.Group
-		for _, group := range s.fixedData.SupervisionGroups {
-			if group.Name == "OGS-Mittag-1" {
-				lunchGroup = group
-				break
-			}
-		}
-
-		if lunchGroup != nil {
-			var deviceID *int64
-			if device, ok := s.fixedData.DevicesByRoom[mensaID]; ok {
-				deviceID = &device.ID
-			}
-
-			activeGroup := &active.Group{
-				StartTime:      currentTime.Add(-30 * time.Minute), // Started 30 minutes ago
-				LastActivity:   currentTime.Add(-2 * time.Minute),  // Recent activity
-				TimeoutMinutes: 60,                                 // Longer timeout for lunch
-				GroupID:        lunchGroup.ID,
-				DeviceID:       deviceID,
-				RoomID:         mensaID,
-			}
-			activeGroup.CreatedAt = time.Now()
-			activeGroup.UpdatedAt = time.Now()
-
-			_, err := s.tx.NewInsert().Model(activeGroup).ModelTableExpr("active.groups").Exec(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to create lunch supervision: %w", err)
-			}
-
-			s.result.ActiveGroups = append(s.result.ActiveGroups, activeGroup)
-			s.result.ActiveGroupsByRoom[mensaID] = activeGroup
-
-			// Assign 2 supervisors for lunch
-			supervisorStaff := s.fixedData.Staff[20:22] // Non-teacher staff
-			for i, staff := range supervisorStaff {
-				supervisor := &active.GroupSupervisor{
-					GroupID:   activeGroup.ID,
-					StaffID:   staff.ID,
-					Role:      "supervisor",
-					StartDate: time.Now(),
-				}
-				if i == 0 {
-					supervisor.Role = "lead_supervisor"
-				}
-				supervisor.CreatedAt = time.Now()
-				supervisor.UpdatedAt = time.Now()
-
-				_, err = s.tx.NewInsert().Model(supervisor).ModelTableExpr("active.group_supervisors").Exec(ctx)
-				if err == nil {
-					s.result.Supervisors = append(s.result.Supervisors, supervisor)
-					s.result.SupervisorCount++
-				}
-			}
-		}
-	}
-
-	// Some afternoon activities
-	activityCount := 0
-	for _, activity := range s.fixedData.ActivityGroups {
-		if activityCount >= 3 {
-			break
-		}
-
-		// Skip if no preferred room or room already occupied
+	for _, activity := range activities {
 		if activity.PlannedRoomID == nil {
 			continue
 		}
@@ -207,72 +93,102 @@ func (s *Seeder) createActiveSessions(ctx context.Context, currentTime time.Time
 			continue
 		}
 
-		// 50% chance to be active
-		if rng.Float32() > 0.5 {
+		// Prioritise reaching the minimum number of sessions; afterwards fall back to chance selection
+		shouldCreate := len(s.result.ActiveGroups) < targetMinimum || rng.Float32() <= 0.5
+		if !shouldCreate {
 			continue
 		}
 
-		var deviceID *int64
-		if device, ok := s.fixedData.DevicesByRoom[*activity.PlannedRoomID]; ok {
-			deviceID = &device.ID
+		if err := s.addActivitySession(ctx, currentTime, activity); err != nil {
+			continue
 		}
+		createdActivities[activity.ID] = struct{}{}
+	}
 
-		activeGroup := &active.Group{
-			StartTime:      currentTime.Add(-15 * time.Minute), // Just started
-			LastActivity:   currentTime,
-			TimeoutMinutes: 30,
-			GroupID:        activity.ID,
-			DeviceID:       deviceID,
-			RoomID:         *activity.PlannedRoomID,
-		}
-		activeGroup.CreatedAt = time.Now()
-		activeGroup.UpdatedAt = time.Now()
-
-		_, err := s.tx.NewInsert().Model(activeGroup).ModelTableExpr("active.groups").Exec(ctx)
-		if err != nil {
-			continue // Skip on error
-		}
-
-		s.result.ActiveGroups = append(s.result.ActiveGroups, activeGroup)
-		s.result.ActiveGroupsByRoom[*activity.PlannedRoomID] = activeGroup
-		activityCount++
-
-		// Assign activity supervisors
-		var supervisors []struct {
-			StaffID   int64 `bun:"staff_id"`
-			IsPrimary bool  `bun:"is_primary"`
-		}
-		err = s.tx.NewSelect().
-			Table("activities.supervisors").
-			Column("staff_id", "is_primary").
-			Where("group_id = ?", activity.ID).
-			Scan(ctx, &supervisors)
-
-		if err == nil {
-			for _, sup := range supervisors {
-				role := "supervisor"
-				if sup.IsPrimary {
-					role = "lead_supervisor"
-				}
-				supervisor := &active.GroupSupervisor{
-					GroupID: activeGroup.ID,
-					StaffID: sup.StaffID,
-					Role:    role,
-				}
-				supervisor.CreatedAt = time.Now()
-				supervisor.UpdatedAt = time.Now()
-
-				_, err = s.tx.NewInsert().Model(supervisor).ModelTableExpr("active.group_supervisors").Exec(ctx)
-				if err == nil {
-					s.result.Supervisors = append(s.result.Supervisors, supervisor)
-					s.result.SupervisorCount++
-				}
+	// Ensure we always have at least two sessions so downstream steps (combined groups) can succeed
+	if len(s.result.ActiveGroups) < 2 {
+		for _, activity := range activities {
+			if len(s.result.ActiveGroups) >= 2 {
+				break
+			}
+			if activity.PlannedRoomID == nil {
+				continue
+			}
+			if _, created := createdActivities[activity.ID]; created {
+				continue
+			}
+			if _, exists := s.result.ActiveGroupsByRoom[*activity.PlannedRoomID]; exists {
+				continue
+			}
+			if err := s.addActivitySession(ctx, currentTime, activity); err != nil {
+				continue
 			}
 		}
 	}
 
 	if s.verbose {
 		log.Printf("Created %d active group sessions", len(s.result.ActiveGroups))
+	}
+
+	return nil
+}
+
+func (s *Seeder) addActivitySession(ctx context.Context, currentTime time.Time, activity *activities.Group) error {
+	if activity.PlannedRoomID == nil {
+		return fmt.Errorf("activity %d has no planned room", activity.ID)
+	}
+
+	var deviceID *int64
+	if device, ok := s.fixedData.DevicesByRoom[*activity.PlannedRoomID]; ok {
+		deviceID = &device.ID
+	}
+
+	activeGroup := &active.Group{
+		StartTime:      currentTime.Add(-15 * time.Minute), // Recently started
+		LastActivity:   currentTime,
+		TimeoutMinutes: 30,
+		GroupID:        activity.ID,
+		DeviceID:       deviceID,
+		RoomID:         *activity.PlannedRoomID,
+	}
+	activeGroup.CreatedAt = time.Now()
+	activeGroup.UpdatedAt = time.Now()
+
+	if _, err := s.tx.NewInsert().Model(activeGroup).ModelTableExpr("active.groups").Exec(ctx); err != nil {
+		return err
+	}
+
+	s.result.ActiveGroups = append(s.result.ActiveGroups, activeGroup)
+	s.result.ActiveGroupsByRoom[*activity.PlannedRoomID] = activeGroup
+
+	// Assign supervising staff for the activity session
+	var supervisors []struct {
+		StaffID   int64 `bun:"staff_id"`
+		IsPrimary bool  `bun:"is_primary"`
+	}
+	if err := s.tx.NewSelect().
+		Table("activities.supervisors").
+		Column("staff_id", "is_primary").
+		Where("group_id = ?", activity.ID).
+		Scan(ctx, &supervisors); err == nil {
+		for _, sup := range supervisors {
+			role := "supervisor"
+			if sup.IsPrimary {
+				role = "lead_supervisor"
+			}
+			supervisor := &active.GroupSupervisor{
+				GroupID: activeGroup.ID,
+				StaffID: sup.StaffID,
+				Role:    role,
+			}
+			supervisor.CreatedAt = time.Now()
+			supervisor.UpdatedAt = time.Now()
+
+			if _, err := s.tx.NewInsert().Model(supervisor).ModelTableExpr("active.group_supervisors").Exec(ctx); err == nil {
+				s.result.Supervisors = append(s.result.Supervisors, supervisor)
+				s.result.SupervisorCount++
+			}
+		}
 	}
 
 	return nil
@@ -293,41 +209,17 @@ func (s *Seeder) checkInStudents(ctx context.Context, currentTime time.Time) err
 
 	// For each active group, check in some students
 	for _, activeGroup := range s.result.ActiveGroups {
-		// Determine the type of group
-		var groupType string
+		// Load enrolled students for the active activity
 		var studentIDs []int64
-
-		// Check if it's a class group
-		isClassGroup := false
-		for _, classGroup := range s.fixedData.ClassGroups {
-			if classGroup.ID == activeGroup.GroupID {
-				isClassGroup = true
-				// Get students from this class
-				err := s.tx.NewSelect().
-					Table("users.students").
-					Column("id").
-					Where("group_id = ?", classGroup.ID).
-					Scan(ctx, &studentIDs)
-				if err != nil {
-					continue
-				}
-				groupType = "class"
-				break
-			}
+		if err := s.tx.NewSelect().
+			Table("activities.student_enrollments").
+			Column("student_id").
+			Where("activity_group_id = ?", activeGroup.GroupID).
+			Scan(ctx, &studentIDs); err != nil {
+			continue
 		}
-
-		// If not a class group, check if it's an activity
-		if !isClassGroup {
-			// Get enrolled students for this activity
-			err := s.tx.NewSelect().
-				Table("activities.student_enrollments").
-				Column("student_id").
-				Where("activity_group_id = ?", activeGroup.GroupID).
-				Scan(ctx, &studentIDs)
-			if err != nil {
-				continue
-			}
-			groupType = "activity"
+		if len(studentIDs) == 0 {
+			continue
 		}
 
 		// Check in 60-90% of students
@@ -363,7 +255,7 @@ func (s *Seeder) checkInStudents(ctx context.Context, currentTime time.Time) err
 			visit.UpdatedAt = time.Now()
 
 			// Some students might have already left (10% chance)
-			if rng.Float32() < 0.1 && groupType == "activity" {
+			if rng.Float32() < 0.1 {
 				exitTime := entryTime.Add(time.Duration(rng.Intn(30)+10) * time.Minute)
 				if exitTime.After(currentTime) {
 					exitTime = currentTime
