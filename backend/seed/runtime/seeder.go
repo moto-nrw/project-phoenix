@@ -282,6 +282,15 @@ func (s *Seeder) createActiveSessions(ctx context.Context, currentTime time.Time
 func (s *Seeder) checkInStudents(ctx context.Context, currentTime time.Time) error {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
+	// Track students that already have an active visit so we don't double-book them.
+	activeVisitStudents := make(map[int64]struct{})
+	var existingActive []int64
+	if err := s.tx.NewSelect().Table("active.visits").Column("student_id").Where("exit_time IS NULL").Scan(ctx, &existingActive); err == nil {
+		for _, id := range existingActive {
+			activeVisitStudents[id] = struct{}{}
+		}
+	}
+
 	// For each active group, check in some students
 	for _, activeGroup := range s.result.ActiveGroups {
 		// Determine the type of group
@@ -334,6 +343,9 @@ func (s *Seeder) checkInStudents(ctx context.Context, currentTime time.Time) err
 		// Check in students
 		for i := 0; i < numToCheckIn && i < len(studentIDs); i++ {
 			studentID := studentIDs[i]
+			if _, alreadyActive := activeVisitStudents[studentID]; alreadyActive {
+				continue
+			}
 
 			// Vary entry times to be realistic
 			entryOffset := rng.Intn(20) // 0-20 minutes after group start
@@ -366,6 +378,7 @@ func (s *Seeder) checkInStudents(ctx context.Context, currentTime time.Time) err
 
 			s.result.Visits = append(s.result.Visits, visit)
 			if visit.ExitTime == nil {
+				activeVisitStudents[studentID] = struct{}{}
 				s.result.StudentsCheckedIn++
 				s.result.StudentsInRooms[activeGroup.RoomID]++
 			}
