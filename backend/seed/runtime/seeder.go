@@ -290,6 +290,31 @@ func (s *Seeder) createAttendanceRecords(ctx context.Context, currentTime time.T
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	today := currentTime.Truncate(24 * time.Hour)
 
+	var checkedInByID int64
+	if len(s.fixedData.Staff) > 0 {
+		checkedInByID = s.fixedData.Staff[0].ID
+	} else {
+		err := s.tx.NewSelect().
+			Table("users.staff").
+			Column("id").
+			OrderExpr("id ASC").
+			Limit(1).
+			Scan(ctx, &checkedInByID)
+		if err != nil {
+			if s.verbose {
+				log.Printf("Skipping attendance seeding: unable to load staff id: %v", err)
+			}
+			return nil
+		}
+	}
+
+	if checkedInByID == 0 {
+		if s.verbose {
+			log.Printf("Skipping attendance seeding: no staff found")
+		}
+		return nil
+	}
+
 	// Create attendance records for all students
 	attendanceCount := 0
 	for _, student := range s.fixedData.Students {
@@ -311,7 +336,7 @@ func (s *Seeder) createAttendanceRecords(ctx context.Context, currentTime time.T
 				StudentID:   student.ID,
 				Date:        today,
 				CheckInTime: checkInTime,
-				CheckedInBy: 1, // Admin user
+				CheckedInBy: checkedInByID,
 				DeviceID:    deviceID,
 			}
 
