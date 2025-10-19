@@ -2,6 +2,8 @@ package fixed
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
@@ -128,23 +130,56 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 			}
 		}
 
-		group := &activities.Group{
-			Name:            data.name,
-			CategoryID:      categoryMap[data.category],
-			MaxParticipants: data.maxParticipants,
-			PlannedRoomID:   roomID,
-			IsOpen:          true,
-		}
-		group.CreatedAt = time.Now()
-		group.UpdatedAt = time.Now()
+		existing := new(activities.Group)
+		err := s.tx.NewSelect().Model(existing).
+			ModelTableExpr(`activities.groups AS "group"`).
+			Where("name = ?", data.name).
+			Limit(1).
+			Scan(ctx)
 
-		_, err := s.tx.NewInsert().Model(group).ModelTableExpr("activities.groups").Exec(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to create activity group %s: %w", data.name, err)
-		}
+		switch {
+		case err == nil:
+			existing.CategoryID = categoryMap[data.category]
+			existing.MaxParticipants = data.maxParticipants
+			existing.PlannedRoomID = roomID
+			existing.IsOpen = true
+			existing.UpdatedAt = time.Now()
 
-		s.result.ActivityGroups = append(s.result.ActivityGroups, group)
-		s.result.ActivityByID[group.ID] = group
+			if _, err := s.tx.NewUpdate().Model(existing).
+				ModelTableExpr(`activities.groups AS "group"`).
+				Column("category_id", "max_participants", "planned_room_id", "is_open", "updated_at").
+				WherePK().
+				Exec(ctx); err != nil {
+				return fmt.Errorf("failed to update activity group %s: %w", data.name, err)
+			}
+
+			s.result.ActivityGroups = append(s.result.ActivityGroups, existing)
+			s.result.ActivityByID[existing.ID] = existing
+
+		case errors.Is(err, sql.ErrNoRows):
+			group := &activities.Group{
+				Name:            data.name,
+				CategoryID:      categoryMap[data.category],
+				MaxParticipants: data.maxParticipants,
+				PlannedRoomID:   roomID,
+				IsOpen:          true,
+			}
+			group.CreatedAt = time.Now()
+			group.UpdatedAt = group.CreatedAt
+
+			if _, err := s.tx.NewInsert().Model(group).
+				ModelTableExpr(`activities.groups AS "group"`).
+				Returning("id, created_at, updated_at").
+				Exec(ctx); err != nil {
+				return fmt.Errorf("failed to create activity group %s: %w", data.name, err)
+			}
+
+			s.result.ActivityGroups = append(s.result.ActivityGroups, group)
+			s.result.ActivityByID[group.ID] = group
+
+		default:
+			return fmt.Errorf("failed to load activity group %s: %w", data.name, err)
+		}
 	}
 
 	// Assign supervisors to activities
@@ -166,6 +201,15 @@ func (s *Seeder) assignActivitySupervisors(ctx context.Context) error {
 
 	// Each activity needs 1-2 supervisors
 	for _, activity := range s.result.ActivityGroups {
+		// Delete existing supervisors for this activity to ensure idempotent seeding
+		_, err := s.tx.NewDelete().
+			Table("activities.supervisors").
+			Where("group_id = ?", activity.ID).
+			Exec(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to clear supervisors for activity %d: %w", activity.ID, err)
+		}
+
 		numSupervisors := rng.Intn(2) + 1 // 1 or 2
 
 		// Create shuffled staff list
@@ -191,7 +235,13 @@ func (s *Seeder) assignActivitySupervisors(ctx context.Context) error {
 			assignment.CreatedAt = time.Now()
 			assignment.UpdatedAt = time.Now()
 
-			_, err := s.tx.NewInsert().Model(assignment).ModelTableExpr("activities.supervisors").Exec(ctx)
+			_, err := s.tx.NewInsert().Model(assignment).
+				ModelTableExpr("activities.supervisors").
+				On("CONFLICT (group_id, staff_id) DO UPDATE").
+				Set("is_primary = EXCLUDED.is_primary").
+				Set("updated_at = EXCLUDED.updated_at").
+				Returning("created_at, updated_at").
+				Exec(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to assign supervisor to activity %d: %w",
 					activity.ID, err)
@@ -228,20 +278,48 @@ func (s *Seeder) seedTimeframes(ctx context.Context) error {
 		endTime := time.Date(today.Year(), today.Month(), today.Day(),
 			data.endHour, data.endMinute, 0, 0, time.Local)
 
-		timeframe := &schedule.Timeframe{
-			Description: data.description,
-			StartTime:   startTime,
-			EndTime:     &endTime,
-		}
-		timeframe.CreatedAt = time.Now()
-		timeframe.UpdatedAt = time.Now()
+		existing := new(schedule.Timeframe)
+		err := s.tx.NewSelect().Model(existing).
+			ModelTableExpr(`schedule.timeframes AS "timeframe"`).
+			Where("description = ?", data.description).
+			Limit(1).
+			Scan(ctx)
 
-		_, err := s.tx.NewInsert().Model(timeframe).ModelTableExpr("schedule.timeframes").Exec(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to create timeframe %s: %w", data.description, err)
-		}
+		switch {
+		case err == nil:
+			existing.StartTime = startTime
+			existing.EndTime = &endTime
+			existing.UpdatedAt = time.Now()
 
-		s.result.Timeframes = append(s.result.Timeframes, timeframe)
+			if _, err := s.tx.NewUpdate().Model(existing).
+				ModelTableExpr(`schedule.timeframes AS "timeframe"`).
+				Column("start_time", "end_time", "updated_at").
+				WherePK().
+				Exec(ctx); err != nil {
+				return fmt.Errorf("failed to update timeframe %s: %w", data.description, err)
+			}
+			s.result.Timeframes = append(s.result.Timeframes, existing)
+
+		case errors.Is(err, sql.ErrNoRows):
+			timeframe := &schedule.Timeframe{
+				Description: data.description,
+				StartTime:   startTime,
+				EndTime:     &endTime,
+			}
+			timeframe.CreatedAt = time.Now()
+			timeframe.UpdatedAt = timeframe.CreatedAt
+
+			if _, err := s.tx.NewInsert().Model(timeframe).
+				ModelTableExpr(`schedule.timeframes AS "timeframe"`).
+				Returning("id, created_at, updated_at").
+				Exec(ctx); err != nil {
+				return fmt.Errorf("failed to create timeframe %s: %w", data.description, err)
+			}
+			s.result.Timeframes = append(s.result.Timeframes, timeframe)
+
+		default:
+			return fmt.Errorf("failed to load timeframe %s: %w", data.description, err)
+		}
 	}
 
 	if s.verbose {
@@ -309,9 +387,14 @@ func (s *Seeder) seedActivitySchedules(ctx context.Context) error {
 				sched.CreatedAt = time.Now()
 				sched.UpdatedAt = time.Now()
 
-				_, err := s.tx.NewInsert().Model(sched).ModelTableExpr("activities.schedules").Exec(ctx)
+				_, err := s.tx.NewInsert().Model(sched).
+					ModelTableExpr("activities.schedules").
+					On("CONFLICT (weekday, timeframe_id, activity_group_id) WHERE (timeframe_id IS NOT NULL) DO UPDATE").
+					Set("updated_at = EXCLUDED.updated_at").
+					Returning("id, created_at, updated_at").
+					Exec(ctx)
 				if err != nil {
-					return fmt.Errorf("failed to create schedule for activity %s: %w",
+					return fmt.Errorf("failed to upsert schedule for activity %s: %w",
 						activity.Name, err)
 				}
 
@@ -370,6 +453,19 @@ func (s *Seeder) seedStudentEnrollments(ctx context.Context) error {
 
 			// No consent check needed (not in model)
 
+			exists, err := s.tx.NewSelect().
+				Table("activities.student_enrollments").
+				Where("student_id = ? AND activity_group_id = ?", student.ID, activity.ID).
+				Exists(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to check existing enrollment: %w", err)
+			}
+			if exists {
+				enrolled++
+				enrollmentCounts[activity.ID]++
+				continue
+			}
+
 			enrollment := &activities.StudentEnrollment{
 				StudentID:       student.ID,
 				ActivityGroupID: activity.ID,
@@ -378,10 +474,12 @@ func (s *Seeder) seedStudentEnrollments(ctx context.Context) error {
 			enrollment.CreatedAt = time.Now()
 			enrollment.UpdatedAt = time.Now()
 
-			_, err := s.tx.NewInsert().Model(enrollment).ModelTableExpr("activities.student_enrollments").Exec(ctx)
+			_, err = s.tx.NewInsert().Model(enrollment).
+				ModelTableExpr("activities.student_enrollments").
+				Returning("id, created_at, updated_at").
+				Exec(ctx)
 			if err != nil {
-				// Skip on duplicate
-				continue
+				return fmt.Errorf("failed to create student enrollment: %w", err)
 			}
 
 			s.result.Enrollments = append(s.result.Enrollments, enrollment)

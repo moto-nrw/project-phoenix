@@ -63,9 +63,21 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 			student.CreatedAt = time.Now()
 			student.UpdatedAt = time.Now()
 
-			_, err := s.tx.NewInsert().Model(student).ModelTableExpr("users.students").Exec(ctx)
+			_, err := s.tx.NewInsert().Model(student).
+				ModelTableExpr("users.students").
+				On("CONFLICT (person_id) DO UPDATE").
+				Set("school_class = EXCLUDED.school_class").
+				Set("bus = EXCLUDED.bus").
+				Set("guardian_name = EXCLUDED.guardian_name").
+				Set("guardian_contact = EXCLUDED.guardian_contact").
+				Set("guardian_email = EXCLUDED.guardian_email").
+				Set("guardian_phone = EXCLUDED.guardian_phone").
+				Set("group_id = EXCLUDED.group_id").
+				Set("updated_at = EXCLUDED.updated_at").
+				Returning("id, created_at, updated_at").
+				Exec(ctx)
 			if err != nil {
-				return fmt.Errorf("failed to create student for person %d: %w", person.ID, err)
+				return fmt.Errorf("failed to upsert student for person %d: %w", person.ID, err)
 			}
 
 			s.result.Students = append(s.result.Students, student)
@@ -91,6 +103,17 @@ func (s *Seeder) seedPrivacyConsents(ctx context.Context) error {
 	for _, student := range s.result.Students {
 		// 90% of students have privacy consents
 		if rng.Float32() < 0.9 {
+			exists, err := s.tx.NewSelect().
+				Table("users.privacy_consents").
+				Where("student_id = ?", student.ID).
+				Exists(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to check privacy consent for student %d: %w", student.ID, err)
+			}
+			if exists {
+				consentCount++
+				continue
+			}
 			policyVersion := policyVersions[rng.Intn(len(policyVersions))]
 			acceptedAt := time.Now().AddDate(0, 0, -rng.Intn(180)) // Within last 6 months
 			durationDays := 365                                    // 1 year validity
@@ -110,7 +133,10 @@ func (s *Seeder) seedPrivacyConsents(ctx context.Context) error {
 			consent.CreatedAt = time.Now()
 			consent.UpdatedAt = time.Now()
 
-			_, err := s.tx.NewInsert().Model(consent).ModelTableExpr("users.privacy_consents").Exec(ctx)
+			_, err = s.tx.NewInsert().Model(consent).
+				ModelTableExpr("users.privacy_consents").
+				Returning("id, created_at, updated_at").
+				Exec(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to create privacy consent for student %d: %w",
 					student.ID, err)
@@ -135,15 +161,6 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 	guardianCount := 0
 	for _, student := range s.result.Students {
 		if rng.Float32() < 0.2 {
-			// Find guardian role
-			var guardianRoleID int64
-			for _, role := range s.result.Roles {
-				if role.Name == "guardian" {
-					guardianRoleID = role.ID
-					break
-				}
-			}
-
 			// Create guardian account
 			if student.GuardianEmail == nil {
 				continue
@@ -152,7 +169,7 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("failed to hash password: %w", err)
 			}
-			account := &auth.Account{
+			account := &auth.AccountParent{
 				Email:        *student.GuardianEmail,
 				PasswordHash: &passwordHash,
 				Active:       true,
@@ -160,32 +177,33 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 			account.CreatedAt = time.Now()
 			account.UpdatedAt = time.Now()
 
-			// Use raw SQL to avoid BUN adding aliases on INSERT
 			var id int64
+			var createdAt time.Time
+			var updatedAt time.Time
 			err = s.tx.QueryRowContext(ctx, `
-				INSERT INTO auth.accounts (created_at, updated_at, email, password_hash, active)
+				INSERT INTO auth.accounts_parents (created_at, updated_at, email, password_hash, active)
 				VALUES (?, ?, ?, ?, ?)
-				ON CONFLICT (email) DO NOTHING
-				RETURNING id`,
+				ON CONFLICT (email) DO UPDATE SET
+					password_hash = EXCLUDED.password_hash,
+					active = EXCLUDED.active,
+					updated_at = EXCLUDED.updated_at
+				RETURNING id, created_at, updated_at`,
 				account.CreatedAt, account.UpdatedAt, account.Email,
-				account.PasswordHash, account.Active).Scan(&id)
+				account.PasswordHash, account.Active).Scan(&id, &createdAt, &updatedAt)
 			if err != nil {
-				// Skip if email already exists
-				continue
+				return fmt.Errorf("failed to upsert guardian account %s: %w", account.Email, err)
 			}
 			account.ID = id
+			account.CreatedAt = createdAt
+			account.UpdatedAt = updatedAt
 
-			// Assign guardian role
-			accountRole := &auth.AccountRole{
-				AccountID: account.ID,
-				RoleID:    guardianRoleID,
-			}
-			accountRole.CreatedAt = time.Now()
-			accountRole.UpdatedAt = time.Now()
-
-			_, err = s.tx.NewInsert().Model(accountRole).ModelTableExpr("auth.account_roles").Exec(ctx)
+			// Delete existing guardian relationships for this student to ensure idempotent seeding
+			_, err = s.tx.NewDelete().
+				Table("users.students_guardians").
+				Where("student_id = ?", student.ID).
+				Exec(ctx)
 			if err != nil {
-				continue
+				return fmt.Errorf("failed to clear guardian relationships for student %d: %w", student.ID, err)
 			}
 
 			// Create student-guardian relationship
@@ -201,11 +219,17 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 			guardianRel.UpdatedAt = time.Now()
 
 			_, err = s.tx.NewInsert().
-				Model(&guardianRel).
+				Model(guardianRel).
 				ModelTableExpr("users.students_guardians").
+				On("CONFLICT (student_id, guardian_account_id, relationship_type) DO UPDATE").
+				Set("is_primary = EXCLUDED.is_primary").
+				Set("is_emergency_contact = EXCLUDED.is_emergency_contact").
+				Set("can_pickup = EXCLUDED.can_pickup").
+				Set("updated_at = EXCLUDED.updated_at").
+				Returning("created_at, updated_at").
 				Exec(ctx)
 			if err != nil {
-				continue
+				return fmt.Errorf("failed to upsert guardian relationship: %w", err)
 			}
 
 			guardianCount++

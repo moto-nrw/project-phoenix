@@ -64,9 +64,15 @@ func (s *Seeder) seedStaff(ctx context.Context) error {
 		staff.CreatedAt = time.Now()
 		staff.UpdatedAt = time.Now()
 
-		_, err := s.tx.NewInsert().Model(staff).ModelTableExpr("users.staff").Exec(ctx)
+		_, err := s.tx.NewInsert().Model(staff).
+			ModelTableExpr("users.staff").
+			On("CONFLICT (person_id) DO UPDATE").
+			Set("staff_notes = EXCLUDED.staff_notes").
+			Set("updated_at = EXCLUDED.updated_at").
+			Returning("id, created_at, updated_at").
+			Exec(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to create staff for person %d: %w", person.ID, err)
+			return fmt.Errorf("failed to upsert staff for person %d: %w", person.ID, err)
 		}
 
 		s.result.Staff = append(s.result.Staff, staff)
@@ -96,9 +102,17 @@ func (s *Seeder) seedTeachers(ctx context.Context) error {
 		teacher.CreatedAt = time.Now()
 		teacher.UpdatedAt = time.Now()
 
-		_, err := s.tx.NewInsert().Model(teacher).ModelTableExpr("users.teachers").Exec(ctx)
+		_, err := s.tx.NewInsert().Model(teacher).
+			ModelTableExpr("users.teachers").
+			On("CONFLICT (staff_id) DO UPDATE").
+			Set("specialization = EXCLUDED.specialization").
+			Set("role = EXCLUDED.role").
+			Set("qualifications = EXCLUDED.qualifications").
+			Set("updated_at = EXCLUDED.updated_at").
+			Returning("id, created_at, updated_at").
+			Exec(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to create teacher for staff %d: %w", staff.ID, err)
+			return fmt.Errorf("failed to upsert teacher for staff %d: %w", staff.ID, err)
 		}
 
 		s.result.Teachers = append(s.result.Teachers, teacher)

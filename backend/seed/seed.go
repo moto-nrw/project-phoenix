@@ -151,7 +151,7 @@ func (s *Seeder) resetData(ctx context.Context) error {
 
 		// Activities
 		"activities.student_enrollments",
-		"activities.supervisor_assignments",
+		"activities.supervisors",
 		"activities.schedules",
 		"activities.groups",
 		"activities.categories",
@@ -192,7 +192,19 @@ func (s *Seeder) resetData(ctx context.Context) error {
 	}
 
 	for _, table := range tables {
-		if _, err := s.db.NewTruncateTable().Table(table).Cascade().Exec(ctx); err != nil {
+		var exists bool
+		if err := s.db.NewSelect().ColumnExpr("to_regclass(?) IS NOT NULL", table).Scan(ctx, &exists); err != nil {
+			if s.config.Verbose {
+				log.Printf("Warning: Could not check existence for %s: %v", table, err)
+			}
+			continue
+		}
+		if !exists {
+			continue
+		}
+
+		query := fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", table)
+		if _, err := s.db.ExecContext(ctx, query); err != nil {
 			// Some tables might not exist, continue
 			if s.config.Verbose {
 				log.Printf("Warning: Could not truncate %s: %v", table, err)
