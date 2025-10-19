@@ -24,13 +24,15 @@ import (
 
 // Resource defines the auth resource
 type Resource struct {
-	AuthService authService.AuthService
+	AuthService       authService.AuthService
+	InvitationService authService.InvitationService
 }
 
 // NewResource creates a new auth resource
-func NewResource(authService authService.AuthService) *Resource {
+func NewResource(authService authService.AuthService, invitationService authService.InvitationService) *Resource {
 	return &Resource{
-		AuthService: authService,
+		AuthService:       authService,
+		InvitationService: invitationService,
 	}
 }
 
@@ -47,6 +49,8 @@ func (rs *Resource) Router() chi.Router {
 	r.Post("/register", rs.register)
 	r.Post("/password-reset", rs.initiatePasswordReset)
 	r.Post("/password-reset/confirm", rs.resetPassword)
+	r.Get("/invitations/{token}", rs.validateInvitation)
+	r.Post("/invitations/{token}/accept", rs.acceptInvitation)
 
 	// Protected routes that require refresh token
 	r.Group(func(r chi.Router) {
@@ -137,6 +141,15 @@ func (rs *Resource) Router() chi.Router {
 			// Token cleanup
 			r.Route("/tokens", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("admin:*")).Delete("/expired", rs.cleanupExpiredTokens)
+			})
+
+			r.Route("/invitations", func(r chi.Router) {
+				r.With(authorize.RequiresPermission("users:create")).Post("/", rs.createInvitation)
+				r.With(authorize.RequiresPermission("users:list")).Get("/", rs.listPendingInvitations)
+				r.Route("/{id}", func(r chi.Router) {
+					r.With(authorize.RequiresPermission("users:manage")).Post("/resend", rs.resendInvitation)
+					r.With(authorize.RequiresPermission("users:manage")).Delete("/", rs.revokeInvitation)
+				})
 			})
 
 			// Parent account management
