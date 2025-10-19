@@ -1049,6 +1049,29 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		visitsByGroupID[visit.ActiveGroupID] = append(visitsByGroupID[visit.ActiveGroupID], visit)
 	}
 
+	// Extract unique student IDs from active visits for batch loading
+	studentIDs := make([]int64, 0, len(activeVisits))
+	studentIDSet := make(map[int64]struct{})
+	for _, visit := range activeVisits {
+		if _, exists := studentIDSet[visit.StudentID]; !exists {
+			studentIDs = append(studentIDs, visit.StudentID)
+			studentIDSet[visit.StudentID] = struct{}{}
+		}
+	}
+
+	// Batch load students with their group assignments
+	var studentsWithGroups []*userModels.Student
+	if len(studentIDs) > 0 {
+		err = s.db.NewSelect().
+			Model(&studentsWithGroups).
+			ModelTableExpr(`users.students AS "student"`).
+			Where(`"student".id IN (?)`, bun.In(studentIDs)).
+			Scan(ctx)
+		if err != nil {
+			return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
+		}
+	}
+
 	// Collect all unique group IDs to batch load education groups (avoid N queries in loop)
 	groupIDs := make([]int64, 0, len(activeGroups))
 	for _, group := range activeGroups {
@@ -1149,6 +1172,20 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		}
 	}
 
+	// Build map of student ID -> their Heimatraum room ID
+	studentHomeRoomMap := make(map[int64]int64)
+	for _, student := range studentsWithGroups {
+		if student.GroupID != nil {
+			// Find the education group's room
+			for _, eduGroup := range allEducationGroups {
+				if eduGroup.ID == *student.GroupID && eduGroup.RoomID != nil {
+					studentHomeRoomMap[student.ID] = *eduGroup.RoomID
+					break
+				}
+			}
+		}
+	}
+
 	// Calculate students by location
 	studentsOnPlayground := 0
 	studentsInGroupRooms := 0
@@ -1167,8 +1204,15 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 			// Check if this room belongs to an educational group
 			if educationGroupRooms[roomID] {
 				studentsInGroupRooms += uniqueStudentCount
-				// For now, consider all students in group rooms as in their home room
-				studentsInHomeRoom = studentsInGroupRooms
+
+				// Count only students who are in THEIR specific Heimatraum
+				for studentID := range studentSet {
+					if homeRoomID, ok := studentHomeRoomMap[studentID]; ok {
+						if homeRoomID == roomID {
+							studentsInHomeRoom++
+						}
+					}
+				}
 			}
 		}
 	}

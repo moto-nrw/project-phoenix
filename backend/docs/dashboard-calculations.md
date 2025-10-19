@@ -84,9 +84,17 @@ This document explains how each value on the dashboard is calculated in the `Get
 - **Source**: `active.group_supervisors` table
 
 ### Students in Home Room (In Heimatraum)
-- **Calculation**: Currently same as "Students in Group Rooms"
-- **Logic**: All students in educational group rooms are considered to be in their home room
-- **Note**: This may need refinement based on specific business rules
+- **Calculation**: Count of students currently in their assigned group's Heimatraum
+- **Logic**:
+  1. Load each student's `group_id` assignment
+  2. Get that education group's `room_id` (the student's Heimatraum)
+  3. Compare with the student's current visit location
+  4. Only count if `student.group.room_id == current_visit.room_id`
+- **Examples**:
+  - Class 5a student in Room 101 (5a's Heimatraum) → counted ✓
+  - Class 5a student in Room 102 (5b's Heimatraum) → not counted ✗
+  - Student without group assignment → not counted ✗
+- **Source**: `users.students`, `education.groups`, `active.visits` tables
 
 ## Recent Activity Section
 
