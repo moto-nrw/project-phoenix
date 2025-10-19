@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -41,7 +42,9 @@ func (c *Client) Authenticate(ctx context.Context, device DeviceConfig) error {
 		return fmt.Errorf("call status endpoint: %w", err)
 	}
 	defer func() {
-		_ = resp.Body.Close()
+		if cerr := resp.Body.Close(); cerr != nil {
+			log.Printf("[client] closing status response body failed: %v", cerr)
+		}
 	}()
 
 	if resp.StatusCode != http.StatusOK {
@@ -127,7 +130,11 @@ func (c *Client) PerformCheckAction(ctx context.Context, device DeviceConfig, pa
 	if err != nil {
 		return nil, fmt.Errorf("call checkin endpoint: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			log.Printf("[client] closing checkin response body failed: %v", cerr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
@@ -175,7 +182,11 @@ func (c *Client) ToggleAttendance(ctx context.Context, device DeviceConfig, payl
 	if err != nil {
 		return nil, fmt.Errorf("call attendance toggle endpoint: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			log.Printf("[client] closing attendance response body failed: %v", cerr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
@@ -219,7 +230,11 @@ func (c *Client) UpdateSessionSupervisors(ctx context.Context, device DeviceConf
 	if err != nil {
 		return nil, fmt.Errorf("call supervisor update endpoint: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			log.Printf("[client] closing supervisor response body failed: %v", cerr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
