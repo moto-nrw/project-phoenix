@@ -49,6 +49,14 @@ This simulator fakes device traffic (check-ins, attendance, supervisor updates) 
 
 The simulator authenticates each configured device, keeps state in sync, and emits traffic on the configured interval.
 
+## Engine Capabilities
+
+- Weighted event loop (5s default) that randomly mixes actions per configured weights.
+- Student check-ins/checkouts with rotation phases (Heimatraum → AG → Schulhof) and visit cooldowns.
+- Schulhof hops that move students outside and back in, including handling stale visit cleanup.
+- Attendance toggles once home-room supervisors are present.
+- Supervisor swaps that rotate non-lead staff assignments in active sessions.
+
 ## Tips
 
 - If you ran the simulator previously, make sure no stale open visits remain before reseeding. Either run the seed against a fresh volume (`docker compose down -v` before step 2) or close them manually:
@@ -72,35 +80,44 @@ event:
   max_events_per_tick: 3
   rotation:
     order: [heimatraum, ag, schulhof, heimatraum]
-    min_ag_hops: 2
-    max_ag_hops: 3
+    min_ag_hops: 1
+    max_ag_hops: 2
   actions:
     - type: checkin
       weight: 1.0
     - type: checkout
       weight: 0.8
     - type: schulhof_hop
-      weight: 0.5
-      device_ids: [RFID-OGS-001]
+      weight: 0.4
+      device_ids: [RFID-LIB-001, RFID-OGS-001]
     - type: attendance_toggle
-      weight: 0.6
+      weight: 0.4
+      device_ids: [RFID-LIB-001, TEMP-CLASS-001]
     - type: supervisor_swap
       weight: 0.3
 
 devices:
   - device_id: RFID-LIB-001
     api_key: <updated via script>
-    teacher_ids: [1, 2]
+    teacher_ids: [1, 2, 5]
     default_session:
       activity_id: 13
       room_id: 10
-      supervisor_ids: [1]
+      supervisor_ids: [1, 5]
   - device_id: RFID-MAIN-001
     api_key: <updated via script>
     teacher_ids: [1, 2]
+    default_session:
+      activity_id: 14
+      room_id: 9
+      supervisor_ids: [1, 2]
   - device_id: RFID-MENSA-001
     api_key: <updated via script>
     teacher_ids: [1, 2]
+    default_session:
+      activity_id: 16
+      room_id: 22
+      supervisor_ids: [2, 3]
   - device_id: RFID-OGS-001
     api_key: <updated via script>
     teacher_ids: [3]
@@ -117,6 +134,14 @@ devices:
       supervisor_ids: [4]
   - device_id: TEMP-CLASS-001
     api_key: <updated via script>
+    default_session:
+      activity_id: 12
+      room_id: 11
+      supervisor_ids: [5, 6]
   - device_id: TEMP-MENSA-001
     api_key: <updated via script>
+    default_session:
+      activity_id: 17
+      room_id: 23
+      supervisor_ids: [3, 7]
 ```
