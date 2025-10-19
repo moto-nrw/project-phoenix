@@ -317,23 +317,23 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
                             )}
                             
                             {/* Enhanced dropdown menu */}
-                            <div className={`absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-200 transition-all duration-200 z-50 ${
+                            <div className={`absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-200 transition-all duration-200 z-50 ${
                                 isProfileMenuOpen ? 'opacity-100 visible' : 'opacity-0 invisible'
                             }`}>
                                 {/* User info header */}
                                 <div className="px-4 py-3 border-b border-gray-100">
                                     <div className="flex items-center space-x-3">
-                                        <div 
-                                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold"
+                                        <div
+                                            className="w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center text-white font-semibold"
                                             style={{
                                                 background: 'linear-gradient(135deg, #5080d8, #83cd2d)'
                                             }}
                                         >
                                             {userName.split(' ').map(n => n[0]).join('').toUpperCase()}
                                         </div>
-                                        <div>
-                                            <div className="font-medium text-gray-900">{userName}</div>
-                                            <div className="text-sm text-gray-500">{userEmail}</div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-medium text-gray-900 truncate">{userName}</div>
+                                            <div className="text-sm text-gray-500 truncate" title={userEmail}>{userEmail}</div>
                                         </div>
                                     </div>
                                 </div>
