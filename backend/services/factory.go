@@ -30,19 +30,19 @@ import (
 
 // Factory provides access to all services
 type Factory struct {
-	Auth          auth.AuthService
-	Active        active.Service
-	ActiveCleanup active.CleanupService
-	Activities    activities.ActivityService
-	Education     education.Service
-	Facilities    facilities.Service
-	Feedback      feedback.Service
-	IoT           iot.Service
-	Config        config.Service
-	Schedule      schedule.Service
-	Users         users.PersonService
-	UserContext   usercontext.UserContextService
-	Database      database.DatabaseService
+	Auth                     auth.AuthService
+	Active                   active.Service
+	ActiveCleanup            active.CleanupService
+	Activities               activities.ActivityService
+	Education                education.Service
+	Facilities               facilities.Service
+	Feedback                 feedback.Service
+	IoT                      iot.Service
+	Config                   config.Service
+	Schedule                 schedule.Service
+	Users                    users.PersonService
+	UserContext              usercontext.UserContextService
+	Database                 database.DatabaseService
 	RealtimeHub              *realtime.Hub // SSE event hub (shared by services and API)
 	Mailer                   email.Mailer
 	DefaultFrom              email.Email
@@ -201,8 +201,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.Role,               // Add this
 		repos.RolePermission,     // Add this
 		repos.PasswordResetToken, // Add this
-		repos.Person,             // Add this for first name
-		repos.AuthEvent,          // Add for audit logging
+		repos.PasswordResetRateLimit,
+		repos.Person,    // Add this for first name
+		repos.AuthEvent, // Add for audit logging
 		db,
 		mailer,
 		frontendURL,
@@ -262,24 +263,24 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	)
 
 	return &Factory{
-		Auth:                   authService,
-		Active:                 activeService,
-		ActiveCleanup:          activeCleanupService,
-		Activities:             activitiesService,
-		Education:              educationService,
-		Facilities:             facilitiesService,
-		Feedback:               feedbackService,
-		IoT:                    iotService,
-		Config:                 configService,
-		Schedule:               scheduleService,
-		Users:                  usersService,
-		UserContext:            userContextService,
-		Database:               databaseService,
-		RealtimeHub:            realtimeHub, // Expose SSE hub for API layer
-		Mailer:                 mailer,
-		DefaultFrom:            defaultFrom,
-		FrontendURL:            frontendURL,
-		InvitationTokenExpiry:  invitationTokenExpiry,
+		Auth:                     authService,
+		Active:                   activeService,
+		ActiveCleanup:            activeCleanupService,
+		Activities:               activitiesService,
+		Education:                educationService,
+		Facilities:               facilitiesService,
+		Feedback:                 feedbackService,
+		IoT:                      iotService,
+		Config:                   configService,
+		Schedule:                 scheduleService,
+		Users:                    usersService,
+		UserContext:              userContextService,
+		Database:                 databaseService,
+		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
+		Mailer:                   mailer,
+		DefaultFrom:              defaultFrom,
+		FrontendURL:              frontendURL,
+		InvitationTokenExpiry:    invitationTokenExpiry,
 		PasswordResetTokenExpiry: passwordResetTokenExpiry,
 	}, nil
 }

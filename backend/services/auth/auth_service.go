@@ -21,29 +21,34 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const (
+	passwordResetRateLimitThreshold = 3
+)
+
 // Updated Service struct with all repositories
 
 type Service struct {
-	accountRepo            auth.AccountRepository
-	accountParentRepo      auth.AccountParentRepository // Add this
-	accountRoleRepo        auth.AccountRoleRepository
-	accountPermissionRepo  auth.AccountPermissionRepository
-	permissionRepo         auth.PermissionRepository
-	roleRepo               auth.RoleRepository           // Add this
-	rolePermissionRepo     auth.RolePermissionRepository // Add this
-	tokenRepo              auth.TokenRepository
-	passwordResetTokenRepo auth.PasswordResetTokenRepository // Add this
-	personRepo             users.PersonRepository            // Add this for first name
-	authEventRepo          audit.AuthEventRepository         // Add for audit logging
-	tokenAuth              *jwt.TokenAuth
-	mailer                 email.Mailer
-	defaultFrom            email.Email
-	frontendURL            string
-	passwordResetExpiry    time.Duration
-	jwtExpiry              time.Duration
-	jwtRefreshExpiry       time.Duration
-	txHandler              *base.TxHandler
-	db                     *bun.DB // Add database connection
+	accountRepo                auth.AccountRepository
+	accountParentRepo          auth.AccountParentRepository // Add this
+	accountRoleRepo            auth.AccountRoleRepository
+	accountPermissionRepo      auth.AccountPermissionRepository
+	permissionRepo             auth.PermissionRepository
+	roleRepo                   auth.RoleRepository           // Add this
+	rolePermissionRepo         auth.RolePermissionRepository // Add this
+	tokenRepo                  auth.TokenRepository
+	passwordResetTokenRepo     auth.PasswordResetTokenRepository // Add this
+	passwordResetRateLimitRepo auth.PasswordResetRateLimitRepository
+	personRepo                 users.PersonRepository    // Add this for first name
+	authEventRepo              audit.AuthEventRepository // Add for audit logging
+	tokenAuth                  *jwt.TokenAuth
+	mailer                     email.Mailer
+	defaultFrom                email.Email
+	frontendURL                string
+	passwordResetExpiry        time.Duration
+	jwtExpiry                  time.Duration
+	jwtRefreshExpiry           time.Duration
+	txHandler                  *base.TxHandler
+	db                         *bun.DB // Add database connection
 }
 
 // Updated NewService constructor
@@ -58,6 +63,7 @@ func NewService(
 	roleRepo auth.RoleRepository, // Add this
 	rolePermissionRepo auth.RolePermissionRepository, // Add this
 	passwordResetTokenRepo auth.PasswordResetTokenRepository, // Add this
+	passwordResetRateLimitRepo auth.PasswordResetRateLimitRepository,
 	personRepo users.PersonRepository, // Add this for first name
 	authEventRepo audit.AuthEventRepository, // Add for audit logging
 	db *bun.DB,
@@ -73,26 +79,27 @@ func NewService(
 	}
 
 	return &Service{
-		accountRepo:            accountRepo,
-		accountParentRepo:      accountParentRepo, // Add this
-		accountRoleRepo:        accountRoleRepo,
-		accountPermissionRepo:  accountPermissionRepo,
-		permissionRepo:         permissionRepo,
-		roleRepo:               roleRepo,           // Add this
-		rolePermissionRepo:     rolePermissionRepo, // Add this
-		tokenRepo:              tokenRepo,
-		passwordResetTokenRepo: passwordResetTokenRepo, // Add this
-		personRepo:             personRepo,             // Add this for first name
-		authEventRepo:          authEventRepo,          // Add for audit logging
-		tokenAuth:              tokenAuth,
-		mailer:                 mailer,
-		defaultFrom:            defaultFrom,
-		frontendURL:            frontendURL,
-		passwordResetExpiry:    passwordResetExpiry,
-		jwtExpiry:              tokenAuth.JwtExpiry,
-		jwtRefreshExpiry:       tokenAuth.JwtRefreshExpiry,
-		txHandler:              base.NewTxHandler(db),
-		db:                     db, // Add database connection
+		accountRepo:                accountRepo,
+		accountParentRepo:          accountParentRepo, // Add this
+		accountRoleRepo:            accountRoleRepo,
+		accountPermissionRepo:      accountPermissionRepo,
+		permissionRepo:             permissionRepo,
+		roleRepo:                   roleRepo,           // Add this
+		rolePermissionRepo:         rolePermissionRepo, // Add this
+		tokenRepo:                  tokenRepo,
+		passwordResetTokenRepo:     passwordResetTokenRepo, // Add this
+		passwordResetRateLimitRepo: passwordResetRateLimitRepo,
+		personRepo:                 personRepo,    // Add this for first name
+		authEventRepo:              authEventRepo, // Add for audit logging
+		tokenAuth:                  tokenAuth,
+		mailer:                     mailer,
+		defaultFrom:                defaultFrom,
+		frontendURL:                frontendURL,
+		passwordResetExpiry:        passwordResetExpiry,
+		jwtExpiry:                  tokenAuth.JwtExpiry,
+		jwtRefreshExpiry:           tokenAuth.JwtRefreshExpiry,
+		txHandler:                  base.NewTxHandler(db),
+		db:                         db, // Add database connection
 	}, nil
 }
 
@@ -109,8 +116,9 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 	var rolePermissionRepo = s.rolePermissionRepo // Add this
 	var tokenRepo = s.tokenRepo
 	var passwordResetTokenRepo = s.passwordResetTokenRepo // Add this
-	var personRepo = s.personRepo                         // Add this for first name
-	var authEventRepo = s.authEventRepo                   // Add for audit logging
+	var passwordResetRateLimitRepo = s.passwordResetRateLimitRepo
+	var personRepo = s.personRepo       // Add this for first name
+	var authEventRepo = s.authEventRepo // Add for audit logging
 
 	// Try to cast repositories to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.accountRepo.(base.TransactionalRepository); ok {
@@ -140,6 +148,9 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 	if txRepo, ok := s.passwordResetTokenRepo.(base.TransactionalRepository); ok { // Add this
 		passwordResetTokenRepo = txRepo.WithTx(tx).(auth.PasswordResetTokenRepository)
 	}
+	if txRepo, ok := s.passwordResetRateLimitRepo.(base.TransactionalRepository); ok {
+		passwordResetRateLimitRepo = txRepo.WithTx(tx).(auth.PasswordResetRateLimitRepository)
+	}
 	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok { // Add this for first name
 		personRepo = txRepo.WithTx(tx).(users.PersonRepository)
 	}
@@ -149,26 +160,27 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 
 	// Return a new service with the transaction
 	return &Service{
-		accountRepo:            accountRepo,
-		accountParentRepo:      accountParentRepo, // Add this
-		accountRoleRepo:        accountRoleRepo,
-		accountPermissionRepo:  accountPermissionRepo,
-		permissionRepo:         permissionRepo,
-		roleRepo:               roleRepo,           // Add this
-		rolePermissionRepo:     rolePermissionRepo, // Add this
-		tokenRepo:              tokenRepo,
-		passwordResetTokenRepo: passwordResetTokenRepo, // Add this
-		personRepo:             personRepo,             // Add this for first name
-		authEventRepo:          authEventRepo,          // Add for audit logging
-		tokenAuth:              s.tokenAuth,
-		mailer:                 s.mailer,
-		defaultFrom:            s.defaultFrom,
-		frontendURL:            s.frontendURL,
-		passwordResetExpiry:    s.passwordResetExpiry,
-		jwtExpiry:              s.jwtExpiry,
-		jwtRefreshExpiry:       s.jwtRefreshExpiry,
-		txHandler:              s.txHandler.WithTx(tx),
-		db:                     s.db, // Add database connection
+		accountRepo:                accountRepo,
+		accountParentRepo:          accountParentRepo, // Add this
+		accountRoleRepo:            accountRoleRepo,
+		accountPermissionRepo:      accountPermissionRepo,
+		permissionRepo:             permissionRepo,
+		roleRepo:                   roleRepo,           // Add this
+		rolePermissionRepo:         rolePermissionRepo, // Add this
+		tokenRepo:                  tokenRepo,
+		passwordResetTokenRepo:     passwordResetTokenRepo, // Add this
+		passwordResetRateLimitRepo: passwordResetRateLimitRepo,
+		personRepo:                 personRepo,    // Add this for first name
+		authEventRepo:              authEventRepo, // Add for audit logging
+		tokenAuth:                  s.tokenAuth,
+		mailer:                     s.mailer,
+		defaultFrom:                s.defaultFrom,
+		frontendURL:                s.frontendURL,
+		passwordResetExpiry:        s.passwordResetExpiry,
+		jwtExpiry:                  s.jwtExpiry,
+		jwtRefreshExpiry:           s.jwtRefreshExpiry,
+		txHandler:                  s.txHandler.WithTx(tx),
+		db:                         s.db, // Add database connection
 	}
 }
 
@@ -1331,6 +1343,44 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 	// Normalize email
 	emailAddress = strings.TrimSpace(strings.ToLower(emailAddress))
 
+	if s.passwordResetRateLimitRepo != nil {
+		state, err := s.passwordResetRateLimitRepo.CheckRateLimit(ctx, emailAddress)
+		if err != nil {
+			return nil, &AuthError{Op: "check password reset rate limit", Err: err}
+		}
+
+		now := time.Now()
+		if state != nil && state.Attempts >= passwordResetRateLimitThreshold && state.RetryAt.After(now) {
+			return nil, &AuthError{
+				Op: "initiate password reset",
+				Err: &RateLimitError{
+					Err:      ErrRateLimitExceeded,
+					Attempts: state.Attempts,
+					RetryAt:  state.RetryAt,
+				},
+			}
+		}
+
+		state, err = s.passwordResetRateLimitRepo.IncrementAttempts(ctx, emailAddress)
+		if err != nil {
+			return nil, &AuthError{Op: "increment password reset rate limit", Err: err}
+		}
+
+		now = time.Now()
+		if state != nil && state.Attempts > passwordResetRateLimitThreshold && state.RetryAt.After(now) {
+			return nil, &AuthError{
+				Op: "initiate password reset",
+				Err: &RateLimitError{
+					Err:      ErrRateLimitExceeded,
+					Attempts: state.Attempts,
+					RetryAt:  state.RetryAt,
+				},
+			}
+		}
+	}
+
+	log.Printf("Password reset requested for email=%s", emailAddress)
+
 	// Get account by email
 	account, err := s.accountRepo.FindByEmail(ctx, emailAddress)
 	if err != nil {
@@ -1356,6 +1406,8 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 	if err := s.passwordResetTokenRepo.Create(ctx, resetToken); err != nil {
 		return nil, &AuthError{Op: "create password reset token", Err: err}
 	}
+
+	log.Printf("Password reset token created for account=%d", account.ID)
 
 	frontendURL := strings.TrimRight(s.frontendURL, "/")
 	resetURL := fmt.Sprintf("%s/reset-password?token=%s", frontendURL, resetToken.Token)
@@ -1448,6 +1500,21 @@ func (s *Service) CleanupExpiredPasswordResetTokens(ctx context.Context) (int, e
 	if err != nil {
 		return 0, &AuthError{Op: "cleanup expired password reset tokens", Err: err}
 	}
+	return count, nil
+}
+
+// CleanupExpiredRateLimits purges stale password reset rate limit windows.
+func (s *Service) CleanupExpiredRateLimits(ctx context.Context) (int, error) {
+	if s.passwordResetRateLimitRepo == nil {
+		return 0, nil
+	}
+
+	count, err := s.passwordResetRateLimitRepo.CleanupExpired(ctx)
+	if err != nil {
+		return 0, &AuthError{Op: "cleanup password reset rate limits", Err: err}
+	}
+
+	log.Printf("Password reset rate limit cleanup removed %d records", count)
 	return count, nil
 }
 

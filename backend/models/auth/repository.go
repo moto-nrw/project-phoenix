@@ -150,3 +150,10 @@ type PasswordResetTokenRepository interface {
 	InvalidateTokensByAccountID(ctx context.Context, accountID int64) error
 	FindTokensWithAccount(ctx context.Context, filters map[string]interface{}) ([]*PasswordResetToken, error)
 }
+
+// PasswordResetRateLimitRepository defines operations for managing password reset rate limiting.
+type PasswordResetRateLimitRepository interface {
+	CheckRateLimit(ctx context.Context, email string) (*RateLimitState, error)
+	IncrementAttempts(ctx context.Context, email string) (*RateLimitState, error)
+	CleanupExpired(ctx context.Context) (int, error)
+}

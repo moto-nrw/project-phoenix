@@ -31,15 +31,16 @@ import (
 // Factory provides access to all repositories
 type Factory struct {
 	// Auth domain
-	Account            authModels.AccountRepository
-	AccountParent      authModels.AccountParentRepository
-	Role               authModels.RoleRepository
-	Permission         authModels.PermissionRepository
-	RolePermission     authModels.RolePermissionRepository
-	AccountRole        authModels.AccountRoleRepository
-	AccountPermission  authModels.AccountPermissionRepository
-	Token              authModels.TokenRepository
-	PasswordResetToken authModels.PasswordResetTokenRepository
+	Account                authModels.AccountRepository
+	AccountParent          authModels.AccountParentRepository
+	Role                   authModels.RoleRepository
+	Permission             authModels.PermissionRepository
+	RolePermission         authModels.RolePermissionRepository
+	AccountRole            authModels.AccountRoleRepository
+	AccountPermission      authModels.AccountPermissionRepository
+	Token                  authModels.TokenRepository
+	PasswordResetToken     authModels.PasswordResetTokenRepository
+	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
 
 	// Users domain
 	Person          userModels.PersonRepository
@@ -100,15 +101,16 @@ type Factory struct {
 func NewFactory(db *bun.DB) *Factory {
 	return &Factory{
 		// Auth repositories
-		Account:            auth.NewAccountRepository(db),
-		AccountParent:      auth.NewAccountParentRepository(db),
-		Role:               auth.NewRoleRepository(db),
-		Permission:         auth.NewPermissionRepository(db),
-		RolePermission:     auth.NewRolePermissionRepository(db),
-		AccountRole:        auth.NewAccountRoleRepository(db),
-		AccountPermission:  auth.NewAccountPermissionRepository(db),
-		Token:              auth.NewTokenRepository(db),
-		PasswordResetToken: auth.NewPasswordResetTokenRepository(db),
+		Account:                auth.NewAccountRepository(db),
+		AccountParent:          auth.NewAccountParentRepository(db),
+		Role:                   auth.NewRoleRepository(db),
+		Permission:             auth.NewPermissionRepository(db),
+		RolePermission:         auth.NewRolePermissionRepository(db),
+		AccountRole:            auth.NewAccountRoleRepository(db),
+		AccountPermission:      auth.NewAccountPermissionRepository(db),
+		Token:                  auth.NewTokenRepository(db),
+		PasswordResetToken:     auth.NewPasswordResetTokenRepository(db),
+		PasswordResetRateLimit: auth.NewPasswordResetRateLimitRepository(db),
 
 		// Users repositories
 		Person:          users.NewPersonRepository(db),

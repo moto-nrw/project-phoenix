@@ -62,6 +62,7 @@ type AuthService interface {
 	// Password Reset
 	InitiatePasswordReset(ctx context.Context, email string) (*auth.PasswordResetToken, error)
 	ResetPassword(ctx context.Context, token, newPassword string) error
+	CleanupExpiredRateLimits(ctx context.Context) (int, error)
 
 	// Token Management
 	CleanupExpiredTokens(ctx context.Context) (int, error)
