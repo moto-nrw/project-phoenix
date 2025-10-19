@@ -141,7 +141,9 @@ func (r *InvitationTokenRepository) DeleteExpired(ctx context.Context, now time.
 func (r *InvitationTokenRepository) List(ctx context.Context, filters map[string]interface{}) ([]*modelAuth.InvitationToken, error) {
 	var tokens []*modelAuth.InvitationToken
 	query := r.db.NewSelect().
-		Model(&tokens)
+		Model(&tokens).
+		Relation("Role").
+		Relation("Creator")
 
 	now := time.Now()
 

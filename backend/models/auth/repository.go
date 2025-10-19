@@ -162,6 +162,7 @@ type PasswordResetRateLimitRepository interface {
 // InvitationTokenRepository defines operations for managing invitation tokens.
 type InvitationTokenRepository interface {
 	Create(ctx context.Context, token *InvitationToken) error
+	Update(ctx context.Context, token *InvitationToken) error
 	FindByID(ctx context.Context, id interface{}) (*InvitationToken, error)
 	FindByToken(ctx context.Context, token string) (*InvitationToken, error)
 	FindValidByToken(ctx context.Context, token string, now time.Time) (*InvitationToken, error)
