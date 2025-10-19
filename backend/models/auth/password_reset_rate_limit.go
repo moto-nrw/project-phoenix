@@ -21,7 +21,7 @@ func (PasswordResetRateLimit) TableName() string {
 
 // BeforeAppendModel ensures the schema-qualified table name is used with an alias.
 func (m *PasswordResetRateLimit) BeforeAppendModel(query any) error {
-	const tableExpr = `auth.password_reset_rate_limits AS "rate_limit"`
+	const tableExpr = `auth.password_reset_rate_limits AS "password_reset_rate_limit"`
 
 	switch q := query.(type) {
 	case *bun.SelectQuery:

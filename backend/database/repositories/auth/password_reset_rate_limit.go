@@ -29,7 +29,8 @@ func (r *PasswordResetRateLimitRepository) CheckRateLimit(ctx context.Context, e
 	record := new(modelAuth.PasswordResetRateLimit)
 	err := r.db.NewSelect().
 		Model(record).
-		Where(`"rate_limit".email = ?`, email).
+		ModelTableExpr(`auth.password_reset_rate_limits AS "password_reset_rate_limit"`).
+		Where(`"password_reset_rate_limit".email = ?`, email).
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

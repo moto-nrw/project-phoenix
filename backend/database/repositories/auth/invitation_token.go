@@ -81,6 +81,7 @@ func (r *InvitationTokenRepository) FindByEmail(ctx context.Context, email strin
 func (r *InvitationTokenRepository) MarkAsUsed(ctx context.Context, id int64) error {
 	_, err := r.db.NewUpdate().
 		Model((*modelAuth.InvitationToken)(nil)).
+		ModelTableExpr(`auth.invitation_tokens`).
 		Set(`used_at = NOW()`).
 		Where(`id = ?`, id).
 		Exec(ctx)
@@ -97,6 +98,7 @@ func (r *InvitationTokenRepository) MarkAsUsed(ctx context.Context, id int64) er
 func (r *InvitationTokenRepository) InvalidateByEmail(ctx context.Context, email string) (int, error) {
 	res, err := r.db.NewUpdate().
 		Model((*modelAuth.InvitationToken)(nil)).
+		ModelTableExpr(`auth.invitation_tokens`).
 		Set(`used_at = NOW()`).
 		Where(`LOWER(email) = LOWER(?)`, email).
 		Where(`used_at IS NULL`).
@@ -120,6 +122,7 @@ func (r *InvitationTokenRepository) InvalidateByEmail(ctx context.Context, email
 func (r *InvitationTokenRepository) DeleteExpired(ctx context.Context, now time.Time) (int, error) {
 	res, err := r.db.NewDelete().
 		Model((*modelAuth.InvitationToken)(nil)).
+		ModelTableExpr(`auth.invitation_tokens`).
 		Where(`expires_at <= ?`, now).
 		WhereOr(`used_at IS NOT NULL`).
 		Exec(ctx)

@@ -65,6 +65,7 @@ func (r *AccountParentRepository) FindByUsername(ctx context.Context, username s
 func (r *AccountParentRepository) UpdateLastLogin(ctx context.Context, id int64) error {
 	_, err := r.db.NewUpdate().
 		Model((*auth.AccountParent)(nil)).
+		ModelTableExpr("auth.accounts_parents").
 		Set("last_login = ?", time.Now()).
 		Where("id = ?", id).
 		Exec(ctx)
@@ -83,6 +84,7 @@ func (r *AccountParentRepository) UpdateLastLogin(ctx context.Context, id int64)
 func (r *AccountParentRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
 	_, err := r.db.NewUpdate().
 		Model((*auth.AccountParent)(nil)).
+		ModelTableExpr("auth.accounts_parents").
 		Set("password_hash = ?", passwordHash).
 		Where("id = ?", id).
 		Exec(ctx)
@@ -100,7 +102,9 @@ func (r *AccountParentRepository) UpdatePassword(ctx context.Context, id int64, 
 // List retrieves parent accounts matching the provided filters
 func (r *AccountParentRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.AccountParent, error) {
 	var accounts []*auth.AccountParent
-	query := r.db.NewSelect().Model(&accounts)
+	query := r.db.NewSelect().
+		Model(&accounts).
+		ModelTableExpr("auth.accounts_parents AS account_parent")
 
 	// Apply filters
 	for field, value := range filters {
