@@ -428,17 +428,6 @@ func maybeStartDefaultSession(ctx context.Context, client *Client, device Device
 
 	stateMu.Lock()
 
-	if state.RoomsByID == nil {
-		stateMu.Unlock()
-		return
-	}
-
-	room, ok := state.RoomsByID[device.DefaultSession.RoomID]
-	if !ok || !strings.EqualFold(room.Category, "Schulhof") {
-		stateMu.Unlock()
-		return
-	}
-
 	if state.sessionActive() {
 		stateMu.Unlock()
 		return
