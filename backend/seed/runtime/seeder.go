@@ -338,6 +338,9 @@ func (s *Seeder) checkInStudents(ctx context.Context, currentTime time.Time) err
 			// Vary entry times to be realistic
 			entryOffset := rng.Intn(20) // 0-20 minutes after group start
 			entryTime := activeGroup.StartTime.Add(time.Duration(entryOffset) * time.Minute)
+			if entryTime.After(currentTime) {
+				entryTime = currentTime
+			}
 
 			visit := &active.Visit{
 				StudentID:     studentID,
@@ -350,6 +353,9 @@ func (s *Seeder) checkInStudents(ctx context.Context, currentTime time.Time) err
 			// Some students might have already left (10% chance)
 			if rng.Float32() < 0.1 && groupType == "activity" {
 				exitTime := entryTime.Add(time.Duration(rng.Intn(30)+10) * time.Minute)
+				if exitTime.After(currentTime) {
+					exitTime = currentTime
+				}
 				visit.ExitTime = &exitTime
 			}
 
