@@ -151,7 +151,7 @@ func (s *Seeder) resetData(ctx context.Context) error {
 
 		// Activities
 		"activities.student_enrollments",
-		"activities.supervisor_assignments",
+		"activities.supervisors",
 		"activities.schedules",
 		"activities.groups",
 		"activities.categories",
