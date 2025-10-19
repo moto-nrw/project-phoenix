@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Modal } from "./modal";
 import { Input, Alert } from "./index";
-import { requestPasswordReset } from "~/lib/auth-api";
+import { requestPasswordReset, type ApiError } from "~/lib/auth-api";
 
 interface PasswordResetModalProps {
   isOpen: boolean;
@@ -48,11 +48,63 @@ const CheckIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const formatCountdown = (totalSeconds: number): string => {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+};
+
 export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps) {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [rateLimitUntil, setRateLimitUntil] = useState<number | null>(null);
+  const [secondsRemaining, setSecondsRemaining] = useState(0);
+
+  const RATE_LIMIT_STORAGE_KEY = "passwordResetRateLimitUntil";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(RATE_LIMIT_STORAGE_KEY);
+    if (!stored) return;
+
+    const timestamp = Number(stored);
+    if (!Number.isNaN(timestamp) && timestamp > Date.now()) {
+      setRateLimitUntil(timestamp);
+    } else if (!Number.isNaN(timestamp)) {
+      window.localStorage.removeItem(RATE_LIMIT_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!rateLimitUntil) {
+      setSecondsRemaining(0);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const now = Date.now();
+      if (rateLimitUntil <= now) {
+        setRateLimitUntil(null);
+        setSecondsRemaining(0);
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem(RATE_LIMIT_STORAGE_KEY);
+        }
+        setError("");
+      } else {
+        const diffSeconds = Math.ceil((rateLimitUntil - now) / 1000);
+        setSecondsRemaining(diffSeconds);
+        setError(`Zu viele Versuche. Bitte versuche es erneut in ${formatCountdown(diffSeconds)}.`);
+      }
+    };
+
+    updateCountdown();
+    const intervalId = window.setInterval(updateCountdown, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [rateLimitUntil]);
+
+  const rateLimitActive = rateLimitUntil !== null && rateLimitUntil > Date.now();
 
   // Reset state when modal closes
   const handleClose = () => {
@@ -65,6 +117,11 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (rateLimitActive) {
+      setError(`Zu viele Versuche. Bitte versuche es erneut in ${formatCountdown(Math.max(secondsRemaining, 0))}.`);
+      return;
+    }
+
     setIsLoading(true);
     setError("");
 
@@ -72,10 +129,23 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
       await requestPasswordReset(email);
       setIsSuccess(true);
     } catch (err) {
-      const errorMessage = err instanceof Error
-        ? err.message
-        : "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.";
-      setError(errorMessage);
+      const apiError = err as ApiError | undefined;
+
+      if (apiError?.status === 429) {
+        const retrySeconds = apiError.retryAfterSeconds && apiError.retryAfterSeconds > 0
+          ? apiError.retryAfterSeconds
+          : 3600;
+        const retryUntil = Date.now() + retrySeconds * 1000;
+        setRateLimitUntil(retryUntil);
+        setSecondsRemaining(retrySeconds);
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(RATE_LIMIT_STORAGE_KEY, retryUntil.toString());
+        }
+        setError(`Zu viele Versuche. Bitte versuche es erneut in ${formatCountdown(retrySeconds)}.`);
+      } else {
+        const errorMessage = apiError?.message ?? "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.";
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -154,7 +224,7 @@ export function PasswordResetModal({ isOpen, onClose }: PasswordResetModalProps)
                 </button>
                 <button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || rateLimitActive}
                   className="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:scale-110 hover:shadow-2xl hover:shadow-gray-500/25 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                 >
                   {isLoading ? (

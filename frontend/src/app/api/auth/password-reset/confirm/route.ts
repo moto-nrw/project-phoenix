@@ -21,9 +21,25 @@ export async function POST(request: NextRequest) {
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
+            let message = "Fehler beim Zurücksetzen des Passworts";
+
+            try {
+                const contentType = response.headers.get("Content-Type") ?? "";
+                if (contentType.includes("application/json")) {
+                    const payload = await response.json() as { error?: string; message?: string };
+                    message = payload.error ?? payload.message ?? message;
+                } else {
+                    const text = (await response.text()).trim();
+                    if (text) {
+                        message = text;
+                    }
+                }
+            } catch (parseError) {
+                console.warn("Failed to parse password reset confirm error response", parseError);
+            }
+
             return NextResponse.json(
-                { error: errorText },
+                { error: message },
                 { status: response.status }
             );
         }

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { Input, Alert } from "~/components/ui";
-import { confirmPasswordReset } from "~/lib/auth-api";
+import { confirmPasswordReset, type ApiError } from "~/lib/auth-api";
 
 function ResetPasswordForm() {
   const [password, setPassword] = useState("");
@@ -83,10 +83,18 @@ function ResetPasswordForm() {
         router.push("/");
       }, 3000);
     } catch (err) {
-      const errorMessage = err instanceof Error
-        ? err.message
-        : "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.";
-      setError(errorMessage);
+      const apiError = err as ApiError | undefined;
+      let message = apiError?.message ?? "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.";
+
+      if (apiError?.status === 410) {
+        message = "Dieser Passwort-Reset-Link ist abgelaufen. Bitte fordere einen neuen Link an.";
+      } else if (apiError?.status === 404) {
+        message = "Wir konnten diesen Passwort-Reset-Link nicht finden. Bitte fordere einen neuen Link an.";
+      } else if (apiError?.status === 400 && apiError.message) {
+        message = apiError.message;
+      }
+
+      setError(message);
     } finally {
       setIsLoading(false);
     }
