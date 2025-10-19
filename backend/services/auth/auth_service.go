@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"regexp"
 	"strings"
 	"time"
 
@@ -399,7 +398,7 @@ func (s *Service) Register(ctx context.Context, email, username, name, password 
 	username = strings.TrimSpace(username)
 
 	// Validate password strength
-	if err := validatePassword(password); err != nil {
+	if err := ValidatePasswordStrength(password); err != nil {
 		return nil, &AuthError{Op: "register", Err: err}
 	}
 
@@ -416,7 +415,7 @@ func (s *Service) Register(ctx context.Context, email, username, name, password 
 	}
 
 	// Hash password
-	passwordHash, err := userpass.HashPassword(password, userpass.DefaultParams())
+	passwordHash, err := HashPassword(password)
 	if err != nil {
 		return nil, &AuthError{Op: "hash password", Err: err}
 	}
@@ -799,12 +798,12 @@ func (s *Service) ChangePassword(ctx context.Context, accountID int, currentPass
 	}
 
 	// Validate new password
-	if err := validatePassword(newPassword); err != nil {
+	if err := ValidatePasswordStrength(newPassword); err != nil {
 		return &AuthError{Op: "validate password", Err: err}
 	}
 
 	// Hash new password
-	passwordHash, err := userpass.HashPassword(newPassword, userpass.DefaultParams())
+	passwordHash, err := HashPassword(newPassword)
 	if err != nil {
 		return &AuthError{Op: "hash password", Err: err}
 	}
@@ -909,31 +908,6 @@ func extractClaims(token jwx.Token) map[string]interface{} {
 	}
 
 	return claims
-}
-
-// validatePassword validates password strength
-func validatePassword(password string) error {
-	if len(password) < 8 {
-		return ErrPasswordTooWeak
-	}
-
-	if !regexp.MustCompile(`[A-Z]`).MatchString(password) {
-		return ErrPasswordTooWeak
-	}
-
-	if !regexp.MustCompile(`[a-z]`).MatchString(password) {
-		return ErrPasswordTooWeak
-	}
-
-	if !regexp.MustCompile(`[0-9]`).MatchString(password) {
-		return ErrPasswordTooWeak
-	}
-
-	if !regexp.MustCompile(`[^a-zA-Z0-9]`).MatchString(password) {
-		return ErrPasswordTooWeak
-	}
-
-	return nil
 }
 
 // Add these methods to the existing Service struct in auth_service.go
@@ -1442,12 +1416,12 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	}
 
 	// Validate new password
-	if err := validatePassword(newPassword); err != nil {
+	if err := ValidatePasswordStrength(newPassword); err != nil {
 		return &AuthError{Op: "reset password", Err: err}
 	}
 
 	// Hash new password
-	passwordHash, err := userpass.HashPassword(newPassword, userpass.DefaultParams())
+	passwordHash, err := HashPassword(newPassword)
 	if err != nil {
 		return &AuthError{Op: "hash password", Err: err}
 	}
@@ -1549,7 +1523,7 @@ func (s *Service) CreateParentAccount(ctx context.Context, email, username, pass
 	username = strings.TrimSpace(username)
 
 	// Validate password strength
-	if err := validatePassword(password); err != nil {
+	if err := ValidatePasswordStrength(password); err != nil {
 		return nil, &AuthError{Op: "create parent account", Err: err}
 	}
 
@@ -1566,7 +1540,7 @@ func (s *Service) CreateParentAccount(ctx context.Context, email, username, pass
 	}
 
 	// Hash password
-	passwordHash, err := userpass.HashPassword(password, userpass.DefaultParams())
+	passwordHash, err := HashPassword(password)
 	if err != nil {
 		return nil, &AuthError{Op: "hash password", Err: err}
 	}
