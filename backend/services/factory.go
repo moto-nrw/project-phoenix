@@ -2,11 +2,17 @@
 package services
 
 import (
+	"log"
+	"strings"
+	"time"
+
+	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
@@ -37,11 +43,57 @@ type Factory struct {
 	Users         users.PersonService
 	UserContext   usercontext.UserContextService
 	Database      database.DatabaseService
-	RealtimeHub   *realtime.Hub // SSE event hub (shared by services and API)
+	RealtimeHub              *realtime.Hub // SSE event hub (shared by services and API)
+	Mailer                   email.Mailer
+	DefaultFrom              email.Email
+	FrontendURL              string
+	InvitationTokenExpiry    time.Duration
+	PasswordResetTokenExpiry time.Duration
 }
 
 // NewFactory creates a new services factory
 func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
+
+	mailer, err := email.NewMailer()
+	if err != nil {
+		log.Printf("email: failed to initialize SMTP mailer, falling back to mock mailer: %v", err)
+		mailer = email.NewMockMailer()
+	}
+	if _, ok := mailer.(*email.MockMailer); ok {
+		log.Println("email: SMTP mailer not configured; using mock mailer (tokens will not be sent via SMTP)")
+	}
+
+	defaultFrom := email.NewEmail(viper.GetString("email_from_name"), viper.GetString("email_from_address"))
+	if defaultFrom.Address == "" {
+		defaultFrom = email.NewEmail("moto", "no-reply@moto.local")
+	}
+
+	rawFrontendURL := viper.GetString("frontend_url")
+	frontendURL := strings.TrimRight(rawFrontendURL, "/")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:3000"
+	}
+
+	appEnv := strings.ToLower(viper.GetString("app_env"))
+	if appEnv == "production" && !strings.HasPrefix(frontendURL, "https://") {
+		log.Fatalf("FRONTEND_URL must use https:// in production (received %q)", rawFrontendURL)
+	}
+
+	invitationExpiryHours := viper.GetInt("invitation_token_expiry_hours")
+	if invitationExpiryHours <= 0 {
+		invitationExpiryHours = 48
+	} else if invitationExpiryHours > 168 {
+		invitationExpiryHours = 168
+	}
+	invitationTokenExpiry := time.Duration(invitationExpiryHours) * time.Hour
+
+	passwordResetExpiryMinutes := viper.GetInt("password_reset_token_expiry_minutes")
+	if passwordResetExpiryMinutes <= 0 {
+		passwordResetExpiryMinutes = 30
+	} else if passwordResetExpiryMinutes > 1440 {
+		passwordResetExpiryMinutes = 1440
+	}
+	passwordResetTokenExpiry := time.Duration(passwordResetExpiryMinutes) * time.Minute
 
 	// Create realtime hub for SSE broadcasting (single shared instance)
 	realtimeHub := realtime.NewHub()
@@ -152,6 +204,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.Person,             // Add this for first name
 		repos.AuthEvent,          // Add for audit logging
 		db,
+		mailer,
+		frontendURL,
+		defaultFrom,
+		passwordResetTokenExpiry,
 	)
 	if err != nil {
 		return nil, err
@@ -206,19 +262,24 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	)
 
 	return &Factory{
-		Auth:          authService,
-		Active:        activeService,
-		ActiveCleanup: activeCleanupService,
-		Activities:    activitiesService,
-		Education:     educationService,
-		Facilities:    facilitiesService,
-		Feedback:      feedbackService,
-		IoT:           iotService,
-		Config:        configService,
-		Schedule:      scheduleService,
-		Users:         usersService,
-		UserContext:   userContextService,
-		Database:      databaseService,
-		RealtimeHub:   realtimeHub, // Expose SSE hub for API layer
+		Auth:                   authService,
+		Active:                 activeService,
+		ActiveCleanup:          activeCleanupService,
+		Activities:             activitiesService,
+		Education:              educationService,
+		Facilities:             facilitiesService,
+		Feedback:               feedbackService,
+		IoT:                    iotService,
+		Config:                 configService,
+		Schedule:               scheduleService,
+		Users:                  usersService,
+		UserContext:            userContextService,
+		Database:               databaseService,
+		RealtimeHub:            realtimeHub, // Expose SSE hub for API layer
+		Mailer:                 mailer,
+		DefaultFrom:            defaultFrom,
+		FrontendURL:            frontendURL,
+		InvitationTokenExpiry:  invitationTokenExpiry,
+		PasswordResetTokenExpiry: passwordResetTokenExpiry,
 	}, nil
 }

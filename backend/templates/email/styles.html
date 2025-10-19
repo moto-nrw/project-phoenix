@@ -2,11 +2,67 @@
 <style type="text/css">
 body {
     background-color: #f6f6f6;
+    margin: 0;
+    padding: 0;
+    font-family: 'Helvetica Neue', Verdana, sans-serif;
+}
+
+.email-body {
+    max-width: 600px;
+    margin: 0 auto;
+    background-color: #ffffff;
+    padding: 24px;
+    box-sizing: border-box;
 }
 
 p {
-font-family: 'Helvetica Neue', Verdana, sans-serif;
-color: #107A94;
+    color: #107A94;
+    line-height: 1.6;
+}
+
+h1 {
+    color: #5080d8;
+    margin-bottom: 16px;
+}
+
+.brand {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.button-wrapper {
+    text-align: center;
+    margin: 24px 0;
+}
+
+.button {
+    display: inline-block;
+    padding: 12px 24px;
+    border-radius: 6px;
+    background-color: #5080d8;
+    color: #ffffff !important;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.highlight {
+    color: #83cd2d;
+    font-weight: 600;
+}
+
+.security-note {
+    font-size: 14px;
+    color: #555555;
+}
+
+@media screen and (max-width: 480px) {
+    .email-body {
+        padding: 16px;
+    }
+
+    .button {
+        width: 100%;
+    }
 }
 /* -------------------------------------
     LINKS & BUTTONS

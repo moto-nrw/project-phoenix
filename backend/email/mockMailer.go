@@ -9,7 +9,7 @@ type MockMailer struct {
 }
 
 func logMessage(m Message) {
-	log.Printf("MockMailer email sent:\nSubject: %s\nTo: %s <%s>\nContext: %#v\n", m.Subject, m.To.Name, m.To.Address, m.Content)
+	log.Printf("MockMailer email queued to=%s subject=%s template=%s", m.To.Address, m.Subject, m.Template)
 }
 
 func NewMockMailer() *MockMailer {

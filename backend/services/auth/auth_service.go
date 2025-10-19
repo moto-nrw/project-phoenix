@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"regexp"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	jwx "github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
+	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -34,6 +36,10 @@ type Service struct {
 	personRepo             users.PersonRepository            // Add this for first name
 	authEventRepo          audit.AuthEventRepository         // Add for audit logging
 	tokenAuth              *jwt.TokenAuth
+	mailer                 email.Mailer
+	defaultFrom            email.Email
+	frontendURL            string
+	passwordResetExpiry    time.Duration
 	jwtExpiry              time.Duration
 	jwtRefreshExpiry       time.Duration
 	txHandler              *base.TxHandler
@@ -55,6 +61,10 @@ func NewService(
 	personRepo users.PersonRepository, // Add this for first name
 	authEventRepo audit.AuthEventRepository, // Add for audit logging
 	db *bun.DB,
+	mailer email.Mailer,
+	frontendURL string,
+	defaultFrom email.Email,
+	passwordResetExpiry time.Duration,
 ) (*Service, error) {
 
 	tokenAuth, err := jwt.NewTokenAuth()
@@ -75,6 +85,10 @@ func NewService(
 		personRepo:             personRepo,             // Add this for first name
 		authEventRepo:          authEventRepo,          // Add for audit logging
 		tokenAuth:              tokenAuth,
+		mailer:                 mailer,
+		defaultFrom:            defaultFrom,
+		frontendURL:            frontendURL,
+		passwordResetExpiry:    passwordResetExpiry,
 		jwtExpiry:              tokenAuth.JwtExpiry,
 		jwtRefreshExpiry:       tokenAuth.JwtRefreshExpiry,
 		txHandler:              base.NewTxHandler(db),
@@ -147,6 +161,10 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 		personRepo:             personRepo,             // Add this for first name
 		authEventRepo:          authEventRepo,          // Add for audit logging
 		tokenAuth:              s.tokenAuth,
+		mailer:                 s.mailer,
+		defaultFrom:            s.defaultFrom,
+		frontendURL:            s.frontendURL,
+		passwordResetExpiry:    s.passwordResetExpiry,
 		jwtExpiry:              s.jwtExpiry,
 		jwtRefreshExpiry:       s.jwtRefreshExpiry,
 		txHandler:              s.txHandler.WithTx(tx),
@@ -1309,12 +1327,12 @@ func (s *Service) GetAccountsWithRolesAndPermissions(ctx context.Context, filter
 // Password Reset
 
 // InitiatePasswordReset creates a password reset token for an account
-func (s *Service) InitiatePasswordReset(ctx context.Context, email string) (*auth.PasswordResetToken, error) {
+func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string) (*auth.PasswordResetToken, error) {
 	// Normalize email
-	email = strings.TrimSpace(strings.ToLower(email))
+	emailAddress = strings.TrimSpace(strings.ToLower(emailAddress))
 
 	// Get account by email
-	account, err := s.accountRepo.FindByEmail(ctx, email)
+	account, err := s.accountRepo.FindByEmail(ctx, emailAddress)
 	if err != nil {
 		// Don't reveal whether the email exists or not
 		return nil, nil
@@ -1331,13 +1349,34 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, email string) (*aut
 	resetToken := &auth.PasswordResetToken{
 		AccountID: account.ID,
 		Token:     tokenStr,
-		Expiry:    time.Now().Add(24 * time.Hour), // 24 hour expiry
+		Expiry:    time.Now().Add(s.passwordResetExpiry),
 		Used:      false,
 	}
 
 	if err := s.passwordResetTokenRepo.Create(ctx, resetToken); err != nil {
 		return nil, &AuthError{Op: "create password reset token", Err: err}
 	}
+
+	frontendURL := strings.TrimRight(s.frontendURL, "/")
+	resetURL := fmt.Sprintf("%s/reset-password?token=%s", frontendURL, resetToken.Token)
+	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
+	message := email.Message{
+		From:     s.defaultFrom,
+		To:       email.NewEmail("", account.Email),
+		Subject:  "Password Reset Request",
+		Template: "password-reset.html",
+		Content: map[string]any{
+			"ResetURL":      resetURL,
+			"ExpiryMinutes": int(s.passwordResetExpiry.Minutes()),
+			"LogoURL":       logoURL,
+		},
+	}
+
+	go func(to string) {
+		if err := s.mailer.Send(message); err != nil {
+			log.Printf("Failed to send password reset email to=%s err=%v", to, err)
+		}
+	}(account.Email)
 
 	return resetToken, nil
 }

@@ -2,6 +2,7 @@ package email
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/spf13/viper"
 	"github.com/wneessen/go-mail"
@@ -9,8 +10,8 @@ import (
 
 // SMTPMailer is a SMTP mailer.
 type SMTPMailer struct {
-	client *mail.Client
-	from   Email
+	client      *mail.Client
+	defaultFrom Email
 }
 
 // NewMailer returns a configured SMTP Mailer.
@@ -35,6 +36,8 @@ func NewMailer() (Mailer, error) {
 		return NewMockMailer(), nil
 	}
 
+	defaultFrom := NewEmail(viper.GetString("email_from_name"), viper.GetString("email_from_address"))
+
 	client, err := mail.NewClient(smtp.Host, mail.WithPort(smtp.Port),
 		mail.WithSMTPAuth(mail.SMTPAuthPlain),
 		mail.WithUsername(smtp.User), mail.WithPassword(smtp.Password))
@@ -42,14 +45,18 @@ func NewMailer() (Mailer, error) {
 		return nil, err
 	}
 	s := &SMTPMailer{
-		client: client,
-		from:   NewEmail(viper.GetString("email_from_name"), viper.GetString("email_from_address")),
+		client:      client,
+		defaultFrom: defaultFrom,
 	}
 	return s, nil
 }
 
 // Send sends the mail via smtp.
 func (m *SMTPMailer) Send(email Message) error {
+	if email.From.Address == "" {
+		email.From = m.defaultFrom
+	}
+
 	if err := email.parse(); err != nil {
 		return err
 	}
@@ -65,5 +72,12 @@ func (m *SMTPMailer) Send(email Message) error {
 	msg.SetBodyString(mail.TypeTextPlain, email.text)
 	msg.AddAlternativeString(mail.TypeTextHTML, email.html)
 
-	return m.client.DialAndSend(msg)
+	log.Printf("Sending email to=%s subject=%s template=%s", email.To.Address, email.Subject, email.Template)
+	if err := m.client.DialAndSend(msg); err != nil {
+		log.Printf("Email send failed to=%s error=%v", email.To.Address, err)
+		return err
+	}
+	log.Printf("Email sent successfully to=%s", email.To.Address)
+
+	return nil
 }
