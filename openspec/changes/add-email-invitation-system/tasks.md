@@ -502,27 +502,27 @@
   - [x] Test ResetPassword with valid token
   - [x] Test ResetPassword with expired token
   - [x] Test rate limiting blocks after 3 attempts
-- [ ] 11.4 Bruno API tests:
-  - [ ] Password reset: request → check email → reset (mock SMTP)
-  - [ ] Rate limiting: 4 password reset requests → 429 on 4th
-  - [ ] Create invitation (admin auth)
-  - [ ] Validate invitation token (public)
-  - [ ] Accept invitation with weak password → 400
-  - [ ] Accept invitation success → creates account
-  - [ ] List pending invitations (admin auth)
-  - [ ] Resend invitation (admin auth)
-  - [ ] Resend expired invitation → 400
-  - [ ] Revoke invitation (admin auth)
-  - [ ] Accept revoked invitation → 410
+- [x] 11.4 Bruno API tests:
+  - [x] Password reset: request → check email → reset (mock SMTP)
+  - [x] Rate limiting: 4 password reset requests → 429 on 4th
+  - [x] Create invitation (admin auth)
+  - [x] Validate invitation token (public)
+  - [x] Accept invitation with weak password → 400
+  - [x] Accept invitation success → creates account
+  - [x] List pending invitations (admin auth)
+  - [x] Resend invitation (admin auth)
+  - [x] Resend expired invitation → 400
+  - [x] Revoke invitation (admin auth)
+  - [x] Accept revoked invitation → 410
 - [ ] 11.5 Manual end-to-end test:
-  - [ ] Admin creates invitation
+  - [x] Admin creates invitation
   - [ ] Invitation email received (check logs if mock mailer)
-  - [ ] User clicks link, sees acceptance page
-  - [ ] User fills form with weak password → validation error
-  - [ ] User fills form with strong password → account created
-  - [ ] User can login with new credentials
-  - [ ] Password reset flow: request → email → reset → login
-  - [ ] Rate limit test: 4 password resets → 429 error
+  - [x] User clicks link, sees acceptance page
+  - [x] User fills form with weak password → validation error
+  - [x] User fills form with strong password → account created
+  - [x] User can login with new credentials
+  - [x] Password reset flow: request → email → reset → login
+  - [x] Rate limit test: 4 password resets → 429 error
 
 ## 12. Documentation
 - [x] 12.1 Update `backend/CLAUDE.md`:
@@ -578,19 +578,19 @@
 - [x] Rate limiting blocks 4th password reset request within 1 hour
 - [x] Invitation email received with correct link
 - [x] Invitation acceptance creates both account and person atomically
-- [ ] Can login with newly created account
-- [ ] Password reset flow works end-to-end
-- [ ] Admin can list pending invitations
-- [ ] Admin can resend invitation email
-- [ ] Admin can revoke invitation
-- [ ] Expired invitations cannot be accepted (410 Gone)
-- [ ] Used invitations cannot be reused (410 Gone)
+- [x] Can login with newly created account
+- [x] Password reset flow works end-to-end
+- [x] Admin can list pending invitations
+- [x] Admin can resend invitation email
+- [x] Admin can revoke invitation
+- [x] Expired invitations cannot be accepted (410 Gone)
+- [x] Used invitations cannot be reused (410 Gone)
 - [x] Resending expired invitation returns 400 error
 - [ ] Email templates render correctly in Gmail, Outlook, Apple Mail
-- [ ] All Bruno API tests pass
+- [x] All Bruno API tests pass
 - [x] All unit tests pass
-- [ ] Zero lint/type errors in frontend
+- [x] Zero lint/type errors in frontend
 - [ ] Scheduler runs invitation cleanup daily
 - [x] Documentation updated and accurate
-- [ ] Password strength validation works in both services
-- [ ] Error types map to correct HTTP status codes (404, 410, 429)
+- [x] Password strength validation works in both services
+- [x] Error types map to correct HTTP status codes (404, 410, 429)

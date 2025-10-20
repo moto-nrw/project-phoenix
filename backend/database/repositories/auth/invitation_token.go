@@ -11,6 +11,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const (
+	invitationTable      = "auth.invitation_tokens"
+	invitationTableAlias = `auth.invitation_tokens AS "invitation_token"`
+)
+
 // InvitationTokenRepository provides persistence for invitation tokens.
 type InvitationTokenRepository struct {
 	*base.Repository[*modelAuth.InvitationToken]
@@ -30,7 +35,8 @@ func (r *InvitationTokenRepository) FindByToken(ctx context.Context, token strin
 	entity := new(modelAuth.InvitationToken)
 	err := r.db.NewSelect().
 		Model(entity).
-		Where(`"invitation".token = ?`, token).
+		ModelTableExpr(invitationTableAlias).
+		Where(`"invitation_token".token = ?`, token).
 		Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -42,14 +48,50 @@ func (r *InvitationTokenRepository) FindByToken(ctx context.Context, token strin
 	return entity, nil
 }
 
+// FindByID retrieves an invitation token by primary key.
+func (r *InvitationTokenRepository) FindByID(ctx context.Context, id interface{}) (*modelAuth.InvitationToken, error) {
+	entity := new(modelAuth.InvitationToken)
+	if err := r.db.NewSelect().
+		Model(entity).
+		ModelTableExpr(invitationTableAlias).
+		Where(`"invitation_token".id = ?`, id).
+		Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find invitation by id",
+			Err: err,
+		}
+	}
+	return entity, nil
+}
+
+// Update persists changes to an invitation token.
+func (r *InvitationTokenRepository) Update(ctx context.Context, token *modelAuth.InvitationToken) error {
+	if token == nil {
+		return fmt.Errorf("invitation token cannot be nil")
+	}
+
+	if _, err := r.db.NewUpdate().
+		Model(token).
+		ModelTableExpr(invitationTableAlias).
+		WherePK().
+		Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update invitation",
+			Err: err,
+		}
+	}
+	return nil
+}
+
 // FindValidByToken returns an invitation if it is not expired or used.
 func (r *InvitationTokenRepository) FindValidByToken(ctx context.Context, token string, now time.Time) (*modelAuth.InvitationToken, error) {
 	entity := new(modelAuth.InvitationToken)
 	err := r.db.NewSelect().
 		Model(entity).
-		Where(`"invitation".token = ?`, token).
-		Where(`"invitation".expires_at > ?`, now).
-		Where(`"invitation".used_at IS NULL`).
+		ModelTableExpr(invitationTableAlias).
+		Where(`"invitation_token".token = ?`, token).
+		Where(`"invitation_token".expires_at > ?`, now).
+		Where(`"invitation_token".used_at IS NULL`).
 		Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -66,7 +108,8 @@ func (r *InvitationTokenRepository) FindByEmail(ctx context.Context, email strin
 	var tokens []*modelAuth.InvitationToken
 	err := r.db.NewSelect().
 		Model(&tokens).
-		Where(`LOWER("invitation".email) = LOWER(?)`, email).
+		ModelTableExpr(invitationTableAlias).
+		Where(`LOWER("invitation_token".email) = LOWER(?)`, email).
 		Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -81,7 +124,7 @@ func (r *InvitationTokenRepository) FindByEmail(ctx context.Context, email strin
 func (r *InvitationTokenRepository) MarkAsUsed(ctx context.Context, id int64) error {
 	_, err := r.db.NewUpdate().
 		Model((*modelAuth.InvitationToken)(nil)).
-		ModelTableExpr(`auth.invitation_tokens`).
+		ModelTableExpr(invitationTable).
 		Set(`used_at = NOW()`).
 		Where(`id = ?`, id).
 		Exec(ctx)
@@ -98,7 +141,7 @@ func (r *InvitationTokenRepository) MarkAsUsed(ctx context.Context, id int64) er
 func (r *InvitationTokenRepository) InvalidateByEmail(ctx context.Context, email string) (int, error) {
 	res, err := r.db.NewUpdate().
 		Model((*modelAuth.InvitationToken)(nil)).
-		ModelTableExpr(`auth.invitation_tokens`).
+		ModelTableExpr(invitationTable).
 		Set(`used_at = NOW()`).
 		Where(`LOWER(email) = LOWER(?)`, email).
 		Where(`used_at IS NULL`).
@@ -122,7 +165,7 @@ func (r *InvitationTokenRepository) InvalidateByEmail(ctx context.Context, email
 func (r *InvitationTokenRepository) DeleteExpired(ctx context.Context, now time.Time) (int, error) {
 	res, err := r.db.NewDelete().
 		Model((*modelAuth.InvitationToken)(nil)).
-		ModelTableExpr(`auth.invitation_tokens`).
+		ModelTableExpr(invitationTable).
 		Where(`expires_at <= ?`, now).
 		WhereOr(`used_at IS NOT NULL`).
 		Exec(ctx)
@@ -145,8 +188,7 @@ func (r *InvitationTokenRepository) List(ctx context.Context, filters map[string
 	var tokens []*modelAuth.InvitationToken
 	query := r.db.NewSelect().
 		Model(&tokens).
-		Relation("Role").
-		Relation("Creator")
+		ModelTableExpr(invitationTableAlias)
 
 	now := time.Now()
 
@@ -154,19 +196,19 @@ func (r *InvitationTokenRepository) List(ctx context.Context, filters map[string
 		switch key {
 		case "email":
 			if v, ok := value.(string); ok && v != "" {
-				query = query.Where(`LOWER("invitation".email) = LOWER(?)`, v)
+				query = query.Where(`LOWER("invitation_token".email) = LOWER(?)`, v)
 			}
 		case "pending":
 			if pending, ok := value.(bool); ok && pending {
-				query = query.Where(`"invitation".used_at IS NULL`).Where(`"invitation".expires_at > ?`, now)
+				query = query.Where(`"invitation_token".used_at IS NULL`).Where(`"invitation_token".expires_at > ?`, now)
 			}
 		case "expired":
 			if expired, ok := value.(bool); ok && expired {
-				query = query.Where(`"invitation".expires_at <= ?`, now)
+				query = query.Where(`"invitation_token".expires_at <= ?`, now)
 			}
 		case "used":
 			if used, ok := value.(bool); ok && used {
-				query = query.Where(`"invitation".used_at IS NOT NULL`)
+				query = query.Where(`"invitation_token".used_at IS NOT NULL`)
 			}
 		}
 	}

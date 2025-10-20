@@ -34,7 +34,7 @@ func (t *InvitationToken) TableName() string {
 
 // BeforeAppendModel ensures the schema-qualified table expression is used with an alias.
 func (t *InvitationToken) BeforeAppendModel(query any) error {
-	const tableExpr = `auth.invitation_tokens AS "invitation"`
+	const tableExpr = `auth.invitation_tokens AS "invitation_token"`
 
 	switch q := query.(type) {
 	case *bun.SelectQuery:
