@@ -75,7 +75,7 @@ function ResetPasswordForm() {
     setIsLoading(true);
 
     try {
-      await confirmPasswordReset(token, password);
+      await confirmPasswordReset(token, password, confirmPassword);
       setIsSuccess(true);
 
       // Redirect to login after 3 seconds

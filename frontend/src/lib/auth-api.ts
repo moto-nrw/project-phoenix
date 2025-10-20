@@ -255,25 +255,15 @@ export async function requestPasswordReset(email: string): Promise<{ message: st
  */
 export async function confirmPasswordReset(
   token: string,
-  password: string
+  password: string,
+  confirmPassword: string
 ): Promise<{ message: string }> {
   try {
-    const response = await fetch("/api/auth/password-reset/confirm", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ token, password }),
+    return await authService.resetPassword({
+      token,
+      newPassword: password,
+      confirmPassword,
     });
-
-    if (!response.ok) {
-      throw await buildApiError(
-        response,
-        "Fehler beim Zurücksetzen des Passworts"
-      );
-    }
-
-    return await response.json() as { message: string };
   } catch (error) {
     console.error("Password reset confirmation error:", error);
     throw error;
