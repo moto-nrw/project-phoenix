@@ -99,6 +99,7 @@ interface HeaderProps {
     userName?: string;
     userEmail?: string;
     userRole?: string;
+    customPageTitle?: string;
 }
 
 // Logout Icon als React Component
@@ -123,12 +124,12 @@ const LogoutIcon = ({ className }: { className?: string }) => (
 
 
 
-export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }: HeaderProps) {
+export function Header({ userName = "Benutzer", userEmail = "", userRole = "", customPageTitle }: HeaderProps) {
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
     const pathname = usePathname();
     const helpContent = getHelpContent(pathname);
-    const pageTitle = getPageTitle(pathname);
+    const pageTitle = customPageTitle ?? getPageTitle(pathname);
     const { data: session } = useSession();
 
     const toggleProfileMenu = () => {
@@ -182,7 +183,7 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
 
                         {/* Breadcrumb navigation for database pages */}
                         {pathname.startsWith("/database/") && pathname !== "/database" ? (
-                            <nav className="hidden md:flex items-center space-x-2 text-sm">
+                            <nav className="hidden md:flex items-center space-x-2 text-base">
                                 <Link
                                     href="/database"
                                     className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
@@ -217,7 +218,7 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
                             </nav>
                         ) : (
                             /* Context indicator for non-database pages */
-                            <span className="hidden md:inline text-sm font-medium text-gray-600">
+                            <span className="hidden md:inline text-base font-medium text-gray-600">
                                 {pageTitle}
                             </span>
                         )}

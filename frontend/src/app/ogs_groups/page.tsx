@@ -634,8 +634,15 @@ function OGSGroupPageContent() {
     );
   }
 
+  // Compute page title for header - show current group name
+  const headerPageTitle = currentGroup?.name
+    ? `Meine Gruppe > ${currentGroup.name}`
+    : allGroups.length > 1
+      ? "Meine Gruppen"
+      : "Meine Gruppe";
+
   return (
-    <ResponsiveLayout>
+    <ResponsiveLayout pageTitle={headerPageTitle}>
       <div className="-mt-1.5 w-full">
         {/* SSE Connection Status Indicator */}
         <div className="mb-2 flex items-center gap-2 text-sm">

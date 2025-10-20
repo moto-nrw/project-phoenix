@@ -9,9 +9,10 @@ import { MobileBottomNav } from './mobile-bottom-nav';
 
 interface ResponsiveLayoutProps {
   children: React.ReactNode;
+  pageTitle?: string;
 }
 
-export default function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
+export default function ResponsiveLayout({ children, pageTitle }: ResponsiveLayoutProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
   const userName = session?.user?.name ?? 'Root';
@@ -48,7 +49,7 @@ export default function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
     <div className="min-h-screen flex flex-col">
       {/* Header with conditional blur - sticky positioning */}
       <div className={`sticky top-0 z-40 transition-all duration-300 ${isMobileModalOpen ? 'blur-md lg:blur-none' : ''}`}>
-        <Header userName={userName} userEmail={userEmail} userRole={userRole} />
+        <Header userName={userName} userEmail={userEmail} userRole={userRole} customPageTitle={pageTitle} />
       </div>
       
       {/* Main content with conditional blur */}

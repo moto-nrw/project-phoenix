@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
 import { useSession } from "next-auth/react";
 import { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
@@ -412,15 +411,14 @@ export default function StudentDetailPage() {
                                                     {supervisor.email && <p className="text-sm text-gray-600 mt-1">{supervisor.email}</p>}
                                                 </div>
                                                 {supervisor.email && (
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
+                                                    <button
                                                         onClick={() => {
                                                             window.location.href = `mailto:${supervisor.email}?subject=Anfrage zu ${student.name}`;
                                                         }}
+                                                        className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 hover:shadow-sm hover:scale-105 active:scale-100 transition-all duration-200"
                                                     >
                                                         E-Mail
-                                                    </Button>
+                                                    </button>
                                                 )}
                                             </div>
                                         </div>
@@ -435,24 +433,29 @@ export default function StudentDetailPage() {
                         {/* Checkout Section - Mobile optimized */}
                         {currentLocation?.location && currentLocation.location.startsWith("Anwesend") && (
                             <div className="mb-6 bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100 p-4 sm:p-6">
-                                <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Checkout verwalten</h3>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 flex-shrink-0">
+                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Checkout verwalten</h3>
+                                </div>
                                 <ScheduledCheckoutInfo
                                     studentId={studentId}
                                     onUpdate={() => setCheckoutUpdated(prev => prev + 1)}
                                     onScheduledCheckoutChange={setHasScheduledCheckout}
                                 />
                                 {!hasScheduledCheckout && (
-                                    <div className="mt-4">
-                                        <Button
-                                            onClick={() => setShowCheckoutModal(true)}
-                                            className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 sm:py-2"
-                                        >
-                                            <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                            </svg>
-                                            Schüler ausloggen
-                                        </Button>
-                                    </div>
+                                    <button
+                                        onClick={() => setShowCheckoutModal(true)}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 mt-4"
+                                    >
+                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                        </svg>
+                                        Schüler ausloggen
+                                    </button>
                                 )}
                             </div>
                         )}

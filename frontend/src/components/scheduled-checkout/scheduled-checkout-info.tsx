@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { cancelScheduledCheckout, getStudentScheduledCheckouts } from "~/lib/scheduled-checkout-api";
+import type { ScheduledCheckout } from "~/lib/scheduled-checkout-api";
+import { useSession } from "next-auth/react";
+
 // Format time as HH:mm
 function formatTime(date: Date): string {
   const hours = date.getHours().toString().padStart(2, "0");
   const minutes = date.getMinutes().toString().padStart(2, "0");
   return `${hours}:${minutes}`;
 }
-import { Button } from "../ui/button";
-import { cancelScheduledCheckout, getStudentScheduledCheckouts } from "~/lib/scheduled-checkout-api";
-import type { ScheduledCheckout } from "~/lib/scheduled-checkout-api";
-import { useSession } from "next-auth/react";
 
 interface ScheduledCheckoutInfoProps {
   studentId: string;
@@ -69,13 +69,13 @@ export function ScheduledCheckoutInfo({ studentId, onUpdate, onScheduledCheckout
       {scheduledCheckouts.map((checkout) => (
         <div
           key={checkout.id}
-          className="rounded-lg bg-amber-50 border border-amber-200 p-4"
+          className="rounded-lg bg-gray-50 border border-gray-200 p-4"
         >
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
                 <svg
-                  className="h-5 w-5 text-amber-600"
+                  className="h-5 w-5 text-gray-600 flex-shrink-0"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -87,24 +87,22 @@ export function ScheduledCheckoutInfo({ studentId, onUpdate, onScheduledCheckout
                     d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg>
-                <h4 className="text-sm font-medium text-amber-800">
+                <h4 className="text-sm font-medium text-gray-900">
                   Geplanter Checkout
                 </h4>
               </div>
-              <p className="mt-1 text-sm text-amber-700">
+              <p className="text-sm text-gray-600 ml-7">
                 {formatTime(new Date(checkout.scheduled_for))} Uhr
                 {checkout.reason && ` - ${checkout.reason}`}
               </p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
+            <button
               onClick={() => handleCancel(checkout.id)}
               disabled={cancelling === checkout.id}
-              className="text-amber-700 hover:text-amber-800 border-amber-300 hover:border-amber-400"
+              className="flex-shrink-0 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 hover:shadow-sm hover:scale-105 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
               {cancelling === checkout.id ? "Wird storniert..." : "Stornieren"}
-            </Button>
+            </button>
           </div>
         </div>
       ))}
