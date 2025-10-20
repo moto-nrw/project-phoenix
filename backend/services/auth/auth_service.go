@@ -1318,6 +1318,13 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 	// Normalize email
 	emailAddress = strings.TrimSpace(strings.ToLower(emailAddress))
 
+	// Get account by email
+	account, err := s.accountRepo.FindByEmail(ctx, emailAddress)
+	if err != nil {
+		// Don't reveal whether the email exists or not
+		return nil, nil
+	}
+
 	// Check rate limiting only if enabled globally
 	rateLimitEnabled := viper.GetBool("rate_limit_enabled")
 	if rateLimitEnabled && s.passwordResetRateLimitRepo != nil {
@@ -1357,13 +1364,6 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 	}
 
 	log.Printf("Password reset requested for email=%s", emailAddress)
-
-	// Get account by email
-	account, err := s.accountRepo.FindByEmail(ctx, emailAddress)
-	if err != nil {
-		// Don't reveal whether the email exists or not
-		return nil, nil
-	}
 
 	// Invalidate any existing reset tokens
 	if err := s.passwordResetTokenRepo.InvalidateTokensByAccountID(ctx, account.ID); err != nil {
