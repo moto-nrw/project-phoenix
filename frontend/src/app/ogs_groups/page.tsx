@@ -644,30 +644,6 @@ function OGSGroupPageContent() {
   return (
     <ResponsiveLayout pageTitle={headerPageTitle}>
       <div className="-mt-1.5 w-full">
-        {/* SSE Connection Status Indicator */}
-        <div className="mb-2 flex items-center gap-2 text-sm">
-          <div
-            className={`h-2 w-2 rounded-full ${
-              sseStatus === "connected"
-                ? "bg-green-500"
-                : sseStatus === "reconnecting"
-                  ? "bg-yellow-500"
-                  : sseStatus === "failed"
-                    ? "bg-red-500"
-                    : "bg-gray-400"
-            }`}
-          />
-          <span className="hidden md:inline text-gray-600">
-            {sseStatus === "connected"
-              ? "Live-Updates aktiv"
-              : sseStatus === "reconnecting"
-                ? `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`
-                : sseStatus === "failed"
-                  ? "Verbindung fehlgeschlagen"
-                  : "Verbindung wird hergestellt..."}
-          </span>
-        </div>
-
         {/* PageHeaderWithSearch - Title only on mobile */}
         <PageHeaderWithSearch
           title={
@@ -677,6 +653,22 @@ function OGSGroupPageContent() {
                 : "Meine Gruppen"
               : ""
           }
+          statusIndicator={{
+            color: sseStatus === "connected"
+              ? "green"
+              : sseStatus === "reconnecting"
+                ? "yellow"
+                : sseStatus === "failed"
+                  ? "red"
+                  : "gray",
+            tooltip: sseStatus === "connected"
+              ? "Live-Updates aktiv"
+              : sseStatus === "reconnecting"
+                ? `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`
+                : sseStatus === "failed"
+                  ? "Verbindung fehlgeschlagen"
+                  : "Verbindung wird hergestellt..."
+          }}
           badge={{
             icon: (
               <svg

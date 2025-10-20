@@ -13,6 +13,7 @@ import type { PageHeaderWithSearchProps } from "./types";
 export function PageHeaderWithSearch({
   title,
   badge,
+  statusIndicator,
   tabs,
   search,
   filters = [],
@@ -34,7 +35,7 @@ export function PageHeaderWithSearch({
   return (
     <div className={className}>
       {/* Page Header - Only show if title is not empty */}
-      {title && <PageHeader title={title} badge={badge} />}
+      {title && <PageHeader title={title} badge={badge} statusIndicator={statusIndicator} />}
 
       {/* Navigation Tabs (if provided) */}
       {tabs && <NavigationTabs {...tabs} />}

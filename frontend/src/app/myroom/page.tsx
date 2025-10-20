@@ -532,33 +532,25 @@ function MeinRaumPageContent() {
         {/* Unclaimed Rooms Section - Shows rooms available for claiming */}
         <UnclaimedRooms onClaimed={handleRoomClaimed} />
 
-        {/* SSE Connection Status Indicator */}
-        <div className="mb-2 flex items-center gap-2 text-sm">
-          <div
-            className={`h-2 w-2 rounded-full ${
-              sseStatus === "connected"
-                ? "bg-green-500"
-                : sseStatus === "reconnecting"
-                  ? "bg-yellow-500"
-                  : sseStatus === "failed"
-                    ? "bg-red-500"
-                    : "bg-gray-400"
-            }`}
-          />
-          <span className="hidden md:inline text-gray-600">
-            {sseStatus === "connected"
+        {/* Modern Header with PageHeaderWithSearch component */}
+        <PageHeaderWithSearch
+          title={isMobile ? (allRooms.length === 1 ? currentRoom?.name ?? "Mein Raum" : "Meine Räume") : currentRoom?.room_name ?? currentRoom?.name ?? "Mein Raum"}
+          statusIndicator={{
+            color: sseStatus === "connected"
+              ? "green"
+              : sseStatus === "reconnecting"
+                ? "yellow"
+                : sseStatus === "failed"
+                  ? "red"
+                  : "gray",
+            tooltip: sseStatus === "connected"
               ? "Live-Updates aktiv"
               : sseStatus === "reconnecting"
                 ? `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`
                 : sseStatus === "failed"
                   ? "Verbindung fehlgeschlagen"
-                  : "Verbindung wird hergestellt..."}
-          </span>
-        </div>
-
-        {/* Modern Header with PageHeaderWithSearch component */}
-        <PageHeaderWithSearch
-          title={isMobile ? (allRooms.length === 1 ? currentRoom?.name ?? "Mein Raum" : "Meine Räume") : currentRoom?.room_name ?? currentRoom?.name ?? "Mein Raum"}
+                  : "Verbindung wird hergestellt..."
+          }}
           badge={{
             icon: (
               <svg
