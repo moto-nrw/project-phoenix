@@ -34,8 +34,6 @@ export async function GET(_request: NextRequest) {
           Accept: "text/event-stream",
         },
         cache: "no-store",
-        // @ts-expect-error - Node.js fetch supports keepalive for long connections
-        keepalive: true,
       }
     );
 
