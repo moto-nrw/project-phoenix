@@ -551,7 +551,7 @@ function OGSGroupPageContent() {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-blue-500"></div>
+          <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-[#5080D8]"></div>
           <p className="text-gray-600">Daten werden geladen...</p>
         </div>
       </div>
@@ -657,7 +657,7 @@ function OGSGroupPageContent() {
                     : "bg-gray-400"
             }`}
           />
-          <span className="text-gray-600">
+          <span className="hidden md:inline text-gray-600">
             {sseStatus === "connected"
               ? "Live-Updates aktiv"
               : sseStatus === "reconnecting"
@@ -789,7 +789,7 @@ function OGSGroupPageContent() {
                     onClick={() =>
                       router.push(`/students/${student.id}?from=/ogs_groups`)
                     }
-                    className={`group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-blue-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
+                    className={`group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
                   >
                     {/* Modern gradient overlay */}
                     <div
@@ -903,7 +903,7 @@ export default function OGSGroupPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center">
-          <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-blue-500"></div>
+          <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-[#5080D8]"></div>
         </div>
       }
     >
