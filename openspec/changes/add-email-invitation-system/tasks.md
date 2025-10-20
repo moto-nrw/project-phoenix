@@ -514,9 +514,9 @@
   - [x] Resend expired invitation → 400
   - [x] Revoke invitation (admin auth)
   - [x] Accept revoked invitation → 410
-- [ ] 11.5 Manual end-to-end test:
+- [x] 11.5 Manual end-to-end test:
   - [x] Admin creates invitation
-  - [ ] Invitation email received (check logs if mock mailer)
+  - [x] Invitation email received (check logs if mock mailer)
   - [x] User clicks link, sees acceptance page
   - [x] User fills form with weak password → validation error
   - [x] User fills form with strong password → account created
@@ -586,11 +586,11 @@
 - [x] Expired invitations cannot be accepted (410 Gone)
 - [x] Used invitations cannot be reused (410 Gone)
 - [x] Resending expired invitation returns 400 error
-- [ ] Email templates render correctly in Gmail, Outlook, Apple Mail
+- [x] Email templates render correctly in Gmail, Outlook, Apple Mail
 - [x] All Bruno API tests pass
 - [x] All unit tests pass
 - [x] Zero lint/type errors in frontend
-- [ ] Scheduler runs invitation cleanup daily
+- [x] Scheduler runs invitation cleanup daily
 - [x] Documentation updated and accurate
 - [x] Password strength validation works in both services
 - [x] Error types map to correct HTTP status codes (404, 410, 429)
