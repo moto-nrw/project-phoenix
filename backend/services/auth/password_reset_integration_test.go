@@ -7,6 +7,7 @@ import (
 	"time"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -16,6 +17,14 @@ import (
 )
 
 func newPasswordResetTestEnv(t *testing.T) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *stubTokenRepository, *capturingMailer, sqlmock.Sqlmock, func()) {
+	t.Helper()
+
+	prevRateLimitEnabled := viper.GetBool("rate_limit_enabled")
+	viper.Set("rate_limit_enabled", true)
+	t.Cleanup(func() {
+		viper.Set("rate_limit_enabled", prevRateLimitEnabled)
+	})
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -45,9 +54,9 @@ func newPasswordResetTestEnv(t *testing.T) (*Service, *stubAccountRepository, *s
 
 	cleanup := func() {
 		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
 		require.NoError(t, sqlDB.Close())
 		require.NoError(t, mock.ExpectationsWereMet())
-		bunDB.Close()
 	}
 
 	return service, accounts, resetTokens, rateRepo, sessionTokens, mailer, mock, cleanup

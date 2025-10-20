@@ -47,9 +47,9 @@ func newInvitationTestEnv(t *testing.T) (InvitationService, *stubInvitationToken
 
 	cleanup := func() {
 		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
 		require.NoError(t, sqlDB.Close())
 		require.NoError(t, mock.ExpectationsWereMet())
-		bunDB.Close()
 	}
 
 	return service, invitationRepo, accountRepo, roleRepo, accountRoleRepo, personRepo, mailer, mock, cleanup

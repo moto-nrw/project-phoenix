@@ -375,59 +375,13 @@ func (r *stubPasswordResetTokenRepository) InvalidateTokensByAccountID(_ context
 	return nil
 }
 
-// noopInvitationTokenRepository provides default panic implementations.
-type noopInvitationTokenRepository struct{}
-
-func (noopInvitationTokenRepository) Create(context.Context, *authModel.InvitationToken) error {
-	panic("Create not implemented")
-}
-
-func (noopInvitationTokenRepository) Update(context.Context, *authModel.InvitationToken) error {
-	panic("Update not implemented")
-}
-
-func (noopInvitationTokenRepository) FindByID(context.Context, interface{}) (*authModel.InvitationToken, error) {
-	panic("FindByID not implemented")
-}
-
-func (noopInvitationTokenRepository) FindByToken(context.Context, string) (*authModel.InvitationToken, error) {
-	panic("FindByToken not implemented")
-}
-
-func (noopInvitationTokenRepository) FindValidByToken(context.Context, string, time.Time) (*authModel.InvitationToken, error) {
-	panic("FindValidByToken not implemented")
-}
-
-func (noopInvitationTokenRepository) FindByEmail(context.Context, string) ([]*authModel.InvitationToken, error) {
-	panic("FindByEmail not implemented")
-}
-
-func (noopInvitationTokenRepository) MarkAsUsed(context.Context, int64) error {
-	panic("MarkAsUsed not implemented")
-}
-
-func (noopInvitationTokenRepository) InvalidateByEmail(context.Context, string) (int, error) {
-	panic("InvalidateByEmail not implemented")
-}
-
-func (noopInvitationTokenRepository) DeleteExpired(context.Context, time.Time) (int, error) {
-	panic("DeleteExpired not implemented")
-}
-
-func (noopInvitationTokenRepository) List(context.Context, map[string]interface{}) ([]*authModel.InvitationToken, error) {
-	panic("List not implemented")
-}
-
 // stubInvitationTokenRepository stores invitations in memory.
 type stubInvitationTokenRepository struct {
-	noopInvitationTokenRepository
-
-	mu       sync.Mutex
-	tokens   map[int64]*authModel.InvitationToken
-	byToken  map[string]*authModel.InvitationToken
-	nextID   int64
-	nowFunc  func() time.Time
-	mailHits int
+	mu      sync.Mutex
+	tokens  map[int64]*authModel.InvitationToken
+	byToken map[string]*authModel.InvitationToken
+	nextID  int64
+	nowFunc func() time.Time
 }
 
 func newStubInvitationTokenRepository() *stubInvitationTokenRepository {

@@ -6,11 +6,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/viper"
+
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 )
 
-func newRateLimitTestService(account *authModel.Account) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *capturingMailer) {
+func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *capturingMailer) {
+	t.Helper()
+
+	prevRateLimitEnabled := viper.GetBool("rate_limit_enabled")
+	viper.Set("rate_limit_enabled", true)
+	t.Cleanup(func() {
+		viper.Set("rate_limit_enabled", prevRateLimitEnabled)
+	})
+
 	accountRepo := newStubAccountRepository(account)
 	tokenRepo := newStubPasswordResetTokenRepository()
 	rateRepo := newTestRateLimitRepo()
@@ -30,7 +40,7 @@ func newRateLimitTestService(account *authModel.Account) (*Service, *stubAccount
 }
 
 func TestInitiatePasswordReset_AllowsFirstThreeAttempts(t *testing.T) {
-	service, _, tokenRepo, rateRepo, mailer := newRateLimitTestService(&authModel.Account{
+	service, _, tokenRepo, rateRepo, mailer := newRateLimitTestService(t, &authModel.Account{
 		Model: baseModel.Model{ID: 1},
 		Email: "user@example.com",
 	})
@@ -59,7 +69,7 @@ func TestInitiatePasswordReset_AllowsFirstThreeAttempts(t *testing.T) {
 }
 
 func TestInitiatePasswordReset_BlocksFourthAttempt(t *testing.T) {
-	service, _, _, rateRepo, _ := newRateLimitTestService(&authModel.Account{
+	service, _, _, rateRepo, _ := newRateLimitTestService(t, &authModel.Account{
 		Model: baseModel.Model{ID: 42},
 		Email: "user@example.com",
 	})
@@ -102,7 +112,7 @@ func TestInitiatePasswordReset_BlocksFourthAttempt(t *testing.T) {
 }
 
 func TestInitiatePasswordReset_ResetAfterWindow(t *testing.T) {
-	service, _, _, rateRepo, _ := newRateLimitTestService(&authModel.Account{
+	service, _, _, rateRepo, _ := newRateLimitTestService(t, &authModel.Account{
 		Model: baseModel.Model{ID: 7},
 		Email: "user@example.com",
 	})
@@ -130,7 +140,7 @@ func TestInitiatePasswordReset_ResetAfterWindow(t *testing.T) {
 }
 
 func TestInitiatePasswordReset_IncrementsCounter(t *testing.T) {
-	service, _, _, rateRepo, _ := newRateLimitTestService(&authModel.Account{
+	service, _, _, rateRepo, _ := newRateLimitTestService(t, &authModel.Account{
 		Model: baseModel.Model{ID: 5},
 		Email: "user@example.com",
 	})
