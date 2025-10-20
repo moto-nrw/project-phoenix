@@ -156,9 +156,44 @@ api.interceptors.response.use(
 
       console.log("Received 401 error, attempting to refresh token");
       
-      // Only attempt token refresh on the client side
+      // Handle server-side token refresh
       if (typeof window === "undefined") {
-        console.log("Running server-side, cannot refresh token");
+        console.log("Server-side context detected, attempting token refresh");
+        isRefreshing = true;
+
+        try {
+          const { refreshSessionTokensOnServer } = await import("~/server/auth/token-refresh");
+          const refreshed = await refreshSessionTokensOnServer();
+
+          if (refreshed?.accessToken) {
+            const newToken = refreshed.accessToken;
+            console.log("Server-side token refresh successful, retrying original request");
+
+            if (!originalRequest.headers) {
+              originalRequest.headers = {};
+            }
+
+            const headers = originalRequest.headers as Record<string, unknown> & {
+              set?: (key: string, value: string) => void;
+            };
+
+            if (typeof headers.set === "function") {
+              headers.set("Authorization", `Bearer ${newToken}`);
+            } else {
+              headers.Authorization = `Bearer ${newToken}`;
+            }
+
+            onTokenRefreshed(newToken);
+            return api(originalRequest);
+          }
+
+          console.error("Server-side token refresh failed or returned no access token");
+        } catch (serverRefreshError) {
+          console.error("Error refreshing token on server", serverRefreshError);
+        } finally {
+          isRefreshing = false;
+        }
+
         return Promise.reject(error);
       }
       
