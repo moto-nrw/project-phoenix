@@ -30,7 +30,7 @@ If no argument provided, defaults to `all`.
 Navigate to bruno directory and run tests with Bruno CLI:
 
 ```bash
-cd /Users/yonnock/Developer/moto/project-phoenix/bruno
+cd bruno
 
 # Run requested tests (00-cleanup.bru runs automatically when using 0*.bru pattern)
 if [ "${ARGUMENTS}" = "all" ] || [ -z "${ARGUMENTS}" ]; then
@@ -73,4 +73,4 @@ The test suite automatically:
 
 ## Documentation
 
-See `/Users/yonnock/Developer/moto/project-phoenix/bruno/README.md` for complete test suite documentation.
+See `bruno/README.md` for complete test suite documentation.

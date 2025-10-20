@@ -112,7 +112,7 @@ go run main.go gendoc           # Generate routes.md + OpenAPI
 # Quality
 golangci-lint run --timeout 10m # Lint
 golangci-lint run --fix         # Auto-fix
-/Users/yonnock/go/bin/goimports -w .  # Organize imports
+goimports -w .                  # Organize imports (install: go install golang.org/x/tools/cmd/goimports@latest)
 go fmt ./...                    # Format
 
 # Testing

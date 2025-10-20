@@ -25,8 +25,8 @@ fi
 # Organize imports with goimports (if available)
 if command -v goimports &> /dev/null; then
   goimports -w "${file_path}" 2>/dev/null || true
-elif [[ -f "/Users/yonnock/go/bin/goimports" ]]; then
-  /Users/yonnock/go/bin/goimports -w "${file_path}" 2>/dev/null || true
+elif [[ -f "$HOME/go/bin/goimports" ]]; then
+  "$HOME/go/bin/goimports" -w "${file_path}" 2>/dev/null || true
 fi
 
 echo "✓ Formatted Go file: ${file_path}"
