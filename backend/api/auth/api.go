@@ -1614,7 +1614,7 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.ResetPassword(r.Context(), req.Token, req.NewPassword); err != nil {
-		log.Printf("Password reset failed token=%s reason=%v", req.Token, err)
+		log.Printf("Password reset failed reason=%v", err)
 
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
@@ -1643,7 +1643,7 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Password reset completed for token=%s", req.Token)
+	log.Printf("Password reset completed successfully")
 
 	common.Respond(w, r, http.StatusOK, nil, "Password reset successfully")
 }

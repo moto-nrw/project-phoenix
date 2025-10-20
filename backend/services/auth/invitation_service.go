@@ -155,7 +155,7 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 		return nil, &AuthError{Op: "create invitation", Err: err}
 	}
 
-	log.Printf("Invitation token=%s created by account=%d for email=%s", invitation.Token, req.CreatedBy, invitation.Email)
+	log.Printf("Invitation created by account=%d for email=%s", req.CreatedBy, invitation.Email)
 
 	roleName, _ := s.lookupRoleName(ctx, invitation.RoleID)
 	s.sendInvitationEmail(invitation, roleName)
@@ -271,7 +271,7 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 		return nil, err
 	}
 
-	log.Printf("Invitation token=%s accepted, account=%d created", invitation.Token, createdAccount.ID)
+	log.Printf("Invitation accepted for account=%d", createdAccount.ID)
 
 	return createdAccount, nil
 }
@@ -303,7 +303,7 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 		return &AuthError{Op: "resend invitation", Err: err}
 	}
 
-	log.Printf("Invitation token=%s resent by account=%d", invitation.Token, actorAccountID)
+	log.Printf("Invitation resent (id=%d) by account=%d", invitation.ID, actorAccountID)
 
 	s.sendInvitationEmail(invitation, roleName)
 	return nil
@@ -336,7 +336,7 @@ func (s *invitationService) RevokeInvitation(ctx context.Context, invitationID i
 		return &AuthError{Op: "revoke invitation", Err: err}
 	}
 
-	log.Printf("Invitation token=%s revoked by account=%d", invitation.Token, actorAccountID)
+	log.Printf("Invitation revoked (id=%d) by account=%d", invitation.ID, actorAccountID)
 	return nil
 }
 
@@ -418,11 +418,11 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 		},
 	}
 
-	go func(msg email.Message, token string, recipient string) {
+	go func(msg email.Message, recipient string) {
 		if err := s.mailer.Send(msg); err != nil {
-			log.Printf("Failed to send invitation email token=%s to=%s err=%v", token, recipient, err)
+			log.Printf("Failed to send invitation email to=%s err=%v", recipient, err)
 		}
-	}(message, invitation.Token, invitation.Email)
+	}(message, invitation.Email)
 }
 
 func isNotFoundError(err error) bool {

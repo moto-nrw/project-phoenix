@@ -125,7 +125,7 @@ func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := strings.TrimSpace(chi.URLParam(r, "token"))
-	log.Printf("Invitation validation requested token=%s", token)
+	log.Printf("Invitation validation requested")
 
 	result, err := rs.InvitationService.ValidateInvitation(r.Context(), token)
 	if err != nil {
@@ -216,7 +216,7 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Invitation accepted token=%s account=%d", token, account.ID)
+	log.Printf("Invitation accepted for account=%d", account.ID)
 
 	resp := AcceptInvitationResponse{
 		AccountID: account.ID,
