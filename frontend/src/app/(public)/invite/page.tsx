@@ -83,7 +83,7 @@ function InvitationContent() {
       <div className="w-full max-w-2xl rounded-3xl bg-white/90 p-8 shadow-2xl backdrop-blur-xl">
         <div className="mb-6 flex flex-col items-center gap-4 text-center">
           <Image src="/images/moto_transparent.png" alt="moto Logo" width={140} height={48} className="opacity-70" />
-          <h1 className="text-3xl font-semibold text-gray-900">Willkommen bei Project Phoenix</h1>
+          <h1 className="text-3xl font-semibold text-gray-900">Willkommen bei moto</h1>
           <p className="text-sm text-gray-600">
             Bitte bestätige deine Einladung und lege dein persönliches Passwort fest.
           </p>
