@@ -21,7 +21,23 @@ interface BackendInvitation {
   };
 }
 
-interface CreateInvitationPayload {
+interface BackendResponse<T> {
+  status: string;
+  data: T;
+  message?: string;
+}
+
+interface IncomingCreateInvitationPayload {
+  email: string;
+  role_id?: number;
+  roleId?: number;
+  first_name?: string;
+  firstName?: string;
+  last_name?: string;
+  lastName?: string;
+}
+
+interface BackendCreateInvitationPayload {
   email: string;
   role_id: number;
   first_name?: string;
@@ -29,18 +45,31 @@ interface CreateInvitationPayload {
 }
 
 export const GET = createGetHandler<BackendInvitation[]>(async (_request: NextRequest, token: string) => {
-  return await apiGet<BackendInvitation[]>("/auth/invitations", token);
+  const response = await apiGet<BackendResponse<BackendInvitation[]>>("/auth/invitations", token);
+  return response.data;
 });
 
-export const POST = createPostHandler<BackendInvitation, CreateInvitationPayload>(
-  async (_request: NextRequest, body: CreateInvitationPayload, token: string) => {
-    const payload: CreateInvitationPayload = {
+export const POST = createPostHandler<BackendInvitation, IncomingCreateInvitationPayload>(
+  async (_request: NextRequest, body: IncomingCreateInvitationPayload, token: string) => {
+    const roleId = body.role_id ?? body.roleId;
+
+    if (typeof roleId !== "number") {
+      throw new Error("Invalid invitation payload: role id missing");
+    }
+
+    const payload: BackendCreateInvitationPayload = {
       email: body.email,
-      role_id: body.role_id,
-      first_name: body.first_name,
-      last_name: body.last_name,
+      role_id: roleId,
+      first_name: body.first_name ?? body.firstName,
+      last_name: body.last_name ?? body.lastName,
     };
 
-    return await apiPost<BackendInvitation, CreateInvitationPayload>("/auth/invitations", token, payload);
+    const response = await apiPost<BackendResponse<BackendInvitation>, BackendCreateInvitationPayload>(
+      "/auth/invitations",
+      token,
+      payload
+    );
+
+    return response.data;
   }
 );
