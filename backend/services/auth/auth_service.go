@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 )
 
@@ -1317,7 +1318,9 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 	// Normalize email
 	emailAddress = strings.TrimSpace(strings.ToLower(emailAddress))
 
-	if s.passwordResetRateLimitRepo != nil {
+	// Check rate limiting only if enabled globally
+	rateLimitEnabled := viper.GetBool("rate_limit_enabled")
+	if rateLimitEnabled && s.passwordResetRateLimitRepo != nil {
 		state, err := s.passwordResetRateLimitRepo.CheckRateLimit(ctx, emailAddress)
 		if err != nil {
 			return nil, &AuthError{Op: "check password reset rate limit", Err: err}
