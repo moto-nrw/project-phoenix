@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { Modal } from "./modal";
 
@@ -50,7 +49,6 @@ const LogOutIcon = ({ className }: { className?: string }) => (
 );
 
 export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
-  const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const launchConfetti = () => {
@@ -123,14 +121,14 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
   const handleConfirmLogout = async () => {
     setIsLoggingOut(true);
     launchConfetti();
-    
-    // Immediately redirect to login page
-    router.push("/");
-    
-    // Sign out in the background
-    setTimeout(() => {
-      void signOut({ redirect: false });
-    }, 100);
+
+    try {
+      // Allow NextAuth to perform the CSRF handshake before navigating away.
+      await signOut({ callbackUrl: "/" });
+    } catch (error) {
+      console.error("Failed to sign out:", error);
+      setIsLoggingOut(false);
+    }
   };
 
   return (
