@@ -169,9 +169,7 @@ api.interceptors.response.use(
             const newToken = refreshed.accessToken;
             console.log("Server-side token refresh successful, retrying original request");
 
-            if (!originalRequest.headers) {
-              originalRequest.headers = {};
-            }
+            originalRequest.headers ??= {};
 
             const headers = originalRequest.headers as Record<string, unknown> & {
               set?: (key: string, value: string) => void;
