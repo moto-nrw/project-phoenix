@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { auth } from "~/server/auth";
+import { auth, signIn } from "~/server/auth";
 import { env } from "~/env";
 
 interface TokenResponse {
@@ -46,14 +46,27 @@ export async function POST(_request: NextRequest) {
     }
 
     const tokens = (await backendResponse.json()) as TokenResponse;
-    
+
     console.log("Backend token refresh successful:", {
       access_token: tokens.access_token.substring(0, 20) + "...",
       refresh_token: tokens.refresh_token.substring(0, 20) + "...",
     });
-    
-    // IMPORTANT: The new refresh token must be used for the next refresh
-    // The old refresh token is now invalid (deleted by backend)
+
+    // Persist refreshed tokens back into the Auth.js session so subsequent requests reuse them
+    try {
+      await signIn("credentials", {
+        redirect: false,
+        internalRefresh: "true",
+        token: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+      });
+    } catch (signInError) {
+      console.error("Failed to update session after backend refresh", signInError);
+      return NextResponse.json(
+        { error: "Failed to refresh token" },
+        { status: 500 },
+      );
+    }
 
     return NextResponse.json({
       access_token: tokens.access_token,
