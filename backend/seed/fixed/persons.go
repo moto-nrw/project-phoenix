@@ -109,6 +109,29 @@ func (s *Seeder) seedAdminAccount(ctx context.Context) error {
 		return fmt.Errorf("failed to assign admin role: %w", err)
 	}
 
+	// Ensure admin account has an associated person record for user-context flows
+	person := &users.Person{
+		FirstName: "System",
+		LastName:  "Administrator",
+	}
+	now := time.Now()
+	person.CreatedAt = now
+	person.UpdatedAt = now
+	accountID := admin.ID
+	person.AccountID = &accountID
+
+	_, err = s.tx.NewInsert().Model(person).
+		ModelTableExpr("users.persons").
+		On("CONFLICT (account_id) DO UPDATE").
+		Set("first_name = EXCLUDED.first_name").
+		Set("last_name = EXCLUDED.last_name").
+		Set("updated_at = EXCLUDED.updated_at").
+		Returning("id, created_at, updated_at").
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to upsert admin person: %w", err)
+	}
+
 	s.result.AdminAccount = admin
 	s.result.Accounts = append(s.result.Accounts, admin)
 
