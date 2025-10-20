@@ -41,7 +41,10 @@ interface ExtendedStudent extends Student {
 // Simplified status badge component
 function StatusBadge({ location, roomName }: { location?: string; roomName?: string }) {
     const getStatusDetails = () => {
-        if (location === "Anwesend" || location === "In House" || location?.startsWith("Anwesend")) {
+        // Check for "Unterwegs" (in transit) BEFORE "Anwesend" to match ogs_groups behavior
+        if (location === "Unterwegs" || location === "In House" || location === "Bus") {
+            return { label: location === "Bus" ? "Bus" : "Unterwegs", bgColor: "#D946EF", textColor: "text-white" };
+        } else if (location === "Anwesend" || location?.startsWith("Anwesend")) {
             const label = roomName ?? (location?.startsWith("Anwesend - ") ? location.substring(11) : "Anwesend");
             return { label, bgColor: "#83CD2D", textColor: "text-white" };
         } else if (location === "Zuhause") {
@@ -50,8 +53,6 @@ function StatusBadge({ location, roomName }: { location?: string; roomName?: str
             return { label: "WC", bgColor: "#5080D8", textColor: "text-white" };
         } else if (location === "School Yard") {
             return { label: "Schulhof", bgColor: "#F78C10", textColor: "text-white" };
-        } else if (location === "Unterwegs" || location === "Bus") {
-            return { label: location === "Bus" ? "Bus" : "Unterwegs", bgColor: "#D946EF", textColor: "text-white" };
         }
         return { label: "Unbekannt", bgColor: "#6B7280", textColor: "text-white" };
     };

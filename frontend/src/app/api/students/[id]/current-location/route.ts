@@ -139,11 +139,11 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       }
       
       // If we get here, student is checked in but we couldn't get room details
-      // This could be due to: no group, no room assignment, or permission restrictions
-      // Use the location from the backend if available, otherwise "Unterwegs"
+      // This means they are in transit (not assigned to a specific room yet)
+      // Return "Unterwegs" to match the behavior in ogs_groups page
       return {
         status: "present",
-        location: student.location || "Unterwegs",
+        location: "Unterwegs",
         room: null,
         group: student.group_id ? {
           id: student.group_id.toString(),

@@ -3,7 +3,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
@@ -120,6 +120,7 @@ interface MobileBottomNavProps {
 
 export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [isOverflowMenuOpen, setIsOverflowMenuOpen] = useState(false);
@@ -152,6 +153,10 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
   const isActiveRoute = (href: string) => {
     if (href === "/dashboard") {
       return pathname === "/dashboard" || pathname === "/";
+    }
+    // Check if we came from this page via the 'from' query parameter
+    if (pathname.startsWith("/students/") && searchParams.get("from")?.startsWith(href)) {
+      return true;
     }
     return pathname.startsWith(href);
   };
