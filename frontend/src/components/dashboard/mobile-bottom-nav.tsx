@@ -25,6 +25,10 @@ const Icon = ({ path, className }: { path: string; className?: string }) => (
   </svg>
 );
 
+// Animation timing constant for initial mount transition delay
+// This ensures the sliding indicator position is set before enabling smooth transitions
+const INITIAL_MOUNT_DELAY_MS = 100;
+
 interface NavItem {
   href: string;
   label: string;
@@ -206,7 +210,7 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
   useEffect(() => {
     const timer = setTimeout(() => {
       isInitialMount.current = false;
-    }, 100); // Wait for initial position to be set and painted
+    }, INITIAL_MOUNT_DELAY_MS);
     return () => clearTimeout(timer);
   }, []);
 

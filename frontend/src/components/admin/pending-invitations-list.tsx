@@ -9,6 +9,7 @@ import {
 } from "~/lib/invitation-api";
 import type { PendingInvitation } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
+import { isValidDateString, isDateExpired } from "~/lib/utils/date-helpers";
 
 interface PendingInvitationsListProps {
   refreshKey: number;
@@ -147,9 +148,9 @@ export function PendingInvitationsList({ refreshKey }: PendingInvitationsListPro
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
               {sortedInvitations.map((invitation, index) => {
-                const expiresDate = new Date(invitation.expiresAt);
-                const isValidDate = !isNaN(expiresDate.getTime());
-                const isExpired = isValidDate && expiresDate.getTime() < Date.now();
+                const isValidDate = isValidDateString(invitation.expiresAt);
+                const isExpired = isDateExpired(invitation.expiresAt);
+                const expiresDate = isValidDate ? new Date(invitation.expiresAt) : null;
 
                 return (
                   <tr key={`${invitation.id}-${invitation.email}-${index}`} className="hover:bg-gray-50/50 transition-colors">
@@ -161,7 +162,7 @@ export function PendingInvitationsList({ refreshKey }: PendingInvitationsListPro
                         : "System")}
                     </td>
                     <td className="px-3 md:px-4 py-2 md:py-3 whitespace-nowrap hidden md:table-cell">
-                      {isValidDate ? (
+                      {isValidDate && expiresDate ? (
                         <span className={`inline-flex items-center rounded-full px-2 md:px-2.5 py-0.5 md:py-1 text-xs font-medium whitespace-nowrap ${isExpired ? "bg-red-50 text-red-700" : "bg-gray-100 text-gray-700"}`}>
                           {expiresDate.toLocaleDateString("de-DE", {
                             day: "2-digit",

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useMemo } from "react";
 import type { NavigationTabsProps } from "./types";
 
 export function NavigationTabs({
@@ -12,16 +12,21 @@ export function NavigationTabs({
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
 
+  // Memoize active index to avoid redundant findIndex calls on re-renders
+  const activeIndex = useMemo(
+    () => items.findIndex(item => item.id === activeTab),
+    [items, activeTab]
+  );
+
   // Update sliding indicator position when active tab changes
   useEffect(() => {
-    const activeIndex = items.findIndex(item => item.id === activeTab);
     const activeTabElement = tabRefs.current[activeIndex];
 
     if (activeTabElement) {
       const { offsetLeft, offsetWidth } = activeTabElement;
       setIndicatorStyle({ left: offsetLeft, width: offsetWidth });
     }
-  }, [activeTab, items]);
+  }, [activeIndex]);
 
   return (
     <div className={`ml-3 md:ml-6 ${className}`}>
