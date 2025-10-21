@@ -4,7 +4,7 @@
 import Link from "next/link";
 import Image from "next/image";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { HelpButton } from "@/components/ui/help_button";
 import { getHelpContent } from "@/lib/help-content";
@@ -100,6 +100,10 @@ interface HeaderProps {
     userEmail?: string;
     userRole?: string;
     customPageTitle?: string;
+    studentName?: string; // For student detail pages
+    roomName?: string; // For room detail pages
+    activityName?: string; // For activity detail pages
+    referrerPage?: string; // Where the user came from (for contextual breadcrumbs)
 }
 
 // Logout Icon als React Component
@@ -124,13 +128,56 @@ const LogoutIcon = ({ className }: { className?: string }) => (
 
 
 
-export function Header({ userName = "Benutzer", userEmail = "", userRole = "", customPageTitle }: HeaderProps) {
+export function Header({ userName = "Benutzer", userEmail = "", userRole = "", customPageTitle, studentName, roomName, activityName, referrerPage }: HeaderProps) {
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+    const [isScrolled, setIsScrolled] = useState(false);
     const pathname = usePathname();
     const helpContent = getHelpContent(pathname);
     const pageTitle = customPageTitle ?? getPageTitle(pathname);
     const { data: session } = useSession();
+
+    // Shrinking header on scroll (Instagram/Twitter pattern - mobile only)
+    useEffect(() => {
+        const handleScroll = () => {
+            const scrollPosition = window.scrollY;
+            setIsScrolled(scrollPosition > 20);
+        };
+
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    // Check if we're on a student detail page (main page, not history subpages)
+    const isStudentDetailPage = pathname.startsWith("/students/") &&
+                                pathname !== "/students" &&
+                                pathname !== "/students/search" &&
+                                !pathname.includes("/feedback_history") &&
+                                !pathname.includes("/mensa_history") &&
+                                !pathname.includes("/room_history");
+
+    // Check if we're on a student history subpage
+    const isStudentHistoryPage = pathname.startsWith("/students/") &&
+                                  (pathname.includes("/feedback_history") ||
+                                   pathname.includes("/mensa_history") ||
+                                   pathname.includes("/room_history"));
+
+    // Determine which history type
+    const historyType = pathname.includes("/feedback_history") ? "Feedback Historie" :
+                       pathname.includes("/mensa_history") ? "Mensa Historie" :
+                       pathname.includes("/room_history") ? "Raum Historie" : "";
+
+    // Check if we're on a room detail page
+    const isRoomDetailPage = pathname.startsWith("/rooms/") && pathname !== "/rooms";
+
+    // Check if we're on an activities detail page
+    const isActivityDetailPage = pathname.startsWith("/activities/") && pathname !== "/activities";
+
+    // Determine breadcrumb based on referrer
+    const referrer = referrerPage ?? "/students/search";
+    const breadcrumbLabel = referrer.startsWith("/ogs_groups") ? "Meine Gruppe" :
+                            referrer.startsWith("/myroom") ? "Mein Raum" :
+                            "Kindersuche";
 
     const toggleProfileMenu = () => {
         setIsProfileMenuOpen(!isProfileMenuOpen);
@@ -142,12 +189,15 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
 
 
     return (
-        <header className="sticky top-0 w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 z-50">
-            {/* Subtle top accent line */}
-            <div className="h-0.5 bg-gradient-to-r from-[#5080d8] via-gray-200 to-[#83cd2d]"></div>
-            
+        <header className={`sticky top-0 w-full bg-white z-50 transition-all duration-300 ${
+            isScrolled ? 'shadow-sm' : ''
+        }`}>
+            {/* Gradient line removed for minimalist design */}
+
             <div className="w-full px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center h-16 w-full">
+                <div className={`flex items-center w-full transition-all duration-300 ${
+                    isScrolled ? 'h-12 lg:h-16' : 'h-14 lg:h-16'
+                }`}>
                     {/* Left section: Logo + Brand + Context */}
                     <div className="flex items-center space-x-4 flex-shrink-0">
                         <Link href="/dashboard" className="flex items-center space-x-3 group">
@@ -165,7 +215,9 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
                             
                             <div className="flex items-center space-x-3">
                                 <span
-                                    className="text-xl font-bold tracking-tight transition-all duration-200 group-hover:scale-105"
+                                    className={`font-bold tracking-tight transition-all duration-300 group-hover:scale-105 ${
+                                        isScrolled ? 'text-lg lg:text-xl' : 'text-xl'
+                                    }`}
                                     style={{
                                         background: 'linear-gradient(135deg, #5080d8, #83cd2d)',
                                         WebkitBackgroundClip: 'text',
@@ -216,9 +268,123 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
                                     </span>
                                 )}
                             </nav>
-                        ) : (
-                            /* Context indicator for non-database pages */
+                        ) : pathname === "/ogs_groups" ? (
+                            /* Breadcrumb for OGS Groups page */
                             <span className="hidden md:inline text-base font-medium text-gray-600">
+                                Meine Gruppe
+                            </span>
+                        ) : pathname === "/myroom" ? (
+                            /* Breadcrumb for My Room page */
+                            <span className="hidden md:inline text-base font-medium text-gray-600">
+                                Mein Raum
+                            </span>
+                        ) : pathname === "/rooms" ? (
+                            /* Breadcrumb for Rooms list page */
+                            <span className="hidden md:inline text-base font-medium text-gray-600">
+                                Räume
+                            </span>
+                        ) : pathname === "/activities" ? (
+                            /* Breadcrumb for Activities list page */
+                            <span className="hidden md:inline text-base font-medium text-gray-600">
+                                Aktivitäten
+                            </span>
+                        ) : pathname === "/staff" ? (
+                            /* Breadcrumb for Staff page */
+                            <span className="hidden md:inline text-base font-medium text-gray-600">
+                                Mitarbeiter
+                            </span>
+                        ) : pathname === "/substitutions" ? (
+                            /* Breadcrumb for Substitutions page */
+                            <span className="hidden md:inline text-base font-medium text-gray-600">
+                                Vertretungen
+                            </span>
+                        ) : pathname === "/statistics" ? (
+                            /* Breadcrumb for Statistics page */
+                            <span className="hidden md:inline text-base font-medium text-gray-600">
+                                Statistiken
+                            </span>
+                        ) : isActivityDetailPage && activityName ? (
+                            /* Breadcrumb for Activity Detail pages */
+                            <nav className="hidden md:flex items-center space-x-2 text-base">
+                                <Link
+                                    href="/activities"
+                                    className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                                >
+                                    Aktivitäten
+                                </Link>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <span className="font-medium text-gray-900">
+                                    {activityName}
+                                </span>
+                            </nav>
+                        ) : isRoomDetailPage && roomName ? (
+                            /* Breadcrumb for Room Detail pages */
+                            <nav className="hidden md:flex items-center space-x-2 text-base">
+                                <Link
+                                    href="/rooms"
+                                    className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                                >
+                                    Räume
+                                </Link>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <span className="font-medium text-gray-900">
+                                    {roomName}
+                                </span>
+                            </nav>
+                        ) : isStudentHistoryPage && studentName ? (
+                            /* Breadcrumb for Student History subpages (3 levels) */
+                            <nav className={`hidden md:flex items-center space-x-2 transition-all duration-300 ${
+                                isScrolled ? 'text-sm' : 'text-base'
+                            }`}>
+                                <Link
+                                    href={referrer}
+                                    className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                                >
+                                    {breadcrumbLabel}
+                                </Link>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <Link
+                                    href={pathname.split('/').slice(0, 3).join('/')}
+                                    className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                                >
+                                    {studentName}
+                                </Link>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <span className="font-medium text-gray-900">
+                                    {historyType}
+                                </span>
+                            </nav>
+                        ) : isStudentDetailPage && studentName ? (
+                            /* Breadcrumb for Student Detail pages - contextual based on referrer */
+                            <nav className={`hidden md:flex items-center space-x-2 transition-all duration-300 ${
+                                isScrolled ? 'text-sm' : 'text-base'
+                            }`}>
+                                <Link
+                                    href={referrer}
+                                    className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                                >
+                                    {breadcrumbLabel}
+                                </Link>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <span className="font-medium text-gray-900">
+                                    {studentName}
+                                </span>
+                            </nav>
+                        ) : (
+                            /* Context indicator for other pages - shrinks on scroll */
+                            <span className={`hidden md:inline font-medium text-gray-600 transition-all duration-300 ${
+                                isScrolled ? 'text-sm' : 'text-base'
+                            }`}>
                                 {pageTitle}
                             </span>
                         )}
