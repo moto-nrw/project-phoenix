@@ -711,38 +711,6 @@ function SettingsContent() {
                   </div>
                 </div>
 
-                {/* Admin Settings Section */}
-                {adminTabs.length > 0 && (
-                  <div className="space-y-2">
-                    <h3 className="px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Administration</h3>
-                    <div className="bg-white rounded-3xl shadow-sm overflow-hidden mx-4">
-                      {adminTabs.map((tab, index, arr) => (
-                        <button
-                          key={tab.id}
-                          onClick={() => handleTabSelect(tab.id)}
-                          className={`w-full flex items-center justify-between px-4 py-4 hover:bg-gray-50 active:bg-gray-100 transition-colors ${
-                            index !== arr.length - 1 ? "border-b border-gray-100" : ""
-                          }`}
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-900 to-gray-700 flex items-center justify-center">
-                              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} />
-                              </svg>
-                            </div>
-                            <div className="text-left">
-                              <p className="text-base font-medium text-gray-900">{tab.label}</p>
-                              <p className="text-xs text-gray-500 mt-0.5">Nur für Administratoren</p>
-                            </div>
-                          </div>
-                          <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             ) : (
               /* Mobile Detail View */
