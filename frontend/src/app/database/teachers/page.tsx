@@ -444,16 +444,16 @@ export default function TeachersPage() {
                                 setShowChoiceModal(false);
                                 setShowCreateModal(true);
                             }}
-                            className="group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-4 text-left transition-all hover:border-gray-900 hover:shadow-md active:scale-98"
+                            className="group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-4 text-left transition-all duration-300 hover:border-gray-300 hover:bg-gray-50 active:scale-98"
                         >
                             <div className="flex items-start gap-3">
-                                <div className="rounded-lg bg-gray-100 p-2.5 transition-colors group-hover:bg-gray-900">
-                                    <svg className="h-5 w-5 text-gray-600 transition-colors group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <div className="rounded-lg bg-gray-100 p-2.5 transition-all duration-300 group-hover:bg-gray-200">
+                                    <svg className="h-5 w-5 text-gray-600 transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                     </svg>
                                 </div>
                                 <div className="flex-1">
-                                    <h3 className="font-semibold text-gray-900 group-hover:text-gray-900">
+                                    <h3 className="font-semibold text-gray-900">
                                         Manuell erstellen
                                     </h3>
                                     <p className="mt-1 text-sm text-gray-600">
@@ -469,16 +469,16 @@ export default function TeachersPage() {
                                 setShowChoiceModal(false);
                                 router.push('/invitations');
                             }}
-                            className="group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-4 text-left transition-all hover:border-gray-900 hover:shadow-md active:scale-98"
+                            className="group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-4 text-left transition-all duration-300 hover:border-gray-300 hover:bg-gray-50 active:scale-98"
                         >
                             <div className="flex items-start gap-3">
-                                <div className="rounded-lg bg-gray-100 p-2.5 transition-colors group-hover:bg-gray-900">
-                                    <svg className="h-5 w-5 text-gray-600 transition-colors group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <div className="rounded-lg bg-gray-100 p-2.5 transition-all duration-300 group-hover:bg-gray-200">
+                                    <svg className="h-5 w-5 text-gray-600 transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                     </svg>
                                 </div>
                                 <div className="flex-1">
-                                    <h3 className="font-semibold text-gray-900 group-hover:text-gray-900">
+                                    <h3 className="font-semibold text-gray-900">
                                         Per E-Mail einladen
                                     </h3>
                                     <p className="mt-1 text-sm text-gray-600">
