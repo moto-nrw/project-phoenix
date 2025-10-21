@@ -13,10 +13,15 @@ export function PageHeader({ title, badge, statusIndicator, className = "" }: Pa
     }
   };
 
+  // Don't render anything if no title (conditional title pattern)
+  if (!title) {
+    return null;
+  }
+
   return (
-    <div className={`mb-6 ${className}`}>
+    <div className={`mb-4 ${className}`}>
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-[1.625rem] md:text-3xl font-bold text-gray-900">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">
           {title}
         </h1>
 

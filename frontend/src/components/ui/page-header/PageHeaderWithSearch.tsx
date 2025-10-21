@@ -34,27 +34,52 @@ export function PageHeaderWithSearch({
 
   return (
     <div className={className}>
-      {/* Page Header - Only show if title is not empty */}
+      {/* Title + Badge (only when title exists) */}
       {title && <PageHeader title={title} badge={badge} statusIndicator={statusIndicator} />}
 
-      {/* Navigation Tabs (if provided) */}
-      {tabs && <NavigationTabs {...tabs} />}
+      {/* Tabs + Badge inline (when no title - cleaner layout) */}
+      {tabs && (
+        <div>
+          {/* Mobile: Underline tabs inline with badge */}
+          <div className="md:hidden flex items-center justify-between gap-3 mb-4 border-b border-gray-200">
+            <div className="flex gap-1 -mb-px">
+              <NavigationTabs {...tabs} className="mb-0" />
+            </div>
+
+            {/* Badge and Status inline with tabs */}
+            {!title && (statusIndicator ?? badge) && (
+              <div className="flex items-center gap-2 pb-3">
+                {statusIndicator && (
+                  <div
+                    className={`h-2 w-2 rounded-full ${
+                      statusIndicator.color === 'green' ? 'bg-green-500 animate-pulse' :
+                      statusIndicator.color === 'yellow' ? 'bg-yellow-500' :
+                      statusIndicator.color === 'red' ? 'bg-red-500' :
+                      'bg-gray-400'
+                    }`}
+                    title={statusIndicator.tooltip}
+                  />
+                )}
+                {badge && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
+                    {badge.icon && <span className="text-gray-600">{badge.icon}</span>}
+                    <span className="text-sm font-medium text-gray-700">{badge.count}</span>
+                    {badge.label && <span className="text-sm text-gray-600">{badge.label}</span>}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Desktop: Settings-style tabs (separate from badge) */}
+          <div className="hidden md:block mb-4">
+            <NavigationTabs {...tabs} className="mb-0" />
+          </div>
+        </div>
+      )}
 
       {/* Mobile Search & Filters */}
       <div className="md:hidden">
-        {/* Show badge on mobile if no title */}
-        {!title && badge && (
-          <div className="flex justify-end mb-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
-              {badge.icon && (
-                <span className="text-gray-600">{badge.icon}</span>
-              )}
-              <span className="text-sm font-medium text-gray-700">
-                {badge.count}
-              </span>
-            </div>
-          </div>
-        )}
 
         {search && (
           <div className="flex gap-2 mb-3">
@@ -96,7 +121,7 @@ export function PageHeaderWithSearch({
 
       {/* Desktop Search & Filters */}
       <div className="hidden md:block mb-6">
-        {(search !== undefined || filters.length > 0 || ((!title && badge) ?? actionButton)) && (
+        {(search !== undefined || filters.length > 0 || actionButton) && (
           <div className="flex items-center gap-3 mb-3">
             {search && (
               <SearchBar
@@ -107,20 +132,6 @@ export function PageHeaderWithSearch({
             )}
             {filters.length > 0 && (
               <DesktopFilters filters={filters} />
-            )}
-            {/* Spacer to push badge to the right when there are filters OR when there's both badge and actionButton */}
-            {!title && badge && (filters.length > 0 || actionButton) && <div className="flex-1" />}
-            {/* Show badge inline on desktop when no title */}
-            {!title && badge && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full whitespace-nowrap flex-shrink-0">
-                {badge.icon && (
-                  <span className="text-gray-600 flex-shrink-0">{badge.icon}</span>
-                )}
-                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                  <span className="hidden xl:inline">{badge.count} {badge.label ?? "Kinder"}</span>
-                  <span className="xl:hidden">{badge.count}</span>
-                </span>
-              </div>
             )}
             {/* Custom action button */}
             {actionButton}
