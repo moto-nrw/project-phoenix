@@ -146,13 +146,13 @@ export function PendingInvitationsList({ refreshKey }: PendingInvitationsListPro
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
-              {sortedInvitations.map((invitation) => {
+              {sortedInvitations.map((invitation, index) => {
                 const expiresDate = new Date(invitation.expiresAt);
                 const isValidDate = !isNaN(expiresDate.getTime());
                 const isExpired = isValidDate && expiresDate.getTime() < Date.now();
 
                 return (
-                  <tr key={invitation.id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr key={`${invitation.id}-${invitation.email}-${index}`} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-4 py-3 font-medium text-gray-900 max-w-0 truncate">{invitation.email}</td>
                     <td className="px-4 py-3 text-gray-600 truncate">{invitation.roleName}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs truncate">
