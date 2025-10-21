@@ -67,6 +67,8 @@ function getPageTitle(pathname: string): string {
             return "Datenverwaltung";
         case "/settings":
             return "Einstellungen";
+        case "/invitations":
+            return "Einladungen";
         case "/borndal_feedback":
             return "Borndal Feedback";
         default:
@@ -303,6 +305,22 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
                             <span className="hidden md:inline text-base font-medium text-gray-600">
                                 Statistiken
                             </span>
+                        ) : pathname === "/invitations" ? (
+                            /* Breadcrumb for Invitations page */
+                            <nav className="hidden md:flex items-center space-x-2 text-base">
+                                <Link
+                                    href="/dashboard"
+                                    className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                                >
+                                    Dashboard
+                                </Link>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <span className="font-medium text-gray-900">
+                                    Einladungen
+                                </span>
+                            </nav>
                         ) : isActivityDetailPage && activityName ? (
                             /* Breadcrumb for Activity Detail pages */
                             <nav className="hidden md:flex items-center space-x-2 text-base">
