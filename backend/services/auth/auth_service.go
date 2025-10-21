@@ -1403,7 +1403,7 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 	message := email.Message{
 		From:     s.defaultFrom,
 		To:       email.NewEmail("", account.Email),
-		Subject:  "Password Reset Request",
+		Subject:  "Passwort zurücksetzen",
 		Template: "password-reset.html",
 		Content: map[string]any{
 			"ResetURL":      resetURL,

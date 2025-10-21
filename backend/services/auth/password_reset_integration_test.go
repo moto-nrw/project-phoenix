@@ -86,7 +86,7 @@ func TestInitiatePasswordResetSendsEmail(t *testing.T) {
 	}, 200*time.Millisecond, 10*time.Millisecond)
 
 	msg := mailer.Messages()[0]
-	require.Equal(t, "Password Reset Request", msg.Subject)
+	require.Equal(t, "Passwort zurücksetzen", msg.Subject)
 	require.Equal(t, "password-reset.html", msg.Template)
 	content := msg.Content.(map[string]any)
 	require.Contains(t, content, "ResetURL")

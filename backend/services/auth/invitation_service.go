@@ -419,7 +419,7 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 	message := email.Message{
 		From:     s.defaultFrom,
 		To:       email.NewEmail("", invitation.Email),
-		Subject:  "You're Invited to Project Phoenix",
+		Subject:  "Einladung zu moto",
 		Template: "invitation.html",
 		Content: map[string]any{
 			"InvitationURL": invitationURL,

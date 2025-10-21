@@ -99,7 +99,7 @@ func TestCreateInvitationSuccess(t *testing.T) {
 	}, 200*time.Millisecond, 10*time.Millisecond)
 
 	msg := mailer.Messages()[0]
-	require.Equal(t, "You're Invited to Project Phoenix", msg.Subject)
+	require.Equal(t, "Einladung zu moto", msg.Subject)
 	require.Equal(t, "invitation.html", msg.Template)
 	require.Contains(t, msg.Content.(map[string]any), "InvitationURL")
 
