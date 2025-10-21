@@ -211,11 +211,12 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
       <Drawer open={isOverflowMenuOpen} onOpenChange={setIsOverflowMenuOpen}>
         <DrawerContent className="bg-white">
           <div className="w-full">
-            <DrawerHeader>
+            {/* Hidden header for accessibility only */}
+            <DrawerHeader className="sr-only">
               <DrawerTitle>Navigation</DrawerTitle>
               <DrawerDescription>Wähle eine Seite</DrawerDescription>
             </DrawerHeader>
-            <div className="px-4 py-4">
+            <div className="px-4 pt-6 pb-4">
               <div className="space-y-2">
                 {displayAdditionalItems.map((item) => {
                   const isActive = isActiveRoute(item.href);
