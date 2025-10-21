@@ -36,25 +36,26 @@ interface NavItem {
   alwaysShow?: boolean;
 }
 
-// Main navigation items that appear in the bottom bar (match desktop sidebar)
+// Static main navigation items - always visible in bottom bar
+// Order: Gruppe - Raum - Suchen - Aktivität - Mehr
 const mainNavItems: NavItem[] = [
-  {
-    href: "/dashboard",
-    label: "Home",
-    iconKey: "home",
-    requiresAdmin: true,
-  },
   {
     href: "/ogs_groups",
     label: "Gruppe",
     iconKey: "group",
-    requiresGroups: true,
+    alwaysShow: true, // Always show, empty state handled on page
   },
   {
     href: "/myroom",
     label: "Raum",
     iconKey: "room",
-    requiresActiveSupervision: true,
+    alwaysShow: true, // Always show, empty state handled on page
+  },
+  {
+    href: "/students/search",
+    label: "Suchen",
+    iconKey: "search",
+    alwaysShow: true,
   },
   {
     href: "/activities",
@@ -76,7 +77,7 @@ interface AdditionalNavItem {
 }
 
 const additionalNavItems: AdditionalNavItem[] = [
-  { href: '/students/search', label: 'Kindersuche', iconKey: 'search', requiresSupervision: true },
+  { href: '/dashboard', label: 'Dashboard', iconKey: 'home', requiresAdmin: true },
   { href: '/staff', label: 'Mitarbeiter', iconKey: 'staff', alwaysShow: true },
   { href: '/rooms', label: 'Räume', iconKey: 'rooms', alwaysShow: true },
   { href: '/substitutions', label: 'Vertretungen', iconKey: 'substitutions', requiresAdmin: true },
@@ -135,27 +136,9 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
     setIsOverflowMenuOpen(false);
   };
 
-  // Filter main navigation items based on permissions (same logic as desktop sidebar)
-  const filteredMainItems = mainNavItems.filter(item => {
-    if (item.alwaysShow) return true;
-    if (item.requiresAdmin && !isAdmin(session)) return false;
-    if (item.requiresGroups) {
-      if (isAdmin(session)) return false;
-      if (!hasGroups || isLoadingGroups) return false;
-    }
-    if (item.requiresSupervision) {
-      if (isAdmin(session)) return false;
-      const hasGroupSupervision = !isLoadingGroups && hasGroups;
-      const hasRoomSupervision = !isLoadingSupervision && isSupervising;
-      if (!hasGroupSupervision && !hasRoomSupervision) return false;
-    }
-    if (item.requiresActiveSupervision) {
-      if (isAdmin(session)) return false;
-      const hasRoomSupervision = !isLoadingSupervision && isSupervising;
-      if (!hasRoomSupervision) return false;
-    }
-    return true;
-  });
+  // Static main navigation - always show all 4 items
+  // Empty states are handled on individual pages
+  const filteredMainItems = mainNavItems;
 
   // Filter additional navigation items based on permissions
   const filteredAdditionalItems = additionalNavItems.filter(item => {
@@ -175,48 +158,10 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
     return true;
   });
 
-  // Dynamic layout - always ensure 4 items in bottom nav
-  // Strategy: If slots are empty, promote items from additional nav (Search → Staff)
-  const TARGET_MAIN_NAV_ITEMS = 4;
-
-  const promotableItems = [
-    { href: '/students/search', label: 'Suchen', iconKey: 'search' as const, requiresSupervision: true },
-    { href: '/staff', label: 'Personal', iconKey: 'staff' as const, alwaysShow: true },
-  ];
-
-  // Build final main nav items by promoting items from additional nav if needed
-  const promotedItems: NavItem[] = [];
-  for (const item of promotableItems) {
-    if (filteredMainItems.length + promotedItems.length >= TARGET_MAIN_NAV_ITEMS) break;
-
-    // Check if item should be shown based on permissions
-    let shouldShow = false;
-    if (item.alwaysShow) {
-      shouldShow = true;
-    } else if (item.requiresSupervision) {
-      if (isAdmin(session)) {
-        shouldShow = false;
-      } else {
-        const hasGroupSupervision = !isLoadingGroups && hasGroups;
-        const hasRoomSupervision = !isLoadingSupervision && isSupervising;
-        shouldShow = hasGroupSupervision || hasRoomSupervision;
-      }
-    }
-
-    if (shouldShow && !filteredMainItems.some(i => i.href === item.href)) {
-      promotedItems.push(item);
-    }
-  }
-
-  const displayMainItems: NavItem[] = [...filteredMainItems, ...promotedItems];
-
-  // Always show overflow menu
+  // Static navigation - 4 main items + overflow menu
+  const displayMainItems: NavItem[] = filteredMainItems;
   const showOverflowMenu = true;
-
-  // Filter additional items to exclude those promoted to main nav
-  const displayAdditionalItems = filteredAdditionalItems.filter(
-    item => !displayMainItems.some(mainItem => mainItem.href === item.href)
-  );
+  const displayAdditionalItems = filteredAdditionalItems;
 
   // Check if any additional nav item is active
   const isAnyAdditionalNavActive = displayAdditionalItems.some(item => isActiveRoute(item.href));

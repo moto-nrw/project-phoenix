@@ -177,9 +177,9 @@ function OGSGroupPageContent() {
         const myGroups = await userContextService.getMyEducationalGroups();
 
         if (myGroups.length === 0) {
-          // User has no OGS groups, redirect to dashboard
+          // User has no OGS groups - show empty state instead of redirecting
           setHasAccess(false);
-          router.push("/dashboard");
+          setIsLoading(false);
           return;
         }
 
@@ -558,10 +558,34 @@ function OGSGroupPageContent() {
     );
   }
 
-  // If user doesn't have access, redirect to dashboard
+  // If user doesn't have access, show empty state
   if (hasAccess === false) {
-    router.push("/dashboard");
-    return null;
+    return (
+      <ResponsiveLayout pageTitle="Meine Gruppe">
+        <div className="-mt-1.5 w-full">
+          <PageHeaderWithSearch title="Meine Gruppe" />
+
+          <div className="flex min-h-[60vh] items-center justify-center px-4">
+            <div className="flex flex-col items-center gap-6 text-center max-w-md">
+              <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center">
+                <svg className="w-10 h-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-gray-900">Keine OGS-Gruppe zugeordnet</h3>
+                <p className="text-gray-600">
+                  Du bist keiner OGS-Gruppe als Leiter:in zugeordnet.
+                </p>
+                <p className="text-sm text-gray-500 mt-4">
+                  Wende dich an deine Verwaltung, um einer Gruppe zugewiesen zu werden.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ResponsiveLayout>
+    );
   }
 
   // Show group selection screen for 5+ groups

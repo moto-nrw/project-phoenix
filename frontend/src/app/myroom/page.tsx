@@ -194,9 +194,10 @@ function MeinRaumPageContent() {
 
         if (myActiveGroups.length === 0 && unclaimedGroups.length === 0) {
           // User has no active groups AND no unclaimed rooms to claim
+          // Show empty state instead of redirecting
           hasSupervisionRef.current = false;
           setHasAccess(false);
-          router.push("/dashboard");
+          setIsLoading(false);
           return;
         }
 
@@ -295,17 +296,6 @@ function MeinRaumPageContent() {
       void checkAccessAndFetchData();
     }
   }, [session?.user?.token, refreshKey, loadRoomVisits, router]);
-
-  // Redirect if user doesn't have access (after data is checked)
-  useEffect(() => {
-    if (hasAccess === false) {
-      // Redirect to appropriate page based on user role
-      // Regular users go to their group, admins go to dashboard
-      const isAdminUser = session?.user?.roles?.includes('admin');
-      const redirectPath = isAdminUser ? "/dashboard" : "/ogs_groups";
-      router.push(redirectPath);
-    }
-  }, [hasAccess, router, session?.user?.roles]);
 
   // Callback when a room is claimed - triggers refresh
   const handleRoomClaimed = useCallback(() => {
@@ -472,9 +462,34 @@ function MeinRaumPageContent() {
     );
   }
 
-  // Show loading while checking access
+  // Show empty state if no active supervision
   if (hasAccess === false) {
-    return null;
+    return (
+      <ResponsiveLayout pageTitle="Mein Raum">
+        <div className="-mt-1.5 w-full">
+          <PageHeaderWithSearch title="Mein Raum" />
+
+          <div className="flex min-h-[60vh] items-center justify-center px-4">
+            <div className="flex flex-col items-center gap-6 text-center max-w-md">
+              <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center">
+                <svg className="w-10 h-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-gray-900">Keine aktive Raum-Aufsicht</h3>
+                <p className="text-gray-600">
+                  Du bist aktuell in keinem Raum als Live-Aktivität registriert.
+                </p>
+                <p className="text-sm text-gray-500 mt-4">
+                  Starte eine Aktivität an einem Terminal, um Live-Raumdaten einzusehen.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ResponsiveLayout>
+    );
   }
 
   // Show room selection screen for 5+ rooms
