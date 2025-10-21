@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"os"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -13,16 +12,36 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/active"
 )
 
+// AuthCleanup exposes the cleanup routines required from the auth service.
+type AuthCleanup interface {
+	CleanupExpiredTokens(ctx context.Context) (int, error)
+	CleanupExpiredPasswordResetTokens(ctx context.Context) (int, error)
+	CleanupExpiredRateLimits(ctx context.Context) (int, error)
+}
+
+// InvitationCleanup exposes the cleanup routine required from the invitation service.
+type InvitationCleanup interface {
+	CleanupExpiredInvitations(ctx context.Context) (int, error)
+}
+
+// CleanupJob represents a single cleanup task that can be executed.
+type CleanupJob struct {
+	Description string
+	Run         func(context.Context) (int, error)
+}
+
 // Scheduler manages scheduled tasks
 type Scheduler struct {
-	activeService  active.Service
-	cleanupService active.CleanupService
-	authService    interface{} // Using interface to avoid circular dependency
-	tasks          map[string]*ScheduledTask
-	mu             sync.RWMutex
-	ctx            context.Context
-	cancel         context.CancelFunc
-	wg             sync.WaitGroup
+	activeService     active.Service
+	cleanupService    active.CleanupService
+	authCleanup       AuthCleanup
+	invitationCleanup InvitationCleanup
+	cleanupJobs       []CleanupJob
+	tasks             map[string]*ScheduledTask
+	mu                sync.RWMutex
+	ctx               context.Context
+	cancel            context.CancelFunc
+	wg                sync.WaitGroup
 }
 
 // ScheduledTask represents a scheduled task
@@ -36,15 +55,17 @@ type ScheduledTask struct {
 }
 
 // NewScheduler creates a new scheduler
-func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService interface{}) *Scheduler {
+func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup, invitationService InvitationCleanup) *Scheduler {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Scheduler{
-		activeService:  activeService,
-		cleanupService: cleanupService,
-		authService:    authService,
-		tasks:          make(map[string]*ScheduledTask),
-		ctx:            ctx,
-		cancel:         cancel,
+		activeService:     activeService,
+		cleanupService:    cleanupService,
+		authCleanup:       authService,
+		invitationCleanup: invitationService,
+		cleanupJobs:       buildCleanupJobs(authService, invitationService),
+		tasks:             make(map[string]*ScheduledTask),
+		ctx:               ctx,
+		cancel:            cancel,
 	}
 }
 
@@ -298,30 +319,82 @@ func (s *Scheduler) executeTokenCleanup(task *ScheduledTask) {
 	startTime := time.Now()
 
 	// Use reflection to call CleanupExpiredTokens method
-	if s.authService != nil {
-		method := reflect.ValueOf(s.authService).MethodByName("CleanupExpiredTokens")
-		if method.IsValid() {
-			ctx := context.Background()
-			ctxValue := reflect.ValueOf(ctx)
-			results := method.Call([]reflect.Value{ctxValue})
-
-			if len(results) == 2 {
-				count := results[0].Int()
-				errInterface := results[1].Interface()
-
-				if errInterface != nil {
-					if err, ok := errInterface.(error); ok && err != nil {
-						log.Printf("ERROR: Token cleanup failed: %v", err)
-						return
-					}
-				}
-
-				duration := time.Since(startTime)
-				log.Printf("Token cleanup completed in %v: deleted %d expired tokens",
-					duration.Round(time.Millisecond), count)
-			}
-		}
+	if err := s.RunCleanupJobs(); err != nil {
+		log.Printf("ERROR: Token cleanup failed: %v", err)
+		return
 	}
+
+	duration := time.Since(startTime)
+	log.Printf("Token cleanup completed in %v", duration.Round(time.Millisecond))
+}
+
+// RunCleanupJobs executes all token-related cleanup tasks in sequence.
+func (s *Scheduler) RunCleanupJobs() error {
+	if len(s.cleanupJobs) == 0 {
+		log.Println("No cleanup jobs registered; skipping token cleanup")
+		return nil
+	}
+
+	ctx := context.Background()
+	var firstErr error
+
+	for _, job := range s.cleanupJobs {
+		if job.Run == nil {
+			continue
+		}
+
+		count, err := job.Run(ctx)
+		if err != nil {
+			log.Printf("ERROR: %s failed: %v", job.Description, err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+
+		log.Printf("%s removed %d records", job.Description, count)
+	}
+
+	return firstErr
+}
+
+// buildCleanupJobs constructs the set of cleanup jobs so other runners can reuse the same registry.
+func buildCleanupJobs(authService AuthCleanup, invitationService InvitationCleanup) []CleanupJob {
+	var jobs []CleanupJob
+
+	if authService != nil {
+		jobs = append(jobs,
+			CleanupJob{
+				Description: "Auth token cleanup",
+				Run: func(ctx context.Context) (int, error) {
+					return authService.CleanupExpiredTokens(ctx)
+				},
+			},
+			CleanupJob{
+				Description: "Password reset token cleanup",
+				Run: func(ctx context.Context) (int, error) {
+					return authService.CleanupExpiredPasswordResetTokens(ctx)
+				},
+			},
+			CleanupJob{
+				Description: "Password reset rate limit cleanup",
+				Run: func(ctx context.Context) (int, error) {
+					return authService.CleanupExpiredRateLimits(ctx)
+				},
+			},
+		)
+	}
+
+	if invitationService != nil {
+		jobs = append(jobs, CleanupJob{
+			Description: "Invitation cleanup",
+			Run: func(ctx context.Context) (int, error) {
+				return invitationService.CleanupExpiredInvitations(ctx)
+			},
+		})
+	}
+
+	return jobs
 }
 
 // scheduleSessionEndTask schedules the daily session end task

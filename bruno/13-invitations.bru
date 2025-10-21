@@ -1,0 +1,494 @@
+meta {
+  name: 13 - User Invitation Workflow
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{baseUrl}}/auth/roles
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  ## Invitation Workflow Tests
+
+  Exercises admin invitation management and public acceptance flow end-to-end:
+  1. Ensure an admin token is available (pre-request login).
+  2. Discover a valid role for invitations.
+  3. Create an invitation and validate the token anonymously.
+  4. Reject weak password acceptance (400) and accept with a strong password (201).
+  5. Login with the newly created account and verify token reuse returns 410.
+  6. List pending invitations and ensure new invitations appear.
+  7. Resend invitations (success + expired → 400).
+  8. Revoke invitations and confirm subsequent acceptance returns 410.
+
+  The flow also confirms:
+  - Admin list/resend/revoke permissions
+  - Invitation token expiry handling
+  - Used/expired invitations cannot be reused
+}
+
+script:pre-request {
+  (async function() {
+    await bru.sendRequest({
+      method: "POST",
+      url: `${bru.getEnvVar("baseUrl")}/auth/login`,
+      headers: { "Content-Type": "application/json" },
+      data: {
+        email: "admin@example.com",
+        password: "Test1234%"
+      }
+    }, function(err, response) {
+      if (err) {
+        throw new Error(`Failed to obtain admin token: ${err.message}`);
+      }
+
+      if (response.status !== 200 || !response.data || !response.data.access_token) {
+        throw new Error("Login did not return an access token");
+      }
+
+      bru.setEnvVar("accessToken", response.data.access_token);
+      if (response.data.refresh_token) {
+        bru.setEnvVar("refreshToken", response.data.refresh_token);
+      }
+    });
+  })();
+}
+
+script:post-response {
+  (async function() {
+    const { execSync } = require("child_process");
+
+    function runSQL(query) {
+      const command = `cd .. && PGPASSWORD=postgres docker compose exec -T postgres psql -U postgres -d postgres -At -c "${query}"`;
+      try {
+        return execSync(command, { stdio: ["pipe", "pipe", "pipe"], encoding: "utf8" }).trim();
+      } catch (error) {
+        throw new Error(`Failed to run SQL: ${error.stderr || error.message}`);
+      }
+    }
+
+    const baseUrl = bru.getEnvVar("baseUrl");
+    const accessToken = bru.getEnvVar("accessToken");
+    const headersWithAuth = {
+      "Authorization": `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    };
+
+    // Test roles response
+    test("Roles endpoint responds", function() {
+      expect(res.getStatus()).to.equal(200);
+      expect(res.getBody()).to.have.property("data");
+      expect(res.getBody().data).to.be.an("array");
+    });
+
+    const roles = Array.isArray(res.getBody().data) ? res.getBody().data : [];
+    const preferredRole = roles.find(role => role.name === "teacher")
+      || roles.find(role => role.name === "staff")
+      || roles.find(role => role.name && role.name !== "admin")
+      || roles[0];
+
+    test("Invitation role available", function() {
+      expect(preferredRole).to.be.an("object");
+      expect(preferredRole).to.have.property("id");
+    });
+
+    const roleId = preferredRole ? preferredRole.id : 0;
+    let emailCounter = 0;
+    const timestamp = Date.now();
+    const uniqueEmail = (prefix) => {
+      emailCounter += 1;
+      return `${prefix}.${timestamp}.${emailCounter}@example.com`;
+    };
+
+    // ----- Invitation Acceptance Flow -----
+    const inviteEmail = uniqueEmail("invitee");
+    let invitationToken = "";
+    let invitationID = 0;
+
+    await bru.sendRequest({
+      method: "POST",
+      url: `${baseUrl}/auth/invitations`,
+      headers: headersWithAuth,
+      data: {
+        email: inviteEmail,
+        role_id: roleId,
+        first_name: "Test",
+        last_name: "Invitee"
+      }
+    }, function(err, response) {
+      if (err) {
+        test("Create invitation", function() {
+          throw new Error(`Invitation creation failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("Create invitation", function() {
+        expect(response.status).to.equal(201);
+        expect(response.data).to.have.property("data");
+        expect(response.data.data).to.have.property("token");
+      });
+
+      if (response.status === 201 && response.data && response.data.data) {
+        invitationToken = response.data.data.token;
+        invitationID = response.data.data.id;
+      }
+    });
+
+    // Validate invitation publicly
+    await bru.sendRequest({
+      method: "GET",
+      url: `${baseUrl}/auth/invitations/${invitationToken}`
+    }, function(err, response) {
+      if (err) {
+        test("Validate invitation", function() {
+          throw new Error(`Invitation validation failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("Validate invitation", function() {
+        expect(response.status).to.equal(200);
+        expect(response.data).to.have.property("data");
+        expect(response.data.data).to.have.property("email", inviteEmail.toLowerCase());
+      });
+    });
+
+    // Attempt weak password acceptance
+    await bru.sendRequest({
+      method: "POST",
+      url: `${baseUrl}/auth/invitations/${invitationToken}/accept`,
+      headers: { "Content-Type": "application/json" },
+      data: {
+        first_name: "Test",
+        last_name: "Invitee",
+        password: "weak",
+        confirm_password: "weak"
+      }
+    }, function(err, response) {
+      if (err) {
+        if (err.message.includes("400")) {
+          test("Weak password rejected", function() {
+            expect(true).to.equal(true);
+          });
+          return;
+        }
+        test("Weak password rejected", function() {
+          throw new Error(`Weak password check failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("Weak password rejected", function() {
+        expect(response.status).to.equal(400);
+      });
+    });
+
+    const strongPassword = "Inv1teStrong!";
+    await bru.sendRequest({
+      method: "POST",
+      url: `${baseUrl}/auth/invitations/${invitationToken}/accept`,
+      headers: { "Content-Type": "application/json" },
+      data: {
+        first_name: "Test",
+        last_name: "Invitee",
+        password: strongPassword,
+        confirm_password: strongPassword
+      }
+    }, function(err, response) {
+      if (err) {
+        test("Accept invitation succeeds", function() {
+          throw new Error(`Invitation acceptance failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("Accept invitation succeeds", function() {
+        expect(response.status).to.equal(201);
+        expect(response.data).to.have.property("data");
+        expect(response.data.data).to.have.property("email", inviteEmail.toLowerCase());
+      });
+    });
+
+    // Login with new credentials
+    await bru.sendRequest({
+      method: "POST",
+      url: `${baseUrl}/auth/login`,
+      headers: { "Content-Type": "application/json" },
+      data: {
+        email: inviteEmail,
+        password: strongPassword
+      }
+    }, function(err, response) {
+      if (err) {
+        test("Login with invited account succeeds", function() {
+          throw new Error(`Login failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("Login with invited account succeeds", function() {
+        expect(response.status).to.equal(200);
+        expect(response.data).to.have.property("access_token");
+      });
+    });
+
+    // Ensure invitation cannot be reused
+    await bru.sendRequest({
+      method: "POST",
+      url: `${baseUrl}/auth/invitations/${invitationToken}/accept`,
+      headers: { "Content-Type": "application/json" },
+      data: {
+        first_name: "Test",
+        last_name: "Invitee",
+        password: strongPassword,
+        confirm_password: strongPassword
+      }
+    }, function(err, response) {
+      if (err) {
+        if (err.message.includes("410")) {
+          test("Used invitation returns 410", function() {
+            expect(true).to.equal(true);
+          });
+        } else {
+          test("Used invitation returns 410", function() {
+            throw new Error(`Unexpected error for reused token: ${err.message}`);
+          });
+        }
+        return;
+      }
+
+      test("Used invitation returns 410", function() {
+        expect(response.status).to.equal(410);
+      });
+    });
+
+    // ----- Invitation Management -----
+    const managementEmail = uniqueEmail("manage");
+    let managementToken = "";
+    let managementID = 0;
+
+    await bru.sendRequest({
+      method: "POST",
+      url: `${baseUrl}/auth/invitations`,
+      headers: headersWithAuth,
+      data: {
+        email: managementEmail,
+        role_id: roleId
+      }
+    }, function(err, response) {
+      if (err) {
+        test("Create management invitation", function() {
+          throw new Error(`Invitation creation failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("Create management invitation", function() {
+        expect(response.status).to.equal(201);
+      });
+
+      if (response.status === 201 && response.data && response.data.data) {
+        managementToken = response.data.data.token;
+        managementID = response.data.data.id;
+      }
+    });
+
+    await bru.sendRequest({
+      method: "GET",
+      url: `${baseUrl}/auth/invitations`,
+      headers: { "Authorization": `Bearer ${accessToken}` }
+    }, function(err, response) {
+      if (err) {
+        test("List pending invitations", function() {
+          throw new Error(`Listing failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("List pending invitations", function() {
+        expect(response.status).to.equal(200);
+        expect(response.data).to.have.property("data");
+        const emails = (response.data.data || []).map(i => i.email);
+        expect(emails).to.include(managementEmail.toLowerCase());
+      });
+    });
+
+    await bru.sendRequest({
+      method: "POST",
+      url: `${baseUrl}/auth/invitations/${managementID}/resend`,
+      headers: headersWithAuth
+    }, function(err, response) {
+      if (err) {
+        test("Resend invitation succeeds", function() {
+          throw new Error(`Resend failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("Resend invitation succeeds", function() {
+        expect(response.status).to.equal(200);
+      });
+    });
+
+    // Expire a new invitation
+    const expiredEmail = uniqueEmail("expired");
+    let expiredToken = "";
+    let expiredID = 0;
+
+    await bru.sendRequest({
+      method: "POST",
+      url: `${baseUrl}/auth/invitations`,
+      headers: headersWithAuth,
+      data: {
+        email: expiredEmail,
+        role_id: roleId
+      }
+    }, function(err, response) {
+      if (err) {
+        test("Create expired invitation", function() {
+          throw new Error(`Invitation creation failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("Create expired invitation", function() {
+        expect(response.status).to.equal(201);
+      });
+
+      if (response.status === 201 && response.data && response.data.data) {
+        expiredToken = response.data.data.token;
+        expiredID = response.data.data.id;
+      }
+    });
+
+    runSQL(`UPDATE auth.invitation_tokens SET expires_at = NOW() - INTERVAL '2 hours' WHERE id = ${expiredID};`);
+
+    await bru.sendRequest({
+      method: "POST",
+      url: `${baseUrl}/auth/invitations/${expiredID}/resend`,
+      headers: headersWithAuth
+    }, function(err, response) {
+      if (err) {
+        if (err.message.includes("400")) {
+          test("Resend expired invitation rejected", function() {
+            expect(true).to.equal(true);
+          });
+        } else {
+          test("Resend expired invitation rejected", function() {
+            throw new Error(`Unexpected error for expired resend: ${err.message}`);
+          });
+        }
+        return;
+      }
+
+      test("Resend expired invitation rejected", function() {
+        expect(response.status).to.equal(400);
+      });
+    });
+
+    await bru.sendRequest({
+      method: "GET",
+      url: `${baseUrl}/auth/invitations/${expiredToken}`
+    }, function(err, response) {
+      if (err) {
+        if (err.message.includes("410")) {
+          test("Expired invitation validation returns 410", function() {
+            expect(true).to.equal(true);
+          });
+        } else {
+          test("Expired invitation validation returns 410", function() {
+            throw new Error(`Unexpected error validating expired token: ${err.message}`);
+          });
+        }
+        return;
+      }
+
+      test("Expired invitation validation returns 410", function() {
+        expect(response.status).to.equal(410);
+      });
+    });
+
+    await bru.sendRequest({
+      method: "POST",
+      url: `${baseUrl}/auth/invitations/${expiredToken}/accept`,
+      headers: { "Content-Type": "application/json" },
+      data: {
+        first_name: "Expired",
+        last_name: "Invitee",
+        password: strongPassword,
+        confirm_password: strongPassword
+      }
+    }, function(err, response) {
+      if (err) {
+        if (err.message.includes("410")) {
+          test("Expired invitation acceptance returns 410", function() {
+            expect(true).to.equal(true);
+          });
+        } else {
+          test("Expired invitation acceptance returns 410", function() {
+            throw new Error(`Unexpected error accepting expired token: ${err.message}`);
+          });
+        }
+        return;
+      }
+
+      test("Expired invitation acceptance returns 410", function() {
+        expect(response.status).to.equal(410);
+      });
+    });
+
+    // Revoke management invitation
+    await bru.sendRequest({
+      method: "DELETE",
+      url: `${baseUrl}/auth/invitations/${managementID}`,
+      headers: { "Authorization": `Bearer ${accessToken}` }
+    }, function(err, response) {
+      if (err) {
+        test("Revoke invitation succeeds", function() {
+          throw new Error(`Revoke failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("Revoke invitation succeeds", function() {
+        expect([200, 204]).to.include(response.status);
+      });
+    });
+
+    await bru.sendRequest({
+      method: "POST",
+      url: `${baseUrl}/auth/invitations/${managementToken}/accept`,
+      headers: { "Content-Type": "application/json" },
+      data: {
+        first_name: "Manage",
+        last_name: "Invitee",
+        password: strongPassword,
+        confirm_password: strongPassword
+      }
+    }, function(err, response) {
+      if (err) {
+        if (err.message.includes("410")) {
+          test("Revoked invitation returns 410", function() {
+            expect(true).to.equal(true);
+          });
+        } else {
+          test("Revoked invitation returns 410", function() {
+            throw new Error(`Unexpected error accepting revoked token: ${err.message}`);
+          });
+        }
+        return;
+      }
+
+      test("Revoked invitation returns 410", function() {
+        expect(response.status).to.equal(410);
+      });
+    });
+  })();
+}

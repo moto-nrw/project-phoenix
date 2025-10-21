@@ -1,5 +1,6 @@
 // lib/auth-service.ts
 import { getSession } from "next-auth/react";
+import { isAxiosError } from "axios";
 import { env } from "~/env";
 import api from "./api";
 import {
@@ -31,6 +32,8 @@ import {
     type BackendToken,
     type BackendParentAccount,
 } from "./auth-helpers";
+import type { AxiosError } from "axios";
+import type { ApiError } from "./auth-api";
 
 // Generic API response interface
 interface ApiResponse<T> {
@@ -54,6 +57,100 @@ interface RawRoleData {
     updated_at?: string;
     updatedAt?: string;
     permissions?: BackendPermission[];
+}
+
+interface PasswordResetResponse {
+    message: string;
+}
+
+interface ApiErrorResponseBody {
+    error?: string;
+    message?: string;
+}
+
+function parseRetryAfter(value: string | null | undefined): number | null {
+    if (!value) {
+        return null;
+    }
+
+    const numeric = Number(value);
+    if (!Number.isNaN(numeric)) {
+        return Math.max(0, Math.round(numeric));
+    }
+
+    const date = Date.parse(value);
+    if (!Number.isNaN(date)) {
+        const diffMs = date - Date.now();
+        return diffMs > 0 ? Math.ceil(diffMs / 1000) : 0;
+    }
+
+    return null;
+}
+
+async function buildFetchApiError(response: Response, fallbackMessage: string): Promise<ApiError> {
+    let message = fallbackMessage;
+
+    try {
+        const contentType = response.headers.get("Content-Type") ?? "";
+        if (contentType.includes("application/json")) {
+            const payload = await response.json() as ApiErrorResponseBody;
+            message = payload.error ?? payload.message ?? fallbackMessage;
+        } else {
+            const text = (await response.text()).trim();
+            if (text) {
+                message = text;
+            }
+        }
+    } catch (parseError) {
+        console.warn("Failed to parse password reset error response", parseError);
+    }
+
+    const apiError = new Error(message) as ApiError;
+    apiError.status = response.status;
+
+    const retryAfterSeconds = parseRetryAfter(response.headers.get("Retry-After"));
+    if (retryAfterSeconds !== null) {
+        apiError.retryAfterSeconds = retryAfterSeconds;
+    }
+
+    return apiError;
+}
+
+function buildAxiosApiError(error: AxiosError<ApiErrorResponseBody>, fallbackMessage: string): ApiError {
+    let message = fallbackMessage;
+
+    const data = error.response?.data;
+    if (data) {
+        if (typeof data === "string") {
+            message = data;
+        } else {
+            message = data.error ?? data.message ?? fallbackMessage;
+        }
+    } else if (error.message) {
+        message = error.message;
+    }
+
+    const apiError = new Error(message) as ApiError;
+    apiError.status = error.response?.status;
+
+    const headers = error.response?.headers as Record<string, unknown> | undefined;
+    const retryAfterHeader = headers ? headers["retry-after"] : undefined;
+    let retryAfterValue: string | null = null;
+    if (Array.isArray(retryAfterHeader)) {
+        const firstString = retryAfterHeader.find((value): value is string => typeof value === "string");
+        if (firstString) {
+            retryAfterValue = firstString;
+        }
+    } else if (typeof retryAfterHeader === "string") {
+        retryAfterValue = retryAfterHeader;
+    }
+
+    const retryAfterSeconds = parseRetryAfter(retryAfterValue);
+    if (retryAfterSeconds !== null) {
+        apiError.retryAfterSeconds = retryAfterSeconds;
+    }
+
+    return apiError;
 }
 
 export const authService = {
@@ -229,39 +326,57 @@ export const authService = {
         }
     },
 
-    resetPassword: async (data: PasswordResetConfirmRequest): Promise<void> => {
+    resetPassword: async (data: PasswordResetConfirmRequest): Promise<PasswordResetResponse> => {
         const useProxyApi = typeof window !== "undefined";
         const url = useProxyApi
             ? "/api/auth/password-reset/confirm"
             : `${env.NEXT_PUBLIC_API_URL}/auth/password-reset/confirm`;
+        const fallbackMessage = "Fehler beim Zurücksetzen des Passworts";
+        const payload = {
+            token: data.token,
+            new_password: data.newPassword,
+            confirm_password: data.confirmPassword,
+        };
 
         try {
             if (useProxyApi) {
                 const response = await fetch(url, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        token: data.token,
-                        new_password: data.newPassword,
-                        confirm_password: data.confirmPassword,
-                    }),
+                    body: JSON.stringify(payload),
                 });
 
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error(`Password reset confirm error: ${response.status}`, errorText);
-                    throw new Error(`Password reset confirm failed: ${response.status}`);
+                    throw await buildFetchApiError(response, fallbackMessage);
                 }
-            } else {
-                await api.post(url, {
-                    token: data.token,
-                    new_password: data.newPassword,
-                    confirm_password: data.confirmPassword,
-                });
+
+                try {
+                    return await response.json() as PasswordResetResponse;
+                } catch {
+                    return { message: "Password reset successfully" };
+                }
             }
+
+            const response = await api.post<PasswordResetResponse>(url, payload);
+            if (response.data && typeof response.data.message === "string") {
+                return response.data;
+            }
+
+            return { message: "Password reset successfully" };
         } catch (error) {
+            const apiError = error as ApiError | undefined;
+
+            if (apiError?.status !== undefined) {
+                throw apiError;
+            }
+
+            if (typeof window === "undefined" && isAxiosError(error)) {
+                throw buildAxiosApiError(error as AxiosError<ApiErrorResponseBody>, fallbackMessage);
+            }
+
             console.error("Password reset confirm error:", error);
-            throw error;
+            const fallbackError = new Error(fallbackMessage) as ApiError;
+            throw fallbackError;
         }
     },
 

@@ -25,6 +25,8 @@ cd project-phoenix
 docker-compose up -d
 ```
 
+> **Note:** In production environments `FRONTEND_URL` must be an HTTPS URL—the backend will refuse to boot otherwise.
+
 [![Go](https://img.shields.io/badge/go-1.21+-blue)](https://go.dev)
 [![React](https://img.shields.io/badge/react-19-blue)](https://reactjs.org)
 [![Next.js](https://img.shields.io/badge/next.js-15-blue)](https://nextjs.org)
@@ -63,6 +65,7 @@ Project Phoenix is a comprehensive room and student management system designed f
 
 ### Technical Features
 - 🔐 **JWT Authentication** - Secure authentication with role-based access control
+- ✉️ **Email Invitations & Password Reset** - SMTP-backed onboarding with branded templates, 48h invitations, and rate-limited reset links
 - 🚀 **RESTful API** - Well-documented API with OpenAPI specification
 - 📱 **Responsive UI** - Modern, mobile-friendly interface
 - 🐳 **Docker Support** - Easy deployment with containerization
@@ -169,6 +172,17 @@ AUTH_JWT_SECRET=your_jwt_secret_here
 AUTH_JWT_EXPIRY=15m            # Access token expiry
 AUTH_JWT_REFRESH_EXPIRY=1h     # Refresh token expiry
 
+# Email (optional in dev, required in production)
+EMAIL_SMTP_HOST=smtp.example.com
+EMAIL_SMTP_PORT=587
+EMAIL_SMTP_USER=your_smtp_username
+EMAIL_SMTP_PASSWORD=your_smtp_password
+EMAIL_FROM_NAME=moto Project Phoenix
+EMAIL_FROM_ADDRESS=no-reply@example.com
+FRONTEND_URL=http://localhost:3000
+INVITATION_TOKEN_EXPIRY_HOURS=48
+PASSWORD_RESET_TOKEN_EXPIRY_MINUTES=30
+
 # Admin Account (for initial setup)
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=SecurePassword123!
@@ -198,6 +212,8 @@ go run main.go serve            # Start the backend server
 go run main.go migrate          # Run database migrations
 go run main.go migrate status   # Check migration status
 go run main.go migrate reset    # Reset database (WARNING: deletes all data)
+go run main.go cleanup invitations   # Delete expired and used invitation tokens
+go run main.go cleanup rate-limits   # Purge password reset rate limit records
 
 # Testing
 go test ./...                   # Run all tests
@@ -299,6 +315,7 @@ go run main.go gendoc          # Generate all documentation
 This creates:
 - `backend/routes.md` - Complete route documentation
 - `backend/docs/openapi.yaml` - OpenAPI 3.0 specification
+- `docs/email-templates.md` - Email template structure, variables, and branding guidance
 
 ### Key API Endpoints
 - **Authentication**: `/api/auth/login`, `/api/auth/token`

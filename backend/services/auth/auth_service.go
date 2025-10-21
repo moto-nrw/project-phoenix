@@ -3,8 +3,8 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
-	"regexp"
 	"strings"
 	"time"
 
@@ -12,32 +12,49 @@ import (
 	jwx "github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
+	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 )
+
+const (
+	passwordResetRateLimitThreshold = 3
+)
+
+var passwordResetEmailBackoff = []time.Duration{
+	time.Second,
+	5 * time.Second,
+	15 * time.Second,
+}
 
 // Updated Service struct with all repositories
 
 type Service struct {
-	accountRepo            auth.AccountRepository
-	accountParentRepo      auth.AccountParentRepository // Add this
-	accountRoleRepo        auth.AccountRoleRepository
-	accountPermissionRepo  auth.AccountPermissionRepository
-	permissionRepo         auth.PermissionRepository
-	roleRepo               auth.RoleRepository           // Add this
-	rolePermissionRepo     auth.RolePermissionRepository // Add this
-	tokenRepo              auth.TokenRepository
-	passwordResetTokenRepo auth.PasswordResetTokenRepository // Add this
-	personRepo             users.PersonRepository            // Add this for first name
-	authEventRepo          audit.AuthEventRepository         // Add for audit logging
-	tokenAuth              *jwt.TokenAuth
-	jwtExpiry              time.Duration
-	jwtRefreshExpiry       time.Duration
-	txHandler              *base.TxHandler
-	db                     *bun.DB // Add database connection
+	accountRepo                auth.AccountRepository
+	accountParentRepo          auth.AccountParentRepository // Add this
+	accountRoleRepo            auth.AccountRoleRepository
+	accountPermissionRepo      auth.AccountPermissionRepository
+	permissionRepo             auth.PermissionRepository
+	roleRepo                   auth.RoleRepository           // Add this
+	rolePermissionRepo         auth.RolePermissionRepository // Add this
+	tokenRepo                  auth.TokenRepository
+	passwordResetTokenRepo     auth.PasswordResetTokenRepository // Add this
+	passwordResetRateLimitRepo auth.PasswordResetRateLimitRepository
+	personRepo                 users.PersonRepository    // Add this for first name
+	authEventRepo              audit.AuthEventRepository // Add for audit logging
+	tokenAuth                  *jwt.TokenAuth
+	dispatcher                 *email.Dispatcher
+	defaultFrom                email.Email
+	frontendURL                string
+	passwordResetExpiry        time.Duration
+	jwtExpiry                  time.Duration
+	jwtRefreshExpiry           time.Duration
+	txHandler                  *base.TxHandler
+	db                         *bun.DB // Add database connection
 }
 
 // Updated NewService constructor
@@ -52,9 +69,15 @@ func NewService(
 	roleRepo auth.RoleRepository, // Add this
 	rolePermissionRepo auth.RolePermissionRepository, // Add this
 	passwordResetTokenRepo auth.PasswordResetTokenRepository, // Add this
+	passwordResetRateLimitRepo auth.PasswordResetRateLimitRepository,
 	personRepo users.PersonRepository, // Add this for first name
 	authEventRepo audit.AuthEventRepository, // Add for audit logging
 	db *bun.DB,
+	mailer email.Mailer,
+	dispatcher *email.Dispatcher,
+	frontendURL string,
+	defaultFrom email.Email,
+	passwordResetExpiry time.Duration,
 ) (*Service, error) {
 
 	tokenAuth, err := jwt.NewTokenAuth()
@@ -62,23 +85,32 @@ func NewService(
 		return nil, &AuthError{Op: "create token auth", Err: err}
 	}
 
+	if dispatcher == nil && mailer != nil {
+		dispatcher = email.NewDispatcher(mailer)
+	}
+
 	return &Service{
-		accountRepo:            accountRepo,
-		accountParentRepo:      accountParentRepo, // Add this
-		accountRoleRepo:        accountRoleRepo,
-		accountPermissionRepo:  accountPermissionRepo,
-		permissionRepo:         permissionRepo,
-		roleRepo:               roleRepo,           // Add this
-		rolePermissionRepo:     rolePermissionRepo, // Add this
-		tokenRepo:              tokenRepo,
-		passwordResetTokenRepo: passwordResetTokenRepo, // Add this
-		personRepo:             personRepo,             // Add this for first name
-		authEventRepo:          authEventRepo,          // Add for audit logging
-		tokenAuth:              tokenAuth,
-		jwtExpiry:              tokenAuth.JwtExpiry,
-		jwtRefreshExpiry:       tokenAuth.JwtRefreshExpiry,
-		txHandler:              base.NewTxHandler(db),
-		db:                     db, // Add database connection
+		accountRepo:                accountRepo,
+		accountParentRepo:          accountParentRepo, // Add this
+		accountRoleRepo:            accountRoleRepo,
+		accountPermissionRepo:      accountPermissionRepo,
+		permissionRepo:             permissionRepo,
+		roleRepo:                   roleRepo,           // Add this
+		rolePermissionRepo:         rolePermissionRepo, // Add this
+		tokenRepo:                  tokenRepo,
+		passwordResetTokenRepo:     passwordResetTokenRepo, // Add this
+		passwordResetRateLimitRepo: passwordResetRateLimitRepo,
+		personRepo:                 personRepo,    // Add this for first name
+		authEventRepo:              authEventRepo, // Add for audit logging
+		tokenAuth:                  tokenAuth,
+		dispatcher:                 dispatcher,
+		defaultFrom:                defaultFrom,
+		frontendURL:                frontendURL,
+		passwordResetExpiry:        passwordResetExpiry,
+		jwtExpiry:                  tokenAuth.JwtExpiry,
+		jwtRefreshExpiry:           tokenAuth.JwtRefreshExpiry,
+		txHandler:                  base.NewTxHandler(db),
+		db:                         db, // Add database connection
 	}, nil
 }
 
@@ -95,8 +127,9 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 	var rolePermissionRepo = s.rolePermissionRepo // Add this
 	var tokenRepo = s.tokenRepo
 	var passwordResetTokenRepo = s.passwordResetTokenRepo // Add this
-	var personRepo = s.personRepo                         // Add this for first name
-	var authEventRepo = s.authEventRepo                   // Add for audit logging
+	var passwordResetRateLimitRepo = s.passwordResetRateLimitRepo
+	var personRepo = s.personRepo       // Add this for first name
+	var authEventRepo = s.authEventRepo // Add for audit logging
 
 	// Try to cast repositories to TransactionalRepository and apply the transaction
 	if txRepo, ok := s.accountRepo.(base.TransactionalRepository); ok {
@@ -126,6 +159,9 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 	if txRepo, ok := s.passwordResetTokenRepo.(base.TransactionalRepository); ok { // Add this
 		passwordResetTokenRepo = txRepo.WithTx(tx).(auth.PasswordResetTokenRepository)
 	}
+	if txRepo, ok := s.passwordResetRateLimitRepo.(base.TransactionalRepository); ok {
+		passwordResetRateLimitRepo = txRepo.WithTx(tx).(auth.PasswordResetRateLimitRepository)
+	}
 	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok { // Add this for first name
 		personRepo = txRepo.WithTx(tx).(users.PersonRepository)
 	}
@@ -135,22 +171,27 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 
 	// Return a new service with the transaction
 	return &Service{
-		accountRepo:            accountRepo,
-		accountParentRepo:      accountParentRepo, // Add this
-		accountRoleRepo:        accountRoleRepo,
-		accountPermissionRepo:  accountPermissionRepo,
-		permissionRepo:         permissionRepo,
-		roleRepo:               roleRepo,           // Add this
-		rolePermissionRepo:     rolePermissionRepo, // Add this
-		tokenRepo:              tokenRepo,
-		passwordResetTokenRepo: passwordResetTokenRepo, // Add this
-		personRepo:             personRepo,             // Add this for first name
-		authEventRepo:          authEventRepo,          // Add for audit logging
-		tokenAuth:              s.tokenAuth,
-		jwtExpiry:              s.jwtExpiry,
-		jwtRefreshExpiry:       s.jwtRefreshExpiry,
-		txHandler:              s.txHandler.WithTx(tx),
-		db:                     s.db, // Add database connection
+		accountRepo:                accountRepo,
+		accountParentRepo:          accountParentRepo, // Add this
+		accountRoleRepo:            accountRoleRepo,
+		accountPermissionRepo:      accountPermissionRepo,
+		permissionRepo:             permissionRepo,
+		roleRepo:                   roleRepo,           // Add this
+		rolePermissionRepo:         rolePermissionRepo, // Add this
+		tokenRepo:                  tokenRepo,
+		passwordResetTokenRepo:     passwordResetTokenRepo, // Add this
+		passwordResetRateLimitRepo: passwordResetRateLimitRepo,
+		personRepo:                 personRepo,    // Add this for first name
+		authEventRepo:              authEventRepo, // Add for audit logging
+		tokenAuth:                  s.tokenAuth,
+		dispatcher:                 s.dispatcher,
+		defaultFrom:                s.defaultFrom,
+		frontendURL:                s.frontendURL,
+		passwordResetExpiry:        s.passwordResetExpiry,
+		jwtExpiry:                  s.jwtExpiry,
+		jwtRefreshExpiry:           s.jwtRefreshExpiry,
+		txHandler:                  s.txHandler.WithTx(tx),
+		db:                         s.db, // Add database connection
 	}
 }
 
@@ -369,7 +410,7 @@ func (s *Service) Register(ctx context.Context, email, username, name, password 
 	username = strings.TrimSpace(username)
 
 	// Validate password strength
-	if err := validatePassword(password); err != nil {
+	if err := ValidatePasswordStrength(password); err != nil {
 		return nil, &AuthError{Op: "register", Err: err}
 	}
 
@@ -386,7 +427,7 @@ func (s *Service) Register(ctx context.Context, email, username, name, password 
 	}
 
 	// Hash password
-	passwordHash, err := userpass.HashPassword(password, userpass.DefaultParams())
+	passwordHash, err := HashPassword(password)
 	if err != nil {
 		return nil, &AuthError{Op: "hash password", Err: err}
 	}
@@ -769,12 +810,12 @@ func (s *Service) ChangePassword(ctx context.Context, accountID int, currentPass
 	}
 
 	// Validate new password
-	if err := validatePassword(newPassword); err != nil {
+	if err := ValidatePasswordStrength(newPassword); err != nil {
 		return &AuthError{Op: "validate password", Err: err}
 	}
 
 	// Hash new password
-	passwordHash, err := userpass.HashPassword(newPassword, userpass.DefaultParams())
+	passwordHash, err := HashPassword(newPassword)
 	if err != nil {
 		return &AuthError{Op: "hash password", Err: err}
 	}
@@ -879,31 +920,6 @@ func extractClaims(token jwx.Token) map[string]interface{} {
 	}
 
 	return claims
-}
-
-// validatePassword validates password strength
-func validatePassword(password string) error {
-	if len(password) < 8 {
-		return ErrPasswordTooWeak
-	}
-
-	if !regexp.MustCompile(`[A-Z]`).MatchString(password) {
-		return ErrPasswordTooWeak
-	}
-
-	if !regexp.MustCompile(`[a-z]`).MatchString(password) {
-		return ErrPasswordTooWeak
-	}
-
-	if !regexp.MustCompile(`[0-9]`).MatchString(password) {
-		return ErrPasswordTooWeak
-	}
-
-	if !regexp.MustCompile(`[^a-zA-Z0-9]`).MatchString(password) {
-		return ErrPasswordTooWeak
-	}
-
-	return nil
 }
 
 // Add these methods to the existing Service struct in auth_service.go
@@ -1309,35 +1325,127 @@ func (s *Service) GetAccountsWithRolesAndPermissions(ctx context.Context, filter
 // Password Reset
 
 // InitiatePasswordReset creates a password reset token for an account
-func (s *Service) InitiatePasswordReset(ctx context.Context, email string) (*auth.PasswordResetToken, error) {
+func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string) (*auth.PasswordResetToken, error) {
 	// Normalize email
-	email = strings.TrimSpace(strings.ToLower(email))
+	emailAddress = strings.TrimSpace(strings.ToLower(emailAddress))
 
 	// Get account by email
-	account, err := s.accountRepo.FindByEmail(ctx, email)
+	account, err := s.accountRepo.FindByEmail(ctx, emailAddress)
 	if err != nil {
 		// Don't reveal whether the email exists or not
 		return nil, nil
 	}
 
-	// Invalidate any existing reset tokens
-	if err := s.passwordResetTokenRepo.InvalidateTokensByAccountID(ctx, account.ID); err != nil {
-		// Log error but continue
-		log.Printf("Failed to invalidate reset tokens for account %d: %v", account.ID, err)
+	// Check rate limiting only if enabled globally
+	rateLimitEnabled := viper.GetBool("rate_limit_enabled")
+	if rateLimitEnabled && s.passwordResetRateLimitRepo != nil {
+		state, err := s.passwordResetRateLimitRepo.CheckRateLimit(ctx, emailAddress)
+		if err != nil {
+			return nil, &AuthError{Op: "check password reset rate limit", Err: err}
+		}
+
+		now := time.Now()
+		if state != nil && state.Attempts >= passwordResetRateLimitThreshold && state.RetryAt.After(now) {
+			return nil, &AuthError{
+				Op: "initiate password reset",
+				Err: &RateLimitError{
+					Err:      ErrRateLimitExceeded,
+					Attempts: state.Attempts,
+					RetryAt:  state.RetryAt,
+				},
+			}
+		}
+
+		state, err = s.passwordResetRateLimitRepo.IncrementAttempts(ctx, emailAddress)
+		if err != nil {
+			return nil, &AuthError{Op: "increment password reset rate limit", Err: err}
+		}
+
+		now = time.Now()
+		if state != nil && state.Attempts > passwordResetRateLimitThreshold && state.RetryAt.After(now) {
+			return nil, &AuthError{
+				Op: "initiate password reset",
+				Err: &RateLimitError{
+					Err:      ErrRateLimitExceeded,
+					Attempts: state.Attempts,
+					RetryAt:  state.RetryAt,
+				},
+			}
+		}
 	}
 
-	// Generate new token
-	tokenStr := uuid.Must(uuid.NewV4()).String()
-	resetToken := &auth.PasswordResetToken{
-		AccountID: account.ID,
-		Token:     tokenStr,
-		Expiry:    time.Now().Add(24 * time.Hour), // 24 hour expiry
-		Used:      false,
+	log.Printf("Password reset requested for email=%s", emailAddress)
+
+	var resetToken *auth.PasswordResetToken
+
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		txService := s.WithTx(tx).(AuthService)
+
+		if err := txService.(*Service).passwordResetTokenRepo.InvalidateTokensByAccountID(ctx, account.ID); err != nil {
+			log.Printf("Failed to invalidate reset tokens for account %d, rolling back: %v", account.ID, err)
+			return err
+		}
+
+		tokenStr := uuid.Must(uuid.NewV4()).String()
+		resetToken = &auth.PasswordResetToken{
+			AccountID: account.ID,
+			Token:     tokenStr,
+			Expiry:    time.Now().Add(s.passwordResetExpiry),
+			Used:      false,
+		}
+
+		if err := txService.(*Service).passwordResetTokenRepo.Create(ctx, resetToken); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, &AuthError{Op: "initiate password reset transaction", Err: err}
 	}
 
-	if err := s.passwordResetTokenRepo.Create(ctx, resetToken); err != nil {
-		return nil, &AuthError{Op: "create password reset token", Err: err}
+	log.Printf("Password reset token created for account=%d", account.ID)
+
+	frontendURL := strings.TrimRight(s.frontendURL, "/")
+	resetURL := fmt.Sprintf("%s/reset-password?token=%s", frontendURL, resetToken.Token)
+	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
+	message := email.Message{
+		From:     s.defaultFrom,
+		To:       email.NewEmail("", account.Email),
+		Subject:  "Passwort zurücksetzen",
+		Template: "password-reset.html",
+		Content: map[string]any{
+			"ResetURL":      resetURL,
+			"ExpiryMinutes": int(s.passwordResetExpiry.Minutes()),
+			"LogoURL":       logoURL,
+		},
 	}
+
+	meta := email.DeliveryMetadata{
+		Type:        "password_reset",
+		ReferenceID: resetToken.ID,
+		Token:       resetToken.Token,
+		Recipient:   account.Email,
+	}
+
+	if s.dispatcher == nil {
+		log.Printf("Email dispatcher unavailable; skipping password reset email account=%d", account.ID)
+		return resetToken, nil
+	}
+
+	baseRetry := resetToken.EmailRetryCount
+
+	s.dispatcher.Dispatch(email.DeliveryRequest{
+		Message:       message,
+		Metadata:      meta,
+		BackoffPolicy: passwordResetEmailBackoff,
+		MaxAttempts:   3,
+		Context:       context.Background(),
+		Callback: func(ctx context.Context, result email.DeliveryResult) {
+			s.persistPasswordResetDelivery(ctx, meta, baseRetry, result)
+		},
+	})
 
 	return resetToken, nil
 }
@@ -1351,12 +1459,12 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	}
 
 	// Validate new password
-	if err := validatePassword(newPassword); err != nil {
+	if err := ValidatePasswordStrength(newPassword); err != nil {
 		return &AuthError{Op: "reset password", Err: err}
 	}
 
 	// Hash new password
-	passwordHash, err := userpass.HashPassword(newPassword, userpass.DefaultParams())
+	passwordHash, err := HashPassword(newPassword)
 	if err != nil {
 		return &AuthError{Op: "hash password", Err: err}
 	}
@@ -1392,6 +1500,29 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	return nil
 }
 
+func (s *Service) persistPasswordResetDelivery(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {
+	retryCount := baseRetry + result.Attempt
+	var sentAt *time.Time
+	var errText *string
+
+	if result.Status == email.DeliveryStatusSent {
+		sentTime := result.SentAt
+		sentAt = &sentTime
+	} else if result.Err != nil {
+		msg := sanitizeEmailError(result.Err)
+		errText = &msg
+	}
+
+	if err := s.passwordResetTokenRepo.UpdateDeliveryResult(ctx, meta.ReferenceID, sentAt, errText, retryCount); err != nil {
+		log.Printf("Failed to update password reset delivery status token_id=%d err=%v", meta.ReferenceID, err)
+		return
+	}
+
+	if result.Final && result.Status == email.DeliveryStatusFailed {
+		log.Printf("Password reset email permanently failed id=%d recipient=%s err=%v", meta.ReferenceID, meta.Recipient, result.Err)
+	}
+}
+
 // Token Management
 
 // CleanupExpiredTokens removes expired authentication tokens
@@ -1409,6 +1540,21 @@ func (s *Service) CleanupExpiredPasswordResetTokens(ctx context.Context) (int, e
 	if err != nil {
 		return 0, &AuthError{Op: "cleanup expired password reset tokens", Err: err}
 	}
+	return count, nil
+}
+
+// CleanupExpiredRateLimits purges stale password reset rate limit windows.
+func (s *Service) CleanupExpiredRateLimits(ctx context.Context) (int, error) {
+	if s.passwordResetRateLimitRepo == nil {
+		return 0, nil
+	}
+
+	count, err := s.passwordResetRateLimitRepo.CleanupExpired(ctx)
+	if err != nil {
+		return 0, &AuthError{Op: "cleanup password reset rate limits", Err: err}
+	}
+
+	log.Printf("Password reset rate limit cleanup removed %d records", count)
 	return count, nil
 }
 
@@ -1443,7 +1589,7 @@ func (s *Service) CreateParentAccount(ctx context.Context, email, username, pass
 	username = strings.TrimSpace(username)
 
 	// Validate password strength
-	if err := validatePassword(password); err != nil {
+	if err := ValidatePasswordStrength(password); err != nil {
 		return nil, &AuthError{Op: "create parent account", Err: err}
 	}
 
@@ -1460,7 +1606,7 @@ func (s *Service) CreateParentAccount(ctx context.Context, email, username, pass
 	}
 
 	// Hash password
-	passwordHash, err := userpass.HashPassword(password, userpass.DefaultParams())
+	passwordHash, err := HashPassword(password)
 	if err != nil {
 		return nil, &AuthError{Op: "hash password", Err: err}
 	}

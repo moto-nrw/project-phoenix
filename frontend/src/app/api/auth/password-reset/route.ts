@@ -24,11 +24,29 @@ export async function POST(request: NextRequest) {
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json(
-                { error: errorText } as ErrorResponse,
-                { status: response.status }
-            );
+            const retryAfter = response.headers.get("Retry-After");
+            let message = "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail";
+
+            try {
+                const contentType = response.headers.get("Content-Type") ?? "";
+                if (contentType.includes("application/json")) {
+                    const payload = await response.json() as Partial<ErrorResponse> & { message?: string };
+                    message = payload.error ?? payload.message ?? message;
+                } else {
+                    const text = (await response.text()).trim();
+                    if (text) {
+                        message = text;
+                    }
+                }
+            } catch (parseError) {
+                console.warn("Failed to parse password reset error response", parseError);
+            }
+
+            const nextResponse = NextResponse.json({ error: message } as ErrorResponse, { status: response.status });
+            if (retryAfter) {
+                nextResponse.headers.set("Retry-After", retryAfter);
+            }
+            return nextResponse;
         }
 
         const data = await response.json() as PasswordResetResponseData;
