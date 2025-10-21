@@ -459,6 +459,11 @@ func (s *userContextService) GetMySupervisedGroups(ctx context.Context) ([]*acti
 	// Get the active groups for these supervisions
 	var supervisedGroups []*active.Group
 	for _, supervision := range supervisions {
+		// Check if supervision itself is still active (not ended)
+		if !supervision.IsActive() {
+			continue // Skip ended supervisions
+		}
+
 		group, err := s.activeGroupRepo.FindByID(ctx, supervision.GroupID)
 		if err != nil {
 			return nil, &UserContextError{Op: "get supervised groups", Err: err}
