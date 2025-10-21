@@ -16,6 +16,8 @@ var (
 	ErrResourceNotFound = errors.New("resource not found")
 	ErrConflict         = errors.New("resource conflict")
 	ErrBadGateway       = errors.New("bad gateway")
+	ErrTooManyRequests  = errors.New("too many requests")
+	ErrGone             = errors.New("resource no longer available")
 )
 
 // ErrResponse is the error response structure
@@ -98,6 +100,26 @@ func ErrorBadGateway(err error) render.Renderer {
 	return &ErrResponse{
 		Err:            err,
 		HTTPStatusCode: http.StatusBadGateway,
+		Status:         "error",
+		ErrorText:      err.Error(),
+	}
+}
+
+// ErrorTooManyRequests returns a 429 Too Many Requests error response
+func ErrorTooManyRequests(err error) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusTooManyRequests,
+		Status:         "error",
+		ErrorText:      err.Error(),
+	}
+}
+
+// ErrorGone returns a 410 Gone error response
+func ErrorGone(err error) render.Renderer {
+	return &ErrResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusGone,
 		Status:         "error",
 		ErrorText:      err.Error(),
 	}

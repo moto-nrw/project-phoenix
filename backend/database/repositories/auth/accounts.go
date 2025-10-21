@@ -69,6 +69,7 @@ func (r *AccountRepository) FindByUsername(ctx context.Context, username string)
 func (r *AccountRepository) UpdateLastLogin(ctx context.Context, id int64) error {
 	_, err := r.db.NewUpdate().
 		Model((*auth.Account)(nil)).
+		ModelTableExpr("auth.accounts").
 		Set("last_login = ?", time.Now()).
 		Where("id = ?", id).
 		Exec(ctx)
@@ -87,6 +88,7 @@ func (r *AccountRepository) UpdateLastLogin(ctx context.Context, id int64) error
 func (r *AccountRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
 	_, err := r.db.NewUpdate().
 		Model((*auth.Account)(nil)).
+		ModelTableExpr("auth.accounts").
 		Set("password_hash = ?", passwordHash).
 		Set("is_password_otp = ?", false). // Reset OTP flag when setting a permanent password
 		Where("id = ?", id).

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"time"
 )
 
 // AccountRepository defines operations for managing accounts
@@ -141,6 +142,7 @@ type PasswordResetTokenRepository interface {
 	FindByID(ctx context.Context, id interface{}) (*PasswordResetToken, error)
 	Update(ctx context.Context, token *PasswordResetToken) error
 	Delete(ctx context.Context, id interface{}) error
+	UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error
 	List(ctx context.Context, filters map[string]interface{}) ([]*PasswordResetToken, error)
 	FindByToken(ctx context.Context, token string) (*PasswordResetToken, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*PasswordResetToken, error)
@@ -149,4 +151,26 @@ type PasswordResetTokenRepository interface {
 	DeleteExpiredTokens(ctx context.Context) (int, error)
 	InvalidateTokensByAccountID(ctx context.Context, accountID int64) error
 	FindTokensWithAccount(ctx context.Context, filters map[string]interface{}) ([]*PasswordResetToken, error)
+}
+
+// PasswordResetRateLimitRepository defines operations for managing password reset rate limiting.
+type PasswordResetRateLimitRepository interface {
+	CheckRateLimit(ctx context.Context, email string) (*RateLimitState, error)
+	IncrementAttempts(ctx context.Context, email string) (*RateLimitState, error)
+	CleanupExpired(ctx context.Context) (int, error)
+}
+
+// InvitationTokenRepository defines operations for managing invitation tokens.
+type InvitationTokenRepository interface {
+	Create(ctx context.Context, token *InvitationToken) error
+	Update(ctx context.Context, token *InvitationToken) error
+	FindByID(ctx context.Context, id interface{}) (*InvitationToken, error)
+	FindByToken(ctx context.Context, token string) (*InvitationToken, error)
+	UpdateDeliveryResult(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error
+	FindValidByToken(ctx context.Context, token string, now time.Time) (*InvitationToken, error)
+	FindByEmail(ctx context.Context, email string) ([]*InvitationToken, error)
+	MarkAsUsed(ctx context.Context, id int64) error
+	InvalidateByEmail(ctx context.Context, email string) (int, error)
+	DeleteExpired(ctx context.Context, now time.Time) (int, error)
+	List(ctx context.Context, filters map[string]interface{}) ([]*InvitationToken, error)
 }

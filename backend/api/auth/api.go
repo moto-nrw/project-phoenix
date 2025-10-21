@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"database/sql"
 	"errors"
 	"log"
 	"net"
@@ -23,13 +24,15 @@ import (
 
 // Resource defines the auth resource
 type Resource struct {
-	AuthService authService.AuthService
+	AuthService       authService.AuthService
+	InvitationService authService.InvitationService
 }
 
 // NewResource creates a new auth resource
-func NewResource(authService authService.AuthService) *Resource {
+func NewResource(authService authService.AuthService, invitationService authService.InvitationService) *Resource {
 	return &Resource{
-		AuthService: authService,
+		AuthService:       authService,
+		InvitationService: invitationService,
 	}
 }
 
@@ -46,6 +49,8 @@ func (rs *Resource) Router() chi.Router {
 	r.Post("/register", rs.register)
 	r.Post("/password-reset", rs.initiatePasswordReset)
 	r.Post("/password-reset/confirm", rs.resetPassword)
+	r.Get("/invitations/{token}", rs.validateInvitation)
+	r.Post("/invitations/{token}/accept", rs.acceptInvitation)
 
 	// Protected routes that require refresh token
 	r.Group(func(r chi.Router) {
@@ -136,6 +141,15 @@ func (rs *Resource) Router() chi.Router {
 			// Token cleanup
 			r.Route("/tokens", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("admin:*")).Delete("/expired", rs.cleanupExpiredTokens)
+			})
+
+			r.Route("/invitations", func(r chi.Router) {
+				r.With(authorize.RequiresPermission("users:create")).Post("/", rs.createInvitation)
+				r.With(authorize.RequiresPermission("users:list")).Get("/", rs.listPendingInvitations)
+				r.Route("/{id}", func(r chi.Router) {
+					r.With(authorize.RequiresPermission("users:manage")).Post("/resend", rs.resendInvitation)
+					r.With(authorize.RequiresPermission("users:manage")).Delete("/", rs.revokeInvitation)
+				})
 			})
 
 			// Parent account management
@@ -1559,8 +1573,32 @@ func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Always return success to avoid revealing whether email exists
-	_, _ = rs.AuthService.InitiatePasswordReset(r.Context(), req.Email)
+	// Always return success to avoid revealing whether email exists, but handle rate limiting
+	_, err := rs.AuthService.InitiatePasswordReset(r.Context(), req.Email)
+	if err != nil {
+		var rateErr *authService.RateLimitError
+		if errors.As(err, &rateErr) {
+			// Prefer Retry-After seconds, fallback to RFC1123 format
+			retryAfterSeconds := rateErr.RetryAfterSeconds(time.Now())
+			if retryAfterSeconds > 0 {
+				w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds))
+			} else if !rateErr.RetryAt.IsZero() {
+				w.Header().Set("Retry-After", rateErr.RetryAt.UTC().Format(http.TimeFormat))
+			}
+
+			if renderErr := render.Render(w, r, common.ErrorTooManyRequests(authService.ErrRateLimitExceeded)); renderErr != nil {
+				log.Printf("Render error: %v", renderErr)
+			}
+			return
+		}
+
+		if renderErr := render.Render(w, r, ErrorInternalServer(err)); renderErr != nil {
+			log.Printf("Render error: %v", renderErr)
+		}
+		return
+	}
+
+	log.Printf("Password reset initiated for email=%s", req.Email)
 
 	common.Respond(w, r, http.StatusOK, nil, "If the email exists, a password reset link has been sent")
 }
@@ -1576,11 +1614,36 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.ResetPassword(r.Context(), req.Token, req.NewPassword); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+		log.Printf("Password reset failed reason=%v", err)
+
+		var authErr *authService.AuthError
+		if errors.As(err, &authErr) {
+			switch {
+			case errors.Is(authErr.Err, authService.ErrInvalidToken):
+				if renderErr := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid or expired reset token"))); renderErr != nil {
+					log.Printf("Render error: %v", renderErr)
+				}
+				return
+			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
+				if renderErr := render.Render(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak)); renderErr != nil {
+					log.Printf("Render error: %v", renderErr)
+				}
+				return
+			case errors.Is(authErr.Err, sql.ErrNoRows):
+				if renderErr := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid or expired reset token"))); renderErr != nil {
+					log.Printf("Render error: %v", renderErr)
+				}
+				return
+			}
+		}
+
+		if renderErr := render.Render(w, r, ErrorInternalServer(err)); renderErr != nil {
+			log.Printf("Render error: %v", renderErr)
 		}
 		return
 	}
+
+	log.Printf("Password reset completed successfully")
 
 	common.Respond(w, r, http.StatusOK, nil, "Password reset successfully")
 }

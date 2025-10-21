@@ -79,6 +79,30 @@ serviceFactory := services.NewFactory(repoFactory, mailer)
 authService := serviceFactory.NewAuthService()
 ```
 
+
+## Email & Invitation Services
+
+- **Configuration**: SMTP delivery uses `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, `EMAIL_SMTP_PASSWORD`, `EMAIL_FROM_NAME`, `EMAIL_FROM_ADDRESS`, `FRONTEND_URL`, `INVITATION_TOKEN_EXPIRY_HOURS` (default 48h) and `PASSWORD_RESET_TOKEN_EXPIRY_MINUTES` (default 30m). `services.NewFactory` clamps expiry values and enforces HTTPS-only `FRONTEND_URL` when `APP_ENV=production`.
+- **Mailer Injection**: The factory wires `email.Mailer`, `email.Email` defaults, `frontendURL`, and derived expiry durations into both `AuthService` and `InvitationService`. Missing SMTP config automatically falls back to `email.NewMockMailer()` which logs redacted payloads instead of sending.
+- **Templates**: HTML layouts live in `backend/templates/email/`. Shared chrome is in `styles.html`, `header.html`, and `footer.html`. Feature templates provide the following bindings: `invitation.html` → `LogoURL`, `InvitationURL`, `ExpiryHours`, `FirstName`, `LastName`, `RoleName`; `password-reset.html` → `LogoURL`, `ResetURL`, `ExpiryMinutes`.
+
+## Password Reset Enhancements
+
+- **Helpers**: `services/auth/password_helpers.go` centralises password hashing (`HashPassword`) and strength validation (`ValidatePasswordStrength` requires 8+ chars, upper/lower/digit/special). Reuse these helpers instead of duplicating regex logic.
+- **Email Flow**: `AuthService.InitiatePasswordReset` now issues 30-minute tokens (configurable), normalises `{FRONTEND_URL}/reset-password?token=...`, and dispatches `password-reset.html` asynchronously. SMTP failures are logged but never block API responses.
+- **Rate Limiting**: Per-email throttling allows three reset requests per hour. The repository (`database/repositories/auth/password_reset_rate_limit.go`) performs atomic upserts and returns the retry deadline so handlers can set `Retry-After`. Stale windows (>24h) are purged by `CleanupExpiredRateLimits` and exposed via CLI/scheduler.
+
+## Invitation Service Overview
+
+- **Service API**: `services/auth/invitation_service.go` implements creation, validation, acceptance, resend, revoke, listing, and cleanup. Account creation and role assignment run inside `TxHandler.RunInTx` to guarantee atomic Person/Account writes.
+- **Token Lifecycle**: Tokens are UUID v4 with 48h default expiry (configurable). Creating a new invitation automatically marks previous pending invites for the same email as used. Acceptance enforces password strength and email uniqueness before persisting.
+- **Email Delivery**: Invitation emails are fire-and-forget; they queue an async send with moto branding, role context, and `{FRONTEND_URL}/invite?token=...` links. Logging captures success/failure without leaking tokens.
+
+## Cleanup & Scheduler Extensions
+
+- **CLI**: `go run main.go cleanup invitations` removes expired or consumed invites. `go run main.go cleanup rate-limits` prunes stale password reset rate limit rows. These complement existing `cleanup tokens` and `cleanup visits` commands.
+- **Scheduler**: `Scheduler.RunCleanupJobs` now chains four jobs: auth tokens, password reset tokens, invitation tokens, and rate limits. Ensure `NewScheduler` receives both `AuthService` and `InvitationService` so nightly runs can call `CleanupExpiredInvitations` and `CleanupExpiredRateLimits`.
+
 ### Authentication & Authorization
 - JWT tokens: Access (15m) + Refresh (24hr)
 - Role-based permissions via middleware

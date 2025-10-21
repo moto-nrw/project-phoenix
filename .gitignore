@@ -454,8 +454,6 @@ sonar-reports/
 docker-compose.sonar.yml
 sonar-project.properties
 
-# OpenSpec - Ignore user-specific proposals and changes
-openspec/changes/
 .cursor/*
 
 backend/simulator/iot/simulator.yaml

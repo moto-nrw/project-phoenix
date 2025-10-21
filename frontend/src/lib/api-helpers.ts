@@ -1,9 +1,10 @@
 // lib/api-helpers.ts
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { isAxiosError } from "axios";
 import { auth } from "../server/auth";
 import api from "./api";
-import { isAxiosError } from "axios";
+import { refreshSessionTokensOnServer } from "~/server/auth/token-refresh";
 
 /**
  * Type for API response to ensure consistent structure
@@ -52,22 +53,30 @@ export async function apiGet<T>(
   // In server context, use fetch directly to avoid client-side interceptors
   if (typeof window === "undefined") {
     const { env } = await import("~/env");
-    const response = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}${endpoint}`,
-      {
+    const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
+
+    const executeRequest = async (bearer: string) =>
+      fetch(url, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${bearer}`,
           "Content-Type": "application/json",
         },
+      });
+
+    let response = await executeRequest(token);
+
+    if (response.status === 401) {
+      const refreshed = await refreshSessionTokensOnServer();
+      if (refreshed?.accessToken) {
+        response = await executeRequest(refreshed.accessToken);
       }
-    );
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`API error (${response.status}): ${errorText}`);
     }
 
-    // Handle 204 No Content responses
     if (response.status === 204) {
       return {} as T;
     }
@@ -111,24 +120,32 @@ export async function apiPost<T, B = unknown>(
   // In server context, use fetch directly to avoid client-side interceptors
   if (typeof window === "undefined") {
     const { env } = await import("~/env");
-    const response = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}${endpoint}`,
-      {
+    const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
+
+    const executeRequest = async (bearer: string) =>
+      fetch(url, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${bearer}`,
           "Content-Type": "application/json",
         },
         body: body ? JSON.stringify(body) : undefined,
+      });
+
+    let response = await executeRequest(token);
+
+    if (response.status === 401) {
+      const refreshed = await refreshSessionTokensOnServer();
+      if (refreshed?.accessToken) {
+        response = await executeRequest(refreshed.accessToken);
       }
-    );
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`API error (${response.status}): ${errorText}`);
     }
 
-    // Handle 204 No Content responses
     if (response.status === 204) {
       return {} as T;
     }
@@ -172,24 +189,32 @@ export async function apiPut<T, B = unknown>(
   // In server context, use fetch directly to avoid client-side interceptors
   if (typeof window === "undefined") {
     const { env } = await import("~/env");
-    const response = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}${endpoint}`,
-      {
+    const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
+
+    const executeRequest = async (bearer: string) =>
+      fetch(url, {
         method: "PUT",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${bearer}`,
           "Content-Type": "application/json",
         },
         body: body ? JSON.stringify(body) : undefined,
+      });
+
+    let response = await executeRequest(token);
+
+    if (response.status === 401) {
+      const refreshed = await refreshSessionTokensOnServer();
+      if (refreshed?.accessToken) {
+        response = await executeRequest(refreshed.accessToken);
       }
-    );
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`API error (${response.status}): ${errorText}`);
     }
 
-    // Handle 204 No Content responses
     if (response.status === 204) {
       return {} as T;
     }
@@ -231,23 +256,31 @@ export async function apiDelete<T>(
   // In server context, use fetch directly to avoid client-side interceptors
   if (typeof window === "undefined") {
     const { env } = await import("~/env");
-    const response = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}${endpoint}`,
-      {
+    const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
+
+    const executeRequest = async (bearer: string) =>
+      fetch(url, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${bearer}`,
           "Content-Type": "application/json",
         },
+      });
+
+    let response = await executeRequest(token);
+
+    if (response.status === 401) {
+      const refreshed = await refreshSessionTokensOnServer();
+      if (refreshed?.accessToken) {
+        response = await executeRequest(refreshed.accessToken);
       }
-    );
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`API error (${response.status}): ${errorText}`);
     }
 
-    // Return void for 204 No Content responses
     if (response.status === 204) {
       return;
     }

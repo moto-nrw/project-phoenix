@@ -88,8 +88,14 @@ export async function refreshToken(): Promise<{
 export async function handleAuthFailure(): Promise<boolean> {
   // Check if we're in a server context
   if (typeof window === "undefined") {
-    console.error("Auth failure in server context - cannot refresh token or sign out");
-    return false;
+    try {
+      const { refreshSessionTokensOnServer } = await import("~/server/auth/token-refresh");
+      const refreshed = await refreshSessionTokensOnServer();
+      return Boolean(refreshed?.accessToken);
+    } catch (serverError) {
+      console.error("Auth failure in server context - refresh attempt failed", serverError);
+      return false;
+    }
   }
 
   try {
@@ -162,14 +168,62 @@ export async function handleAuthFailure(): Promise<boolean> {
   }
 }
 
+export type ApiError = Error & { status?: number; retryAfterSeconds?: number };
+
+function parseRetryAfter(value: string | null): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const numeric = Number(value);
+  if (!Number.isNaN(numeric)) {
+    return Math.max(0, Math.round(numeric));
+  }
+
+  const date = Date.parse(value);
+  if (!Number.isNaN(date)) {
+    const diffMs = date - Date.now();
+    return diffMs > 0 ? Math.ceil(diffMs / 1000) : 0;
+  }
+
+  return null;
+}
+
+async function buildApiError(response: Response, fallbackMessage: string): Promise<ApiError> {
+  let message = fallbackMessage;
+
+  try {
+    const contentType = response.headers.get("Content-Type") ?? "";
+    if (contentType.includes("application/json")) {
+      const body = await response.json() as { error?: string; message?: string };
+      message = body?.error ?? body?.message ?? fallbackMessage;
+    } else {
+      const text = (await response.text()).trim();
+      if (text) {
+        message = text;
+      }
+    }
+  } catch (parseError) {
+    console.warn("Failed to parse error response", parseError);
+  }
+
+  const apiError = new Error(message) as ApiError;
+  apiError.status = response.status;
+
+  const retryAfter = parseRetryAfter(response.headers.get("Retry-After"));
+  if (retryAfter !== null) {
+    apiError.retryAfterSeconds = retryAfter;
+  }
+
+  return apiError;
+}
+
 /**
  * Request a password reset email for the given email address
  * @param email - The email address to send the reset link to
  * @returns Promise with success message or error
  */
-export async function requestPasswordReset(email: string): Promise<{
-  message: string;
-}> {
+export async function requestPasswordReset(email: string): Promise<{ message: string }> {
   try {
     const response = await fetch("/api/auth/password-reset", {
       method: "POST",
@@ -180,8 +234,10 @@ export async function requestPasswordReset(email: string): Promise<{
     });
 
     if (!response.ok) {
-      const error = await response.json() as { error: string };
-      throw new Error(error.error ?? "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail");
+      throw await buildApiError(
+        response,
+        "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail"
+      );
     }
 
     return await response.json() as { message: string };
@@ -199,23 +255,15 @@ export async function requestPasswordReset(email: string): Promise<{
  */
 export async function confirmPasswordReset(
   token: string,
-  password: string
+  password: string,
+  confirmPassword: string
 ): Promise<{ message: string }> {
   try {
-    const response = await fetch("/api/auth/password-reset/confirm", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ token, password }),
+    return await authService.resetPassword({
+      token,
+      newPassword: password,
+      confirmPassword,
     });
-
-    if (!response.ok) {
-      const error = await response.json() as { error: string };
-      throw new Error(error.error ?? "Fehler beim Zurücksetzen des Passworts");
-    }
-
-    return await response.json() as { message: string };
   } catch (error) {
     console.error("Password reset confirmation error:", error);
     throw error;

@@ -27,7 +27,9 @@ var cleanupCmd = &cobra.Command{
 	Use:   "cleanup",
 	Short: "Clean up expired data based on retention policies",
 	Long: `Clean up expired data based on retention policies configured in privacy consents.
-This command will delete visit records that are older than the configured retention period for each student.`,
+This command will delete visit records that are older than the configured retention period for each student.
+
+Available subcommands: visits, preview, stats, tokens, invitations, rate-limits, attendance, sessions.`,
 }
 
 // cleanupVisitsCmd represents the visits subcommand
@@ -65,6 +67,24 @@ This helps maintain database performance and security by removing tokens that ca
 	RunE: runCleanupTokens,
 }
 
+// cleanupInvitationsCmd represents the invitations subcommand
+var cleanupInvitationsCmd = &cobra.Command{
+	Use:   "invitations",
+	Short: "Clean up expired or used invitation tokens",
+	Long: `Clean up invitation tokens that are expired or already used.
+This keeps the invitation table compact and ensures stale invitations are removed.`,
+	RunE: runCleanupInvitations,
+}
+
+// cleanupRateLimitsCmd represents the rate-limits subcommand
+var cleanupRateLimitsCmd = &cobra.Command{
+	Use:   "rate-limits",
+	Short: "Clean up expired password reset rate limit records",
+	Long: `Remove password reset rate limit entries whose sliding window has expired.
+This prevents the rate limit table from growing indefinitely.`,
+	RunE: runCleanupRateLimits,
+}
+
 // cleanupAttendanceCmd represents the attendance subcommand
 var cleanupAttendanceCmd = &cobra.Command{
 	Use:   "attendance",
@@ -91,6 +111,8 @@ func init() {
 	cleanupCmd.AddCommand(cleanupPreviewCmd)
 	cleanupCmd.AddCommand(cleanupStatsCmd)
 	cleanupCmd.AddCommand(cleanupTokensCmd)
+	cleanupCmd.AddCommand(cleanupInvitationsCmd)
+	cleanupCmd.AddCommand(cleanupRateLimitsCmd)
 	cleanupCmd.AddCommand(cleanupAttendanceCmd)
 	cleanupCmd.AddCommand(cleanupSessionsCmd)
 
@@ -444,6 +466,65 @@ func runCleanupTokens(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Successfully deleted %d expired tokens\n", deletedCount)
+	return nil
+}
+
+func runCleanupInvitations(cmd *cobra.Command, args []string) error {
+	db, err := database.InitDB()
+	if err != nil {
+		return fmt.Errorf("failed to initialize database: %w", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("failed to close database: %v", err)
+		}
+	}()
+
+	repoFactory := repositories.NewFactory(db)
+	serviceFactory, err := services.NewFactory(repoFactory, db)
+	if err != nil {
+		return fmt.Errorf("failed to create service factory: %w", err)
+	}
+
+	if serviceFactory.Invitation == nil {
+		fmt.Println("Invitation service is not available; nothing to clean.")
+		return nil
+	}
+
+	ctx := context.Background()
+	count, err := serviceFactory.Invitation.CleanupExpiredInvitations(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to clean up invitations: %w", err)
+	}
+
+	fmt.Printf("Invitation cleanup removed %d records\n", count)
+	return nil
+}
+
+func runCleanupRateLimits(cmd *cobra.Command, args []string) error {
+	db, err := database.InitDB()
+	if err != nil {
+		return fmt.Errorf("failed to initialize database: %w", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("failed to close database: %v", err)
+		}
+	}()
+
+	repoFactory := repositories.NewFactory(db)
+	serviceFactory, err := services.NewFactory(repoFactory, db)
+	if err != nil {
+		return fmt.Errorf("failed to create service factory: %w", err)
+	}
+
+	ctx := context.Background()
+	count, err := serviceFactory.Auth.CleanupExpiredRateLimits(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to clean up password reset rate limits: %w", err)
+	}
+
+	fmt.Printf("Password reset rate limit cleanup removed %d records\n", count)
 	return nil
 }
 

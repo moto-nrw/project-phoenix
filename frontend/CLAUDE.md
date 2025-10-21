@@ -272,6 +272,15 @@ interface ApiResponse<T> {
 - Visit tracking includes start/end times
 - Combined groups can contain multiple regular groups
 
+## Auth & Invitations
+
+- **Public Invitation Flow** (`app/(public)/invite/page.tsx`): Suspense-powered landing page that reads the `token` query param via `useSearchParams`, calls `validateInvitation` (from `lib/invitation-api.ts`), and renders `InvitationAcceptForm`. Failure states (404/410) keep the learner on a friendly error screen with follow-up guidance.
+- **Invitation Acceptance Form** (`components/auth/invitation-accept-form.tsx`): Pre-fills first/last name when the invitation includes them, enforces password strength client-side, and surfaces granular API errors (expired, used, conflict). Successful acceptance shows a toast message and redirects to `/` after 2.5s.
+- **Admin Invitation Management** (`app/invitations/page.tsx`): Protected route (requires admin session) composed of `InvitationForm` for creating invites and `PendingInvitationsList` for resend/revoke actions. The list re-fetches whenever `refreshKey` changes to keep the grid in sync after mutations.
+- **Client API & Helpers** (`lib/invitation-api.ts`, `lib/invitation-helpers.ts`): Provide typed DTOs, mapping helpers, and error normalization for invitation CRUD. Use these utilities instead of hitting backend routes directly.
+- **Password Reset Modal** (`components/ui/password-reset-modal.tsx`): Persists rate-limit state in `localStorage`, displays a live countdown when the backend responds with `429` + `Retry-After`, and resets UI when the modal closes. Uses updated `requestPasswordReset` API which includes retry metadata.
+- **Reset Password Page** (`app/reset-password/page.tsx`): Consumes the `token` query param, validates strength, and handles API errors (expired, used, weak password) inline. On success, guides the teacher back to the login screen.
+
 ## Real-Time Updates (SSE)
 
 Project Phoenix uses Server-Sent Events (SSE) to push real-time notifications to supervisors about student movements and activity changes.

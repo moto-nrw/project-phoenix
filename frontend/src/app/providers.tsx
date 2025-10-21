@@ -11,8 +11,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       // Check session every 4 minutes (240 seconds)
       // This ensures we attempt refresh before the 15-minute token expires
       refetchInterval={4 * 60}
-      // Also refetch when window regains focus
-      refetchOnWindowFocus={true}
+      // Disable focus refetch to avoid duplicate session calls (interval handles refresh)
+      refetchOnWindowFocus={false}
     >
       <SupervisionProvider>
         <ModalProvider>

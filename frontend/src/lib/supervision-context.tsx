@@ -3,10 +3,21 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 
+interface BackendEducationalGroup {
+  id: number;
+  name: string;
+  room_id?: number;
+  room?: {
+    id: number;
+    name: string;
+  };
+}
+
 interface SupervisionState {
   // Group supervision
   hasGroups: boolean;
   isLoadingGroups: boolean;
+  groups: BackendEducationalGroup[];
   
   // Room supervision (for active sessions)
   isSupervising: boolean;
@@ -31,6 +42,7 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
   const [state, setState] = useState<SupervisionState>({
     hasGroups: false,
     isLoadingGroups: true,
+    groups: [],
     isSupervising: false,
     supervisedRoomId: undefined,
     supervisedRoomName: undefined,
@@ -55,6 +67,7 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
       setState(prev => ({
         ...prev,
         hasGroups: false,
+        groups: [],
         isLoadingGroups: false,
       }));
       return;
@@ -70,28 +83,36 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
       });
 
       if (response.ok) {
-        const data = await response.json() as { data?: { groups?: unknown[] } };
-        const newHasGroups = data?.data?.groups ? data.data.groups.length > 0 : false;
+        const data = await response.json() as { groups?: BackendEducationalGroup[] };
+        const groupList = data?.groups ?? [];
+        const newHasGroups = groupList.length > 0;
         setState(prev => {
           // Only update if value actually changed
-          if (prev.hasGroups === newHasGroups && !prev.isLoadingGroups) {
+          if (
+            prev.hasGroups === newHasGroups &&
+            prev.groups.length === groupList.length &&
+            prev.groups.every((group, index) => group.id === groupList[index]?.id) &&
+            !prev.isLoadingGroups
+          ) {
             return prev;
           }
           return {
             ...prev,
             hasGroups: newHasGroups,
+            groups: groupList,
             isLoadingGroups: false,
           };
         });
       } else {
         setState(prev => {
           // Only update if value actually changed
-          if (!prev.hasGroups && !prev.isLoadingGroups) {
+          if (!prev.hasGroups && prev.groups.length === 0 && !prev.isLoadingGroups) {
             return prev;
           }
           return {
             ...prev,
             hasGroups: false,
+            groups: [],
             isLoadingGroups: false,
           };
         });
@@ -99,12 +120,13 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
     } catch {
       setState(prev => {
         // Only update if values actually changed
-        if (!prev.hasGroups && !prev.isLoadingGroups) {
+        if (!prev.hasGroups && prev.groups.length === 0 && !prev.isLoadingGroups) {
           return prev;
         }
         return {
           ...prev,
           hasGroups: false,
+          groups: [],
           isLoadingGroups: false,
         };
       });
@@ -283,6 +305,7 @@ export function SupervisionProvider({ children }: { children: React.ReactNode })
       setState({
         hasGroups: false,
         isLoadingGroups: false,
+        groups: [],
         isSupervising: false,
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,

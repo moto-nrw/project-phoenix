@@ -147,7 +147,9 @@ func (r *AttendanceRepository) FindForDate(ctx context.Context, date time.Time) 
 		Model(&attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".date = ?`, dateOnly).
-		Order(`"attendance".student_id ASC, "attendance".check_in_time ASC`).
+		// Use OrderExpr to avoid Bun re-quoting the alias and direction together
+		OrderExpr(`"attendance".student_id ASC`).
+		OrderExpr(`"attendance".check_in_time ASC`).
 		Scan(ctx)
 
 	if err != nil {
