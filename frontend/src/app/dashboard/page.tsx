@@ -241,28 +241,37 @@ function DashboardContent() {
   return (
     <ResponsiveLayout>
       <div className="w-full max-w-7xl mx-auto">
-        {/* Greeting Section */}
+        {/* Greeting Section - Mobile optimized with underline */}
         <div className="mb-6 md:mb-8">
-          <div className="flex items-center justify-between mb-1">
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-              {greeting}, {firstName}!
-            </h1>
+          <div className="flex items-end justify-between gap-4">
+            {/* Title with underline */}
+            <div className="relative ml-6 flex-1">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 pb-3">
+                {greeting}, {firstName}!
+              </h1>
+              {/* Underline indicator - matches tab style */}
+              <div
+                className="absolute bottom-0 left-0 h-0.5 bg-gray-900 rounded-full"
+                style={{ width: '60%' }}
+              />
+              <p className="text-gray-600 text-sm md:text-base mt-3">
+                Hier ist die aktuelle Übersicht
+              </p>
+            </div>
+
             {/* Last Updated Indicator */}
             {lastUpdated && (
-              <div className="flex items-center gap-2 text-xs text-gray-500">
+              <div className="flex items-center gap-2 text-xs text-gray-500 pb-3 mr-4 flex-shrink-0">
                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span>
-                  Aktualisiert: {lastUpdated.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
-                  {refreshError && <span className="text-red-500 ml-2">• Aktualisierung fehlgeschlagen</span>}
+                <span className="hidden sm:inline">
+                  {lastUpdated.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                  {refreshError && <span className="text-red-500 ml-2">• Fehler</span>}
                 </span>
               </div>
             )}
           </div>
-          <p className="text-gray-600 text-sm md:text-base">
-            Hier ist die aktuelle Übersicht
-          </p>
         </div>
 
         {/* Error Message */}

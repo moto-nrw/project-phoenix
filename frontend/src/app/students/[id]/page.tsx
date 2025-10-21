@@ -355,14 +355,20 @@ export default function StudentDetailPage() {
                     <span className="text-sm font-medium">Zurück</span>
                 </button>
 
-                {/* Student Header - Mobile optimized */}
-                <div className="bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100 p-4 sm:p-6 mb-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">
+                {/* Student Header - Mobile optimized with underline */}
+                <div className="mb-6">
+                    <div className="flex items-end justify-between gap-4">
+                        {/* Title with underline */}
+                        <div className="relative ml-6 flex-1">
+                            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 pb-3">
                                 {student.first_name} {student.second_name}
                             </h1>
-                            <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2 text-sm text-gray-600">
+                            {/* Underline indicator - matches tab style */}
+                            <div
+                                className="absolute bottom-0 left-0 h-0.5 bg-gray-900 rounded-full"
+                                style={{ width: '70%' }}
+                            />
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-3 text-sm text-gray-600">
                                 <span>Klasse {student.school_class}</span>
                                 {student.group_name && (
                                     <>
@@ -372,7 +378,9 @@ export default function StudentDetailPage() {
                                 )}
                             </div>
                         </div>
-                        <div className="flex-shrink-0">
+
+                        {/* Status Badge */}
+                        <div className="flex-shrink-0 pb-3 mr-4">
                             <StatusBadge
                                 location={currentLocation?.location ?? student.current_location}
                                 roomName={currentLocation?.room?.name}

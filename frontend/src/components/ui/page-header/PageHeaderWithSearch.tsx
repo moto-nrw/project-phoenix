@@ -39,19 +39,17 @@ export function PageHeaderWithSearch({
 
       {/* Tabs + Badge inline (when no title - cleaner layout) */}
       {tabs && (
-        <div>
-          {/* Mobile: Underline tabs inline with badge */}
-          <div className="md:hidden flex items-center justify-between gap-3 mb-4 border-b border-gray-200">
-            <div className="flex gap-1 -mb-px">
-              <NavigationTabs {...tabs} className="mb-0" />
-            </div>
+        <div className="mb-4">
+          {/* Mobile & Desktop: Modern underline tabs with badge on the right */}
+          <div className="flex items-end justify-between gap-4">
+            <NavigationTabs {...tabs} className="flex-shrink-0" />
 
-            {/* Badge and Status inline with tabs */}
+            {/* Badge and Status inline with tabs - aligned and indented */}
             {!title && (statusIndicator ?? badge) && (
-              <div className="flex items-center gap-2 pb-3">
+              <div className="flex items-center gap-3 pb-3 mr-4">
                 {statusIndicator && (
                   <div
-                    className={`h-2 w-2 rounded-full ${
+                    className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
                       statusIndicator.color === 'green' ? 'bg-green-500 animate-pulse' :
                       statusIndicator.color === 'yellow' ? 'bg-yellow-500' :
                       statusIndicator.color === 'red' ? 'bg-red-500' :
@@ -61,19 +59,14 @@ export function PageHeaderWithSearch({
                   />
                 )}
                 {badge && (
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
-                    {badge.icon && <span className="text-gray-600">{badge.icon}</span>}
-                    <span className="text-sm font-medium text-gray-700">{badge.count}</span>
-                    {badge.label && <span className="text-sm text-gray-600">{badge.label}</span>}
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full border border-gray-100">
+                    {badge.icon && <span className="text-gray-500">{badge.icon}</span>}
+                    <span className="text-sm font-semibold text-gray-900">{badge.count}</span>
+                    {badge.label && <span className="text-xs text-gray-500">{badge.label}</span>}
                   </div>
                 )}
               </div>
             )}
-          </div>
-
-          {/* Desktop: Settings-style tabs (separate from badge) */}
-          <div className="hidden md:block mb-4">
-            <NavigationTabs {...tabs} className="mb-0" />
           </div>
         </div>
       )}

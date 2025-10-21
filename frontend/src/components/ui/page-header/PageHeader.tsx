@@ -19,33 +19,42 @@ export function PageHeader({ title, badge, statusIndicator, className = "" }: Pa
   }
 
   return (
-    <div className={`mb-4 ${className}`}>
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">
-          {title}
-        </h1>
+    <div className={`mb-6 ${className}`}>
+      <div className="flex items-end justify-between gap-4">
+        {/* Title with underline */}
+        <div className="relative ml-6">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 pb-3">
+            {title}
+          </h1>
+          {/* Underline indicator - matches tab style */}
+          <div
+            className="absolute bottom-0 left-0 h-0.5 bg-gray-900 rounded-full"
+            style={{ width: '80%' }}
+          />
+        </div>
 
+        {/* Badge and Status */}
         {(statusIndicator ?? badge) && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3 pb-3 mr-4">
             {/* Status Indicator Dot */}
             {statusIndicator && (
               <div
-                className={`h-2 w-2 rounded-full ${getStatusColor(statusIndicator.color)} ${statusIndicator.color === 'green' ? 'animate-pulse' : ''}`}
+                className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${getStatusColor(statusIndicator.color)} ${statusIndicator.color === 'green' ? 'animate-pulse' : ''}`}
                 title={statusIndicator.tooltip}
               />
             )}
 
             {/* Badge */}
             {badge && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full border border-gray-100">
                 {badge.icon && (
-                  <span className="text-gray-600">{badge.icon}</span>
+                  <span className="text-gray-500">{badge.icon}</span>
                 )}
-                <span className="text-sm font-medium text-gray-700">
+                <span className="text-sm font-semibold text-gray-900">
                   {badge.count}
                 </span>
                 {badge.label && (
-                  <span className="text-sm text-gray-600">
+                  <span className="text-xs text-gray-500">
                     {badge.label}
                   </span>
                 )}
