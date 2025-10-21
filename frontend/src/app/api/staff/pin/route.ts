@@ -53,10 +53,10 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
     
     // Check for specific error types
     if (error instanceof Error && error.message.includes("404")) {
-      throw new Error("Staff member not found");
+      throw new Error("Account not found");
     }
     if (error instanceof Error && error.message.includes("403")) {
-      throw new Error("Permission denied: Only staff members can access PIN settings");
+      throw new Error("Permission denied: Unable to access PIN settings");
     }
     
     // Re-throw other errors
@@ -96,7 +96,7 @@ export const PUT = createPutHandler<BackendPINUpdateResponse, PINUpdateRequest>(
         const errorMessage = error.message.toLowerCase();
         
         if (errorMessage.includes("403") || errorMessage.includes("forbidden")) {
-          throw new Error("Zugriff verweigert: Nur Mitarbeiter können ihre PIN verwalten");
+          throw new Error("Zugriff verweigert: Sie können Ihre PIN nicht verwalten");
         }
         if (errorMessage.includes("401") || errorMessage.includes("current pin is incorrect")) {
           throw new Error("Aktuelle PIN ist falsch");
