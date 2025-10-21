@@ -715,19 +715,28 @@ function SettingsContent() {
             ) : (
               /* Mobile Detail View */
               <div className="flex flex-col h-[calc(100vh-120px)]">
-                {/* Mobile Header with Back Button */}
-                <div className="flex items-center gap-3 pb-4 mb-4">
-                  <button
-                    onClick={handleBackToList}
-                    className="p-2 -ml-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-all"
-                  >
-                    <svg className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </button>
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    {allTabs.find(t => t.id === activeTab)?.label}
-                  </h2>
+                {/* Modern Mobile Header with Back Button and Underline */}
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 ml-3">
+                    <button
+                      onClick={handleBackToList}
+                      className="p-1.5 -ml-1.5 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-all"
+                      aria-label="Zurück"
+                    >
+                      <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                    <div className="relative inline-block">
+                      <h2 className="text-2xl font-bold text-gray-900 pb-3">
+                        {allTabs.find(t => t.id === activeTab)?.label}
+                      </h2>
+                      <div
+                        className="absolute bottom-0 left-0 h-0.5 bg-gray-900 rounded-full"
+                        style={{ width: '80%' }}
+                      />
+                    </div>
+                  </div>
                 </div>
                 {/* Scrollable Content */}
                 <div className="flex-1 overflow-y-auto -mx-4 px-4">
