@@ -36,8 +36,10 @@ interface LocationResponse {
   group: {
     id: string;
     name: string;
+    roomId?: string; // Group's assigned room ID
   } | null;
   checkInTime: string | null;
+  isGroupRoom: boolean; // True if student is in their group's room
 }
 
 /**
@@ -55,7 +57,18 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     // First, get the student details - this includes attendance status from the backend
     const studentResponse = await apiGet<StudentApiResponse>(`/api/students/${studentId}`, token);
     const student = studentResponse.data.data;
-    
+
+    // Get the student's group room ID for comparison
+    let groupRoomId: number | null = null;
+    if (student.group_id) {
+      try {
+        const groupResponse = await apiGet<{ data: { room_id: number | null } }>(`/api/groups/${student.group_id}`, token);
+        groupRoomId = groupResponse.data.data.room_id;
+      } catch (e) {
+        console.error('Error fetching group room ID:', e);
+      }
+    }
+
     // The backend already determines the correct location based on attendance data
     // If student.location is "Abwesend", they're not checked in today - regardless of group assignment
     if (student.location === "Abwesend") {
@@ -65,9 +78,11 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
         room: null,
         group: student.group_id ? {
           id: student.group_id.toString(),
-          name: student.group_name ?? "Unknown Group"
+          name: student.group_name ?? "Unknown Group",
+          roomId: groupRoomId?.toString()
         } : null,
-        checkInTime: null
+        checkInTime: null,
+        isGroupRoom: false
       } satisfies LocationResponse;
     }
     
@@ -86,11 +101,13 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
             
             // Check if student has any current room (not just their group's room)
             if (studentStatus?.current_room_id) {
+              const isInGroupRoom = groupRoomId === studentStatus.current_room_id;
+
               // Get room details
               try {
                 const roomResponse = await apiGet<RoomApiResponse>(`/api/rooms/${studentStatus.current_room_id}`, token);
                 const roomData = roomResponse.data.data;
-                
+
                 if (roomData) {
                   return {
                     status: "present",
@@ -104,9 +121,11 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
                     },
                     group: {
                       id: student.group_id.toString(),
-                      name: student.group_name ?? "Unknown Group"
+                      name: student.group_name ?? "Unknown Group",
+                      roomId: groupRoomId?.toString()
                     },
-                    checkInTime: studentStatus.check_in_time ?? null
+                    checkInTime: studentStatus.check_in_time ?? null,
+                    isGroupRoom: isInGroupRoom
                   } satisfies LocationResponse;
                 }
               } catch (e) {
@@ -124,9 +143,11 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
                   },
                   group: {
                     id: student.group_id.toString(),
-                    name: student.group_name ?? "Unknown Group"
+                    name: student.group_name ?? "Unknown Group",
+                    roomId: groupRoomId?.toString()
                   },
-                  checkInTime: studentStatus.check_in_time ?? null
+                  checkInTime: studentStatus.check_in_time ?? null,
+                  isGroupRoom: isInGroupRoom
                 } satisfies LocationResponse;
               }
             }
@@ -147,12 +168,14 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
         room: null,
         group: student.group_id ? {
           id: student.group_id.toString(),
-          name: student.group_name ?? "Unknown Group"
+          name: student.group_name ?? "Unknown Group",
+          roomId: groupRoomId?.toString()
         } : null,
-        checkInTime: null
+        checkInTime: null,
+        isGroupRoom: false
       } satisfies LocationResponse;
     }
-    
+
     // If we get here, student.location is neither "Abwesend" nor "Anwesend"
     // This shouldn't happen with proper backend logic, but handle as fallback
     return {
@@ -161,11 +184,13 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       room: null,
       group: student.group_id ? {
         id: student.group_id.toString(),
-        name: student.group_name ?? "Unknown Group"
+        name: student.group_name ?? "Unknown Group",
+        roomId: groupRoomId?.toString()
       } : null,
-      checkInTime: null
+      checkInTime: null,
+      isGroupRoom: false
     } satisfies LocationResponse;
-    
+
   } catch (error) {
     console.error("Error fetching student current location:", error);
     // Return unknown status if there's an error
@@ -174,7 +199,8 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       location: "Unbekannt",
       room: null,
       group: null,
-      checkInTime: null
+      checkInTime: null,
+      isGroupRoom: false
     } satisfies LocationResponse;
   }
 });

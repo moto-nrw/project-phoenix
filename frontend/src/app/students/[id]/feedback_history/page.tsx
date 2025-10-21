@@ -280,7 +280,7 @@ export default function StudentFeedbackHistoryPage() {
 
     if (loading) {
         return (
-            <ResponsiveLayout>
+            <ResponsiveLayout studentName="..." referrerPage={referrer}>
                 <div className="flex min-h-[80vh] items-center justify-center">
                     <div className="flex flex-col items-center gap-4">
                         <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
@@ -293,7 +293,7 @@ export default function StudentFeedbackHistoryPage() {
 
     if (error || !student) {
         return (
-            <ResponsiveLayout>
+            <ResponsiveLayout referrerPage={referrer}>
                 <div className="flex min-h-[80vh] flex-col items-center justify-center">
                     <Alert
                         type="error"
@@ -311,7 +311,7 @@ export default function StudentFeedbackHistoryPage() {
     }
 
     return (
-        <ResponsiveLayout>
+        <ResponsiveLayout studentName={student?.name} referrerPage={referrer}>
             <div className="mx-auto max-w-7xl">
                             {/* Back Button */}
                             <div className="mb-6">

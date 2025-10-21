@@ -382,7 +382,7 @@ function SearchPageContent() {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-[#5080D8]"></div>
           <p className="text-gray-600">Daten werden geladen...</p>
         </div>
       </div>
@@ -430,7 +430,7 @@ function SearchPageContent() {
         {isSearching ? (
           <div className="py-12 text-center">
             <div className="flex flex-col items-center gap-4">
-              <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+              <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-[#5080D8]"></div>
               <p className="text-gray-600">Suche läuft...</p>
             </div>
           </div>
@@ -463,7 +463,7 @@ function SearchPageContent() {
                   <div
                     key={student.id}
                     onClick={() => router.push(`/students/${student.id}?from=/students/search`)}
-                    className={`group cursor-pointer relative overflow-hidden rounded-2xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.03] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-3 active:scale-[0.97] md:hover:border-blue-200/50`}
+                    className={`group cursor-pointer relative overflow-hidden rounded-2xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.03] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-3 active:scale-[0.97] md:hover:border-[#5080D8]/30`}
                     style={{
                       transform: `rotate(${(index % 3 - 1) * 0.8}deg)`,
                       animation: `float 8s ease-in-out infinite ${index * 0.7}s`
@@ -557,7 +557,7 @@ export default function StudentSearchPage() {
   return (
     <Suspense fallback={
       <div className="flex min-h-screen items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-[#5080D8]"></div>
       </div>
     }>
       <SearchPageContent />

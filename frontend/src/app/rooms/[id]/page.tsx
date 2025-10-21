@@ -381,7 +381,7 @@ export default function RoomDetailPage() {
 
   if (loading) {
     return (
-      <ResponsiveLayout>
+      <ResponsiveLayout roomName="...">
         <div className="flex min-h-[80vh] items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
@@ -411,7 +411,7 @@ export default function RoomDetailPage() {
   }
 
   return (
-    <ResponsiveLayout>
+    <ResponsiveLayout roomName={room.name}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
         {/* Back button - Mobile optimized */}
         <button

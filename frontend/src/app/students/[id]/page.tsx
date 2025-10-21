@@ -38,20 +38,22 @@ interface ExtendedStudent extends Student {
     health_info?: string;
 }
 
-// Simplified status badge component
-function StatusBadge({ location, roomName }: { location?: string; roomName?: string }) {
+// Simplified status badge component with proper color coding
+function StatusBadge({ location, roomName, isGroupRoom = false }: { location?: string; roomName?: string; isGroupRoom?: boolean }) {
     const getStatusDetails = () => {
         // Check for "Unterwegs" (in transit) BEFORE "Anwesend" to match ogs_groups behavior
         if (location === "Unterwegs" || location === "In House" || location === "Bus") {
             return { label: location === "Bus" ? "Bus" : "Unterwegs", bgColor: "#D946EF", textColor: "text-white" };
         } else if (location === "Anwesend" || location?.startsWith("Anwesend")) {
             const label = roomName ?? (location?.startsWith("Anwesend - ") ? location.substring(11) : "Anwesend");
-            return { label, bgColor: "#83CD2D", textColor: "text-white" };
+            // 🟢 GREEN = Own group room, 🔵 BLUE = External room
+            const bgColor = isGroupRoom ? "#83CD2D" : "#5080D8";
+            return { label, bgColor, textColor: "text-white" };
         } else if (location === "Zuhause") {
             return { label: "Zuhause", bgColor: "#FF3130", textColor: "text-white" };
         } else if (location === "WC") {
             return { label: "WC", bgColor: "#5080D8", textColor: "text-white" };
-        } else if (location === "School Yard") {
+        } else if (location === "School Yard" || location === "Schulhof") {
             return { label: "Schulhof", bgColor: "#F78C10", textColor: "text-white" };
         }
         return { label: "Unbekannt", bgColor: "#6B7280", textColor: "text-white" };
@@ -119,6 +121,7 @@ export default function StudentDetailPage() {
         status: string;
         location: string;
         room: { name: string } | null;
+        isGroupRoom: boolean;
     } | null>(null);
     const [showCheckoutModal, setShowCheckoutModal] = useState(false);
     const [checkoutUpdated, setCheckoutUpdated] = useState(0);
@@ -213,6 +216,7 @@ export default function StudentDetailPage() {
                             status: string;
                             location: string;
                             room: { name: string } | null;
+                            isGroupRoom: boolean;
                         };
                         setCurrentLocation(locationData);
                     }
@@ -310,7 +314,7 @@ export default function StudentDetailPage() {
 
     if (loading) {
         return (
-            <ResponsiveLayout>
+            <ResponsiveLayout referrerPage={referrer} studentName="...">
                 <div className="flex min-h-[80vh] items-center justify-center">
                     <div className="flex flex-col items-center gap-4">
                         <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
@@ -323,7 +327,7 @@ export default function StudentDetailPage() {
 
     if (error || !student) {
         return (
-            <ResponsiveLayout>
+            <ResponsiveLayout referrerPage={referrer}>
                 <div className="flex min-h-[80vh] flex-col items-center justify-center">
                     <Alert type="error" message={error ?? "Schüler nicht gefunden"} />
                     <button
@@ -338,7 +342,7 @@ export default function StudentDetailPage() {
     }
 
     return (
-        <ResponsiveLayout>
+        <ResponsiveLayout studentName={student.name} referrerPage={referrer}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
                 {/* Back button - Mobile optimized */}
                 <button
@@ -369,7 +373,11 @@ export default function StudentDetailPage() {
                             </div>
                         </div>
                         <div className="flex-shrink-0">
-                            <StatusBadge location={currentLocation?.location ?? student.current_location} roomName={currentLocation?.room?.name} />
+                            <StatusBadge
+                                location={currentLocation?.location ?? student.current_location}
+                                roomName={currentLocation?.room?.name}
+                                isGroupRoom={currentLocation?.isGroupRoom ?? false}
+                            />
                         </div>
                     </div>
                 </div>

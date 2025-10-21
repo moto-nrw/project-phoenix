@@ -10,9 +10,13 @@ import { MobileBottomNav } from './mobile-bottom-nav';
 interface ResponsiveLayoutProps {
   children: React.ReactNode;
   pageTitle?: string;
+  studentName?: string; // For student detail page breadcrumbs
+  roomName?: string; // For room detail page breadcrumbs
+  activityName?: string; // For activity detail page breadcrumbs
+  referrerPage?: string; // Where the user came from (for contextual breadcrumbs)
 }
 
-export default function ResponsiveLayout({ children, pageTitle }: ResponsiveLayoutProps) {
+export default function ResponsiveLayout({ children, pageTitle, studentName, roomName, activityName, referrerPage }: ResponsiveLayoutProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
   const userName = session?.user?.name ?? 'Root';
@@ -49,7 +53,7 @@ export default function ResponsiveLayout({ children, pageTitle }: ResponsiveLayo
     <div className="min-h-screen flex flex-col">
       {/* Header with conditional blur - sticky positioning */}
       <div className={`sticky top-0 z-40 transition-all duration-300 ${isMobileModalOpen ? 'blur-md lg:blur-none' : ''}`}>
-        <Header userName={userName} userEmail={userEmail} userRole={userRole} customPageTitle={pageTitle} />
+        <Header userName={userName} userEmail={userEmail} userRole={userRole} customPageTitle={pageTitle} studentName={studentName} roomName={roomName} activityName={activityName} referrerPage={referrerPage} />
       </div>
       
       {/* Main content with conditional blur */}
