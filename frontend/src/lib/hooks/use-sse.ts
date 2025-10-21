@@ -125,7 +125,15 @@ export function useSSE(
         eventSource.onerror = (err) => {
           if (!mountedRef.current) return;
 
-          console.error("SSE error:", err);
+          // Log more detailed error information
+          const errorDetails = {
+            readyState: eventSource?.readyState,
+            url: endpoint,
+            type: err.type,
+            target: err.target,
+          };
+          console.error("SSE connection error:", errorDetails);
+
           setIsConnected(false);
           stableOnError(err);
 
