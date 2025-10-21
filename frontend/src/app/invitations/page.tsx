@@ -51,7 +51,7 @@ export default function InvitationsPage() {
 
   return (
     <ResponsiveLayout>
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="space-y-6">
         <InvitationForm
           onCreated={() => {
             setRefreshKey(Date.now());
