@@ -164,8 +164,6 @@ function DashboardContent() {
   const [dashboardData, setDashboardData] = useState<DashboardAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [refreshError, setRefreshError] = useState(false);
   const hasLoadedOnce = useRef(false);
 
   useEffect(() => {
@@ -182,18 +180,14 @@ function DashboardContent() {
         const data = await response.json() as { data: DashboardAnalytics };
         setDashboardData(data.data);
         setError(null);
-        setRefreshError(false);
-        setLastUpdated(new Date());
         hasLoadedOnce.current = true;
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
         // For initial load, show full error
         if (!hasLoadedOnce.current) {
           setError("Fehler beim Laden der Dashboard-Daten");
-        } else {
-          // For background refresh, keep old data and mark as stale
-          setRefreshError(true);
         }
+        // For background refresh, keep old data and continue silently
       } finally {
         setIsLoading(false);
       }
@@ -239,36 +233,20 @@ function DashboardContent() {
       <div className="w-full max-w-7xl mx-auto">
         {/* Greeting Section - Mobile optimized with underline */}
         <div className="mb-6 md:mb-8">
-          <div className="flex items-end justify-between gap-4">
-            {/* Title with underline */}
-            <div className="ml-6 flex-1">
-              <div className="relative inline-block pb-3">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-                  {greeting}, {firstName}!
-                </h1>
-                {/* Underline indicator - matches tab style */}
-                <div
-                  className="absolute bottom-0 left-0 h-0.5 bg-gray-900 rounded-full"
-                  style={{ width: '70%' }}
-                />
-              </div>
-              <p className="text-gray-600 text-sm md:text-base mt-3">
-                Hier ist die aktuelle Übersicht
-              </p>
+          <div className="ml-6">
+            <div className="relative inline-block pb-3">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+                {greeting}, {firstName}!
+              </h1>
+              {/* Underline indicator - matches tab style */}
+              <div
+                className="absolute bottom-0 left-0 h-0.5 bg-gray-900 rounded-full"
+                style={{ width: '70%' }}
+              />
             </div>
-
-            {/* Last Updated Indicator */}
-            {lastUpdated && (
-              <div className="flex items-center gap-2 text-xs text-gray-500 pb-3 mr-4 flex-shrink-0">
-                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="hidden sm:inline">
-                  {lastUpdated.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
-                  {refreshError && <span className="text-red-500 ml-2">• Fehler</span>}
-                </span>
-              </div>
-            )}
+            <p className="text-gray-600 text-sm md:text-base mt-3">
+              Hier ist die aktuelle Übersicht
+            </p>
           </div>
         </div>
 
