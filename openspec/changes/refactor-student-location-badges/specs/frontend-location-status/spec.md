@@ -1,140 +1,72 @@
 ## ADDED Requirements
 
-### Requirement: Unified Student Location Badge Helper
-- The frontend MUST expose a single `getLocationBadge` (or equivalent ModernStatusBadge wrapper) that converts `student.current_location` plus optional room metadata into a standardized badge contract (label, background token, gradient token).
-- The helper MUST interpret the following states: group room, other room, Schulhof, WC, Bus, Unterwegs, Zuhause, Unbekannt, `Anwesend - <Room>`, and `Anwesend in <Room>` prefixes.
-- Styling tokens MUST be sourced from a centralized map so labels and gradients remain consistent across surfaces.
+### Requirement: Structured Student Location Status
+- Backend APIs and SSE events MUST deliver a `StudentLocationStatus` object per student with a canonical `state` (`PRESENT_IN_ROOM`, `TRANSIT`, `SCHOOLYARD`, `HOME`) and optional room metadata when applicable.
+- Room metadata MUST include `id`, `name`, and `isGroupRoom` so the UI can distinguish group rooms from other rooms without string parsing.
 
-#### Scenario: Parse detailed present state with room metadata
-- **GIVEN** a student whose `current_location` equals `"Anwesend"`
-- **AND** room status indicates they are in their assigned group room named "Grüner Raum"
-- **WHEN** the helper is invoked
-- **THEN** it MUST return label "Grüner Raum"
-- **AND** it MUST reference the green "present" token set shared by all surfaces.
+#### Scenario: Present in home group room
+- **GIVEN** backend emits `{ state: "PRESENT_IN_ROOM", room: { id: "12", name: "Gruppenraum 3", isGroupRoom: true } }`
+- **WHEN** the frontend receives the payload
+- **THEN** the helper MUST treat the student as present in their group room using the provided label.
 
-#### Scenario: Fallback to suffix parsing when room metadata missing
-- **GIVEN** a student whose `current_location` equals `"Anwesend - Werkraum"`
-- **AND** no room-status payload is provided
-- **WHEN** the helper is invoked
-- **THEN** it MUST return label "Werkraum"
-- **AND** it MUST mark the badge as "other room" styling.
+#### Scenario: Present in foreign room
+- **GIVEN** backend emits `{ state: "PRESENT_IN_ROOM", room: { id: "42", name: "Werkraum", isGroupRoom: false } }`
+- **WHEN** the frontend receives the payload
+- **THEN** the helper MUST label the badge "Werkraum" and style it as “other room”.
 
-#### Scenario: Parse "Anwesend in" prefix
-- **GIVEN** a student whose `current_location` equals `"Anwesend in Bibliothek"`
-- **AND** no additional room metadata is provided
-- **WHEN** the helper is invoked
-- **THEN** it MUST return label "Bibliothek"
-- **AND** it MUST use the blue "other room" token set.
+#### Scenario: Transit state without room data
+- **GIVEN** backend emits `{ state: "TRANSIT" }`
+- **WHEN** the frontend receives the payload
+- **THEN** the badge MUST display "Unterwegs".
 
-#### Scenario: Handle non-present states from raw string
-- **GIVEN** a student whose `current_location` equals `"Bus"`
-- **WHEN** the helper is invoked
-- **THEN** it MUST return label "Bus"
-- **AND** it MUST map to the purple "Unterwegs" token set.
+#### Scenario: Schoolyard state
+- **GIVEN** backend emits `{ state: "SCHOOLYARD" }`
+- **WHEN** the frontend receives the payload
+- **THEN** the badge MUST display "Schulhof".
 
-#### Scenario: Handle direct "Unterwegs" status
-- **GIVEN** a student whose `current_location` equals `"Unterwegs"`
-- **WHEN** the helper is invoked
-- **THEN** it MUST return label "Unterwegs"
-- **AND** it MUST map to the purple "Unterwegs" token set.
+#### Scenario: Home state
+- **GIVEN** backend emits `{ state: "HOME" }`
+- **WHEN** the frontend receives the payload
+- **THEN** the badge MUST display "Zuhause".
 
-#### Scenario: Handle "Zuhause" status
-- **GIVEN** a student whose `current_location` equals `"Zuhause"`
-- **WHEN** the helper is invoked
-- **THEN** it MUST return label "Zuhause"
-- **AND** it MUST map to the red "home" token set.
+#### Scenario: Room metadata precedence
+- **GIVEN** backend emits `{ state: "PRESENT_IN_ROOM", room: { id: "99", name: "Musikraum", isGroupRoom: false } }`
+- **AND** no additional overrides are provided
+- **WHEN** the helper resolves the badge
+- **THEN** it MUST use the provided room name without consulting legacy suffix parsing.
 
-#### Scenario: Handle "WC" status
-- **GIVEN** a student whose `current_location` equals `"WC"`
-- **WHEN** the helper is invoked
-- **THEN** it MUST return label "WC"
-- **AND** it MUST map to the blue "WC" token set.
+### Requirement: Unified Badge Helper & Styling
+- Frontend MUST expose a single helper/component that maps `StudentLocationStatus` to badge label and styling tokens shared across OGS groups, My Room, student search, and the student detail modal.
+- Styling tokens for group room, other room, transit, schoolyard, and home MUST be defined in one theme map to enable consistent updates.
 
-#### Scenario: Handle "School Yard" translation
-- **GIVEN** a student whose `current_location` equals `"School Yard"`
-- **WHEN** the helper is invoked
-- **THEN** it MUST return label "Schulhof"
-- **AND** it MUST map to the orange "school yard" token set.
+#### Scenario: Shared styling across surfaces
+- **GIVEN** the helper is applied to OGS groups, My Room, student search, and the student detail modal
+- **WHEN** each surface renders a student in the same state (e.g., `PRESENT_IN_ROOM` with `isGroupRoom: false`)
+- **THEN** every surface MUST display the same label and styling tokens.
 
-#### Scenario: Handle unknown fallback
-- **GIVEN** a student whose `current_location` equals `"SomethingElse"`
-- **WHEN** the helper is invoked
-- **THEN** it MUST return label "Unbekannt"
-- **AND** it MUST map to the neutral "unknown" token set.
+### Requirement: Live Updates via SSE
+- All four surfaces MUST subscribe to student location SSE updates and refresh badges immediately upon receiving new events.
+- When SSE is unavailable, surfaces MAY fall back to a 30-second polling loop but MUST keep displaying the last known state.
 
-#### Scenario: Handle empty or missing current_location
-- **GIVEN** a student whose `current_location` is `null` (or an empty string)
-- **WHEN** the helper is invoked
-- **THEN** it MUST return label "Unbekannt"
-- **AND** it MUST map to the neutral "unknown" token set.
+#### Scenario: SSE update propagates to surfaces
+- **GIVEN** a student is displayed on OGS groups, My Room, student search, and the detail modal with state `HOME`
+- **WHEN** an SSE event arrives with `{ state: "PRESENT_IN_ROOM", room: { id: "42", name: "Werkraum", isGroupRoom: false } }`
+- **THEN** all four surfaces MUST update the badge to "Werkraum" without requiring a manual refresh.
 
-#### Scenario: Prefer room metadata over generic present label
-- **GIVEN** a student whose `current_location` equals `"Anwesend"`
-- **AND** room status provides `current_room_id = 42` resolved via the room map to "Kreativraum"
-- **WHEN** the helper is invoked
-- **THEN** it MUST return label "Kreativraum"
-- **AND** it MUST map to the blue "other room" token set (indicating foreign room).
+#### Scenario: SSE outage falls back to polling
+- **GIVEN** the student detail modal is open and SSE disconnects
+- **WHEN** 30 seconds pass since the last successful update
+- **THEN** the modal MUST fetch `/api/students/:id/current-location` to refresh the badge while keeping the last known state visible.
 
-### Requirement: Surfaces Consume Unified Helper
-- When the `NEXT_PUBLIC_ENABLE_UNIFIED_LOCATION_BADGE` flag is enabled, the OGS groups page, student search page, My Room, and student detail modal MUST render location badges using the shared helper/component.
-- Under the enabled flag, each surface MUST display the same label and styling for identical student state.
-- My Room and the student detail modal MUST display a location badge if data is available.
+### Requirement: Deprecate Legacy Location Flags
+- Frontend MUST remove usage of legacy booleans (`in_house`, `wc`, `school_yard`) and string parsing patterns (e.g., "Anwesend - ...").
+- Backend documentation MUST mark those fields as deprecated for downstream consumers.
 
-#### Scenario: My Room renders foreign-room badge
-- **GIVEN** a student card in My Room whose visit data includes `current_room_id` 17 mapped to "Musikraum"
-- **WHEN** the page renders
-- **THEN** the badge MUST display "Musikraum"
-- **AND** it MUST use the blue "other room" token set.
+#### Scenario: Legacy flag removal
+- **GIVEN** the frontend receives a student payload
+- **WHEN** mapping the data for UI
+- **THEN** it MUST ignore legacy boolean flags and rely solely on `StudentLocationStatus` for badge decisions.
 
-#### Scenario: Student detail modal shows real-time status
-- **GIVEN** the modal loads a student whose `/current-location` endpoint reports status `"School Yard"`
-- **WHEN** the modal header renders
-- **THEN** it MUST show a badge labeled "Schulhof"
-- **AND** it MUST use the orange token set aligned with other surfaces.
-
-#### Scenario: Student detail modal refreshes every 30 seconds
-- **GIVEN** the feature flag is enabled
-- **AND** the student detail modal remains open for longer than 30 seconds
-- **WHEN** more than 30 seconds elapse since the last `/current-location` fetch
-- **THEN** the modal MUST trigger a refresh call to `/current-location` to update the badge state.
-
-#### Scenario: OGS and search surfaces stay in sync
-- **GIVEN** a student appears in both the OGS group list and the student search results
-- **AND** the student's `current_location` equals `"Anwesend - Werkraum"`
-- **WHEN** both surfaces are rendered after the helper integration
-- **THEN** each surface MUST display label "Werkraum"
-- **AND** both MUST use the blue "other room" token set.
-
-#### Scenario: Feature flag disabled reverts to legacy behaviour
-- **GIVEN** the runtime flag `NEXT_PUBLIC_ENABLE_UNIFIED_LOCATION_BADGE` is set to `false`
-- **WHEN** the application renders the OGS group view
-- **THEN** it MUST continue to use the legacy badge logic (pre-helper) so rollout can be safely toggled.
-- **AND** when the student detail modal is opened, it MUST also fall back to its legacy state (no unified badge) while the flag remains disabled.
-
-#### Scenario: Feature flag disabled keeps search/My Room on legacy behaviour
-- **GIVEN** the runtime flag `NEXT_PUBLIC_ENABLE_UNIFIED_LOCATION_BADGE` is set to `false`
-- **WHEN** the application renders the student search page and the My Room view
-- **THEN** both MUST continue to use their existing (pre-helper) badge or label behavior while the flag remains disabled, ensuring the shared helper is gated behind the rollout flag for all surfaces.
-
-### Requirement: Remove Legacy Boolean Dependencies
-- Frontend mapping MUST stop populating deprecated boolean flags (`in_house`, `school_yard`, `wc`) except where required for backward compatibility tooling.
-- UI logic MUST derive state from `current_location` (and room metadata) instead of those booleans.
-- Automated tests MUST cover badge output for each supported state.
-
-#### Scenario: Mapper no longer sets school yard boolean
-- **GIVEN** the frontend maps a backend student payload
-- **WHEN** `backendStudent.location` equals `"School Yard"`
-- **THEN** the resulting student object MUST reflect `current_location = "School Yard"`
-- **AND** it MUST NOT set `school_yard = true`.
-
-#### Scenario: Mapper no longer sets in-house or WC booleans
-- **GIVEN** the frontend maps a backend student payload
-- **WHEN** `backendStudent.location` equals `"Anwesend"`
-- **THEN** the resulting student object MUST reflect `current_location = "Anwesend"`
-- **AND** it MUST NOT set `in_house = true` or `wc = true`.
-
-#### Scenario: Tests enforce badge outputs
-- **GIVEN** the badge helper/component test suite runs
-- **WHEN** it evaluates the canonical state `"Zuhause"`
-- **THEN** the test MUST assert the helper returns label "Zuhause" and references the red "home" token set.
-- **AND** additional test cases MUST cover group room, other room, Schulhof, WC, Bus, Unterwegs, and Unbekannt labels with matching tokens.
+#### Scenario: Deprecated schema announcement
+- **GIVEN** release notes are published for the rollout
+- **THEN** they MUST highlight the new structured location schema and the deprecation of legacy flags to downstream teams.

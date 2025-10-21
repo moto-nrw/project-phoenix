@@ -1,16 +1,21 @@
 ## Why
-- Location badges diverge across OGS groups (SSE + room-status endpoint), student search (manual fetch only), My Room (SSE + visits API), and the student detail modal (REST + current-location API). The same student can show different labels, gradients, or no badge at all, which erodes trust in location accuracy.
-- Deprecated boolean flags (`in_house`, `school_yard`, `wc`) still drive UI logic even though the mapper auto-populates or disables them; downstream tools (exports, analytics) may also rely on them, so we must retire them with an explicit audit and communication plan.
-- My Room and the student detail modal omit location status altogether despite fetching the necessary data, reducing supervisors' situational awareness and creating parity gaps with the OGS and search surfaces.
+- Current location badges rely on loosely parsed strings (e.g., "Anwesend - Raum") and legacy booleans (in_house, wc, school_yard) that no longer represent the real student state.
+- Surfaces update inconsistently: OGS groups and My Room stream SSE events, while student search and the student detail modal fall back to manual fetches, producing stale data.
+- Supervisors need a trustworthy view of where students are (home, in their group room, in another room, on the schoolyard, or in transit) with consistent styling across the entire UI.
 
 ## What Changes
-- Introduce a shared location badge helper/component that maps `student.current_location` and optional room metadata into unified labels, styling tokens, and gradients, covering every canonical state (group room, other room, Schulhof, WC, Bus, Unterwegs, Zuhause, Unknown).
-- Update OGS groups (SSE), student search (fetch polling), My Room (SSE), and the student detail modal (REST + periodic 30-second re-fetch) to rely on the shared helper so real-time streams and static payloads render the same state; document any SSE vs REST freshness differences and provide validation steps.
-- Normalize state detection by parsing the rich `current_location` string (supporting `Anwesend - …`, `Anwesend in …`, `Bus`, `WC`, etc.) and remove dependencies on deprecated boolean flags after auditing external consumers and coordinating with any affected owners.
-- Provide regression coverage (logic unit tests plus visual snapshots/Storybook stories) that lock down badge output for each supported state and ensure SSE updates remain visible.
+- Introduce a structured `StudentLocationStatus` model that captures canonical states (`PRESENT_IN_ROOM`, `TRANSIT`, `SCHOOLYARD`, `HOME`) plus room metadata (room id/name, isGroupRoom) sourced from the real-time attendance backend instead of ad-hoc strings.
+- Build a single badge helper/component that renders unified labels and styling for every surface (OGS groups, My Room, student search, student detail modal) using the structured status.
+- Extend SSE integration so all four surfaces receive live updates; fall back to the last known state if the connection drops while indicating SSE health elsewhere.
+- Remove references to deprecated states such as "Bus" and "WC", deprecate the legacy boolean flags, and document the new location schema for downstream consumers.
 
 ## Impact
-- UX: Consistent badge labels and visuals everywhere, plus restored visibility in My Room and the detail modal.
-- DX: Single source of truth for location styling, simplifying future tweaks.
-- Risk: Requires careful mapping changes, SSE vs REST sanity checks, boolean deprecation across other tooling, and a guarded rollout; mitigated through documented validation (SSE simulation, stakeholder sign-off) and a feature flag that can revert to legacy badges if issues surface.
-- Dependencies: Coordination with frontend UX (badge copy/colors), backend/data owners (confirm boolean retirement impact), QA for SSE regression coverage, and Release Engineering to host the rollout flag; backend changes only if additional location data is needed (not expected).
+- Product: Supervisors immediately see accurate, real-time student locations with consistent visuals regardless of where they are in the app.
+- Engineering: Single source of truth for badges, simpler future refinements, and elimination of fragile string parsing.
+- Data: Clearly defined location schema enables analytics/exports to consume structured location data.
+- Risk: Requires synchronizing SSE payload/schema updates and updating every surface simultaneously; mitigated with thorough tests, coordinated rollout, and communication to downstream consumers.
+
+## Dependencies
+- Backend attendance service must expose the structured location payload (via SSE events and REST endpoints) containing canonical state + room metadata.
+- UX/product sign-off on final badge labels/colors.
+- Coordination with analytics/exports consumers to adopt the new location schema after deprecating legacy booleans.
