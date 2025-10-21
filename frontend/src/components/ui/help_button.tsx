@@ -22,11 +22,11 @@ export function HelpButton({ title, content, buttonClassName = "" }: HelpButtonP
                 onClick={() => setIsOpen(true)}
                 className={`relative inline-flex items-center justify-center
                     w-10 h-10 min-w-[40px] min-h-[40px]
-                    bg-blue-100/40 hover:bg-blue-200/60
-                    text-blue-600 hover:text-blue-700 
+                    bg-gray-100/40 hover:bg-gray-200/60
+                    text-gray-600 hover:text-gray-700
                     transition-colors duration-200
                     rounded-full
-                    focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2
+                    focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2
                     ${buttonClassName}`}
                 title="Hilfe anzeigen"
                 aria-label="Hilfe anzeigen"
