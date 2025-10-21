@@ -118,16 +118,16 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
   };
 
   return (
-    <div className="rounded-2xl border border-gray-200/50 bg-white/90 backdrop-blur-sm p-6 shadow-sm">
-      <div className="flex items-center gap-3 mb-4">
+    <div className="rounded-2xl border border-gray-200/50 bg-white/90 backdrop-blur-sm p-4 md:p-6 shadow-sm">
+      <div className="flex items-center gap-2 md:gap-3 mb-4">
         <div className="rounded-xl bg-gray-100 p-2">
-          <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="h-4 w-4 md:h-5 md:w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Neue Einladung</h2>
-          <p className="text-sm text-gray-600">Per E-Mail einladen</p>
+          <h2 className="text-base md:text-lg font-semibold text-gray-900">Neue Einladung</h2>
+          <p className="text-xs md:text-sm text-gray-600">Per E-Mail einladen</p>
         </div>
       </div>
 
