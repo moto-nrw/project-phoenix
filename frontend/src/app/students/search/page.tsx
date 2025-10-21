@@ -392,9 +392,9 @@ function SearchPageContent() {
   return (
     <ResponsiveLayout>
       <div className="w-full -mt-1.5">
-        {/* PageHeaderWithSearch - No title */}
+        {/* PageHeaderWithSearch - With Suche title */}
         <PageHeaderWithSearch
-          title=""
+          title="Suche"
           badge={{
             icon: (
               <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
