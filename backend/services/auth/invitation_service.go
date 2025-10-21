@@ -115,6 +115,13 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 		return nil, &AuthError{Op: "create invitation", Err: fmt.Errorf("invalid email address")}
 	}
 
+	// Prevent generating invitations for emails that already belong to an account.
+	if _, err := s.accountRepo.FindByEmail(ctx, emailAddress); err == nil {
+		return nil, &AuthError{Op: "create invitation", Err: ErrEmailAlreadyExists}
+	} else if !isNotFoundError(err) {
+		return nil, &AuthError{Op: "create invitation", Err: err}
+	}
+
 	if req.RoleID <= 0 {
 		return nil, &AuthError{Op: "create invitation", Err: fmt.Errorf("role id is required")}
 	}
