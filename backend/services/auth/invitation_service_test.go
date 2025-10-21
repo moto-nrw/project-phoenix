@@ -89,6 +89,8 @@ func TestCreateInvitationSuccess(t *testing.T) {
 	require.Equal(t, "newuser@example.com", invitation.Email)
 	require.Equal(t, int64(2), invitation.RoleID)
 	require.Equal(t, int64(42), invitation.CreatedBy)
+	require.NotNil(t, invitation.Role)
+	require.Equal(t, "Teacher", invitation.Role.Name)
 
 	ttl := time.Until(invitation.ExpiresAt)
 	require.GreaterOrEqual(t, ttl, 47*time.Hour)

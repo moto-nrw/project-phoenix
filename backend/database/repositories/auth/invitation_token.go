@@ -188,7 +188,13 @@ func (r *InvitationTokenRepository) List(ctx context.Context, filters map[string
 	var tokens []*modelAuth.InvitationToken
 	query := r.db.NewSelect().
 		Model(&tokens).
-		ModelTableExpr(invitationTableAlias)
+		ModelTableExpr(invitationTableAlias).
+		Relation("Role", func(q *bun.SelectQuery) *bun.SelectQuery {
+			return q.Column("id", "name")
+		}).
+		Relation("Creator", func(q *bun.SelectQuery) *bun.SelectQuery {
+			return q.Column("id", "email")
+		})
 
 	now := time.Now()
 

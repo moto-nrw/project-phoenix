@@ -169,6 +169,22 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 	log.Printf("Invitation created by account=%d for email=%s", req.CreatedBy, invitation.Email)
 
 	roleName, _ := s.lookupRoleName(ctx, invitation.RoleID)
+	if roleName != "" {
+		invitation.Role = &authModels.Role{
+			Model: modelBase.Model{ID: invitation.RoleID},
+			Name:  roleName,
+		}
+	}
+
+	if creator, err := s.accountRepo.FindByID(ctx, invitation.CreatedBy); err == nil && creator != nil {
+		invitation.Creator = &authModels.Account{
+			Model: modelBase.Model{ID: creator.ID},
+			Email: creator.Email,
+		}
+	} else if err != nil && !isNotFoundError(err) {
+		return nil, &AuthError{Op: "lookup creator", Err: err}
+	}
+
 	s.sendInvitationEmail(invitation, roleName)
 
 	return invitation, nil
