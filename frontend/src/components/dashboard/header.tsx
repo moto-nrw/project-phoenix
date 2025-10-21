@@ -309,10 +309,19 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
                             /* Breadcrumb for Invitations page */
                             <nav className="hidden md:flex items-center space-x-2 text-base">
                                 <Link
-                                    href="/dashboard"
+                                    href="/database"
                                     className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
                                 >
-                                    Dashboard
+                                    Datenverwaltung
+                                </Link>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <Link
+                                    href="/database/teachers"
+                                    className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                                >
+                                    Betreuer
                                 </Link>
                                 <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
