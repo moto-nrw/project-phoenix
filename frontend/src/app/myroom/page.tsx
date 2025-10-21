@@ -7,6 +7,7 @@ import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
+import { Loading } from "~/components/ui/loading";
 import { userContextService } from "~/lib/usercontext-api";
 import { activeService } from "~/lib/active-api";
 import { fetchStudent } from "~/lib/student-api";
@@ -452,12 +453,7 @@ function MeinRaumPageContent() {
   if (status === "loading" || isLoading || hasAccess === null) {
     return (
       <ResponsiveLayout>
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-[#5080D8]"></div>
-            <p className="text-gray-600">Daten werden geladen...</p>
-          </div>
-        </div>
+        <Loading fullPage={false} />
       </ResponsiveLayout>
     );
   }
@@ -834,9 +830,7 @@ export default function MeinRaumPage() {
     <Suspense
       fallback={
         <ResponsiveLayout>
-          <div className="flex min-h-[60vh] items-center justify-center">
-            <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-[#5080D8]"></div>
-          </div>
+          <Loading fullPage={false} />
         </ResponsiveLayout>
       }
     >

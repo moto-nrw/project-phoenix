@@ -37,8 +37,14 @@ interface NavItem {
 }
 
 // Static main navigation items - always visible in bottom bar
-// Order: Gruppe - Raum - Suchen - Aktivität - Mehr
+// Order: Home - Meine Gruppe - Mein Raum - Suche - Mehr
 const mainNavItems: NavItem[] = [
+  {
+    href: "/dashboard",
+    label: "Home",
+    iconKey: "home",
+    alwaysShow: true,
+  },
   {
     href: "/ogs_groups",
     label: "Gruppe",
@@ -57,12 +63,6 @@ const mainNavItems: NavItem[] = [
     iconKey: "search",
     alwaysShow: true,
   },
-  {
-    href: "/activities",
-    label: "Aktivitäten",
-    iconKey: "activities",
-    alwaysShow: true,
-  },
 ];
 
 // Additional navigation items that appear in the overflow menu
@@ -77,7 +77,7 @@ interface AdditionalNavItem {
 }
 
 const additionalNavItems: AdditionalNavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', iconKey: 'home', requiresAdmin: true },
+  { href: '/activities', label: 'Aktivitäten', iconKey: 'activities', alwaysShow: true },
   { href: '/staff', label: 'Mitarbeiter', iconKey: 'staff', alwaysShow: true },
   { href: '/rooms', label: 'Räume', iconKey: 'rooms', alwaysShow: true },
   { href: '/substitutions', label: 'Vertretungen', iconKey: 'substitutions', requiresAdmin: true },
@@ -100,6 +100,8 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
   const navRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const moreButtonRef = useRef<HTMLButtonElement | null>(null);
   const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
+  const [indicatorVisible, setIndicatorVisible] = useState(false);
+  const isInitialMount = useRef(true);
 
   // Get session for role checking
   const { data: session } = useSession();
@@ -182,11 +184,16 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
         if (activeElement) {
           const { offsetLeft, offsetWidth } = activeElement;
           setIndicatorStyle({ left: offsetLeft, width: offsetWidth });
+          setIndicatorVisible(true);
         }
       } else if (isAnyAdditionalNavActive && moreButtonRef.current) {
         // "Mehr" button is active
         const { offsetLeft, offsetWidth } = moreButtonRef.current;
         setIndicatorStyle({ left: offsetLeft, width: offsetWidth });
+        setIndicatorVisible(true);
+      } else {
+        // No active item found - hide indicator
+        setIndicatorVisible(false);
       }
     };
 
@@ -194,6 +201,32 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
     const timer = setTimeout(updateIndicator, 10);
     return () => clearTimeout(timer);
   }, [pathname, displayMainItems, isAnyAdditionalNavActive, isActiveRoute]);
+
+  // Enable transitions after initial position is set and rendered
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      isInitialMount.current = false;
+    }, 100); // Wait for initial position to be set and painted
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Force indicator update on mount and when refs change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const activeIndex = displayMainItems.findIndex(item => isActiveRoute(item.href));
+
+      if (activeIndex !== -1 && navRefs.current[activeIndex]) {
+        const activeElement = navRefs.current[activeIndex];
+        if (activeElement) {
+          const { offsetLeft, offsetWidth } = activeElement;
+          setIndicatorStyle({ left: offsetLeft, width: offsetWidth });
+          setIndicatorVisible(true);
+        }
+      }
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [displayMainItems, isActiveRoute]);
 
   return (
     <>
@@ -258,13 +291,17 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
           <div className="bg-white/95 backdrop-blur-md rounded-full shadow-[0_-2px_20px_rgba(0,0,0,0.08)] border border-gray-200/50 px-3 py-2">
             <div className="relative flex items-center justify-around gap-1">
               {/* Sliding background indicator */}
-              <div
-                className="absolute top-0 h-full bg-gray-900 rounded-full shadow-md transition-all duration-300 ease-out"
-                style={{
-                  left: `${indicatorStyle.left}px`,
-                  width: `${indicatorStyle.width}px`,
-                }}
-              />
+              {indicatorVisible && (
+                <div
+                  className={`absolute top-0 h-full bg-gray-900 rounded-full shadow-md ${
+                    !isInitialMount.current ? 'transition-all duration-300 ease-out' : ''
+                  }`}
+                  style={{
+                    left: `${indicatorStyle.left}px`,
+                    width: `${indicatorStyle.width}px`,
+                  }}
+                />
+              )}
 
               {/* Main navigation items */}
               {displayMainItems.map((item, index) => {
@@ -276,9 +313,9 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
                     href={item.href}
                     ref={el => { navRefs.current[index] = el; }}
                     className={`
-                      relative z-10 flex items-center justify-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-full transition-colors duration-200
+                      relative z-10 flex items-center justify-center gap-2.5 px-3 py-2.5 min-h-[44px] rounded-full transition-colors duration-200
                       ${isActive
-                        ? 'text-white'
+                        ? 'text-white bg-gray-900'
                         : 'text-gray-400 hover:text-gray-600'
                       }
                     `}
@@ -305,9 +342,9 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
                   ref={moreButtonRef}
                   onClick={() => setIsOverflowMenuOpen(true)}
                   className={`
-                    relative z-10 flex items-center justify-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-full transition-colors duration-200
+                    relative z-10 flex items-center justify-center gap-2.5 px-3 py-2.5 min-h-[44px] rounded-full transition-colors duration-200
                     ${isOverflowMenuOpen || isAnyAdditionalNavActive
-                      ? 'text-white'
+                      ? 'text-white bg-gray-900'
                       : 'text-gray-400 hover:text-gray-600'
                     }
                   `}

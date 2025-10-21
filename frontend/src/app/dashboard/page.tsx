@@ -10,6 +10,7 @@ import { fetchWithAuth } from "~/lib/fetch-with-auth";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import { formatRecentActivityTime, getActivityStatusColor, getGroupStatusColor } from "~/lib/dashboard-helpers";
 
+import { Loading } from "~/components/ui/loading";
 // Helper function to get time-based greeting
 function getTimeBasedGreeting(): string {
   const hour = new Date().getHours();
@@ -225,12 +226,7 @@ function DashboardContent() {
   if (status === "loading") {
     return (
       <ResponsiveLayout>
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-gray-900"></div>
-            <p className="text-gray-600">Dashboard wird geladen...</p>
-          </div>
-        </div>
+        <Loading fullPage={false} />
       </ResponsiveLayout>
     );
   }
@@ -245,15 +241,17 @@ function DashboardContent() {
         <div className="mb-6 md:mb-8">
           <div className="flex items-end justify-between gap-4">
             {/* Title with underline */}
-            <div className="relative ml-6 flex-1">
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 pb-3">
-                {greeting}, {firstName}!
-              </h1>
-              {/* Underline indicator - matches tab style */}
-              <div
-                className="absolute bottom-0 left-0 h-0.5 bg-gray-900 rounded-full"
-                style={{ width: '60%' }}
-              />
+            <div className="ml-6 flex-1">
+              <div className="relative inline-block pb-3">
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+                  {greeting}, {firstName}!
+                </h1>
+                {/* Underline indicator - matches tab style */}
+                <div
+                  className="absolute bottom-0 left-0 h-0.5 bg-gray-900 rounded-full"
+                  style={{ width: '70%' }}
+                />
+              </div>
               <p className="text-gray-600 text-sm md:text-base mt-3">
                 Hier ist die aktuelle Übersicht
               </p>
@@ -457,24 +455,24 @@ function DashboardContent() {
               <div className="h-32 bg-gray-100 rounded-lg animate-pulse"></div>
             ) : (
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-cyan-50">
-                  <p className="text-xs text-blue-700 font-medium mb-1">Betreuer im Dienst</p>
-                  <p className="text-2xl font-bold text-blue-900">{dashboardData?.supervisorsToday ?? 0}</p>
+                <div className="p-4 rounded-xl bg-gray-50/50 border border-gray-200/50 hover:bg-gray-100/50 transition-colors">
+                  <p className="text-xs text-gray-600 font-medium mb-1">Betreuer im Dienst</p>
+                  <p className="text-2xl font-bold text-gray-900">{dashboardData?.supervisorsToday ?? 0}</p>
                 </div>
                 {dashboardData && dashboardData.studentsPresent > 0 && dashboardData.supervisorsToday > 0 ? (
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50">
-                    <p className="text-xs text-green-700 font-medium mb-1">Kinder je Betreuer</p>
-                    <p className="text-2xl font-bold text-green-900">
+                  <div className="p-4 rounded-xl bg-gray-50/50 border border-gray-200/50 hover:bg-gray-100/50 transition-colors">
+                    <p className="text-xs text-gray-600 font-medium mb-1">Kinder je Betreuer</p>
+                    <p className="text-2xl font-bold text-gray-900">
                       {dashboardData.supervisorsToday > 0
                         ? Math.round(dashboardData.studentsPresent / dashboardData.supervisorsToday)
                         : '-'}
                     </p>
-                    <p className="text-xs text-green-600 mt-1">Betreuungsschlüssel</p>
+                    <p className="text-xs text-gray-500 mt-1">Betreuungsschlüssel</p>
                   </div>
                 ) : (
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-gray-50 to-slate-50">
+                  <div className="p-4 rounded-xl bg-gray-50/50 border border-gray-200/50">
                     <p className="text-xs text-gray-600 font-medium mb-1">Kinder je Betreuer</p>
-                    <p className="text-2xl font-bold text-gray-700">-</p>
+                    <p className="text-2xl font-bold text-gray-400">-</p>
                     <p className="text-xs text-gray-500 mt-1">Keine Daten</p>
                   </div>
                 )}

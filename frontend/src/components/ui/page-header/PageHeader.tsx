@@ -19,11 +19,11 @@ export function PageHeader({ title, badge, statusIndicator, className = "" }: Pa
   }
 
   return (
-    <div className={`mb-6 ${className}`}>
+    <div className={`mb-6 md:hidden ${className}`}>
       <div className="flex items-end justify-between gap-4">
         {/* Title with underline */}
         <div className="relative ml-6">
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 pb-3">
+          <h1 className="text-2xl font-bold text-gray-900 pb-3">
             {title}
           </h1>
           {/* Underline indicator - matches tab style */}

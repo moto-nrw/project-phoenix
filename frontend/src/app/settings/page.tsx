@@ -11,6 +11,7 @@ import { PINManagement } from "~/components/staff";
 import { IOSToggle } from "~/components/ui/ios-toggle";
 import { fetchProfile, updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { Profile, ProfileUpdateRequest } from "~/lib/profile-helpers";
+import { Loading } from "~/components/ui/loading";
 
 // Tab configuration
 interface Tab {
@@ -165,12 +166,9 @@ function SettingsContent() {
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-gray-800"></div>
-          <p className="text-gray-600">Einstellungen werden geladen...</p>
-        </div>
-      </div>
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
     );
   }
 
@@ -778,12 +776,9 @@ function SettingsContent() {
 export default function SettingsPage() {
   return (
     <Suspense fallback={
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-gray-800"></div>
-          <p className="text-gray-600">Einstellungen werden geladen...</p>
-        </div>
-      </div>
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
     }>
       <SettingsContent />
     </Suspense>

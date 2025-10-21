@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
+import { Loading } from "~/components/ui/loading";
 import { useSession } from "next-auth/react";
 import { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
@@ -315,12 +316,7 @@ export default function StudentDetailPage() {
     if (loading) {
         return (
             <ResponsiveLayout referrerPage={referrer} studentName="...">
-                <div className="flex min-h-[80vh] items-center justify-center">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-                        <p className="text-gray-600">Daten werden geladen...</p>
-                    </div>
-                </div>
+                <Loading message="Laden..." fullPage={false} />
             </ResponsiveLayout>
         );
     }
@@ -355,22 +351,17 @@ export default function StudentDetailPage() {
                     <span className="text-sm font-medium">Zurück</span>
                 </button>
 
-                {/* Student Header - Mobile optimized with underline */}
+                {/* Student Header - Mobile optimized */}
                 <div className="mb-6">
                     <div className="flex items-end justify-between gap-4">
-                        {/* Title with underline */}
-                        <div className="relative ml-6 flex-1">
-                            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 pb-3">
+                        {/* Title */}
+                        <div className="ml-6 flex-1">
+                            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
                                 {student.first_name} {student.second_name}
                             </h1>
-                            {/* Underline indicator - matches tab style */}
-                            <div
-                                className="absolute bottom-0 left-0 h-0.5 bg-gray-900 rounded-full"
-                                style={{ width: '70%' }}
-                            />
-                            <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-3 text-sm text-gray-600">
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2 text-sm text-gray-600">
                                 <span>Klasse {student.school_class}</span>
-                                {student.group_name && (
+                                {student.group_name && student.group_name !== student.school_class && (
                                     <>
                                         <span className="hidden sm:inline">•</span>
                                         <span className="truncate">{student.group_name}</span>

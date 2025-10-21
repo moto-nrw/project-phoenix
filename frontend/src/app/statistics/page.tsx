@@ -8,6 +8,7 @@ import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 
+import { Loading } from "~/components/ui/loading";
 
 // Type definitions for statistics
 interface SchoolStats {
@@ -160,12 +161,7 @@ export default function StatisticsPage() {
 
     if (status === "loading" || loading) {
         return (
-            <div className="flex min-h-screen items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-[#5080d8]"></div>
-                    <p className="text-gray-600">Statistiken werden geladen...</p>
-                </div>
-            </div>
+            <Loading fullPage={false} />
         );
     }
 

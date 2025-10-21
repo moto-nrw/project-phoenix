@@ -14,6 +14,7 @@ import type { Permission } from "@/lib/auth-helpers";
 import { PermissionCreateModal, PermissionDetailModal, PermissionEditModal } from "@/components/permissions";
 import { formatPermissionDisplay, localizeAction, localizeResource } from "@/lib/permission-labels";
 
+import { Loading } from "~/components/ui/loading";
 export default function PermissionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -165,12 +166,7 @@ export default function PermissionsPage() {
   if (status === "loading" || loading) {
     return (
       <ResponsiveLayout>
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-indigo-600"></div>
-            <p className="text-gray-600">Berechtigungen werden geladen...</p>
-          </div>
-        </div>
+        <Loading fullPage={false} />
       </ResponsiveLayout>
     );
   }

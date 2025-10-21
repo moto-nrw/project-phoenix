@@ -6,6 +6,7 @@ import { ResponsiveLayout } from "@/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { useSession } from "next-auth/react";
 
+import { Loading } from "~/components/ui/loading";
 // Student type (reused from student page)
 interface Student {
     id: string;
@@ -292,12 +293,7 @@ export default function StudentMensaHistoryPage() {
     if (loading) {
         return (
             <ResponsiveLayout studentName="..." referrerPage={referrer}>
-                <div className="flex min-h-[80vh] items-center justify-center">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-                        <p className="text-gray-600">Daten werden geladen...</p>
-                    </div>
-                </div>
+                <Loading fullPage={false} />
             </ResponsiveLayout>
         );
     }

@@ -13,6 +13,7 @@ import { activitiesConfig } from "@/lib/database/configs/activities.config";
 import type { Activity } from "@/lib/activity-helpers";
 import { ActivityCreateModal, ActivityDetailModal, ActivityEditModal } from "@/components/activities";
 
+import { Loading } from "~/components/ui/loading";
 export default function ActivitiesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -216,12 +217,7 @@ export default function ActivitiesPage() {
   if (status === "loading" || loading) {
     return (
       <ResponsiveLayout>
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-[#FF3130]"></div>
-            <p className="text-gray-600">Aktivitäten werden geladen...</p>
-          </div>
-        </div>
+        <Loading fullPage={false} />
       </ResponsiveLayout>
     );
   }

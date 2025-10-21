@@ -9,6 +9,7 @@ import { Alert } from "~/components/ui/alert";
 import { SimpleAlert } from "~/components/simple/SimpleAlert";
 import { fetchProfile, updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { Profile, ProfileUpdateRequest } from "~/lib/profile-helpers";
+import { Loading } from "~/components/ui/loading";
 
 // Info Card Component
 interface InfoCardProps {
@@ -223,12 +224,9 @@ function ProfilePageContent() {
 
   if (status === "loading" || isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-          <p className="text-gray-600">Profil wird geladen...</p>
-        </div>
-      </div>
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
     );
   }
 
@@ -526,9 +524,9 @@ function ProfilePageContent() {
 export default function ProfilePage() {
   return (
     <Suspense fallback={
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-      </div>
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
     }>
       <ProfilePageContent />
     </Suspense>

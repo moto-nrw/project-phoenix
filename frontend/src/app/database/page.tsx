@@ -7,6 +7,7 @@ import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Suspense, useState, useEffect } from "react";
 
+import { Loading } from "~/components/ui/loading";
 // Icon component
 const Icon: React.FC<{ path: string; className?: string }> = ({ path, className }) => (
   <svg
@@ -236,12 +237,7 @@ function DatabaseContent() {
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 md:h-12 md:w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-          <p className="text-sm md:text-base text-gray-600">Daten werden geladen...</p>
-        </div>
-      </div>
+      <Loading fullPage={false} />
     );
   }
 
@@ -360,12 +356,7 @@ export default function DatabasePage() {
     <ResponsiveLayout>
       <Suspense
         fallback={
-          <div className="flex min-h-[50vh] items-center justify-center">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-8 w-8 md:h-12 md:w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-              <p className="text-sm md:text-base text-gray-600">Daten werden geladen...</p>
-            </div>
-          </div>
+          <Loading fullPage={false} />
         }
       >
         <DatabaseContent />

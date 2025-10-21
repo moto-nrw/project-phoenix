@@ -155,16 +155,10 @@
 /* Utility animations */
 @keyframes shimmer {
   0% {
-    opacity: 0.1;
-    transform: translateX(-10px) scale(0.98);
-  }
-  50% {
-    opacity: 0.3;
-    transform: translateX(0px) scale(1);
+    transform: translateX(-100%);
   }
   100% {
-    opacity: 0.1;
-    transform: translateX(10px) scale(0.98);
+    transform: translateX(100%);
   }
 }
 
@@ -189,6 +183,51 @@
     opacity: 0.5;
     transform: scale(1.02);
   }
+}
+
+/* MUI-Style Skeleton Loaders */
+@keyframes mui-pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.mui-skeleton-text {
+  width: 100%;
+  height: 1rem; /* fontSize equivalent */
+  background-color: rgba(0, 0, 0, 0.11);
+  border-radius: 4px;
+  animation: mui-pulse 2s ease-in-out infinite;
+}
+
+.mui-skeleton-circular {
+  width: 40px;
+  height: 40px;
+  background-color: rgba(0, 0, 0, 0.11);
+  border-radius: 50%;
+  animation: mui-pulse 2s ease-in-out infinite;
+}
+
+.mui-skeleton-rectangular {
+  width: 210px;
+  height: 60px;
+  background-color: rgba(0, 0, 0, 0.11);
+  border-radius: 0;
+  animation: mui-pulse 2s ease-in-out infinite;
+}
+
+.mui-skeleton-rounded {
+  width: 210px;
+  height: 60px;
+  background-color: rgba(0, 0, 0, 0.11);
+  border-radius: 4px;
+  animation: mui-pulse 2s ease-in-out infinite;
 }
 
 /* MOTO Logo-Text mit Farbverlauf - FIXED VERSION */

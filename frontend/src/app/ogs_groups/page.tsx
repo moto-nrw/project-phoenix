@@ -16,6 +16,7 @@ import { createRoomIdToNameMap } from "~/lib/rooms-helpers";
 import { useSSE } from "~/lib/hooks/use-sse";
 import type { SSEEvent } from "~/lib/sse-types";
 
+import { Loading } from "~/components/ui/loading";
 // Location constants to ensure type safety
 const LOCATIONS = {
   HOME: "Home" as StudentLocation,
@@ -549,12 +550,9 @@ function OGSGroupPageContent() {
 
   if (status === "loading" || isLoading || hasAccess === null) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-[#5080D8]"></div>
-          <p className="text-gray-600">Daten werden geladen...</p>
-        </div>
-      </div>
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
     );
   }
 
@@ -754,12 +752,7 @@ function OGSGroupPageContent() {
 
         {/* Student Grid - Mobile Optimized */}
         {isLoading && selectedGroupIndex > 0 ? (
-          <div className="py-12 text-center">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-[#5080D8]"></div>
-              <p className="text-gray-600">Gruppe wird geladen...</p>
-            </div>
-          </div>
+          <Loading fullPage={false} />
         ) : students.length === 0 ? (
           <div className="py-12 text-center">
             <div className="flex flex-col items-center gap-4">
@@ -916,9 +909,7 @@ export default function OGSGroupPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center">
-          <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-[#5080D8]"></div>
-        </div>
+        <Loading fullPage={false} />
       }
     >
       <OGSGroupPageContent />

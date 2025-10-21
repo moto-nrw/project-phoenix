@@ -13,6 +13,7 @@ import { groupsConfig } from "@/lib/database/configs/groups.config";
 import type { Group } from "@/lib/group-helpers";
 import { GroupCreateModal, GroupDetailModal, GroupEditModal } from "@/components/groups";
 
+import { Loading } from "~/components/ui/loading";
 export default function GroupsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -175,12 +176,7 @@ export default function GroupsPage() {
   if (status === "loading" || loading) {
     return (
       <ResponsiveLayout>
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-[#83CD2D]"></div>
-            <p className="text-gray-600">Gruppen werden geladen...</p>
-          </div>
-        </div>
+        <Loading fullPage={false} />
       </ResponsiveLayout>
     );
   }

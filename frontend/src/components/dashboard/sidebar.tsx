@@ -14,9 +14,7 @@ interface NavItem {
     label: string;
     icon: string;
     requiresAdmin?: boolean;
-    requiresGroups?: boolean;
     requiresSupervision?: boolean;
-    requiresActiveSupervision?: boolean;
     alwaysShow?: boolean;
     labelMultiple?: string;
 }
@@ -33,20 +31,14 @@ const NAV_ITEMS: NavItem[] = [
         href: "/ogs_groups",
         label: "Meine Gruppe",
         icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
-        requiresGroups: true,
+        alwaysShow: true, // Always show, empty state handled on page
         labelMultiple: "Meine Gruppen"
-    },
-    {
-        href: "/staff",
-        label: "Mitarbeiter",
-        icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2",
-        alwaysShow: true
     },
     {
         href: "/myroom",
         label: "Mein Raum",
         icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
-        requiresActiveSupervision: true,
+        alwaysShow: true, // Always show, empty state handled on page
         labelMultiple: "Meine Räume"
     },
     {
@@ -56,15 +48,21 @@ const NAV_ITEMS: NavItem[] = [
         requiresSupervision: true
     },
     {
+        href: "/activities",
+        label: "Aktivitäten",
+        icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+        alwaysShow: true
+    },
+    {
         href: "/rooms",
         label: "Räume",
         icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
         alwaysShow: true
     },
     {
-        href: "/activities",
-        label: "Aktivitäten",
-        icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+        href: "/staff",
+        label: "Mitarbeiter",
+        icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2",
         alwaysShow: true
     },
     // Temporarily disabled - not ready yet
@@ -131,16 +129,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
             return false;
         }
 
-        // Check group requirement
-        if (item.requiresGroups) {
-            // Only show for users who are actively supervising groups, not admins
-            if (isAdmin(session)) {
-                return false;
-            }
-            // Use the new supervision context
-            return !isLoadingGroups && hasGroups;
-        }
-
         // Check supervision requirement (for student search - groups OR room supervision)
         if (item.requiresSupervision) {
             // Only show if user has supervision (will be handled by dynamic logic below)
@@ -150,29 +138,27 @@ function SidebarContent({ className = "" }: SidebarProps) {
             return hasGroupSupervision || hasRoomSupervision;
         }
 
-        // Check active supervision requirement (for room menu - only active room supervision)
-        if (item.requiresActiveSupervision) {
-            // Show only for users actively supervising a room, not for admins or group-only supervisors
-            if (isAdmin(session)) return false;
-            const hasRoomSupervision = !isLoadingSupervision && isSupervising;
-            return hasRoomSupervision;
-        }
-
         return true;
     });
 
-    // If user has no supervision and is not admin, add student search to main nav
-    const filteredNavItems = !hasAnySupervision && !isAdmin(session)
-        ? [
-            ...baseFilteredNavItems,
+    // If user has no supervision and is not admin, add student search at correct position
+    let filteredNavItems = baseFilteredNavItems;
+    if (!hasAnySupervision && !isAdmin(session)) {
+        // Find the index of "Mein Raum" to insert Kindersuche right after it
+        const meinRaumIndex = baseFilteredNavItems.findIndex(item => item.href === "/myroom");
+        const insertIndex = meinRaumIndex >= 0 ? meinRaumIndex + 1 : baseFilteredNavItems.length;
+
+        filteredNavItems = [
+            ...baseFilteredNavItems.slice(0, insertIndex),
             {
                 href: "/students/search",
                 label: "Kindersuche",
                 icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
                 alwaysShow: true
-            }
-          ]
-        : baseFilteredNavItems;
+            },
+            ...baseFilteredNavItems.slice(insertIndex)
+        ];
+    }
 
     // Funktion zur Überprüfung, ob ein Link aktiv ist
     const isActiveLink = (href: string) => {

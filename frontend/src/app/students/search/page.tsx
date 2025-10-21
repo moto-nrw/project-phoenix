@@ -12,6 +12,7 @@ import type { Student, Group } from "~/lib/api";
 import { fetchRooms } from "~/lib/rooms-api";
 import { createRoomIdToNameMap } from "~/lib/rooms-helpers";
 import { userContextService } from "~/lib/usercontext-api";
+import { Loading } from "~/components/ui/loading";
 
 function SearchPageContent() {
   const { data: session, status } = useSession();
@@ -379,14 +380,7 @@ function SearchPageContent() {
   };
 
   if (status === "loading") {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-[#5080D8]"></div>
-          <p className="text-gray-600">Daten werden geladen...</p>
-        </div>
-      </div>
-    );
+    return <Loading />;
   }
 
   return (
@@ -428,12 +422,7 @@ function SearchPageContent() {
 
         {/* Student Grid - Mobile Optimized with Playful Design */}
         {isSearching ? (
-          <div className="py-12 text-center">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-[#5080D8]"></div>
-              <p className="text-gray-600">Suche läuft...</p>
-            </div>
-          </div>
+          <Loading fullPage={false} />
         ) : filteredStudents.length === 0 ? (
           <div className="py-12 text-center">
             <div className="flex flex-col items-center gap-4">
@@ -556,9 +545,9 @@ function SearchPageContent() {
 export default function StudentSearchPage() {
   return (
     <Suspense fallback={
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-[#5080D8]"></div>
-      </div>
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
     }>
       <SearchPageContent />
     </Suspense>

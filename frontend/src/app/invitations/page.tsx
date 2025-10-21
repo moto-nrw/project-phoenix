@@ -8,6 +8,7 @@ import { InvitationForm } from "~/components/admin/invitation-form";
 import { PendingInvitationsList } from "~/components/admin/pending-invitations-list";
 import { isAdmin } from "~/lib/auth-utils";
 
+import { Loading } from "~/components/ui/loading";
 export default function InvitationsPage() {
   const { data: session, status } = useSession({
     required: true,
@@ -20,9 +21,9 @@ export default function InvitationsPage() {
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-[#5080d8]"></div>
-      </div>
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
     );
   }
 

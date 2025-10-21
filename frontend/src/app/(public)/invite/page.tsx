@@ -10,14 +10,10 @@ import { validateInvitation } from "~/lib/invitation-api";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
 
+import { Loading } from "~/components/ui/loading";
 function LoadingState() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100">
-      <div className="flex flex-col items-center gap-4">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-[#5080d8]"></div>
-        <p className="text-sm text-gray-500">Einladung wird geladen …</p>
-      </div>
-    </div>
+    <Loading fullPage={false} />
   );
 }
 
@@ -69,12 +65,7 @@ function InvitationContent() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-[#5080d8]"></div>
-          <p className="text-sm text-gray-500">Einladung wird geladen …</p>
-        </div>
-      </div>
+      <Loading fullPage={false} />
     );
   }
 

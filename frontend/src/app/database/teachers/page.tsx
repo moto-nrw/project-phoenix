@@ -16,6 +16,7 @@ import { createCrudService } from "@/lib/database/service-factory";
 import { teachersConfig } from "@/lib/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
 
+import { Loading } from "~/components/ui/loading";
 export default function TeachersPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -227,12 +228,7 @@ export default function TeachersPage() {
     if (status === "loading" || loading) {
         return (
             <ResponsiveLayout>
-                <div className="flex min-h-[50vh] items-center justify-center">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-[#F78C10]"></div>
-                        <p className="text-gray-600">Betreuer werden geladen...</p>
-                    </div>
-                </div>
+                <Loading fullPage={false} />
             </ResponsiveLayout>
         );
     }

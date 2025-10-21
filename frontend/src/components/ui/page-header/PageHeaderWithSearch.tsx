@@ -126,8 +126,8 @@ export function PageHeaderWithSearch({
             {filters.length > 0 && (
               <DesktopFilters filters={filters} />
             )}
-            {/* Custom action button */}
-            {actionButton}
+            {/* Custom action button - pushed to right edge */}
+            {actionButton && <div className="ml-auto">{actionButton}</div>}
           </div>
         )}
 

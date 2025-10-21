@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+import { Loading } from "~/components/ui/loading";
 import Link from "next/link";
 import { Input, Alert } from "~/components/ui";
 import { confirmPasswordReset, type ApiError } from "~/lib/auth-api";
@@ -130,9 +131,7 @@ function ResetPasswordForm() {
               Sie werden zur Anmeldeseite weitergeleitet...
             </p>
 
-            <div className="flex justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-            </div>
+            <Loading fullPage={false} />
           </div>
         </div>
       </div>
@@ -293,12 +292,7 @@ function ResetPasswordForm() {
 export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
-      <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Lädt...</p>
-        </div>
-      </div>
+      <Loading fullPage={false} />
     }>
       <ResetPasswordForm />
     </Suspense>

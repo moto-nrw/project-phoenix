@@ -16,6 +16,7 @@ import {
   sortStaff 
 } from "~/lib/staff-helpers";
 
+import { Loading } from "~/components/ui/loading";
 function StaffPageContent() {
   const { data: session, status } = useSession({
     required: true,
@@ -154,12 +155,9 @@ function StaffPageContent() {
 
   if (status === "loading" || isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-          <p className="text-gray-600">Mitarbeiter werden geladen...</p>
-        </div>
-      </div>
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
     );
   }
 
@@ -304,9 +302,9 @@ function StaffPageContent() {
 export default function StaffPage() {
   return (
     <Suspense fallback={
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-      </div>
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
     }>
       <StaffPageContent />
     </Suspense>
