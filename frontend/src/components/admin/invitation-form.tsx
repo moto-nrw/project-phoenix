@@ -174,19 +174,26 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
           <label htmlFor="invitation-role" className="mb-1 block text-sm font-medium text-gray-700">
             Rolle
           </label>
-          <select
-            id="invitation-role"
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 transition-colors focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
-            value={form.roleId}
-            onChange={(event) => handleChange("roleId")(Number(event.target.value))}
-            disabled={isSubmitting || isLoadingRoles}
-          >
-            {roles.map((role) => (
-              <option key={role.id} value={role.id}>
-                {role.name}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              id="invitation-role"
+              className="w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm text-gray-900 transition-colors focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
+              value={form.roleId}
+              onChange={(event) => handleChange("roleId")(Number(event.target.value))}
+              disabled={isSubmitting || isLoadingRoles}
+            >
+              {roles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+              <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

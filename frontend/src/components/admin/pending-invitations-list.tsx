@@ -134,32 +134,51 @@ export function PendingInvitationsList({ refreshKey }: PendingInvitationsListPro
           <p className="text-sm text-gray-600">Keine offenen Einladungen</p>
         </div>
       ) : (
-        <div className="mt-4 overflow-hidden rounded-xl border border-gray-200">
+        <div className="mt-4 overflow-x-auto rounded-xl border border-gray-200">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50/50">
               <tr>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">E-Mail</th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Rolle</th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Von</th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Gültig bis</th>
-                <th scope="col" className="px-4 py-3 text-right text-xs font-semibold text-gray-600">Aktionen</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 w-[30%]">E-Mail</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 w-[15%]">Rolle</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 w-[20%]">Von</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 w-[20%]">Gültig bis</th>
+                <th scope="col" className="px-4 py-3 text-right text-xs font-semibold text-gray-600 w-[15%]">Aktionen</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
               {sortedInvitations.map((invitation) => {
                 const expiresDate = new Date(invitation.expiresAt);
-                const isExpired = expiresDate.getTime() < Date.now();
+                const isValidDate = !isNaN(expiresDate.getTime());
+                const isExpired = isValidDate && expiresDate.getTime() < Date.now();
+
                 return (
                   <tr key={invitation.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-gray-900">{invitation.email}</td>
-                    <td className="px-4 py-3 text-gray-600">{invitation.roleName}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">{invitation.creatorEmail ?? `ID ${invitation.createdBy}`}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${isExpired ? "bg-red-50 text-red-700" : "bg-gray-100 text-gray-700"}`}>
-                        {expiresDate.toLocaleString("de-DE")}
-                      </span>
+                    <td className="px-4 py-3 font-medium text-gray-900 max-w-0 truncate">{invitation.email}</td>
+                    <td className="px-4 py-3 text-gray-600 truncate">{invitation.roleName}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs truncate">
+                      {invitation.creatorEmail ?? (invitation.firstName && invitation.lastName
+                        ? `${invitation.firstName} ${invitation.lastName}`
+                        : "System")}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {isValidDate ? (
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${isExpired ? "bg-red-50 text-red-700" : "bg-gray-100 text-gray-700"}`}>
+                          {expiresDate.toLocaleDateString("de-DE", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric"
+                          })}
+                          {" "}
+                          {expiresDate.toLocaleTimeString("de-DE", {
+                            hour: "2-digit",
+                            minute: "2-digit"
+                          })}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">Ungültig</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
