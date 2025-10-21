@@ -51,24 +51,13 @@ export default function InvitationsPage() {
 
   return (
     <ResponsiveLayout>
-      <div className="space-y-6">
-        {/* Page Title and Description */}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Einladungen verwalten</h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Sende neue Einladungen und verwalte offene Einladungen
-          </p>
-        </div>
-
-        {/* Two Column Layout */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          <InvitationForm
-            onCreated={() => {
-              setRefreshKey(Date.now());
-            }}
-          />
-          <PendingInvitationsList refreshKey={refreshKey} />
-        </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <InvitationForm
+          onCreated={() => {
+            setRefreshKey(Date.now());
+          }}
+        />
+        <PendingInvitationsList refreshKey={refreshKey} />
       </div>
     </ResponsiveLayout>
   );
