@@ -123,9 +123,10 @@ interface InfoCardProps {
   children: React.ReactNode;
   icon?: string;
   href?: string;
+  linkText?: string;
 }
 
-const InfoCard: React.FC<InfoCardProps> = ({ title, children, icon, href }) => (
+const InfoCard: React.FC<InfoCardProps> = ({ title, children, icon, href, linkText = "Alle →" }) => (
   <div className="relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
     <div className="absolute inset-0 bg-gradient-to-br from-gray-50/80 to-slate-100/80 opacity-[0.03] rounded-3xl pointer-events-none"></div>
     <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20 pointer-events-none"></div>
@@ -143,7 +144,7 @@ const InfoCard: React.FC<InfoCardProps> = ({ title, children, icon, href }) => (
         </div>
         {href && (
           <Link href={href} className="text-xs md:text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors">
-            Alle →
+            {linkText}
           </Link>
         )}
       </div>
@@ -366,6 +367,7 @@ function DashboardContent() {
             title="Laufende Aktivitäten"
             icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
             href="/activities"
+            linkText="Meine →"
           >
             {isLoading ? (
               <div className="space-y-3">
@@ -397,6 +399,7 @@ function DashboardContent() {
             title="Aktive Gruppen"
             icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
             href="/ogs_groups"
+            linkText="Meine →"
           >
             {isLoading ? (
               <div className="space-y-3">
