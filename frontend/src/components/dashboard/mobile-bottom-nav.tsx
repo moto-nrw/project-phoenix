@@ -2,7 +2,7 @@
 // Ultra-minimalist mobile navigation following Instagram/Twitter/Uber patterns
 "use client";
 
-import React from "react";
+import React, { useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -96,6 +96,11 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
   const [lastScrollY, setLastScrollY] = useState(0);
   const [isOverflowMenuOpen, setIsOverflowMenuOpen] = useState(false);
 
+  // Refs for sliding indicator
+  const navRefs = useRef<(HTMLAnchorElement | null)[]>([]);
+  const moreButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
+
   // Get session for role checking
   const { data: session } = useSession();
 
@@ -121,7 +126,7 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
   }, [lastScrollY]);
 
   // Check if current path matches nav item
-  const isActiveRoute = (href: string) => {
+  const isActiveRoute = useCallback((href: string) => {
     if (href === "/dashboard") {
       return pathname === "/dashboard" || pathname === "/";
     }
@@ -130,7 +135,7 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
       return true;
     }
     return pathname.startsWith(href);
-  };
+  }, [pathname, searchParams]);
 
   const closeOverflowMenu = () => {
     setIsOverflowMenuOpen(false);
@@ -165,6 +170,30 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
 
   // Check if any additional nav item is active
   const isAnyAdditionalNavActive = displayAdditionalItems.some(item => isActiveRoute(item.href));
+
+  // Update sliding indicator position when route changes
+  useEffect(() => {
+    const updateIndicator = () => {
+      // Find active nav item index
+      const activeIndex = displayMainItems.findIndex(item => isActiveRoute(item.href));
+
+      if (activeIndex !== -1 && navRefs.current[activeIndex]) {
+        const activeElement = navRefs.current[activeIndex];
+        if (activeElement) {
+          const { offsetLeft, offsetWidth } = activeElement;
+          setIndicatorStyle({ left: offsetLeft, width: offsetWidth });
+        }
+      } else if (isAnyAdditionalNavActive && moreButtonRef.current) {
+        // "Mehr" button is active
+        const { offsetLeft, offsetWidth } = moreButtonRef.current;
+        setIndicatorStyle({ left: offsetLeft, width: offsetWidth });
+      }
+    };
+
+    // Small delay to ensure DOM is ready
+    const timer = setTimeout(updateIndicator, 10);
+    return () => clearTimeout(timer);
+  }, [pathname, displayMainItems, isAnyAdditionalNavActive, isActiveRoute]);
 
   return (
     <>
@@ -227,19 +256,29 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
         {/* Pill container with margins */}
         <div className="px-4 pb-4">
           <div className="bg-white/95 backdrop-blur-md rounded-full shadow-[0_-2px_20px_rgba(0,0,0,0.08)] border border-gray-200/50 px-3 py-2">
-            <div className="flex items-center justify-around gap-1">
+            <div className="relative flex items-center justify-around gap-1">
+              {/* Sliding background indicator */}
+              <div
+                className="absolute top-0 h-full bg-gray-900 rounded-full shadow-md transition-all duration-300 ease-out"
+                style={{
+                  left: `${indicatorStyle.left}px`,
+                  width: `${indicatorStyle.width}px`,
+                }}
+              />
+
               {/* Main navigation items */}
-              {displayMainItems.map((item) => {
+              {displayMainItems.map((item, index) => {
                 const isActive = isActiveRoute(item.href);
 
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
+                    ref={el => { navRefs.current[index] = el; }}
                     className={`
-                      flex items-center justify-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-full transition-all duration-200
+                      relative z-10 flex items-center justify-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-full transition-colors duration-200
                       ${isActive
-                        ? 'bg-gray-900 text-white shadow-md scale-105'
+                        ? 'text-white'
                         : 'text-gray-400 hover:text-gray-600'
                       }
                     `}
@@ -263,11 +302,12 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
               {/* More button */}
               {showOverflowMenu && (
                 <button
+                  ref={moreButtonRef}
                   onClick={() => setIsOverflowMenuOpen(true)}
                   className={`
-                    flex items-center justify-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-full transition-all duration-200
+                    relative z-10 flex items-center justify-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-full transition-colors duration-200
                     ${isOverflowMenuOpen || isAnyAdditionalNavActive
-                      ? 'bg-gray-900 text-white shadow-md scale-105'
+                      ? 'text-white'
                       : 'text-gray-400 hover:text-gray-600'
                     }
                   `}
