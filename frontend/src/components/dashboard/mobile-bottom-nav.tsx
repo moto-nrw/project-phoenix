@@ -157,9 +157,6 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
     return true;
   });
 
-  // Check if user has any supervision (groups or active room)
-  const hasAnySupervision = (!isLoadingGroups && hasGroups) || (!isLoadingSupervision && isSupervising);
-
   // Filter additional navigation items based on permissions
   const filteredAdditionalItems = additionalNavItems.filter(item => {
     if (item.alwaysShow) return true;
@@ -178,26 +175,48 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
     return true;
   });
 
-  // Dynamic layout based on available items and supervision status
-  const shouldShowInMainNav = !hasAnySupervision && !isAdmin(session);
+  // Dynamic layout - always ensure 4 items in bottom nav
+  // Strategy: If slots are empty, promote items from additional nav (Search → Staff)
+  const TARGET_MAIN_NAV_ITEMS = 4;
 
-  const displayMainItems: NavItem[] = shouldShowInMainNav
-    ? [
-        ...filteredMainItems,
-        {
-          href: '/students/search',
-          label: 'Suchen',
-          iconKey: 'search',
-          alwaysShow: true
-        }
-      ]
-    : filteredMainItems;
+  const promotableItems = [
+    { href: '/students/search', label: 'Suchen', iconKey: 'search' as const, requiresSupervision: true },
+    { href: '/staff', label: 'Personal', iconKey: 'staff' as const, alwaysShow: true },
+  ];
+
+  // Build final main nav items by promoting items from additional nav if needed
+  const promotedItems: NavItem[] = [];
+  for (const item of promotableItems) {
+    if (filteredMainItems.length + promotedItems.length >= TARGET_MAIN_NAV_ITEMS) break;
+
+    // Check if item should be shown based on permissions
+    let shouldShow = false;
+    if (item.alwaysShow) {
+      shouldShow = true;
+    } else if (item.requiresSupervision) {
+      if (isAdmin(session)) {
+        shouldShow = false;
+      } else {
+        const hasGroupSupervision = !isLoadingGroups && hasGroups;
+        const hasRoomSupervision = !isLoadingSupervision && isSupervising;
+        shouldShow = hasGroupSupervision || hasRoomSupervision;
+      }
+    }
+
+    if (shouldShow && !filteredMainItems.some(i => i.href === item.href)) {
+      promotedItems.push(item);
+    }
+  }
+
+  const displayMainItems: NavItem[] = [...filteredMainItems, ...promotedItems];
 
   // Always show overflow menu
   const showOverflowMenu = true;
 
-  // For users without supervision, ensure settings always appears in overflow menu
-  const displayAdditionalItems = filteredAdditionalItems;
+  // Filter additional items to exclude those promoted to main nav
+  const displayAdditionalItems = filteredAdditionalItems.filter(
+    item => !displayMainItems.some(mainItem => mainItem.href === item.href)
+  );
 
   // Check if any additional nav item is active
   const isAnyAdditionalNavActive = displayAdditionalItems.some(item => isActiveRoute(item.href));
