@@ -77,15 +77,16 @@ function MeinRaumPageContent() {
   // Helper function to load visits for a specific room
   const loadRoomVisits = useCallback(
     async (roomId: string): Promise<StudentWithVisit[]> => {
-      // Use bulk endpoint to fetch visits with display data for specific room
-      const visits =
-        await activeService.getActiveGroupVisitsWithDisplay(roomId);
+      try {
+        // Use bulk endpoint to fetch visits with display data for specific room
+        const visits =
+          await activeService.getActiveGroupVisitsWithDisplay(roomId);
 
-      // Filter only active visits (students currently checked in)
-      const currentlyCheckedIn = visits.filter((visit) => visit.isActive);
+        // Filter only active visits (students currently checked in)
+        const currentlyCheckedIn = visits.filter((visit) => visit.isActive);
 
-      // Fetch complete student data using student IDs from visits
-      const studentPromises = currentlyCheckedIn.map(async (visit) => {
+        // Fetch complete student data using student IDs from visits
+        const studentPromises = currentlyCheckedIn.map(async (visit) => {
         try {
           // Fetch full student record using the student ID
           const studentData = await fetchStudent(visit.studentId);
@@ -118,6 +119,15 @@ function MeinRaumPageContent() {
       });
 
       return await Promise.all(studentPromises);
+      } catch (error) {
+        // Handle 403 Forbidden gracefully - user might not have group access
+        if (error instanceof Error && error.message.includes("403")) {
+          console.warn(`No permission to view group ${roomId} - returning empty list`);
+          return []; // Return empty array instead of throwing
+        }
+        // Re-throw other errors
+        throw error;
+      }
     },
     [],
   );
@@ -173,9 +183,12 @@ function MeinRaumPageContent() {
       try {
         setIsLoading(true);
 
-        // Check if user has any active groups OR unclaimed groups available
+        // Check if user has any supervised groups OR unclaimed groups available
+        // Changed from getMyActiveGroups() to getMySupervisedGroups()
+        // This includes ALL supervisions (OGS groups + standalone activities)
+        // Works even if user has NO OGS groups but supervises standalone activities
         const [myActiveGroups, unclaimedGroups] = await Promise.all([
-          userContextService.getMyActiveGroups(),
+          userContextService.getMySupervisedGroups(),
           activeService.getUnclaimedGroups(),
         ]);
 
@@ -264,8 +277,9 @@ function MeinRaumPageContent() {
         setError(null);
       } catch (err) {
         if (err instanceof Error && err.message.includes("403")) {
+          console.error("403 Forbidden - No access to room/group:", err);
           setError(
-            "Sie haben keine Berechtigung für den Zugriff auf Aktivitätsdaten.",
+            "Sie haben aktuell keinen aktiven Raum zur Supervision.",
           );
           setHasAccess(false);
         } else {
@@ -281,6 +295,17 @@ function MeinRaumPageContent() {
       void checkAccessAndFetchData();
     }
   }, [session?.user?.token, refreshKey, loadRoomVisits, router]);
+
+  // Redirect if user doesn't have access (after data is checked)
+  useEffect(() => {
+    if (hasAccess === false) {
+      // Redirect to appropriate page based on user role
+      // Regular users go to their group, admins go to dashboard
+      const isAdminUser = session?.user?.roles?.includes('admin');
+      const redirectPath = isAdminUser ? "/dashboard" : "/ogs_groups";
+      router.push(redirectPath);
+    }
+  }, [hasAccess, router, session?.user?.roles]);
 
   // Callback when a room is claimed - triggers refresh
   const handleRoomClaimed = useCallback(() => {
@@ -320,8 +345,14 @@ function MeinRaumPageContent() {
 
       setError(null);
     } catch (err) {
-      setError("Fehler beim Laden der Raumdaten.");
-      console.error("Error loading room data:", err);
+      // Handle 403 gracefully - show message but don't break the UI
+      if (err instanceof Error && err.message.includes("403")) {
+        setError(`Keine Berechtigung für "${allRooms[roomIndex]?.name}". Kontaktieren Sie einen Administrator.`);
+        setStudents([]); // Show empty list instead of crashing
+      } else {
+        setError("Fehler beim Laden der Raumdaten.");
+        console.error("Error loading room data:", err);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -430,18 +461,19 @@ function MeinRaumPageContent() {
 
   if (status === "loading" || isLoading || hasAccess === null) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-[#5080D8]"></div>
-          <p className="text-gray-600">Daten werden geladen...</p>
+      <ResponsiveLayout>
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-[#5080D8]"></div>
+            <p className="text-gray-600">Daten werden geladen...</p>
+          </div>
         </div>
-      </div>
+      </ResponsiveLayout>
     );
   }
 
-  // If user doesn't have access, redirect to dashboard
+  // Show loading while checking access
   if (hasAccess === false) {
-    router.push("/dashboard");
     return null;
   }
 
@@ -534,7 +566,11 @@ function MeinRaumPageContent() {
 
         {/* Modern Header with PageHeaderWithSearch component */}
         <PageHeaderWithSearch
-          title={isMobile ? (allRooms.length === 1 ? currentRoom?.name ?? "Mein Raum" : "Meine Räume") : currentRoom?.room_name ?? currentRoom?.name ?? "Mein Raum"}
+          title={
+            isMobile && allRooms.length === 1
+              ? (currentRoom?.room_name ?? currentRoom?.name ?? "Mein Raum")
+              : "" // No title when multiple rooms (tabs show room names) or on desktop
+          }
           statusIndicator={{
             color: sseStatus === "connected"
               ? "green"
@@ -632,30 +668,27 @@ function MeinRaumPageContent() {
 
         {/* Student Grid - Mobile Optimized */}
         {students.length === 0 ? (
-          <div className="py-12 text-center">
-            <div className="flex flex-col items-center gap-4">
+          <div className="py-8 text-center">
+            <div className="flex flex-col items-center gap-3">
               <svg
-                className="h-12 w-12 text-gray-400"
+                className="h-10 w-10 text-gray-300"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
+                strokeWidth={1.5}
               >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
                   d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
                 />
               </svg>
               <div>
-                <h3 className="text-lg font-medium text-gray-900">
+                <h3 className="text-sm font-medium text-gray-600">
                   Keine Schüler in diesem Raum
                 </h3>
-                <p className="text-gray-600">
-                  Es wurden noch keine Schüler zu dieser Aktivität eingecheckt.
-                </p>
-                <p className="mt-2 text-sm text-gray-500">
-                  Gesamtzahl gefundener Schüler: {students.length}
+                <p className="text-xs text-gray-500 mt-1">
+                  Es wurden noch keine Schüler eingecheckt
                 </p>
               </div>
             </div>
@@ -785,9 +818,11 @@ export default function MeinRaumPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center">
-          <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-[#5080D8]"></div>
-        </div>
+        <ResponsiveLayout>
+          <div className="flex min-h-[60vh] items-center justify-center">
+            <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-[#5080D8]"></div>
+          </div>
+        </ResponsiveLayout>
       }
     >
       <MeinRaumPageContent />

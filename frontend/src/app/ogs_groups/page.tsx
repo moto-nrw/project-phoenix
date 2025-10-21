@@ -647,11 +647,9 @@ function OGSGroupPageContent() {
         {/* PageHeaderWithSearch - Title only on mobile */}
         <PageHeaderWithSearch
           title={
-            isMobile
-              ? allGroups.length === 1
-                ? (currentGroup?.name ?? "Meine Gruppe")
-                : "Meine Gruppen"
-              : ""
+            isMobile && allGroups.length === 1
+              ? (currentGroup?.name ?? "Meine Gruppe")
+              : "" // No title when multiple groups (tabs show group names) or on desktop
           }
           statusIndicator={{
             color: sseStatus === "connected"
