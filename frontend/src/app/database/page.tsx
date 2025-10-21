@@ -237,7 +237,9 @@ function DatabaseContent() {
 
   if (status === "loading") {
     return (
-      <Loading fullPage={false} />
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
     );
   }
 
