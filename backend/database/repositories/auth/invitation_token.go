@@ -189,6 +189,7 @@ func (r *InvitationTokenRepository) List(ctx context.Context, filters map[string
 	query := r.db.NewSelect().
 		Model(&tokens).
 		ModelTableExpr(invitationTableAlias).
+		ColumnExpr(`"invitation_token".*`).
 		ColumnExpr(`"role"."id" AS "role__id"`).
 		ColumnExpr(`"role"."created_at" AS "role__created_at"`).
 		ColumnExpr(`"role"."updated_at" AS "role__updated_at"`).
