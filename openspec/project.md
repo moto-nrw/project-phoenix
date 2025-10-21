@@ -54,27 +54,7 @@ Project Phoenix is a **GDPR-compliant RFID-based student attendance and room man
 ## Project Conventions
 
 ### Code Style
-
-**Backend (Go):**
-- Standard Go formatting: `gofmt` + `goimports`
-- Import grouping: stdlib → external → internal
-- Error handling: Always check errors, never ignore
-- Context: Pass `context.Context` as first parameter
-- Naming: Use Go idioms (short receiver names, exported/unexported)
-- Comments: Document exported functions with complete sentences
-
-**Frontend (TypeScript):**
-- Prettier for formatting (enforced via hooks)
-- ESLint: Zero warnings policy (max-warnings=0)
-- Naming: camelCase for variables/functions, PascalCase for components
-- Type safety: No `any` types, prefer explicit interfaces
-- File organization: Domain-based folder structure
-
-**Database:**
-- Snake_case for all table/column names
-- Schema-qualified table names in queries
-- Migration files: `{version}_{description}.go`
-- Always specify dependencies between migrations
+[Describe your code style preferences, formatting rules, and naming conventions]
 
 ### Architecture Patterns
 
