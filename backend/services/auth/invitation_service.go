@@ -494,7 +494,7 @@ func (s *invitationService) persistInvitationDelivery(ctx context.Context, meta 
 	}
 
 	if result.Final && result.Status == email.DeliveryStatusFailed {
-		log.Printf("Invitation email permanently failed token=%s recipient=%s err=%v", meta.Token, meta.Recipient, result.Err)
+		log.Printf("Invitation email permanently failed id=%d recipient=%s err=%v", meta.ReferenceID, meta.Recipient, result.Err)
 	}
 }
 

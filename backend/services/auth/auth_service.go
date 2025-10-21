@@ -1519,7 +1519,7 @@ func (s *Service) persistPasswordResetDelivery(ctx context.Context, meta email.D
 	}
 
 	if result.Final && result.Status == email.DeliveryStatusFailed {
-		log.Printf("Password reset email permanently failed token=%s recipient=%s err=%v", meta.Token, meta.Recipient, result.Err)
+		log.Printf("Password reset email permanently failed id=%d recipient=%s err=%v", meta.ReferenceID, meta.Recipient, result.Err)
 	}
 }
 
