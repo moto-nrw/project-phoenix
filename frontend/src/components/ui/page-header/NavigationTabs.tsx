@@ -24,9 +24,9 @@ export function NavigationTabs({
   }, [activeTab, items]);
 
   return (
-    <div className={`ml-6 ${className}`}>
+    <div className={`ml-3 md:ml-6 ${className}`}>
       {/* Modern underline tabs with sliding indicator */}
-      <div className="relative flex gap-8">
+      <div className="relative flex gap-4 md:gap-8">
         {items.map((tab, index) => {
           const isActive = activeTab === tab.id;
 
@@ -37,14 +37,14 @@ export function NavigationTabs({
               type="button"
               onClick={() => onTabChange(tab.id)}
               className={`
-                relative pb-3 text-base font-medium transition-all px-0
+                relative pb-3 text-sm md:text-base font-medium transition-all px-0 whitespace-nowrap
                 ${isActive
                   ? 'text-gray-900 font-semibold'
                   : 'text-gray-500 hover:text-gray-700'
                 }
               `}
             >
-              <span>{tab.label}</span>
+              <span className="block max-w-[120px] md:max-w-none truncate">{tab.label}</span>
             </button>
           );
         })}
