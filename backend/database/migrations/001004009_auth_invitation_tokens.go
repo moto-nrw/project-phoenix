@@ -18,7 +18,11 @@ func init() {
 	MigrationRegistry[AuthInvitationTokensVersion] = &Migration{
 		Version:     AuthInvitationTokensVersion,
 		Description: AuthInvitationTokensDescription,
-		DependsOn:   []string{"1.0.4", "1.0.1"},
+		DependsOn: []string{
+			AuthRolesVersion,
+			AuthAccountsVersion,
+			AuthPasswordResetRateLimitsVersion,
+		},
 	}
 
 	Migrations.MustRegister(

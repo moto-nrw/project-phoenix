@@ -34,6 +34,8 @@ func (req *CreateInvitationRequest) Bind(r *http.Request) error {
 	return validation.ValidateStruct(req,
 		validation.Field(&req.Email, validation.Required, is.Email),
 		validation.Field(&req.RoleID, validation.Required, validation.Min(int64(1))),
+		validation.Field(&req.FirstName, validation.Length(0, 100)),
+		validation.Field(&req.LastName, validation.Length(0, 100)),
 	)
 }
 

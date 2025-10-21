@@ -18,7 +18,9 @@ func init() {
 	MigrationRegistry[AuthPasswordResetRateLimitsVersion] = &Migration{
 		Version:     AuthPasswordResetRateLimitsVersion,
 		Description: AuthPasswordResetRateLimitsDescription,
-		DependsOn:   []string{"1.0.3"},
+		DependsOn: []string{
+			AuthPasswordResetTokensVersion,
+		},
 	}
 
 	Migrations.MustRegister(
