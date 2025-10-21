@@ -101,6 +101,36 @@ func (r *PasswordResetTokenRepository) MarkAsUsed(ctx context.Context, tokenID i
 	return nil
 }
 
+// UpdateDeliveryResult updates the delivery metadata for a password reset token.
+func (r *PasswordResetTokenRepository) UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error {
+	update := r.db.NewUpdate().
+		Model((*auth.PasswordResetToken)(nil)).
+		ModelTableExpr("auth.password_reset_tokens").
+		Where("id = ?", tokenID).
+		Set("email_retry_count = ?", retryCount)
+
+	if sentAt != nil {
+		update = update.Set("email_sent_at = ?", *sentAt)
+	} else {
+		update = update.Set("email_sent_at = NULL")
+	}
+
+	if emailError != nil {
+		update = update.Set("email_error = ?", truncateError(*emailError))
+	} else {
+		update = update.Set("email_error = NULL")
+	}
+
+	if _, err := update.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update password reset delivery result",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
 // DeleteExpiredTokens removes all expired or used tokens
 func (r *PasswordResetTokenRepository) DeleteExpiredTokens(ctx context.Context) (int, error) {
 	res, err := r.db.NewDelete().

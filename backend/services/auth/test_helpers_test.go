@@ -140,6 +140,50 @@ func (m *capturingMailer) WaitForMessages(count int, timeout time.Duration) bool
 	}
 }
 
+// flakyMailer fails a configurable number of initial attempts before succeeding.
+type flakyMailer struct {
+	mu        sync.Mutex
+	failCount int
+	err       error
+	attempts  int
+	messages  []email.Message
+}
+
+func newFlakyMailer(failures int, err error) *flakyMailer {
+	if failures < 0 {
+		failures = 0
+	}
+	if err == nil {
+		err = errors.New("mailer failure")
+	}
+	return &flakyMailer{failCount: failures, err: err}
+}
+
+func (m *flakyMailer) Send(msg email.Message) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.attempts++
+	if m.attempts <= m.failCount {
+		return m.err
+	}
+	m.messages = append(m.messages, msg)
+	return nil
+}
+
+func (m *flakyMailer) Attempts() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.attempts
+}
+
+func (m *flakyMailer) Messages() []email.Message {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]email.Message, len(m.messages))
+	copy(out, m.messages)
+	return out
+}
+
 // noopAccountRepository provides default panic implementations for unused methods.
 type noopAccountRepository struct{}
 
@@ -282,6 +326,10 @@ func (noopPasswordResetTokenRepository) Delete(context.Context, interface{}) err
 	panic("Delete not implemented")
 }
 
+func (noopPasswordResetTokenRepository) UpdateDeliveryResult(context.Context, int64, *time.Time, *string, int) error {
+	panic("UpdateDeliveryResult not implemented")
+}
+
 func (noopPasswordResetTokenRepository) List(context.Context, map[string]interface{}) ([]*authModel.PasswordResetToken, error) {
 	panic("List not implemented")
 }
@@ -343,6 +391,22 @@ func (r *stubPasswordResetTokenRepository) Create(_ context.Context, token *auth
 	return nil
 }
 
+func (r *stubPasswordResetTokenRepository) FindByID(_ context.Context, id interface{}) (*authModel.PasswordResetToken, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	switch v := id.(type) {
+	case int64:
+		if token, ok := r.byID[v]; ok {
+			return token, nil
+		}
+	case int:
+		if token, ok := r.byID[int64(v)]; ok {
+			return token, nil
+		}
+	}
+	return nil, sql.ErrNoRows
+}
+
 func (r *stubPasswordResetTokenRepository) FindValidByToken(_ context.Context, token string) (*authModel.PasswordResetToken, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -361,6 +425,27 @@ func (r *stubPasswordResetTokenRepository) MarkAsUsed(_ context.Context, id int6
 		return nil
 	}
 	return sql.ErrNoRows
+}
+
+func (r *stubPasswordResetTokenRepository) UpdateDeliveryResult(_ context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	token, exists := r.byID[tokenID]
+	if !exists {
+		return sql.ErrNoRows
+	}
+	token.EmailRetryCount = retryCount
+	if sentAt != nil {
+		token.EmailSentAt = sentAt
+	} else {
+		token.EmailSentAt = nil
+	}
+	if emailError != nil {
+		token.EmailError = emailError
+	} else {
+		token.EmailError = nil
+	}
+	return nil
 }
 
 func (r *stubPasswordResetTokenRepository) InvalidateTokensByAccountID(_ context.Context, accountID int64) error {
@@ -529,6 +614,27 @@ func (r *stubInvitationTokenRepository) List(_ context.Context, filters map[stri
 		}
 	}
 	return result, nil
+}
+
+func (r *stubInvitationTokenRepository) UpdateDeliveryResult(_ context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	token, exists := r.tokens[id]
+	if !exists {
+		return sql.ErrNoRows
+	}
+	token.EmailRetryCount = retryCount
+	if sentAt != nil {
+		token.EmailSentAt = sentAt
+	} else {
+		token.EmailSentAt = nil
+	}
+	if emailError != nil {
+		token.EmailError = emailError
+	} else {
+		token.EmailError = nil
+	}
+	return nil
 }
 
 // noopRoleRepository provides default panic implementations.

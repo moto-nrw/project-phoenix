@@ -13,14 +13,17 @@ import (
 type InvitationToken struct {
 	base.Model `bun:"schema:auth,table:invitation_tokens"`
 
-	Email     string     `bun:"email,notnull" json:"email"`
-	Token     string     `bun:"token,notnull" json:"token"`
-	RoleID    int64      `bun:"role_id,notnull" json:"role_id"`
-	CreatedBy int64      `bun:"created_by,notnull" json:"created_by"`
-	ExpiresAt time.Time  `bun:"expires_at,notnull" json:"expires_at"`
-	UsedAt    *time.Time `bun:"used_at,nullzero" json:"used_at,omitempty"`
-	FirstName *string    `bun:"first_name,nullzero" json:"first_name,omitempty"`
-	LastName  *string    `bun:"last_name,nullzero" json:"last_name,omitempty"`
+	Email           string     `bun:"email,notnull" json:"email"`
+	Token           string     `bun:"token,notnull" json:"token"`
+	RoleID          int64      `bun:"role_id,notnull" json:"role_id"`
+	CreatedBy       int64      `bun:"created_by,notnull" json:"created_by"`
+	ExpiresAt       time.Time  `bun:"expires_at,notnull" json:"expires_at"`
+	UsedAt          *time.Time `bun:"used_at,nullzero" json:"used_at,omitempty"`
+	FirstName       *string    `bun:"first_name,nullzero" json:"first_name,omitempty"`
+	LastName        *string    `bun:"last_name,nullzero" json:"last_name,omitempty"`
+	EmailSentAt     *time.Time `bun:"email_sent_at,nullzero" json:"email_sent_at,omitempty"`
+	EmailError      *string    `bun:"email_error,nullzero" json:"email_error,omitempty"`
+	EmailRetryCount int        `bun:"email_retry_count,notnull,default:0" json:"email_retry_count"`
 
 	// Relations
 	Role    *Role    `bun:"rel:belongs-to,join:role_id=id" json:"role,omitempty"`

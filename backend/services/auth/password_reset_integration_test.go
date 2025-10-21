@@ -12,11 +12,18 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
+	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func newPasswordResetTestEnv(t *testing.T) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *stubTokenRepository, *capturingMailer, sqlmock.Sqlmock, func()) {
+	service, accounts, tokens, rateRepo, sessions, mailer, mock, cleanup := newPasswordResetTestEnvWithMailer(t, newCapturingMailer())
+	capturing, _ := mailer.(*capturingMailer)
+	return service, accounts, tokens, rateRepo, sessions, capturing, mock, cleanup
+}
+
+func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *stubTokenRepository, email.Mailer, sqlmock.Sqlmock, func()) {
 	t.Helper()
 
 	prevRateLimitEnabled := viper.GetBool("rate_limit_enabled")
@@ -38,14 +45,16 @@ func newPasswordResetTestEnv(t *testing.T) (*Service, *stubAccountRepository, *s
 	resetTokens := newStubPasswordResetTokenRepository()
 	rateRepo := newTestRateLimitRepo()
 	sessionTokens := newStubTokenRepository()
-	mailer := newCapturingMailer()
+
+	dispatcher := email.NewDispatcher(mailer)
+	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
 
 	service := &Service{
 		accountRepo:                accounts,
 		passwordResetTokenRepo:     resetTokens,
 		passwordResetRateLimitRepo: rateRepo,
 		tokenRepo:                  sessionTokens,
-		mailer:                     mailer,
+		dispatcher:                 dispatcher,
 		defaultFrom:                newDefaultFromEmail(),
 		frontendURL:                "http://localhost:3000",
 		passwordResetExpiry:        30 * time.Minute,
@@ -88,6 +97,33 @@ func TestInitiatePasswordResetSendsEmail(t *testing.T) {
 	ttl := time.Until(stored.Expiry)
 	require.GreaterOrEqual(t, ttl, 29*time.Minute)
 	require.LessOrEqual(t, ttl, 31*time.Minute)
+}
+
+func TestInitiatePasswordResetEmailFailureRecordsError(t *testing.T) {
+	flaky := newFlakyMailer(3, errors.New("smtp down"))
+	originalBackoff := passwordResetEmailBackoff
+	passwordResetEmailBackoff = []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond}
+	t.Cleanup(func() {
+		passwordResetEmailBackoff = originalBackoff
+	})
+	service, _, tokens, _, _, _, _, cleanup := newPasswordResetTestEnvWithMailer(t, flaky)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+	token, err := service.InitiatePasswordReset(ctx, "user@example.com")
+	require.NoError(t, err)
+	require.NotNil(t, token)
+
+	require.Eventually(t, func() bool {
+		stored, findErr := tokens.FindByID(context.Background(), token.ID)
+		if findErr != nil {
+			return false
+		}
+		return stored.EmailRetryCount == 3 && stored.EmailError != nil && *stored.EmailError != "" && stored.EmailSentAt == nil
+	}, time.Second, 20*time.Millisecond)
+
+	require.Equal(t, 3, flaky.Attempts())
+	require.Len(t, flaky.Messages(), 0)
 }
 
 func TestResetPasswordWithValidToken(t *testing.T) {

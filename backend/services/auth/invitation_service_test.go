@@ -13,11 +13,18 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
+	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func newInvitationTestEnv(t *testing.T) (InvitationService, *stubInvitationTokenRepository, *stubAccountRepository, *stubRoleRepository, *stubAccountRoleRepository, *stubPersonRepository, *capturingMailer, sqlmock.Sqlmock, func()) {
+	service, invitations, accounts, roles, accountRoles, persons, mailer, mock, cleanup := newInvitationTestEnvWithMailer(t, newCapturingMailer())
+	capturing, _ := mailer.(*capturingMailer)
+	return service, invitations, accounts, roles, accountRoles, persons, capturing, mock, cleanup
+}
+
+func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (InvitationService, *stubInvitationTokenRepository, *stubAccountRepository, *stubRoleRepository, *stubAccountRoleRepository, *stubPersonRepository, email.Mailer, sqlmock.Sqlmock, func()) {
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
@@ -30,7 +37,9 @@ func newInvitationTestEnv(t *testing.T) (InvitationService, *stubInvitationToken
 	)
 	accountRoleRepo := newStubAccountRoleRepository()
 	personRepo := newStubPersonRepository()
-	mailer := newCapturingMailer()
+
+	dispatcher := email.NewDispatcher(mailer)
+	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
 
 	service := NewInvitationService(
 		invitationRepo,
@@ -39,6 +48,7 @@ func newInvitationTestEnv(t *testing.T) (InvitationService, *stubInvitationToken
 		accountRoleRepo,
 		personRepo,
 		mailer,
+		dispatcher,
 		"http://localhost:3000",
 		newDefaultFromEmail(),
 		48*time.Hour,
@@ -94,6 +104,39 @@ func TestCreateInvitationSuccess(t *testing.T) {
 	require.Contains(t, msg.Content.(map[string]any), "InvitationURL")
 
 	require.Contains(t, invitations.byToken, invitation.Token)
+}
+
+func TestInvitationEmailFailureRecordsError(t *testing.T) {
+	flaky := newFlakyMailer(3, errors.New("smtp down"))
+	originalBackoff := invitationEmailBackoff
+	invitationEmailBackoff = []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond}
+	t.Cleanup(func() {
+		invitationEmailBackoff = originalBackoff
+	})
+	service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnvWithMailer(t, flaky)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+	req := InvitationRequest{
+		Email:     "failure@example.com",
+		RoleID:    1,
+		CreatedBy: 99,
+	}
+
+	invitation, err := service.CreateInvitation(ctx, req)
+	require.NoError(t, err)
+	require.NotNil(t, invitation)
+
+	require.Eventually(t, func() bool {
+		updated, findErr := invitations.FindByID(context.Background(), invitation.ID)
+		if findErr != nil {
+			return false
+		}
+		return updated.EmailRetryCount == 3 && updated.EmailError != nil && *updated.EmailError != "" && updated.EmailSentAt == nil
+	}, time.Second, 20*time.Millisecond)
+
+	require.Equal(t, 3, flaky.Attempts())
+	require.Len(t, flaky.Messages(), 0)
 }
 
 func TestCreateInvitationInvalidatesExistingTokens(t *testing.T) {

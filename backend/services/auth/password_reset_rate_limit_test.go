@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -25,12 +26,14 @@ func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service
 	tokenRepo := newStubPasswordResetTokenRepository()
 	rateRepo := newTestRateLimitRepo()
 	mailer := newCapturingMailer()
+	dispatcher := email.NewDispatcher(mailer)
+	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
 
 	service := &Service{
 		accountRepo:                accountRepo,
 		passwordResetTokenRepo:     tokenRepo,
 		passwordResetRateLimitRepo: rateRepo,
-		mailer:                     mailer,
+		dispatcher:                 dispatcher,
 		defaultFrom:                newDefaultFromEmail(),
 		frontendURL:                "http://localhost:3000",
 		passwordResetExpiry:        30 * time.Minute,

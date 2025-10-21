@@ -64,6 +64,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		log.Println("email: SMTP mailer not configured; using mock mailer (tokens will not be sent via SMTP)")
 	}
 
+	dispatcher := email.NewDispatcher(mailer)
+
 	defaultFrom := email.NewEmail(viper.GetString("email_from_name"), viper.GetString("email_from_address"))
 	if defaultFrom.Address == "" {
 		defaultFrom = email.NewEmail("moto", "no-reply@moto.local")
@@ -207,6 +209,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.AuthEvent, // Add for audit logging
 		db,
 		mailer,
+		dispatcher,
 		frontendURL,
 		defaultFrom,
 		passwordResetTokenExpiry,
@@ -222,6 +225,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.AccountRole,
 		repos.Person,
 		mailer,
+		dispatcher,
 		frontendURL,
 		defaultFrom,
 		invitationTokenExpiry,

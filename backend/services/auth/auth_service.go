@@ -25,6 +25,12 @@ const (
 	passwordResetRateLimitThreshold = 3
 )
 
+var passwordResetEmailBackoff = []time.Duration{
+	time.Second,
+	5 * time.Second,
+	15 * time.Second,
+}
+
 // Updated Service struct with all repositories
 
 type Service struct {
@@ -41,7 +47,7 @@ type Service struct {
 	personRepo                 users.PersonRepository    // Add this for first name
 	authEventRepo              audit.AuthEventRepository // Add for audit logging
 	tokenAuth                  *jwt.TokenAuth
-	mailer                     email.Mailer
+	dispatcher                 *email.Dispatcher
 	defaultFrom                email.Email
 	frontendURL                string
 	passwordResetExpiry        time.Duration
@@ -68,6 +74,7 @@ func NewService(
 	authEventRepo audit.AuthEventRepository, // Add for audit logging
 	db *bun.DB,
 	mailer email.Mailer,
+	dispatcher *email.Dispatcher,
 	frontendURL string,
 	defaultFrom email.Email,
 	passwordResetExpiry time.Duration,
@@ -76,6 +83,10 @@ func NewService(
 	tokenAuth, err := jwt.NewTokenAuth()
 	if err != nil {
 		return nil, &AuthError{Op: "create token auth", Err: err}
+	}
+
+	if dispatcher == nil && mailer != nil {
+		dispatcher = email.NewDispatcher(mailer)
 	}
 
 	return &Service{
@@ -92,7 +103,7 @@ func NewService(
 		personRepo:                 personRepo,    // Add this for first name
 		authEventRepo:              authEventRepo, // Add for audit logging
 		tokenAuth:                  tokenAuth,
-		mailer:                     mailer,
+		dispatcher:                 dispatcher,
 		defaultFrom:                defaultFrom,
 		frontendURL:                frontendURL,
 		passwordResetExpiry:        passwordResetExpiry,
@@ -173,7 +184,7 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 		personRepo:                 personRepo,    // Add this for first name
 		authEventRepo:              authEventRepo, // Add for audit logging
 		tokenAuth:                  s.tokenAuth,
-		mailer:                     s.mailer,
+		dispatcher:                 s.dispatcher,
 		defaultFrom:                s.defaultFrom,
 		frontendURL:                s.frontendURL,
 		passwordResetExpiry:        s.passwordResetExpiry,
@@ -1401,11 +1412,30 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 		},
 	}
 
-	go func(to string) {
-		if err := s.mailer.Send(message); err != nil {
-			log.Printf("Failed to send password reset email to=%s err=%v", to, err)
-		}
-	}(account.Email)
+	meta := email.DeliveryMetadata{
+		Type:        "password_reset",
+		ReferenceID: resetToken.ID,
+		Token:       resetToken.Token,
+		Recipient:   account.Email,
+	}
+
+	if s.dispatcher == nil {
+		log.Printf("Email dispatcher unavailable; skipping password reset email account=%d", account.ID)
+		return resetToken, nil
+	}
+
+	baseRetry := resetToken.EmailRetryCount
+
+	s.dispatcher.Dispatch(email.DeliveryRequest{
+		Message:       message,
+		Metadata:      meta,
+		BackoffPolicy: passwordResetEmailBackoff,
+		MaxAttempts:   3,
+		Context:       context.Background(),
+		Callback: func(ctx context.Context, result email.DeliveryResult) {
+			s.persistPasswordResetDelivery(ctx, meta, baseRetry, result)
+		},
+	})
 
 	return resetToken, nil
 }
@@ -1458,6 +1488,29 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	}
 
 	return nil
+}
+
+func (s *Service) persistPasswordResetDelivery(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {
+	retryCount := baseRetry + result.Attempt
+	var sentAt *time.Time
+	var errText *string
+
+	if result.Status == email.DeliveryStatusSent {
+		sentTime := result.SentAt
+		sentAt = &sentTime
+	} else if result.Err != nil {
+		msg := sanitizeEmailError(result.Err)
+		errText = &msg
+	}
+
+	if err := s.passwordResetTokenRepo.UpdateDeliveryResult(ctx, meta.ReferenceID, sentAt, errText, retryCount); err != nil {
+		log.Printf("Failed to update password reset delivery status token_id=%d err=%v", meta.ReferenceID, err)
+		return
+	}
+
+	if result.Final && result.Status == email.DeliveryStatusFailed {
+		log.Printf("Password reset email permanently failed token=%s recipient=%s err=%v", meta.Token, meta.Recipient, result.Err)
+	}
 }
 
 // Token Management

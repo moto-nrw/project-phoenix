@@ -24,7 +24,7 @@ type invitationService struct {
 	roleRepo         authModels.RoleRepository
 	accountRoleRepo  authModels.AccountRoleRepository
 	personRepo       userModels.PersonRepository
-	mailer           email.Mailer
+	dispatcher       *email.Dispatcher
 	frontendURL      string
 	defaultFrom      email.Email
 	invitationExpiry time.Duration
@@ -40,19 +40,23 @@ func NewInvitationService(
 	accountRoleRepo authModels.AccountRoleRepository,
 	personRepo userModels.PersonRepository,
 	mailer email.Mailer,
+	dispatcher *email.Dispatcher,
 	frontendURL string,
 	defaultFrom email.Email,
 	invitationExpiry time.Duration,
 	db *bun.DB,
 ) InvitationService {
 	trimmedFrontend := strings.TrimRight(strings.TrimSpace(frontendURL), "/")
+	if dispatcher == nil && mailer != nil {
+		dispatcher = email.NewDispatcher(mailer)
+	}
 	return &invitationService{
 		invitationRepo:   invitationRepo,
 		accountRepo:      accountRepo,
 		roleRepo:         roleRepo,
 		accountRoleRepo:  accountRoleRepo,
 		personRepo:       personRepo,
-		mailer:           mailer,
+		dispatcher:       dispatcher,
 		frontendURL:      trimmedFrontend,
 		defaultFrom:      defaultFrom,
 		invitationExpiry: invitationExpiry,
@@ -91,7 +95,7 @@ func (s *invitationService) WithTx(tx bun.Tx) interface{} {
 		roleRepo:         roleRepo,
 		accountRoleRepo:  accountRoleRepo,
 		personRepo:       personRepo,
-		mailer:           s.mailer,
+		dispatcher:       s.dispatcher,
 		frontendURL:      s.frontendURL,
 		defaultFrom:      s.defaultFrom,
 		invitationExpiry: s.invitationExpiry,
@@ -298,6 +302,8 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 		return err
 	}
 
+	invitation.EmailSentAt = nil
+	invitation.EmailError = nil
 	invitation.UpdatedAt = time.Now()
 	if err := s.invitationRepo.Update(ctx, invitation); err != nil {
 		return &AuthError{Op: "resend invitation", Err: err}
@@ -389,8 +395,15 @@ func (s *invitationService) lookupRoleName(ctx context.Context, roleID int64) (s
 	return role.Name, nil
 }
 
+var invitationEmailBackoff = []time.Duration{
+	time.Second,
+	5 * time.Second,
+	15 * time.Second,
+}
+
 func (s *invitationService) sendInvitationEmail(invitation *authModels.InvitationToken, roleName string) {
-	if s.mailer == nil {
+	if s.dispatcher == nil {
+		log.Printf("Email dispatcher unavailable; skipping invitation email id=%d", invitation.ID)
 		return
 	}
 
@@ -418,11 +431,55 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 		},
 	}
 
-	go func(msg email.Message, recipient string) {
-		if err := s.mailer.Send(msg); err != nil {
-			log.Printf("Failed to send invitation email to=%s err=%v", recipient, err)
-		}
-	}(message, invitation.Email)
+	meta := email.DeliveryMetadata{
+		Type:        "invitation",
+		ReferenceID: invitation.ID,
+		Token:       invitation.Token,
+		Recipient:   invitation.Email,
+	}
+
+	baseRetry := invitation.EmailRetryCount
+
+	s.dispatcher.Dispatch(email.DeliveryRequest{
+		Message:       message,
+		Metadata:      meta,
+		BackoffPolicy: invitationEmailBackoff,
+		MaxAttempts:   3,
+		Context:       context.Background(),
+		Callback: func(ctx context.Context, result email.DeliveryResult) {
+			s.persistInvitationDelivery(ctx, meta, baseRetry, result)
+		},
+	})
+}
+
+func (s *invitationService) persistInvitationDelivery(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {
+	retryCount := baseRetry + result.Attempt
+	var sentAt *time.Time
+	var errText *string
+
+	if result.Status == email.DeliveryStatusSent {
+		sentTime := result.SentAt
+		sentAt = &sentTime
+	} else if result.Err != nil {
+		msg := sanitizeEmailError(result.Err)
+		errText = &msg
+	}
+
+	if err := s.invitationRepo.UpdateDeliveryResult(ctx, meta.ReferenceID, sentAt, errText, retryCount); err != nil {
+		log.Printf("Failed to update invitation delivery status id=%d err=%v", meta.ReferenceID, err)
+		return
+	}
+
+	if result.Final && result.Status == email.DeliveryStatusFailed {
+		log.Printf("Invitation email permanently failed token=%s recipient=%s err=%v", meta.Token, meta.Recipient, result.Err)
+	}
+}
+
+func sanitizeEmailError(err error) string {
+	if err == nil {
+		return ""
+	}
+	return strings.TrimSpace(err.Error())
 }
 
 func isNotFoundError(err error) bool {

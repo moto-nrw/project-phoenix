@@ -15,6 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/email"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
@@ -37,16 +38,20 @@ func (req *CreateInvitationRequest) Bind(r *http.Request) error {
 }
 
 type InvitationResponse struct {
-	ID        int64     `json:"id"`
-	Email     string    `json:"email"`
-	RoleID    int64     `json:"role_id"`
-	RoleName  string    `json:"role_name,omitempty"`
-	Token     string    `json:"token"`
-	ExpiresAt time.Time `json:"expires_at"`
-	FirstName *string   `json:"first_name,omitempty"`
-	LastName  *string   `json:"last_name,omitempty"`
-	CreatedBy int64     `json:"created_by"`
-	Creator   string    `json:"creator,omitempty"`
+	ID              int64      `json:"id"`
+	Email           string     `json:"email"`
+	RoleID          int64      `json:"role_id"`
+	RoleName        string     `json:"role_name,omitempty"`
+	Token           string     `json:"token"`
+	ExpiresAt       time.Time  `json:"expires_at"`
+	FirstName       *string    `json:"first_name,omitempty"`
+	LastName        *string    `json:"last_name,omitempty"`
+	CreatedBy       int64      `json:"created_by"`
+	Creator         string     `json:"creator,omitempty"`
+	DeliveryStatus  string     `json:"delivery_status"`
+	EmailSentAt     *time.Time `json:"email_sent_at,omitempty"`
+	EmailError      *string    `json:"email_error,omitempty"`
+	EmailRetryCount int        `json:"email_retry_count"`
 }
 
 func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
@@ -96,14 +101,18 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Invitation created by account=%d for email=%s", claims.ID, invitation.Email)
 
 	resp := InvitationResponse{
-		ID:        invitation.ID,
-		Email:     invitation.Email,
-		RoleID:    invitation.RoleID,
-		Token:     invitation.Token,
-		ExpiresAt: invitation.ExpiresAt,
-		FirstName: invitation.FirstName,
-		LastName:  invitation.LastName,
-		CreatedBy: invitation.CreatedBy,
+		ID:              invitation.ID,
+		Email:           invitation.Email,
+		RoleID:          invitation.RoleID,
+		Token:           invitation.Token,
+		ExpiresAt:       invitation.ExpiresAt,
+		FirstName:       invitation.FirstName,
+		LastName:        invitation.LastName,
+		CreatedBy:       invitation.CreatedBy,
+		DeliveryStatus:  deriveDeliveryStatus(invitation.EmailSentAt, invitation.EmailError),
+		EmailSentAt:     invitation.EmailSentAt,
+		EmailError:      invitation.EmailError,
+		EmailRetryCount: invitation.EmailRetryCount,
 	}
 
 	if invitation.Role != nil {
@@ -244,14 +253,18 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 	responses := make([]InvitationResponse, 0, len(invitations))
 	for _, invitation := range invitations {
 		resp := InvitationResponse{
-			ID:        invitation.ID,
-			Email:     invitation.Email,
-			RoleID:    invitation.RoleID,
-			Token:     invitation.Token,
-			ExpiresAt: invitation.ExpiresAt,
-			FirstName: invitation.FirstName,
-			LastName:  invitation.LastName,
-			CreatedBy: invitation.CreatedBy,
+			ID:              invitation.ID,
+			Email:           invitation.Email,
+			RoleID:          invitation.RoleID,
+			Token:           invitation.Token,
+			ExpiresAt:       invitation.ExpiresAt,
+			FirstName:       invitation.FirstName,
+			LastName:        invitation.LastName,
+			CreatedBy:       invitation.CreatedBy,
+			DeliveryStatus:  deriveDeliveryStatus(invitation.EmailSentAt, invitation.EmailError),
+			EmailSentAt:     invitation.EmailSentAt,
+			EmailError:      invitation.EmailError,
+			EmailRetryCount: invitation.EmailRetryCount,
 		}
 		if invitation.Role != nil {
 			resp.RoleName = invitation.Role.Name
@@ -263,6 +276,16 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Pending invitations retrieved successfully")
+}
+
+func deriveDeliveryStatus(sentAt *time.Time, emailError *string) string {
+	if sentAt != nil {
+		return string(email.DeliveryStatusSent)
+	}
+	if emailError != nil && strings.TrimSpace(*emailError) != "" {
+		return string(email.DeliveryStatusFailed)
+	}
+	return string(email.DeliveryStatusPending)
 }
 
 func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {

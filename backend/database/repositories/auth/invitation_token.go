@@ -222,3 +222,32 @@ func (r *InvitationTokenRepository) List(ctx context.Context, filters map[string
 
 	return tokens, nil
 }
+
+// UpdateDeliveryResult updates the email delivery metadata for an invitation token.
+func (r *InvitationTokenRepository) UpdateDeliveryResult(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error {
+	update := r.db.NewUpdate().
+		Model((*modelAuth.InvitationToken)(nil)).
+		ModelTableExpr(invitationTable).
+		Where(`id = ?`, id).
+		Set(`email_retry_count = ?`, retryCount)
+
+	if sentAt != nil {
+		update = update.Set(`email_sent_at = ?`, *sentAt)
+	} else {
+		update = update.Set(`email_sent_at = NULL`)
+	}
+
+	if emailError != nil {
+		update = update.Set(`email_error = ?`, truncateError(*emailError))
+	} else {
+		update = update.Set(`email_error = NULL`)
+	}
+
+	if _, err := update.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update invitation delivery result",
+			Err: err,
+		}
+	}
+	return nil
+}
