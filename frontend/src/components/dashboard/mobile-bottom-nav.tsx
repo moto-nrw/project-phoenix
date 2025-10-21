@@ -11,11 +11,12 @@ import { useSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { navigationIcons } from '~/lib/navigation-icons';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "~/components/ui/sheet";
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "~/components/ui/drawer";
 
 // Icon component for consistent SVG rendering
 const Icon = ({ path, className }: { path: string; className?: string }) => (
@@ -206,120 +207,126 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
       {/* Spacer to prevent content from being hidden behind fixed nav */}
       <div className="h-16 lg:hidden" />
 
-      {/* Ultra-minimal "Mehr" modal (shadcn/UI Sheet - Instagram/Twitter pattern) */}
-      <Sheet open={isOverflowMenuOpen} onOpenChange={setIsOverflowMenuOpen}>
-        <SheetContent
-          side="bottom"
-          className="bg-white rounded-t-2xl border-t border-gray-200 px-0 py-0"
-        >
-          {/* Header */}
-          <SheetHeader className="px-6 py-4 border-b border-gray-100">
-            <SheetTitle className="text-[17px] font-semibold text-gray-900">
-              Weitere Optionen
-            </SheetTitle>
-          </SheetHeader>
+      {/* shadcn/UI Drawer - Full-width on mobile */}
+      <Drawer open={isOverflowMenuOpen} onOpenChange={setIsOverflowMenuOpen}>
+        <DrawerContent className="bg-white">
+          <div className="w-full">
+            <DrawerHeader>
+              <DrawerTitle>Navigation</DrawerTitle>
+              <DrawerDescription>Wähle eine Seite</DrawerDescription>
+            </DrawerHeader>
+            <div className="px-4 py-4">
+              <div className="space-y-2">
+                {displayAdditionalItems.map((item) => {
+                  const isActive = isActiveRoute(item.href);
 
-          {/* Clean list (Twitter/Uber pattern - NOT grid) */}
-          <div className="divide-y divide-gray-100">
-            {displayAdditionalItems.map((item) => {
-              const isActive = isActiveRoute(item.href);
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={closeOverflowMenu}
-                  className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 active:bg-gray-100 transition-colors min-h-[44px]"
-                >
-                  {/* Icon (minimal - same as desktop sidebar) */}
-                  <Icon
-                    path={navigationIcons[item.iconKey]}
-                    className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-[#5080D8]' : 'text-gray-600'}`}
-                  />
-
-                  {/* Label */}
-                  <span className={`text-base flex-1 ${isActive ? 'font-semibold text-[#5080D8]' : 'font-medium text-gray-900'}`}>
-                    {item.label}
-                  </span>
-
-                  {/* Chevron right */}
-                  <Icon
-                    path={navigationIcons.chevronRight}
-                    className="w-4 h-4 text-gray-400"
-                  />
-                </Link>
-              );
-            })}
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={closeOverflowMenu}
+                      className={`
+                        flex items-center gap-3 px-4 py-3 rounded-xl transition-all
+                        ${isActive
+                          ? 'bg-gray-900 text-white'
+                          : 'bg-gray-50 hover:bg-gray-100 active:bg-gray-200 text-gray-900'
+                        }
+                      `}
+                    >
+                      <Icon
+                        path={navigationIcons[item.iconKey]}
+                        className={`w-5 h-5 ${isActive ? 'text-white' : 'text-gray-600'}`}
+                      />
+                      <span className="text-base font-medium">
+                        {item.label}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="pb-8" />
           </div>
+        </DrawerContent>
+      </Drawer>
 
-          {/* Safe area padding */}
-          <div className="h-safe-area-inset-bottom" />
-        </SheetContent>
-      </Sheet>
-
-      {/* Ultra-minimal Bottom Navigation (Instagram/Twitter pattern) */}
+      {/* Modern Pill-Style Bottom Navigation (shadcn-inspired) */}
       <nav
         className={`
           lg:hidden fixed bottom-0 left-0 right-0 z-30
-          bg-white border-t border-gray-200
           transition-transform duration-300 ease-in-out
           ${isVisible ? 'translate-y-0' : 'translate-y-full'}
           ${className}
         `}
       >
-        <div className="flex items-center justify-around px-2 py-2">
-          {/* Main navigation items */}
-          {displayMainItems.map((item) => {
-            const isActive = isActiveRoute(item.href);
+        {/* Pill container with margins */}
+        <div className="px-4 pb-4">
+          <div className="bg-white/95 backdrop-blur-md rounded-full shadow-[0_-2px_20px_rgba(0,0,0,0.08)] border border-gray-200/50 px-3 py-2">
+            <div className="flex items-center justify-around gap-1">
+              {/* Main navigation items */}
+              {displayMainItems.map((item) => {
+                const isActive = isActiveRoute(item.href);
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex flex-col items-center justify-center py-2 px-3 min-h-[44px] min-w-[44px] transition-colors"
-              >
-                {/* Icon - same as desktop sidebar */}
-                <Icon
-                  path={navigationIcons[item.iconKey]}
-                  className={`w-6 h-6 transition-colors ${isActive ? 'text-[#5080D8]' : 'text-gray-500'}`}
-                />
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`
+                      flex items-center justify-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-full transition-all duration-200
+                      ${isActive
+                        ? 'bg-gray-900 text-white shadow-md scale-105'
+                        : 'text-gray-400 hover:text-gray-600'
+                      }
+                    `}
+                  >
+                    {/* Icon */}
+                    <Icon
+                      path={navigationIcons[item.iconKey]}
+                      className="w-5 h-5 flex-shrink-0"
+                    />
 
-                {/* Small label */}
-                <span className={`text-xs mt-1 transition-colors ${
-                  isActive ? 'text-[#5080D8] font-semibold' : 'text-gray-500 font-medium'
-                }`}>
-                  {item.label}
-                </span>
-              </Link>
-            );
-          })}
+                    {/* Label - ONLY show when active */}
+                    {isActive && (
+                      <span className="text-sm font-semibold whitespace-nowrap">
+                        {item.label}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
 
-          {/* More button - only show if there are overflow items */}
-          {showOverflowMenu && (
-            <button
-              onClick={() => setIsOverflowMenuOpen(true)}
-              className="flex flex-col items-center justify-center py-2 px-3 min-h-[44px] min-w-[44px] transition-colors"
-            >
-              {/* Icon - same as desktop sidebar */}
-              <Icon
-                path={navigationIcons.more}
-                className={`w-6 h-6 transition-colors ${
-                  isOverflowMenuOpen || isAnyAdditionalNavActive ? 'text-[#5080D8]' : 'text-gray-500'
-                }`}
-              />
+              {/* More button */}
+              {showOverflowMenu && (
+                <button
+                  onClick={() => setIsOverflowMenuOpen(true)}
+                  className={`
+                    flex items-center justify-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-full transition-all duration-200
+                    ${isOverflowMenuOpen || isAnyAdditionalNavActive
+                      ? 'bg-gray-900 text-white shadow-md scale-105'
+                      : 'text-gray-400 hover:text-gray-600'
+                    }
+                  `}
+                >
+                  {/* Icon */}
+                  <Icon
+                    path={navigationIcons.more}
+                    className="w-5 h-5 flex-shrink-0"
+                  />
 
-              {/* Label */}
-              <span className={`text-xs mt-1 transition-colors ${
-                isOverflowMenuOpen || isAnyAdditionalNavActive ? 'text-[#5080D8] font-semibold' : 'text-gray-500 font-medium'
-              }`}>
-                Mehr
-              </span>
-            </button>
-          )}
+                  {/* Label - ONLY show when active */}
+                  {(isOverflowMenuOpen || isAnyAdditionalNavActive) && (
+                    <span className="text-sm font-semibold whitespace-nowrap">
+                      Mehr
+                    </span>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Safe area padding for devices with home indicator */}
-        <div className="h-safe-area-inset-bottom" />
+        {/* Safe area padding */}
+        <div className="h-safe-area-inset-bottom bg-transparent" />
       </nav>
     </>
   );
