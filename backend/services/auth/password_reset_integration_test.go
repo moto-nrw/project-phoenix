@@ -72,10 +72,13 @@ func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Serv
 }
 
 func TestInitiatePasswordResetSendsEmail(t *testing.T) {
-	service, _, tokens, _, _, mailer, _, cleanup := newPasswordResetTestEnv(t)
+	service, _, tokens, _, _, mailer, mock, cleanup := newPasswordResetTestEnv(t)
 	t.Cleanup(cleanup)
 
 	ctx := context.Background()
+
+	mock.ExpectBegin()
+	mock.ExpectCommit()
 
 	token, err := service.InitiatePasswordReset(ctx, "user@example.com")
 	require.NoError(t, err)
@@ -106,10 +109,14 @@ func TestInitiatePasswordResetEmailFailureRecordsError(t *testing.T) {
 	t.Cleanup(func() {
 		passwordResetEmailBackoff = originalBackoff
 	})
-	service, _, tokens, _, _, _, _, cleanup := newPasswordResetTestEnvWithMailer(t, flaky)
+	service, _, tokens, _, _, _, mock, cleanup := newPasswordResetTestEnvWithMailer(t, flaky)
 	t.Cleanup(cleanup)
 
 	ctx := context.Background()
+
+	mock.ExpectBegin()
+	mock.ExpectCommit()
+
 	token, err := service.InitiatePasswordReset(ctx, "user@example.com")
 	require.NoError(t, err)
 	require.NotNil(t, token)
@@ -131,6 +138,9 @@ func TestResetPasswordWithValidToken(t *testing.T) {
 	t.Cleanup(cleanup)
 
 	ctx := context.Background()
+
+	mock.ExpectBegin()
+	mock.ExpectCommit()
 	token, err := service.InitiatePasswordReset(ctx, "user@example.com")
 	require.NoError(t, err)
 
@@ -168,11 +178,13 @@ func TestResetPasswordWithExpiredToken(t *testing.T) {
 }
 
 func TestPasswordResetRateLimitBlocksAfterThreeAttempts(t *testing.T) {
-	service, _, _, rateRepo, _, _, _, cleanup := newPasswordResetTestEnv(t)
+	service, _, _, rateRepo, _, _, mock, cleanup := newPasswordResetTestEnv(t)
 	t.Cleanup(cleanup)
 
 	ctx := context.Background()
 	for i := 0; i < 3; i++ {
+		mock.ExpectBegin()
+		mock.ExpectCommit()
 		_, err := service.InitiatePasswordReset(ctx, "user@example.com")
 		require.NoError(t, err)
 	}

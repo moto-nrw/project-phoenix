@@ -1376,23 +1376,33 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 
 	log.Printf("Password reset requested for email=%s", emailAddress)
 
-	// Invalidate any existing reset tokens
-	if err := s.passwordResetTokenRepo.InvalidateTokensByAccountID(ctx, account.ID); err != nil {
-		// Log error but continue
-		log.Printf("Failed to invalidate reset tokens for account %d: %v", account.ID, err)
-	}
+	var resetToken *auth.PasswordResetToken
 
-	// Generate new token
-	tokenStr := uuid.Must(uuid.NewV4()).String()
-	resetToken := &auth.PasswordResetToken{
-		AccountID: account.ID,
-		Token:     tokenStr,
-		Expiry:    time.Now().Add(s.passwordResetExpiry),
-		Used:      false,
-	}
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		txService := s.WithTx(tx).(AuthService)
 
-	if err := s.passwordResetTokenRepo.Create(ctx, resetToken); err != nil {
-		return nil, &AuthError{Op: "create password reset token", Err: err}
+		if err := txService.(*Service).passwordResetTokenRepo.InvalidateTokensByAccountID(ctx, account.ID); err != nil {
+			log.Printf("Failed to invalidate reset tokens for account %d, rolling back: %v", account.ID, err)
+			return err
+		}
+
+		tokenStr := uuid.Must(uuid.NewV4()).String()
+		resetToken = &auth.PasswordResetToken{
+			AccountID: account.ID,
+			Token:     tokenStr,
+			Expiry:    time.Now().Add(s.passwordResetExpiry),
+			Used:      false,
+		}
+
+		if err := txService.(*Service).passwordResetTokenRepo.Create(ctx, resetToken); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, &AuthError{Op: "initiate password reset transaction", Err: err}
 	}
 
 	log.Printf("Password reset token created for account=%d", account.ID)

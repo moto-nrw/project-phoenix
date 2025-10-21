@@ -6,14 +6,18 @@ import (
 	"testing"
 	"time"
 
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/spf13/viper"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 )
 
-func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *capturingMailer) {
+func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *capturingMailer, sqlmock.Sqlmock, func()) {
 	t.Helper()
 
 	prevRateLimitEnabled := viper.GetBool("rate_limit_enabled")
@@ -21,6 +25,10 @@ func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service
 	t.Cleanup(func() {
 		viper.Set("rate_limit_enabled", prevRateLimitEnabled)
 	})
+
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
 
 	accountRepo := newStubAccountRepository(account)
 	tokenRepo := newStubPasswordResetTokenRepository()
@@ -37,19 +45,30 @@ func newRateLimitTestService(t *testing.T, account *authModel.Account) (*Service
 		defaultFrom:                newDefaultFromEmail(),
 		frontendURL:                "http://localhost:3000",
 		passwordResetExpiry:        30 * time.Minute,
+		txHandler:                  baseModel.NewTxHandler(bunDB),
 	}
 
-	return service, accountRepo, tokenRepo, rateRepo, mailer
+	cleanup := func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	}
+
+	return service, accountRepo, tokenRepo, rateRepo, mailer, mock, cleanup
 }
 
 func TestInitiatePasswordReset_AllowsFirstThreeAttempts(t *testing.T) {
-	service, _, tokenRepo, rateRepo, mailer := newRateLimitTestService(t, &authModel.Account{
+	service, _, tokenRepo, rateRepo, mailer, mock, cleanup := newRateLimitTestService(t, &authModel.Account{
 		Model: baseModel.Model{ID: 1},
 		Email: "user@example.com",
 	})
+	t.Cleanup(cleanup)
 
 	ctx := context.Background()
 	for i := 0; i < 3; i++ {
+		mock.ExpectBegin()
+		mock.ExpectCommit()
 		token, err := service.InitiatePasswordReset(ctx, "user@example.com")
 		if err != nil {
 			t.Fatalf("expected attempt %d to succeed, got error: %v", i+1, err)
@@ -72,13 +91,16 @@ func TestInitiatePasswordReset_AllowsFirstThreeAttempts(t *testing.T) {
 }
 
 func TestInitiatePasswordReset_BlocksFourthAttempt(t *testing.T) {
-	service, _, _, rateRepo, _ := newRateLimitTestService(t, &authModel.Account{
+	service, _, _, rateRepo, _, mock, cleanup := newRateLimitTestService(t, &authModel.Account{
 		Model: baseModel.Model{ID: 42},
 		Email: "user@example.com",
 	})
+	t.Cleanup(cleanup)
 
 	ctx := context.Background()
 	for i := 0; i < 3; i++ {
+		mock.ExpectBegin()
+		mock.ExpectCommit()
 		if _, err := service.InitiatePasswordReset(ctx, "user@example.com"); err != nil {
 			t.Fatalf("setup attempt %d failed: %v", i+1, err)
 		}
@@ -115,13 +137,16 @@ func TestInitiatePasswordReset_BlocksFourthAttempt(t *testing.T) {
 }
 
 func TestInitiatePasswordReset_ResetAfterWindow(t *testing.T) {
-	service, _, _, rateRepo, _ := newRateLimitTestService(t, &authModel.Account{
+	service, _, _, rateRepo, _, mock, cleanup := newRateLimitTestService(t, &authModel.Account{
 		Model: baseModel.Model{ID: 7},
 		Email: "user@example.com",
 	})
+	t.Cleanup(cleanup)
 
 	ctx := context.Background()
 	for i := 0; i < 3; i++ {
+		mock.ExpectBegin()
+		mock.ExpectCommit()
 		if _, err := service.InitiatePasswordReset(ctx, "user@example.com"); err != nil {
 			t.Fatalf("setup attempt %d failed: %v", i+1, err)
 		}
@@ -129,6 +154,8 @@ func TestInitiatePasswordReset_ResetAfterWindow(t *testing.T) {
 
 	rateRepo.setWindow(time.Now().Add(-2*time.Hour), 3)
 
+	mock.ExpectBegin()
+	mock.ExpectCommit()
 	token, err := service.InitiatePasswordReset(ctx, "user@example.com")
 	if err != nil {
 		t.Fatalf("expected request after window reset to succeed, got error: %v", err)
@@ -143,13 +170,16 @@ func TestInitiatePasswordReset_ResetAfterWindow(t *testing.T) {
 }
 
 func TestInitiatePasswordReset_IncrementsCounter(t *testing.T) {
-	service, _, _, rateRepo, _ := newRateLimitTestService(t, &authModel.Account{
+	service, _, _, rateRepo, _, mock, cleanup := newRateLimitTestService(t, &authModel.Account{
 		Model: baseModel.Model{ID: 5},
 		Email: "user@example.com",
 	})
+	t.Cleanup(cleanup)
 
 	ctx := context.Background()
 	for i := 1; i <= 2; i++ {
+		mock.ExpectBegin()
+		mock.ExpectCommit()
 		if _, err := service.InitiatePasswordReset(ctx, "user@example.com"); err != nil {
 			t.Fatalf("attempt %d failed: %v", i, err)
 		}
