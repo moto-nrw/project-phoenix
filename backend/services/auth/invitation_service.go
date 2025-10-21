@@ -130,7 +130,7 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 		return nil, &AuthError{Op: "create invitation", Err: err}
 	}
 
-	// Revoke any previous pending invitations for this email.
+	// Mark any previous pending invitations for this email as used (effectively invalidating them).
 	if _, err := s.invitationRepo.InvalidateByEmail(ctx, emailAddress); err != nil {
 		return nil, &AuthError{Op: "invalidate invitations", Err: err}
 	}
