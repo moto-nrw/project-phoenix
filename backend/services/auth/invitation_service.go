@@ -242,7 +242,7 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 	}
 
 	if firstName == "" || lastName == "" {
-		return nil, &AuthError{Op: "accept invitation", Err: fmt.Errorf("first name and last name are required")}
+		return nil, &AuthError{Op: "accept invitation", Err: ErrInvitationNameRequired}
 	}
 
 	// Ensure account does not already exist.

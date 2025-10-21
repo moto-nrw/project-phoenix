@@ -42,9 +42,10 @@ var (
 	ErrRateLimitExceeded = errors.New("too many password reset requests")
 
 	// Invitation errors
-	ErrInvitationNotFound = errors.New("invitation not found")
-	ErrInvitationExpired  = errors.New("invitation has expired")
-	ErrInvitationUsed     = errors.New("invitation has already been used")
+	ErrInvitationNotFound     = errors.New("invitation not found")
+	ErrInvitationExpired      = errors.New("invitation has expired")
+	ErrInvitationUsed         = errors.New("invitation has already been used")
+	ErrInvitationNameRequired = errors.New("first name and last name are required")
 )
 
 // AuthError represents an authentication-related error

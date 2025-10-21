@@ -162,8 +162,6 @@ type AcceptInvitationRequest struct {
 func (req *AcceptInvitationRequest) Bind(r *http.Request) error {
 	req.FirstName = strings.TrimSpace(req.FirstName)
 	req.LastName = strings.TrimSpace(req.LastName)
-	req.Password = strings.TrimSpace(req.Password)
-	req.ConfirmPassword = strings.TrimSpace(req.ConfirmPassword)
 
 	return validation.ValidateStruct(req,
 		validation.Field(&req.Password, validation.Required),
@@ -212,6 +210,13 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 
 		if errors.Is(err, authService.ErrEmailAlreadyExists) {
 			if renderErr := render.Render(w, r, common.ErrorConflict(authService.ErrEmailAlreadyExists)); renderErr != nil {
+				log.Printf("Render error: %v", renderErr)
+			}
+			return
+		}
+
+		if errors.Is(err, authService.ErrInvitationNameRequired) {
+			if renderErr := render.Render(w, r, ErrorInvalidRequest(authService.ErrInvitationNameRequired)); renderErr != nil {
 				log.Printf("Render error: %v", renderErr)
 			}
 			return
