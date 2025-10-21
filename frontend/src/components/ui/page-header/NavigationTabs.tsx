@@ -37,14 +37,14 @@ export function NavigationTabs({
               type="button"
               onClick={() => onTabChange(tab.id)}
               className={`
-                relative pb-3 text-sm md:text-base font-medium transition-all px-0 whitespace-nowrap
+                relative pb-3 text-sm md:text-base font-medium transition-all px-0
                 ${isActive
                   ? 'text-gray-900 font-semibold'
                   : 'text-gray-500 hover:text-gray-700'
                 }
               `}
             >
-              <span className="block max-w-[120px] md:max-w-none truncate">{tab.label}</span>
+              <span className="whitespace-nowrap">{tab.label}</span>
             </button>
           );
         })}

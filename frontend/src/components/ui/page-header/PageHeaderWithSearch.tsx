@@ -60,7 +60,7 @@ export function PageHeaderWithSearch({
                 )}
                 {badge && (
                   <div className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 bg-gray-50 rounded-full border border-gray-100">
-                    {badge.icon && <span className="text-gray-500 hidden md:inline">{badge.icon}</span>}
+                    {badge.icon && <span className="text-gray-500">{badge.icon}</span>}
                     <span className="text-sm font-semibold text-gray-900">{badge.count}</span>
                     {badge.label && <span className="text-xs text-gray-500 hidden md:inline">{badge.label}</span>}
                   </div>
