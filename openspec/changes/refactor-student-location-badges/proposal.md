@@ -5,8 +5,8 @@
 
 ## What Changes
 - Introduce a structured `StudentLocationStatus` model that captures canonical states (`PRESENT_IN_ROOM`, `TRANSIT`, `SCHOOLYARD`, `HOME`) plus room metadata (`id`, `name`, `isGroupRoom`, `ownerType`) sourced from the real-time attendance backend instead of ad-hoc strings.
-- Build a single badge helper/component that renders unified labels and styling for every surface (OGS groups, My Room, student search, student detail modal) using the structured status.
-- Extend SSE integration so all four surfaces receive live updates; fall back to the last known state if the connection drops while indicating SSE health elsewhere.
+- Build a single badge helper/component that renders unified labels and styling for every surface (OGS groups, My Room, student search, student detail modal) using the structured status, and ensure My Room fetches room data on demand when supervisors switch rooms.
+- Extend SSE integration so all four surfaces receive live updates; when SSE drops, My Room MUST fetch fresh data on demand when a supervisor switches rooms and the student detail modal MUST poll `/api/students/:id/current-location` every 30 seconds while keeping the last known state visible.
 - Remove legacy location strings/booleans (including the old WC handling) and replace any badge logic tied to the Bus permission flag with the new structured status.
 
 ## Impact

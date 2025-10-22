@@ -24,7 +24,7 @@
 ## Surface Integration
 - **OGS Groups:** Subscribe to SSE channel delivering `StudentLocationStatus`; update badges immediately.
 - **My Room:** Same SSE feed for room supervisors; fetch student status on demand when a supervisor switches to a room, and display each student’s origin group separately (outside the badge) when needed.
-- **Student Search:** Add SSE subscription for live updates (covering students at home as well); fallback to periodic fetch only if SSE disconnects.
+- **Student Search:** Add SSE subscription for live updates (covering students at home as well); if SSE disconnects, poll `/api/students` every 30 seconds until the stream resumes.
 - **Student Detail Modal:** Subscribe while open; if SSE unavailable, poll `/api/students/:id/current-location` every 30 seconds and keep last known state.
 - All surfaces use the shared badge helper; legacy code paths and boolean flags are removed.
 
