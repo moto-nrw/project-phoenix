@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Loading } from "~/components/ui/loading";
 import { useSession } from "next-auth/react";
 import { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
@@ -39,20 +39,23 @@ interface ExtendedStudent extends Student {
     health_info?: string;
 }
 
-// Simplified status badge component
-function StatusBadge({ location, roomName }: { location?: string; roomName?: string }) {
+// Simplified status badge component with proper color coding
+function StatusBadge({ location, roomName, isGroupRoom = false }: { location?: string; roomName?: string; isGroupRoom?: boolean }) {
     const getStatusDetails = () => {
-        if (location === "Anwesend" || location === "In House" || location?.startsWith("Anwesend")) {
+        // Check for "Unterwegs" (in transit) BEFORE "Anwesend" to match ogs_groups behavior
+        if (location === "Unterwegs" || location === "In House" || location === "Bus") {
+            return { label: location === "Bus" ? "Bus" : "Unterwegs", bgColor: "#D946EF", textColor: "text-white" };
+        } else if (location === "Anwesend" || location?.startsWith("Anwesend")) {
             const label = roomName ?? (location?.startsWith("Anwesend - ") ? location.substring(11) : "Anwesend");
-            return { label, bgColor: "#83CD2D", textColor: "text-white" };
+            // 🟢 GREEN = Own group room, 🔵 BLUE = External room
+            const bgColor = isGroupRoom ? "#83CD2D" : "#5080D8";
+            return { label, bgColor, textColor: "text-white" };
         } else if (location === "Zuhause") {
             return { label: "Zuhause", bgColor: "#FF3130", textColor: "text-white" };
         } else if (location === "WC") {
             return { label: "WC", bgColor: "#5080D8", textColor: "text-white" };
-        } else if (location === "School Yard") {
+        } else if (location === "School Yard" || location === "Schulhof") {
             return { label: "Schulhof", bgColor: "#F78C10", textColor: "text-white" };
-        } else if (location === "Unterwegs" || location === "Bus") {
-            return { label: location === "Bus" ? "Bus" : "Unterwegs", bgColor: "#D946EF", textColor: "text-white" };
         }
         return { label: "Unbekannt", bgColor: "#6B7280", textColor: "text-white" };
     };
@@ -119,6 +122,7 @@ export default function StudentDetailPage() {
         status: string;
         location: string;
         room: { name: string } | null;
+        isGroupRoom: boolean;
     } | null>(null);
     const [showCheckoutModal, setShowCheckoutModal] = useState(false);
     const [checkoutUpdated, setCheckoutUpdated] = useState(0);
@@ -213,6 +217,7 @@ export default function StudentDetailPage() {
                             status: string;
                             location: string;
                             room: { name: string } | null;
+                            isGroupRoom: boolean;
                         };
                         setCurrentLocation(locationData);
                     }
@@ -310,20 +315,15 @@ export default function StudentDetailPage() {
 
     if (loading) {
         return (
-            <ResponsiveLayout>
-                <div className="flex min-h-[80vh] items-center justify-center">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-                        <p className="text-gray-600">Daten werden geladen...</p>
-                    </div>
-                </div>
+            <ResponsiveLayout referrerPage={referrer} studentName="...">
+                <Loading message="Laden..." fullPage={false} />
             </ResponsiveLayout>
         );
     }
 
     if (error || !student) {
         return (
-            <ResponsiveLayout>
+            <ResponsiveLayout referrerPage={referrer}>
                 <div className="flex min-h-[80vh] flex-col items-center justify-center">
                     <Alert type="error" message={error ?? "Schüler nicht gefunden"} />
                     <button
@@ -338,7 +338,7 @@ export default function StudentDetailPage() {
     }
 
     return (
-        <ResponsiveLayout>
+        <ResponsiveLayout studentName={student.name} referrerPage={referrer}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
                 {/* Back button - Mobile optimized */}
                 <button
@@ -352,15 +352,16 @@ export default function StudentDetailPage() {
                 </button>
 
                 {/* Student Header - Mobile optimized */}
-                <div className="bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100 p-4 sm:p-6 mb-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">
+                <div className="mb-6">
+                    <div className="flex items-end justify-between gap-4">
+                        {/* Title */}
+                        <div className="ml-6 flex-1">
+                            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
                                 {student.first_name} {student.second_name}
                             </h1>
                             <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2 text-sm text-gray-600">
                                 <span>Klasse {student.school_class}</span>
-                                {student.group_name && (
+                                {student.group_name && student.group_name !== student.school_class && (
                                     <>
                                         <span className="hidden sm:inline">•</span>
                                         <span className="truncate">{student.group_name}</span>
@@ -368,8 +369,14 @@ export default function StudentDetailPage() {
                                 )}
                             </div>
                         </div>
-                        <div className="flex-shrink-0">
-                            <StatusBadge location={currentLocation?.location ?? student.current_location} roomName={currentLocation?.room?.name} />
+
+                        {/* Status Badge */}
+                        <div className="flex-shrink-0 pb-3 mr-4">
+                            <StatusBadge
+                                location={currentLocation?.location ?? student.current_location}
+                                roomName={currentLocation?.room?.name}
+                                isGroupRoom={currentLocation?.isGroupRoom ?? false}
+                            />
                         </div>
                     </div>
                 </div>
@@ -412,15 +419,14 @@ export default function StudentDetailPage() {
                                                     {supervisor.email && <p className="text-sm text-gray-600 mt-1">{supervisor.email}</p>}
                                                 </div>
                                                 {supervisor.email && (
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
+                                                    <button
                                                         onClick={() => {
                                                             window.location.href = `mailto:${supervisor.email}?subject=Anfrage zu ${student.name}`;
                                                         }}
+                                                        className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 hover:shadow-sm hover:scale-105 active:scale-100 transition-all duration-200"
                                                     >
                                                         E-Mail
-                                                    </Button>
+                                                    </button>
                                                 )}
                                             </div>
                                         </div>
@@ -435,24 +441,29 @@ export default function StudentDetailPage() {
                         {/* Checkout Section - Mobile optimized */}
                         {currentLocation?.location && currentLocation.location.startsWith("Anwesend") && (
                             <div className="mb-6 bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100 p-4 sm:p-6">
-                                <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Checkout verwalten</h3>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 flex-shrink-0">
+                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-base sm:text-lg font-semibold text-gray-900">Checkout verwalten</h3>
+                                </div>
                                 <ScheduledCheckoutInfo
                                     studentId={studentId}
                                     onUpdate={() => setCheckoutUpdated(prev => prev + 1)}
                                     onScheduledCheckoutChange={setHasScheduledCheckout}
                                 />
                                 {!hasScheduledCheckout && (
-                                    <div className="mt-4">
-                                        <Button
-                                            onClick={() => setShowCheckoutModal(true)}
-                                            className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 sm:py-2"
-                                        >
-                                            <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                            </svg>
-                                            Schüler ausloggen
-                                        </Button>
-                                    </div>
+                                    <button
+                                        onClick={() => setShowCheckoutModal(true)}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 sm:py-2.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 hover:shadow-lg hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 mt-4"
+                                    >
+                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                        </svg>
+                                        Schüler ausloggen
+                                    </button>
                                 )}
                             </div>
                         )}

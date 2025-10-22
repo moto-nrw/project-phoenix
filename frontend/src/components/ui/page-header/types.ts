@@ -8,6 +8,10 @@ export interface PageHeaderWithSearchProps {
     count: number;
     label?: string;
   };
+  statusIndicator?: {
+    color: 'green' | 'yellow' | 'red' | 'gray';
+    tooltip?: string;
+  };
 
   // Optional navigation tabs (like in OGS groups or MyRoom)
   tabs?: {
@@ -75,6 +79,10 @@ export interface PageHeaderProps {
     icon?: React.ReactNode;
     count: number;
     label?: string;
+  };
+  statusIndicator?: {
+    color: 'green' | 'yellow' | 'red' | 'gray';
+    tooltip?: string;
   };
   className?: string;
 }

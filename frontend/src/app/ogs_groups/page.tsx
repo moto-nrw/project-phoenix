@@ -14,8 +14,10 @@ import type { StudentLocation } from "~/lib/student-helpers";
 import { fetchRooms } from "~/lib/rooms-api";
 import { createRoomIdToNameMap } from "~/lib/rooms-helpers";
 import { useSSE } from "~/lib/hooks/use-sse";
+import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import type { SSEEvent } from "~/lib/sse-types";
 
+import { Loading } from "~/components/ui/loading";
 // Location constants to ensure type safety
 const LOCATIONS = {
   HOME: "Home" as StudentLocation,
@@ -155,6 +157,7 @@ function OGSGroupPageContent() {
   // Connect to SSE for real-time updates
   const { status: sseStatus, reconnectAttempts } = useSSE("/api/sse/events", {
     onMessage: handleSSEEvent,
+    enabled: true,
   });
 
   // Handle mobile detection
@@ -177,9 +180,9 @@ function OGSGroupPageContent() {
         const myGroups = await userContextService.getMyEducationalGroups();
 
         if (myGroups.length === 0) {
-          // User has no OGS groups, redirect to dashboard
+          // User has no OGS groups - show empty state instead of redirecting
           setHasAccess(false);
-          router.push("/dashboard");
+          setIsLoading(false);
           return;
         }
 
@@ -549,19 +552,40 @@ function OGSGroupPageContent() {
 
   if (status === "loading" || isLoading || hasAccess === null) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-blue-500"></div>
-          <p className="text-gray-600">Daten werden geladen...</p>
-        </div>
-      </div>
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
     );
   }
 
-  // If user doesn't have access, redirect to dashboard
+  // If user doesn't have access, show empty state
   if (hasAccess === false) {
-    router.push("/dashboard");
-    return null;
+    return (
+      <ResponsiveLayout pageTitle="Meine Gruppe">
+        <div className="-mt-1.5 w-full">
+          <PageHeaderWithSearch title="Meine Gruppe" />
+
+          <div className="flex min-h-[60vh] items-center justify-center px-4">
+            <div className="flex flex-col items-center gap-6 text-center max-w-md">
+              <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center">
+                <svg className="w-10 h-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-gray-900">Keine OGS-Gruppe zugeordnet</h3>
+                <p className="text-gray-600">
+                  Du bist keiner OGS-Gruppe als Leiter:in zugeordnet.
+                </p>
+                <p className="text-sm text-gray-500 mt-4">
+                  Wende dich an deine Verwaltung, um einer Gruppe zugewiesen zu werden.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ResponsiveLayout>
+    );
   }
 
   // Show group selection screen for 5+ groups
@@ -634,42 +658,39 @@ function OGSGroupPageContent() {
     );
   }
 
+  // Compute page title for header - show current group name
+  const headerPageTitle = currentGroup?.name
+    ? `Meine Gruppe > ${currentGroup.name}`
+    : allGroups.length > 1
+      ? "Meine Gruppen"
+      : "Meine Gruppe";
+
   return (
-    <ResponsiveLayout>
+    <ResponsiveLayout pageTitle={headerPageTitle}>
       <div className="-mt-1.5 w-full">
-        {/* SSE Connection Status Indicator */}
-        <div className="mb-2 flex items-center gap-2 text-sm">
-          <div
-            className={`h-2 w-2 rounded-full ${
-              sseStatus === "connected"
-                ? "bg-green-500"
-                : sseStatus === "reconnecting"
-                  ? "bg-yellow-500"
-                  : sseStatus === "failed"
-                    ? "bg-red-500"
-                    : "bg-gray-400"
-            }`}
-          />
-          <span className="text-gray-600">
-            {sseStatus === "connected"
+        {/* PageHeaderWithSearch - Title only on mobile */}
+        <PageHeaderWithSearch
+          title={
+            isMobile && allGroups.length === 1
+              ? (currentGroup?.name ?? "Meine Gruppe")
+              : "" // No title when multiple groups (tabs show group names) or on desktop
+          }
+          statusIndicator={{
+            color: sseStatus === "connected"
+              ? "green"
+              : sseStatus === "reconnecting"
+                ? "yellow"
+                : sseStatus === "failed"
+                  ? "red"
+                  : "gray",
+            tooltip: sseStatus === "connected"
               ? "Live-Updates aktiv"
               : sseStatus === "reconnecting"
                 ? `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`
                 : sseStatus === "failed"
                   ? "Verbindung fehlgeschlagen"
-                  : "Verbindung wird hergestellt..."}
-          </span>
-        </div>
-
-        {/* PageHeaderWithSearch - Title only on mobile */}
-        <PageHeaderWithSearch
-          title={
-            isMobile
-              ? allGroups.length === 1
-                ? (currentGroup?.name ?? "Meine Gruppe")
-                : "Meine Gruppen"
-              : ""
-          }
+                  : "Verbindung wird hergestellt..."
+          }}
           badge={{
             icon: (
               <svg
@@ -733,12 +754,7 @@ function OGSGroupPageContent() {
 
         {/* Student Grid - Mobile Optimized */}
         {isLoading && selectedGroupIndex > 0 ? (
-          <div className="py-12 text-center">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-[#5080D8]"></div>
-              <p className="text-gray-600">Gruppe wird geladen...</p>
-            </div>
-          </div>
+          <Loading fullPage={false} />
         ) : students.length === 0 ? (
           <div className="py-12 text-center">
             <div className="flex flex-col items-center gap-4">
@@ -782,7 +798,7 @@ function OGSGroupPageContent() {
                     onClick={() =>
                       router.push(`/students/${student.id}?from=/ogs_groups`)
                     }
-                    className={`group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-blue-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
+                    className={`group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
                   >
                     {/* Modern gradient overlay */}
                     <div
@@ -895,12 +911,12 @@ export default function OGSGroupPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center">
-          <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-blue-500"></div>
-        </div>
+        <Loading fullPage={false} />
       }
     >
-      <OGSGroupPageContent />
+      <SSEErrorBoundary>
+        <OGSGroupPageContent />
+      </SSEErrorBoundary>
     </Suspense>
   );
 }

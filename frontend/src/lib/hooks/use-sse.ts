@@ -28,6 +28,7 @@ export function useSSE(
     onError,
     reconnectInterval = 1000, // Start with 1 second
     maxReconnectAttempts = 5,
+    enabled = true,
   } = options;
 
   const [isConnected, setIsConnected] = useState(false);
@@ -60,6 +61,12 @@ export function useSSE(
   );
 
   useEffect(() => {
+    if (!enabled) {
+      setIsConnected(false);
+      setError(null);
+      setReconnectAttempts(0);
+      return;
+    }
     // Ensure mountedRef is true when effect runs (critical for reconnection)
     mountedRef.current = true;
 
@@ -97,6 +104,7 @@ export function useSSE(
             stableOnMessage(parsed);
           } catch (err) {
             console.error("Failed to parse SSE message:", err);
+            setError("Ungültige Server-Event-Daten empfangen");
           }
         };
 
@@ -118,6 +126,7 @@ export function useSSE(
               stableOnMessage(parsed);
             } catch (err) {
               console.error(`Failed to parse ${eventType} event:`, err);
+              setError(`Ungültige Server-Event-Daten (${eventType})`);
             }
           });
         });
@@ -125,8 +134,24 @@ export function useSSE(
         eventSource.onerror = (err) => {
           if (!mountedRef.current) return;
 
-          console.error("SSE error:", err);
+          // Log more detailed error information
+          const errorDetails = {
+            readyState: eventSource?.readyState,
+            url: endpoint,
+            type: err.type,
+            target: err.target,
+          };
+          console.error("SSE connection error:", errorDetails);
+
           setIsConnected(false);
+          // classify likely causes
+          if (typeof navigator !== "undefined" && navigator.onLine === false) {
+            setError("Netzwerkverbindung unterbrochen");
+          } else if (eventSource?.readyState === 2) {
+            setError("SSE-Verbindung vom Server geschlossen");
+          } else {
+            setError("SSE-Verbindungsfehler");
+          }
           stableOnError(err);
 
           // Close the failed connection
@@ -191,6 +216,7 @@ export function useSSE(
     stableOnError,
     reconnectInterval,
     maxReconnectAttempts,
+    enabled,
   ]);
 
   // Compute connection status based on state

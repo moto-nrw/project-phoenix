@@ -10,13 +10,13 @@ import {
   Alert,
   HelpButton,
 } from "~/components/ui";
-import { HoverBorderGradient } from "~/components/ui/hover-border-gradient";
 import { Suspense } from "react";
 import { refreshToken } from "~/lib/auth-api";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
 import { SupervisionProvider } from "~/lib/supervision-context";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 
+import { Loading } from "~/components/ui/loading";
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -90,12 +90,7 @@ function LoginForm() {
   if (checkingAuth || status === "loading" || (awaitingRedirect && status === "authenticated")) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">
-            {awaitingRedirect ? "Weiterleitung..." : "Überprüfe Anmeldestatus..."}
-          </p>
-        </div>
+        <Loading />
         {/* Smart redirect component when awaiting redirect */}
         {awaitingRedirect && status === "authenticated" && session?.user?.token && (
           <SmartRedirect onRedirect={(path) => {
@@ -375,14 +370,15 @@ function LoginForm() {
             </div>
           </div>
 
-          <HoverBorderGradient
-            type="submit"
-            disabled={isLoading}
-            containerClassName=""
-            className="px-5 py-3 text-lg font-medium"
-          >
-            {isLoading ? "Anmeldung läuft..." : "Anmelden"}
-          </HoverBorderGradient>
+          <div className="flex justify-center mt-2">
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="group relative overflow-hidden rounded-xl bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
+            >
+              <span className="relative z-10">{isLoading ? "Anmeldung läuft..." : "Anmelden"}</span>
+            </button>
+          </div>
         </form>
 
       </div>

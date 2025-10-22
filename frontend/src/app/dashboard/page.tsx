@@ -2,14 +2,16 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { redirect, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { UserContextProvider } from "~/lib/usercontext-context";
 import { fetchWithAuth } from "~/lib/fetch-with-auth";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import { formatRecentActivityTime, getActivityStatusColor, getGroupStatusColor } from "~/lib/dashboard-helpers";
+import { isAdmin } from "~/lib/auth-utils";
 
+import { Loading } from "~/components/ui/loading";
 // Helper function to get time-based greeting
 function getTimeBasedGreeting(): string {
   const hour = new Date().getHours();
@@ -122,9 +124,10 @@ interface InfoCardProps {
   children: React.ReactNode;
   icon?: string;
   href?: string;
+  linkText?: string;
 }
 
-const InfoCard: React.FC<InfoCardProps> = ({ title, children, icon, href }) => (
+const InfoCard: React.FC<InfoCardProps> = ({ title, children, icon, href, linkText = "Alle" }) => (
   <div className="relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
     <div className="absolute inset-0 bg-gradient-to-br from-gray-50/80 to-slate-100/80 opacity-[0.03] rounded-3xl pointer-events-none"></div>
     <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20 pointer-events-none"></div>
@@ -141,8 +144,11 @@ const InfoCard: React.FC<InfoCardProps> = ({ title, children, icon, href }) => (
           <h3 className="text-base md:text-lg font-semibold text-gray-900">{title}</h3>
         </div>
         {href && (
-          <Link href={href} className="text-xs md:text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors">
-            Alle →
+          <Link href={href} className="flex items-center gap-1 text-xs md:text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors">
+            <span>{linkText}</span>
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
           </Link>
         )}
       </div>
@@ -156,15 +162,13 @@ function DashboardContent() {
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
-      redirect("/");
+      router.replace("/");
     },
   });
 
   const [dashboardData, setDashboardData] = useState<DashboardAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [refreshError, setRefreshError] = useState(false);
   const hasLoadedOnce = useRef(false);
 
   useEffect(() => {
@@ -181,18 +185,14 @@ function DashboardContent() {
         const data = await response.json() as { data: DashboardAnalytics };
         setDashboardData(data.data);
         setError(null);
-        setRefreshError(false);
-        setLastUpdated(new Date());
         hasLoadedOnce.current = true;
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
         // For initial load, show full error
         if (!hasLoadedOnce.current) {
           setError("Fehler beim Laden der Dashboard-Daten");
-        } else {
-          // For background refresh, keep old data and mark as stale
-          setRefreshError(true);
         }
+        // For background refresh, keep old data and continue silently
       } finally {
         setIsLoading(false);
       }
@@ -225,12 +225,7 @@ function DashboardContent() {
   if (status === "loading") {
     return (
       <ResponsiveLayout>
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-gray-900"></div>
-            <p className="text-gray-600">Dashboard wird geladen...</p>
-          </div>
-        </div>
+        <Loading fullPage={false} />
       </ResponsiveLayout>
     );
   }
@@ -241,28 +236,23 @@ function DashboardContent() {
   return (
     <ResponsiveLayout>
       <div className="w-full max-w-7xl mx-auto">
-        {/* Greeting Section */}
+        {/* Greeting Section - Mobile optimized with underline */}
         <div className="mb-6 md:mb-8">
-          <div className="flex items-center justify-between mb-1">
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-              {greeting}, {firstName}!
-            </h1>
-            {/* Last Updated Indicator */}
-            {lastUpdated && (
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>
-                  Aktualisiert: {lastUpdated.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
-                  {refreshError && <span className="text-red-500 ml-2">• Aktualisierung fehlgeschlagen</span>}
-                </span>
-              </div>
-            )}
+          <div className="ml-6">
+            <div className="relative inline-block pb-3">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+                {greeting}, {firstName}!
+              </h1>
+              {/* Underline indicator - matches tab style */}
+              <div
+                className="absolute bottom-0 left-0 h-0.5 bg-gray-900 rounded-full"
+                style={{ width: '70%' }}
+              />
+            </div>
+            <p className="text-gray-600 text-sm md:text-base mt-3">
+              Hier ist die aktuelle Übersicht
+            </p>
           </div>
-          <p className="text-gray-600 text-sm md:text-base">
-            Hier ist die aktuelle Übersicht
-          </p>
         </div>
 
         {/* Error Message */}
@@ -358,8 +348,12 @@ function DashboardContent() {
                 {dashboardData.recentActivity.slice(0, 5).map((activity, index) => (
                   <div key={index} className="flex items-center justify-between p-3 rounded-xl bg-gray-50/50 hover:bg-gray-100/50 transition-colors">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {activity.groupName} → {activity.roomName}
+                      <p className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
+                        <span className="truncate">{activity.groupName}</span>
+                        <svg className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                        <span className="truncate">{activity.roomName}</span>
                       </p>
                       {activity.count > 1 && (
                         <p className="text-xs text-gray-500">{activity.count} Kinder</p>
@@ -381,6 +375,7 @@ function DashboardContent() {
             title="Laufende Aktivitäten"
             icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
             href="/activities"
+            linkText="Meine"
           >
             {isLoading ? (
               <div className="space-y-3">
@@ -412,6 +407,7 @@ function DashboardContent() {
             title="Aktive Gruppen"
             icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
             href="/ogs_groups"
+            linkText="Meine"
           >
             {isLoading ? (
               <div className="space-y-3">
@@ -448,24 +444,24 @@ function DashboardContent() {
               <div className="h-32 bg-gray-100 rounded-lg animate-pulse"></div>
             ) : (
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-cyan-50">
-                  <p className="text-xs text-blue-700 font-medium mb-1">Betreuer im Dienst</p>
-                  <p className="text-2xl font-bold text-blue-900">{dashboardData?.supervisorsToday ?? 0}</p>
+                <div className="p-4 rounded-xl bg-gray-50/50 border border-gray-200/50 hover:bg-gray-100/50 transition-colors">
+                  <p className="text-xs text-gray-600 font-medium mb-1">Betreuer im Dienst</p>
+                  <p className="text-2xl font-bold text-gray-900">{dashboardData?.supervisorsToday ?? 0}</p>
                 </div>
                 {dashboardData && dashboardData.studentsPresent > 0 && dashboardData.supervisorsToday > 0 ? (
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50">
-                    <p className="text-xs text-green-700 font-medium mb-1">Kinder je Betreuer</p>
-                    <p className="text-2xl font-bold text-green-900">
+                  <div className="p-4 rounded-xl bg-gray-50/50 border border-gray-200/50 hover:bg-gray-100/50 transition-colors">
+                    <p className="text-xs text-gray-600 font-medium mb-1">Kinder je Betreuer</p>
+                    <p className="text-2xl font-bold text-gray-900">
                       {dashboardData.supervisorsToday > 0
                         ? Math.round(dashboardData.studentsPresent / dashboardData.supervisorsToday)
                         : '-'}
                     </p>
-                    <p className="text-xs text-green-600 mt-1">Betreuungsschlüssel</p>
+                    <p className="text-xs text-gray-500 mt-1">Betreuungsschlüssel</p>
                   </div>
                 ) : (
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-gray-50 to-slate-50">
+                  <div className="p-4 rounded-xl bg-gray-50/50 border border-gray-200/50">
                     <p className="text-xs text-gray-600 font-medium mb-1">Kinder je Betreuer</p>
-                    <p className="text-2xl font-bold text-gray-700">-</p>
+                    <p className="text-2xl font-bold text-gray-400">-</p>
                     <p className="text-xs text-gray-500 mt-1">Keine Daten</p>
                   </div>
                 )}
@@ -480,6 +476,26 @@ function DashboardContent() {
 
 // Main Dashboard Page Component
 export default function DashboardPage() {
+  const router = useRouter();
+  const { data: session, status } = useSession();
+
+  // Gate access: only admins can view dashboard
+  if (status === "loading") {
+    return (
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
+    );
+  }
+
+  if (!isAdmin(session)) {
+    // Redirect non-admins to OGS groups (mobile default)
+    if (typeof window !== "undefined") {
+      router.replace("/ogs_groups");
+    }
+    return null;
+  }
+
   return (
     <UserContextProvider>
       <DashboardContent />

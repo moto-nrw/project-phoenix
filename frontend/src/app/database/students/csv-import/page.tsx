@@ -7,6 +7,7 @@ import { ResponsiveLayout } from "~/components/dashboard";
 import Link from "next/link";
 import { StudentEditModal } from "~/components/students/student-edit-modal";
 import type { Student } from "@/lib/api";
+import { Loading } from "~/components/ui/loading";
 
 // Status types for CSV rows
 type RowStatus = "new" | "existing" | "error" | "updated";
@@ -279,12 +280,7 @@ export default function StudentCSVImportPage() {
     if (status === "loading") {
         return (
             <ResponsiveLayout>
-                <div className="flex min-h-[50vh] items-center justify-center">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-[#5080D8]"></div>
-                        <p className="text-gray-600">Wird geladen...</p>
-                    </div>
-                </div>
+                <Loading fullPage={false} />
             </ResponsiveLayout>
         );
     }

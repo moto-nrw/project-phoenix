@@ -20,16 +20,29 @@ export function DesktopFilters({ filters, className = "" }: DesktopFiltersProps)
 
 function FilterControl({ filter }: { filter: FilterConfig }) {
   if (filter.type === 'buttons') {
+    const isMulti = !!filter.multiSelect;
+    const selectedValues = Array.isArray(filter.value)
+      ? filter.value
+      : (filter.value ? [filter.value] : []);
     return (
       <div className="flex bg-white rounded-xl p-1 shadow-sm h-10">
         {filter.options.map((option) => (
           <button
             key={option.value}
             type="button"
-            onClick={() => filter.onChange(option.value)}
+            onClick={() => {
+              if (isMulti) {
+                const next = selectedValues.includes(option.value)
+                  ? selectedValues.filter(v => v !== option.value)
+                  : [...selectedValues, option.value];
+                filter.onChange(next);
+              } else {
+                filter.onChange(option.value);
+              }
+            }}
             className={`
               px-3 rounded-lg text-sm font-medium transition-all
-              ${filter.value === option.value 
+              ${selectedValues.includes(option.value)
                 ? 'bg-gray-900 text-white' 
                 : 'text-gray-600 hover:text-gray-900'
               }
@@ -59,6 +72,10 @@ function DropdownFilter({ filter, showIcons = false }: { filter: FilterConfig; s
   const [dropdownPosition, setDropdownPosition] = useState<'left' | 'right'>('left');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const isMulti = !!filter.multiSelect;
+  const selectedValues = Array.isArray(filter.value)
+    ? filter.value
+    : (filter.value ? [filter.value] : []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -87,7 +104,9 @@ function DropdownFilter({ filter, showIcons = false }: { filter: FilterConfig; s
     }
   }, [isOpen]);
 
-  const selectedOption = filter.options.find(opt => opt.value === filter.value);
+  const selectedOption = isMulti
+    ? undefined
+    : filter.options.find(opt => opt.value === filter.value);
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -106,8 +125,8 @@ function DropdownFilter({ filter, showIcons = false }: { filter: FilterConfig; s
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={selectedOption.icon} />
           </svg>
         )}
-        <span className={`whitespace-nowrap ${filter.value !== filter.options[0]?.value ? 'text-gray-900' : 'text-gray-600'}`}>
-          {selectedOption?.label ?? filter.label}
+        <span className={`whitespace-nowrap ${selectedOption && filter.value !== filter.options[0]?.value ? 'text-gray-900' : 'text-gray-600'}`}>
+          {isMulti ? filter.label : (selectedOption?.label ?? filter.label)}
         </span>
         <svg
           className={`h-4 w-4 text-gray-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
@@ -128,12 +147,19 @@ function DropdownFilter({ filter, showIcons = false }: { filter: FilterConfig; s
               key={option.value}
               type="button"
               onClick={() => {
-                filter.onChange(option.value);
-                setIsOpen(false);
+                if (isMulti) {
+                  const next = selectedValues.includes(option.value)
+                    ? selectedValues.filter(v => v !== option.value)
+                    : [...selectedValues, option.value];
+                  filter.onChange(next);
+                } else {
+                  filter.onChange(option.value);
+                  setIsOpen(false);
+                }
               }}
               className={`
                 w-full text-left px-4 py-2 text-sm hover:bg-gray-50 transition-colors flex items-center gap-2
-                ${filter.value === option.value ? 'bg-gray-50 font-medium text-gray-900' : 'text-gray-700'}
+                ${selectedValues.includes(option.value) ? 'bg-gray-50 font-medium text-gray-900' : 'text-gray-700'}
               `}
             >
               {showIcons && option.icon && (
@@ -142,6 +168,11 @@ function DropdownFilter({ filter, showIcons = false }: { filter: FilterConfig; s
                 </svg>
               )}
               <span className="flex-1">{option.label}</span>
+              {isMulti && selectedValues.includes(option.value) && (
+                <svg className="h-4 w-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
               {option.count !== undefined && (
                 <span className="text-gray-500 ml-1">({option.count})</span>
               )}

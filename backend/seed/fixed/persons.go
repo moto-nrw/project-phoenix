@@ -132,11 +132,30 @@ func (s *Seeder) seedAdminAccount(ctx context.Context) error {
 		return fmt.Errorf("failed to upsert admin person: %w", err)
 	}
 
+	// Ensure admin has a staff profile so SSE and supervision flows work
+	adminStaff := &users.Staff{
+		PersonID:   person.ID,
+		StaffNotes: "Systemadministrator",
+	}
+	adminStaff.CreatedAt = now
+	adminStaff.UpdatedAt = now
+
+	_, err = s.tx.NewInsert().Model(adminStaff).
+		ModelTableExpr("users.staff").
+		On("CONFLICT (person_id) DO UPDATE").
+		Set("staff_notes = EXCLUDED.staff_notes").
+		Set("updated_at = EXCLUDED.updated_at").
+		Returning("id, created_at, updated_at").
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to upsert admin staff: %w", err)
+	}
+
 	s.result.AdminAccount = admin
 	s.result.Accounts = append(s.result.Accounts, admin)
 
 	if s.verbose {
-		log.Printf("Created admin account: %s", admin.Email)
+		log.Printf("Created admin account and staff profile: %s", admin.Email)
 	}
 
 	return nil

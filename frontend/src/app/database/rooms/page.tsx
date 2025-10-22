@@ -13,6 +13,7 @@ import { roomsConfig } from "@/lib/database/configs/rooms.config";
 import type { Room } from "@/lib/room-helpers";
 import { RoomCreateModal, RoomDetailModal, RoomEditModal } from "@/components/rooms";
 
+import { Loading } from "~/components/ui/loading";
 export default function RoomsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -207,12 +208,7 @@ export default function RoomsPage() {
   if (status === "loading" || loading) {
     return (
       <ResponsiveLayout>
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-indigo-500"></div>
-            <p className="text-gray-600">Räume werden geladen...</p>
-          </div>
-        </div>
+        <Loading fullPage={false} />
       </ResponsiveLayout>
     );
   }

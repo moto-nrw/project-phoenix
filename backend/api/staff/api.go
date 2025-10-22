@@ -872,19 +872,16 @@ func (rs *Resource) getPINStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Try to find person associated with this account
-	person, err := rs.PersonService.FindByAccountID(r.Context(), account.ID)
-	if err == nil {
-		// If person exists, verify they are a staff member
-		_, err = rs.StaffRepo.FindByPersonID(r.Context(), person.ID)
-		if err != nil {
+	// Ensure the account belongs to a staff member (admins without person records are allowed)
+	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(account.ID))
+	if err == nil && person != nil {
+		if _, err := rs.StaffRepo.FindByPersonID(r.Context(), person.ID); err != nil {
 			if err := render.Render(w, r, ErrorForbidden(errors.New("only staff members can access PIN settings"))); err != nil {
 				log.Printf("Error rendering error response: %v", err)
 			}
 			return
 		}
 	}
-	// If no person record exists (e.g., admin account), allow access for PIN management
 
 	// Build response using account PIN data
 	response := PINStatusResponse{
@@ -928,19 +925,16 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Try to find person associated with this account
+	// Ensure the account belongs to a staff member (admins without person records are allowed)
 	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(account.ID))
-	if err == nil {
-		// If person exists, verify they are a staff member
-		_, err = rs.StaffRepo.FindByPersonID(r.Context(), person.ID)
-		if err != nil {
-			if err := render.Render(w, r, ErrorForbidden(errors.New("only staff members can access PIN settings"))); err != nil {
+	if err == nil && person != nil {
+		if _, err := rs.StaffRepo.FindByPersonID(r.Context(), person.ID); err != nil {
+			if err := render.Render(w, r, ErrorForbidden(errors.New("only staff members can manage PIN settings"))); err != nil {
 				log.Printf("Error rendering error response: %v", err)
 			}
 			return
 		}
 	}
-	// If no person record exists (e.g., admin account), allow access for PIN management
 
 	// Check if account is locked
 	if account.IsPINLocked() {

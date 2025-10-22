@@ -1,42 +1,68 @@
 "use client";
 
-import React from "react";
+import React, { useRef, useEffect, useState, useMemo } from "react";
 import type { NavigationTabsProps } from "./types";
 
-export function NavigationTabs({ 
-  items, 
-  activeTab, 
-  onTabChange, 
-  className = "" 
+export function NavigationTabs({
+  items,
+  activeTab,
+  onTabChange,
+  className = ""
 }: NavigationTabsProps) {
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [indicatorStyle, setIndicatorStyle] = useState({ width: 0, left: 0 });
+
+  // Memoize active index to avoid redundant findIndex calls on re-renders
+  const activeIndex = useMemo(
+    () => items.findIndex(item => item.id === activeTab),
+    [items, activeTab]
+  );
+
+  // Update sliding indicator position when active tab changes
+  useEffect(() => {
+    const activeTabElement = tabRefs.current[activeIndex];
+
+    if (activeTabElement) {
+      const { offsetLeft, offsetWidth } = activeTabElement;
+      setIndicatorStyle({ left: offsetLeft, width: offsetWidth });
+    }
+  }, [activeIndex]);
+
   return (
-    <div className={`flex gap-1 mb-6 ${className}`}>
-      {items.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onTabChange(tab.id)}
-          className={`
-            px-4 py-2 rounded-lg font-medium transition-all duration-200
-            ${activeTab === tab.id
-              ? 'bg-gray-900 text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
-            }
-          `}
-        >
-          <span className="flex items-center gap-2">
-            {tab.label}
-            {tab.count !== undefined && (
-              <span className={`
-                text-xs px-1.5 py-0.5 rounded-full
-                ${activeTab === tab.id ? 'bg-gray-700' : 'bg-gray-200'}
-              `}>
-                {tab.count}
-              </span>
-            )}
-          </span>
-        </button>
-      ))}
+    <div className={`ml-3 md:ml-6 ${className}`}>
+      {/* Modern underline tabs with sliding indicator */}
+      <div className="relative flex gap-4 md:gap-8">
+        {items.map((tab, index) => {
+          const isActive = activeTab === tab.id;
+
+          return (
+            <button
+              key={tab.id}
+              ref={el => { tabRefs.current[index] = el; }}
+              type="button"
+              onClick={() => onTabChange(tab.id)}
+              className={`
+                relative pb-3 text-sm md:text-base font-medium transition-all px-0
+                ${isActive
+                  ? 'text-gray-900 font-semibold'
+                  : 'text-gray-500 hover:text-gray-700'
+                }
+              `}
+            >
+              <span className="whitespace-nowrap">{tab.label}</span>
+            </button>
+          );
+        })}
+
+        {/* Sliding indicator bar */}
+        <div
+          className="absolute bottom-0 h-0.5 bg-gray-900 transition-all duration-300 ease-out rounded-full"
+          style={{
+            left: `${indicatorStyle.left}px`,
+            width: `${indicatorStyle.width}px`
+          }}
+        />
+      </div>
     </div>
   );
 }

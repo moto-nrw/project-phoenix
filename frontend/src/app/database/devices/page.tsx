@@ -14,6 +14,7 @@ import type { Device } from "@/lib/iot-helpers";
 import { DeviceCreateModal, DeviceDetailModal, DeviceEditModal } from "@/components/devices";
 import { getDeviceTypeDisplayName } from "@/lib/iot-helpers";
 
+import { Loading } from "~/components/ui/loading";
 export default function DevicesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -159,12 +160,7 @@ export default function DevicesPage() {
   if (status === "loading" || loading) {
     return (
       <ResponsiveLayout>
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-yellow-500"></div>
-            <p className="text-gray-600">Geräte werden geladen...</p>
-          </div>
-        </div>
+        <Loading fullPage={false} />
       </ResponsiveLayout>
     );
   }

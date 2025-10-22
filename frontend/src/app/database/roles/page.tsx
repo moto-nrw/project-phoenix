@@ -14,6 +14,7 @@ import type { Role } from "@/lib/auth-helpers";
 import { RoleCreateModal, RoleDetailModal, RoleEditModal } from "@/components/roles";
 import { RolePermissionManagementModal } from "@/components/auth";
 
+import { Loading } from "~/components/ui/loading";
 export default function RolesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -150,12 +151,7 @@ export default function RolesPage() {
   if (status === "loading" || loading) {
     return (
       <ResponsiveLayout>
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-purple-600"></div>
-            <p className="text-gray-600">Rollen werden geladen...</p>
-          </div>
-        </div>
+        <Loading fullPage={false} />
       </ResponsiveLayout>
     );
   }

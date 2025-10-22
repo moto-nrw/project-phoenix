@@ -56,13 +56,10 @@ export function UnclaimedRooms({ onClaimed }: UnclaimedRoomsProps) {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="mb-6 p-4 bg-gray-50 border-l-4 border-gray-300 rounded animate-pulse">
-        <div className="h-6 bg-gray-200 rounded w-1/3 mb-3"></div>
-        <div className="h-20 bg-gray-200 rounded"></div>
-      </div>
-    );
+  // Don't show loading skeleton - prevents layout shift
+  // If loading or no groups, show nothing
+  if (loading || unclaimedGroups.length === 0) {
+    return null;
   }
 
   if (error) {
@@ -71,10 +68,6 @@ export function UnclaimedRooms({ onClaimed }: UnclaimedRoomsProps) {
         <p className="text-red-700">{error}</p>
       </div>
     );
-  }
-
-  if (unclaimedGroups.length === 0) {
-    return null; // Don't show anything if no unclaimed rooms
   }
 
   return (

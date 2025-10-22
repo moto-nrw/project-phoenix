@@ -18,6 +18,7 @@ import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
 import { SimpleAlert, alertAnimationStyles } from "~/components/simple/SimpleAlert";
 import { useAlertVisibility } from "~/contexts/AlertContext";
+import { Loading } from "~/components/ui/loading";
 
 // FAB positioning constants for better maintainability
 const FAB_POSITIONS = {
@@ -265,12 +266,7 @@ export default function ActivitiesPage() {
     if (loading) {
         return (
             <ResponsiveLayout>
-                <div className="flex min-h-[50vh] items-center justify-center">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-[#5080D8]"></div>
-                        <p className="text-gray-600">Aktivitäten werden geladen...</p>
-                    </div>
-                </div>
+                <Loading fullPage={false} />
             </ResponsiveLayout>
         );
     }

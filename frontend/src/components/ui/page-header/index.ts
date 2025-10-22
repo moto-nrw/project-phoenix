@@ -1,5 +1,6 @@
 export { PageHeaderWithSearch } from "./PageHeaderWithSearch";
 export { PageHeader } from "./PageHeader";
+export { PageTitle } from "./PageTitle";
 export { SearchBar } from "./SearchBar";
 export { DesktopFilters } from "./DesktopFilters";
 export { MobileFilterButton } from "./MobileFilterButton";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Input } from "~/components/ui";
+import { Input } from "~/components/ui";
 import { authService } from "~/lib/auth-service";
 import { createInvitation } from "~/lib/invitation-api";
 import type { CreateInvitationRequest, PendingInvitation } from "~/lib/invitation-helpers";
@@ -118,20 +118,43 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
   };
 
   return (
-    <div className="rounded-3xl border border-gray-100 bg-white/90 p-6 shadow-xl backdrop-blur-xl">
-      <h2 className="text-xl font-semibold text-gray-900">Neue Einladung senden</h2>
-      <p className="mt-1 text-sm text-gray-600">Lade neue Benutzer per E-Mail ein und weise direkt eine Rolle zu.</p>
+    <div className="rounded-2xl border border-gray-200/50 bg-white/90 backdrop-blur-sm p-4 md:p-6 shadow-sm">
+      <div className="flex items-center gap-2 md:gap-3 mb-4">
+        <div className="rounded-xl bg-gray-100 p-2">
+          <svg className="h-4 w-4 md:h-5 md:w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <div>
+          <h2 className="text-base md:text-lg font-semibold text-gray-900">Neue Einladung</h2>
+          <p className="text-xs md:text-sm text-gray-600">Per E-Mail einladen</p>
+        </div>
+      </div>
 
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-        {error && <Alert type="error" message={error} />}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <div className="rounded-xl border border-red-200/50 bg-red-50/50 p-3">
+            <div className="flex items-start gap-2">
+              <svg className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          </div>
+        )}
+
         {successInfo && (
           <div className="space-y-2">
-            <Alert
-              type="success"
-              message={`Einladung an ${successInfo.email} wurde gesendet.`}
-            />
-            <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs font-mono text-gray-600">
-              {successInfo.link}
+            <div className="rounded-xl border border-green-200/50 bg-green-50/50 p-3">
+              <div className="flex items-start gap-2">
+                <svg className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-sm text-green-700">Einladung an {successInfo.email} wurde gesendet.</p>
+              </div>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+              <p className="text-xs font-mono text-gray-600 break-all">{successInfo.link}</p>
             </div>
           </div>
         )}
@@ -149,21 +172,28 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
 
         <div>
           <label htmlFor="invitation-role" className="mb-1 block text-sm font-medium text-gray-700">
-            Rolle auswählen
+            Rolle
           </label>
-          <select
-            id="invitation-role"
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-[#5080d8] focus:outline-none focus:ring-2 focus:ring-[#5080d8]/40 disabled:cursor-not-allowed disabled:bg-gray-100"
-            value={form.roleId}
-            onChange={(event) => handleChange("roleId")(Number(event.target.value))}
-            disabled={isSubmitting || isLoadingRoles}
-          >
-            {roles.map((role) => (
-              <option key={role.id} value={role.id}>
-                {role.name}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              id="invitation-role"
+              className="w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm text-gray-900 transition-colors focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
+              value={form.roleId}
+              onChange={(event) => handleChange("roleId")(Number(event.target.value))}
+              disabled={isSubmitting || isLoadingRoles}
+            >
+              {roles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+              <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -188,9 +218,9 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
         <button
           type="submit"
           disabled={isSubmitting || isLoadingRoles}
-          className="w-full rounded-xl bg-[#5080d8] py-3 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:bg-[#3a6bc4] hover:shadow-xl disabled:cursor-not-allowed disabled:bg-gray-400"
+          className="w-full rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 active:scale-98 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isSubmitting ? "Einladung wird gesendet…" : "Einladung senden"}
+          {isSubmitting ? "Wird gesendet…" : "Einladung senden"}
         </button>
       </form>
     </div>

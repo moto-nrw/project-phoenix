@@ -1,7 +1,7 @@
 {{define "styles"}}
 <style type="text/css">
 body {
-    background-color: #f4f7fa;
+    background-color: #f9fafb;
     margin: 0;
     padding: 20px;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -11,95 +11,104 @@ body {
     max-width: 600px;
     margin: 0 auto;
     background-color: #ffffff;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+    border: 1px solid rgba(229, 231, 235, 0.5);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     overflow: hidden;
 }
 
 .email-body {
-    padding: 40px 32px;
-    text-align: center;
+    padding: 48px 40px;
 }
 
 p {
-    color: #334155;
-    line-height: 1.7;
-    margin: 16px 0;
-    font-size: 16px;
-    text-align: center;
+    color: #4b5563;
+    line-height: 1.6;
+    margin: 12px 0;
+    font-size: 15px;
 }
 
 h1 {
-    color: #5080d8;
-    margin: 24px 0 16px 0;
-    font-size: 28px;
-    font-weight: 700;
-    text-align: center;
+    color: #111827;
+    margin: 24px 0 20px 0;
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.025em;
 }
 
 .brand {
     text-align: center;
-    margin-bottom: 32px;
+    margin-bottom: 40px;
 }
 
 .button-wrapper {
-    text-align: center;
     margin: 32px 0;
 }
 
 .button {
     display: inline-block;
-    padding: 14px 32px;
-    border-radius: 8px;
-    background-color: #5080d8;
+    padding: 12px 28px;
+    border-radius: 12px;
+    background-color: #111827;
     color: #ffffff !important;
     text-decoration: none;
     font-weight: 600;
-    font-size: 16px;
-    box-shadow: 0 2px 4px rgba(80, 128, 216, 0.2);
-}
-
-.highlight {
-    color: #83cd2d;
-    font-weight: 600;
-    text-align: center;
     font-size: 15px;
+    transition: all 0.2s;
 }
 
-.link-text {
-    word-break: break-all;
+.highlight-box {
+    background-color: rgba(243, 244, 246, 0.5);
+    border: 1px dashed #d1d5db;
+    border-radius: 12px;
+    padding: 16px 24px;
+    margin: 24px 0;
+}
+
+.highlight-box p {
+    color: #6b7280;
     font-size: 14px;
-    text-align: center;
+    margin: 0;
+    font-weight: 500;
 }
 
-.link-text a {
-    color: #5080d8;
-    text-decoration: underline;
+.link-box {
+    background-color: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 16px 0;
+}
+
+.link-box a {
+    color: #374151;
+    text-decoration: none;
+    word-break: break-all;
+    font-size: 13px;
+    font-family: 'Monaco', 'Courier New', monospace;
 }
 
 .security-note {
-    font-size: 14px;
-    color: #64748b;
+    font-size: 13px;
+    color: #9ca3af;
     margin-top: 32px;
     padding-top: 24px;
-    border-top: 1px solid #e2e8f0;
-    text-align: center;
+    border-top: 1px solid #f3f4f6;
 }
 
 a {
-    color: #5080d8;
+    color: #374151;
 }
 
 #footer {
-    background-color: #f8fafc;
-    padding: 24px 32px;
-    text-align: center;
-    border-top: 1px solid #e2e8f0;
+    background-color: #f9fafb;
+    padding: 24px 40px;
+    border-top: 1px solid #f3f4f6;
 }
 
 #footer p {
-    color: #64748b;
-    font-size: 14px;
+    color: #9ca3af;
+    font-size: 13px;
     margin: 0;
 }
 
@@ -113,20 +122,20 @@ a {
     }
 
     .email-body {
-        padding: 24px 20px;
+        padding: 32px 24px;
     }
 
     .button {
         width: 100%;
-        padding: 16px 24px;
+        padding: 14px 24px;
     }
 
     h1 {
-        font-size: 24px;
+        font-size: 22px;
     }
 
     p {
-        font-size: 15px;
+        font-size: 14px;
     }
 }
 </style>

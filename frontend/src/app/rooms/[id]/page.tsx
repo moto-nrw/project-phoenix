@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
+import { Loading } from "~/components/ui/loading";
 import { useSession } from "next-auth/react";
 
 // Room interface
@@ -381,13 +382,8 @@ export default function RoomDetailPage() {
 
   if (loading) {
     return (
-      <ResponsiveLayout>
-        <div className="flex min-h-[80vh] items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-            <p className="text-gray-600">Daten werden geladen...</p>
-          </div>
-        </div>
+      <ResponsiveLayout roomName="...">
+        <Loading message="Laden..." fullPage={false} />
       </ResponsiveLayout>
     );
   }
@@ -411,7 +407,7 @@ export default function RoomDetailPage() {
   }
 
   return (
-    <ResponsiveLayout>
+    <ResponsiveLayout roomName={room.name}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
         {/* Back button - Mobile optimized */}
         <button
@@ -424,20 +420,30 @@ export default function RoomDetailPage() {
           <span className="text-sm font-medium">Zurück</span>
         </button>
 
-        {/* Room Header - Mobile optimized */}
-        <div className="bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100 p-4 sm:p-6 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">
-                {room.name}
-              </h1>
-              <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-2 text-sm text-gray-600">
+        {/* Room Header - Mobile optimized with underline */}
+        <div className="mb-6">
+          <div className="flex items-end justify-between gap-4">
+            {/* Title with underline */}
+            <div className="ml-6 flex-1">
+              <div className="relative inline-block pb-3">
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+                  {room.name}
+                </h1>
+                {/* Underline indicator - matches tab style */}
+                <div
+                  className="absolute bottom-0 left-0 h-0.5 bg-gray-900 rounded-full"
+                  style={{ width: '70%' }}
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-3 text-sm text-gray-600">
                 <span>{room.building ?? "Unbekannt"} · Etage {room.floor}</span>
                 <span className="hidden sm:inline">•</span>
                 <span className="truncate">{room.category}</span>
               </div>
             </div>
-            <div className="flex-shrink-0">
+
+            {/* Status Badge */}
+            <div className="flex-shrink-0 pb-3 mr-4">
               <StatusBadge isOccupied={room.isOccupied} />
             </div>
           </div>

@@ -7,6 +7,7 @@ import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 
+import { Loading } from "~/components/ui/loading";
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
 interface Room {
     id: string;
@@ -285,12 +286,9 @@ function RoomsPageContent() {
 
     if (status === "loading" || loading) {
         return (
-            <div className="flex min-h-screen items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-                    <p className="text-gray-600">Räume werden geladen...</p>
-                </div>
-            </div>
+            <ResponsiveLayout>
+                <Loading fullPage={false} />
+            </ResponsiveLayout>
         );
     }
 
@@ -468,9 +466,9 @@ function RoomsPageContent() {
 export default function RoomsPage() {
     return (
         <Suspense fallback={
-            <div className="flex min-h-screen items-center justify-center">
-                <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-            </div>
+            <ResponsiveLayout>
+                <Loading fullPage={false} />
+            </ResponsiveLayout>
         }>
             <RoomsPageContent />
         </Suspense>

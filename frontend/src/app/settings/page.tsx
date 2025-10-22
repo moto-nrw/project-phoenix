@@ -11,6 +11,7 @@ import { PINManagement } from "~/components/staff";
 import { IOSToggle } from "~/components/ui/ios-toggle";
 import { fetchProfile, updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { Profile, ProfileUpdateRequest } from "~/lib/profile-helpers";
+import { Loading } from "~/components/ui/loading";
 
 // Tab configuration
 interface Tab {
@@ -165,12 +166,9 @@ function SettingsContent() {
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-gray-800"></div>
-          <p className="text-gray-600">Einstellungen werden geladen...</p>
-        </div>
-      </div>
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
     );
   }
 
@@ -642,31 +640,37 @@ function SettingsContent() {
           />
         )}
 
-        {/* Tab Navigation - Desktop */}
+        {/* Tab Navigation - Desktop with new underline style */}
         {!isMobile && (
-          <div className="mb-6 inline-block bg-white/50 backdrop-blur-sm rounded-xl p-1 border border-gray-100">
-            <div className="flex gap-1">
-              {allTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`
-                    flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
-                    ${activeTab === tab.id
-                      ? "bg-gray-900 text-white shadow-md"
-                      : "text-gray-600 hover:bg-gray-200/80"
-                    }
-                  `}
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} />
-                  </svg>
-                  <span>{tab.label}</span>
-                  {tab.adminOnly && (
-                    <span className="ml-1 px-1.5 py-0.5 bg-white/20 rounded text-xs">Admin</span>
-                  )}
-                </button>
-              ))}
+          <div className="mb-6 ml-6">
+            <div className="relative flex gap-8">
+              {allTabs.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`
+                      relative pb-3 text-sm font-medium transition-all flex items-center gap-2
+                      ${isActive
+                        ? "text-gray-900 font-semibold"
+                        : "text-gray-500 hover:text-gray-700"
+                      }
+                    `}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} />
+                    </svg>
+                    <span>{tab.label}</span>
+                    {tab.adminOnly && (
+                      <span className="ml-1 px-1.5 py-0.5 bg-gray-200 rounded text-xs">Admin</span>
+                    )}
+                    {isActive && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-900 rounded-full" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -674,37 +678,37 @@ function SettingsContent() {
         {/* Mobile Navigation */}
         {isMobile && (
           <>
-            {/* Mobile List View */}
+            {/* Mobile List View - iOS Grouped Style */}
             {activeTab === null ? (
-              <div className="flex flex-col h-[calc(100vh-120px)]">
-                <div className="bg-white/50 backdrop-blur-sm rounded-2xl border border-gray-100 overflow-hidden">
-                  {allTabs.map((tab, index) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => handleTabSelect(tab.id)}
-                      className={`w-full flex items-center justify-between px-4 py-4 hover:bg-gray-50 active:bg-gray-100 transition-all ${
-                        index !== allTabs.length - 1 ? "border-b border-gray-100" : ""
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
-                          <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} />
-                          </svg>
+              <div className="flex flex-col space-y-6 pb-6">
+                {/* General Settings Section */}
+                <div className="space-y-2">
+                  <h3 className="px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Allgemein</h3>
+                  <div className="bg-white rounded-3xl shadow-sm overflow-hidden mx-4">
+                    {tabs.filter(tab => !tab.adminOnly).map((tab, index, arr) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => handleTabSelect(tab.id)}
+                        className={`w-full flex items-center justify-between px-4 py-4 hover:bg-gray-50 active:bg-gray-100 transition-colors ${
+                          index !== arr.length - 1 ? "border-b border-gray-100" : ""
+                        }`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} />
+                            </svg>
+                          </div>
+                          <p className="text-base font-medium text-gray-900">{tab.label}</p>
                         </div>
-                        <div className="text-left">
-                          <p className="text-[15px] text-gray-900">{tab.label}</p>
-                          {tab.adminOnly && (
-                            <p className="text-xs text-gray-500 mt-0.5">Nur für Administratoren</p>
-                          )}
-                        </div>
-                      </div>
-                      <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                  ))}
+                        <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                    ))}
+                  </div>
                 </div>
+
               </div>
             ) : (
               /* Mobile Detail View */
@@ -714,6 +718,7 @@ function SettingsContent() {
                   <button
                     onClick={handleBackToList}
                     className="p-2 -ml-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-all"
+                    aria-label="Zurück"
                   >
                     <svg className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -771,12 +776,9 @@ function SettingsContent() {
 export default function SettingsPage() {
   return (
     <Suspense fallback={
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-gray-800"></div>
-          <p className="text-gray-600">Einstellungen werden geladen...</p>
-        </div>
-      </div>
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
     }>
       <SettingsContent />
     </Suspense>
