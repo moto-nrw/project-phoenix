@@ -1,9 +1,9 @@
 ## 1. Alignment & Discovery
-- [ ] 1.1 Audit current student location data sources (`active.visits`, room assignments, legacy booleans, SSE payloads) and document how each field currently reaches the frontend.
-- [ ] 1.2 Map legacy fields/strings to the target `StudentLocationStatus` states and note any gaps the backend must fill (e.g., missing `ownerType`).
-- [ ] 1.3 Confirm with backend owners that the attendance service can emit the canonical state + room metadata for both REST and SSE, capturing any schema adjustments required.
-- [ ] 1.4 Align with UX/product on final German labels, iconography, and color tokens for each state; record sign-off and open questions.
-- [ ] 1.5 Notify analytics/exports stakeholders about deprecating `in_house`, `wc`, `school_yard`, and capture follow-up actions or migration requests.
+- [x] 1.1 Audit current student location data sources (`active.visits`, room assignments, legacy booleans, SSE payloads) and document how each field currently reaches the frontend.
+- [x] 1.2 Map legacy fields/strings to the target `StudentLocationStatus` states and note any gaps the backend must fill (e.g., missing `ownerType`).
+- [x] 1.3 Confirm with backend owners that the attendance service can emit the canonical state + room metadata for both REST and SSE, capturing any schema adjustments required. *(Owners approved the schema/SSE plan — see `alignment.md` status note.)*
+- [x] 1.4 Align with UX/product on final German labels, iconography, and color tokens for each state; record sign-off and open questions. *(Product signed off; palette + icons will live in the central token module documented in `alignment.md`.)*
+- [x] 1.5 Notify analytics/exports stakeholders about deprecating `in_house`, `wc`, `school_yard`, and capture follow-up actions or migration requests. *(Analytics acknowledged; only the frontend consumes the legacy flags — details in `alignment.md`.)*
 
 ## 2. Schema & API Updates
 - [ ] 2.1 Define the backend `StudentLocationStatus` enum/struct (states + optional room object with `id`, `name`, `isGroupRoom`, `ownerType`) and add serialization tests.

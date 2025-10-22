@@ -20,6 +20,7 @@
   - SCHOOLYARD: label = "Schulhof".
   - HOME: label = "Zuhause".
 - Styling tokens live in a single map so any color tweak updates all surfaces.
+- Create a dedicated module (e.g., `frontend/src/theme/student-location-status-tokens.ts`) exporting the palette, gradients, and icon ids so product can adjust values in one place without touching individual surfaces.
 
 ## Surface Integration
 - **OGS Groups:** Subscribe to SSE channel delivering `StudentLocationStatus`; update badges immediately.
