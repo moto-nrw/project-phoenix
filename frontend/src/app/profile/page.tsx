@@ -99,7 +99,6 @@ function ProfilePageContent() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { success: toastSuccess } = useToast();
-  // NOTE: Migrate success toasts to global provider
   
   const [isEditing, setIsEditing] = useState(false);
   const [hasLoadedProfile, setHasLoadedProfile] = useState(false);

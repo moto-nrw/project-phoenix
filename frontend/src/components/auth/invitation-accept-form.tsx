@@ -28,8 +28,6 @@ export function InvitationAcceptForm({ token, invitation }: InvitationAcceptForm
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const { success: toastSuccess } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -51,7 +49,6 @@ export function InvitationAcceptForm({ token, invitation }: InvitationAcceptForm
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
-    setSuccessMessage(null);
 
     if (!firstName.trim() || !lastName.trim()) {
       setError("Bitte gib Vor- und Nachname an.");
@@ -76,8 +73,6 @@ export function InvitationAcceptForm({ token, invitation }: InvitationAcceptForm
         password,
         confirmPassword,
       });
-
-      setSuccessMessage(null);
       toastSuccess("Einladung erfolgreich angenommen! Du wirst zur Anmeldung weitergeleitet.");
       setTimeout(() => {
         router.push("/");

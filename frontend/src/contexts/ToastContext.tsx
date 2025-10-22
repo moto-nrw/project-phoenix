@@ -137,7 +137,6 @@ function ToastRow({ item, onClose, reducedMotion }: { item: ToastItemData; onClo
       onMouseEnter={pauseIfDesktop}
       onMouseLeave={resumeIfDesktop}
       className={`pointer-events-auto relative ${bg} ${border} ${text} rounded-2xl border p-4 shadow-lg backdrop-blur-sm transition-all ${reducedMotion ? "" : "duration-300 ease-out"} ${visible && !exiting ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"}`}
-      style={{ transform: reducedMotion ? undefined : undefined }}
     >
       <div className="flex items-start gap-3">
         <div className={`flex-shrink-0 ${text}`}>
