@@ -1,6 +1,6 @@
 # Active Sessions - SSE Event Broadcasting
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Student Check-In Processing
 

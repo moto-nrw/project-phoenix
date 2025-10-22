@@ -1,6 +1,6 @@
 # Password Reset Specification
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Password Reset Initiation
 The system SHALL allow users to request a password reset via email.

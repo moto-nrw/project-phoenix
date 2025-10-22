@@ -1,6 +1,15 @@
 # Password Reset Delivery Tracking
 
-## MODIFIED Requirements
+## ADDED Requirements
+
+### Requirement: Password Reset Email Delivery Tracking
+
+The system SHALL track delivery status for password reset emails.
+
+#### Scenario: Reset email delivery tracked
+- **WHEN** a password reset email is sent
+- **THEN** the reset token record stores delivery metadata
+- **AND** the system tracks success/failure status
 
 ### Requirement: Password Reset Initiation
 The system SHALL allow users to request a password reset via email and track delivery status.

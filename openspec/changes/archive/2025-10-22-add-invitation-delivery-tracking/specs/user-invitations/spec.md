@@ -1,6 +1,6 @@
 # User Invitation Delivery Tracking
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Admin-Initiated User Invitations
 The system SHALL allow administrators to invite users by email with a specific role assignment and persist delivery status for each invitation email.

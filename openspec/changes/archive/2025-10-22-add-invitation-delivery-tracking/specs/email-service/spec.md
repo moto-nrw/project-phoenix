@@ -1,6 +1,6 @@
 # Email Service Delivery Tracking
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Asynchronous Email Dispatch
 The system SHALL send emails asynchronously while reporting delivery outcomes back to calling services.
