@@ -872,8 +872,16 @@ func (rs *Resource) getPINStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// PIN is account-level, so any authenticated user can access their own PIN settings
-	// No staff member check needed - JWT token proves account ownership
+	// Ensure the account belongs to a staff member (admins without person records are allowed)
+	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(account.ID))
+	if err == nil && person != nil {
+		if _, err := rs.StaffRepo.FindByPersonID(r.Context(), person.ID); err != nil {
+			if err := render.Render(w, r, ErrorForbidden(errors.New("only staff members can access PIN settings"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+	}
 
 	// Build response using account PIN data
 	response := PINStatusResponse{
@@ -917,8 +925,16 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// PIN is account-level, so any authenticated user can manage their own PIN
-	// No staff member check needed - JWT token proves account ownership
+	// Ensure the account belongs to a staff member (admins without person records are allowed)
+	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(account.ID))
+	if err == nil && person != nil {
+		if _, err := rs.StaffRepo.FindByPersonID(r.Context(), person.ID); err != nil {
+			if err := render.Render(w, r, ErrorForbidden(errors.New("only staff members can manage PIN settings"))); err != nil {
+				log.Printf("Error rendering error response: %v", err)
+			}
+			return
+		}
+	}
 
 	// Check if account is locked
 	if account.IsPINLocked() {
