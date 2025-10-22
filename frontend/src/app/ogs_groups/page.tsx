@@ -14,7 +14,6 @@ import type { StudentLocation } from "~/lib/student-helpers";
 import { fetchRooms } from "~/lib/rooms-api";
 import { createRoomIdToNameMap } from "~/lib/rooms-helpers";
 import { useSSE } from "~/lib/hooks/use-sse";
-import { isAdmin } from "~/lib/auth-utils";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import type { SSEEvent } from "~/lib/sse-types";
 

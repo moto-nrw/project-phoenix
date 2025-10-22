@@ -25,7 +25,6 @@ export class SSEErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: unknown, errorInfo: unknown) {
-    // eslint-disable-next-line no-console
     console.error("SSE boundary caught an error:", error, errorInfo);
   }
 
@@ -42,4 +41,3 @@ export class SSEErrorBoundary extends React.Component<
     return this.props.children;
   }
 }
-

@@ -104,7 +104,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     } catch (e) {
       // Differentiate 404 (no consent yet) from other errors
       if (e instanceof Error) {
-        if (!/\(404\)/.test(e.message)) {
+        if (!e.message.includes("(404)")) {
           throw e; // system/network error — bubble up
         }
       } else {

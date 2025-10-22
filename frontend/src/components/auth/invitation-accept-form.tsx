@@ -80,7 +80,7 @@ export function InvitationAcceptForm({ token, invitation }: InvitationAcceptForm
       }, 2500);
     } catch (err) {
       // Distinguish network/offline from HTTP errors
-      if (typeof navigator !== "undefined" && (navigator as any).onLine === false) {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
         setError("Keine Netzwerkverbindung. Bitte überprüfe deine Internetverbindung und versuche es erneut.");
         return;
       }

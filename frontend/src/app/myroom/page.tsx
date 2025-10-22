@@ -14,7 +14,6 @@ import { activeService } from "~/lib/active-api";
 import type { Student } from "~/lib/student-helpers";
 import { UnclaimedRooms } from "~/components/active";
 import { useSSE } from "~/lib/hooks/use-sse";
-import { isAdmin } from "~/lib/auth-utils";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import type { SSEEvent } from "~/lib/sse-types";
 
@@ -237,7 +236,6 @@ function MeinRaumPageContent() {
               name: activeGroup.name,
               room_name: roomName,
               room_id: activeGroup.room_id,
-              educationGroupId: activeGroup.actualGroup?.id?.toString(),
               student_count: undefined, // Will be loaded when room is viewed
               supervisor_name: undefined,
             };

@@ -11,10 +11,10 @@ export function asPIN(value: string): PIN {
   if (!isPIN(value)) {
     throw new Error('PIN muss aus genau 4 Ziffern bestehen');
   }
-  return value as PIN;
+  // Cast through unknown to satisfy eslint rule and enforce brand
+  return (value as unknown) as PIN;
 }
 
 export function validatePinOrThrow(value: string): PIN {
   return asPIN(value);
 }
-
