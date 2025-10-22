@@ -6,12 +6,12 @@ import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header/types";
-import { SimpleAlert } from "@/components/simple/SimpleAlert";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { groupsConfig } from "@/lib/database/configs/groups.config";
 import type { Group } from "@/lib/group-helpers";
 import { GroupCreateModal, GroupDetailModal, GroupEditModal } from "@/components/groups";
+import { useToast } from "~/contexts/ToastContext";
 
 import { Loading } from "~/components/ui/loading";
 export default function GroupsPage() {
@@ -31,8 +31,7 @@ export default function GroupsPage() {
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const { success: toastSuccess } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -135,8 +134,7 @@ export default function GroupsPage() {
       setCreateLoading(true);
       if (groupsConfig.form.transformBeforeSubmit) data = groupsConfig.form.transformBeforeSubmit(data);
       const created = await service.create(data);
-      setSuccessMessage(getDbOperationMessage('create', groupsConfig.name.singular, created.name));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('create', groupsConfig.name.singular, created.name));
       setShowCreateModal(false);
       await fetchGroups();
     } finally { setCreateLoading(false); }
@@ -148,8 +146,7 @@ export default function GroupsPage() {
       setDetailLoading(true);
       if (groupsConfig.form.transformBeforeSubmit) data = groupsConfig.form.transformBeforeSubmit(data);
       await service.update(selectedGroup.id, data);
-      setSuccessMessage(getDbOperationMessage('update', groupsConfig.name.singular, selectedGroup.name));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('update', groupsConfig.name.singular, selectedGroup.name));
       const refreshed = await service.getOne(selectedGroup.id);
       setSelectedGroup(refreshed);
       setShowEditModal(false);
@@ -163,8 +160,7 @@ export default function GroupsPage() {
     try {
       setDetailLoading(true);
       await service.delete(selectedGroup.id);
-      setSuccessMessage(getDbOperationMessage('delete', groupsConfig.name.singular, selectedGroup.name));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('delete', groupsConfig.name.singular, selectedGroup.name));
       setShowDetailModal(false);
       setSelectedGroup(null);
       await fetchGroups();
@@ -313,9 +309,7 @@ export default function GroupsPage() {
         />
       )}
 
-      {showSuccessAlert && (
-        <SimpleAlert type="success" message={successMessage} autoClose duration={3000} onClose={() => setShowSuccessAlert(false)} />
-      )}
+      {/* Success toasts handled globally */}
     </ResponsiveLayout>
   );
 }

@@ -6,7 +6,7 @@ import { redirect, useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
-import { SimpleAlert } from "@/components/simple/SimpleAlert";
+import { useToast } from "~/contexts/ToastContext";
 import { TeacherRoleManagementModal, TeacherPermissionManagementModal } from "@/components/teachers";
 import { TeacherDetailModal } from "@/components/teachers/teacher-detail-modal";
 import { TeacherEditModal } from "@/components/teachers/teacher-edit-modal";
@@ -42,8 +42,7 @@ export default function TeachersPage() {
     const [roleModalOpen, setRoleModalOpen] = useState(false);
     const [permissionModalOpen, setPermissionModalOpen] = useState(false);
 
-    const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-    const [successMessage, setSuccessMessage] = useState("");
+    const { success: toastSuccess } = useToast();
 
     const { status } = useSession({
         required: true,
@@ -170,8 +169,7 @@ export default function TeachersPage() {
             setCreateLoading(true);
             await service.create(data);
             setShowCreateModal(false);
-            setSuccessMessage(getDbOperationMessage('create', teachersConfig.name.singular));
-            setShowSuccessAlert(true);
+            toastSuccess(getDbOperationMessage('create', teachersConfig.name.singular));
             await fetchTeachers();
         } catch (err) {
             console.error("Error creating teacher:", err);
@@ -190,8 +188,7 @@ export default function TeachersPage() {
             await service.update(selectedTeacher.id, data);
             setShowEditModal(false);
             setShowDetailModal(false);
-            setSuccessMessage(getDbOperationMessage('update', teachersConfig.name.singular));
-            setShowSuccessAlert(true);
+            toastSuccess(getDbOperationMessage('update', teachersConfig.name.singular));
             await fetchTeachers();
             setSelectedTeacher(null);
         } catch (err) {
@@ -210,8 +207,7 @@ export default function TeachersPage() {
             setDetailLoading(true);
             await service.delete(selectedTeacher.id);
             setShowDetailModal(false);
-            setSuccessMessage(getDbOperationMessage('delete', teachersConfig.name.singular));
-            setShowSuccessAlert(true);
+            toastSuccess(getDbOperationMessage('delete', teachersConfig.name.singular));
             await fetchTeachers();
             setSelectedTeacher(null);
         } catch (err) {
@@ -553,16 +549,7 @@ export default function TeachersPage() {
                 />
             )}
 
-            {/* Success Alert */}
-            {showSuccessAlert && (
-                <SimpleAlert
-                    type="success"
-                    message={successMessage}
-                    autoClose
-                    duration={3000}
-                    onClose={() => setShowSuccessAlert(false)}
-                />
-            )}
+            {/* Success toasts handled globally */}
         </ResponsiveLayout>
     );
 }

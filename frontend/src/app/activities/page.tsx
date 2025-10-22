@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { createPortal } from "react-dom";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header/types";
@@ -16,7 +15,7 @@ import { ActivityManagementModal } from "~/components/activities/activity-manage
 import { QuickCreateActivityModal } from "~/components/activities/quick-create-modal";
 import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
-import { SimpleAlert, alertAnimationStyles } from "~/components/simple/SimpleAlert";
+import { useToast } from "~/contexts/ToastContext";
 import { useAlertVisibility } from "~/contexts/AlertContext";
 import { Loading } from "~/components/ui/loading";
 
@@ -55,8 +54,7 @@ export default function ActivitiesPage() {
     const [currentStaff, setCurrentStaff] = useState<Staff | null>(null);
     const { isAlertShowing } = useAlertVisibility();
     const [isNavBarHidden, setIsNavBarHidden] = useState(false);
-    const [showManagementSuccess, setShowManagementSuccess] = useState(false);
-    const [managementSuccessMessage, setManagementSuccessMessage] = useState("");
+    const { success: toastSuccess } = useToast();
     const [isMobile, setIsMobile] = useState(false);
 
     // Handle mobile detection
@@ -178,10 +176,9 @@ export default function ActivitiesPage() {
 
     // Handle successful management actions (edit/delete)
     const handleManagementSuccess = async (message?: string) => {
-        // Show success message if provided
+        // Show success toast if provided
         if (message) {
-            setManagementSuccessMessage(message);
-            setShowManagementSuccess(true);
+            toastSuccess(message);
         }
         
         // Reload activities to show updated data
@@ -502,20 +499,7 @@ export default function ActivitiesPage() {
                 }}
             />
             
-            {/* Management Success Alert - rendered independently */}
-            {showManagementSuccess && typeof document !== 'undefined' && createPortal(
-                <>
-                    {alertAnimationStyles}
-                    <SimpleAlert
-                        type="success"
-                        message={managementSuccessMessage}
-                        autoClose
-                        duration={3000}
-                        onClose={() => setShowManagementSuccess(false)}
-                    />
-                </>,
-                document.body
-            )}
+            {/* Success toasts handled globally */}
         </ResponsiveLayout>
     );
 }

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { PageHeader, SectionTitle, ResponsiveLayout } from "@/components/dashboard";
+import { useToast } from "~/contexts/ToastContext";
 
 // Configuration for the form page
 export interface DatabaseFormPageConfig<TFormData = Record<string, unknown>, TLoadData = Record<string, unknown>, TCreated = Record<string, unknown>> {
@@ -52,6 +53,7 @@ interface DatabaseFormPageProps<TFormData = Record<string, unknown>, TLoadData =
 export function DatabaseFormPage<TFormData = Record<string, unknown>, TLoadData = Record<string, unknown>, TCreated = Record<string, unknown>>({ 
   config 
 }: DatabaseFormPageProps<TFormData, TLoadData, TCreated>) {
+  const { success: toastSuccess } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -105,16 +107,13 @@ export function DatabaseFormPage<TFormData = Record<string, unknown>, TLoadData 
       const created = await config.onCreate(dataToSave);
       setSuccessData(created);
       
-      // Handle success message if provided
+      // Handle success message if provided (string messages toast globally)
       if (config.successMessage) {
         const message = typeof config.successMessage === "function"
           ? config.successMessage(created)
           : config.successMessage;
-        
-        // If message is a ReactNode, we need to handle it differently
-        if (message && typeof message !== "string") {
-          // For now, we'll skip showing complex success messages
-          // In a real implementation, we might show a modal or toast
+        if (typeof message === "string" && message) {
+          toastSuccess(message);
         }
       }
       
