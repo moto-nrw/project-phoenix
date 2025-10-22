@@ -4,7 +4,7 @@
 - Supervisors need a trustworthy view of where students are (home, in their group room, in another room, on the schoolyard, or in transit) with consistent styling across the entire UI.
 
 ## What Changes
-- Introduce a structured `StudentLocationStatus` model that captures canonical states (`PRESENT_IN_ROOM`, `TRANSIT`, `SCHOOLYARD`, `HOME`) plus room metadata (room id/name, isGroupRoom) sourced from the real-time attendance backend instead of ad-hoc strings.
+- Introduce a structured `StudentLocationStatus` model that captures canonical states (`PRESENT_IN_ROOM`, `TRANSIT`, `SCHOOLYARD`, `HOME`) plus room metadata (`id`, `name`, `isGroupRoom`, `ownerType`) sourced from the real-time attendance backend instead of ad-hoc strings.
 - Build a single badge helper/component that renders unified labels and styling for every surface (OGS groups, My Room, student search, student detail modal) using the structured status.
 - Extend SSE integration so all four surfaces receive live updates; fall back to the last known state if the connection drops while indicating SSE health elsewhere.
 - Remove references to deprecated states such as "Bus" and "WC", deprecate the legacy boolean flags, and document the new location schema for downstream consumers.

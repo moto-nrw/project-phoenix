@@ -73,6 +73,16 @@
 - **WHEN** the list renders
 - **THEN** the badge MUST display "Zuhause", confirming that at-home students remain visible.
 
+
+### Requirement: Privacy-Aware Display
+- Supervisors MUST see badges for any student currently in the rooms they supervise, regardless of origin group, but detailed history remains restricted to direct educators.
+
+#### Scenario: Foreign-room supervisor sees limited info
+- **GIVEN** a supervisor is viewing My Room for an activity-owned room
+- **AND** a visiting student from another educational group is present
+- **WHEN** the badge renders via the shared helper
+- **THEN** the supervisor MUST see the location badge (e.g., room name) but MUST NOT rely on the badge to expose restricted history data.
+
 ### Requirement: Deprecate Legacy Location Flags
 - Frontend MUST remove usage of legacy booleans (`in_house`, `wc`, `school_yard`) and string parsing patterns (e.g., "Anwesend - ...").
 - Backend documentation MUST mark those fields as deprecated for downstream consumers.
