@@ -25,8 +25,22 @@
 - **OGS Groups:** Subscribe to SSE channel delivering `StudentLocationStatus`; update badges immediately.
 - **My Room:** Same SSE feed for room supervisors; fetch student status on demand when a supervisor switches to a room, and display each student’s origin group separately (outside the badge) when needed.
 - **Student Search:** Add SSE subscription for live updates (covering students at home as well); fallback to periodic fetch only if SSE disconnects.
-- **Student Detail Modal:** Subscribe while open; if SSE unavailable, poll every 30s using `/api/students/:id/current-location` and keep last known state.
+- **Student Detail Modal:** Subscribe while open; if SSE unavailable, poll `/api/students/:id/current-location` every 30 seconds and keep last known state.
 - All surfaces use the shared badge helper; legacy code paths and boolean flags are removed.
+
+## Visibility Rules
+| Surface | Supervisor Sees | Restricted Data | Notes |
+|---------|------------------|------------------|-------|
+| OGS Groups | Students in their educational group (group rooms) | Student history/notes remain within direct educators | SSE delivers structured status for each student |
+| My Room | All students physically in the supervised room (group-owned or activity-owned) | Detailed history for visiting students stays hidden unless supervisor belongs to the student's home group | Fetch on demand when switching rooms, then rely on SSE |
+| Student Search | All students the user is permitted to view, including those at HOME | Detailed history limited to direct educators | SSE keeps list current; HOME renders as "Zuhause" |
+| Student Detail Modal | Students the viewer already has permission to open | No additional data exposed beyond modal permissions | Poll `/api/students/:id/current-location` every 30s if SSE drops |
+
+
+## Deprecated Fields
+- `in_house`, `wc`, `school_yard`: removed from frontend decision logic; replaced by `StudentLocationStatus.state`.
+- Legacy location strings (e.g., "Anwesend - Raum X"): removed; room labels now supplied via metadata.
+- Bus permission flag ("Buskind"): remains an administrative attribute but is no longer interpreted as a location state by badges.
 
 ## Error Handling
 - If SSE disconnects, surfaces continue showing the last known badge and rely on existing SSE health indicator text elsewhere in the UI.
@@ -34,5 +48,4 @@
 - UI components respect privacy rules: supervisors see who is in their room, while detailed histories remain restricted to the student’s direct educators.
 
 ## Rollout & Communication
-- No feature flag; migrate all surfaces in a single release.
-- Provide release notes and schema documentation for analytics/exports teams consuming the new location model.
+- No feature flag; migrate all surfaces in a single release after UX sign-off on German labels and styling tokens.

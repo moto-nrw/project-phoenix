@@ -66,7 +66,7 @@
 #### Scenario: My Room fetches on demand
 - **GIVEN** a supervisor switches from Room A to Room B in My Room
 - **WHEN** Room B becomes active
-- **THEN** the frontend MUST request the current `StudentLocationStatus` set for Room B (via SSE subscription or on-demand fetch) without preloading all rooms.
+- **THEN** the frontend MUST request the current `StudentLocationStatus` set for Room B (fetching the latest statuses on demand, then relying on the room's SSE stream) without preloading all rooms.
 
 #### Scenario: Student search includes home students
 - **GIVEN** student search results include a student whose status is `{ state: "HOME" }`
@@ -75,13 +75,18 @@
 
 
 ### Requirement: Privacy-Aware Display
-- Supervisors MUST see badges for any student currently in the rooms they supervise, regardless of origin group, but detailed history remains restricted to direct educators.
+- Visibility rules MUST follow the surface/role matrix in the design document: show location badges for students physically present, while keeping detailed histories restricted to authorized educators.
 
 #### Scenario: Foreign-room supervisor sees limited info
 - **GIVEN** a supervisor is viewing My Room for an activity-owned room
 - **AND** a visiting student from another educational group is present
 - **WHEN** the badge renders via the shared helper
-- **THEN** the supervisor MUST see the location badge (e.g., room name) but MUST NOT rely on the badge to expose restricted history data.
+- **THEN** the supervisor MUST see the location badge (e.g., room name) but MUST NOT gain access to the student's restricted history.
+
+#### Scenario: Student search respects permissions
+- **GIVEN** a staff member searches for students and the results include both home-group and foreign-group students
+- **WHEN** the list renders
+- **THEN** it MUST display badges for all visible students while ensuring that restricted history remains hidden unless the staff member is an authorized educator.
 
 ### Requirement: Deprecate Legacy Location Flags
 - Frontend MUST remove usage of legacy booleans (`in_house`, `wc`, `school_yard`) and string parsing patterns (e.g., "Anwesend - ...").
@@ -92,6 +97,3 @@
 - **WHEN** mapping the data for UI
 - **THEN** it MUST ignore legacy boolean flags and rely solely on `StudentLocationStatus` for badge decisions.
 
-#### Scenario: Deprecated schema announcement
-- **GIVEN** release notes are published for the rollout
-- **THEN** they MUST highlight the new structured location schema and the deprecation of legacy flags to downstream teams.

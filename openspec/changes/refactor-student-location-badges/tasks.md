@@ -1,12 +1,12 @@
 ## 1. Alignment & Discovery
 - [ ] 1.1 Document how current locations are stored (active.visits, group room assignments) and confirm backend ability to emit canonical states + room metadata (id, name, isGroupRoom, ownerType).
-- [ ] 1.2 Align with UX/product on final badge labels, colors, and terminology; capture approval.
+- [ ] 1.2 Align with UX/product (including German labels and colors) on final badge terminology; capture approval before implementation starts.
 - [ ] 1.3 Notify analytics/exports stakeholders about the planned deprecation of legacy boolean flags and capture feedback/requirements.
 
 ## 2. Schema & API Updates
 - [ ] 2.1 Introduce a structured `StudentLocationStatus` payload (state enum + optional room object including ownerType) in the backend responses and SSE events.
-- [ ] 2.2 Update REST endpoints and SSE channel to deliver the structured payload for OGS groups, My Room, student search, and student detail modal.
-- [ ] 2.3 Provide migration notes for downstream consumers (API docs, analytics) describing the new location schema.
+- [ ] 2.2 Define and publish the canonical backend schema/OpenAPI contract for `StudentLocationStatus` (field names, nullability, enum values) and align it with the frontend TypeScript type.
+- [ ] 2.3 Update REST endpoints and SSE channel to deliver the structured payload for OGS groups, My Room, student search, and student detail modal.
 
 ## 3. Frontend Implementation
 - [ ] 3.1 Build a shared `getStudentLocationBadge` helper + badge component that accepts `StudentLocationStatus` and returns unified label/styling tokens.
@@ -18,4 +18,3 @@
 - [ ] 4.1 Add unit tests covering each canonical state, including room metadata precedence.
 - [ ] 4.2 Add integration/UI tests (or Storybook visual baselines) for the unified badge across surfaces.
 - [ ] 4.3 Verify SSE-driven refresh on every surface by simulating check-in/check-out events; confirm fallback polling behavior.
-- [ ] 4.4 Coordinate release notes and downstream communication; monitor analytics/exports after rollout.
