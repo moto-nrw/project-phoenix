@@ -6,6 +6,7 @@ import { redirect, useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import { SimpleAlert } from "~/components/simple/SimpleAlert";
+import { useToast } from "~/contexts/ToastContext";
 import { PasswordChangeModal } from "~/components/ui";
 import { PINManagement } from "~/components/staff";
 import { IOSToggle } from "~/components/ui/ios-toggle";
@@ -38,6 +39,7 @@ const adminTabs: Tab[] = [
 function SettingsContent() {
   const { data: session, status } = useSession({ required: true });
   const router = useRouter();
+  const { success: toastSuccess } = useToast();
   const [activeTab, setActiveTab] = useState<string | null>("profile");
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
@@ -136,9 +138,7 @@ function SettingsContent() {
       await updateProfile(updateData);
       await loadProfile();
       setIsEditing(false);
-      setAlertMessage("Profil erfolgreich aktualisiert");
-      setAlertType("success");
-      setShowAlert(true);
+      toastSuccess("Profil erfolgreich aktualisiert");
     } catch {
       setAlertMessage("Fehler beim Speichern des Profils");
       setAlertType("error");
@@ -154,9 +154,7 @@ function SettingsContent() {
     try {
       await uploadAvatar(file);
       await loadProfile();
-      setAlertMessage("Profilbild erfolgreich aktualisiert");
-      setAlertType("success");
-      setShowAlert(true);
+      toastSuccess("Profilbild erfolgreich aktualisiert");
     } catch {
       setAlertMessage("Fehler beim Hochladen des Profilbilds");
       setAlertType("error");
@@ -313,9 +311,7 @@ function SettingsContent() {
               <p className="text-sm text-gray-600 mb-4">Verwalten Sie Ihre PIN für RFID-Geräte.</p>
               <PINManagement
                 onSuccess={(message) => {
-                  setAlertMessage(message);
-                  setAlertType("success");
-                  setShowAlert(true);
+                  toastSuccess(message);
                 }}
                 onError={(message) => {
                   setAlertMessage(message);
@@ -745,7 +741,7 @@ function SettingsContent() {
         )}
 
         {/* Alerts */}
-        {showAlert && (
+        {showAlert && alertType !== "success" && (
           <SimpleAlert
             type={alertType}
             message={alertMessage}
@@ -762,9 +758,7 @@ function SettingsContent() {
             onClose={() => setShowPasswordModal(false)}
             onSuccess={() => {
               setShowPasswordModal(false);
-              setAlertMessage("Passwort erfolgreich geändert");
-              setAlertType("success");
-              setShowAlert(true);
+              toastSuccess("Passwort erfolgreich geändert");
             }}
           />
         )}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { FormModal } from "~/components/ui";
 import { SimpleAlert } from "~/components/simple/SimpleAlert";
+import { useToast } from "~/contexts/ToastContext";
 import type { Group } from "~/lib/group-helpers";
 
 // Type for students in a group
@@ -42,8 +43,7 @@ export function GroupStudentEnrollmentModal({
   group,
   onUpdate,
 }: GroupStudentEnrollmentModalProps) {
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const { success: toastSuccess } = useToast();
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showWarningAlert, setShowWarningAlert] = useState(false);
@@ -57,8 +57,7 @@ export function GroupStudentEnrollmentModal({
   const [activeTab, setActiveTab] = useState<"enrolled" | "available">("enrolled");
 
   const showSuccess = (message: string) => {
-    setSuccessMessage(message);
-    setShowSuccessAlert(true);
+    toastSuccess(message);
   };
 
   const showError = (message: string) => {
@@ -399,15 +398,7 @@ export function GroupStudentEnrollmentModal({
         </div>
       </FormModal>
       
-      {/* Alert components */}
-      {showSuccessAlert && (
-        <SimpleAlert
-          type="success"
-          message={successMessage}
-          onClose={() => setShowSuccessAlert(false)}
-          autoClose
-        />
-      )}
+      {/* Success toasts handled globally */}
       {showErrorAlert && (
         <SimpleAlert
           type="error"

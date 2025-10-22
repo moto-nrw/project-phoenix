@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { FormModal } from "~/components/ui";
 import { SimpleAlert } from "~/components/simple/SimpleAlert";
+import { useToast } from "~/contexts/ToastContext";
 import * as activityService from "~/lib/activity-api";
 import type { Activity, ActivitySchedule } from "~/lib/activity-helpers";
 
@@ -39,8 +40,7 @@ export function TimeManagementModal({
   activity,
   onUpdate,
 }: TimeManagementModalProps) {
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const { success: toastSuccess } = useToast();
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showWarningAlert, setShowWarningAlert] = useState(false);
@@ -52,9 +52,8 @@ export function TimeManagementModal({
   const [activeTab, setActiveTab] = useState<"schedules" | "add">("schedules");
 
   const showSuccess = useCallback((message: string) => {
-    setSuccessMessage(message);
-    setShowSuccessAlert(true);
-  }, []);
+    toastSuccess(message);
+  }, [toastSuccess]);
 
   const showError = useCallback((message: string) => {
     setErrorMessage(message);
@@ -314,15 +313,7 @@ export function TimeManagementModal({
         </div>
       </FormModal>
       
-      {/* Alert components */}
-      {showSuccessAlert && (
-        <SimpleAlert
-          type="success"
-          message={successMessage}
-          onClose={() => setShowSuccessAlert(false)}
-          autoClose
-        />
-      )}
+      {/* Success toasts handled globally */}
       {showErrorAlert && (
         <SimpleAlert
           type="error"

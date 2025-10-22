@@ -6,7 +6,8 @@ import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Input, PasswordChangeModal } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
-import { SimpleAlert } from "~/components/simple/SimpleAlert";
+ 
+import { useToast } from "~/contexts/ToastContext";
 import { fetchProfile, updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { Profile, ProfileUpdateRequest } from "~/lib/profile-helpers";
 import { Loading } from "~/components/ui/loading";
@@ -97,8 +98,8 @@ function ProfilePageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const { success: toastSuccess } = useToast();
+  
   const [isEditing, setIsEditing] = useState(false);
   const [hasLoadedProfile, setHasLoadedProfile] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -182,8 +183,7 @@ function ProfilePageContent() {
       const updatedProfile = await updateProfile(updateData);
       setProfile(updatedProfile);
       setIsEditing(false);
-      setSuccessMessage("Profil erfolgreich aktualisiert");
-      setShowSuccessAlert(true);
+      toastSuccess("Profil erfolgreich aktualisiert");
     } catch (err) {
       setError("Fehler beim Speichern des Profils");
       console.error(err);
@@ -212,8 +212,7 @@ function ProfilePageContent() {
     try {
       const updatedProfile = await uploadAvatar(file);
       setProfile(updatedProfile);
-      setSuccessMessage("Profilbild erfolgreich aktualisiert");
-      setTimeout(() => setSuccessMessage(""), 3000);
+      toastSuccess("Profilbild erfolgreich aktualisiert");
     } catch (err) {
       console.error("Error uploading avatar:", err);
       setError(err instanceof Error ? err.message : "Fehler beim Hochladen des Profilbilds");
@@ -502,21 +501,10 @@ function ProfilePageContent() {
         isOpen={showPasswordModal}
         onClose={() => setShowPasswordModal(false)}
         onSuccess={() => {
-          setSuccessMessage("Passwort erfolgreich geändert!");
-          setShowSuccessAlert(true);
+          toastSuccess("Passwort erfolgreich geändert!");
         }}
       />
-      
-      {/* Success Alert */}
-      {showSuccessAlert && (
-        <SimpleAlert
-          type="success"
-          message={successMessage}
-          autoClose
-          duration={3000}
-          onClose={() => setShowSuccessAlert(false)}
-        />
-      )}
+
     </ResponsiveLayout>
   );
 }

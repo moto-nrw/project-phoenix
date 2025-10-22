@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useToast } from "~/contexts/ToastContext";
 import { useRouter } from "next/navigation";
 import { Input } from "~/components/ui";
 import { acceptInvitation } from "~/lib/invitation-api";
@@ -27,7 +28,7 @@ export function InvitationAcceptForm({ token, invitation }: InvitationAcceptForm
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const { success: toastSuccess } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -48,7 +49,6 @@ export function InvitationAcceptForm({ token, invitation }: InvitationAcceptForm
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
-    setSuccessMessage(null);
 
     if (!firstName.trim() || !lastName.trim()) {
       setError("Bitte gib Vor- und Nachname an.");
@@ -73,8 +73,7 @@ export function InvitationAcceptForm({ token, invitation }: InvitationAcceptForm
         password,
         confirmPassword,
       });
-
-      setSuccessMessage("Einladung erfolgreich angenommen! Du wirst zur Anmeldung weitergeleitet.");
+      toastSuccess("Einladung erfolgreich angenommen! Du wirst zur Anmeldung weitergeleitet.");
       setTimeout(() => {
         router.push("/");
       }, 2500);
@@ -114,16 +113,7 @@ export function InvitationAcceptForm({ token, invitation }: InvitationAcceptForm
           </div>
         </div>
       )}
-      {successMessage && (
-        <div className="rounded-xl border border-green-200/50 bg-green-50/50 p-4">
-          <div className="flex items-start gap-3">
-            <svg className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p className="text-sm text-green-700">{successMessage}</p>
-          </div>
-        </div>
-      )}
+      {/* Success toast handled globally */}
 
       <div className="space-y-2">
         <p className="text-sm text-gray-600">

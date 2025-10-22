@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   listPendingInvitations,
@@ -19,9 +20,12 @@ export function PendingInvitationsList({ refreshKey }: PendingInvitationsListPro
   const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Local inline success feedback removed in favor of global toasts
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [feedback, setFeedback] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<PendingInvitation | null>(null);
+  const { success: toastSuccess } = useToast();
 
   const loadInvitations = useCallback(async () => {
     try {
@@ -47,7 +51,7 @@ export function PendingInvitationsList({ refreshKey }: PendingInvitationsListPro
     try {
       setActionLoading(id);
       await resendInvitation(id);
-      setFeedback("Einladung wurde erneut gesendet.");
+      toastSuccess("Einladung wurde erneut gesendet.");
       await loadInvitations();
     } catch (err) {
       const apiError = err as ApiError | undefined;
@@ -64,7 +68,7 @@ export function PendingInvitationsList({ refreshKey }: PendingInvitationsListPro
     try {
       setActionLoading(revokeTarget.id);
       await revokeInvitation(revokeTarget.id);
-      setFeedback("Einladung wurde widerrufen.");
+      toastSuccess("Einladung wurde widerrufen.");
       setRevokeTarget(null);
       await loadInvitations();
     } catch (err) {
@@ -125,16 +129,7 @@ export function PendingInvitationsList({ refreshKey }: PendingInvitationsListPro
         </div>
       )}
 
-      {feedback && (
-        <div className="mb-4 rounded-xl border border-green-200/50 bg-green-50/50 p-3">
-          <div className="flex items-start gap-2">
-            <svg className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p className="text-sm text-green-700">{feedback}</p>
-          </div>
-        </div>
-      )}
+      {/* Success toasts handled globally; no inline feedback */}
 
       {sortedInvitations.length === 0 ? (
         <div className="mt-4 rounded-xl border border-dashed border-gray-200 bg-gray-50/50 px-4 py-16 md:px-8 md:py-32 text-center">

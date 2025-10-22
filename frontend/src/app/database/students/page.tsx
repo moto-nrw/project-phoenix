@@ -7,7 +7,7 @@ import Link from "next/link";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header/types";
-import { SimpleAlert } from "@/components/simple/SimpleAlert";
+import { useToast } from "~/contexts/ToastContext";
 import { StudentDetailModal } from "@/components/students/student-detail-modal";
 import { StudentEditModal } from "@/components/students/student-edit-modal";
 import { StudentCreateModal } from "@/components/students/student-create-modal";
@@ -36,8 +36,7 @@ export default function StudentsPage() {
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [detailLoading, setDetailLoading] = useState(false);
 
-    const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-    const [successMessage, setSuccessMessage] = useState("");
+    const { success: toastSuccess } = useToast();
 
     // Track mounted state to prevent race conditions
     const isMountedRef = useRef(true);
@@ -229,8 +228,7 @@ export default function StudentsPage() {
             if (!isMountedRef.current) return;
 
             const displayName = studentsConfig.list.item.title(newStudent);
-            setSuccessMessage(getDbOperationMessage('create', studentsConfig.name.singular, displayName));
-            setShowSuccessAlert(true);
+            toastSuccess(getDbOperationMessage('create', studentsConfig.name.singular, displayName));
 
             setShowCreateModal(false);
             await fetchStudents();
@@ -258,8 +256,7 @@ export default function StudentsPage() {
             if (!isMountedRef.current) return;
 
             const displayName = studentsConfig.list.item.title(selectedStudent);
-            setSuccessMessage(getDbOperationMessage('update', studentsConfig.name.singular, displayName));
-            setShowSuccessAlert(true);
+            toastSuccess(getDbOperationMessage('update', studentsConfig.name.singular, displayName));
 
             // Refresh student data
             const refreshedStudent = await service.getOne(selectedStudent.id);
@@ -296,8 +293,7 @@ export default function StudentsPage() {
             if (!isMountedRef.current) return;
 
             const displayName = studentsConfig.list.item.title(selectedStudent);
-            setSuccessMessage(getDbOperationMessage('delete', studentsConfig.name.singular, displayName));
-            setShowSuccessAlert(true);
+            toastSuccess(getDbOperationMessage('delete', studentsConfig.name.singular, displayName));
 
             setShowDetailModal(false);
             setSelectedStudent(null);
@@ -558,16 +554,7 @@ export default function StudentsPage() {
                 groups={uniqueGroups}
             />
 
-            {/* Success Alert */}
-            {showSuccessAlert && (
-                <SimpleAlert
-                    type="success"
-                    message={successMessage}
-                    autoClose
-                    duration={3000}
-                    onClose={() => setShowSuccessAlert(false)}
-                />
-            )}
+            {/* Success toasts handled globally */}
         </ResponsiveLayout>
     );
 }

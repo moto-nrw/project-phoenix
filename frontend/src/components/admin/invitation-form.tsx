@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useToast } from "~/contexts/ToastContext";
 import { Input } from "~/components/ui";
 import { authService } from "~/lib/auth-service";
 import { createInvitation } from "~/lib/invitation-api";
@@ -30,6 +31,7 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successInfo, setSuccessInfo] = useState<{ email: string; link: string } | null>(null);
+  const { success: toastSuccess } = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -105,6 +107,7 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
 
       const link = inviteBaseUrl ? `${inviteBaseUrl}/invite?token=${encodeURIComponent(invitation.token ?? "")}` : invitation.token ?? "";
       setSuccessInfo({ email: invitation.email, link });
+      toastSuccess(`Einladung an ${invitation.email} wurde gesendet.`);
       setForm((prev) => ({ ...initialForm, roleId: prev.roleId }));
       if (onCreated) {
         onCreated(invitation);
@@ -145,14 +148,6 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
 
         {successInfo && (
           <div className="space-y-2">
-            <div className="rounded-xl border border-green-200/50 bg-green-50/50 p-3">
-              <div className="flex items-start gap-2">
-                <svg className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className="text-sm text-green-700">Einladung an {successInfo.email} wurde gesendet.</p>
-              </div>
-            </div>
             <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
               <p className="text-xs font-mono text-gray-600 break-all">{successInfo.link}</p>
             </div>

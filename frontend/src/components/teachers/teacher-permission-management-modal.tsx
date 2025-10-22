@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { FormModal } from "~/components/ui";
 import { SimpleAlert } from "~/components/simple/SimpleAlert";
+import { useToast } from "~/contexts/ToastContext";
 import { authService } from "~/lib/auth-service";
 import type { Permission } from "~/lib/auth-helpers";
 import type { Teacher } from "~/lib/teacher-api";
@@ -20,8 +21,7 @@ export function TeacherPermissionManagementModal({
   teacher,
   onUpdate,
 }: TeacherPermissionManagementModalProps) {
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const { success: toastSuccess } = useToast();
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showWarningAlert, setShowWarningAlert] = useState(false);
@@ -36,8 +36,7 @@ export function TeacherPermissionManagementModal({
   const [activeTab, setActiveTab] = useState<"all" | "direct" | "available">("all");
 
   const showSuccess = (message: string) => {
-    setSuccessMessage(message);
-    setShowSuccessAlert(true);
+    toastSuccess(message);
   };
 
   const showError = (message: string) => {
@@ -385,15 +384,7 @@ export function TeacherPermissionManagementModal({
         </div>
       </FormModal>
       
-      {/* Alert components */}
-      {showSuccessAlert && (
-        <SimpleAlert
-          type="success"
-          message={successMessage}
-          onClose={() => setShowSuccessAlert(false)}
-          autoClose
-        />
-      )}
+      {/* Success toasts handled globally */}
       {showErrorAlert && (
         <SimpleAlert
           type="error"

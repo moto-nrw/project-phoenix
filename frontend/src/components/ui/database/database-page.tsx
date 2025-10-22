@@ -12,10 +12,10 @@ import {
 import { DatabaseForm } from "./database-form";
 import { DatabaseDetailView } from "./database-detail-view";
 import { DatabaseListItem } from "../database-list-item";
-import { SimpleAlert } from "@/components/simple/SimpleAlert";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import type { EntityConfig } from "@/lib/database/types";
+import { useToast } from "~/contexts/ToastContext";
 
 interface DatabasePageProps<T> {
   config: EntityConfig<T>;
@@ -26,8 +26,7 @@ export function DatabasePage<T extends { id: string }>({
   config,
   customListItem: CustomListItem
 }: DatabasePageProps<T>) {
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const { success: toastSuccess } = useToast();
   const [items, setItems] = useState<T[]>([]);
   const [allItems, setAllItems] = useState<T[]>([]); // For frontend search
   const [loading, setLoading] = useState(true);
@@ -283,8 +282,7 @@ export function DatabasePage<T extends { id: string }>({
       
       // Show success notification
       const displayName = config.list.item.title(newItem);
-      setSuccessMessage(getDbOperationMessage('create', config.name.singular, displayName));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('create', config.name.singular, displayName));
       
       // Close modal and refresh list
       setShowCreateModal(false);
@@ -323,8 +321,7 @@ export function DatabasePage<T extends { id: string }>({
       await service.update(selectedItem.id, itemData);
       
       const displayName = config.list.item.title(selectedItem);
-      setSuccessMessage(getDbOperationMessage('update', config.name.singular, displayName));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('update', config.name.singular, displayName));
       
       // Refresh the selected item data
       const refreshedItem = await service.getOne(selectedItem.id);
@@ -357,8 +354,7 @@ export function DatabasePage<T extends { id: string }>({
         await service.delete(selectedItem.id);
         
         const displayName = config.list.item.title(selectedItem);
-        setSuccessMessage(getDbOperationMessage('delete', config.name.singular, displayName));
-        setShowSuccessAlert(true);
+        toastSuccess(getDbOperationMessage('delete', config.name.singular, displayName));
         
         // Close modal and refresh list
         setShowDetailModal(false);
@@ -676,16 +672,7 @@ export function DatabasePage<T extends { id: string }>({
         )}
       </DetailFormModal>
       
-      {/* Success Alert */}
-      {showSuccessAlert && (
-        <SimpleAlert
-          type="success"
-          message={successMessage}
-          autoClose
-          duration={3000}
-          onClose={() => setShowSuccessAlert(false)}
-        />
-      )}
+      {/* Success Alert migrated to global toasts */}
     </>
   );
 }

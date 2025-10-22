@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { FormModal } from "~/components/ui";
 import { SimpleAlert } from "~/components/simple/SimpleAlert";
+import { useToast } from "~/contexts/ToastContext";
 import { authService } from "~/lib/auth-service";
 import { localizeAction, localizeResource, formatPermissionDisplay } from "~/lib/permission-labels";
 import type { Role, Permission } from "~/lib/auth-helpers";
@@ -21,8 +22,7 @@ export function RolePermissionManagementModal({
   onUpdate,
 }: RolePermissionManagementModalProps) {
   const getPermissionDisplayName = (p: Permission) => formatPermissionDisplay(p.resource, p.action);
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const { success: toastSuccess } = useToast();
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   // Warning alert disabled for now to reduce noise in UI
@@ -35,8 +35,7 @@ export function RolePermissionManagementModal({
   const [saving, setSaving] = useState(false);
 
   const showSuccess = (message: string) => {
-    setSuccessMessage(message);
-    setShowSuccessAlert(true);
+    toastSuccess(message);
   };
 
   const showError = (message: string) => {
@@ -227,15 +226,7 @@ export function RolePermissionManagementModal({
         </div>
       </FormModal>
       
-      {/* Alert components */}
-      {showSuccessAlert && (
-        <SimpleAlert
-          type="success"
-          message={successMessage}
-          onClose={() => setShowSuccessAlert(false)}
-          autoClose
-        />
-      )}
+      {/* Success toasts handled globally */}
       {showErrorAlert && (
         <SimpleAlert
           type="error"
