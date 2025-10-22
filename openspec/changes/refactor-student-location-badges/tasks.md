@@ -11,8 +11,8 @@
 ## 3. Frontend Implementation
 - [ ] 3.1 Build a shared `getStudentLocationBadge` helper + badge component that accepts `StudentLocationStatus` and returns unified label/styling tokens.
 - [ ] 3.2 Refactor OGS groups, My Room, student search, and the student detail modal to consume the shared helper and structured status.
-- [ ] 3.3 Ensure all four surfaces subscribe to SSE updates; apply a 30s fallback poll only if SSE is unavailable and keep the last known state otherwise.
-- [ ] 3.4 Remove parsing of legacy strings/booleans (e.g., “Anwesend - …”, in_house, school_yard, wc) and mark deprecated fields accordingly.
+- [ ] 3.3 Ensure all four surfaces subscribe to SSE updates; apply a 30s fallback poll only if SSE is unavailable and keep the last known state otherwise. My Room MUST fetch student status on demand when switching rooms.
+- [ ] 3.4 Remove parsing of legacy strings/booleans (e.g., “Anwesend - …”, in_house, school_yard, wc) and mark deprecated fields accordingly; ensure student search still lists students at home.
 
 ## 4. Validation & Rollout
 - [ ] 4.1 Add unit tests covering each canonical state, including room metadata precedence.

@@ -2,7 +2,7 @@
 
 ### Requirement: Structured Student Location Status
 - Backend APIs and SSE events MUST deliver a `StudentLocationStatus` object per student with a canonical `state` (`PRESENT_IN_ROOM`, `TRANSIT`, `SCHOOLYARD`, `HOME`) and optional room metadata when applicable.
-- Room metadata MUST include `id`, `name`, and `isGroupRoom` so the UI can distinguish group rooms from other rooms without string parsing.
+- Room metadata MUST include `id`, `name`, `isGroupRoom`, and `ownerType` (`GROUP` or `ACTIVITY`) so the UI can distinguish group vs. activity rooms without string parsing.
 
 #### Scenario: Present in home group room
 - **GIVEN** backend emits `{ state: "PRESENT_IN_ROOM", room: { id: "12", name: "Gruppenraum 3", isGroupRoom: true } }`
@@ -30,10 +30,15 @@
 - **THEN** the badge MUST display "Zuhause".
 
 #### Scenario: Room metadata precedence
-- **GIVEN** backend emits `{ state: "PRESENT_IN_ROOM", room: { id: "99", name: "Musikraum", isGroupRoom: false } }`
+- **GIVEN** backend emits `{ state: "PRESENT_IN_ROOM", room: { id: "99", name: "Musikraum", isGroupRoom: false, ownerType: "ACTIVITY" } }`
 - **AND** no additional overrides are provided
 - **WHEN** the helper resolves the badge
 - **THEN** it MUST use the provided room name without consulting legacy suffix parsing.
+
+#### Scenario: Transit only between check-out and next check-in
+- **GIVEN** a student checks out of room A at 14:00 and has not yet checked into another room
+- **WHEN** backend emits the next SSE event
+- **THEN** it MUST provide `{ state: "TRANSIT" }` until the student checks into the next room.
 
 ### Requirement: Unified Badge Helper & Styling
 - Frontend MUST expose a single helper/component that maps `StudentLocationStatus` to badge label and styling tokens shared across OGS groups, My Room, student search, and the student detail modal.
@@ -57,6 +62,16 @@
 - **GIVEN** the student detail modal is open and SSE disconnects
 - **WHEN** 30 seconds pass since the last successful update
 - **THEN** the modal MUST fetch `/api/students/:id/current-location` to refresh the badge while keeping the last known state visible.
+
+#### Scenario: My Room fetches on demand
+- **GIVEN** a supervisor switches from Room A to Room B in My Room
+- **WHEN** Room B becomes active
+- **THEN** the frontend MUST request the current `StudentLocationStatus` set for Room B (via SSE subscription or on-demand fetch) without preloading all rooms.
+
+#### Scenario: Student search includes home students
+- **GIVEN** student search results include a student whose status is `{ state: "HOME" }`
+- **WHEN** the list renders
+- **THEN** the badge MUST display "Zuhause", confirming that at-home students remain visible.
 
 ### Requirement: Deprecate Legacy Location Flags
 - Frontend MUST remove usage of legacy booleans (`in_house`, `wc`, `school_yard`) and string parsing patterns (e.g., "Anwesend - ...").
