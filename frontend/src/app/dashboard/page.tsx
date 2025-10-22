@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { redirect, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { UserContextProvider } from "~/lib/usercontext-context";
 import { fetchWithAuth } from "~/lib/fetch-with-auth";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import { formatRecentActivityTime, getActivityStatusColor, getGroupStatusColor } from "~/lib/dashboard-helpers";
+import { isAdmin } from "~/lib/auth-utils";
 
 import { Loading } from "~/components/ui/loading";
 // Helper function to get time-based greeting
@@ -475,6 +476,26 @@ function DashboardContent() {
 
 // Main Dashboard Page Component
 export default function DashboardPage() {
+  const router = useRouter();
+  const { data: session, status } = useSession();
+
+  // Gate access: only admins can view dashboard
+  if (status === "loading") {
+    return (
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
+    );
+  }
+
+  if (!isAdmin(session)) {
+    // Redirect non-admins to OGS groups (mobile default)
+    if (typeof window !== "undefined") {
+      router.replace("/ogs_groups");
+    }
+    return null;
+  }
+
   return (
     <UserContextProvider>
       <DashboardContent />

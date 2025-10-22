@@ -1,6 +1,6 @@
 // app/api/students/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost, apiPut } from "~/lib/api-helpers";
+import { apiGet, apiPost, apiPut, apiDelete } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 import type { Student } from "~/lib/student-helpers";
 import { mapStudentResponse, prepareStudentForBackend } from "~/lib/student-helpers";
@@ -229,7 +229,13 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
           });
         } catch (consentError) {
           console.error("Error creating privacy consent:", consentError);
-          // Don't fail the whole operation if consent creation fails
+          // GDPR: Ensure atomicity — roll back student creation if consent fails
+          try {
+            await apiDelete(`/api/students/${response.id}`, token);
+          } catch (rollbackError) {
+            console.error("Failed to rollback student after consent error:", rollbackError);
+          }
+          throw new Error("Datenschutzeinwilligung konnte nicht erstellt werden. Vorgang abgebrochen.");
         }
       }
       

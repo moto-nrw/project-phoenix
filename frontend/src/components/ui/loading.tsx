@@ -11,6 +11,7 @@ interface LoadingProps {
 }
 
 export function Loading({
+  message = "Lädt...",
   fullPage = true,
 }: LoadingProps) {
   const containerClasses = fullPage
@@ -18,7 +19,7 @@ export function Loading({
     : "flex items-center justify-start pt-24 pb-12"; // Changed justify-center to justify-start with top padding
 
   return (
-    <div className={containerClasses}>
+    <div className={containerClasses} aria-label={message} role="status">
       <div className="flex flex-col items-center gap-2 w-full max-w-xs px-4 mx-auto">
         {/* Text line skeleton */}
         <Skeleton className="h-4 w-full rounded-full" />
@@ -31,6 +32,8 @@ export function Loading({
 
         {/* Rounded skeleton */}
         <Skeleton className="h-14 w-52 rounded-lg" />
+        {/* SR-only message for assistive tech */}
+        <span className="sr-only">{message}</span>
       </div>
     </div>
   );

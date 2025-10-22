@@ -1,3 +1,4 @@
+"use client";
 // app/loading.tsx
 // Root-level loading - catches ALL route transitions
 

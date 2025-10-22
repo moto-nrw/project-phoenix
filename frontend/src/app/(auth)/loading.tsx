@@ -1,3 +1,4 @@
+"use client";
 // app/(auth)/loading.tsx
 // Next.js will automatically show this during route transitions
 

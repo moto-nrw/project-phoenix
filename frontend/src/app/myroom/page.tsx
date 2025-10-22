@@ -10,10 +10,12 @@ import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { Loading } from "~/components/ui/loading";
 import { userContextService } from "~/lib/usercontext-api";
 import { activeService } from "~/lib/active-api";
-import { fetchStudent } from "~/lib/student-api";
+// import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/student-helpers";
 import { UnclaimedRooms } from "~/components/active";
 import { useSSE } from "~/lib/hooks/use-sse";
+import { isAdmin } from "~/lib/auth-utils";
+import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import type { SSEEvent } from "~/lib/sse-types";
 
 // Extended student interface that includes visit information
@@ -77,7 +79,9 @@ function MeinRaumPageContent() {
 
   // Helper function to load visits for a specific room
   const loadRoomVisits = useCallback(
-    async (roomId: string): Promise<StudentWithVisit[]> => {
+    async (
+      roomId: string,
+    ): Promise<StudentWithVisit[]> => {
       try {
         // Use bulk endpoint to fetch visits with display data for specific room
         const visits =
@@ -86,40 +90,26 @@ function MeinRaumPageContent() {
         // Filter only active visits (students currently checked in)
         const currentlyCheckedIn = visits.filter((visit) => visit.isActive);
 
-        // Fetch complete student data using student IDs from visits
-        const studentPromises = currentlyCheckedIn.map(async (visit) => {
-        try {
-          // Fetch full student record using the student ID
-          const studentData = await fetchStudent(visit.studentId);
-
-          // Add visit-specific information to the student data
-          return {
-            ...studentData,
-            activeGroupId: visit.activeGroupId,
-            checkInTime: visit.checkInTime,
-          };
-        } catch (error) {
-          console.error(`Error fetching student ${visit.studentId}:`, error);
-          // Fallback to parsing student name if API call fails
+        const enriched = currentlyCheckedIn.map((visit) => {
+          // Build from visit display data only (cross-group)
           const nameParts = visit.studentName?.split(" ") ?? ["", ""];
           const firstName = nameParts[0] ?? "";
           const lastName = nameParts.slice(1).join(" ") ?? "";
-
           return {
             id: visit.studentId,
             name: visit.studentName ?? "",
             first_name: firstName,
             second_name: lastName,
-            school_class: "",
+            school_class: visit.schoolClass ?? "",
             current_location: "Anwesend" as const,
             in_house: true,
+            group_name: visit.groupName,
             activeGroupId: visit.activeGroupId,
             checkInTime: visit.checkInTime,
-          };
-        }
-      });
+          } as StudentWithVisit;
+        });
 
-      return await Promise.all(studentPromises);
+        return enriched;
       } catch (error) {
         // Handle 403 Forbidden gracefully - user might not have group access
         if (error instanceof Error && error.message.includes("403")) {
@@ -176,6 +166,7 @@ function MeinRaumPageContent() {
   // Connect to SSE for real-time updates
   const { status: sseStatus, reconnectAttempts } = useSSE(sseEndpoint, {
     onMessage: handleSSEEvent,
+    enabled: true,
   });
 
   // Check access and fetch active room data
@@ -246,6 +237,7 @@ function MeinRaumPageContent() {
               name: activeGroup.name,
               room_name: roomName,
               room_id: activeGroup.room_id,
+              educationGroupId: activeGroup.actualGroup?.id?.toString(),
               student_count: undefined, // Will be loaded when room is viewed
               supervisor_name: undefined,
             };
@@ -834,7 +826,9 @@ export default function MeinRaumPage() {
         </ResponsiveLayout>
       }
     >
-      <MeinRaumPageContent />
+      <SSEErrorBoundary>
+        <MeinRaumPageContent />
+      </SSEErrorBoundary>
     </Suspense>
   );
 }

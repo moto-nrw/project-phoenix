@@ -40,33 +40,19 @@ interface NavItem {
   alwaysShow?: boolean;
 }
 
-// Static main navigation items - always visible in bottom bar
-// Order: Home - Meine Gruppe - Mein Raum - Suche - Mehr
-const mainNavItems: NavItem[] = [
-  {
-    href: "/dashboard",
-    label: "Home",
-    iconKey: "home",
-    alwaysShow: true,
-  },
-  {
-    href: "/ogs_groups",
-    label: "Gruppe",
-    iconKey: "group",
-    alwaysShow: true, // Always show, empty state handled on page
-  },
-  {
-    href: "/myroom",
-    label: "Raum",
-    iconKey: "room",
-    alwaysShow: true, // Always show, empty state handled on page
-  },
-  {
-    href: "/students/search",
-    label: "Suchen",
-    iconKey: "search",
-    alwaysShow: true,
-  },
+// Static base definitions; actual main items are computed per session
+const ADMIN_MAIN_ITEMS: NavItem[] = [
+  { href: "/dashboard", label: "Home", iconKey: "home", alwaysShow: true },
+  { href: "/ogs_groups", label: "Gruppe", iconKey: "group", alwaysShow: true },
+  { href: "/myroom", label: "Raum", iconKey: "room", alwaysShow: true },
+  { href: "/students/search", label: "Suchen", iconKey: "search", alwaysShow: true },
+];
+
+const STAFF_MAIN_ITEMS: NavItem[] = [
+  { href: "/ogs_groups", label: "Gruppe", iconKey: "group", alwaysShow: true },
+  { href: "/myroom", label: "Raum", iconKey: "room", alwaysShow: true },
+  { href: "/students/search", label: "Suchen", iconKey: "search", alwaysShow: true },
+  { href: "/activities", label: "Aktivitäten", iconKey: "activities", alwaysShow: true },
 ];
 
 // Additional navigation items that appear in the overflow menu
@@ -147,9 +133,9 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
     setIsOverflowMenuOpen(false);
   };
 
-  // Static main navigation - always show all 4 items
-  // Empty states are handled on individual pages
-  const filteredMainItems = mainNavItems;
+  // Compute main navigation items per role
+  const baseMain = isAdmin(session) ? ADMIN_MAIN_ITEMS : STAFF_MAIN_ITEMS;
+  const filteredMainItems = baseMain;
 
   // Filter additional navigation items based on permissions
   const filteredAdditionalItems = additionalNavItems.filter(item => {
@@ -172,7 +158,9 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
   // Static navigation - 4 main items + overflow menu
   const displayMainItems: NavItem[] = filteredMainItems;
   const showOverflowMenu = true;
-  const displayAdditionalItems = filteredAdditionalItems;
+  // Avoid duplicates between main and additional
+  const mainHrefs = new Set(displayMainItems.map((i) => i.href));
+  const displayAdditionalItems = filteredAdditionalItems.filter((i) => !mainHrefs.has(i.href));
 
   // Check if any additional nav item is active
   const isAnyAdditionalNavActive = displayAdditionalItems.some(item => isActiveRoute(item.href));
@@ -265,7 +253,7 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
                       `}
                     >
                       <Icon
-                        path={navigationIcons[item.iconKey]}
+                        path={navigationIcons[item.iconKey] ?? navigationIcons.home}
                         className={`w-5 h-5 ${isActive ? 'text-white' : 'text-gray-600'}`}
                       />
                       <span className="text-base font-medium">
@@ -326,7 +314,7 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
                   >
                     {/* Icon */}
                     <Icon
-                      path={navigationIcons[item.iconKey]}
+                      path={navigationIcons[item.iconKey] ?? navigationIcons.home}
                       className="w-5 h-5 flex-shrink-0"
                     />
 

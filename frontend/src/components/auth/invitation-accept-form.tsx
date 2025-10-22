@@ -79,6 +79,11 @@ export function InvitationAcceptForm({ token, invitation }: InvitationAcceptForm
         router.push("/");
       }, 2500);
     } catch (err) {
+      // Distinguish network/offline from HTTP errors
+      if (typeof navigator !== "undefined" && (navigator as any).onLine === false) {
+        setError("Keine Netzwerkverbindung. Bitte überprüfe deine Internetverbindung und versuche es erneut.");
+        return;
+      }
       const apiError = err as ApiError | undefined;
       if (apiError?.status === 410) {
         setError("Diese Einladung ist nicht mehr gültig. Bitte fordere eine neue Einladung an.");
@@ -89,7 +94,8 @@ export function InvitationAcceptForm({ token, invitation }: InvitationAcceptForm
       } else if (apiError?.status === 400) {
         setError(apiError.message ?? "Ungültige Eingaben. Bitte überprüfe das Formular.");
       } else {
-        setError(apiError?.message ?? "Beim Annehmen der Einladung ist ein Fehler aufgetreten.");
+        const generic = apiError?.message ?? (err instanceof Error ? err.message : undefined);
+        setError(generic ?? "Beim Annehmen der Einladung ist ein Fehler aufgetreten.");
       }
     } finally {
       setIsSubmitting(false);

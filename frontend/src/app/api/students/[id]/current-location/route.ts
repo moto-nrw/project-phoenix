@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { createGetHandler } from "~/lib/route-wrapper";
 import { apiGet } from "~/lib/api-client";
 import type { BackendStudent } from "~/lib/student-helpers";
+import axios from "axios";
 import type { BackendRoom } from "~/lib/rooms-helpers";
 
 // Define proper types for the API responses
@@ -23,24 +24,59 @@ interface RoomApiResponse {
   data: BackendRoom;
 }
 
-interface LocationResponse {
-  status: "present" | "not_present" | "unknown";
-  location: string;
-  room: {
-    id: string;
-    name: string;
-    roomNumber?: string;
-    building?: string;
-    floor?: number;
-  } | null;
-  group: {
-    id: string;
-    name: string;
-    roomId?: string; // Group's assigned room ID
-  } | null;
+type RoomInfo = {
+  id: string;
+  name: string;
+  roomNumber?: string;
+  building?: string;
+  floor?: number;
+};
+
+type GroupInfo = {
+  id: string;
+  name: string;
+  roomId?: string; // Group's assigned room ID
+};
+
+type PresentLocation = {
+  status: "present";
+  location: string; // e.g. "Anwesend", "Unterwegs", or specific room label
+  room: RoomInfo | null;
+  group: GroupInfo | null;
   checkInTime: string | null;
-  isGroupRoom: boolean; // True if student is in their group's room
-}
+  isGroupRoom: boolean;
+};
+
+type NotPresentLocation = {
+  status: "not_present";
+  location: "Zuhause";
+  room: null;
+  group: GroupInfo | null;
+  checkInTime: null;
+  isGroupRoom: false;
+};
+
+type UnknownLocation = {
+  status: "unknown";
+  location: "Unbekannt";
+  room: null;
+  group: null;
+  checkInTime: null;
+  isGroupRoom: false;
+  errorCode?: "NETWORK" | "UNAUTHORIZED" | "FORBIDDEN" | "NOT_FOUND" | "SERVER";
+};
+
+type LocationResponse = PresentLocation | NotPresentLocation | UnknownLocation;
+
+/**
+ * isGroupRoom semantics
+ * - true: The student is present and currently located in their group's assigned room (groupRoomId matches current_room_id).
+ * - false: The student is present but not in their group's room (e.g., unterwegs or different room), or not present/unknown.
+ * Usage guidance:
+ * - UI may highlight a green badge when isGroupRoom is true and room != null.
+ * - When present but in transit (Unterwegs) or when room details are not accessible due to permissions, expose status "present" with room = null and isGroupRoom = false.
+ * - Do not infer presence solely from isGroupRoom; rely on discriminated union status.
+ */
 
 /**
  * Handler for GET /api/students/[id]/current-location
@@ -193,14 +229,27 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
 
   } catch (error) {
     console.error("Error fetching student current location:", error);
-    // Return unknown status if there's an error
+    // Return unknown status if there's an error with a structured error code
+    let errorCode: UnknownLocation["errorCode"];
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        const status = error.response.status;
+        if (status === 401) errorCode = "UNAUTHORIZED";
+        else if (status === 403) errorCode = "FORBIDDEN";
+        else if (status === 404) errorCode = "NOT_FOUND";
+        else errorCode = "SERVER";
+      } else {
+        errorCode = "NETWORK";
+      }
+    }
     return {
       status: "unknown",
       location: "Unbekannt",
       room: null,
       group: null,
       checkInTime: null,
-      isGroupRoom: false
+      isGroupRoom: false,
+      errorCode,
     } satisfies LocationResponse;
   }
 });

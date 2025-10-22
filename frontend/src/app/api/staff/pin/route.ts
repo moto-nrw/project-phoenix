@@ -2,6 +2,7 @@
 import type { NextRequest } from "next/server";
 import { apiGet, apiPut } from "~/lib/api-helpers";
 import { createGetHandler, createPutHandler } from "~/lib/route-wrapper";
+import { validatePinOrThrow } from "~/lib/pin";
 
 /**
  * Type definition for PIN status response from backend
@@ -57,7 +58,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
     
     // Check for specific error types
     if (error instanceof Error && error.message.includes("404")) {
-      throw new Error("Account not found");
+      throw new Error("Konto nicht gefunden");
     }
     if (error instanceof Error && error.message.includes("403")) {
       throw new Error("Permission denied: Unable to access PIN settings");
@@ -72,7 +73,7 @@ export const GET = createGetHandler(async (request: NextRequest, token: string) 
  * Handler for PUT /api/staff/pin
  * Updates the current user's PIN
  */
-export const PUT = createPutHandler<BackendPINUpdateResponse['data'], PINUpdateRequest>(
+export const PUT = createPutHandler<BackendPINStatusResponse['data'], PINUpdateRequest>(
   async (_request: NextRequest, body: PINUpdateRequest, token: string) => {
     // Validate required fields
     if (!body.new_pin || body.new_pin.trim() === '') {
@@ -80,9 +81,7 @@ export const PUT = createPutHandler<BackendPINUpdateResponse['data'], PINUpdateR
     }
     
     // Validate PIN format (4 digits)
-    if (!/^\d{4}$/.test(body.new_pin)) {
-      throw new Error('PIN muss aus genau 4 Ziffern bestehen');
-    }
+    validatePinOrThrow(body.new_pin);
     
     try {
       // Update PIN via backend API
@@ -91,9 +90,9 @@ export const PUT = createPutHandler<BackendPINUpdateResponse['data'], PINUpdateR
       if (process.env.NODE_ENV !== 'production') {
         console.log("PIN update response:", JSON.stringify(response, null, 2));
       }
-      
-      // Return only the backend data payload for consistency with other routes
-      return response.data;
+      // After successful update, return current PIN status for consistency
+      const statusResponse = await apiGet<BackendPINStatusResponse>("/api/staff/pin", token);
+      return statusResponse.data;
     } catch (error) {
       if (process.env.NODE_ENV !== 'production') {
         console.error("Error updating PIN:", error);
@@ -122,7 +121,7 @@ export const PUT = createPutHandler<BackendPINUpdateResponse['data'], PINUpdateR
           throw new Error("PIN darf nur Ziffern enthalten");
         }
         if (errorMessage.includes("404") || errorMessage.includes("not found")) {
-          throw new Error("Mitarbeiter nicht gefunden");
+          throw new Error("Konto nicht gefunden");
         }
       }
       

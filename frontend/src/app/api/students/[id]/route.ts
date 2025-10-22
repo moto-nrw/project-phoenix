@@ -101,8 +101,16 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
           data_retention_days: consent.data_retention_days,
         };
       }
-    } catch {
-      // No privacy consent found, use defaults
+    } catch (e) {
+      // Differentiate 404 (no consent yet) from other errors
+      if (e instanceof Error) {
+        if (!/\(404\)/.test(e.message)) {
+          throw e; // system/network error — bubble up
+        }
+      } else {
+        throw e;
+      }
+      // For 404 only, fall through to defaults below
     }
     
     return {
@@ -147,7 +155,7 @@ export const PUT = createPutHandler<Student, Partial<Student> & { privacy_consen
         throw new Error('Invalid response from backend');
       }
       
-      // Handle privacy consent if provided
+      // Handle privacy consent if provided — fail update if consent update fails
       if (privacy_consent_accepted !== undefined || data_retention_days !== undefined) {
         try {
           await apiPut(`/api/students/${id}/privacy-consent`, token, {
@@ -157,7 +165,7 @@ export const PUT = createPutHandler<Student, Partial<Student> & { privacy_consen
           });
         } catch (consentError) {
           console.error("Error updating privacy consent:", consentError);
-          // Don't fail the whole operation if consent update fails
+          throw new Error("Datenschutzeinstellungen konnten nicht aktualisiert werden.");
         }
       }
       
