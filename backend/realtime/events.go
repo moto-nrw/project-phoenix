@@ -2,7 +2,11 @@
 // This package is dependency-neutral to avoid circular imports between api and services layers.
 package realtime
 
-import "time"
+import (
+	"time"
+
+	locationModels "github.com/moto-nrw/project-phoenix/models/location"
+)
 
 // EventType represents the type of SSE event
 type EventType string
@@ -44,6 +48,9 @@ type EventData struct {
 
 	// Source tracking
 	Source *string `json:"source,omitempty"` // "rfid", "manual", "automated"
+
+	// Structured student location
+	LocationStatus *locationModels.Status `json:"location_status,omitempty"`
 }
 
 // NewEvent creates a new event with current timestamp

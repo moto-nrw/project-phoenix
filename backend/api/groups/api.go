@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
+	locationModels "github.com/moto-nrw/project-phoenix/models/location"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -485,20 +486,20 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 
 	// Build response with person data for each student
 	type StudentResponse struct {
-		ID              int64  `json:"id"`
-		PersonID        int64  `json:"person_id"`
-		FirstName       string `json:"first_name"`
-		LastName        string `json:"last_name"`
-		SchoolClass     string `json:"school_class"`
-		GroupID         int64  `json:"group_id"`
-		GroupName       string `json:"group_name"`
-		GuardianName    string `json:"guardian_name,omitempty"`
-		GuardianContact string `json:"guardian_contact,omitempty"`
-		GuardianEmail   string `json:"guardian_email,omitempty"`
-		GuardianPhone   string `json:"guardian_phone,omitempty"`
-		Location        string `json:"location,omitempty"`
-		Bus             bool   `json:"bus"`
-		TagID           string `json:"tag_id,omitempty"`
+		ID              int64                  `json:"id"`
+		PersonID        int64                  `json:"person_id"`
+		FirstName       string                 `json:"first_name"`
+		LastName        string                 `json:"last_name"`
+		SchoolClass     string                 `json:"school_class"`
+		GroupID         int64                  `json:"group_id"`
+		GroupName       string                 `json:"group_name"`
+		GuardianName    string                 `json:"guardian_name,omitempty"`
+		GuardianContact string                 `json:"guardian_contact,omitempty"`
+		GuardianEmail   string                 `json:"guardian_email,omitempty"`
+		GuardianPhone   string                 `json:"guardian_phone,omitempty"`
+		LocationStatus  *locationModels.Status `json:"location_status,omitempty"`
+		Bus             bool                   `json:"bus"`
+		TagID           string                 `json:"tag_id,omitempty"`
 	}
 
 	responses := make([]StudentResponse, 0, len(students))
@@ -536,22 +537,23 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 			if person.TagID != nil {
 				response.TagID = *person.TagID
 			}
-
-			// Include location information
-			if student.InHouse || student.WC || student.SchoolYard {
-				response.Location = student.GetLocation()
-			} else {
-				response.Location = "Home"
-			}
 		} else {
 			// Limited data for non-supervisor staff
 			response.GuardianName = student.GuardianName
+		}
 
-			// Show generic location status
-			if student.InHouse || student.WC || student.SchoolYard {
-				response.Location = "In House"
-			} else {
-				response.Location = "Home"
+		if rs.ActiveService != nil {
+			if status, statusErr := rs.ActiveService.GetStudentLocationStatus(r.Context(), student.ID); statusErr == nil && status != nil {
+				if canAccessFullDetails {
+					if status.Room != nil {
+						roomCopy := *status.Room
+						response.LocationStatus = locationModels.NewStatus(status.State, &roomCopy)
+					} else {
+						response.LocationStatus = locationModels.NewStatus(status.State, nil)
+					}
+				} else {
+					response.LocationStatus = locationModels.NewStatus(status.State, nil)
+				}
 			}
 		}
 

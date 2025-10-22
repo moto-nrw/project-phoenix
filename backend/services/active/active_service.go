@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	locationModels "github.com/moto-nrw/project-phoenix/models/location"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/education"
@@ -387,12 +388,18 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 			}
 		}
 
+		var locationStatus *locationModels.Status
+		if status, statusErr := s.GetStudentLocationStatus(ctx, visit.StudentID); statusErr == nil {
+			locationStatus = status
+		}
+
 		event := realtime.NewEvent(
 			realtime.EventStudentCheckIn,
 			activeGroupID,
 			realtime.EventData{
-				StudentID:   &studentID,
-				StudentName: &studentName,
+				StudentID:      &studentID,
+				StudentName:    &studentName,
+				LocationStatus: locationStatus,
 			},
 		)
 
@@ -494,12 +501,18 @@ func (s *service) EndVisit(ctx context.Context, id int64) error {
 				}
 			}
 
+			var locationStatus *locationModels.Status
+			if status, statusErr := s.GetStudentLocationStatus(ctx, visit.StudentID); statusErr == nil {
+				locationStatus = status
+			}
+
 			event := realtime.NewEvent(
 				realtime.EventStudentCheckOut,
 				activeGroupID,
 				realtime.EventData{
-					StudentID:   &studentID,
-					StudentName: &studentName,
+					StudentID:      &studentID,
+					StudentName:    &studentName,
+					LocationStatus: locationStatus,
 				},
 			)
 

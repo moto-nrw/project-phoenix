@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	locationModels "github.com/moto-nrw/project-phoenix/models/location"
 )
 
 // Service defines operations for managing active groups and visits
@@ -36,6 +37,7 @@ type Service interface {
 	FindVisitsByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Visit, error)
 	EndVisit(ctx context.Context, id int64) error
 	GetStudentCurrentVisit(ctx context.Context, studentID int64) (*active.Visit, error)
+	GetStudentLocationStatus(ctx context.Context, studentID int64) (*locationModels.Status, error)
 
 	// Group Supervisor operations
 	GetGroupSupervisor(ctx context.Context, id int64) (*active.GroupSupervisor, error)

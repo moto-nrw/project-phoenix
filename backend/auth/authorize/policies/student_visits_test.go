@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
+	locationModels "github.com/moto-nrw/project-phoenix/models/location"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -237,6 +238,14 @@ func (m *SimpleMockActiveService) GetStudentAttendanceStatus(ctx context.Context
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*activeSvc.AttendanceStatus), args.Error(1)
+}
+
+func (m *SimpleMockActiveService) GetStudentLocationStatus(ctx context.Context, studentID int64) (*locationModels.Status, error) {
+	args := m.Called(ctx, studentID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*locationModels.Status), args.Error(1)
 }
 
 func (m *SimpleMockActiveService) ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64) (*activeSvc.AttendanceResult, error) {

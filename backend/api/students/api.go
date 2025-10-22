@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
+	locationModels "github.com/moto-nrw/project-phoenix/models/location"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
@@ -107,7 +108,7 @@ type StudentResponse struct {
 	LastName          string                 `json:"last_name"`
 	TagID             string                 `json:"tag_id,omitempty"`
 	SchoolClass       string                 `json:"school_class"`
-	Location          string                 `json:"location"`
+	LocationStatus    *locationModels.Status `json:"location_status"`
 	Bus               bool                   `json:"bus"`
 	GuardianName      string                 `json:"guardian_name"`
 	GuardianContact   string                 `json:"guardian_contact,omitempty"`
@@ -266,7 +267,7 @@ func (req *RFIDAssignmentRequest) Bind(r *http.Request) error {
 
 // newStudentResponse creates a student response from a student and person model
 // hasFullAccess determines whether to include detailed location data and supervisor-only information (like extra info)
-func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, activeService activeService.Service, personService userService.PersonService) StudentResponse {
+func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, activeService activeService.Service, personService userService.PersonService, preResolvedStatus *locationModels.Status) StudentResponse {
 	response := StudentResponse{
 		ID:           student.ID,
 		PersonID:     student.PersonID,
@@ -282,42 +283,28 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 		response.GuardianContact = student.GuardianContact
 	}
 
-	// Use real tracking data instead of deprecated flags
-	// Always check attendance status first - this is public information
-	attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, student.ID)
-
-	if err == nil && attendanceStatus != nil && attendanceStatus.Status == "checked_in" {
-		// Student is checked in today
-		// Now check if they have an active visit (room assignment)
-		currentVisit, err := activeService.GetStudentCurrentVisit(ctx, student.ID)
-
-		if err == nil && currentVisit != nil {
-			// Student has an active visit - they are present and in a specific activity
-			if hasFullAccess {
-				// Users with full access see detailed location/activity information
-				// Get the active group with room details
-				if currentVisit.ActiveGroupID > 0 {
-					activeGroup, err := activeService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
-					if err == nil && activeGroup != nil && activeGroup.Room != nil {
-						response.Location = fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name)
-					} else {
-						response.Location = "Anwesend - Aktivität"
-					}
-				} else {
-					response.Location = "Anwesend - Aktivität"
-				}
-			} else {
-				// Users without full access see generic attendance status
-				response.Location = "Anwesend"
-			}
-		} else {
-			// Student is checked in but has no active visit (not in a specific room)
-			// This means they are "Unterwegs" (in transit/between activities)
-			response.Location = "Anwesend"
+	var resolvedStatus *locationModels.Status
+	if preResolvedStatus != nil {
+		resolvedStatus = preResolvedStatus
+	} else if activeService != nil {
+		if status, statusErr := activeService.GetStudentLocationStatus(ctx, student.ID); statusErr == nil {
+			resolvedStatus = status
 		}
+	}
+
+	if resolvedStatus == nil {
+		resolvedStatus = locationModels.NewStatus(locationModels.StateHome, nil)
+	}
+
+	if !hasFullAccess {
+		response.LocationStatus = locationModels.NewStatus(resolvedStatus.State, nil)
 	} else {
-		// Student is not checked in or has checked out
-		response.Location = "Abwesend"
+		if resolvedStatus.Room != nil {
+			roomCopy := *resolvedStatus.Room
+			response.LocationStatus = locationModels.NewStatus(resolvedStatus.State, &roomCopy)
+		} else {
+			response.LocationStatus = locationModels.NewStatus(resolvedStatus.State, nil)
+		}
 	}
 
 	// Check for pending scheduled checkout
@@ -392,6 +379,12 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	location := r.URL.Query().Get("location")
 	groupIDStr := r.URL.Query().Get("group_id")
 	search := r.URL.Query().Get("search") // New search parameter
+	var locationFilter *locationModels.State
+	if location != "" {
+		if parsed, ok := parseLocationStateParam(location); ok {
+			locationFilter = &parsed
+		}
+	}
 
 	// Get user permissions to check admin status
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
@@ -529,9 +522,22 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		// Resolve structured location status once per student
+		var locationStatus *locationModels.Status
+		if rs.ActiveService != nil {
+			if status, statusErr := rs.ActiveService.GetStudentLocationStatus(r.Context(), student.ID); statusErr == nil {
+				locationStatus = status
+			} else if locationFilter != nil {
+				// Unable to resolve location but filter supplied; skip to avoid leaking inconsistent data
+				continue
+			}
+		}
+
 		// Filter based on location (only if user has full access to location data)
-		if location != "" && hasFullAccess && student.GetLocation() != location && location != "Unknown" {
-			continue
+		if locationFilter != nil && hasFullAccess {
+			if locationStatus == nil || locationStatus.State != *locationFilter {
+				continue
+			}
 		}
 
 		// Get group data if student has a group
@@ -543,7 +549,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		responses = append(responses, newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService))
+		responses = append(responses, newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, locationStatus))
 	}
 
 	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, totalCount, "Students retrieved successfully")
@@ -611,7 +617,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare response
 	response := StudentDetailResponse{
-		StudentResponse: newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService),
+		StudentResponse: newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil),
 		HasFullAccess:   hasFullAccess,
 	}
 
@@ -640,13 +646,6 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		}
 
 		response.GroupSupervisors = supervisors
-
-		// Note: Sensitive fields are already handled in newStudentResponse based on hasFullAccess
-		// No need to clear them here as they won't be set if user lacks access
-		// Location handling is special - we keep basic attendance status as it's public information
-		if response.Location != "Anwesend" && response.Location != "Abwesend" {
-			response.Location = ""
-		}
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Student retrieved successfully")
@@ -740,7 +739,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	hasFullAccess := hasAdminPermissions(userPermissions)
 
 	// Return the created student with person data
-	common.Respond(w, r, http.StatusCreated, newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService), "Student created successfully")
+	common.Respond(w, r, http.StatusCreated, newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil), "Student created successfully")
 }
 
 // updateStudent handles updating an existing student
@@ -893,7 +892,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	hasFullAccess := isAdmin || isGroupSupervisor // Explicitly check for admin or group supervisor
 
 	// Return the updated student with person data
-	common.Respond(w, r, http.StatusOK, newStudentResponse(r.Context(), updatedStudent, person, group, hasFullAccess, rs.ActiveService, rs.PersonService), "Student updated successfully")
+	common.Respond(w, r, http.StatusOK, newStudentResponse(r.Context(), updatedStudent, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil), "Student updated successfully")
 }
 
 // deleteStudent handles deleting a student and their associated person record
@@ -995,29 +994,29 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 		}
 	}
 
+	// Resolve location status once and reuse for response
+	var locationStatus *locationModels.Status
+	if rs.ActiveService != nil {
+		if status, statusErr := rs.ActiveService.GetStudentLocationStatus(r.Context(), student.ID); statusErr == nil {
+			locationStatus = status
+		}
+	}
+
 	// Build student response
-	response := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService)
+	response := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, locationStatus)
 
 	// Create location response structure
 	locationResponse := struct {
-		Location          string                 `json:"location"`
+		LocationStatus    *locationModels.Status `json:"location_status"`
 		CurrentRoom       string                 `json:"current_room,omitempty"`
 		ScheduledCheckout *ScheduledCheckoutInfo `json:"scheduled_checkout,omitempty"`
 	}{
-		Location:          response.Location,
+		LocationStatus:    response.LocationStatus,
 		ScheduledCheckout: response.ScheduledCheckout,
 	}
 
-	// If student is present and user has full access, try to get current room
-	if hasFullAccess && response.Location == "Anwesend" {
-		if currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID); err == nil && currentVisit != nil {
-			if activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), currentVisit.ActiveGroupID); err == nil && activeGroup != nil {
-				// The room should be loaded as part of the active group
-				if activeGroup.Room != nil {
-					locationResponse.CurrentRoom = activeGroup.Room.Name
-				}
-			}
-		}
+	if hasFullAccess && response.LocationStatus != nil && response.LocationStatus.Room != nil && response.LocationStatus.State == locationModels.StatePresentInRoom {
+		locationResponse.CurrentRoom = response.LocationStatus.Room.Name
 	}
 
 	common.Respond(w, r, http.StatusOK, locationResponse, "Student location retrieved successfully")
@@ -1146,6 +1145,31 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 func containsIgnoreCase(s, substr string) bool {
 	s, substr = strings.ToLower(s), strings.ToLower(substr)
 	return strings.Contains(s, substr)
+}
+
+func parseLocationStateParam(value string) (locationModels.State, bool) {
+	normalized := strings.ToUpper(strings.TrimSpace(value))
+	if normalized == "" {
+		return "", false
+	}
+	aliasMap := map[string]locationModels.State{
+		string(locationModels.StatePresentInRoom): locationModels.StatePresentInRoom,
+		"ANWESEND":                             locationModels.StatePresentInRoom,
+		"IN_HOUSE":                             locationModels.StatePresentInRoom,
+		"PRESENT":                              locationModels.StatePresentInRoom,
+		string(locationModels.StateTransit):    locationModels.StateTransit,
+		"UNTERWEGS":                            locationModels.StateTransit,
+		"BUS":                                  locationModels.StateTransit,
+		string(locationModels.StateSchoolyard): locationModels.StateSchoolyard,
+		"SCHULHOF":                             locationModels.StateSchoolyard,
+		"SCHOOL_YARD":                          locationModels.StateSchoolyard,
+		string(locationModels.StateHome):       locationModels.StateHome,
+		"ZUHAUSE":                              locationModels.StateHome,
+		"ABWESEND":                             locationModels.StateHome,
+		"NOT_CHECKED_IN":                       locationModels.StateHome,
+	}
+	state, ok := aliasMap[normalized]
+	return state, ok
 }
 
 // Helper function to check if user has admin permissions
