@@ -2,36 +2,15 @@
 import type { NextRequest } from "next/server";
 import { apiGet, apiPost, apiPut } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
-import type { Student } from "~/lib/student-helpers";
+import type { BackendStudent, Student } from "~/lib/student-helpers";
 import { mapStudentResponse, prepareStudentForBackend } from "~/lib/student-helpers";
-
-/**
- * Type definition for student response from backend
- */
-interface StudentResponseFromBackend {
-  id: number;
-  person_id: number;
-  first_name: string;
-  last_name: string;
-  tag_id?: string;
-  school_class: string;
-  location: string;
-  bus: boolean;
-  guardian_name: string;
-  guardian_contact: string;
-  guardian_email?: string;
-  guardian_phone?: string;
-  group_id?: number;
-  created_at: string;
-  updated_at: string;
-}
 
 /**
  * Type definition for API response format from backend
  */
 interface ApiStudentsResponse {
   status: string;
-  data: StudentResponseFromBackend[];
+  data: BackendStudent[];
   pagination: {
     current_page: number;
     page_size: number;
@@ -91,9 +70,9 @@ export const GET = createGetHandler(async (request: NextRequest, token: string):
     
     
     // Check for the paginated response structure from backend
-    if ('data' in response && Array.isArray(response.data)) {
+    if ("data" in response && Array.isArray(response.data)) {
       // Map the backend response format to the frontend format using the consistent mapping function
-      const mappedStudents = response.data.map((student: StudentResponseFromBackend) => {
+      const mappedStudents = response.data.map((student: BackendStudent) => {
         const mapped = mapStudentResponse(student);
         return mapped;
       });
@@ -214,7 +193,7 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
     
     try {
       // Create the student via the simplified API endpoint
-      const rawResponse = await apiPost<{ status: string; data: StudentResponseFromBackend; message: string }>("/api/students", token, backendRequest as StudentResponseFromBackend);
+      const rawResponse = await apiPost<{ status: string; data: BackendStudent; message: string }>("/api/students", token, backendRequest);
       
       // Extract the student data from the response
       const response = rawResponse.data;

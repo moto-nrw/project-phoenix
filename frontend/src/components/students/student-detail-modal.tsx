@@ -1,8 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Modal } from "~/components/ui/modal";
 import type { Student } from "@/lib/api";
+import { LocationBadge } from "~/components/simple/student/LocationBadge";
+import { useSSE } from "~/lib/hooks/use-sse";
+import type { SSEEvent } from "~/lib/sse-types";
+import {
+    mapLocationStatus,
+    type StudentLocationStatus,
+} from "~/lib/student-location-helpers";
 
 interface Guardian {
     id: string;
@@ -31,6 +38,11 @@ export function StudentDetailModal({
     loading = false
 }: StudentDetailModalProps) {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [locationStatus, setLocationStatus] = useState<StudentLocationStatus | null>(
+        student?.location_status ?? null,
+    );
+    const pollingRef = useRef<NodeJS.Timeout | null>(null);
+    const studentId = student?.id ?? null;
 
     // Type guards for safe JSON parsing
     const isGuardian = (g: unknown): g is Guardian => {
@@ -70,6 +82,114 @@ export function StudentDetailModal({
             setShowDeleteConfirm(false);
         }
     }, [isOpen]);
+
+    useEffect(() => {
+        if (!student) {
+            setLocationStatus(null);
+            return;
+        }
+        setLocationStatus(student.location_status ?? null);
+    }, [student]);
+
+    const fetchCurrentLocation = useCallback(async () => {
+        if (!studentId) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/students/${studentId}/current-location`);
+            if (!response.ok) {
+                return;
+            }
+
+            const payload = await response.json() as unknown;
+            const data = (payload && typeof payload === "object" && "data" in payload
+                ? (payload as { data: { location_status: StudentLocationStatus | null } }).data
+                : (payload as { location_status?: StudentLocationStatus | null })) ?? {};
+
+            if ("location_status" in data) {
+                setLocationStatus(data.location_status ?? null);
+            }
+        } catch (error) {
+            console.error("Error polling student location:", error);
+        }
+    }, [studentId]);
+
+    const handleSSEEvent = useCallback(
+        (event: SSEEvent) => {
+            if (!isOpen || !studentId || !event.data?.student_id) {
+                return;
+            }
+
+            if (event.data.student_id !== studentId) {
+                return;
+            }
+
+            const mapped = mapLocationStatus(event.data.location_status ?? null);
+
+            if (mapped !== null) {
+                setLocationStatus(mapped);
+            } else if (event.type === "student_checkout") {
+                setLocationStatus(null);
+            }
+        },
+        [isOpen, studentId],
+    );
+
+    const { status: sseStatus } = useSSE("/api/sse/events", {
+        onMessage: handleSSEEvent,
+    });
+
+    useEffect(() => {
+        if (!isOpen || !student) {
+            if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+                pollingRef.current = null;
+            }
+            return;
+        }
+
+        if (sseStatus === "connected") {
+            if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+                pollingRef.current = null;
+            }
+            return;
+        }
+
+        if (
+            (sseStatus === "reconnecting" || sseStatus === "failed") &&
+            !pollingRef.current
+        ) {
+            pollingRef.current = setInterval(() => {
+                void fetchCurrentLocation();
+            }, 30_000);
+            void fetchCurrentLocation();
+        }
+
+        return () => {
+            if (pollingRef.current && (!isOpen || sseStatus === "connected")) {
+                clearInterval(pollingRef.current);
+                pollingRef.current = null;
+            }
+        };
+    }, [fetchCurrentLocation, isOpen, sseStatus, student, studentId]);
+
+    useEffect(() => {
+        if (isOpen && studentId) {
+            void fetchCurrentLocation();
+        }
+    }, [fetchCurrentLocation, isOpen, student, studentId]);
+
+    useEffect(
+        () => () => {
+            if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+                pollingRef.current = null;
+            }
+        },
+        [],
+    );
 
     if (!student) return null;
 
@@ -150,20 +270,23 @@ export function StudentDetailModal({
                 <div className="space-y-4 md:space-y-6">
                     {/* Header with Avatar */}
                     <div className="flex items-center gap-3 md:gap-4 pb-3 md:pb-4 border-b border-gray-100">
-                            <div className="h-14 w-14 md:h-16 md:w-16 rounded-full bg-gradient-to-br from-[#5080D8] to-[#4070c8] flex items-center justify-center text-white text-lg md:text-xl font-bold shadow-lg flex-shrink-0">
-                                {student.first_name?.[0]}{student.second_name?.[0]}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <h2 className="text-lg md:text-xl font-bold text-gray-900 truncate">
-                                    {student.first_name} {student.second_name}
-                                </h2>
-                                {student.school_class && (
-                                    <p className="text-xs md:text-sm text-gray-500 mt-0.5">
-                                        Klasse {student.school_class}
-                                    </p>
-                                )}
-                            </div>
+                        <div className="h-14 w-14 md:h-16 md:w-16 rounded-full bg-gradient-to-br from-[#5080D8] to-[#4070c8] flex items-center justify-center text-white text-lg md:text-xl font-bold shadow-lg flex-shrink-0">
+                            {student.first_name?.[0]}{student.second_name?.[0]}
                         </div>
+                        <div className="flex-1 min-w-0">
+                            <h2 className="text-lg md:text-xl font-bold text-gray-900 truncate">
+                                {student.first_name} {student.second_name}
+                            </h2>
+                            {student.school_class && (
+                                <p className="text-xs md:text-sm text-gray-500 mt-0.5">
+                                    Klasse {student.school_class}
+                                </p>
+                            )}
+                        </div>
+                        <div className="flex-shrink-0">
+                            <LocationBadge locationStatus={locationStatus} />
+                        </div>
+                    </div>
 
                         {/* Student Information Sections */}
                         <div className="space-y-4">

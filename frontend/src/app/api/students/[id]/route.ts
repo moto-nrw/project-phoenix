@@ -11,28 +11,8 @@ import { mapStudentResponse, prepareStudentForBackend } from "~/lib/student-help
  */
 interface ApiStudentResponse {
   status: string;
-  data: StudentResponseFromBackend;
+  data: BackendStudent;
   message: string;
-}
-
-/**
- * Type definition for student response from backend
- */
-interface StudentResponseFromBackend {
-  id: number;
-  person_id: number;
-  first_name: string;
-  last_name: string;
-  tag_id?: string;
-  school_class: string;
-  location: string;
-  guardian_name: string;
-  guardian_contact: string;
-  guardian_email?: string;
-  guardian_phone?: string;
-  group_id?: number;
-  created_at: string;
-  updated_at: string;
 }
 
 /**
@@ -59,33 +39,19 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       throw new Error('Student not found');
     }
     
-    const typedResponse = response as { data: unknown };
-    
-    
-    // Define type for backend student data
-    interface BackendStudentData {
-        last_name?: string;
-        name?: string;
-        first_name?: string;
-        [key: string]: unknown;
-    }
-    
-    // Map the backend response to frontend format
-    const studentData = typedResponse.data as BackendStudentData;
-    
-    // Check if we need to extract last_name from the name field
-    if (!studentData.last_name && studentData.name) {
-        // Split the name to extract first and last name
-        const nameParts = studentData.name.split(' ');
-        if (nameParts.length > 1) {
-            // If first_name matches the first part, the rest is the last name
-            if (studentData.first_name === nameParts[0]) {
-                studentData.last_name = nameParts.slice(1).join(' ');
-            }
+    const typedResponse = response as { data: BackendStudent & { name?: unknown } };
+
+    const originalStudent = typedResponse.data;
+    const studentData: BackendStudent = { ...originalStudent };
+
+    if (!studentData.last_name && typeof originalStudent.name === "string") {
+        const nameParts = originalStudent.name.split(" ");
+        if (nameParts.length > 1 && studentData.first_name === nameParts[0]) {
+            studentData.last_name = nameParts.slice(1).join(" ");
         }
     }
     
-    const mappedStudent = mapStudentResponse(studentData as unknown as BackendStudent);
+    const mappedStudent = mapStudentResponse(studentData);
     
     // Fetch privacy consent data
     try {
@@ -162,7 +128,7 @@ export const PUT = createPutHandler<Student, Partial<Student> & { privacy_consen
       }
       
       // Map the response to frontend format
-      const mappedStudent = mapStudentResponse(response.data as BackendStudent);
+      const mappedStudent = mapStudentResponse(response.data);
       return mappedStudent;
     } catch (error) {
       console.error("Error updating student:", error);

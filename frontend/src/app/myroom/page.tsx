@@ -14,6 +14,8 @@ import type { Student } from "~/lib/student-helpers";
 import { UnclaimedRooms } from "~/components/active";
 import { useSSE } from "~/lib/hooks/use-sse";
 import type { SSEEvent } from "~/lib/sse-types";
+import { LocationBadge } from "~/components/simple/student/LocationBadge";
+import { mapLocationStatus } from "~/lib/student-location-helpers";
 
 // Extended student interface that includes visit information
 interface StudentWithVisit extends Student {
@@ -129,33 +131,194 @@ function MeinRaumPageContent() {
   }, [currentRoom]);
 
   // SSE event handler - direct refetch for affected room only
-  const handleSSEEvent = useCallback(
-    (event: SSEEvent) => {
-      console.log("SSE event received:", event.type, event.active_group_id);
-      const activeRoom = currentRoomRef.current;
-      if (activeRoom && event.active_group_id === activeRoom.id) {
-        const targetRoomId = activeRoom.id;
-        console.log("Event for current room - fetching updated data");
-        void loadRoomVisits(targetRoomId)
-          .then((studentsFromVisits) => {
-            setStudents([...studentsFromVisits]);
+  const handleSSEEvent = useCallback((event: SSEEvent) => {
+    const activeRoom = currentRoomRef.current;
+    const targetRoomId = event.active_group_id;
 
-            // Update room student count
-            setAllRooms((prev) =>
-              prev.map((existingRoom) =>
-                existingRoom.id === targetRoomId
-                  ? { ...existingRoom, student_count: studentsFromVisits.length }
-                  : existingRoom,
+    if (
+      !activeRoom ||
+      !targetRoomId ||
+      targetRoomId !== activeRoom.id
+    ) {
+      if (!targetRoomId) {
+        return;
+      }
+
+      if (event.type === "student_checkin") {
+        setAllRooms((prevRooms) =>
+          prevRooms.map((room) =>
+            room.id === targetRoomId
+              ? {
+                  ...room,
+                  student_count: (room.student_count ?? 0) + 1,
+                }
+              : room,
+          ),
+        );
+      } else if (event.type === "student_checkout") {
+        setAllRooms((prevRooms) =>
+          prevRooms.map((room) =>
+            room.id === targetRoomId
+              ? {
+                  ...room,
+                  student_count: Math.max(
+                    0,
+                    (room.student_count ?? 0) - 1,
+                  ),
+                }
+              : room,
+          ),
+        );
+      }
+      return;
+    }
+
+    const studentId = event.data?.student_id;
+    if (!studentId) {
+      return;
+    }
+
+    if (event.type === "student_checkin") {
+      const timestamp = event.timestamp
+        ? new Date(event.timestamp)
+        : new Date();
+      void fetchStudent(studentId)
+        .then((studentData) => {
+          const mappedStatus =
+            mapLocationStatus(event.data?.location_status) ??
+            studentData.location_status ??
+            null;
+          let didAdd = false;
+
+          setStudents((prev) => {
+            if (!Array.isArray(prev)) {
+              didAdd = true;
+              return [
+                {
+                  ...studentData,
+                  location_status: mappedStatus ?? undefined,
+                  in_house: mappedStatus
+                    ? mappedStatus.state !== "HOME"
+                    : studentData.in_house,
+                  school_yard: mappedStatus
+                    ? mappedStatus.state === "SCHOOLYARD"
+                    : studentData.school_yard,
+                  activeGroupId: activeRoom.id,
+                  checkInTime: timestamp,
+                },
+              ];
+            }
+
+            const existingIndex = prev.findIndex(
+              (student) => student.id === studentId,
+            );
+            const normalized: StudentWithVisit = {
+              ...studentData,
+              location_status: mappedStatus ?? undefined,
+              in_house: mappedStatus
+                ? mappedStatus.state !== "HOME"
+                : studentData.in_house,
+              school_yard: mappedStatus
+                ? mappedStatus.state === "SCHOOLYARD"
+                : studentData.school_yard,
+              activeGroupId: activeRoom.id,
+              checkInTime: timestamp,
+            };
+
+            if (existingIndex !== -1) {
+              const copy = [...prev];
+              copy[existingIndex] = normalized;
+              return copy;
+            }
+
+            didAdd = true;
+            return [...prev, normalized];
+          });
+
+          if (didAdd) {
+            setAllRooms((prevRooms) =>
+              prevRooms.map((room) =>
+                room.id === activeRoom.id
+                  ? {
+                      ...room,
+                      student_count: (room.student_count ?? 0) + 1,
+                    }
+                  : room,
               ),
             );
-          })
-          .catch((error) => {
-            console.error("Error refetching room visits:", error);
-          });
+          }
+        })
+        .catch((error) => {
+          console.error("Error fetching student after check-in:", error);
+        });
+      return;
+    }
+
+    if (event.type === "student_checkout") {
+      let didRemove = false;
+      setStudents((prev) => {
+        if (!Array.isArray(prev)) {
+          return prev;
+        }
+
+        const exists = prev.some((student) => student.id === studentId);
+        if (!exists) {
+          return prev;
+        }
+
+        didRemove = true;
+        return prev.filter((student) => student.id !== studentId);
+      });
+
+      if (didRemove) {
+        setAllRooms((prevRooms) =>
+          prevRooms.map((room) =>
+            room.id === activeRoom.id
+              ? {
+                  ...room,
+                  student_count: Math.max(
+                    0,
+                    (room.student_count ?? 0) - 1,
+                  ),
+                }
+              : room,
+          ),
+        );
       }
-    },
-    [loadRoomVisits],
-  );
+      return;
+    }
+
+    if (event.data?.location_status) {
+      const mappedStatus = mapLocationStatus(event.data.location_status);
+      if (!mappedStatus) {
+        return;
+      }
+
+      setStudents((prev) => {
+        if (!Array.isArray(prev)) {
+          return prev;
+        }
+
+        const existingIndex = prev.findIndex(
+          (student) => student.id === studentId,
+        );
+
+        if (existingIndex === -1) {
+          return prev;
+        }
+
+        const next = [...prev];
+        const current = next[existingIndex];
+        next[existingIndex] = {
+          ...current,
+          location_status: mappedStatus ?? undefined,
+          in_house: mappedStatus.state !== "HOME",
+          school_yard: mappedStatus.state === "SCHOOLYARD",
+        };
+        return next;
+      });
+    }
+  }, []);
 
   const sseEndpoint = useMemo(
     () => `/api/sse/events?nonce=${sseNonce}`,
@@ -409,25 +572,6 @@ function MeinRaumPageContent() {
     return filters;
   }, [searchTerm, groupFilter]);
 
-  // Helper function to get group status with enhanced design
-  const getGroupStatus = (student: StudentWithVisit) => {
-    const groupName = student.group_name ?? "Unbekannt";
-
-    // Single color for all groups - clean and consistent
-    const groupColor = {
-      bg: "#5080D8",
-      shadow: "0 8px 25px rgba(80, 128, 216, 0.4)",
-    };
-
-    return {
-      label: groupName,
-      badgeColor: "text-white backdrop-blur-sm",
-      cardGradient: "from-blue-50/80 to-cyan-100/80",
-      customBgColor: groupColor.bg,
-      customShadow: groupColor.shadow,
-    };
-  };
-
   if (status === "loading" || isLoading || hasAccess === null) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -672,8 +816,6 @@ function MeinRaumPageContent() {
           <div>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
               {filteredStudents.map((student) => {
-                const groupStatus = getGroupStatus(student);
-
                 return (
                   <div
                     key={student.id}
@@ -682,10 +824,6 @@ function MeinRaumPageContent() {
                     }
                     className={`group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-blue-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
                   >
-                    {/* Modern gradient overlay */}
-                    <div
-                      className={`absolute inset-0 bg-gradient-to-br ${groupStatus.cardGradient} rounded-3xl opacity-[0.03]`}
-                    ></div>
                     {/* Subtle inner glow */}
                     <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
                     {/* Modern border highlight */}
@@ -718,19 +856,18 @@ function MeinRaumPageContent() {
                           <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-300 md:group-hover:text-blue-500">
                             {student.second_name}
                           </p>
+                          {/* Origin Group - shown as metadata */}
+                          {student.group_name && (
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              aus {student.group_name}
+                            </p>
+                          )}
                         </div>
 
-                        {/* Group Badge */}
-                        <span
-                          className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${groupStatus.badgeColor} ml-3`}
-                          style={{
-                            backgroundColor: groupStatus.customBgColor,
-                            boxShadow: groupStatus.customShadow,
-                          }}
-                        >
-                          <span className="mr-2 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80"></span>
-                          {groupStatus.label}
-                        </span>
+                        {/* Location Status Badge */}
+                        <div className="ml-3 flex-shrink-0">
+                          <LocationBadge locationStatus={student.location_status ?? null} />
+                        </div>
                       </div>
 
                       {/* Bottom row with click hint */}

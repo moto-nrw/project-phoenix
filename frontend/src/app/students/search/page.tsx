@@ -9,14 +9,16 @@ import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { studentService, groupService } from "~/lib/api";
 import type { Student, Group } from "~/lib/api";
-import { fetchRooms } from "~/lib/rooms-api";
-import { createRoomIdToNameMap } from "~/lib/rooms-helpers";
-import { userContextService } from "~/lib/usercontext-api";
+import { useSSE } from "~/lib/hooks/use-sse";
+import type { SSEEvent } from "~/lib/sse-types";
+import { LocationBadge } from "~/components/simple/student/LocationBadge";
+import { mapLocationStatus } from "~/lib/student-location-helpers";
 
 function SearchPageContent() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const fallbackPollRef = useRef<NodeJS.Timeout | null>(null);
 
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
@@ -30,116 +32,40 @@ function SearchPageContent() {
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // OGS group tracking
-  const [userOgsGroups, setUserOgsGroups] = useState<string[]>([]);
-  const [roomStatus, setRoomStatus] = useState<Record<string, {
-    in_group_room: boolean;
-    current_room_id?: number;
-    first_name?: string;
-    last_name?: string;
-    reason?: string;
-  }>>({});
-  const [roomIdToNameMap, setRoomIdToNameMap] = useState<Record<string, string>>({});
+  const fetchStudentsData = useCallback(
+    async (filters?: { search?: string; groupId?: string }) => {
+      try {
+        setIsSearching(true);
+        setError(null);
 
-  const fetchStudentsData = useCallback(async (filters?: {
-    search?: string;
-    groupId?: string;
-  }) => {
-    try {
-      setIsSearching(true);
-      setError(null);
+        const fetchedStudents = await studentService.getStudents({
+          search: filters?.search ?? searchTerm,
+          groupId: filters?.groupId ?? selectedGroup,
+        });
 
-      // Fetch students from API
-      const fetchedStudents = await studentService.getStudents({
-        search: filters?.search ?? searchTerm,
-        groupId: filters?.groupId ?? selectedGroup
-      });
-
-      setStudents(fetchedStudents.students);
-      
-      // If user has OGS groups, fetch room status for students in those groups
-      if (userOgsGroups.length > 0 && session?.user?.token) {
-        try {
-          const roomStatusResponses = await Promise.all(
-            userOgsGroups.map(async (groupId) => {
-              try {
-                const roomStatusResponse = await fetch(`/api/groups/${groupId}/students/room-status`, {
-                  headers: {
-                    'Authorization': `Bearer ${session.user.token}`,
-                    'Content-Type': 'application/json'
-                  }
-                });
-
-                if (roomStatusResponse.ok) {
-                  const response = await roomStatusResponse.json() as {
-                    success: boolean;
-                    message: string;
-                    data: {
-                      group_has_room: boolean;
-                      group_room_id?: number;
-                      student_room_status: Record<string, { 
-                        in_group_room: boolean; 
-                        current_room_id?: number;
-                        first_name?: string;
-                        last_name?: string;
-                        reason?: string;
-                      }>;
-                    };
-                  };
-                  return response.data?.student_room_status || {};
-                }
-              } catch (roomStatusErr) {
-                console.error("Failed to fetch room status for group:", groupId, roomStatusErr);
-              }
-              return {};
-            })
-          );
-
-          // Merge all room statuses and update state in a single batch
-          const mergedRoomStatus = roomStatusResponses.reduce((acc, curr) => ({ ...acc, ...curr }), {});
-          setRoomStatus(prev => ({ ...prev, ...mergedRoomStatus }));
-        } catch (err) {
-          console.error("Error fetching room statuses:", err);
-        }
+        setStudents(fetchedStudents.students);
+      } catch {
+        setError("Fehler beim Laden der Schülerdaten.");
+      } finally {
+        setIsSearching(false);
       }
-    } catch {
-      // Error fetching students - handle gracefully
-      setError("Fehler beim Laden der Schülerdaten.");
-    } finally {
-      setIsSearching(false);
-    }
-  }, [searchTerm, selectedGroup, userOgsGroups, session?.user?.token]);
+    },
+    [searchTerm, selectedGroup],
+  );
 
   // Load groups and user's OGS groups on mount
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        // Load all groups for filter
         const fetchedGroups = await groupService.getGroups();
         setGroups(fetchedGroups);
-        
-        // Load user's OGS groups
-        if (session?.user?.token) {
-          try {
-            const myOgsGroups = await userContextService.getMyEducationalGroups();
-            setUserOgsGroups(myOgsGroups.map(g => g.id));
-            
-            // Fetch rooms for mapping
-            const rooms = await fetchRooms(session.user.token);
-            const roomMap = createRoomIdToNameMap(rooms);
-            setRoomIdToNameMap(roomMap);
-          } catch (ogsError) {
-            console.error("Error loading OGS groups:", ogsError);
-            // User might not have OGS groups, which is fine
-          }
-        }
       } catch (error) {
         console.error("Error loading groups:", error);
       }
     };
 
     void loadInitialData();
-  }, [session?.user?.token]);
+  }, []);
 
   // Load initial students on mount
   useEffect(() => {
@@ -171,6 +97,84 @@ function SearchPageContent() {
     void fetchStudentsData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedGroup]);
+
+  const handleSSEEvent = useCallback(
+    (event: SSEEvent) => {
+      if (
+        (event.type !== "student_checkin" && event.type !== "student_checkout") ||
+        !event.data?.student_id
+      ) {
+        return;
+      }
+
+      const mappedStatus = mapLocationStatus(event.data.location_status);
+      const studentId = event.data.student_id;
+
+      setStudents((prev) => {
+        if (!Array.isArray(prev) || prev.length === 0) {
+          return prev;
+        }
+
+        let didUpdate = false;
+        const next = prev.map((student) => {
+          if (student.id !== studentId) {
+            return student;
+          }
+
+          didUpdate = true;
+          return {
+            ...student,
+            location_status: mappedStatus ?? undefined,
+            in_house: mappedStatus ? mappedStatus.state !== "HOME" : student.in_house,
+            school_yard: mappedStatus
+              ? mappedStatus.state === "SCHOOLYARD"
+              : student.school_yard,
+          };
+        });
+
+        return didUpdate ? next : prev;
+      });
+    },
+    [],
+  );
+
+  const { status: sseStatus } = useSSE("/api/sse/events", {
+    onMessage: handleSSEEvent,
+  });
+
+  useEffect(() => {
+    if (sseStatus === "connected") {
+      if (fallbackPollRef.current) {
+        clearInterval(fallbackPollRef.current);
+        fallbackPollRef.current = null;
+      }
+      return;
+    }
+
+    if (sseStatus === "reconnecting" || sseStatus === "failed") {
+      fallbackPollRef.current ??= setInterval(() => {
+        void fetchStudentsData();
+      }, 30_000);
+      void fetchStudentsData();
+    }
+
+    return () => {
+      if (fallbackPollRef.current) {
+        clearInterval(fallbackPollRef.current);
+        fallbackPollRef.current = null;
+      }
+    };
+  }, [sseStatus, fetchStudentsData]);
+
+  useEffect(
+    () => () => {
+      if (fallbackPollRef.current) {
+        clearInterval(fallbackPollRef.current);
+        fallbackPollRef.current = null;
+      }
+    },
+    [],
+  );
 
   // Prepare filter configurations for PageHeaderWithSearch
   const filterConfigs: FilterConfig[] = useMemo(() => [
@@ -280,104 +284,6 @@ function SearchPageContent() {
     return true;
   });
 
-  // Helper function to check if student is in user's OGS group
-  const isStudentInUserOgsGroup = (student: Student): boolean => {
-    return userOgsGroups.includes(student.group_id ?? '');
-  };
-
-  // Helper function to get attendance status with enhanced design
-  const getLocationStatus = (student: Student) => {
-    // Check if student is in user's OGS group for detailed location
-    if (isStudentInUserOgsGroup(student)) {
-      const studentRoomStatus = roomStatus[student.id.toString()];
-      
-      // Check if student is in group room
-      if (studentRoomStatus?.in_group_room) {
-        return { 
-          label: "Gruppenraum", 
-          badgeColor: "text-white backdrop-blur-sm",
-          cardGradient: "from-emerald-50/80 to-green-100/80",
-          customBgColor: "#83CD2D",
-          customShadow: "0 8px 25px rgba(131, 205, 45, 0.4)"
-        };
-      }
-      
-      // Check if student is in a specific room (not group room)
-      if (studentRoomStatus?.current_room_id && !studentRoomStatus.in_group_room) {
-        const roomName = roomIdToNameMap[studentRoomStatus.current_room_id.toString()] ?? `Raum ${studentRoomStatus.current_room_id}`;
-        return { 
-          label: roomName, 
-          badgeColor: "text-white backdrop-blur-sm",
-          cardGradient: "from-blue-50/80 to-cyan-100/80",
-          customBgColor: "#5080D8",
-          customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)"
-        };
-      }
-      
-      // Check for schoolyard
-      if (student.school_yard === true) {
-        return { 
-          label: "Schulhof", 
-          badgeColor: "text-white backdrop-blur-sm",
-          cardGradient: "from-amber-50/80 to-yellow-100/80",
-          customBgColor: "#F78C10",
-          customShadow: "0 8px 25px rgba(247, 140, 16, 0.4)"
-        };
-      }
-      
-      // Check for in transit/movement
-      if (student.in_house === true) {
-        return { 
-          label: "Unterwegs", 
-          badgeColor: "text-white backdrop-blur-sm",
-          cardGradient: "from-fuchsia-50/80 to-pink-100/80",
-          customBgColor: "#D946EF",
-          customShadow: "0 8px 25px rgba(217, 70, 239, 0.4)"
-        };
-      }
-      
-      // Default to at home for OGS students
-      return { 
-        label: "Zuhause", 
-        badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-red-50/80 to-rose-100/80",
-        customBgColor: "#FF3130",
-        customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)"
-      };
-    }
-    
-    // For non-OGS group students, use simple status
-    if (student.current_location === "Anwesend") {
-      return { 
-        label: "Anwesend", 
-        badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-emerald-50/80 to-green-100/80",
-        glowColor: "ring-emerald-200/50 shadow-emerald-100/50",
-        customBgColor: "#83CD2D",
-        customShadow: "0 8px 25px rgba(131, 205, 45, 0.4)"
-      };
-    }
-    if (student.current_location === "Zuhause") {
-      return { 
-        label: "Zuhause", 
-        badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-red-50/80 to-rose-100/80",
-        glowColor: "ring-red-200/50 shadow-red-100/50",
-        customBgColor: "#FF3130",
-        customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)"
-      };
-    }
-    // Default to at home (consistent with OGS groups page)
-    return { 
-      label: "Zuhause", 
-      badgeColor: "text-white backdrop-blur-sm",
-      cardGradient: "from-red-50/80 to-rose-100/80",
-      glowColor: "ring-red-200/50 shadow-red-100/50",
-      customBgColor: "#FF3130",
-      customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)"
-    };
-  };
-
   if (status === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -457,8 +363,6 @@ function SearchPageContent() {
             `}</style>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3 gap-6">
               {filteredStudents.map((student, index) => {
-                const locationStatus = getLocationStatus(student);
-
                 return (
                   <div
                     key={student.id}
@@ -469,8 +373,6 @@ function SearchPageContent() {
                       animation: `float 8s ease-in-out infinite ${index * 0.7}s`
                     }}
                   >
-                    {/* Modern gradient overlay */}
-                    <div className={`absolute inset-0 bg-gradient-to-br ${locationStatus.cardGradient} opacity-[0.03] rounded-2xl`}></div>
                     {/* Subtle inner glow */}
                     <div className="absolute inset-px rounded-2xl bg-gradient-to-br from-white/80 to-white/20"></div>
                     {/* Modern border highlight */}
@@ -495,18 +397,11 @@ function SearchPageContent() {
                             {student.second_name}
                           </p>
                         </div>
-                        
-                        {/* Status Badge */}
-                        <span 
-                          className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold ${locationStatus.badgeColor} ml-3`}
-                          style={{ 
-                            backgroundColor: locationStatus.customBgColor,
-                            boxShadow: locationStatus.customShadow
-                          }}
-                        >
-                          <span className="w-1.5 h-1.5 bg-white/80 rounded-full mr-2 animate-pulse"></span>
-                          {locationStatus.label}
-                        </span>
+
+                        {/* Location Status Badge */}
+                        <div className="ml-3 flex-shrink-0">
+                          <LocationBadge locationStatus={student.location_status ?? null} />
+                        </div>
                       </div>
 
                       {/* Additional Info */}
