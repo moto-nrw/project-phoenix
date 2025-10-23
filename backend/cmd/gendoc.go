@@ -205,10 +205,14 @@ func createBaseOpenAPISpecFromRouter(router chi.Router) map[string]interface{} {
 		}
 	}
 
-	// Add the settings schemas from the existing function
+	// Add the settings and location schemas from the existing function
 	schemas := spec["components"].(map[string]interface{})["schemas"].(map[string]interface{})
 	settingSchemas := getSettingsSchemas()
 	for name, schema := range settingSchemas {
+		schemas[name] = schema
+	}
+	locationSchemas := getLocationSchemas()
+	for name, schema := range locationSchemas {
 		schemas[name] = schema
 	}
 
@@ -390,6 +394,52 @@ func getSettingsSchemas() map[string]interface{} {
 				},
 			},
 			"required": []string{"key", "value", "category"},
+		},
+	}
+}
+
+// getLocationSchemas returns a map of schema definitions for student location models
+func getLocationSchemas() map[string]interface{} {
+	return map[string]interface{}{
+		"LocationStatus": map[string]interface{}{
+			"type":        "object",
+			"description": "Structured representation of a student's current location",
+			"properties": map[string]interface{}{
+				"state": map[string]interface{}{
+					"type":        "string",
+					"enum":        []string{"PRESENT_IN_ROOM", "TRANSIT", "SCHOOLYARD", "HOME"},
+					"description": "Canonical state of student location",
+				},
+				"room": map[string]interface{}{
+					"$ref": "#/components/schemas/LocationRoom",
+				},
+			},
+			"required": []string{"state"},
+		},
+		"LocationRoom": map[string]interface{}{
+			"type":        "object",
+			"description": "Room metadata associated with a student's location",
+			"properties": map[string]interface{}{
+				"id": map[string]interface{}{
+					"type":        "integer",
+					"format":      "int64",
+					"description": "Room identifier",
+				},
+				"name": map[string]interface{}{
+					"type":        "string",
+					"description": "Room name",
+				},
+				"is_group_room": map[string]interface{}{
+					"type":        "boolean",
+					"description": "True if this is the student's educational group room",
+				},
+				"owner_type": map[string]interface{}{
+					"type":        "string",
+					"enum":        []string{"GROUP", "ACTIVITY"},
+					"description": "Type of entity that owns the room",
+				},
+			},
+			"required": []string{"id", "name", "is_group_room", "owner_type"},
 		},
 	}
 }

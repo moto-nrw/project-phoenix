@@ -1,6 +1,7 @@
 "use client";
 
-import { ModernStatusBadge } from "./ModernStatusBadge";
+import { LocationBadge } from "./LocationBadge";
+import type { StudentLocationStatus } from "~/lib/student-location-helpers";
 
 interface ModernStudentProfileProps {
   student: {
@@ -9,8 +10,7 @@ interface ModernStudentProfileProps {
     name: string;
     school_class: string;
     group_name?: string;
-    current_location?: string;
-    current_room?: string; // New field for actual room name
+    location_status?: StudentLocationStatus | null; // Structured location data
   };
   index?: number;
   onBack?: () => void;
@@ -46,7 +46,7 @@ export function ModernStudentProfile({
           
           {/* Right: Status Badge */}
           <div className="flex-shrink-0 ml-3">
-            <ModernStatusBadge location={student.current_location} roomName={student.current_room} />
+            <LocationBadge locationStatus={student.location_status ?? null} />
           </div>
         </div>
       </div>
@@ -92,7 +92,7 @@ export function ModernStudentProfile({
             
             {/* Desktop Status Badge */}
             <div className="flex justify-center sm:justify-end">
-              <ModernStatusBadge location={student.current_location} roomName={student.current_room} />
+              <LocationBadge locationStatus={student.location_status ?? null} />
             </div>
           </div>
 

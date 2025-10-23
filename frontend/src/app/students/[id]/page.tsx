@@ -11,6 +11,7 @@ import type { Student, SupervisorContact } from "~/lib/student-helpers";
 import { ModernContactActions } from "~/components/simple/student";
 import { ScheduledCheckoutModal } from "~/components/scheduled-checkout/scheduled-checkout-modal";
 import { ScheduledCheckoutInfo } from "~/components/scheduled-checkout/scheduled-checkout-info";
+import { LocationBadge } from "~/components/simple/student/LocationBadge";
 
 // Guardian type for multiple guardians
 interface Guardian {
@@ -37,37 +38,6 @@ interface ExtendedStudent extends Student {
     extra_info?: string;
     supervisor_notes?: string;
     health_info?: string;
-}
-
-// Simplified status badge component
-function StatusBadge({ location, roomName }: { location?: string; roomName?: string }) {
-    const getStatusDetails = () => {
-        if (location === "Anwesend" || location === "In House" || location?.startsWith("Anwesend")) {
-            const label = roomName ?? (location?.startsWith("Anwesend - ") ? location.substring(11) : "Anwesend");
-            return { label, bgColor: "#83CD2D", textColor: "text-white" };
-        } else if (location === "Zuhause") {
-            return { label: "Zuhause", bgColor: "#FF3130", textColor: "text-white" };
-        } else if (location === "WC") {
-            return { label: "WC", bgColor: "#5080D8", textColor: "text-white" };
-        } else if (location === "School Yard") {
-            return { label: "Schulhof", bgColor: "#F78C10", textColor: "text-white" };
-        } else if (location === "Unterwegs" || location === "Bus") {
-            return { label: location === "Bus" ? "Bus" : "Unterwegs", bgColor: "#D946EF", textColor: "text-white" };
-        }
-        return { label: "Unbekannt", bgColor: "#6B7280", textColor: "text-white" };
-    };
-
-    const status = getStatusDetails();
-
-    return (
-        <span
-            className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold ${status.textColor}`}
-            style={{ backgroundColor: status.bgColor }}
-        >
-            <span className="w-2 h-2 bg-white/80 rounded-full mr-2 animate-pulse" />
-            {status.label}
-        </span>
-    );
 }
 
 // Mobile-optimized info card component
@@ -369,7 +339,7 @@ export default function StudentDetailPage() {
                             </div>
                         </div>
                         <div className="flex-shrink-0">
-                            <StatusBadge location={currentLocation?.location ?? student.current_location} roomName={currentLocation?.room?.name} />
+                            <LocationBadge locationStatus={student?.location_status ?? null} />
                         </div>
                     </div>
                 </div>

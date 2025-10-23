@@ -15,10 +15,15 @@ type Student struct {
 	base.Model      `bun:"schema:users,table:students"`
 	PersonID        int64   `bun:"person_id,notnull" json:"person_id"`
 	SchoolClass     string  `bun:"school_class,notnull" json:"school_class"`
-	Bus             bool    `bun:"bus,notnull" json:"bus"`
-	InHouse         bool    `bun:"in_house,notnull" json:"in_house"`
-	WC              bool    `bun:"wc,notnull" json:"wc"`
-	SchoolYard      bool    `bun:"school_yard,notnull" json:"school_yard"`
+	Bus             bool    `bun:"bus,notnull" json:"bus"` // Administrative permission flag (Buskind), NOT location state
+
+	// Deprecated location flags - DO NOT USE for location tracking
+	// Use services/active.GetStudentLocationStatus() instead to get structured LocationStatus
+	// These fields are kept for backward compatibility but may be removed in a future release
+	InHouse    bool `bun:"in_house,notnull" json:"in_house"`     // Deprecated: Use LocationStatus from active service
+	WC         bool `bun:"wc,notnull" json:"wc"`                 // Deprecated: No longer tracked
+	SchoolYard bool `bun:"school_yard,notnull" json:"school_yard"` // Deprecated: Use LocationStatus.State == SCHOOLYARD
+
 	GuardianName    string  `bun:"guardian_name,notnull" json:"guardian_name"`
 	GuardianContact string  `bun:"guardian_contact,notnull" json:"guardian_contact"`
 	GuardianEmail   *string `bun:"guardian_email" json:"guardian_email,omitempty"`

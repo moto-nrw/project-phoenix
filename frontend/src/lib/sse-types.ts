@@ -1,5 +1,7 @@
 // SSE Event Types for Real-Time Updates
 
+import type { BackendStudentLocationStatus } from "./student-location-helpers";
+
 export type SSEEventType =
   | "student_checkin"
   | "student_checkout"
@@ -16,6 +18,9 @@ export interface SSEEventData {
   student_name?: string;
   school_class?: string;
   group_name?: string; // Student's OGS group
+
+  // Structured location status (for student check-in/check-out events)
+  location_status?: BackendStudentLocationStatus;
 
   // Activity session fields (for activity_start/end/update events)
   activity_name?: string;

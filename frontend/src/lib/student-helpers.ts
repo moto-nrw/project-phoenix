@@ -1,6 +1,9 @@
 // lib/student-helpers.ts
 // Type definitions and helper functions for students
 
+import type { BackendStudentLocationStatus, StudentLocationStatus } from "./student-location-helpers";
+import { mapLocationStatus } from "./student-location-helpers";
+
 // Scheduled checkout information
 export interface ScheduledCheckoutInfo {
     id: number;
@@ -17,7 +20,8 @@ export interface BackendStudent {
     last_name: string;
     tag_id?: string;
     school_class: string;
-    location: string;
+    location: string; // Deprecated: Use location_status instead
+    location_status?: BackendStudentLocationStatus; // Structured location data
     bus: boolean;
     guardian_name: string;
     guardian_contact: string;
@@ -97,13 +101,14 @@ export interface Student {
     group_name?: string;
     group_id?: string;
     // Current attendance status of student
-    current_location: StudentLocation;
+    current_location: StudentLocation; // Deprecated: Use location_status instead
+    location_status?: StudentLocationStatus; // Structured location data (canonical)
     // Transportation method (separate from attendance)
     takes_bus?: boolean;
     // Legacy boolean fields for backward compatibility (derived from current_location)
-    in_house: boolean; // Now maps to "Anwesend" status
+    in_house: boolean; // Deprecated: Use location_status.state !== "HOME"
     wc?: boolean; // Deprecated - no longer used
-    school_yard?: boolean; // Deprecated - no longer used
+    school_yard?: boolean; // Deprecated: Use location_status.state === "SCHOOLYARD"
     bus?: boolean; // Administrative permission flag (Buskind), not attendance status
     name_lg?: string;
     contact_lg?: string;
@@ -144,6 +149,9 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student & { 
         }
     }
     
+    // Map structured location status if available
+    const locationStatus = mapLocationStatus(backendStudent.location_status);
+
     const mapped = {
         id: String(backendStudent.id),
         name: name,
@@ -154,13 +162,14 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student & { 
         studentId: backendStudent.tag_id,
         group_name: backendStudent.group_name,
         group_id: backendStudent.group_id ? String(backendStudent.group_id) : undefined,
-        // New attendance-based system
+        // New attendance-based system (DEPRECATED - use location_status)
         current_location: current_location,
+        location_status: locationStatus ?? undefined, // Structured location data (canonical)
         takes_bus: undefined, // TODO: Map from backend when available
-        // Legacy boolean fields for backward compatibility (derived from attendance status)
-        in_house: current_location.startsWith("Anwesend"),
+        // Legacy boolean fields for backward compatibility (derived from location_status if available)
+        in_house: locationStatus ? locationStatus.state !== "HOME" : current_location.startsWith("Anwesend"),
         wc: false, // Deprecated - no longer used
-        school_yard: false, // Deprecated - no longer used
+        school_yard: locationStatus ? locationStatus.state === "SCHOOLYARD" : false, // Deprecated
         bus: backendStudent.bus, // Administrative permission flag (Buskind)
         name_lg: backendStudent.guardian_name,
         contact_lg: backendStudent.guardian_contact,
@@ -358,14 +367,17 @@ export function mapUpdateRequestToBackend(request: UpdateStudentRequest): Backen
 // Helper functions
 export function formatStudentName(student: Student): string {
     if (student.name) return student.name;
-    
+
     const fallback = [student.first_name, student.second_name]
         .filter(Boolean)
         .join(' ') || 'Unnamed Student';
-    
+
     return fallback;
 }
 
+/**
+ * @deprecated Use student.location_status with getStudentLocationBadge() helper instead
+ */
 export function formatStudentStatus(student: Student): string {
     if (student.in_house) return 'Anwesend';
     if (student.wc) return 'Toilette';
@@ -405,6 +417,9 @@ export function extractGuardianContact(studentData: {
     return "";
 }
 
+/**
+ * @deprecated Use student.location_status with getStudentLocationBadge() helper instead
+ */
 export function getStatusColor(student: Student): string {
     if (student.in_house) return 'green';
     if (student.wc) return 'blue';

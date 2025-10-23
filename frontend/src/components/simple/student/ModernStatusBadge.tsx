@@ -1,8 +1,16 @@
+/**
+ * @deprecated This component is deprecated. Use LocationBadge with structured StudentLocationStatus instead.
+ * See: src/components/simple/student/LocationBadge.tsx
+ * See: src/lib/student-location-helpers.ts
+ */
 interface ModernStatusBadgeProps {
   location?: string;
   roomName?: string;
 }
 
+/**
+ * @deprecated Use LocationBadge component instead
+ */
 export function ModernStatusBadge({ location, roomName }: ModernStatusBadgeProps) {
   // Status details using exact colors from ogs_groups, myroom, and search badges
   const getStatusDetails = () => {
