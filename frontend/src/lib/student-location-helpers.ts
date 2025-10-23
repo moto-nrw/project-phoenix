@@ -123,8 +123,13 @@ export function getStudentLocationBadge(
 
   switch (status.state) {
     case "PRESENT_IN_ROOM": {
-      const isGroupRoom = status.room?.isGroupRoom ?? false;
-      const label = status.room?.name ?? fallbackLabel;
+      // If no room data, treat as HOME (data inconsistency fallback)
+      if (!status.room) {
+        return buildConfig(fallbackLabel, STUDENT_LOCATION_BADGE_TOKENS.home);
+      }
+
+      const isGroupRoom = status.room.isGroupRoom;
+      const label = status.room.name;
       const theme = isGroupRoom
         ? STUDENT_LOCATION_BADGE_TOKENS.groupRoom
         : STUDENT_LOCATION_BADGE_TOKENS.otherRoom;
@@ -166,7 +171,7 @@ export function isStudentInRoom(status: StudentLocationStatus | null): boolean {
  * Gets the current room name from location status, or null if not in a room
  */
 export function getCurrentRoomName(status: StudentLocationStatus | null): string | null {
-  if (!status || status.state !== "PRESENT_IN_ROOM" || !status.room) {
+  if (status?.state !== "PRESENT_IN_ROOM" || !status.room) {
     return null;
   }
   return status.room.name;
