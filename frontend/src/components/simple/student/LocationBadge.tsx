@@ -24,9 +24,10 @@ export function LocationBadge({
   const badgeConfig = getStudentLocationBadge(locationStatus);
 
   const computedStyle: CSSProperties = {
+    ...styleProp,
+    // Badge colors and shadow always take precedence
     backgroundColor: badgeConfig.colorToken,
     boxShadow: badgeConfig.shadow,
-    ...styleProp,
   };
 
   return (
