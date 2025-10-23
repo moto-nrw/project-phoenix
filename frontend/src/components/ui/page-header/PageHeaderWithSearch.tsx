@@ -13,6 +13,7 @@ import type { PageHeaderWithSearchProps } from "./types";
 export function PageHeaderWithSearch({
   title,
   badge,
+  statusIndicator,
   tabs,
   search,
   filters = [],
@@ -33,27 +34,45 @@ export function PageHeaderWithSearch({
 
   return (
     <div className={className}>
-      {/* Page Header - Only show if title is not empty */}
-      {title && <PageHeader title={title} badge={badge} />}
+      {/* Title + Badge (only when title exists) */}
+      {title && <PageHeader title={title} badge={badge} statusIndicator={statusIndicator} />}
 
-      {/* Navigation Tabs (if provided) */}
-      {tabs && <NavigationTabs {...tabs} />}
+      {/* Tabs + Badge inline (when no title - cleaner layout) */}
+      {tabs && (
+        <div className="mb-4">
+          {/* Mobile & Desktop: Modern underline tabs with badge on the right */}
+          <div className="flex items-end justify-between gap-2 md:gap-4">
+            <NavigationTabs {...tabs} className="min-w-0 flex-1" />
+
+            {/* Badge and Status inline with tabs - aligned and indented */}
+            {!title && (statusIndicator ?? badge) && (
+              <div className="flex items-center gap-2 md:gap-3 pb-3 mr-2 md:mr-4 flex-shrink-0">
+                {statusIndicator && (
+                  <div
+                    className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
+                      statusIndicator.color === 'green' ? 'bg-green-500 animate-pulse' :
+                      statusIndicator.color === 'yellow' ? 'bg-yellow-500' :
+                      statusIndicator.color === 'red' ? 'bg-red-500' :
+                      'bg-gray-400'
+                    }`}
+                    title={statusIndicator.tooltip}
+                  />
+                )}
+                {badge && (
+                  <div className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 bg-gray-50 rounded-full border border-gray-100">
+                    {badge.icon && <span className="text-gray-500">{badge.icon}</span>}
+                    <span className="text-sm font-semibold text-gray-900">{badge.count}</span>
+                    {badge.label && <span className="text-xs text-gray-500 hidden md:inline">{badge.label}</span>}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Mobile Search & Filters */}
       <div className="md:hidden">
-        {/* Show badge on mobile if no title */}
-        {!title && badge && (
-          <div className="flex justify-end mb-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
-              {badge.icon && (
-                <span className="text-gray-600">{badge.icon}</span>
-              )}
-              <span className="text-sm font-medium text-gray-700">
-                {badge.count}
-              </span>
-            </div>
-          </div>
-        )}
 
         {search && (
           <div className="flex gap-2 mb-3">
@@ -95,7 +114,7 @@ export function PageHeaderWithSearch({
 
       {/* Desktop Search & Filters */}
       <div className="hidden md:block mb-6">
-        {(search !== undefined || filters.length > 0 || ((!title && badge) ?? actionButton)) && (
+        {(search !== undefined || filters.length > 0 || actionButton) && (
           <div className="flex items-center gap-3 mb-3">
             {search && (
               <SearchBar
@@ -107,22 +126,8 @@ export function PageHeaderWithSearch({
             {filters.length > 0 && (
               <DesktopFilters filters={filters} />
             )}
-            {/* Spacer to push badge to the right when there are filters OR when there's both badge and actionButton */}
-            {!title && badge && (filters.length > 0 || actionButton) && <div className="flex-1" />}
-            {/* Show badge inline on desktop when no title */}
-            {!title && badge && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full whitespace-nowrap flex-shrink-0">
-                {badge.icon && (
-                  <span className="text-gray-600 flex-shrink-0">{badge.icon}</span>
-                )}
-                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                  <span className="hidden xl:inline">{badge.count} {badge.label ?? "Kinder"}</span>
-                  <span className="xl:hidden">{badge.count}</span>
-                </span>
-              </div>
-            )}
-            {/* Custom action button */}
-            {actionButton}
+            {/* Custom action button - pushed to right edge */}
+            {actionButton && <div className="ml-auto">{actionButton}</div>}
           </div>
         )}
 

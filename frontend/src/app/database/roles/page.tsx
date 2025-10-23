@@ -6,14 +6,15 @@ import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header/types";
-import { SimpleAlert } from "@/components/simple/SimpleAlert";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { rolesConfig } from "@/lib/database/configs/roles.config";
 import type { Role } from "@/lib/auth-helpers";
 import { RoleCreateModal, RoleDetailModal, RoleEditModal } from "@/components/roles";
 import { RolePermissionManagementModal } from "@/components/auth";
+import { useToast } from "~/contexts/ToastContext";
 
+import { Loading } from "~/components/ui/loading";
 export default function RolesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,8 +33,7 @@ export default function RolesPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
 
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const { success: toastSuccess } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -110,8 +110,7 @@ export default function RolesPage() {
     try {
       setCreateLoading(true);
       const created = await service.create(data);
-      setSuccessMessage(getDbOperationMessage('create', rolesConfig.name.singular, created.name));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('create', rolesConfig.name.singular, created.name));
       setShowCreateModal(false);
       await fetchRoles();
     } finally { setCreateLoading(false); }
@@ -122,8 +121,7 @@ export default function RolesPage() {
     try {
       setDetailLoading(true);
       await service.update(selectedRole.id, data);
-      setSuccessMessage(getDbOperationMessage('update', rolesConfig.name.singular, selectedRole.name));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('update', rolesConfig.name.singular, selectedRole.name));
       const refreshed = await service.getOne(selectedRole.id);
       setSelectedRole(refreshed);
       setShowEditModal(false);
@@ -137,8 +135,7 @@ export default function RolesPage() {
     try {
       setDetailLoading(true);
       await service.delete(selectedRole.id);
-      setSuccessMessage(getDbOperationMessage('delete', rolesConfig.name.singular, selectedRole.name));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('delete', rolesConfig.name.singular, selectedRole.name));
       setShowDetailModal(false);
       setSelectedRole(null);
       await fetchRoles();
@@ -150,12 +147,7 @@ export default function RolesPage() {
   if (status === "loading" || loading) {
     return (
       <ResponsiveLayout>
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-purple-600"></div>
-            <p className="text-gray-600">Rollen werden geladen...</p>
-          </div>
-        </div>
+        <Loading fullPage={false} />
       </ResponsiveLayout>
     );
   }
@@ -306,9 +298,7 @@ export default function RolesPage() {
         />
       )}
 
-      {showSuccessAlert && (
-        <SimpleAlert type="success" message={successMessage} autoClose duration={3000} onClose={() => setShowSuccessAlert(false)} />
-      )}
+      {/* Success toasts handled globally */}
     </ResponsiveLayout>
   );
 }

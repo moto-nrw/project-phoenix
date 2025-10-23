@@ -4,20 +4,15 @@ import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Alert } from "~/components/ui";
 import { InvitationAcceptForm } from "~/components/auth/invitation-accept-form";
 import { validateInvitation } from "~/lib/invitation-api";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
+import { Loading } from "~/components/ui/loading";
 
 function LoadingState() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100">
-      <div className="flex flex-col items-center gap-4">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-[#5080d8]"></div>
-        <p className="text-sm text-gray-500">Einladung wird geladen …</p>
-      </div>
-    </div>
+    <Loading fullPage={false} />
   );
 }
 
@@ -69,21 +64,16 @@ function InvitationContent() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-[#5080d8]"></div>
-          <p className="text-sm text-gray-500">Einladung wird geladen …</p>
-        </div>
-      </div>
+      <Loading fullPage={false} />
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 p-4">
-      <div className="w-full max-w-2xl rounded-3xl bg-white/90 p-8 shadow-2xl backdrop-blur-xl">
-        <div className="mb-6 flex flex-col items-center gap-4 text-center">
-          <Image src="/images/moto_transparent.png" alt="moto Logo" width={140} height={48} className="opacity-70" />
-          <h1 className="text-3xl font-semibold text-gray-900">Willkommen bei moto</h1>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+      <div className="w-full max-w-2xl rounded-2xl border border-gray-200/50 bg-white/90 backdrop-blur-sm p-8 shadow-sm">
+        <div className="mb-8 flex flex-col items-center gap-3 text-center">
+          <Image src="/images/moto_transparent.png" alt="moto Logo" width={120} height={40} />
+          <h1 className="text-2xl font-semibold text-gray-900">Willkommen bei moto</h1>
           <p className="text-sm text-gray-600">
             Bitte bestätige deine Einladung und lege dein persönliches Passwort fest.
           </p>
@@ -91,11 +81,18 @@ function InvitationContent() {
 
         {error && (
           <div className="space-y-4">
-            <Alert type="error" message={error} />
+            <div className="rounded-xl border border-red-200/50 bg-red-50/50 p-4">
+              <div className="flex items-start gap-3">
+                <svg className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </div>
             <div className="text-center text-sm text-gray-600">
               <p>
                 Du kannst eine neue Einladung bei deinem Administrator anfordern oder dich über&nbsp;
-                <Link href="/" className="font-medium text-[#5080d8] hover:underline">
+                <Link href="/" className="font-medium text-gray-900 hover:text-gray-700 underline">
                   die Startseite
                 </Link>
                 &nbsp;anmelden.

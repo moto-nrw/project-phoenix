@@ -7,12 +7,14 @@ import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
+import { Loading } from "~/components/ui/loading";
 import { userContextService } from "~/lib/usercontext-api";
 import { activeService } from "~/lib/active-api";
-import { fetchStudent } from "~/lib/student-api";
+// import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/student-helpers";
 import { UnclaimedRooms } from "~/components/active";
 import { useSSE } from "~/lib/hooks/use-sse";
+import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import type { SSEEvent } from "~/lib/sse-types";
 import { LocationBadge } from "~/components/simple/student/LocationBadge";
 import { mapLocationStatus } from "~/lib/student-location-helpers";
@@ -78,48 +80,46 @@ function MeinRaumPageContent() {
 
   // Helper function to load visits for a specific room
   const loadRoomVisits = useCallback(
-    async (roomId: string): Promise<StudentWithVisit[]> => {
-      // Use bulk endpoint to fetch visits with display data for specific room
-      const visits =
-        await activeService.getActiveGroupVisitsWithDisplay(roomId);
+    async (
+      roomId: string,
+    ): Promise<StudentWithVisit[]> => {
+      try {
+        // Use bulk endpoint to fetch visits with display data for specific room
+        const visits =
+          await activeService.getActiveGroupVisitsWithDisplay(roomId);
 
-      // Filter only active visits (students currently checked in)
-      const currentlyCheckedIn = visits.filter((visit) => visit.isActive);
+        // Filter only active visits (students currently checked in)
+        const currentlyCheckedIn = visits.filter((visit) => visit.isActive);
 
-      // Fetch complete student data using student IDs from visits
-      const studentPromises = currentlyCheckedIn.map(async (visit) => {
-        try {
-          // Fetch full student record using the student ID
-          const studentData = await fetchStudent(visit.studentId);
-
-          // Add visit-specific information to the student data
-          return {
-            ...studentData,
-            activeGroupId: visit.activeGroupId,
-            checkInTime: visit.checkInTime,
-          };
-        } catch (error) {
-          console.error(`Error fetching student ${visit.studentId}:`, error);
-          // Fallback to parsing student name if API call fails
+        const enriched = currentlyCheckedIn.map((visit) => {
+          // Build from visit display data only (cross-group)
           const nameParts = visit.studentName?.split(" ") ?? ["", ""];
           const firstName = nameParts[0] ?? "";
           const lastName = nameParts.slice(1).join(" ") ?? "";
-
           return {
             id: visit.studentId,
             name: visit.studentName ?? "",
             first_name: firstName,
             second_name: lastName,
-            school_class: "",
+            school_class: visit.schoolClass ?? "",
             current_location: "Anwesend" as const,
             in_house: true,
+            group_name: visit.groupName,
             activeGroupId: visit.activeGroupId,
             checkInTime: visit.checkInTime,
-          };
-        }
-      });
+          } as StudentWithVisit;
+        });
 
-      return await Promise.all(studentPromises);
+        return enriched;
+      } catch (error) {
+        // Handle 403 Forbidden gracefully - user might not have group access
+        if (error instanceof Error && error.message.includes("403")) {
+          console.warn(`No permission to view group ${roomId} - returning empty list`);
+          return []; // Return empty array instead of throwing
+        }
+        // Re-throw other errors
+        throw error;
+      }
     },
     [],
   );
@@ -328,6 +328,7 @@ function MeinRaumPageContent() {
   // Connect to SSE for real-time updates
   const { status: sseStatus, reconnectAttempts } = useSSE(sseEndpoint, {
     onMessage: handleSSEEvent,
+    enabled: true,
   });
 
   // Check access and fetch active room data
@@ -336,17 +337,21 @@ function MeinRaumPageContent() {
       try {
         setIsLoading(true);
 
-        // Check if user has any active groups OR unclaimed groups available
+        // Check if user has any supervised groups OR unclaimed groups available
+        // Changed from getMyActiveGroups() to getMySupervisedGroups()
+        // This includes ALL supervisions (OGS groups + standalone activities)
+        // Works even if user has NO OGS groups but supervises standalone activities
         const [myActiveGroups, unclaimedGroups] = await Promise.all([
-          userContextService.getMyActiveGroups(),
+          userContextService.getMySupervisedGroups(),
           activeService.getUnclaimedGroups(),
         ]);
 
         if (myActiveGroups.length === 0 && unclaimedGroups.length === 0) {
           // User has no active groups AND no unclaimed rooms to claim
+          // Show empty state instead of redirecting
           hasSupervisionRef.current = false;
           setHasAccess(false);
-          router.push("/dashboard");
+          setIsLoading(false);
           return;
         }
 
@@ -427,8 +432,9 @@ function MeinRaumPageContent() {
         setError(null);
       } catch (err) {
         if (err instanceof Error && err.message.includes("403")) {
+          console.error("403 Forbidden - No access to room/group:", err);
           setError(
-            "Sie haben keine Berechtigung für den Zugriff auf Aktivitätsdaten.",
+            "Sie haben aktuell keinen aktiven Raum zur Supervision.",
           );
           setHasAccess(false);
         } else {
@@ -483,8 +489,14 @@ function MeinRaumPageContent() {
 
       setError(null);
     } catch (err) {
-      setError("Fehler beim Laden der Raumdaten.");
-      console.error("Error loading room data:", err);
+      // Handle 403 gracefully - show message but don't break the UI
+      if (err instanceof Error && err.message.includes("403")) {
+        setError(`Keine Berechtigung für "${allRooms[roomIndex]?.name}". Kontaktieren Sie einen Administrator.`);
+        setStudents([]); // Show empty list instead of crashing
+      } else {
+        setError("Fehler beim Laden der Raumdaten.");
+        console.error("Error loading room data:", err);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -574,19 +586,40 @@ function MeinRaumPageContent() {
 
   if (status === "loading" || isLoading || hasAccess === null) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-blue-500"></div>
-          <p className="text-gray-600">Daten werden geladen...</p>
-        </div>
-      </div>
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
     );
   }
 
-  // If user doesn't have access, redirect to dashboard
+  // Show empty state if no active supervision
   if (hasAccess === false) {
-    router.push("/dashboard");
-    return null;
+    return (
+      <ResponsiveLayout pageTitle="Mein Raum">
+        <div className="-mt-1.5 w-full">
+          <PageHeaderWithSearch title="Mein Raum" />
+
+          <div className="flex min-h-[60vh] items-center justify-center px-4">
+            <div className="flex flex-col items-center gap-6 text-center max-w-md">
+              <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center">
+                <svg className="w-10 h-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-gray-900">Keine aktive Raum-Aufsicht</h3>
+                <p className="text-gray-600">
+                  Du bist aktuell in keinem Raum als Live-Aktivität registriert.
+                </p>
+                <p className="text-sm text-gray-500 mt-4">
+                  Starte eine Aktivität an einem Terminal, um Live-Raumdaten einzusehen.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ResponsiveLayout>
+    );
   }
 
   // Show room selection screen for 5+ rooms
@@ -676,33 +709,29 @@ function MeinRaumPageContent() {
         {/* Unclaimed Rooms Section - Shows rooms available for claiming */}
         <UnclaimedRooms onClaimed={handleRoomClaimed} />
 
-        {/* SSE Connection Status Indicator */}
-        <div className="mb-2 flex items-center gap-2 text-sm">
-          <div
-            className={`h-2 w-2 rounded-full ${
-              sseStatus === "connected"
-                ? "bg-green-500"
-                : sseStatus === "reconnecting"
-                  ? "bg-yellow-500"
-                  : sseStatus === "failed"
-                    ? "bg-red-500"
-                    : "bg-gray-400"
-            }`}
-          />
-          <span className="text-gray-600">
-            {sseStatus === "connected"
+        {/* Modern Header with PageHeaderWithSearch component */}
+        <PageHeaderWithSearch
+          title={
+            isMobile && allRooms.length === 1
+              ? (currentRoom?.room_name ?? currentRoom?.name ?? "Mein Raum")
+              : "" // No title when multiple rooms (tabs show room names) or on desktop
+          }
+          statusIndicator={{
+            color: sseStatus === "connected"
+              ? "green"
+              : sseStatus === "reconnecting"
+                ? "yellow"
+                : sseStatus === "failed"
+                  ? "red"
+                  : "gray",
+            tooltip: sseStatus === "connected"
               ? "Live-Updates aktiv"
               : sseStatus === "reconnecting"
                 ? `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`
                 : sseStatus === "failed"
                   ? "Verbindung fehlgeschlagen"
-                  : "Verbindung wird hergestellt..."}
-          </span>
-        </div>
-
-        {/* Modern Header with PageHeaderWithSearch component */}
-        <PageHeaderWithSearch
-          title={isMobile ? (allRooms.length === 1 ? currentRoom?.name ?? "Mein Raum" : "Meine Räume") : currentRoom?.room_name ?? currentRoom?.name ?? "Mein Raum"}
+                  : "Verbindung wird hergestellt..."
+          }}
           badge={{
             icon: (
               <svg
@@ -784,30 +813,27 @@ function MeinRaumPageContent() {
 
         {/* Student Grid - Mobile Optimized */}
         {students.length === 0 ? (
-          <div className="py-12 text-center">
-            <div className="flex flex-col items-center gap-4">
+          <div className="py-8 text-center">
+            <div className="flex flex-col items-center gap-3">
               <svg
-                className="h-12 w-12 text-gray-400"
+                className="h-10 w-10 text-gray-300"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
+                strokeWidth={1.5}
               >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
                   d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
                 />
               </svg>
               <div>
-                <h3 className="text-lg font-medium text-gray-900">
+                <h3 className="text-sm font-medium text-gray-600">
                   Keine Schüler in diesem Raum
                 </h3>
-                <p className="text-gray-600">
-                  Es wurden noch keine Schüler zu dieser Aktivität eingecheckt.
-                </p>
-                <p className="mt-2 text-sm text-gray-500">
-                  Gesamtzahl gefundener Schüler: {students.length}
+                <p className="text-xs text-gray-500 mt-1">
+                  Es wurden noch keine Schüler eingecheckt
                 </p>
               </div>
             </div>
@@ -822,7 +848,7 @@ function MeinRaumPageContent() {
                     onClick={() =>
                       router.push(`/students/${student.id}?from=/myroom`)
                     }
-                    className={`group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-blue-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
+                    className={`group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
                   >
                     {/* Subtle inner glow */}
                     <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
@@ -930,12 +956,14 @@ export default function MeinRaumPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center">
-          <div className="h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-blue-500"></div>
-        </div>
+        <ResponsiveLayout>
+          <Loading fullPage={false} />
+        </ResponsiveLayout>
       }
     >
-      <MeinRaumPageContent />
+      <SSEErrorBoundary>
+        <MeinRaumPageContent />
+      </SSEErrorBoundary>
     </Suspense>
   );
 }

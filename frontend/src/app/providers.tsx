@@ -4,6 +4,7 @@ import { SessionProvider } from "next-auth/react";
 import { ModalProvider } from "@/components/dashboard/modal-context";
 import { SupervisionProvider } from "~/lib/supervision-context";
 import { AlertProvider } from "~/contexts/AlertContext";
+import { ToastProvider } from "~/contexts/ToastContext";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -17,7 +18,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <SupervisionProvider>
         <ModalProvider>
           <AlertProvider>
-            {children}
+            <ToastProvider>
+              {children}
+            </ToastProvider>
           </AlertProvider>
         </ModalProvider>
       </SupervisionProvider>

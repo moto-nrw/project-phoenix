@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useToast } from "~/contexts/ToastContext";
 import { useRouter } from "next/navigation";
-import { Alert, Input } from "~/components/ui";
+import { Input } from "~/components/ui";
 import { acceptInvitation } from "~/lib/invitation-api";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
@@ -27,7 +28,7 @@ export function InvitationAcceptForm({ token, invitation }: InvitationAcceptForm
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const { success: toastSuccess } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -48,7 +49,6 @@ export function InvitationAcceptForm({ token, invitation }: InvitationAcceptForm
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
-    setSuccessMessage(null);
 
     if (!firstName.trim() || !lastName.trim()) {
       setError("Bitte gib Vor- und Nachname an.");
@@ -73,12 +73,16 @@ export function InvitationAcceptForm({ token, invitation }: InvitationAcceptForm
         password,
         confirmPassword,
       });
-
-      setSuccessMessage("Einladung erfolgreich angenommen! Du wirst zur Anmeldung weitergeleitet.");
+      toastSuccess("Einladung erfolgreich angenommen! Du wirst zur Anmeldung weitergeleitet.");
       setTimeout(() => {
         router.push("/");
       }, 2500);
     } catch (err) {
+      // Distinguish network/offline from HTTP errors
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        setError("Keine Netzwerkverbindung. Bitte überprüfe deine Internetverbindung und versuche es erneut.");
+        return;
+      }
       const apiError = err as ApiError | undefined;
       if (apiError?.status === 410) {
         setError("Diese Einladung ist nicht mehr gültig. Bitte fordere eine neue Einladung an.");
@@ -89,7 +93,8 @@ export function InvitationAcceptForm({ token, invitation }: InvitationAcceptForm
       } else if (apiError?.status === 400) {
         setError(apiError.message ?? "Ungültige Eingaben. Bitte überprüfe das Formular.");
       } else {
-        setError(apiError?.message ?? "Beim Annehmen der Einladung ist ein Fehler aufgetreten.");
+        const generic = apiError?.message ?? (err instanceof Error ? err.message : undefined);
+        setError(generic ?? "Beim Annehmen der Einladung ist ein Fehler aufgetreten.");
       }
     } finally {
       setIsSubmitting(false);
@@ -98,8 +103,17 @@ export function InvitationAcceptForm({ token, invitation }: InvitationAcceptForm
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {error && <Alert type="error" message={error} />}
-      {successMessage && <Alert type="success" message={successMessage} />}
+      {error && (
+        <div className="rounded-xl border border-red-200/50 bg-red-50/50 p-4">
+          <div className="flex items-start gap-3">
+            <svg className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p className="text-sm text-red-700">{error}</p>
+          </div>
+        </div>
+      )}
+      {/* Success toast handled globally */}
 
       <div className="space-y-2">
         <p className="text-sm text-gray-600">

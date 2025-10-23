@@ -189,12 +189,24 @@ func (r *InvitationTokenRepository) List(ctx context.Context, filters map[string
 	query := r.db.NewSelect().
 		Model(&tokens).
 		ModelTableExpr(invitationTableAlias).
-		Relation("Role", func(q *bun.SelectQuery) *bun.SelectQuery {
-			return q.Column("id", "name")
-		}).
-		Relation("Creator", func(q *bun.SelectQuery) *bun.SelectQuery {
-			return q.Column("id", "email")
-		})
+		ColumnExpr(`"invitation_token".*`).
+		ColumnExpr(`"role"."id" AS "role__id"`).
+		ColumnExpr(`"role"."created_at" AS "role__created_at"`).
+		ColumnExpr(`"role"."updated_at" AS "role__updated_at"`).
+		ColumnExpr(`"role"."name" AS "role__name"`).
+		ColumnExpr(`"role"."description" AS "role__description"`).
+		ColumnExpr(`"creator"."id" AS "creator__id"`).
+		ColumnExpr(`"creator"."created_at" AS "creator__created_at"`).
+		ColumnExpr(`"creator"."updated_at" AS "creator__updated_at"`).
+		ColumnExpr(`"creator"."email" AS "creator__email"`).
+		ColumnExpr(`"creator"."username" AS "creator__username"`).
+		ColumnExpr(`"creator"."active" AS "creator__active"`).
+		ColumnExpr(`"creator"."is_password_otp" AS "creator__is_password_otp"`).
+		ColumnExpr(`"creator"."last_login" AS "creator__last_login"`).
+		ColumnExpr(`"creator"."pin_attempts" AS "creator__pin_attempts"`).
+		ColumnExpr(`"creator"."pin_locked_until" AS "creator__pin_locked_until"`).
+		Join(`LEFT JOIN auth.roles AS "role" ON "role"."id" = "invitation_token"."role_id"`).
+		Join(`LEFT JOIN auth.accounts AS "creator" ON "creator"."id" = "invitation_token"."created_by"`)
 
 	now := time.Now()
 

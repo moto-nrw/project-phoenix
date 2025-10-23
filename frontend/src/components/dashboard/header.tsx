@@ -4,7 +4,7 @@
 import Link from "next/link";
 import Image from "next/image";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { HelpButton } from "@/components/ui/help_button";
 import { getHelpContent } from "@/lib/help-content";
@@ -67,6 +67,8 @@ function getPageTitle(pathname: string): string {
             return "Datenverwaltung";
         case "/settings":
             return "Einstellungen";
+        case "/invitations":
+            return "Einladungen";
         case "/borndal_feedback":
             return "Borndal Feedback";
         default:
@@ -99,6 +101,11 @@ interface HeaderProps {
     userName?: string;
     userEmail?: string;
     userRole?: string;
+    customPageTitle?: string;
+    studentName?: string; // For student detail pages
+    roomName?: string; // For room detail pages
+    activityName?: string; // For activity detail pages
+    referrerPage?: string; // Where the user came from (for contextual breadcrumbs)
 }
 
 // Logout Icon als React Component
@@ -123,13 +130,56 @@ const LogoutIcon = ({ className }: { className?: string }) => (
 
 
 
-export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }: HeaderProps) {
+export function Header({ userName = "Benutzer", userEmail = "", userRole = "", customPageTitle, studentName, roomName, activityName, referrerPage }: HeaderProps) {
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+    const [isScrolled, setIsScrolled] = useState(false);
     const pathname = usePathname();
     const helpContent = getHelpContent(pathname);
-    const pageTitle = getPageTitle(pathname);
+    const pageTitle = customPageTitle ?? getPageTitle(pathname);
     const { data: session } = useSession();
+
+    // Shrinking header on scroll (Instagram/Twitter pattern - mobile only)
+    useEffect(() => {
+        const handleScroll = () => {
+            const scrollPosition = window.scrollY;
+            setIsScrolled(scrollPosition > 20);
+        };
+
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    // Check if we're on a student detail page (main page, not history subpages)
+    const isStudentDetailPage = pathname.startsWith("/students/") &&
+                                pathname !== "/students" &&
+                                pathname !== "/students/search" &&
+                                !pathname.includes("/feedback_history") &&
+                                !pathname.includes("/mensa_history") &&
+                                !pathname.includes("/room_history");
+
+    // Check if we're on a student history subpage
+    const isStudentHistoryPage = pathname.startsWith("/students/") &&
+                                  (pathname.includes("/feedback_history") ||
+                                   pathname.includes("/mensa_history") ||
+                                   pathname.includes("/room_history"));
+
+    // Determine which history type
+    const historyType = pathname.includes("/feedback_history") ? "Feedback Historie" :
+                       pathname.includes("/mensa_history") ? "Mensa Historie" :
+                       pathname.includes("/room_history") ? "Raum Historie" : "";
+
+    // Check if we're on a room detail page
+    const isRoomDetailPage = pathname.startsWith("/rooms/") && pathname !== "/rooms";
+
+    // Check if we're on an activities detail page
+    const isActivityDetailPage = pathname.startsWith("/activities/") && pathname !== "/activities";
+
+    // Determine breadcrumb based on referrer
+    const referrer = referrerPage ?? "/students/search";
+    const breadcrumbLabel = referrer.startsWith("/ogs_groups") ? "Meine Gruppe" :
+                            referrer.startsWith("/myroom") ? "Mein Raum" :
+                            "Kindersuche";
 
     const toggleProfileMenu = () => {
         setIsProfileMenuOpen(!isProfileMenuOpen);
@@ -141,12 +191,15 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
 
 
     return (
-        <header className="sticky top-0 w-full bg-white/80 backdrop-blur-xl border-b border-gray-100 z-50">
-            {/* Subtle top accent line */}
-            <div className="h-0.5 bg-gradient-to-r from-[#5080d8] via-gray-200 to-[#83cd2d]"></div>
-            
+        <header className={`sticky top-0 w-full bg-white z-50 transition-all duration-300 ${
+            isScrolled ? 'shadow-sm' : ''
+        }`}>
+            {/* Gradient line removed for minimalist design */}
+
             <div className="w-full px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center h-16 w-full">
+                <div className={`flex items-center w-full transition-all duration-300 ${
+                    isScrolled ? 'h-12 lg:h-16' : 'h-14 lg:h-16'
+                }`}>
                     {/* Left section: Logo + Brand + Context */}
                     <div className="flex items-center space-x-4 flex-shrink-0">
                         <Link href="/dashboard" className="flex items-center space-x-3 group">
@@ -164,7 +217,9 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
                             
                             <div className="flex items-center space-x-3">
                                 <span
-                                    className="text-xl font-bold tracking-tight transition-all duration-200 group-hover:scale-105"
+                                    className={`font-bold tracking-tight transition-all duration-300 group-hover:scale-105 ${
+                                        isScrolled ? 'text-lg lg:text-xl' : 'text-xl'
+                                    }`}
                                     style={{
                                         background: 'linear-gradient(135deg, #5080d8, #83cd2d)',
                                         WebkitBackgroundClip: 'text',
@@ -182,7 +237,7 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
 
                         {/* Breadcrumb navigation for database pages */}
                         {pathname.startsWith("/database/") && pathname !== "/database" ? (
-                            <nav className="hidden md:flex items-center space-x-2 text-sm">
+                            <nav className="hidden md:flex items-center space-x-2 text-base">
                                 <Link
                                     href="/database"
                                     className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
@@ -215,9 +270,148 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
                                     </span>
                                 )}
                             </nav>
+                        ) : pathname === "/ogs_groups" ? (
+                            /* Breadcrumb for OGS Groups page */
+                            <span className="hidden md:inline text-base font-medium text-gray-600">
+                                Meine Gruppe
+                            </span>
+                        ) : pathname === "/myroom" ? (
+                            /* Breadcrumb for My Room page */
+                            <span className="hidden md:inline text-base font-medium text-gray-600">
+                                Mein Raum
+                            </span>
+                        ) : pathname === "/rooms" ? (
+                            /* Breadcrumb for Rooms list page */
+                            <span className="hidden md:inline text-base font-medium text-gray-600">
+                                Räume
+                            </span>
+                        ) : pathname === "/activities" ? (
+                            /* Breadcrumb for Activities list page */
+                            <span className="hidden md:inline text-base font-medium text-gray-600">
+                                Aktivitäten
+                            </span>
+                        ) : pathname === "/staff" ? (
+                            /* Breadcrumb for Staff page */
+                            <span className="hidden md:inline text-base font-medium text-gray-600">
+                                Mitarbeiter
+                            </span>
+                        ) : pathname === "/substitutions" ? (
+                            /* Breadcrumb for Substitutions page */
+                            <span className="hidden md:inline text-base font-medium text-gray-600">
+                                Vertretungen
+                            </span>
+                        ) : pathname === "/statistics" ? (
+                            /* Breadcrumb for Statistics page */
+                            <span className="hidden md:inline text-base font-medium text-gray-600">
+                                Statistiken
+                            </span>
+                        ) : pathname === "/invitations" ? (
+                            /* Breadcrumb for Invitations page */
+                            <nav className="hidden md:flex items-center space-x-2 text-base">
+                                <Link
+                                    href="/database"
+                                    className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                                >
+                                    Datenverwaltung
+                                </Link>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <Link
+                                    href="/database/teachers"
+                                    className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                                >
+                                    Betreuer
+                                </Link>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <span className="font-medium text-gray-900">
+                                    Einladungen
+                                </span>
+                            </nav>
+                        ) : isActivityDetailPage && activityName ? (
+                            /* Breadcrumb for Activity Detail pages */
+                            <nav className="hidden md:flex items-center space-x-2 text-base">
+                                <Link
+                                    href="/activities"
+                                    className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                                >
+                                    Aktivitäten
+                                </Link>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <span className="font-medium text-gray-900">
+                                    {activityName}
+                                </span>
+                            </nav>
+                        ) : isRoomDetailPage && roomName ? (
+                            /* Breadcrumb for Room Detail pages */
+                            <nav className="hidden md:flex items-center space-x-2 text-base">
+                                <Link
+                                    href="/rooms"
+                                    className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                                >
+                                    Räume
+                                </Link>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <span className="font-medium text-gray-900">
+                                    {roomName}
+                                </span>
+                            </nav>
+                        ) : isStudentHistoryPage && studentName ? (
+                            /* Breadcrumb for Student History subpages (3 levels) */
+                            <nav className={`hidden md:flex items-center space-x-2 transition-all duration-300 ${
+                                isScrolled ? 'text-sm' : 'text-base'
+                            }`}>
+                                <Link
+                                    href={referrer}
+                                    className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                                >
+                                    {breadcrumbLabel}
+                                </Link>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <Link
+                                    href={pathname.split('/').slice(0, 3).join('/')}
+                                    className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                                >
+                                    {studentName}
+                                </Link>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <span className="font-medium text-gray-900">
+                                    {historyType}
+                                </span>
+                            </nav>
+                        ) : isStudentDetailPage && studentName ? (
+                            /* Breadcrumb for Student Detail pages - contextual based on referrer */
+                            <nav className={`hidden md:flex items-center space-x-2 transition-all duration-300 ${
+                                isScrolled ? 'text-sm' : 'text-base'
+                            }`}>
+                                <Link
+                                    href={referrer}
+                                    className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                                >
+                                    {breadcrumbLabel}
+                                </Link>
+                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <span className="font-medium text-gray-900">
+                                    {studentName}
+                                </span>
+                            </nav>
                         ) : (
-                            /* Context indicator for non-database pages */
-                            <span className="hidden md:inline text-sm font-medium text-gray-600">
+                            /* Context indicator for other pages - shrinks on scroll */
+                            <span className={`hidden md:inline font-medium text-gray-600 transition-all duration-300 ${
+                                isScrolled ? 'text-sm' : 'text-base'
+                            }`}>
                                 {pageTitle}
                             </span>
                         )}
@@ -316,15 +510,17 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
                                 />
                             )}
                             
-                            {/* Enhanced dropdown menu */}
-                            <div className={`absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-200 transition-all duration-200 z-50 ${
-                                isProfileMenuOpen ? 'opacity-100 visible' : 'opacity-0 invisible'
+                            {/* Modern dropdown menu with glassmorphism */}
+                            <div className={`absolute right-0 top-full mt-2 w-72 bg-white/95 backdrop-blur-md rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-200/50 transition-all duration-300 ease-out z-50 ${
+                                isProfileMenuOpen
+                                    ? 'opacity-100 visible translate-y-0'
+                                    : 'opacity-0 invisible -translate-y-2'
                             }`}>
-                                {/* User info header */}
-                                <div className="px-4 py-3 border-b border-gray-100">
+                                {/* User info header - modern glassmorphic style */}
+                                <div className="px-4 py-4 border-b border-gray-100/50">
                                     <div className="flex items-center space-x-3">
                                         <div
-                                            className="w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center text-white font-semibold"
+                                            className="w-11 h-11 flex-shrink-0 rounded-full flex items-center justify-center text-white font-semibold shadow-md"
                                             style={{
                                                 background: 'linear-gradient(135deg, #5080d8, #83cd2d)'
                                             }}
@@ -332,28 +528,27 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
                                             {userName.split(' ').map(n => n[0]).join('').toUpperCase()}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="font-medium text-gray-900 truncate">{userName}</div>
-                                            <div className="text-sm text-gray-500 truncate" title={userEmail}>{userEmail}</div>
+                                            <div className="font-semibold text-gray-900 truncate">{userName}</div>
+                                            <div className="text-xs text-gray-500 truncate" title={userEmail}>{userEmail}</div>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Menu items */}
-                                <div className="py-2">
+                                {/* Menu items - modern pill style */}
+                                <div className="p-2">
                                     <Link
                                         href="/settings"
                                         onClick={closeProfileMenu}
-                                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors duration-150"
+                                        className="group flex items-center px-3 py-2.5 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 active:bg-gray-900 active:text-white rounded-xl transition-all duration-200 ease-out"
                                     >
-                                        <svg className="w-4 h-4 mr-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg className="w-4 h-4 mr-3 text-gray-400 group-hover:text-gray-600 group-active:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.50 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                                         </svg>
                                         Einstellungen
                                     </Link>
 
-
                                     {/* Help button in profile menu */}
-                                    <button 
+                                    <button
                                         onClick={(e) => {
                                             e.preventDefault();
                                             closeProfileMenu();
@@ -365,25 +560,27 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "" }:
                                                 }
                                             }, 100);
                                         }}
-                                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors duration-150 w-full text-left"
+                                        className="group flex items-center px-3 py-2.5 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 active:bg-gray-900 active:text-white rounded-xl transition-all duration-200 ease-out w-full text-left"
                                     >
-                                        <svg className="w-4 h-4 mr-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg className="w-4 h-4 mr-3 text-gray-400 group-hover:text-gray-600 group-active:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
                                         Hilfe & Support
                                     </button>
-                                    
-                                    <div className="border-t border-gray-100 my-2"></div>
-                                    
-                                    <button 
+
+                                    {/* Subtle divider */}
+                                    <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent my-2"></div>
+
+                                    {/* Logout button - modern red accent */}
+                                    <button
                                         onClick={(e) => {
                                             e.preventDefault();
                                             closeProfileMenu();
                                             setIsLogoutModalOpen(true);
                                         }}
-                                        className="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors duration-150 w-full text-left"
+                                        className="group flex items-center px-3 py-2.5 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 active:bg-red-600 active:text-white rounded-xl transition-all duration-200 ease-out w-full text-left"
                                     >
-                                        <LogoutIcon className="w-4 h-4 mr-3" />
+                                        <LogoutIcon className="w-4 h-4 mr-3 group-active:text-white transition-colors" />
                                         Abmelden
                                     </button>
                                 </div>

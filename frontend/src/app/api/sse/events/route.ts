@@ -16,7 +16,7 @@ export const runtime = "nodejs";
  * Note: Node.js 18+ includes native fetch with undici, which handles long-lived
  * connections appropriately. No need for explicit timeout configuration.
  */
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   // Validate session
   const session = await auth();
 
@@ -26,8 +26,10 @@ export async function GET(_request: NextRequest) {
 
   try {
     // Fetch SSE stream from Go backend with JWT token
+    // Preserve query params (e.g., cache busters) though backend ignores them
+    const qs = request.nextUrl.search ? request.nextUrl.search : "";
     const backendResponse = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/api/sse/events`,
+      `${env.NEXT_PUBLIC_API_URL}/api/sse/events${qs}`,
       {
         headers: {
           Authorization: `Bearer ${session.user.token}`,
@@ -38,8 +40,10 @@ export async function GET(_request: NextRequest) {
     );
 
     if (!backendResponse.ok) {
-      console.error("SSE backend connection failed:", backendResponse.status);
-      return new Response("SSE connection failed", { status: 502 });
+      const body = await backendResponse.text().catch(() => "");
+      console.error("SSE backend connection failed:", backendResponse.status, body);
+      // Propagate backend status to client for accurate diagnostics (e.g., 401/403)
+      return new Response(body || "SSE connection failed", { status: backendResponse.status });
     }
 
     if (!backendResponse.body) {

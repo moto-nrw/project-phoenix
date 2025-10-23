@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
+import { redirect, useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
-import { SimpleAlert } from "@/components/simple/SimpleAlert";
+import { useToast } from "~/contexts/ToastContext";
 import { TeacherRoleManagementModal, TeacherPermissionManagementModal } from "@/components/teachers";
 import { TeacherDetailModal } from "@/components/teachers/teacher-detail-modal";
 import { TeacherEditModal } from "@/components/teachers/teacher-edit-modal";
@@ -15,8 +15,11 @@ import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { teachersConfig } from "@/lib/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
+import { Modal } from "~/components/ui/modal";
 
+import { Loading } from "~/components/ui/loading";
 export default function TeachersPage() {
+    const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -26,6 +29,7 @@ export default function TeachersPage() {
     const [lastScrollY, setLastScrollY] = useState(0);
 
     // Modal states
+    const [showChoiceModal, setShowChoiceModal] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [createLoading, setCreateLoading] = useState(false);
 
@@ -38,8 +42,7 @@ export default function TeachersPage() {
     const [roleModalOpen, setRoleModalOpen] = useState(false);
     const [permissionModalOpen, setPermissionModalOpen] = useState(false);
 
-    const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-    const [successMessage, setSuccessMessage] = useState("");
+    const { success: toastSuccess } = useToast();
 
     const { status } = useSession({
         required: true,
@@ -166,8 +169,7 @@ export default function TeachersPage() {
             setCreateLoading(true);
             await service.create(data);
             setShowCreateModal(false);
-            setSuccessMessage(getDbOperationMessage('create', teachersConfig.name.singular));
-            setShowSuccessAlert(true);
+            toastSuccess(getDbOperationMessage('create', teachersConfig.name.singular));
             await fetchTeachers();
         } catch (err) {
             console.error("Error creating teacher:", err);
@@ -186,8 +188,7 @@ export default function TeachersPage() {
             await service.update(selectedTeacher.id, data);
             setShowEditModal(false);
             setShowDetailModal(false);
-            setSuccessMessage(getDbOperationMessage('update', teachersConfig.name.singular));
-            setShowSuccessAlert(true);
+            toastSuccess(getDbOperationMessage('update', teachersConfig.name.singular));
             await fetchTeachers();
             setSelectedTeacher(null);
         } catch (err) {
@@ -206,8 +207,7 @@ export default function TeachersPage() {
             setDetailLoading(true);
             await service.delete(selectedTeacher.id);
             setShowDetailModal(false);
-            setSuccessMessage(getDbOperationMessage('delete', teachersConfig.name.singular));
-            setShowSuccessAlert(true);
+            toastSuccess(getDbOperationMessage('delete', teachersConfig.name.singular));
             await fetchTeachers();
             setSelectedTeacher(null);
         } catch (err) {
@@ -227,12 +227,7 @@ export default function TeachersPage() {
     if (status === "loading" || loading) {
         return (
             <ResponsiveLayout>
-                <div className="flex min-h-[50vh] items-center justify-center">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-[#F78C10]"></div>
-                        <p className="text-gray-600">Betreuer werden geladen...</p>
-                    </div>
-                </div>
+                <Loading fullPage={false} />
             </ResponsiveLayout>
         );
     }
@@ -280,9 +275,9 @@ export default function TeachersPage() {
                         }}
                         actionButton={!isMobile && (
                             <button
-                                onClick={() => setShowCreateModal(true)}
+                                onClick={() => setShowChoiceModal(true)}
                                 className="relative w-10 h-10 bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group hover:scale-110 active:scale-95"
-                                aria-label="Betreuer erstellen"
+                                aria-label="Betreuer hinzufügen"
                             >
                                 <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
                                 <svg className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -296,11 +291,11 @@ export default function TeachersPage() {
 
                 {/* Mobile FAB Create Button */}
                 <button
-                    onClick={() => setShowCreateModal(true)}
+                    onClick={() => setShowChoiceModal(true)}
                     className={`md:hidden fixed right-4 bottom-24 z-40 w-14 h-14 bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(247,140,16,0.3)] flex items-center justify-center group active:scale-95 transition-all duration-300 ease-out ${
                         isFabVisible ? 'translate-y-0 opacity-100 pointer-events-auto' : 'translate-y-32 opacity-0 pointer-events-none'
                     }`}
-                    aria-label="Betreuer erstellen"
+                    aria-label="Betreuer hinzufügen"
                 >
                     <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
                     <svg className="relative h-6 w-6 transition-transform duration-300 group-active:rotate-90 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -427,6 +422,71 @@ export default function TeachersPage() {
                 )}
             </div>
 
+            {/* Choice Modal - Create or Invite */}
+            <Modal
+                isOpen={showChoiceModal}
+                onClose={() => setShowChoiceModal(false)}
+                title="Betreuer hinzufügen"
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-gray-600">
+                        Wählen Sie, wie Sie einen neuen Betreuer hinzufügen möchten:
+                    </p>
+
+                    <div className="grid grid-cols-1 gap-3">
+                        {/* Manual Create Option */}
+                        <button
+                            onClick={() => {
+                                setShowChoiceModal(false);
+                                setShowCreateModal(true);
+                            }}
+                            className="group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-4 text-left transition-all duration-300 hover:border-gray-300 hover:bg-gray-50 active:scale-98"
+                        >
+                            <div className="flex items-start gap-3">
+                                <div className="rounded-lg bg-gray-100 p-2.5 transition-all duration-300 group-hover:bg-gray-200">
+                                    <svg className="h-5 w-5 text-gray-600 transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="font-semibold text-gray-900">
+                                        Manuell erstellen
+                                    </h3>
+                                    <p className="mt-1 text-sm text-gray-600">
+                                        Account direkt als Admin anlegen und Daten eingeben
+                                    </p>
+                                </div>
+                            </div>
+                        </button>
+
+                        {/* Email Invite Option */}
+                        <button
+                            onClick={() => {
+                                setShowChoiceModal(false);
+                                router.push('/invitations');
+                            }}
+                            className="group relative overflow-hidden rounded-xl border-2 border-gray-200 bg-white p-4 text-left transition-all duration-300 hover:border-gray-300 hover:bg-gray-50 active:scale-98"
+                        >
+                            <div className="flex items-start gap-3">
+                                <div className="rounded-lg bg-gray-100 p-2.5 transition-all duration-300 group-hover:bg-gray-200">
+                                    <svg className="h-5 w-5 text-gray-600 transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="font-semibold text-gray-900">
+                                        Per E-Mail einladen
+                                    </h3>
+                                    <p className="mt-1 text-sm text-gray-600">
+                                        Einladungslink per E-Mail senden - Betreuer erstellt eigenen Account
+                                    </p>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
             {/* Create Teacher Modal */}
             <TeacherCreateModal
                 isOpen={showCreateModal}
@@ -489,16 +549,7 @@ export default function TeachersPage() {
                 />
             )}
 
-            {/* Success Alert */}
-            {showSuccessAlert && (
-                <SimpleAlert
-                    type="success"
-                    message={successMessage}
-                    autoClose
-                    duration={3000}
-                    onClose={() => setShowSuccessAlert(false)}
-                />
-            )}
+            {/* Success toasts handled globally */}
         </ResponsiveLayout>
     );
 }

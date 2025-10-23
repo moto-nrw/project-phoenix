@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { getCategories, type ActivityCategory } from "~/lib/activity-api";
-import { SimpleAlert, alertAnimationStyles } from "~/components/simple/SimpleAlert";
 import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
+import { useToast } from "~/contexts/ToastContext";
 
 interface QuickCreateActivityModalProps {
   isOpen: boolean;
@@ -24,8 +24,7 @@ export function QuickCreateActivityModal({
   onClose,
   onSuccess
 }: QuickCreateActivityModalProps) {
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const { success: toastSuccess } = useToast();
   const [form, setForm] = useState<QuickCreateForm>({
     name: "",
     category_id: "",
@@ -153,8 +152,7 @@ export function QuickCreateActivityModal({
       await response.json();
       
       // Show success notification
-      setSuccessMessage(getDbOperationMessage('create', 'Aktivität', form.name.trim()));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('create', 'Aktivität', form.name.trim()));
       
       // Handle success
       if (onSuccess) {
@@ -498,20 +496,7 @@ export function QuickCreateActivityModal({
       <>
         {/* Render modal only when open */}
         {isOpen && createPortal(modalContent, document.body)}
-        {/* Success Alert - rendered independently of modal state */}
-        {showSuccessAlert && createPortal(
-          <>
-            {alertAnimationStyles}
-            <SimpleAlert
-              type="success"
-              message={successMessage}
-              autoClose
-              duration={3000}
-              onClose={() => setShowSuccessAlert(false)}
-            />
-          </>,
-          document.body
-        )}
+        {/* Success toasts handled globally */}
       </>
     );
   }

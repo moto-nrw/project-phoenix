@@ -14,6 +14,7 @@ import type { Group } from "~/lib/api";
 import type { Substitution, TeacherAvailability } from "~/lib/substitution-helpers";
 import { formatTeacherName, getTeacherStatus } from "~/lib/substitution-helpers";
 
+import { Loading } from "~/components/ui/loading";
 function SubstitutionPageContent() {
     const router = useRouter();
     const { status } = useSession({
@@ -269,12 +270,9 @@ function SubstitutionPageContent() {
 
     if (status === "loading") {
         return (
-            <div className="flex min-h-screen items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-[#5080D8]"></div>
-                    <p className="text-gray-600">Laden...</p>
-                </div>
-            </div>
+            <ResponsiveLayout>
+                <Loading fullPage={false} />
+            </ResponsiveLayout>
         );
     }
 
@@ -319,12 +317,7 @@ function SubstitutionPageContent() {
                     <h2 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">Verfügbare pädagogische Fachkräfte</h2>
 
                     {isLoading ? (
-                        <div className="py-12 text-center">
-                            <div className="flex flex-col items-center gap-4">
-                                <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-[#5080D8]"></div>
-                                <p className="text-gray-600">Suche läuft...</p>
-                            </div>
-                        </div>
+                        <Loading fullPage={false} />
                     ) : filteredTeachers.length > 0 ? (
                         <div className="space-y-3">
                             {filteredTeachers.map((teacher) => (
@@ -704,9 +697,9 @@ function SubstitutionPageContent() {
 export default function SubstitutionPage() {
     return (
         <Suspense fallback={
-            <div className="flex min-h-screen items-center justify-center">
-                <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-            </div>
+            <ResponsiveLayout>
+                <Loading fullPage={false} />
+            </ResponsiveLayout>
         }>
             <SubstitutionPageContent />
         </Suspense>

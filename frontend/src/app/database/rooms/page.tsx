@@ -6,13 +6,14 @@ import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header/types";
-import { SimpleAlert } from "@/components/simple/SimpleAlert";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { roomsConfig } from "@/lib/database/configs/rooms.config";
 import type { Room } from "@/lib/room-helpers";
 import { RoomCreateModal, RoomDetailModal, RoomEditModal } from "@/components/rooms";
+import { useToast } from "~/contexts/ToastContext";
 
+import { Loading } from "~/components/ui/loading";
 export default function RoomsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,8 +33,7 @@ export default function RoomsPage() {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const { success: toastSuccess } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -152,8 +152,7 @@ export default function RoomsPage() {
     try {
       setCreateLoading(true);
       const created = await service.create(data);
-      setSuccessMessage(getDbOperationMessage('create', roomsConfig.name.singular, created.name));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('create', roomsConfig.name.singular, created.name));
       setShowCreateModal(false);
       await fetchRooms();
     } finally {
@@ -168,8 +167,7 @@ export default function RoomsPage() {
       setDetailLoading(true);
       await service.update(selectedRoom.id, data);
       const name = selectedRoom.name;
-      setSuccessMessage(getDbOperationMessage('update', roomsConfig.name.singular, name));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('update', roomsConfig.name.singular, name));
       const refreshed = await service.getOne(selectedRoom.id);
       setSelectedRoom(refreshed);
       setShowEditModal(false);
@@ -189,8 +187,7 @@ export default function RoomsPage() {
     try {
       setDetailLoading(true);
       await service.delete(selectedRoom.id);
-      setSuccessMessage(getDbOperationMessage('delete', roomsConfig.name.singular, selectedRoom.name));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('delete', roomsConfig.name.singular, selectedRoom.name));
       setShowDetailModal(false);
       setSelectedRoom(null);
       await fetchRooms();
@@ -207,12 +204,7 @@ export default function RoomsPage() {
   if (status === "loading" || loading) {
     return (
       <ResponsiveLayout>
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-indigo-500"></div>
-            <p className="text-gray-600">Räume werden geladen...</p>
-          </div>
-        </div>
+        <Loading fullPage={false} />
       </ResponsiveLayout>
     );
   }
@@ -404,16 +396,7 @@ export default function RoomsPage() {
         />
       )}
 
-      {/* Success toast */}
-      {showSuccessAlert && (
-        <SimpleAlert
-          type="success"
-          message={successMessage}
-          autoClose
-          duration={3000}
-          onClose={() => setShowSuccessAlert(false)}
-        />
-      )}
+      {/* Success toasts are handled globally */}
     </ResponsiveLayout>
   );
 }

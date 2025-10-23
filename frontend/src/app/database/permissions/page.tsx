@@ -6,14 +6,15 @@ import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { ActiveFilter, FilterConfig } from "~/components/ui/page-header/types";
-import { SimpleAlert } from "@/components/simple/SimpleAlert";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { permissionsConfig } from "@/lib/database/configs/permissions.config";
 import type { Permission } from "@/lib/auth-helpers";
 import { PermissionCreateModal, PermissionDetailModal, PermissionEditModal } from "@/components/permissions";
 import { formatPermissionDisplay, localizeAction, localizeResource } from "@/lib/permission-labels";
+import { useToast } from "~/contexts/ToastContext";
 
+import { Loading } from "~/components/ui/loading";
 export default function PermissionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,8 +32,7 @@ export default function PermissionsPage() {
   const [selectedPermission, setSelectedPermission] = useState<Permission | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const { success: toastSuccess } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -123,8 +123,7 @@ export default function PermissionsPage() {
       setCreateLoading(true);
       const created = await service.create(data);
       const display = `${created.resource}: ${created.action}`;
-      setSuccessMessage(getDbOperationMessage('create', permissionsConfig.name.singular, display));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('create', permissionsConfig.name.singular, display));
       setShowCreateModal(false);
       await fetchPermissions();
     } finally { setCreateLoading(false); }
@@ -136,8 +135,7 @@ export default function PermissionsPage() {
       setDetailLoading(true);
       await service.update(selectedPermission.id, data);
       const display = `${selectedPermission.resource}: ${selectedPermission.action}`;
-      setSuccessMessage(getDbOperationMessage('update', permissionsConfig.name.singular, display));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('update', permissionsConfig.name.singular, display));
       const refreshed = await service.getOne(selectedPermission.id);
       setSelectedPermission(refreshed);
       setShowEditModal(false);
@@ -152,8 +150,7 @@ export default function PermissionsPage() {
       setDetailLoading(true);
       await service.delete(selectedPermission.id);
       const display = `${selectedPermission.resource}: ${selectedPermission.action}`;
-      setSuccessMessage(getDbOperationMessage('delete', permissionsConfig.name.singular, display));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('delete', permissionsConfig.name.singular, display));
       setShowDetailModal(false);
       setSelectedPermission(null);
       await fetchPermissions();
@@ -165,12 +162,7 @@ export default function PermissionsPage() {
   if (status === "loading" || loading) {
     return (
       <ResponsiveLayout>
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-indigo-600"></div>
-            <p className="text-gray-600">Berechtigungen werden geladen...</p>
-          </div>
-        </div>
+        <Loading fullPage={false} />
       </ResponsiveLayout>
     );
   }
@@ -306,9 +298,7 @@ export default function PermissionsPage() {
         />
       )}
 
-      {showSuccessAlert && (
-        <SimpleAlert type="success" message={successMessage} autoClose duration={3000} onClose={() => setShowSuccessAlert(false)} />
-      )}
+      {/* Success toasts handled globally */}
     </ResponsiveLayout>
   );
 }

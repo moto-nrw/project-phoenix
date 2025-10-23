@@ -6,13 +6,14 @@ import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header/types";
-import { SimpleAlert } from "@/components/simple/SimpleAlert";
+import { useToast } from "~/contexts/ToastContext";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { activitiesConfig } from "@/lib/database/configs/activities.config";
 import type { Activity } from "@/lib/activity-helpers";
 import { ActivityCreateModal, ActivityDetailModal, ActivityEditModal } from "@/components/activities";
 
+import { Loading } from "~/components/ui/loading";
 export default function ActivitiesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,8 +34,7 @@ export default function ActivitiesPage() {
 
   // Secondary management modals (disabled for now)
 
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const { success: toastSuccess } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -156,8 +156,7 @@ export default function ActivitiesPage() {
         data = activitiesConfig.form.transformBeforeSubmit(data);
       }
       const created = await service.create(data);
-      setSuccessMessage(getDbOperationMessage('create', activitiesConfig.name.singular, created.name));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('create', activitiesConfig.name.singular, created.name));
       setShowCreateModal(false);
       await fetchActivities();
     } finally {
@@ -175,8 +174,7 @@ export default function ActivitiesPage() {
       }
       await service.update(selectedActivity.id, data);
       const name = selectedActivity.name;
-      setSuccessMessage(getDbOperationMessage('update', activitiesConfig.name.singular, name));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('update', activitiesConfig.name.singular, name));
       const refreshed = await service.getOne(selectedActivity.id);
       setSelectedActivity(refreshed);
       setShowEditModal(false);
@@ -196,8 +194,7 @@ export default function ActivitiesPage() {
     try {
       setDetailLoading(true);
       await service.delete(selectedActivity.id);
-      setSuccessMessage(getDbOperationMessage('delete', activitiesConfig.name.singular, selectedActivity.name));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('delete', activitiesConfig.name.singular, selectedActivity.name));
       setShowDetailModal(false);
       setSelectedActivity(null);
       await fetchActivities();
@@ -216,12 +213,7 @@ export default function ActivitiesPage() {
   if (status === "loading" || loading) {
     return (
       <ResponsiveLayout>
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-[#FF3130]"></div>
-            <p className="text-gray-600">Aktivitäten werden geladen...</p>
-          </div>
-        </div>
+        <Loading fullPage={false} />
       </ResponsiveLayout>
     );
   }
@@ -404,16 +396,7 @@ export default function ActivitiesPage() {
 
       {/* Secondary management modals removed for this release */}
 
-      {/* Success toast */}
-      {showSuccessAlert && (
-        <SimpleAlert
-          type="success"
-          message={successMessage}
-          autoClose
-          duration={3000}
-          onClose={() => setShowSuccessAlert(false)}
-        />
-      )}
+      {/* Success toasts handled globally */}
     </ResponsiveLayout>
   );
 }

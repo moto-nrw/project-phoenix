@@ -3,8 +3,9 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+import { Loading } from "~/components/ui/loading";
 import Link from "next/link";
-import { Input, Alert } from "~/components/ui";
+import { Input } from "~/components/ui";
 import { confirmPasswordReset, type ApiError } from "~/lib/auth-api";
 
 function ResetPasswordForm() {
@@ -103,13 +104,13 @@ function ResetPasswordForm() {
   // Success state
   if (isSuccess) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <div className="w-full max-w-md bg-white/80 rounded-2xl shadow-xl backdrop-blur-md p-8">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+        <div className="w-full max-w-md rounded-2xl border border-gray-200/50 bg-white/90 backdrop-blur-sm p-8 shadow-sm">
           <div className="text-center">
             {/* Success Icon */}
             <div className="mx-auto h-16 w-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
               <svg
-                className="h-10 w-10 text-[#83cd2d]"
+                className="h-10 w-10 text-green-600"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -123,16 +124,14 @@ function ResetPasswordForm() {
               </svg>
             </div>
 
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">
+            <h1 className="text-2xl font-semibold text-gray-900 mb-2">
               Passwort erfolgreich geändert!
             </h1>
-            <p className="text-gray-600 mb-6">
+            <p className="text-sm text-gray-600 mb-6">
               Sie werden zur Anmeldeseite weitergeleitet...
             </p>
 
-            <div className="flex justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-            </div>
+            <Loading fullPage={false} />
           </div>
         </div>
       </div>
@@ -140,8 +139,8 @@ function ResetPasswordForm() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white/80 rounded-2xl shadow-xl backdrop-blur-md p-8">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-gray-200/50 bg-white/90 backdrop-blur-sm p-8 shadow-sm">
 
         {/* Small Logo */}
         <div className="mb-6 flex justify-center">
@@ -157,17 +156,26 @@ function ResetPasswordForm() {
 
         {/* Header */}
         <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">
+          <h1 className="text-2xl font-semibold text-gray-900 mb-2">
             Neues Passwort festlegen
           </h1>
-          <p className="text-gray-600">
+          <p className="text-sm text-gray-600">
             Bitte geben Sie Ihr neues Passwort ein.
           </p>
         </div>
 
         {/* Reset Password Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <Alert type="error" message={error} />}
+          {error && (
+            <div className="rounded-xl border border-red-200/50 bg-red-50/50 p-4">
+              <div className="flex items-start gap-3">
+                <svg className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-4">
             <div className="text-left">
@@ -293,12 +301,7 @@ function ResetPasswordForm() {
 export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
-      <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Lädt...</p>
-        </div>
-      </div>
+      <Loading fullPage={false} />
     }>
       <ResetPasswordForm />
     </Suspense>

@@ -6,14 +6,15 @@ import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header/types";
-import { SimpleAlert } from "@/components/simple/SimpleAlert";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { devicesConfig } from "@/lib/database/configs/devices.config";
 import type { Device } from "@/lib/iot-helpers";
 import { DeviceCreateModal, DeviceDetailModal, DeviceEditModal } from "@/components/devices";
 import { getDeviceTypeDisplayName } from "@/lib/iot-helpers";
+import { useToast } from "~/contexts/ToastContext";
 
+import { Loading } from "~/components/ui/loading";
 export default function DevicesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,8 +32,7 @@ export default function DevicesPage() {
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const { success: toastSuccess } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -115,8 +115,7 @@ export default function DevicesPage() {
       setCreateLoading(true);
       if (devicesConfig.form.transformBeforeSubmit) data = devicesConfig.form.transformBeforeSubmit(data);
       const created = await service.create(data);
-      setSuccessMessage(getDbOperationMessage('create', devicesConfig.name.singular, created.name ?? created.device_id));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('create', devicesConfig.name.singular, created.name ?? created.device_id));
       setShowCreateModal(false);
       // Open detail to show API key if present
       setSelectedDevice(created);
@@ -131,8 +130,7 @@ export default function DevicesPage() {
       setDetailLoading(true);
       if (devicesConfig.form.transformBeforeSubmit) data = devicesConfig.form.transformBeforeSubmit(data);
       await service.update(selectedDevice.id, data);
-      setSuccessMessage(getDbOperationMessage('update', devicesConfig.name.singular, selectedDevice.name ?? selectedDevice.device_id));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('update', devicesConfig.name.singular, selectedDevice.name ?? selectedDevice.device_id));
       const refreshed = await service.getOne(selectedDevice.id);
       setSelectedDevice(refreshed);
       setShowEditModal(false);
@@ -146,8 +144,7 @@ export default function DevicesPage() {
     try {
       setDetailLoading(true);
       await service.delete(selectedDevice.id);
-      setSuccessMessage(getDbOperationMessage('delete', devicesConfig.name.singular, selectedDevice.name ?? selectedDevice.device_id));
-      setShowSuccessAlert(true);
+      toastSuccess(getDbOperationMessage('delete', devicesConfig.name.singular, selectedDevice.name ?? selectedDevice.device_id));
       setShowDetailModal(false);
       setSelectedDevice(null);
       await fetchDevices();
@@ -159,12 +156,7 @@ export default function DevicesPage() {
   if (status === "loading" || loading) {
     return (
       <ResponsiveLayout>
-        <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-2 border-gray-200 border-t-yellow-500"></div>
-            <p className="text-gray-600">Geräte werden geladen...</p>
-          </div>
-        </div>
+        <Loading fullPage={false} />
       </ResponsiveLayout>
     );
   }
@@ -299,9 +291,7 @@ export default function DevicesPage() {
         />
       )}
 
-      {showSuccessAlert && (
-        <SimpleAlert type="success" message={successMessage} autoClose duration={3000} onClose={() => setShowSuccessAlert(false)} />
-      )}
+      {/* Success toasts are handled globally */}
     </ResponsiveLayout>
   );
 }

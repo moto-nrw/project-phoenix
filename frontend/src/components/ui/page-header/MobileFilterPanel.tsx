@@ -15,6 +15,10 @@ export function MobileFilterPanel({
   }
 
   const renderFilterOptions = (filter: FilterConfig) => {
+    const isMulti = !!filter.multiSelect;
+    const selectedValues = Array.isArray(filter.value)
+      ? filter.value
+      : (filter.value ? [filter.value] : []);
     switch (filter.type) {
       case 'buttons':
         return (
@@ -23,10 +27,19 @@ export function MobileFilterPanel({
               <button
                 key={option.value}
                 type="button"
-                onClick={() => filter.onChange(option.value)}
+                onClick={() => {
+                  if (isMulti) {
+                    const next = selectedValues.includes(option.value)
+                      ? selectedValues.filter(v => v !== option.value)
+                      : [...selectedValues, option.value];
+                    filter.onChange(next);
+                  } else {
+                    filter.onChange(option.value);
+                  }
+                }}
                 className={`
                   py-2 px-3 rounded-lg text-sm font-medium transition-all
-                  ${filter.value === option.value 
+                  ${selectedValues.includes(option.value)
                     ? 'bg-gray-900 text-white' 
                     : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                   }
@@ -45,10 +58,19 @@ export function MobileFilterPanel({
               <button
                 key={option.value}
                 type="button"
-                onClick={() => filter.onChange(option.value)}
+                onClick={() => {
+                  if (isMulti) {
+                    const next = selectedValues.includes(option.value)
+                      ? selectedValues.filter(v => v !== option.value)
+                      : [...selectedValues, option.value];
+                    filter.onChange(next);
+                  } else {
+                    filter.onChange(option.value);
+                  }
+                }}
                 className={`
                   flex items-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all
-                  ${filter.value === option.value 
+                  ${selectedValues.includes(option.value)
                     ? 'bg-gray-900 text-white' 
                     : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                   }
@@ -72,10 +94,19 @@ export function MobileFilterPanel({
               <button
                 key={option.value}
                 type="button"
-                onClick={() => filter.onChange(option.value)}
+                onClick={() => {
+                  if (isMulti) {
+                    const next = selectedValues.includes(option.value)
+                      ? selectedValues.filter(v => v !== option.value)
+                      : [...selectedValues, option.value];
+                    filter.onChange(next);
+                  } else {
+                    filter.onChange(option.value);
+                  }
+                }}
                 className={`
                   w-full text-left py-2 px-3 rounded-lg text-sm font-medium transition-all
-                  ${filter.value === option.value 
+                  ${selectedValues.includes(option.value)
                     ? 'bg-gray-900 text-white' 
                     : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                   }
@@ -83,7 +114,7 @@ export function MobileFilterPanel({
               >
                 {option.label}
                 {option.count !== undefined && (
-                  <span className={`ml-2 text-xs ${filter.value === option.value ? 'text-gray-300' : 'text-gray-500'}`}>
+                  <span className={`ml-2 text-xs ${selectedValues.includes(option.value) ? 'text-gray-300' : 'text-gray-500'}`}>
                     ({option.count})
                   </span>
                 )}

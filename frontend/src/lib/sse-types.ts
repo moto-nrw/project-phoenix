@@ -44,6 +44,7 @@ export interface SSEHookOptions {
   onError?: (error: Event) => void;
   reconnectInterval?: number;
   maxReconnectAttempts?: number;
+  enabled?: boolean; // when false, do not establish EventSource
 }
 
 export interface SSEHookState {

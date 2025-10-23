@@ -15,6 +15,7 @@ import type { SSEEvent } from "~/lib/sse-types";
 import { LocationBadge } from "~/components/simple/student/LocationBadge";
 import { mapLocationStatus } from "~/lib/student-location-helpers";
 import { getLocationCardVisuals } from "~/lib/student-location-visuals";
+import { Loading } from "~/components/ui/loading";
 
 function SearchPageContent() {
   const { status } = useSession();
@@ -287,22 +288,15 @@ function SearchPageContent() {
   });
 
   if (status === "loading") {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-          <p className="text-gray-600">Daten werden geladen...</p>
-        </div>
-      </div>
-    );
+    return <Loading />;
   }
 
   return (
     <ResponsiveLayout>
       <div className="w-full -mt-1.5">
-        {/* PageHeaderWithSearch - No title */}
+        {/* PageHeaderWithSearch - With Suche title */}
         <PageHeaderWithSearch
-          title=""
+          title="Suche"
           badge={{
             icon: (
               <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -336,12 +330,7 @@ function SearchPageContent() {
 
         {/* Student Grid - Mobile Optimized with Playful Design */}
         {isSearching ? (
-          <div className="py-12 text-center">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-              <p className="text-gray-600">Suche läuft...</p>
-            </div>
-          </div>
+          <Loading fullPage={false} />
         ) : filteredStudents.length === 0 ? (
           <div className="py-12 text-center">
             <div className="flex flex-col items-center gap-4">
@@ -374,7 +363,7 @@ function SearchPageContent() {
                     key={student.id}
                     onClick={() => router.push(`/students/${student.id}?from=/students/search`)}
                     className={clsx(
-                      "group cursor-pointer relative overflow-hidden rounded-2xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.03] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-3 active:scale-[0.97]",
+                      "group cursor-pointer relative overflow-hidden rounded-2xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.03] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-3 active:scale-[0.97] md:hover:border-[#5080D8]/30",
                       locationVisuals.hoverBorderClass,
                     )}
                     style={{
@@ -479,9 +468,9 @@ function SearchPageContent() {
 export default function StudentSearchPage() {
   return (
     <Suspense fallback={
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-      </div>
+      <ResponsiveLayout>
+        <Loading fullPage={false} />
+      </ResponsiveLayout>
     }>
       <SearchPageContent />
     </Suspense>
