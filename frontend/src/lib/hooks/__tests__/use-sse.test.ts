@@ -1,4 +1,5 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
+import { waitFor } from "@testing-library/dom";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { useSSE } from "../use-sse";
 import type { SSEEvent } from "../../sse-types";
