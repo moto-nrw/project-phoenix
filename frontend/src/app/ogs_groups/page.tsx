@@ -274,29 +274,29 @@ function OGSGroupPageContent() {
         switch (attendanceFilter) {
           case "in_room":
             // Student in their group room
-            if (!locationStatus || locationStatus.state !== "PRESENT_IN_ROOM" || !locationStatus.room?.isGroupRoom) {
+            if (locationStatus?.state !== "PRESENT_IN_ROOM" || !locationStatus.room?.isGroupRoom) {
               return false;
             }
             break;
           case "foreign_room":
             // Student in a room but NOT their group room
-            if (!locationStatus || locationStatus.state !== "PRESENT_IN_ROOM" || locationStatus.room?.isGroupRoom !== false) {
+            if (locationStatus?.state !== "PRESENT_IN_ROOM" || locationStatus.room?.isGroupRoom !== false) {
               return false;
             }
             break;
           case "in_house":
             // Student is in transit (checked in but between rooms)
-            if (!locationStatus || locationStatus.state !== "TRANSIT") {
+            if (locationStatus?.state !== "TRANSIT") {
               return false;
             }
             break;
           case "school_yard":
-            if (!locationStatus || locationStatus.state !== "SCHOOLYARD") {
+            if (locationStatus?.state !== "SCHOOLYARD") {
               return false;
             }
             break;
           case "at_home":
-            if (!locationStatus || locationStatus.state !== "HOME") {
+            if (locationStatus?.state !== "HOME") {
               return false;
             }
             break;
