@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+# Find project root (where .git directory is)
+project_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+cd "${project_root}"
+
 # Read JSON input from stdin
 input=$(</dev/stdin)
 

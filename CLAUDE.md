@@ -642,9 +642,7 @@ The system integrates with RFID readers for student tracking:
 - Devices authenticate via API endpoints with two-layer auth (device API key + teacher PIN)
 - Student check-in/check-out tracked in `active_visits` table
 - Room occupancy calculated from active sessions
-- Implementation guide: `/RFID_IMPLEMENTATION_GUIDE.md` (comprehensive workflows and API specs)
-- Device setup docs: `backend/docs/rfid-integration-guide.md`
-- Example flows: `backend/docs/rfid-examples.md`
+- See Bruno API tests in `bruno/` for RFID workflow examples
 
 ### PIN Architecture (Simplified)
 The system uses a simplified PIN architecture for RFID device authentication:
