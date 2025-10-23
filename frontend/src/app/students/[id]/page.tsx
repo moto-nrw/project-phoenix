@@ -213,7 +213,7 @@ export default function StudentDetailPage() {
 
                         if (locationData?.location_status) {
                             setStudent((prev) =>
-                                prev ? { ...prev, location_status: locationData.location_status } : prev,
+                                prev ? { ...prev, location_status: locationData.location_status ?? undefined } : prev,
                             );
                         }
                     }

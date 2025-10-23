@@ -167,8 +167,10 @@ export function StudentDetailModal({
             void fetchCurrentLocation();
         }
 
+        // Cleanup: stop polling when modal closes or SSE reconnects
+        // Note: We check the status at cleanup time, not when effect runs
         return () => {
-            if (pollingRef.current && (!isOpen || sseStatus === "connected")) {
+            if (pollingRef.current && !isOpen) {
                 clearInterval(pollingRef.current);
                 pollingRef.current = null;
             }

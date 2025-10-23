@@ -18,6 +18,7 @@ import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import type { SSEEvent } from "~/lib/sse-types";
 import { LocationBadge } from "~/components/simple/student/LocationBadge";
 import { mapLocationStatus } from "~/lib/student-location-helpers";
+import { fetchStudent } from "~/lib/student-api";
 
 // Extended student interface that includes visit information
 interface StudentWithVisit extends Student {
@@ -183,9 +184,9 @@ function MeinRaumPageContent() {
         ? new Date(event.timestamp)
         : new Date();
       void fetchStudent(studentId)
-        .then((studentData) => {
+        .then((studentData: Student) => {
           const mappedStatus =
-            mapLocationStatus(event.data?.location_status) ??
+            mapLocationStatus(event.data?.location_status ?? null) ??
             studentData.location_status ??
             null;
           let didAdd = false;
@@ -199,10 +200,10 @@ function MeinRaumPageContent() {
                   location_status: mappedStatus ?? undefined,
                   in_house: mappedStatus
                     ? mappedStatus.state !== "HOME"
-                    : studentData.in_house,
+                    : studentData.in_house ?? false,
                   school_yard: mappedStatus
                     ? mappedStatus.state === "SCHOOLYARD"
-                    : studentData.school_yard,
+                    : studentData.school_yard ?? false,
                   activeGroupId: activeRoom.id,
                   checkInTime: timestamp,
                 },
@@ -217,10 +218,10 @@ function MeinRaumPageContent() {
               location_status: mappedStatus ?? undefined,
               in_house: mappedStatus
                 ? mappedStatus.state !== "HOME"
-                : studentData.in_house,
+                : studentData.in_house ?? false,
               school_yard: mappedStatus
                 ? mappedStatus.state === "SCHOOLYARD"
-                : studentData.school_yard,
+                : studentData.school_yard ?? false,
               activeGroupId: activeRoom.id,
               checkInTime: timestamp,
             };
@@ -248,7 +249,7 @@ function MeinRaumPageContent() {
             );
           }
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           console.error("Error fetching student after check-in:", error);
         });
       return;
@@ -309,6 +310,9 @@ function MeinRaumPageContent() {
 
         const next = [...prev];
         const current = next[existingIndex];
+        if (!current) {
+          return prev;
+        }
         next[existingIndex] = {
           ...current,
           location_status: mappedStatus ?? undefined,
