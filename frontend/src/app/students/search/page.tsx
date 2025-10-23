@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, Suspense, useMemo } from "react";
+import clsx from "clsx";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
@@ -13,6 +14,7 @@ import { useSSE } from "~/lib/hooks/use-sse";
 import type { SSEEvent } from "~/lib/sse-types";
 import { LocationBadge } from "~/components/simple/student/LocationBadge";
 import { mapLocationStatus } from "~/lib/student-location-helpers";
+import { getLocationCardVisuals } from "~/lib/student-location-visuals";
 
 function SearchPageContent() {
   const { status } = useSession();
@@ -363,20 +365,37 @@ function SearchPageContent() {
             `}</style>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3 gap-6">
               {filteredStudents.map((student, index) => {
+                const locationVisuals = getLocationCardVisuals(
+                  student.location_status ?? null,
+                );
+
                 return (
                   <div
                     key={student.id}
                     onClick={() => router.push(`/students/${student.id}?from=/students/search`)}
-                    className={`group cursor-pointer relative overflow-hidden rounded-2xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.03] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-3 active:scale-[0.97] md:hover:border-blue-200/50`}
+                    className={clsx(
+                      "group cursor-pointer relative overflow-hidden rounded-2xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.03] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-3 active:scale-[0.97]",
+                      locationVisuals.hoverBorderClass,
+                    )}
                     style={{
                       transform: `rotate(${(index % 3 - 1) * 0.8}deg)`,
                       animation: `float 8s ease-in-out infinite ${index * 0.7}s`
                     }}
                   >
+                    {/* Ambient gradient overlay */}
+                    <div
+                      className="absolute inset-0 rounded-2xl opacity-[0.07]"
+                      style={locationVisuals.overlayStyle}
+                    ></div>
                     {/* Subtle inner glow */}
                     <div className="absolute inset-px rounded-2xl bg-gradient-to-br from-white/80 to-white/20"></div>
                     {/* Modern border highlight */}
-                    <div className="absolute inset-0 rounded-2xl ring-1 ring-white/20 md:group-hover:ring-blue-200/60 transition-all duration-300"></div>
+                    <div
+                      className={clsx(
+                        "absolute inset-0 rounded-2xl ring-1 ring-white/20 transition-all duration-300",
+                        locationVisuals.hoverRingClass,
+                      )}
+                    ></div>
                     
 
                     <div className="relative p-6">
@@ -400,7 +419,11 @@ function SearchPageContent() {
 
                         {/* Location Status Badge */}
                         <div className="ml-3 flex-shrink-0">
-                          <LocationBadge locationStatus={student.location_status ?? null} />
+                          <LocationBadge
+                            locationStatus={student.location_status ?? null}
+                            className={locationVisuals.badgeClassName}
+                            style={locationVisuals.badgeStyle}
+                          />
                         </div>
                       </div>
 
@@ -435,7 +458,12 @@ function SearchPageContent() {
                     </div>
 
                     {/* Glowing border effect */}
-                    <div className="absolute inset-0 rounded-2xl opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent via-blue-100/30 to-transparent"></div>
+                    <div
+                      className={clsx(
+                        "absolute inset-0 rounded-2xl opacity-0 md:group-hover:opacity-100 transition-opacity duration-300",
+                        locationVisuals.glowClassName,
+                      )}
+                    ></div>
                   </div>
                 );
               })}

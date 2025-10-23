@@ -141,6 +141,7 @@ export function getStudentLocationBadge(
         colorToken: "#6B7280",
         gradientToken: "linear-gradient(135deg, #9CA3AF 0%, #4B5563 100%)",
         textClass: "text-white",
+        icon: "question",
       });
   }
 }

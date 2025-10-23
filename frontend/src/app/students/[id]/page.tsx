@@ -12,6 +12,7 @@ import { ModernContactActions } from "~/components/simple/student";
 import { ScheduledCheckoutModal } from "~/components/scheduled-checkout/scheduled-checkout-modal";
 import { ScheduledCheckoutInfo } from "~/components/scheduled-checkout/scheduled-checkout-info";
 import { LocationBadge } from "~/components/simple/student/LocationBadge";
+import { getLocationCardVisuals } from "~/lib/student-location-visuals";
 
 // Guardian type for multiple guardians
 interface Guardian {
@@ -100,6 +101,8 @@ export default function StudentDetailPage() {
     const [editedStudent, setEditedStudent] = useState<ExtendedStudent | null>(null);
     const [editedGuardians, setEditedGuardians] = useState<Guardian[]>([]);
     const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+    const locationBadgeVisuals = getLocationCardVisuals(student?.location_status ?? null);
 
     // Fetch student data
     useEffect(() => {
@@ -339,7 +342,11 @@ export default function StudentDetailPage() {
                             </div>
                         </div>
                         <div className="flex-shrink-0">
-                            <LocationBadge locationStatus={student?.location_status ?? null} />
+                            <LocationBadge
+                                locationStatus={student?.location_status ?? null}
+                                className={locationBadgeVisuals.badgeClassName}
+                                style={locationBadgeVisuals.badgeStyle}
+                            />
                         </div>
                     </div>
                 </div>

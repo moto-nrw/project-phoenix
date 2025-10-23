@@ -6,6 +6,7 @@ import { getStudentLocationBadge } from "~/lib/student-location-helpers";
 export interface LocationBadgeProps {
   locationStatus: StudentLocationStatus | null;
   className?: string;
+  style?: CSSProperties;
 }
 
 /**
@@ -17,15 +18,16 @@ export interface LocationBadgeProps {
 export function LocationBadge({
   locationStatus,
   className = "",
+  style: styleProp,
 }: LocationBadgeProps) {
   const badgeConfig = getStudentLocationBadge(locationStatus);
 
-  const style: CSSProperties = {
+  const computedStyle: CSSProperties = {
     backgroundColor: badgeConfig.colorToken,
   };
 
   if (badgeConfig.gradientToken) {
-    style.backgroundImage = badgeConfig.gradientToken;
+    computedStyle.backgroundImage = badgeConfig.gradientToken;
   }
 
   return (
@@ -35,7 +37,7 @@ export function LocationBadge({
         badgeConfig.textClass,
         className,
       )}
-      style={style}
+      style={{ ...computedStyle, ...styleProp }}
     >
       {badgeConfig.label}
     </span>

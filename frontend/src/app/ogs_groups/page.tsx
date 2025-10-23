@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
+import clsx from "clsx";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
@@ -12,8 +13,10 @@ import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
 import { useSSE } from "~/lib/hooks/use-sse";
 import type { SSEEvent } from "~/lib/sse-types";
+import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { LocationBadge } from "~/components/simple/student/LocationBadge";
 import { mapLocationStatus } from "~/lib/student-location-helpers";
+import { getLocationCardVisuals } from "~/lib/student-location-visuals";
 
 // Define OGSGroup type based on EducationalGroup with additional fields
 interface OGSGroup {
@@ -622,18 +625,35 @@ function OGSGroupPageContent() {
           <div>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
               {filteredStudents.map((student) => {
+                const locationVisuals = getLocationCardVisuals(
+                  student.location_status ?? null,
+                );
+
                 return (
                   <div
                     key={student.id}
                     onClick={() =>
                       router.push(`/students/${student.id}?from=/ogs_groups`)
                     }
-                    className={`group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-blue-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
+                    className={clsx(
+                      "group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]",
+                      locationVisuals.hoverBorderClass,
+                    )}
                   >
+                    {/* Ambient gradient overlay */}
+                    <div
+                      className="absolute inset-0 rounded-3xl opacity-[0.07]"
+                      style={locationVisuals.overlayStyle}
+                    ></div>
                     {/* Subtle inner glow */}
                     <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
                     {/* Modern border highlight */}
-                    <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
+                    <div
+                      className={clsx(
+                        "absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300",
+                        locationVisuals.hoverRingClass,
+                      )}
+                    ></div>
 
                     <div className="relative p-6">
                       {/* Header with student name */}
@@ -666,7 +686,11 @@ function OGSGroupPageContent() {
 
                         {/* Status Badge */}
                         <div className="ml-3 flex-shrink-0">
-                          <LocationBadge locationStatus={student.location_status ?? null} />
+                          <LocationBadge
+                            locationStatus={student.location_status ?? null}
+                            className={locationVisuals.badgeClassName}
+                            style={locationVisuals.badgeStyle}
+                          />
                         </div>
                       </div>
 
@@ -683,7 +707,12 @@ function OGSGroupPageContent() {
                     </div>
 
                     {/* Glowing border effect */}
-                    <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+                    <div
+                      className={clsx(
+                        "absolute inset-0 rounded-3xl opacity-0 transition-opacity duration-300 md:group-hover:opacity-100",
+                        locationVisuals.glowClassName,
+                      )}
+                    ></div>
                   </div>
                 );
               })}
@@ -735,7 +764,9 @@ export default function OGSGroupPage() {
         </div>
       }
     >
-      <OGSGroupPageContent />
+      <SSEErrorBoundary>
+        <OGSGroupPageContent />
+      </SSEErrorBoundary>
     </Suspense>
   );
 }
