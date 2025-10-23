@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+# Find project root (where .git directory is)
+project_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+cd "${project_root}"
+
 # Read JSON input from stdin
 input=$(</dev/stdin)
 
@@ -20,7 +24,9 @@ fi
 # Determine if we're in frontend directory
 if [[ "${file_path}" == *"/frontend/"* ]]; then
   # Run prettier from frontend directory
-  (cd frontend && npx prettier --write "../${file_path}" --cache 2>/dev/null) || true
+  # Extract the relative path from project root
+  relative_path="${file_path#${project_root}/}"
+  (cd frontend && npx prettier --write "../${relative_path}" --cache 2>/dev/null) || true
   echo "✓ Formatted TypeScript file: ${file_path}"
 else
   echo "⚠ Skipped: Not in frontend directory" >&2
