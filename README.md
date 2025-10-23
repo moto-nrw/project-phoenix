@@ -315,7 +315,6 @@ go run main.go gendoc          # Generate all documentation
 This creates:
 - `backend/routes.md` - Complete route documentation
 - `backend/docs/openapi.yaml` - OpenAPI 3.0 specification
-- `docs/email-templates.md` - Email template structure, variables, and branding guidance
 
 ### Key API Endpoints
 - **Authentication**: `/api/auth/login`, `/api/auth/token`
@@ -326,9 +325,7 @@ This creates:
 - **Active Sessions**: `/api/active/groups`, `/api/active/visits`
 
 ### RFID Integration
-Detailed RFID integration documentation is available at:
-- `backend/docs/rfid-integration-guide.md`
-- `backend/docs/rfid-examples.md`
+RFID devices authenticate using two-layer auth (device API key + teacher PIN) and track student check-ins/check-outs. See Bruno API tests in `bruno/` for workflow examples and the IoT API endpoints in `backend/api/iot/`.
 
 ## Deployment
 
