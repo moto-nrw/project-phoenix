@@ -60,7 +60,7 @@ export interface BackendStudentLocationStatus {
 export interface StudentLocationBadgeConfig {
   label: string;
   colorToken: string;
-  gradientToken: string;
+  shadow: string;
   textClass: string;
 }
 
@@ -113,7 +113,7 @@ export function getStudentLocationBadge(
   ): StudentLocationBadgeConfig => ({
     label,
     colorToken: theme.colorToken,
-    gradientToken: theme.gradientToken,
+    shadow: theme.shadow,
     textClass: theme.textClass,
   });
 
@@ -139,8 +139,8 @@ export function getStudentLocationBadge(
     default:
       return buildConfig("Unbekannt", {
         colorToken: "#6B7280",
-        gradientToken: "linear-gradient(135deg, #9CA3AF 0%, #4B5563 100%)",
-        textClass: "text-white",
+        shadow: "0 8px 25px rgba(107, 114, 128, 0.4)",
+        textClass: "text-white backdrop-blur-sm",
         icon: "question",
       });
   }

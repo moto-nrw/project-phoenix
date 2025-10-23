@@ -10,13 +10,13 @@ export type StudentLocationBadgeTokenKey =
 
 export interface StudentLocationBadgeThemeEntry {
   /**
-   * Solid fallback color (hex or CSS var) used when gradients are not supported.
+   * Solid background color (hex or CSS var).
    */
   colorToken: string;
   /**
-   * Gradient definition applied as background-image. May reuse the solid color.
+   * Box shadow definition for depth effect.
    */
-  gradientToken: string;
+  shadow: string;
   /**
    * Icon identifier (kept as string so rendering implementation can decide how to map it).
    */
@@ -33,33 +33,33 @@ export const STUDENT_LOCATION_BADGE_TOKENS: Record<
 > = {
   groupRoom: {
     colorToken: "#83CD2D",
-    gradientToken: "linear-gradient(135deg, #83CD2D 0%, #64B225 100%)",
+    shadow: "0 8px 25px rgba(131, 205, 45, 0.4)",
     icon: "home",
-    textClass: "text-white",
+    textClass: "text-white backdrop-blur-sm",
   },
   otherRoom: {
     colorToken: "#5080D8",
-    gradientToken: "linear-gradient(135deg, #6A99F0 0%, #3A66C4 100%)",
+    shadow: "0 8px 25px rgba(80, 128, 216, 0.4)",
     icon: "door-open",
-    textClass: "text-white",
+    textClass: "text-white backdrop-blur-sm",
   },
   transit: {
     colorToken: "#D946EF",
-    gradientToken: "linear-gradient(135deg, #D946EF 0%, #A21CAF 100%)",
+    shadow: "0 8px 25px rgba(217, 70, 239, 0.4)",
     icon: "bus",
-    textClass: "text-white",
+    textClass: "text-white backdrop-blur-sm",
   },
   schoolyard: {
     colorToken: "#F78C10",
-    gradientToken: "linear-gradient(135deg, #FDBA74 0%, #F97316 100%)",
+    shadow: "0 8px 25px rgba(247, 140, 16, 0.4)",
     icon: "trees",
-    textClass: "text-white",
+    textClass: "text-white backdrop-blur-sm",
   },
   home: {
     colorToken: "#FF3130",
-    gradientToken: "linear-gradient(135deg, #FF6B6B 0%, #E11D48 100%)",
+    shadow: "0 8px 25px rgba(255, 49, 48, 0.4)",
     icon: "house",
-    textClass: "text-white",
+    textClass: "text-white backdrop-blur-sm",
   },
 } as const;
 

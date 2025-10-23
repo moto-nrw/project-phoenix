@@ -281,10 +281,10 @@ export const userContextService = {
                 }
 
                 const responseData = await response.json() as ApiResponse<BackendActiveGroup[]>;
-                return responseData.data.map(mapActiveGroupResponse);
+                return (responseData.data ?? []).map(mapActiveGroupResponse);
             } else {
                 const response = await api.get<ApiResponse<BackendActiveGroup[]>>(url);
-                return response.data.data.map(mapActiveGroupResponse);
+                return (response.data.data ?? []).map(mapActiveGroupResponse);
             }
         } catch (error) {
             console.error("Get supervised groups error:", error);

@@ -13,7 +13,8 @@ export interface LocationBadgeProps {
  * Unified LocationBadge component that displays student location
  * using structured LocationStatus data.
  *
- * Replaces legacy StatusBadge and ModernStatusBadge components.
+ * Styled to match the original ModernStatusBadge design with
+ * pulsing indicator, solid colors, and shadows.
  */
 export function LocationBadge({
   locationStatus,
@@ -24,21 +25,20 @@ export function LocationBadge({
 
   const computedStyle: CSSProperties = {
     backgroundColor: badgeConfig.colorToken,
+    boxShadow: badgeConfig.shadow,
+    ...styleProp,
   };
-
-  if (badgeConfig.gradientToken) {
-    computedStyle.backgroundImage = badgeConfig.gradientToken;
-  }
 
   return (
     <span
       className={clsx(
-        "inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-300",
+        "inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold transition-all duration-300",
         badgeConfig.textClass,
         className,
       )}
-      style={{ ...computedStyle, ...styleProp }}
+      style={computedStyle}
     >
+      <span className="mr-2 h-2 w-2 animate-pulse rounded-full bg-white/80"></span>
       {badgeConfig.label}
     </span>
   );
