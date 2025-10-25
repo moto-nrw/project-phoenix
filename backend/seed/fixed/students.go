@@ -120,9 +120,7 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 
 			_, err = s.tx.NewInsert().Model(relationship).
 				ModelTableExpr("users.students_guardians").
-				On("CONFLICT (student_id, guardian_id, relationship_type) DO UPDATE").
-				Set("is_primary = EXCLUDED.is_primary").
-				Set("updated_at = EXCLUDED.updated_at").
+				On("CONFLICT (student_id, guardian_id, relationship_type) DO NOTHING").
 				Exec(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to create student-guardian relationship for student %d: %w", student.ID, err)
@@ -209,7 +207,7 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 	var guardians []*users.Guardian
 	err := s.tx.NewSelect().
 		Model(&guardians).
-		ModelTableExpr("users.guardians").
+		ModelTableExpr(`users.guardians AS "guardian"`).
 		Scan(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to fetch guardians: %w", err)

@@ -57,7 +57,7 @@ func usersGuardiansUp(ctx context.Context, db *bun.DB) error {
 			last_name TEXT NOT NULL,
 			phone TEXT NOT NULL,
 			phone_secondary TEXT,
-			email TEXT NOT NULL,
+			email TEXT NOT NULL UNIQUE,
 			address TEXT,
 			city TEXT,
 			postal_code TEXT,
@@ -78,9 +78,9 @@ func usersGuardiansUp(ctx context.Context, db *bun.DB) error {
 	}
 
 	// Create indexes for guardians
+	// Note: email index not needed - UNIQUE constraint automatically creates index
 	_, err = tx.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_guardians_account_id ON users.guardians(account_id);
-		CREATE INDEX IF NOT EXISTS idx_guardians_email ON users.guardians(email);
 		CREATE INDEX IF NOT EXISTS idx_guardians_phone ON users.guardians(phone);
 		CREATE INDEX IF NOT EXISTS idx_guardians_last_name ON users.guardians(last_name);
 		CREATE INDEX IF NOT EXISTS idx_guardians_active ON users.guardians(active);
