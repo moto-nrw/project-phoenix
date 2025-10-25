@@ -329,9 +329,58 @@ function StudentPageContent() {
         }]);
     };
 
-    // Remove a guardian
-    const handleRemoveGuardian = (index: number) => {
-        setEditedGuardians(editedGuardians.filter((_, i) => i !== index));
+    // Remove a guardian - Delete immediately from database
+    const handleRemoveGuardian = async (index: number) => {
+        const guardian = editedGuardians[index];
+        if (!guardian) return;
+
+        // If guardian has an ID, it exists in database - confirm deletion
+        if (guardian.id > 0) {
+            if (!confirm(`Möchten Sie ${guardian.first_name} ${guardian.last_name} wirklich löschen?`)) {
+                return;
+            }
+
+            try {
+                // Delete from database
+                const response = await fetch(`/api/students/${studentId}/guardians/${guardian.id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to delete guardian');
+                }
+
+                setAlertMessage({ type: 'success', message: 'Erziehungsberechtigte/r erfolgreich gelöscht' });
+                setTimeout(() => setAlertMessage(null), 3000);
+
+                // Remove from local state
+                setEditedGuardians(editedGuardians.filter((_, i) => i !== index));
+
+                // Refresh student data to get updated guardians list
+                const studentResponse = await studentService.getStudent(studentId);
+                interface WrappedResponse {
+                    data?: unknown;
+                }
+                const wrappedResponse = studentResponse as WrappedResponse;
+                const studentData = wrappedResponse.data ?? studentResponse;
+                const mappedStudent = studentData as Student & {
+                    guardians?: Guardian[];
+                };
+
+                if (student) {
+                    const guardians: Guardian[] = mappedStudent.guardians ?? [];
+                    setStudent({ ...student, guardians });
+                    setEditedGuardians(guardians);
+                }
+            } catch (error) {
+                console.error('Failed to delete guardian:', error);
+                setAlertMessage({ type: 'error', message: 'Fehler beim Löschen der Erziehungsberechtigten' });
+                setTimeout(() => setAlertMessage(null), 3000);
+            }
+        } else {
+            // New guardian not yet saved - just remove from local state
+            setEditedGuardians(editedGuardians.filter((_, i) => i !== index));
+        }
     };
 
     // Update guardian field
