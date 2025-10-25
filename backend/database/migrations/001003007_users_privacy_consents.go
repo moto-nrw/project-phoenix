@@ -142,17 +142,23 @@ func usersPrivacyConsentsUp(ctx context.Context, db *bun.DB) error {
 	}
 
 	// Create view for expired consents
+	// NOTE: Uses new guardian structure via students_guardians join table
+	// Displays primary guardian contact information for consent renewal notifications
 	_, err = tx.ExecContext(ctx, `
 		CREATE OR REPLACE VIEW users.expired_privacy_consents AS
-		SELECT 
+		SELECT
 			pc.*,
-			s.person_id, 
-			s.guardian_name,
-			s.guardian_email,
-			s.guardian_phone
+			s.person_id,
+			-- Guardian information from the guardians table via students_guardians
+			g.id AS guardian_id,
+			CONCAT(g.first_name, ' ', g.last_name) AS guardian_name,
+			g.email AS guardian_email,
+			g.phone AS guardian_phone
 		FROM users.privacy_consents pc
 		JOIN users.students s ON pc.student_id = s.id
-		WHERE pc.expires_at < CURRENT_TIMESTAMP 
+		LEFT JOIN users.students_guardians sg ON s.id = sg.student_id AND sg.is_primary = true
+		LEFT JOIN users.guardians g ON sg.guardian_id = g.id
+		WHERE pc.expires_at < CURRENT_TIMESTAMP
 		  AND pc.accepted = TRUE
 		  AND pc.renewal_required = TRUE;
 	`)
