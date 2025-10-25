@@ -19,7 +19,7 @@ func init() {
 	MigrationRegistry[UsersGuardiansVersion] = &Migration{
 		Version:     UsersGuardiansVersion,
 		Description: UsersGuardiansDescription,
-		DependsOn:   []string{"1.3.6"}, // Depends on students_guardians table
+		DependsOn:   []string{"1.0.9"}, // Depends on accounts_parents table
 	}
 
 	// Migration 1.4.1: Create users.guardians table
