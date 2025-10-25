@@ -1,7 +1,7 @@
 import { createGetHandler, createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
 
 export const GET = createGetHandler(async (request, token, params) => {
-  const { id } = await params;
+  const id = params.id as string;
 
   const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/guardians/${id}`, {
     headers: {
@@ -16,9 +16,8 @@ export const GET = createGetHandler(async (request, token, params) => {
   return response.json();
 });
 
-export const PUT = createPutHandler(async (request, token, params) => {
-  const { id } = await params;
-  const body = await request.json();
+export const PUT = createPutHandler(async (request, body, token, params) => {
+  const id = params.id as string;
 
   const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/guardians/${id}`, {
     method: "PUT",
@@ -37,7 +36,7 @@ export const PUT = createPutHandler(async (request, token, params) => {
 });
 
 export const DELETE = createDeleteHandler(async (request, token, params) => {
-  const { id } = await params;
+  const id = params.id as string;
 
   const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/guardians/${id}`, {
     method: "DELETE",

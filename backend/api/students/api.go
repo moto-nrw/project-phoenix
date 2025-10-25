@@ -89,6 +89,12 @@ func (rs *Resource) Router() chi.Router {
 		// Privacy consent routes
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/privacy-consent", rs.getStudentPrivacyConsent)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/privacy-consent", rs.updateStudentPrivacyConsent)
+
+		// Guardian routes - Teachers can manage guardians with UsersUpdate permission
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/guardians", rs.getStudentGuardians)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Post("/{id}/guardians", rs.createStudentGuardian)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/guardians/{guardianId}", rs.updateStudentGuardian)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Delete("/{id}/guardians/{guardianId}", rs.deleteStudentGuardian)
 	})
 
 	// Device-authenticated routes for RFID devices
@@ -124,6 +130,7 @@ type StudentResponse struct {
 	ExtraInfo         string                 `json:"extra_info,omitempty"`
 	HealthInfo        string                 `json:"health_info,omitempty"`
 	SupervisorNotes   string                 `json:"supervisor_notes,omitempty"`
+	Guardians         []GuardianResponse     `json:"guardians,omitempty"` // All guardians for this student
 	CreatedAt         time.Time              `json:"created_at"`
 	UpdatedAt         time.Time              `json:"updated_at"`
 }
@@ -354,6 +361,33 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 			response.GuardianContact = primaryGuardian.Phone
 			response.GuardianEmail = primaryGuardian.Email
 			response.GuardianPhone = primaryGuardian.Phone
+		}
+	}
+
+	// Load all guardians for this student
+	if hasFullAccess {
+		relationships, err := studentGuardianRepo.FindByStudentID(ctx, student.ID)
+		if err == nil && len(relationships) > 0 {
+			guardians := make([]GuardianResponse, 0, len(relationships))
+			for _, rel := range relationships {
+				guardian, err := guardianRepo.FindByID(ctx, rel.GuardianID)
+				if err == nil && guardian != nil {
+					guardians = append(guardians, GuardianResponse{
+						ID:                 guardian.ID,
+						FirstName:          guardian.FirstName,
+						LastName:           guardian.LastName,
+						Email:              guardian.Email,
+						Phone:              guardian.Phone,
+						RelationshipType:   rel.RelationshipType,
+						IsPrimary:          rel.IsPrimary,
+						IsEmergencyContact: rel.IsEmergencyContact,
+						CanPickup:          rel.CanPickup,
+						CreatedAt:          guardian.CreatedAt,
+						UpdatedAt:          guardian.UpdatedAt,
+					})
+				}
+			}
+			response.Guardians = guardians
 		}
 	}
 
@@ -1811,4 +1845,300 @@ func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Reques
 	}
 
 	common.Respond(w, r, http.StatusOK, todaysVisits, "Visit history retrieved successfully")
+}
+
+// getStudentGuardians retrieves all guardians for a student
+func (rs *Resource) getStudentGuardians(w http.ResponseWriter, r *http.Request) {
+	// Parse student ID from URL
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get all guardian relationships for this student
+	relationships, err := rs.StudentGuardianRepo.FindByStudentID(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get student guardians"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Build guardian responses
+	guardians := make([]GuardianResponse, 0, len(relationships))
+	for _, rel := range relationships {
+		guardian, err := rs.GuardianRepo.FindByID(r.Context(), rel.GuardianID)
+		if err == nil && guardian != nil {
+			guardians = append(guardians, GuardianResponse{
+				ID:                 guardian.ID,
+				FirstName:          guardian.FirstName,
+				LastName:           guardian.LastName,
+				Email:              guardian.Email,
+				Phone:              guardian.Phone,
+				RelationshipType:   rel.RelationshipType,
+				IsPrimary:          rel.IsPrimary,
+				IsEmergencyContact: rel.IsEmergencyContact,
+				CanPickup:          rel.CanPickup,
+				CreatedAt:          guardian.CreatedAt,
+				UpdatedAt:          guardian.UpdatedAt,
+			})
+		}
+	}
+
+	common.Respond(w, r, http.StatusOK, guardians, "Guardians retrieved successfully")
+}
+
+// createStudentGuardian creates a new guardian for a student
+func (rs *Resource) createStudentGuardian(w http.ResponseWriter, r *http.Request) {
+	// Parse student ID from URL
+	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Parse request body
+	var req struct {
+		FirstName          string `json:"first_name"`
+		LastName           string `json:"last_name"`
+		Email              string `json:"email"`
+		Phone              string `json:"phone"`
+		RelationshipType   string `json:"relationship_type"`
+		IsPrimary          bool   `json:"is_primary"`
+		IsEmergencyContact bool   `json:"is_emergency_contact"`
+		CanPickup          bool   `json:"can_pickup"`
+	}
+
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Create guardian record
+	guardian := &users.Guardian{
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+		Email:     req.Email,
+		Phone:     req.Phone,
+		Active:    true,
+	}
+
+	if err := rs.GuardianRepo.Create(r.Context(), guardian); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to create guardian"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Create student-guardian relationship
+	relationship := &users.StudentGuardian{
+		StudentID:          studentID,
+		GuardianID:         guardian.ID,
+		RelationshipType:   req.RelationshipType,
+		IsPrimary:          req.IsPrimary,
+		IsEmergencyContact: req.IsEmergencyContact,
+		CanPickup:          req.CanPickup,
+	}
+
+	if err := rs.StudentGuardianRepo.Create(r.Context(), relationship); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to create guardian relationship"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Build response
+	response := GuardianResponse{
+		ID:                 guardian.ID,
+		FirstName:          guardian.FirstName,
+		LastName:           guardian.LastName,
+		Email:              guardian.Email,
+		Phone:              guardian.Phone,
+		RelationshipType:   relationship.RelationshipType,
+		IsPrimary:          relationship.IsPrimary,
+		IsEmergencyContact: relationship.IsEmergencyContact,
+		CanPickup:          relationship.CanPickup,
+		CreatedAt:          guardian.CreatedAt,
+		UpdatedAt:          guardian.UpdatedAt,
+	}
+
+	common.Respond(w, r, http.StatusCreated, response, "Guardian created successfully")
+}
+
+// updateStudentGuardian updates a guardian for a student
+func (rs *Resource) updateStudentGuardian(w http.ResponseWriter, r *http.Request) {
+	// Parse student ID and guardian ID from URL
+	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	guardianID, err := strconv.ParseInt(chi.URLParam(r, "guardianId"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Parse request body
+	var req struct {
+		FirstName          string `json:"first_name"`
+		LastName           string `json:"last_name"`
+		Email              string `json:"email"`
+		Phone              string `json:"phone"`
+		RelationshipType   string `json:"relationship_type"`
+		IsPrimary          bool   `json:"is_primary"`
+		IsEmergencyContact bool   `json:"is_emergency_contact"`
+		CanPickup          bool   `json:"can_pickup"`
+	}
+
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get guardian
+	guardian, err := rs.GuardianRepo.FindByID(r.Context(), guardianID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("guardian not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Update guardian fields
+	guardian.FirstName = req.FirstName
+	guardian.LastName = req.LastName
+	guardian.Email = req.Email
+	guardian.Phone = req.Phone
+
+	if err := rs.GuardianRepo.Update(r.Context(), guardian); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to update guardian"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get relationship
+	relationships, err := rs.StudentGuardianRepo.FindByStudentID(r.Context(), studentID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get relationship"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Find the specific relationship
+	var relationship *users.StudentGuardian
+	for _, rel := range relationships {
+		if rel.GuardianID == guardianID {
+			relationship = rel
+			break
+		}
+	}
+
+	if relationship == nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("relationship not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Update relationship fields
+	relationship.RelationshipType = req.RelationshipType
+	relationship.IsPrimary = req.IsPrimary
+	relationship.IsEmergencyContact = req.IsEmergencyContact
+	relationship.CanPickup = req.CanPickup
+
+	if err := rs.StudentGuardianRepo.Update(r.Context(), relationship); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to update relationship"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Build response
+	response := GuardianResponse{
+		ID:                 guardian.ID,
+		FirstName:          guardian.FirstName,
+		LastName:           guardian.LastName,
+		Email:              guardian.Email,
+		Phone:              guardian.Phone,
+		RelationshipType:   relationship.RelationshipType,
+		IsPrimary:          relationship.IsPrimary,
+		IsEmergencyContact: relationship.IsEmergencyContact,
+		CanPickup:          relationship.CanPickup,
+		CreatedAt:          guardian.CreatedAt,
+		UpdatedAt:          guardian.UpdatedAt,
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Guardian updated successfully")
+}
+
+// deleteStudentGuardian deletes a guardian relationship for a student
+func (rs *Resource) deleteStudentGuardian(w http.ResponseWriter, r *http.Request) {
+	// Parse student ID and guardian ID from URL
+	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	guardianID, err := strconv.ParseInt(chi.URLParam(r, "guardianId"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get all relationships for this student
+	relationships, err := rs.StudentGuardianRepo.FindByStudentID(r.Context(), studentID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get relationships"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Find the specific relationship to delete
+	var relationshipID int64
+	for _, rel := range relationships {
+		if rel.GuardianID == guardianID {
+			relationshipID = rel.ID
+			break
+		}
+	}
+
+	if relationshipID == 0 {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("relationship not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Delete the relationship
+	if err := rs.StudentGuardianRepo.Delete(r.Context(), relationshipID); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to delete relationship"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, map[string]interface{}{"id": guardianID}, "Guardian relationship deleted successfully")
 }

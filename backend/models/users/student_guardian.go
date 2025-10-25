@@ -2,7 +2,6 @@ package users
 
 import (
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -58,23 +57,9 @@ func (sg *StudentGuardian) Validate() error {
 		return errors.New("relationship type is required")
 	}
 
-	// Convert relationship type to lowercase for consistency
-	sg.RelationshipType = strings.ToLower(sg.RelationshipType)
-
-	// Validate against known types
-	validTypes := map[string]bool{
-		"mother":      true,
-		"father":      true,
-		"parent":      true,
-		"guardian":    true,
-		"grandparent": true,
-		"relative":    true,
-		"other":       true,
-	}
-
-	if !validTypes[sg.RelationshipType] {
-		return errors.New("invalid relationship type")
-	}
+	// Note: We don't validate against a specific list to allow for
+	// localized relationship types (German, etc.) and custom relationships
+	// The relationship type is stored as-is to preserve the original casing
 
 	// Initialize permissions with empty object if nil
 	if sg.Permissions == nil {

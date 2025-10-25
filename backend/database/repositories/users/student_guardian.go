@@ -21,7 +21,7 @@ type StudentGuardianRepository struct {
 // NewStudentGuardianRepository creates a new StudentGuardianRepository
 func NewStudentGuardianRepository(db *bun.DB) users.StudentGuardianRepository {
 	return &StudentGuardianRepository{
-		Repository: base.NewRepository[*users.StudentGuardian](db, "users.students_guardians", "StudentGuardian"),
+		Repository: base.NewRepository[*users.StudentGuardian](db, "users.students_guardians", "student_guardian"),
 		db:         db,
 	}
 }
@@ -31,6 +31,7 @@ func (r *StudentGuardianRepository) FindByStudentID(ctx context.Context, student
 	var relationships []*users.StudentGuardian
 	err := r.db.NewSelect().
 		Model(&relationships).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Where("student_id = ?", studentID).
 		Scan(ctx)
 

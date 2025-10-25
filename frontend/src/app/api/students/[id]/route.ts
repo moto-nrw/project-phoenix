@@ -16,6 +16,23 @@ interface ApiStudentResponse {
 }
 
 /**
+ * Guardian type matching backend GuardianResponse
+ */
+interface GuardianFromBackend {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  relationship_type: string;
+  is_primary: boolean;
+  is_emergency_contact: boolean;
+  can_pickup: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
  * Type definition for student response from backend
  */
 interface StudentResponseFromBackend {
@@ -30,6 +47,7 @@ interface StudentResponseFromBackend {
   guardian_contact: string;
   guardian_email?: string;
   guardian_phone?: string;
+  guardians?: GuardianFromBackend[];  // All guardians for this student
   group_id?: number;
   created_at: string;
   updated_at: string;
@@ -86,17 +104,22 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     }
     
     const mappedStudent = mapStudentResponse(studentData as unknown as BackendStudent);
-    
+
+    // Extract guardians array from backend response
+    // BackendStudentData has an index signature, so we can access guardians directly
+    const guardians = (studentData.guardians as GuardianFromBackend[] | undefined) || [];
+
     // Fetch privacy consent data
     try {
       const consentResponse = await apiGet<unknown>(`/api/students/${id}/privacy-consent`, token);
-      
+
       // The privacy consent route handler returns the consent object directly
       if (consentResponse && typeof consentResponse === 'object' && 'accepted' in consentResponse && 'data_retention_days' in consentResponse) {
         const consent = consentResponse as { accepted: boolean; data_retention_days: number };
-        // Add privacy consent fields to the student object
+        // Add privacy consent fields and guardians to the student object
         return {
           ...mappedStudent,
+          guardians,
           privacy_consent_accepted: consent.accepted,
           data_retention_days: consent.data_retention_days,
         };
@@ -112,9 +135,10 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       }
       // For 404 only, fall through to defaults below
     }
-    
+
     return {
       ...mappedStudent,
+      guardians,
       privacy_consent_accepted: false,
       data_retention_days: 30,
     };
