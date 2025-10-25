@@ -209,7 +209,7 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 			// Create student-guardian relationship
 			guardianRel := &users.StudentGuardian{
 				StudentID:          student.ID,
-				GuardianAccountID:  account.ID,
+				GuardianID:         account.ID,
 				RelationshipType:   "parent",
 				IsPrimary:          true, // All guardians created are primary for simplicity
 				IsEmergencyContact: true,
@@ -221,7 +221,7 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 			_, err = s.tx.NewInsert().
 				Model(guardianRel).
 				ModelTableExpr("users.students_guardians").
-				On("CONFLICT (student_id, guardian_account_id, relationship_type) DO UPDATE").
+				On("CONFLICT (student_id, guardian_id, relationship_type) DO UPDATE").
 				Set("is_primary = EXCLUDED.is_primary").
 				Set("is_emergency_contact = EXCLUDED.is_emergency_contact").
 				Set("can_pickup = EXCLUDED.can_pickup").

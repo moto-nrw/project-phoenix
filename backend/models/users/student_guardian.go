@@ -13,7 +13,7 @@ import (
 type StudentGuardian struct {
 	base.Model         `bun:"schema:users,table:students_guardians"`
 	StudentID          int64                  `bun:"student_id,notnull" json:"student_id"`
-	GuardianAccountID  int64                  `bun:"guardian_account_id,notnull" json:"guardian_account_id"`
+	GuardianID         int64                  `bun:"guardian_id,notnull" json:"guardian_id"`
 	RelationshipType   string                 `bun:"relationship_type,notnull" json:"relationship_type"`
 	IsPrimary          bool                   `bun:"is_primary,notnull" json:"is_primary"`
 	IsEmergencyContact bool                   `bun:"is_emergency_contact,notnull" json:"is_emergency_contact"`
@@ -21,8 +21,8 @@ type StudentGuardian struct {
 	Permissions        map[string]interface{} `bun:"permissions,type:jsonb,nullzero" json:"permissions,omitempty"`
 
 	// Relations not stored in the database
-	Student *Student `bun:"-" json:"student,omitempty"`
-	// GuardianAccount would be a reference to auth.AccountParent
+	Student  *Student  `bun:"-" json:"student,omitempty"`
+	Guardian *Guardian `bun:"-" json:"guardian,omitempty"`
 }
 
 func (sg *StudentGuardian) BeforeAppendModel(query any) error {
@@ -49,8 +49,8 @@ func (sg *StudentGuardian) Validate() error {
 		return errors.New("student ID is required")
 	}
 
-	if sg.GuardianAccountID <= 0 {
-		return errors.New("guardian account ID is required")
+	if sg.GuardianID <= 0 {
+		return errors.New("guardian ID is required")
 	}
 
 	// Validate relationship type
@@ -63,10 +63,13 @@ func (sg *StudentGuardian) Validate() error {
 
 	// Validate against known types
 	validTypes := map[string]bool{
-		"parent":   true,
-		"guardian": true,
-		"relative": true,
-		"other":    true,
+		"mother":      true,
+		"father":      true,
+		"parent":      true,
+		"guardian":    true,
+		"grandparent": true,
+		"relative":    true,
+		"other":       true,
 	}
 
 	if !validTypes[sg.RelationshipType] {
@@ -86,6 +89,14 @@ func (sg *StudentGuardian) SetStudent(student *Student) {
 	sg.Student = student
 	if student != nil {
 		sg.StudentID = student.ID
+	}
+}
+
+// SetGuardian links this relationship to a guardian
+func (sg *StudentGuardian) SetGuardian(guardian *Guardian) {
+	sg.Guardian = guardian
+	if guardian != nil {
+		sg.GuardianID = guardian.ID
 	}
 }
 

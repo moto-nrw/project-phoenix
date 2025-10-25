@@ -283,6 +283,54 @@ type PersonGuardianRepository interface {
 	UpdatePermissions(ctx context.Context, id int64, permissions string) error
 }
 
+// GuardianRepository defines operations for managing guardians
+type GuardianRepository interface {
+	// Create inserts a new guardian into the database
+	Create(ctx context.Context, guardian *Guardian) error
+
+	// FindByID retrieves a guardian by their ID
+	FindByID(ctx context.Context, id interface{}) (*Guardian, error)
+
+	// FindByEmail retrieves a guardian by their email
+	FindByEmail(ctx context.Context, email string) (*Guardian, error)
+
+	// FindByPhone retrieves a guardian by their phone number
+	FindByPhone(ctx context.Context, phone string) (*Guardian, error)
+
+	// FindByAccountID retrieves a guardian by their account ID
+	FindByAccountID(ctx context.Context, accountID int64) (*Guardian, error)
+
+	// FindByStudentID retrieves all guardians for a student
+	FindByStudentID(ctx context.Context, studentID int64) ([]*Guardian, error)
+
+	// Update updates an existing guardian
+	Update(ctx context.Context, guardian *Guardian) error
+
+	// Delete removes a guardian
+	Delete(ctx context.Context, id interface{}) error
+
+	// List retrieves guardians matching the filters
+	List(ctx context.Context, filters map[string]interface{}) ([]*Guardian, error)
+
+	// ListWithOptions retrieves guardians with query options
+	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Guardian, error)
+
+	// CountWithOptions counts guardians matching the query options
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+
+	// Search searches for guardians by name, email, or phone
+	Search(ctx context.Context, query string, limit int) ([]*Guardian, error)
+
+	// LinkToAccount associates a guardian with an account
+	LinkToAccount(ctx context.Context, guardianID int64, accountID int64) error
+
+	// UnlinkFromAccount removes account association from a guardian
+	UnlinkFromAccount(ctx context.Context, guardianID int64) error
+
+	// FindActive retrieves all active guardians
+	FindActive(ctx context.Context) ([]*Guardian, error)
+}
+
 // StudentGuardianRepository defines operations for managing student-guardian relationships
 type StudentGuardianRepository interface {
 	// Create inserts a new student-guardian relationship into the database
