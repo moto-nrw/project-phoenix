@@ -105,36 +105,6 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 	return students, nil
 }
 
-// UpdateLocation updates a student's location status
-func (r *StudentRepository) UpdateLocation(ctx context.Context, id int64, location string) error {
-	// First, get the student
-	student, err := r.FindByID(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	// Update location
-	if err := student.SetLocation(location); err != nil {
-		return err
-	}
-
-	// Save changes
-	_, err = r.db.NewUpdate().
-		Model(student).
-		Column("bus", "in_house", "wc", "school_yard").
-		WherePK().
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update location",
-			Err: err,
-		}
-	}
-
-	return nil
-}
-
 // AssignToGroup assigns a student to a group
 func (r *StudentRepository) AssignToGroup(ctx context.Context, studentID int64, groupID int64) error {
 	_, err := r.db.NewUpdate().
@@ -223,24 +193,6 @@ func (r *StudentRepository) List(ctx context.Context, filters map[string]interfa
 					filter.IsNotNull("group_id")
 				} else if boolValue, ok := value.(bool); ok && !boolValue {
 					filter.IsNull("group_id")
-				}
-			case "location":
-				if strValue, ok := value.(string); ok {
-					switch strValue {
-					case "bus":
-						filter.Equal("bus", true)
-					case "in_house", "house":
-						filter.Equal("in_house", true)
-					case "wc", "bathroom":
-						filter.Equal("wc", true)
-					case "school_yard", "yard":
-						filter.Equal("school_yard", true)
-					case "unknown", "none", "":
-						filter.Equal("bus", false).
-							Equal("in_house", false).
-							Equal("wc", false).
-							Equal("school_yard", false)
-					}
 				}
 			default:
 				// Default to exact match for other fields
@@ -381,8 +333,6 @@ func (r *StudentRepository) FindByTeacherID(ctx context.Context, teacherID int64
 		// Student columns with proper aliasing
 		ColumnExpr(`"student".id AS "student__id", "student".created_at AS "student__created_at", "student".updated_at AS "student__updated_at"`).
 		ColumnExpr(`"student".person_id AS "student__person_id", "student".school_class AS "student__school_class"`).
-		ColumnExpr(`"student".bus AS "student__bus", "student".in_house AS "student__in_house"`).
-		ColumnExpr(`"student".wc AS "student__wc", "student".school_yard AS "student__school_yard"`).
 		ColumnExpr(`"student".guardian_name AS "student__guardian_name", "student".guardian_contact AS "student__guardian_contact"`).
 		ColumnExpr(`"student".guardian_email AS "student__guardian_email", "student".guardian_phone AS "student__guardian_phone"`).
 		ColumnExpr(`"student".group_id AS "student__group_id"`).
@@ -438,8 +388,6 @@ func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teach
 		// Student columns with proper aliasing
 		ColumnExpr(`"student".id AS "student__id", "student".created_at AS "student__created_at", "student".updated_at AS "student__updated_at"`).
 		ColumnExpr(`"student".person_id AS "student__person_id", "student".school_class AS "student__school_class"`).
-		ColumnExpr(`"student".bus AS "student__bus", "student".in_house AS "student__in_house"`).
-		ColumnExpr(`"student".wc AS "student__wc", "student".school_yard AS "student__school_yard"`).
 		ColumnExpr(`"student".guardian_name AS "student__guardian_name", "student".guardian_contact AS "student__guardian_contact"`).
 		ColumnExpr(`"student".guardian_email AS "student__guardian_email", "student".guardian_phone AS "student__guardian_phone"`).
 		ColumnExpr(`"student".group_id AS "student__group_id"`).

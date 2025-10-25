@@ -108,7 +108,6 @@ type StudentResponse struct {
 	TagID             string                 `json:"tag_id,omitempty"`
 	SchoolClass       string                 `json:"school_class"`
 	Location          string                 `json:"location"`
-	Bus               bool                   `json:"bus"`
 	GuardianName      string                 `json:"guardian_name"`
 	GuardianContact   string                 `json:"guardian_contact,omitempty"`
 	GuardianEmail     string                 `json:"guardian_email,omitempty"`
@@ -164,7 +163,6 @@ type StudentRequest struct {
 	GuardianEmail string  `json:"guardian_email,omitempty"`
 	GuardianPhone string  `json:"guardian_phone,omitempty"`
 	GroupID       *int64  `json:"group_id,omitempty"`
-	Bus           *bool   `json:"bus,omitempty"`        // Whether student takes the bus
 	ExtraInfo     *string `json:"extra_info,omitempty"` // Extra information visible to supervisors
 }
 
@@ -183,7 +181,6 @@ type UpdateStudentRequest struct {
 	GuardianEmail   *string `json:"guardian_email,omitempty"`
 	GuardianPhone   *string `json:"guardian_phone,omitempty"`
 	GroupID         *int64  `json:"group_id,omitempty"`
-	Bus             *bool   `json:"bus,omitempty"`              // Whether student takes the bus
 	HealthInfo      *string `json:"health_info,omitempty"`      // Static health and medical information
 	SupervisorNotes *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
 	ExtraInfo       *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
@@ -271,7 +268,6 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 		ID:           student.ID,
 		PersonID:     student.PersonID,
 		SchoolClass:  student.SchoolClass,
-		Bus:          student.Bus,
 		GuardianName: student.GuardianName,
 		CreatedAt:    student.CreatedAt,
 		UpdatedAt:    student.UpdatedAt,
@@ -282,43 +278,7 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 		response.GuardianContact = student.GuardianContact
 	}
 
-	// Use real tracking data instead of deprecated flags
-	// Always check attendance status first - this is public information
-	attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, student.ID)
-
-	if err == nil && attendanceStatus != nil && attendanceStatus.Status == "checked_in" {
-		// Student is checked in today
-		// Now check if they have an active visit (room assignment)
-		currentVisit, err := activeService.GetStudentCurrentVisit(ctx, student.ID)
-
-		if err == nil && currentVisit != nil {
-			// Student has an active visit - they are present and in a specific activity
-			if hasFullAccess {
-				// Users with full access see detailed location/activity information
-				// Get the active group with room details
-				if currentVisit.ActiveGroupID > 0 {
-					activeGroup, err := activeService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
-					if err == nil && activeGroup != nil && activeGroup.Room != nil {
-						response.Location = fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name)
-					} else {
-						response.Location = "Anwesend - Aktivität"
-					}
-				} else {
-					response.Location = "Anwesend - Aktivität"
-				}
-			} else {
-				// Users without full access see generic attendance status
-				response.Location = "Anwesend"
-			}
-		} else {
-			// Student is checked in but has no active visit (not in a specific room)
-			// This means they are "Unterwegs" (in transit/between activities)
-			response.Location = "Anwesend"
-		}
-	} else {
-		// Student is not checked in or has checked out
-		response.Location = "Abwesend"
-	}
+	response.Location = resolveStudentLocation(ctx, student.ID, hasFullAccess, activeService)
 
 	// Check for pending scheduled checkout
 	if pendingCheckout, err := activeService.GetPendingScheduledCheckout(ctx, student.ID); err == nil && pendingCheckout != nil {
@@ -380,6 +340,41 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 	}
 
 	return response
+}
+
+func resolveStudentLocation(ctx context.Context, studentID int64, hasFullAccess bool, activeService activeService.Service) string {
+	attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, studentID)
+	if err != nil || attendanceStatus == nil {
+		return "Abwesend"
+	}
+
+	if attendanceStatus.Status != "checked_in" {
+		return "Abwesend"
+	}
+
+	if !hasFullAccess {
+		return "Anwesend"
+	}
+
+	currentVisit, err := activeService.GetStudentCurrentVisit(ctx, studentID)
+	if err != nil || currentVisit == nil {
+		return "Anwesend"
+	}
+
+	if currentVisit.ActiveGroupID <= 0 {
+		return "Anwesend"
+	}
+
+	activeGroup, err := activeService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
+	if err != nil || activeGroup == nil {
+		return "Anwesend"
+	}
+
+	if activeGroup.Room != nil && activeGroup.Room.Name != "" {
+		return fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name)
+	}
+
+	return "Anwesend"
 }
 
 // listStudents handles listing all students with staff-based filtering
@@ -529,11 +524,6 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// Filter based on location (only if user has full access to location data)
-		if location != "" && hasFullAccess && student.GetLocation() != location && location != "Unknown" {
-			continue
-		}
-
 		// Get group data if student has a group
 		var group *education.Group
 		if student.GroupID != nil {
@@ -543,7 +533,13 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		responses = append(responses, newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService))
+		studentResponse := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService)
+
+		if location != "" && hasFullAccess && location != "Unknown" && studentResponse.Location != location {
+			continue
+		}
+
+		responses = append(responses, studentResponse)
 	}
 
 	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, totalCount, "Students retrieved successfully")
@@ -706,10 +702,6 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		student.GroupID = req.GroupID
 	}
 
-	if req.Bus != nil {
-		student.Bus = *req.Bus
-	}
-
 	if req.ExtraInfo != nil {
 		student.ExtraInfo = req.ExtraInfo
 	}
@@ -848,9 +840,6 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.GroupID != nil {
 		student.GroupID = req.GroupID
-	}
-	if req.Bus != nil {
-		student.Bus = *req.Bus
 	}
 	if req.ExtraInfo != nil {
 		student.ExtraInfo = req.ExtraInfo

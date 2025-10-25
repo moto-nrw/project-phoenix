@@ -67,20 +67,11 @@ func usersStudentsUp(ctx context.Context, db *bun.DB) error {
 
 		CREATE TABLE IF NOT EXISTS users.students (
 			id BIGSERIAL PRIMARY KEY,
-			person_id BIGINT NOT NULL UNIQUE,
-			school_class TEXT NOT NULL,
-			-- Boolean fields indicating current student location
-			-- bus: Student is in the bus
-			bus BOOLEAN NOT NULL DEFAULT FALSE,
-			-- in_house: Student is inside the building
-			in_house BOOLEAN NOT NULL DEFAULT FALSE,
-			-- wc: Student is in bathroom
-			wc BOOLEAN NOT NULL DEFAULT FALSE,
-			-- school_yard: Student is in school yard
-			school_yard BOOLEAN NOT NULL DEFAULT FALSE,
-			guardian_name TEXT NOT NULL,
-			-- Legacy field maintained for backward compatibility
-			guardian_contact TEXT NOT NULL,
+		person_id BIGINT NOT NULL UNIQUE,
+		school_class TEXT NOT NULL,
+		guardian_name TEXT NOT NULL,
+		-- Legacy field maintained for backward compatibility
+		guardian_contact TEXT NOT NULL,
 			-- New structured contact fields with validation
 			guardian_email TEXT,
 			guardian_phone TEXT,
@@ -101,10 +92,6 @@ func usersStudentsUp(ctx context.Context, db *bun.DB) error {
 			CONSTRAINT chk_valid_guardian_phone CHECK (
 				guardian_phone IS NULL OR is_valid_phone(guardian_phone)
 			),
-			-- Ensure only one location is set at a time (bus is not a location, it's a transportation attribute)
-			CONSTRAINT chk_one_location_only CHECK (
-				(in_house::int + wc::int + school_yard::int) <= 1
-			)
 		)
 	`)
 	if err != nil {

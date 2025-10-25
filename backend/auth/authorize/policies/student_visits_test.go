@@ -326,10 +326,6 @@ func (m *SimpleMockStudentRepository) FindBySchoolClass(ctx context.Context, sch
 	return nil, nil
 }
 
-func (m *SimpleMockStudentRepository) UpdateLocation(ctx context.Context, id int64, location string) error {
-	return nil
-}
-
 func (m *SimpleMockStudentRepository) AssignToGroup(ctx context.Context, studentID int64, groupID int64) error {
 	return nil
 }

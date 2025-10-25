@@ -1,6 +1,7 @@
 package groups
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -497,7 +498,6 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 		GuardianEmail   string `json:"guardian_email,omitempty"`
 		GuardianPhone   string `json:"guardian_phone,omitempty"`
 		Location        string `json:"location,omitempty"`
-		Bus             bool   `json:"bus"`
 		TagID           string `json:"tag_id,omitempty"`
 	}
 
@@ -519,7 +519,6 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 			SchoolClass: student.SchoolClass,
 			GroupID:     id,
 			GroupName:   group.Name,
-			Bus:         student.Bus,
 		}
 
 		// Include sensitive data only for authorized users
@@ -537,23 +536,15 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 				response.TagID = *person.TagID
 			}
 
-			// Include location information
-			if student.InHouse || student.WC || student.SchoolYard {
-				response.Location = student.GetLocation()
-			} else {
-				response.Location = "Home"
-			}
-		} else {
-			// Limited data for non-supervisor staff
-			response.GuardianName = student.GuardianName
-
-			// Show generic location status
-			if student.InHouse || student.WC || student.SchoolYard {
-				response.Location = "In House"
-			} else {
-				response.Location = "Home"
-			}
 		}
+
+		// Limited data for non-supervisor staff
+		if !canAccessFullDetails {
+			response.GuardianName = student.GuardianName
+		}
+
+		// Location is derived from real-time attendance data
+		response.Location = rs.resolveStudentLocation(r.Context(), student.ID, canAccessFullDetails)
 
 		responses = append(responses, response)
 	}
@@ -775,6 +766,42 @@ func (rs *Resource) getGroupSubstitutions(w http.ResponseWriter, r *http.Request
 	}
 
 	common.Respond(w, r, http.StatusOK, substitutions, "Group substitutions retrieved successfully")
+}
+
+// resolveStudentLocation determines the student's location string based on active attendance data.
+func (rs *Resource) resolveStudentLocation(ctx context.Context, studentID int64, hasFullAccess bool) string {
+	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
+	if err != nil || attendanceStatus == nil {
+		return "Abwesend"
+	}
+
+	if attendanceStatus.Status != "checked_in" {
+		return "Abwesend"
+	}
+
+	if !hasFullAccess {
+		return "Anwesend"
+	}
+
+	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
+	if err != nil || currentVisit == nil {
+		return "Anwesend"
+	}
+
+	if currentVisit.ActiveGroupID <= 0 {
+		return "Anwesend"
+	}
+
+	activeGroup, err := rs.ActiveService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
+	if err != nil || activeGroup == nil {
+		return "Anwesend"
+	}
+
+	if activeGroup.Room != nil && activeGroup.Room.Name != "" {
+		return fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name)
+	}
+
+	return "Anwesend"
 }
 
 // Helper function to check if user has admin permissions
