@@ -144,12 +144,12 @@ func migrateLegacyGuardiansUp(ctx context.Context, db *bun.DB) error {
 		}
 
 		// Create student-guardian relationship
-		// Note: We're updating guardian_account_id which will be renamed to guardian_id in the next migration
+		// Note: Migration 1.3.6 creates the table with guardian_id column (not guardian_account_id)
 		_, err = tx.Exec(`
 			INSERT INTO users.students_guardians
-			(student_id, guardian_account_id, relationship_type, is_primary, is_emergency_contact, can_pickup, created_at, updated_at)
+			(student_id, guardian_id, relationship_type, is_primary, is_emergency_contact, can_pickup, created_at, updated_at)
 			VALUES (?, ?, 'parent', true, true, true, NOW(), NOW())
-			ON CONFLICT (student_id, guardian_account_id, relationship_type) DO NOTHING
+			ON CONFLICT (student_id, guardian_id, relationship_type) DO NOTHING
 		`, student.ID, guardianID)
 
 		if err != nil {

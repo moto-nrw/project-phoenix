@@ -2,7 +2,6 @@ package users
 
 import (
 	"errors"
-	"regexp"
 	"strings"
 	"time"
 
@@ -19,17 +18,14 @@ type Student struct {
 	InHouse         bool    `bun:"in_house,notnull" json:"in_house"`
 	WC              bool    `bun:"wc,notnull" json:"wc"`
 	SchoolYard      bool    `bun:"school_yard,notnull" json:"school_yard"`
-	GuardianName    string  `bun:"guardian_name,notnull" json:"guardian_name"`
-	GuardianContact string  `bun:"guardian_contact,notnull" json:"guardian_contact"`
-	GuardianEmail   *string `bun:"guardian_email" json:"guardian_email,omitempty"`
-	GuardianPhone   *string `bun:"guardian_phone" json:"guardian_phone,omitempty"`
 	GroupID         *int64  `bun:"group_id" json:"group_id,omitempty"`
 	ExtraInfo       *string `bun:"extra_info" json:"extra_info,omitempty"`
 	SupervisorNotes *string `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
 	HealthInfo      *string `bun:"health_info" json:"health_info,omitempty"`
 
 	// Relations
-	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
+	Person    *Person              `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
+	Guardians []*StudentGuardian   `bun:"rel:has-many,join:id=student_id" json:"guardians,omitempty"`
 	// Group relation is loaded dynamically to avoid import cycle
 }
 
@@ -67,38 +63,6 @@ func (s *Student) Validate() error {
 
 	// Trim spaces from school class
 	s.SchoolClass = strings.TrimSpace(s.SchoolClass)
-
-	if s.GuardianName == "" {
-		return errors.New("guardian name is required")
-	}
-
-	// Trim spaces from guardian name
-	s.GuardianName = strings.TrimSpace(s.GuardianName)
-
-	if s.GuardianContact == "" {
-		return errors.New("guardian contact is required")
-	}
-
-	// Trim spaces from guardian contact
-	s.GuardianContact = strings.TrimSpace(s.GuardianContact)
-
-	// Validate guardian email if provided
-	if s.GuardianEmail != nil && *s.GuardianEmail != "" {
-		*s.GuardianEmail = strings.TrimSpace(*s.GuardianEmail)
-		emailPattern := regexp.MustCompile(`^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
-		if !emailPattern.MatchString(*s.GuardianEmail) {
-			return errors.New("invalid guardian email format")
-		}
-	}
-
-	// Validate guardian phone if provided
-	if s.GuardianPhone != nil && *s.GuardianPhone != "" {
-		*s.GuardianPhone = strings.TrimSpace(*s.GuardianPhone)
-		phonePattern := regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$`)
-		if !phonePattern.MatchString(*s.GuardianPhone) {
-			return errors.New("invalid guardian phone format")
-		}
-	}
 
 	// Ensure only one location is active at a time (bus is not a location)
 	locationCount := 0

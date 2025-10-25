@@ -1,6 +1,7 @@
 package groups
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -25,21 +26,25 @@ import (
 
 // Resource defines the group API resource
 type Resource struct {
-	EducationService   educationSvc.Service
-	ActiveService      activeService.Service
-	UserService        userService.PersonService
-	UserContextService userContextService.UserContextService
-	StudentRepo        users.StudentRepository
+	EducationService        educationSvc.Service
+	ActiveService           activeService.Service
+	UserService             userService.PersonService
+	UserContextService      userContextService.UserContextService
+	StudentRepo             users.StudentRepository
+	GuardianRepo            users.GuardianRepository
+	StudentGuardianRepo     users.StudentGuardianRepository
 }
 
 // NewResource creates a new groups resource
-func NewResource(educationService educationSvc.Service, activeService activeService.Service, userService userService.PersonService, userContextService userContextService.UserContextService, studentRepo users.StudentRepository) *Resource {
+func NewResource(educationService educationSvc.Service, activeService activeService.Service, userService userService.PersonService, userContextService userContextService.UserContextService, studentRepo users.StudentRepository, guardianRepo users.GuardianRepository, studentGuardianRepo users.StudentGuardianRepository) *Resource {
 	return &Resource{
-		EducationService:   educationService,
-		ActiveService:      activeService,
-		UserService:        userService,
-		UserContextService: userContextService,
-		StudentRepo:        studentRepo,
+		EducationService:        educationService,
+		ActiveService:           activeService,
+		UserService:             userService,
+		UserContextService:      userContextService,
+		StudentRepo:             studentRepo,
+		GuardianRepo:            guardianRepo,
+		StudentGuardianRepo:     studentGuardianRepo,
 	}
 }
 
@@ -522,16 +527,18 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 			Bus:         student.Bus,
 		}
 
+		// Load primary guardian for all users (name only for limited access)
+		primaryGuardian, _, err := rs.getPrimaryGuardianForStudent(r.Context(), student.ID)
+		if err == nil && primaryGuardian != nil {
+			response.GuardianName = primaryGuardian.FirstName + " " + primaryGuardian.LastName
+		}
+
 		// Include sensitive data only for authorized users
 		if canAccessFullDetails {
-			response.GuardianName = student.GuardianName
-			response.GuardianContact = student.GuardianContact
-
-			if student.GuardianEmail != nil {
-				response.GuardianEmail = *student.GuardianEmail
-			}
-			if student.GuardianPhone != nil {
-				response.GuardianPhone = *student.GuardianPhone
+			if primaryGuardian != nil {
+				response.GuardianContact = primaryGuardian.Phone
+				response.GuardianEmail = primaryGuardian.Email
+				response.GuardianPhone = primaryGuardian.Phone
 			}
 			if person.TagID != nil {
 				response.TagID = *person.TagID
@@ -544,9 +551,6 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 				response.Location = "Home"
 			}
 		} else {
-			// Limited data for non-supervisor staff
-			response.GuardianName = student.GuardianName
-
 			// Show generic location status
 			if student.InHouse || student.WC || student.SchoolYard {
 				response.Location = "In House"
@@ -775,6 +779,37 @@ func (rs *Resource) getGroupSubstitutions(w http.ResponseWriter, r *http.Request
 	}
 
 	common.Respond(w, r, http.StatusOK, substitutions, "Group substitutions retrieved successfully")
+}
+
+// getPrimaryGuardianForStudent retrieves the primary guardian for a student
+func (rs *Resource) getPrimaryGuardianForStudent(ctx context.Context, studentID int64) (*users.Guardian, *users.StudentGuardian, error) {
+	// Find primary guardian relationship
+	relationships, err := rs.StudentGuardianRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, rel := range relationships {
+		if rel.IsPrimary {
+			// Load the full guardian details
+			guardian, err := rs.GuardianRepo.FindByID(ctx, rel.GuardianID)
+			if err != nil {
+				return nil, nil, err
+			}
+			return guardian, rel, nil
+		}
+	}
+
+	// No primary guardian found - return first guardian if any
+	if len(relationships) > 0 {
+		guardian, err := rs.GuardianRepo.FindByID(ctx, relationships[0].GuardianID)
+		if err != nil {
+			return nil, nil, err
+		}
+		return guardian, relationships[0], nil
+	}
+
+	return nil, nil, nil // No guardians
 }
 
 // Helper function to check if user has admin permissions

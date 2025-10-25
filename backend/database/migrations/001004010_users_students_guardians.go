@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	UsersStudentsGuardiansVersion     = "1.3.6"
+	UsersStudentsGuardiansVersion     = "1.4.10"
 	UsersStudentsGuardiansDescription = "Link students directly to guardians"
 )
 
@@ -19,10 +19,10 @@ func init() {
 	MigrationRegistry[UsersStudentsGuardiansVersion] = &Migration{
 		Version:     UsersStudentsGuardiansVersion,
 		Description: UsersStudentsGuardiansDescription,
-		DependsOn:   []string{"1.3.5", "1.2.6"}, // Depends on students and guardians tables
+		DependsOn:   []string{"1.3.5", "1.4.1"}, // Depends on students and guardians tables
 	}
 
-	// Migration 1.3.6: Students to guardians relationship
+	// Migration 1.4.10: Students to guardians relationship
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return usersStudentsGuardiansUp(ctx, db)
@@ -35,7 +35,7 @@ func init() {
 
 // usersStudentsGuardiansUp creates the relationship table between students and guardians
 func usersStudentsGuardiansUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.3.6: Creating users.students_guardians relationship table...")
+	fmt.Println("Migration 1.4.10: Creating users.students_guardians relationship table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -49,11 +49,12 @@ func usersStudentsGuardiansUp(ctx context.Context, db *bun.DB) error {
 	}()
 
 	// Create the students_guardians table
+	// NOTE: Originally referenced auth.accounts_parents, now references users.guardians
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS users.students_guardians (
 			id BIGSERIAL PRIMARY KEY,
 			student_id BIGINT NOT NULL,
-			guardian_account_id BIGINT NOT NULL,
+			guardian_id BIGINT NOT NULL,
 			relationship_type TEXT NOT NULL, -- e.g., 'parent', 'guardian', 'relative'
 			is_primary BOOLEAN NOT NULL DEFAULT FALSE,
 			is_emergency_contact BOOLEAN NOT NULL DEFAULT FALSE,
@@ -61,11 +62,11 @@ func usersStudentsGuardiansUp(ctx context.Context, db *bun.DB) error {
 			permissions JSONB NOT NULL DEFAULT '{}',
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT fk_students_guardians_student FOREIGN KEY (student_id) 
+			CONSTRAINT fk_students_guardians_student FOREIGN KEY (student_id)
 				REFERENCES users.students(id) ON DELETE CASCADE,
-			CONSTRAINT fk_students_guardians_guardian FOREIGN KEY (guardian_account_id) 
-				REFERENCES auth.accounts_parents(id) ON DELETE CASCADE,
-			CONSTRAINT unique_student_guardian_relationship UNIQUE (student_id, guardian_account_id, relationship_type)
+			CONSTRAINT fk_students_guardians_guardian FOREIGN KEY (guardian_id)
+				REFERENCES users.guardians(id) ON DELETE CASCADE,
+			CONSTRAINT unique_student_guardian_relationship UNIQUE (student_id, guardian_id, relationship_type)
 		)
 	`)
 	if err != nil {
@@ -75,7 +76,7 @@ func usersStudentsGuardiansUp(ctx context.Context, db *bun.DB) error {
 	// Create indexes for students_guardians
 	_, err = tx.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_students_guardians_student_id ON users.students_guardians(student_id);
-		CREATE INDEX IF NOT EXISTS idx_students_guardians_guardian_account_id ON users.students_guardians(guardian_account_id);
+		CREATE INDEX IF NOT EXISTS idx_students_guardians_guardian_id ON users.students_guardians(guardian_id);
 		CREATE INDEX IF NOT EXISTS idx_students_guardians_relationship_type ON users.students_guardians(relationship_type);
 		CREATE INDEX IF NOT EXISTS idx_students_guardians_is_primary ON users.students_guardians(is_primary);
 		CREATE INDEX IF NOT EXISTS idx_students_guardians_is_emergency_contact ON users.students_guardians(is_emergency_contact);
@@ -132,7 +133,7 @@ func usersStudentsGuardiansUp(ctx context.Context, db *bun.DB) error {
 
 // usersStudentsGuardiansDown removes the users.students_guardians relationship table
 func usersStudentsGuardiansDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.3.6: Removing users.students_guardians relationship table...")
+	fmt.Println("Rolling back migration 1.4.10: Removing users.students_guardians relationship table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})

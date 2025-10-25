@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	PrivacyConsentsVersion     = "1.3.7" // Following after users_students (1.3.6)
+	PrivacyConsentsVersion     = "1.4.12" // Following after students_guardians (1.4.10)
 	PrivacyConsentsDescription = "Users privacy consents table"
 )
 
@@ -19,10 +19,10 @@ func init() {
 	MigrationRegistry[PrivacyConsentsVersion] = &Migration{
 		Version:     PrivacyConsentsVersion,
 		Description: PrivacyConsentsDescription,
-		DependsOn:   []string{"1.3.5"}, // Depends on students table
+		DependsOn:   []string{"1.3.5", "1.4.10"}, // Depends on students table and students_guardians join table
 	}
 
-	// Migration 1.3.7: Users privacy consents table
+	// Migration 1.4.12: Users privacy consents table
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return usersPrivacyConsentsUp(ctx, db)
@@ -35,7 +35,7 @@ func init() {
 
 // usersPrivacyConsentsUp creates the users.privacy_consents table
 func usersPrivacyConsentsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.3.7: Creating users.privacy_consents table...")
+	fmt.Println("Migration 1.4.12: Creating users.privacy_consents table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -201,7 +201,7 @@ func usersPrivacyConsentsUp(ctx context.Context, db *bun.DB) error {
 
 // usersPrivacyConsentsDown removes the users.privacy_consents table
 func usersPrivacyConsentsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.3.7: Removing users.privacy_consents table...")
+	fmt.Println("Rolling back migration 1.4.12: Removing users.privacy_consents table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
