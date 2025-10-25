@@ -1,16 +1,7 @@
 import { createGetHandler, createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
 
-interface GuardianResponse {
-  id: number;
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-  [key: string]: unknown;
-}
-
-export const GET = createGetHandler<GuardianResponse>(async (_request, token, params) => {
-  const id = params.id as string;
+export const GET = createGetHandler(async (request, token, params) => {
+  const { id } = await params;
 
   const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/guardians/${id}`, {
     headers: {
@@ -22,11 +13,12 @@ export const GET = createGetHandler<GuardianResponse>(async (_request, token, pa
     throw new Error(`Backend error: ${response.statusText}`);
   }
 
-  return response.json() as Promise<GuardianResponse>;
+  return response.json();
 });
 
-export const PUT = createPutHandler<GuardianResponse>(async (_request, body, token, params) => {
-  const id = params.id as string;
+export const PUT = createPutHandler(async (request, token, params) => {
+  const { id } = await params;
+  const body = await request.json();
 
   const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/guardians/${id}`, {
     method: "PUT",
@@ -41,11 +33,11 @@ export const PUT = createPutHandler<GuardianResponse>(async (_request, body, tok
     throw new Error(`Backend error: ${response.statusText}`);
   }
 
-  return response.json() as Promise<GuardianResponse>;
+  return response.json();
 });
 
-export const DELETE = createDeleteHandler<GuardianResponse>(async (_request, token, params) => {
-  const id = params.id as string;
+export const DELETE = createDeleteHandler(async (request, token, params) => {
+  const { id } = await params;
 
   const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/guardians/${id}`, {
     method: "DELETE",
@@ -58,5 +50,5 @@ export const DELETE = createDeleteHandler<GuardianResponse>(async (_request, tok
     throw new Error(`Backend error: ${response.statusText}`);
   }
 
-  return response.json() as Promise<GuardianResponse>;
+  return response.json();
 });

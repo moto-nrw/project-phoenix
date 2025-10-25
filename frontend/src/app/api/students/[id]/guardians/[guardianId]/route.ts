@@ -1,17 +1,8 @@
 import { createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
 
-interface StudentGuardianResponse {
-  id: number;
-  student_id: number;
-  guardian_id: number;
-  relationship_type: string;
-  is_primary: boolean;
-  [key: string]: unknown;
-}
-
-export const PUT = createPutHandler<StudentGuardianResponse>(async (_request, body, token, params) => {
-  const id = params.id as string;
-  const guardianId = params.guardianId as string;
+export const PUT = createPutHandler(async (request, token, params) => {
+  const { id, guardianId } = await params;
+  const body = await request.json();
 
   const response = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/students/${id}/guardians/${guardianId}`,
@@ -29,12 +20,11 @@ export const PUT = createPutHandler<StudentGuardianResponse>(async (_request, bo
     throw new Error(`Backend error: ${response.statusText}`);
   }
 
-  return response.json() as Promise<StudentGuardianResponse>;
+  return response.json();
 });
 
-export const DELETE = createDeleteHandler<StudentGuardianResponse>(async (_request, token, params) => {
-  const id = params.id as string;
-  const guardianId = params.guardianId as string;
+export const DELETE = createDeleteHandler(async (request, token, params) => {
+  const { id, guardianId } = await params;
 
   const response = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/students/${id}/guardians/${guardianId}`,
@@ -50,5 +40,5 @@ export const DELETE = createDeleteHandler<StudentGuardianResponse>(async (_reque
     throw new Error(`Backend error: ${response.statusText}`);
   }
 
-  return response.json() as Promise<StudentGuardianResponse>;
+  return response.json();
 });

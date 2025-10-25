@@ -19,7 +19,7 @@ func init() {
 	MigrationRegistry[UsersGuardiansVersion] = &Migration{
 		Version:     UsersGuardiansVersion,
 		Description: UsersGuardiansDescription,
-		DependsOn:   []string{"1.0.9"}, // Depends on accounts_parents table
+		DependsOn:   []string{"1.3.6"}, // Depends on students_guardians table
 	}
 
 	// Migration 1.4.1: Create users.guardians table
@@ -57,7 +57,7 @@ func usersGuardiansUp(ctx context.Context, db *bun.DB) error {
 			last_name TEXT NOT NULL,
 			phone TEXT NOT NULL,
 			phone_secondary TEXT,
-			email TEXT NOT NULL UNIQUE,
+			email TEXT NOT NULL,
 			address TEXT,
 			city TEXT,
 			postal_code TEXT,
@@ -70,7 +70,7 @@ func usersGuardiansUp(ctx context.Context, db *bun.DB) error {
 			active BOOLEAN NOT NULL DEFAULT TRUE,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT chk_email_format CHECK (email ~* '` + EmailValidationRegex + `')
+			CONSTRAINT chk_email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
 		)
 	`)
 	if err != nil {
@@ -78,9 +78,9 @@ func usersGuardiansUp(ctx context.Context, db *bun.DB) error {
 	}
 
 	// Create indexes for guardians
-	// Note: email index not needed - UNIQUE constraint automatically creates index
 	_, err = tx.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_guardians_account_id ON users.guardians(account_id);
+		CREATE INDEX IF NOT EXISTS idx_guardians_email ON users.guardians(email);
 		CREATE INDEX IF NOT EXISTS idx_guardians_phone ON users.guardians(phone);
 		CREATE INDEX IF NOT EXISTS idx_guardians_last_name ON users.guardians(last_name);
 		CREATE INDEX IF NOT EXISTS idx_guardians_active ON users.guardians(active);

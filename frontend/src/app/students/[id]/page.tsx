@@ -11,21 +11,9 @@ import type { Student, SupervisorContact } from "~/lib/student-helpers";
 import { ModernContactActions } from "~/components/simple/student";
 import { ScheduledCheckoutModal } from "~/components/scheduled-checkout/scheduled-checkout-modal";
 import { ScheduledCheckoutInfo } from "~/components/scheduled-checkout/scheduled-checkout-info";
-
-// Guardian type matching backend GuardianResponse
-interface Guardian {
-    id: number;
-    first_name: string;
-    last_name: string;
-    email: string;
-    phone: string;
-    relationship_type: string;
-    is_primary: boolean;
-    is_emergency_contact: boolean;
-    can_pickup: boolean;
-    created_at?: string;
-    updated_at?: string;
-}
+import { guardianService } from "~/lib/guardian-api";
+import type { Guardian, StudentGuardian } from "~/lib/guardian-helpers";
+import { getGuardianFullName, RELATIONSHIP_TYPES } from "~/lib/guardian-helpers";
 
 // Extended Student type for this page
 interface ExtendedStudent extends Student {
@@ -33,13 +21,9 @@ interface ExtendedStudent extends Student {
     school_yard: boolean;
     bus: boolean;
     current_room?: string;
-    guardian_name: string;
-    guardian_contact: string;
-    guardian_phone?: string;
     birthday?: string;
     buskind?: boolean;
     attendance_rate?: number;
-    guardians?: Guardian[];
     extra_info?: string;
     supervisor_notes?: string;
     health_info?: string;
@@ -135,11 +119,15 @@ function StudentPageContent() {
     const [checkoutUpdated, setCheckoutUpdated] = useState(0);
     const [hasScheduledCheckout, setHasScheduledCheckout] = useState(false);
 
+    // Guardian states
+    const [studentGuardians, setStudentGuardians] = useState<StudentGuardian[]>([]);
+    const [guardianLoading, setGuardianLoading] = useState(false);
+
     // Edit mode states
     const [isEditingPersonal, setIsEditingPersonal] = useState(false);
-    const [isEditingGuardians, setIsEditingGuardians] = useState(false);
     const [editedStudent, setEditedStudent] = useState<ExtendedStudent | null>(null);
-    const [editedGuardians, setEditedGuardians] = useState<Guardian[]>([]);
+    const [newGuardianMode, setNewGuardianMode] = useState(false);
+    const [newGuardianData, setNewGuardianData] = useState<Partial<Guardian>>({});
     const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
     // Fetch student data
@@ -175,9 +163,6 @@ function StudentPageContent() {
                 const hasAccess = mappedStudent.has_full_access ?? true;
                 const groupSupervisors = mappedStudent.group_supervisors ?? [];
 
-                // Use guardians array from backend response
-                const guardians: Guardian[] = mappedStudent.guardians ?? [];
-
                 const extendedStudent: ExtendedStudent = {
                     id: mappedStudent.id,
                     first_name: mappedStudent.first_name ?? "",
@@ -198,7 +183,6 @@ function StudentPageContent() {
                     birthday: mappedStudent.birthday ?? undefined,
                     buskind: mappedStudent.bus ?? false,
                     attendance_rate: undefined,
-                    guardians,
                     extra_info: hasAccess ? (mappedStudent.extra_info ?? undefined) : undefined,
                     supervisor_notes: hasAccess ? (mappedStudent.supervisor_notes ?? undefined) : undefined,
                     health_info: hasAccess ? (mappedStudent.health_info ?? undefined) : undefined
@@ -206,9 +190,21 @@ function StudentPageContent() {
 
                 setStudent(extendedStudent);
                 setEditedStudent(extendedStudent);
-                setEditedGuardians(guardians);
                 setHasFullAccess(hasAccess);
                 setSupervisors(groupSupervisors);
+
+                // Fetch guardians if user has full access
+                if (hasAccess) {
+                    try {
+                        setGuardianLoading(true);
+                        const guardians = await guardianService.getStudentGuardians(studentId);
+                        setStudentGuardians(guardians);
+                    } catch (guardianErr) {
+                        console.error("Error fetching guardians:", guardianErr);
+                    } finally {
+                        setGuardianLoading(false);
+                    }
+                }
 
                 // Fetch current location
                 try {
@@ -265,152 +261,117 @@ function StudentPageContent() {
         }
     };
 
-    // Handle save for guardians
-    const handleSaveGuardians = async () => {
+    // Handle removing a guardian from student
+    const handleRemoveGuardian = async (guardianId: string) => {
         if (!student) return;
 
         try {
-            // Save each guardian to the database
-            for (let i = 0; i < editedGuardians.length; i++) {
-                const guardian = editedGuardians[i]!;
-                const guardianName = `${guardian.first_name} ${guardian.last_name}`;
+            await guardianService.removeStudentGuardian(studentId, guardianId);
 
-                try {
-                    if (guardian.id === 0) {
-                        // New guardian - create via POST
-                        await fetch(`/api/students/${studentId}/guardians`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(guardian)
-                        });
-                    } else {
-                        // Existing guardian - update via PUT
-                        await fetch(`/api/students/${studentId}/guardians/${guardian.id}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(guardian)
-                        });
-                    }
-                } catch (guardianError) {
-                    // Include specific guardian context in error
-                    console.error(`Failed to save guardian #${i + 1} (${guardianName}):`, guardianError);
-                    throw new Error(`Fehler beim Speichern von Erziehungsberechtigtem #${i + 1} (${guardianName}): ${guardianError instanceof Error ? guardianError.message : String(guardianError)}`);
-                }
-            }
+            const guardians = await guardianService.getStudentGuardians(studentId);
+            setStudentGuardians(guardians);
 
-            // Fetch updated student data to get the complete guardians list
-            const response = await studentService.getStudent(studentId);
-            interface WrappedResponse {
-                data?: unknown;
-                success?: boolean;
-            }
-            const wrappedResponse = response as WrappedResponse;
-            const studentData = wrappedResponse.data ?? response;
-            const mappedStudent = studentData as Student & {
-                guardians?: Guardian[];
-            };
-
-            const guardians: Guardian[] = mappedStudent.guardians ?? [];
-            setStudent({ ...student, guardians });
-            setEditedGuardians(guardians);
-            setIsEditingGuardians(false);
-            setAlertMessage({ type: 'success', message: 'Erziehungsberechtigte erfolgreich aktualisiert' });
+            setAlertMessage({ type: 'success', message: 'Erziehungsberechtigte/r erfolgreich entfernt' });
             setTimeout(() => setAlertMessage(null), 3000);
         } catch (error) {
-            console.error('Failed to save guardians:', error);
-            const errorMessage = error instanceof Error
-                ? error.message
-                : 'Fehler beim Speichern der Erziehungsberechtigten';
-            setAlertMessage({ type: 'error', message: errorMessage });
+            console.error('Failed to remove guardian:', error);
+            setAlertMessage({ type: 'error', message: 'Fehler beim Entfernen der/des Erziehungsberechtigten' });
+            setTimeout(() => setAlertMessage(null), 3000);
+        }
+    };
+    // Handle adding a guardian to student
+    const handleAddExistingGuardian = async (guardianId: string, relationshipType: string, isPrimary: boolean = false) => {
+        if (!student) return;
+
+        try {
+            await guardianService.addStudentGuardian(studentId, {
+                guardianId,
+                relationshipType,
+                isPrimary,
+                isEmergencyContact: false,
+                canPickup: true,
+            });
+
+            // Refresh guardians list
+            const guardians = await guardianService.getStudentGuardians(studentId);
+            setStudentGuardians(guardians);
+
+            setAlertMessage({ type: 'success', message: 'Erziehungsberechtigte/r erfolgreich hinzugefügt' });
+            setTimeout(() => setAlertMessage(null), 3000);
+        } catch (error) {
+            console.error('Failed to add guardian:', error);
+            setAlertMessage({ type: 'error', message: 'Fehler beim Hinzufügen der/des Erziehungsberechtigten' });
             setTimeout(() => setAlertMessage(null), 3000);
         }
     };
 
-    // Add a new guardian
-    const handleAddGuardian = () => {
-        setEditedGuardians([...editedGuardians, {
-            id: 0,
-            first_name: '',
-            last_name: '',
-            email: '',
-            phone: '',
-            relationship_type: 'Erziehungsberechtigte/r',
-            is_primary: editedGuardians.length === 0,
-            is_emergency_contact: true,
-            can_pickup: true
-        }]);
-    };
+    // Handle creating a new guardian and adding to student
+    const handleCreateAndAddGuardian = async () => {
+        if (!student || !newGuardianData.firstName || !newGuardianData.lastName || !newGuardianData.email || !newGuardianData.phone) {
+            setAlertMessage({ type: 'error', message: 'Bitte füllen Sie alle erforderlichen Felder aus' });
+            setTimeout(() => setAlertMessage(null), 3000);
+            return;
+        }
 
-    // Remove a guardian - Delete immediately from database
-    const handleRemoveGuardian = async (index: number) => {
-        const guardian = editedGuardians[index];
-        if (!guardian) return;
+        try {
+            // Create new guardian
+            const guardian = await guardianService.createGuardian({
+                firstName: newGuardianData.firstName,
+                lastName: newGuardianData.lastName,
+                email: newGuardianData.email,
+                phone: newGuardianData.phone,
+                phoneSecondary: newGuardianData.phoneSecondary,
+                country: newGuardianData.country ?? 'DE',
+                languagePreference: newGuardianData.languagePreference ?? 'de',
+                isEmergencyContact: false,
+                active: true,
+            });
 
-        // If guardian has an ID, it exists in database - confirm deletion
-        if (guardian.id > 0) {
-            if (!confirm(`Möchten Sie ${guardian.first_name} ${guardian.last_name} wirklich löschen?`)) {
-                return;
-            }
+            // Add guardian to student
+            await guardianService.addStudentGuardian(studentId, {
+                guardianId: guardian.id,
+                relationshipType: newGuardianData.relationshipType ?? 'parent',
+                isPrimary: studentGuardians.length === 0, // First guardian is primary
+                isEmergencyContact: false,
+                canPickup: true,
+            });
 
-            try {
-                // Delete from database
-                const response = await fetch(`/api/students/${studentId}/guardians/${guardian.id}`, {
-                    method: 'DELETE'
-                });
+            // Refresh guardians list
+            const guardians = await guardianService.getStudentGuardians(studentId);
+            setStudentGuardians(guardians);
 
-                if (!response.ok) {
-                    throw new Error('Failed to delete guardian');
-                }
-
-                setAlertMessage({ type: 'success', message: 'Erziehungsberechtigte/r erfolgreich gelöscht' });
-                setTimeout(() => setAlertMessage(null), 3000);
-
-                // Remove from local state
-                setEditedGuardians(editedGuardians.filter((_, i) => i !== index));
-
-                // Refresh student data to get updated guardians list
-                const studentResponse = await studentService.getStudent(studentId);
-                interface WrappedResponse {
-                    data?: unknown;
-                }
-                const wrappedResponse = studentResponse as WrappedResponse;
-                const studentData = wrappedResponse.data ?? studentResponse;
-                const mappedStudent = studentData as Student & {
-                    guardians?: Guardian[];
-                };
-
-                if (student) {
-                    const guardians: Guardian[] = mappedStudent.guardians ?? [];
-                    setStudent({ ...student, guardians });
-                    setEditedGuardians(guardians);
-                }
-            } catch (error) {
-                console.error('Failed to delete guardian:', error);
-                setAlertMessage({ type: 'error', message: 'Fehler beim Löschen der Erziehungsberechtigten' });
-                setTimeout(() => setAlertMessage(null), 3000);
-            }
-        } else {
-            // New guardian not yet saved - just remove from local state
-            setEditedGuardians(editedGuardians.filter((_, i) => i !== index));
+            setNewGuardianMode(false);
+            setNewGuardianData({});
+            setAlertMessage({ type: 'success', message: 'Erziehungsberechtigte/r erfolgreich erstellt und hinzugefügt' });
+            setTimeout(() => setAlertMessage(null), 3000);
+        } catch (error) {
+            console.error('Failed to create and add guardian:', error);
+            setAlertMessage({ type: 'error', message: 'Fehler beim Erstellen der/des Erziehungsberechtigten' });
+            setTimeout(() => setAlertMessage(null), 3000);
         }
     };
 
-    // Update guardian field
-    const handleUpdateGuardian = (index: number, field: keyof Guardian, value: string | boolean) => {
-        const updated = [...editedGuardians];
-        const currentGuardian = updated[index] ?? {
-            id: 0,
-            first_name: '',
-            last_name: '',
-            email: '',
-            phone: '',
-            relationship_type: '',
-            is_primary: false,
-            is_emergency_contact: false,
-            can_pickup: false
-        };
-        updated[index] = { ...currentGuardian, [field]: value };
-        setEditedGuardians(updated);
+    // Update relationship information for a guardian
+    const handleUpdateRelationship = async (guardianId: string, isPrimary: boolean) => {
+        if (!student) return;
+
+        try {
+            await guardianService.updateStudentGuardian(studentId, guardianId, {
+                isPrimary,
+            });
+
+            // Refresh guardians list
+            const guardians = await guardianService.getStudentGuardians(studentId);
+            setStudentGuardians(guardians);
+
+            setAlertMessage({ type: 'success', message: 'Beziehung erfolgreich aktualisiert' });
+            setTimeout(() => setAlertMessage(null), 3000);
+        } catch (error) {
+            console.error('Failed to update relationship:', error);
+            setAlertMessage({ type: 'error', message: 'Fehler beim Aktualisieren der Beziehung' });
+            setTimeout(() => setAlertMessage(null), 3000);
+        }
+>>>>>>> 7028f7eb (feat: gurdians)
     };
 
     if (loading) {
@@ -812,195 +773,162 @@ function StudentPageContent() {
                                         </div>
                                         <h2 className="text-base sm:text-lg font-semibold text-gray-900">Erziehungsberechtigte</h2>
                                     </div>
-                                    {!isEditingGuardians ? (
+                                    {!newGuardianMode && (
                                         <button
-                                            onClick={() => {
-                                                setIsEditingGuardians(true);
-                                                setEditedGuardians(student.guardians ?? []);
-                                            }}
+                                            onClick={() => setNewGuardianMode(true)}
                                             className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                                            title="Bearbeiten"
+                                            title="Hinzufügen"
                                         >
                                             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                             </svg>
                                         </button>
-                                    ) : (
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => {
-                                                    setIsEditingGuardians(false);
-                                                    setEditedGuardians(student.guardians ?? []);
-                                                }}
-                                                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                                                title="Abbrechen"
-                                            >
-                                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
-                                            </button>
-                                            <button
-                                                onClick={handleSaveGuardians}
-                                                className="p-2 text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors"
-                                                title="Speichern"
-                                            >
-                                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                </svg>
-                                            </button>
-                                        </div>
                                     )}
                                 </div>
                                 <div className="space-y-4">
-                                    {isEditingGuardians ? (
-                                        <>
-                                            {editedGuardians.map((guardian, index) => (
-                                                <div key={index} className="p-4 border border-gray-200 rounded-lg space-y-3">
-                                                    <div className="flex justify-between items-center mb-2">
-                                                        <h3 className="text-sm font-semibold text-gray-700">Erziehungsberechtigte/r {index + 1}</h3>
-                                                        {editedGuardians.length > 1 && (
-                                                            <button
-                                                                onClick={() => handleRemoveGuardian(index)}
-                                                                className="text-red-500 hover:text-red-700 text-sm"
-                                                            >
-                                                                Entfernen
-                                                            </button>
+                                    {guardianLoading ? (
+                                        <div className="text-center text-gray-500 py-4">Lädt...</div>
+                                    ) : studentGuardians.length > 0 ? (
+                                        studentGuardians.map((sg) => (
+                                            <div key={sg.id} className="p-4 border border-gray-200 rounded-lg">
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <h3 className="text-sm font-semibold text-gray-900">
+                                                            {sg.guardian ? getGuardianFullName(sg.guardian) : 'Unbekannt'}
+                                                        </h3>
+                                                        {sg.isPrimary && (
+                                                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                                                                Primär
+                                                            </span>
                                                         )}
                                                     </div>
-                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                        <div>
-                                                            <label className="text-xs text-gray-500 mb-1 block">Vorname</label>
-                                                            <input
-                                                                type="text"
-                                                                value={guardian.first_name}
-                                                                onChange={(e) => handleUpdateGuardian(index, 'first_name', e.target.value)}
-                                                                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                                placeholder="Max"
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-xs text-gray-500 mb-1 block">Nachname</label>
-                                                            <input
-                                                                type="text"
-                                                                value={guardian.last_name}
-                                                                onChange={(e) => handleUpdateGuardian(index, 'last_name', e.target.value)}
-                                                                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                                placeholder="Mustermann"
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-xs text-gray-500 mb-1 block">Beziehung</label>
-                                                            <input
-                                                                type="text"
-                                                                value={guardian.relationship_type}
-                                                                onChange={(e) => handleUpdateGuardian(index, 'relationship_type', e.target.value)}
-                                                                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                                placeholder="Mutter/Vater/etc."
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="text-xs text-gray-500 mb-1 block">Telefonnummer</label>
-                                                            <input
-                                                                type="tel"
-                                                                value={guardian.phone}
-                                                                onChange={(e) => handleUpdateGuardian(index, 'phone', e.target.value)}
-                                                                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                                placeholder="+49 123 456789"
-                                                            />
-                                                        </div>
-                                                        <div className="sm:col-span-2">
-                                                            <label className="text-xs text-gray-500 mb-1 block">E-Mail</label>
-                                                            <input
-                                                                type="email"
-                                                                value={guardian.email}
-                                                                onChange={(e) => handleUpdateGuardian(index, 'email', e.target.value)}
-                                                                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                                placeholder="email@beispiel.de"
-                                                            />
-                                                        </div>
-                                                        <div className="sm:col-span-2 space-y-2 pt-2">
-                                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={guardian.is_primary}
-                                                                    onChange={(e) => handleUpdateGuardian(index, 'is_primary', e.target.checked)}
-                                                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                                />
-                                                                <span className="text-sm text-gray-700">Hauptkontakt</span>
-                                                            </label>
-                                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={guardian.is_emergency_contact}
-                                                                    onChange={(e) => handleUpdateGuardian(index, 'is_emergency_contact', e.target.checked)}
-                                                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                                />
-                                                                <span className="text-sm text-gray-700">Notfallkontakt</span>
-                                                            </label>
-                                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={guardian.can_pickup}
-                                                                    onChange={(e) => handleUpdateGuardian(index, 'can_pickup', e.target.checked)}
-                                                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                                />
-                                                                <span className="text-sm text-gray-700">Abholberechtigt</span>
-                                                            </label>
-                                                        </div>
-                                                    </div>
+                                                    <button
+                                                        onClick={() => handleRemoveGuardian(sg.guardianId)}
+                                                        className="text-red-500 hover:text-red-700 text-sm"
+                                                        title="Entfernen"
+                                                    >
+                                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
                                                 </div>
-                                            ))}
-                                            <button
-                                                onClick={handleAddGuardian}
-                                                className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-700 transition-colors"
-                                            >
-                                                + Weitere/n Erziehungsberechtigte/n hinzufügen
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <>
-                                            {student.guardians && student.guardians.length > 0 ? (
-                                                student.guardians.map((guardian, index) => (
-                                                    <div key={index} className="p-4 border border-gray-200 rounded-lg">
-                                                        <div className="flex items-start justify-between mb-3">
-                                                            <div className="flex flex-wrap gap-1.5">
-                                                                {guardian.is_primary && (
-                                                                    <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
-                                                                        Hauptkontakt
-                                                                    </span>
-                                                                )}
-                                                                {guardian.is_emergency_contact && (
-                                                                    <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">
-                                                                        Notfallkontakt
-                                                                    </span>
-                                                                )}
-                                                                {guardian.can_pickup && (
-                                                                    <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
-                                                                        Abholberechtigt
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            <InfoItem label="Name" value={`${guardian.first_name} ${guardian.last_name}`} />
-                                                            {guardian.relationship_type && <InfoItem label="Beziehung" value={guardian.relationship_type} />}
-                                                            <InfoItem label="E-Mail" value={guardian.email || 'Nicht angegeben'} />
-                                                            <InfoItem label="Telefonnummer" value={guardian.phone || 'Nicht angegeben'} />
-                                                        </div>
+                                                {sg.guardian && (
+                                                    <div className="space-y-2">
+                                                        <InfoItem
+                                                            label="Beziehung"
+                                                            value={RELATIONSHIP_TYPES.find(r => r.value === sg.relationshipType)?.label ?? sg.relationshipType}
+                                                        />
+                                                        <InfoItem label="E-Mail" value={sg.guardian.email} />
+                                                        <InfoItem label="Telefon" value={sg.guardian.phone} />
+                                                        {sg.guardian.phoneSecondary && (
+                                                            <InfoItem label="Telefon (Zweit)" value={sg.guardian.phoneSecondary} />
+                                                        )}
                                                         <div className="mt-3">
-                                                            <ModernContactActions email={guardian.email} phone={guardian.phone} studentName={student.name} />
+                                                            <ModernContactActions
+                                                                email={sg.guardian.email}
+                                                                phone={sg.guardian.phone}
+                                                                studentName={student.name}
+                                                            />
                                                         </div>
                                                     </div>
-                                                ))
-                                            ) : (
-                                                <>
-                                                    <InfoItem label="Name" value={student.guardian_name || 'Nicht angegeben'} />
-                                                    <InfoItem label="E-Mail" value={student.guardian_contact || 'Nicht angegeben'} />
-                                                    <InfoItem label="Telefonnummer" value={student.guardian_phone ?? 'Nicht angegeben'} />
-                                                    <ModernContactActions email={student.guardian_contact} phone={student.guardian_phone} studentName={student.name} />
-                                                </>
-                                            )}
-                                        </>
+                                                )}
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="text-center text-gray-500 py-4">
+                                            Keine Erziehungsberechtigten hinzugefügt
+                                        </div>
+                                    )}
+
+                                    {/* New Guardian Form */}
+                                    {newGuardianMode && (
+                                        <div className="p-4 border-2 border-blue-300 rounded-lg bg-blue-50 space-y-3">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <h3 className="text-sm font-semibold text-gray-900">Neue/n Erziehungsberechtigte/n hinzufügen</h3>
+                                                <button
+                                                    onClick={() => {
+                                                        setNewGuardianMode(false);
+                                                        setNewGuardianData({});
+                                                    }}
+                                                    className="text-gray-500 hover:text-gray-700"
+                                                    title="Abbrechen"
+                                                >
+                                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-xs text-gray-600 mb-1 block">Vorname *</label>
+                                                    <input
+                                                        type="text"
+                                                        value={newGuardianData.firstName ?? ''}
+                                                        onChange={(e) => setNewGuardianData({ ...newGuardianData, firstName: e.target.value })}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                                        placeholder="Maria"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs text-gray-600 mb-1 block">Nachname *</label>
+                                                    <input
+                                                        type="text"
+                                                        value={newGuardianData.lastName ?? ''}
+                                                        onChange={(e) => setNewGuardianData({ ...newGuardianData, lastName: e.target.value })}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                                        placeholder="Mustermann"
+                                                    />
+                                                </div>
+                                                <div className="sm:col-span-2">
+                                                    <label className="text-xs text-gray-600 mb-1 block">Beziehung</label>
+                                                    <select
+                                                        value={newGuardianData.relationshipType ?? 'parent'}
+                                                        onChange={(e) => setNewGuardianData({ ...newGuardianData, relationshipType: e.target.value })}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                                    >
+                                                        {RELATIONSHIP_TYPES.map(type => (
+                                                            <option key={type.value} value={type.value}>{type.label}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="sm:col-span-2">
+                                                    <label className="text-xs text-gray-600 mb-1 block">E-Mail *</label>
+                                                    <input
+                                                        type="email"
+                                                        value={newGuardianData.email ?? ''}
+                                                        onChange={(e) => setNewGuardianData({ ...newGuardianData, email: e.target.value })}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                                        placeholder="maria.mustermann@email.de"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs text-gray-600 mb-1 block">Telefon *</label>
+                                                    <input
+                                                        type="tel"
+                                                        value={newGuardianData.phone ?? ''}
+                                                        onChange={(e) => setNewGuardianData({ ...newGuardianData, phone: e.target.value })}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                                        placeholder="+49 123 456789"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs text-gray-600 mb-1 block">Telefon (Zweit)</label>
+                                                    <input
+                                                        type="tel"
+                                                        value={newGuardianData.phoneSecondary ?? ''}
+                                                        onChange={(e) => setNewGuardianData({ ...newGuardianData, phoneSecondary: e.target.value })}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                                        placeholder="+49 987 654321"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={handleCreateAndAddGuardian}
+                                                className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+                                            >
+                                                Hinzufügen
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             </div>

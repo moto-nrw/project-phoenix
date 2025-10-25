@@ -44,21 +44,18 @@ export const guardianService = {
       throw new Error(`Failed to fetch guardians: ${response.statusText}`);
     }
 
-    // Unwrap the Next.js route wrapper: { success, message, data }
-    const wrapper = (await response.json()) as {
-      data: {
-        data: unknown[];
-        total: number;
-        page: number;
-        per_page: number;
-      };
+    const result = (await response.json()) as {
+      data: unknown[];
+      total: number;
+      page: number;
+      per_page: number;
     };
 
     return {
-      data: wrapper.data.data.map((item) => mapGuardianResponse(item as never)),
-      total: wrapper.data.total,
-      page: wrapper.data.page,
-      per_page: wrapper.data.per_page,
+      data: result.data.map((item) => mapGuardianResponse(item as never)),
+      total: result.total,
+      page: result.page,
+      per_page: result.per_page,
     };
   },
 
@@ -69,9 +66,8 @@ export const guardianService = {
       throw new Error(`Failed to fetch guardian: ${response.statusText}`);
     }
 
-    // Unwrap the Next.js route wrapper: { success, message, data }
-    const wrapper = (await response.json()) as { data: unknown };
-    return mapGuardianResponse(wrapper.data as never);
+    const result = (await response.json()) as { data: unknown };
+    return mapGuardianResponse(result.data as never);
   },
 
   async createGuardian(data: Omit<Guardian, "id" | "createdAt" | "updatedAt">): Promise<Guardian> {
@@ -87,9 +83,8 @@ export const guardianService = {
       throw new Error(`Failed to create guardian: ${response.statusText}`);
     }
 
-    // Unwrap the Next.js route wrapper: { success, message, data }
-    const wrapper = (await response.json()) as { data: unknown };
-    return mapGuardianResponse(wrapper.data as never);
+    const result = (await response.json()) as { data: unknown };
+    return mapGuardianResponse(result.data as never);
   },
 
   async updateGuardian(id: string, data: Partial<Guardian>): Promise<Guardian> {
@@ -105,9 +100,8 @@ export const guardianService = {
       throw new Error(`Failed to update guardian: ${response.statusText}`);
     }
 
-    // Unwrap the Next.js route wrapper: { success, message, data }
-    const wrapper = (await response.json()) as { data: unknown };
-    return mapGuardianResponse(wrapper.data as never);
+    const result = (await response.json()) as { data: unknown };
+    return mapGuardianResponse(result.data as never);
   },
 
   async deleteGuardian(id: string): Promise<void> {
@@ -128,9 +122,8 @@ export const guardianService = {
       throw new Error(`Failed to search guardians: ${response.statusText}`);
     }
 
-    // Unwrap the Next.js route wrapper: { success, message, data }
-    const wrapper = (await response.json()) as { data: unknown[] };
-    return wrapper.data.map((item) => mapGuardianResponse(item as never));
+    const result = (await response.json()) as { data: unknown[] };
+    return result.data.map((item) => mapGuardianResponse(item as never));
   },
 
   // Student-Guardian relationships
@@ -141,9 +134,8 @@ export const guardianService = {
       throw new Error(`Failed to fetch student guardians: ${response.statusText}`);
     }
 
-    // Unwrap the Next.js route wrapper: { success, message, data }
-    const wrapper = (await response.json()) as { data: unknown[] };
-    return wrapper.data.map((item) => mapStudentGuardianResponse(item as never));
+    const result = (await response.json()) as { data: unknown[] };
+    return result.data.map((item) => mapStudentGuardianResponse(item as never));
   },
 
   async addStudentGuardian(
@@ -174,9 +166,8 @@ export const guardianService = {
       throw new Error(`Failed to add guardian to student: ${response.statusText}`);
     }
 
-    // Unwrap the Next.js route wrapper: { success, message, data }
-    const wrapper = (await response.json()) as { data: unknown };
-    return mapStudentGuardianResponse(wrapper.data as never);
+    const result = (await response.json()) as { data: unknown };
+    return mapStudentGuardianResponse(result.data as never);
   },
 
   async removeStudentGuardian(studentId: string, guardianId: string): Promise<void> {
@@ -206,9 +197,8 @@ export const guardianService = {
       throw new Error(`Failed to update student guardian relationship: ${response.statusText}`);
     }
 
-    // Unwrap the Next.js route wrapper: { success, message, data }
-    const wrapper = (await response.json()) as { data: unknown };
-    return mapStudentGuardianResponse(wrapper.data as never);
+    const result = (await response.json()) as { data: unknown };
+    return mapStudentGuardianResponse(result.data as never);
   },
 
   async getGuardianStudents(guardianId: string): Promise<unknown[]> {
@@ -218,8 +208,7 @@ export const guardianService = {
       throw new Error(`Failed to fetch guardian students: ${response.statusText}`);
     }
 
-    // Unwrap the Next.js route wrapper: { success, message, data }
-    const wrapper = (await response.json()) as { data: unknown[] };
-    return wrapper.data;
+    const result = (await response.json()) as { data: unknown[] };
+    return result.data;
   },
 };

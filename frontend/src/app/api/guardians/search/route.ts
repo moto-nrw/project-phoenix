@@ -1,15 +1,6 @@
 import { createGetHandler } from "~/lib/route-wrapper";
 
-interface GuardianSearchResult {
-  id: number;
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-  [key: string]: unknown;
-}
-
-export const GET = createGetHandler<GuardianSearchResult[]>(async (request, token) => {
+export const GET = createGetHandler(async (request, token) => {
   const { searchParams } = new URL(request.url);
 
   // Forward all query parameters to backend
@@ -30,5 +21,5 @@ export const GET = createGetHandler<GuardianSearchResult[]>(async (request, toke
     throw new Error(`Backend error: ${response.statusText}`);
   }
 
-  return response.json() as Promise<GuardianSearchResult[]>;
+  return response.json();
 });

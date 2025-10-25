@@ -77,30 +77,13 @@ func migrateLegacyGuardiansUp(ctx context.Context, db *bun.DB) error {
 
 	guardianCache := make(map[string]int64) // Map of email/phone -> guardian_id
 	migratedCount := 0
-	skippedCount := 0
-	errorCount := 0
 
-	for i, student := range students {
-		// Progress logging every 10 students
-		if (i+1)%10 == 0 || i == 0 {
-			fmt.Printf("Processing student %d/%d (%.1f%% complete)...\n", i+1, len(students), float64(i+1)/float64(len(students))*100)
-		}
-
+	for _, student := range students {
 		// Parse guardian name into first and last name
 		firstName, lastName := parseGuardianName(student.GuardianName)
 
-		// Log simplified names that might lose information
-		if len(strings.Fields(student.GuardianName)) > 2 {
-			log.Printf("Student %d: Simplified guardian name '%s' to '%s %s'", student.ID, student.GuardianName, firstName, lastName)
-		}
-
 		// Determine primary contact (email or phone)
 		email, phone := parseGuardianContact(student)
-
-		// Log placeholder data usage
-		if strings.Contains(email, "noemail") || strings.HasPrefix(phone, "000") {
-			log.Printf("Student %d: Using placeholder data (email: %s, phone: %s)", student.ID, email, phone)
-		}
 
 		// Create cache key
 		cacheKey := email
@@ -123,69 +106,61 @@ func migrateLegacyGuardiansUp(ctx context.Context, db *bun.DB) error {
 				Scan(ctx, &existingGuardianID)
 
 			if err != nil && err != sql.ErrNoRows {
-				log.Printf("ERROR: Student %d - Failed to check for existing guardian: %v", student.ID, err)
-				errorCount++
+				log.Printf("Error checking for existing guardian for student %d: %v", student.ID, err)
 				continue
 			}
 
 			if existingGuardianID > 0 {
 				guardianID = existingGuardianID
-				log.Printf("Student %d: Reusing existing guardian ID %d", student.ID, guardianID)
 			} else {
-				// Create new guardian and get ID via QueryRow + Scan (required for RETURNING)
-				err = tx.QueryRowContext(ctx, `
+				// Create new guardian
+				_, err = tx.Exec(`
 					INSERT INTO users.guardians (first_name, last_name, email, phone, active, created_at, updated_at)
 					VALUES (?, ?, ?, ?, true, NOW(), NOW())
 					RETURNING id
-				`, firstName, lastName, email, phone).Scan(&guardianID)
+				`, firstName, lastName, email, phone)
 
 				if err != nil {
-					log.Printf("ERROR: Student %d - Failed to create guardian (%s %s, email: %s, phone: %s): %v",
-						student.ID, firstName, lastName, email, phone, err)
-					errorCount++
+					log.Printf("Error creating guardian for student %d: %v", student.ID, err)
 					continue
 				}
-				log.Printf("Student %d: Created new guardian ID %d (%s %s)", student.ID, guardianID, firstName, lastName)
+
+				// Get the ID of the newly created guardian
+				err = tx.NewSelect().
+					Table("users.guardians").
+					Column("id").
+					Where("email = ? OR phone = ?", email, phone).
+					Order("id DESC").
+					Limit(1).
+					Scan(ctx, &guardianID)
+
+				if err != nil {
+					log.Printf("Error retrieving new guardian ID for student %d: %v", student.ID, err)
+					continue
+				}
 			}
 
 			guardianCache[cacheKey] = guardianID
-		} else {
-			log.Printf("Student %d: Using cached guardian ID %d", student.ID, guardianID)
 		}
 
 		// Create student-guardian relationship
-		// Note: Migration 1.3.6 creates the table with guardian_id column (not guardian_account_id)
+		// Note: We're updating guardian_account_id which will be renamed to guardian_id in the next migration
 		_, err = tx.Exec(`
 			INSERT INTO users.students_guardians
-			(student_id, guardian_id, relationship_type, is_primary, is_emergency_contact, can_pickup, created_at, updated_at)
+			(student_id, guardian_account_id, relationship_type, is_primary, is_emergency_contact, can_pickup, created_at, updated_at)
 			VALUES (?, ?, 'parent', true, true, true, NOW(), NOW())
-			ON CONFLICT (student_id, guardian_id, relationship_type) DO NOTHING
+			ON CONFLICT (student_id, guardian_account_id, relationship_type) DO NOTHING
 		`, student.ID, guardianID)
 
 		if err != nil {
-			log.Printf("ERROR: Student %d - Failed to create student-guardian relationship with guardian ID %d: %v",
-				student.ID, guardianID, err)
-			errorCount++
+			log.Printf("Error creating student-guardian relationship for student %d: %v", student.ID, err)
 			continue
 		}
 
 		migratedCount++
 	}
 
-	// Final statistics
-	fmt.Println("\n" + strings.Repeat("=", 60))
-	fmt.Println("Migration 1.4.2 - Guardian Data Migration Complete")
-	fmt.Println(strings.Repeat("=", 60))
-	fmt.Printf("Total students with legacy data:  %d\n", len(students))
-	fmt.Printf("Successfully migrated:             %d (%.1f%%)\n", migratedCount, float64(migratedCount)/float64(len(students))*100)
-	fmt.Printf("Skipped (no data):                 %d\n", skippedCount)
-	fmt.Printf("Errors:                            %d\n", errorCount)
-	fmt.Printf("Unique guardians created/reused:   %d\n", len(guardianCache))
-	fmt.Println(strings.Repeat("=", 60))
-
-	if errorCount > 0 {
-		log.Printf("WARNING: %d errors occurred during migration. Check logs for details.", errorCount)
-	}
+	fmt.Printf("Successfully migrated %d guardian relationships\n", migratedCount)
 
 	// Commit the transaction
 	return tx.Commit()
@@ -227,21 +202,21 @@ func parseGuardianContact(student LegacyStudent) (email string, phone string) {
 			// Check if it looks like an email
 			if strings.Contains(contact, "@") {
 				email = contact
-				phone = fmt.Sprintf("000%07d", student.ID) // Unique placeholder per student
+				phone = "000000000" // Placeholder
 			} else {
 				// Assume it's a phone number
 				phone = contact
-				email = fmt.Sprintf("noemail+guardian_%d@example.invalid", student.ID)
+				email = fmt.Sprintf("guardian_%d@placeholder.local", student.ID)
 			}
 		}
 	}
 
 	// Ensure we have both email and phone (requirements of guardian table)
 	if email == "" {
-		email = fmt.Sprintf("noemail+guardian_%d@example.invalid", student.ID)
+		email = fmt.Sprintf("guardian_%d@placeholder.local", student.ID)
 	}
 	if phone == "" {
-		phone = fmt.Sprintf("000%07d", student.ID) // Unique placeholder per student (format: 0000000001, 0000000042, etc.)
+		phone = "000000000"
 	}
 
 	return email, phone

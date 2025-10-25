@@ -1,15 +1,7 @@
 import { createGetHandler } from "~/lib/route-wrapper";
 
-interface StudentResponse {
-  id: number;
-  person_id: number;
-  first_name: string;
-  last_name: string;
-  [key: string]: unknown;
-}
-
-export const GET = createGetHandler<StudentResponse[]>(async (_request, token, params) => {
-  const id = String(params.id);
+export const GET = createGetHandler(async (request, token, params) => {
+  const { id } = await params;
 
   const response = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/guardians/${id}/students`,
@@ -24,5 +16,5 @@ export const GET = createGetHandler<StudentResponse[]>(async (_request, token, p
     throw new Error(`Backend error: ${response.statusText}`);
   }
 
-  return response.json() as Promise<StudentResponse[]>;
+  return response.json();
 });
