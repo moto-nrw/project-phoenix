@@ -1,8 +1,8 @@
 import { createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
 
-export const PUT = createPutHandler(async (request, token, params) => {
-  const { id, guardianId } = await params;
-  const body = await request.json();
+export const PUT = createPutHandler(async (request, body, token, params) => {
+  const id = params.id as string;
+  const guardianId = params.guardianId as string;
 
   const response = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/students/${id}/guardians/${guardianId}`,
@@ -24,7 +24,8 @@ export const PUT = createPutHandler(async (request, token, params) => {
 });
 
 export const DELETE = createDeleteHandler(async (request, token, params) => {
-  const { id, guardianId } = await params;
+  const id = params.id as string;
+  const guardianId = params.guardianId as string;
 
   const response = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/students/${id}/guardians/${guardianId}`,

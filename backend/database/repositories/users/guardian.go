@@ -28,6 +28,7 @@ func (r *GuardianRepository) Create(ctx context.Context, guardian *users.Guardia
 
 	_, err := r.db.NewInsert().
 		Model(guardian).
+		ModelTableExpr(`users.guardians AS "guardian"`).
 		Exec(ctx)
 
 	return err
@@ -117,6 +118,7 @@ func (r *GuardianRepository) Update(ctx context.Context, guardian *users.Guardia
 
 	result, err := r.db.NewUpdate().
 		Model(guardian).
+		ModelTableExpr(`users.guardians AS "guardian"`).
 		WherePK().
 		Exec(ctx)
 
@@ -140,6 +142,7 @@ func (r *GuardianRepository) Update(ctx context.Context, guardian *users.Guardia
 func (r *GuardianRepository) Delete(ctx context.Context, id interface{}) error {
 	result, err := r.db.NewDelete().
 		Model((*users.Guardian)(nil)).
+		ModelTableExpr(`users.guardians AS "guardian"`).
 		Where("id = ?", id).
 		Exec(ctx)
 
@@ -248,6 +251,7 @@ func (r *GuardianRepository) Search(ctx context.Context, query string, limit int
 func (r *GuardianRepository) LinkToAccount(ctx context.Context, guardianID int64, accountID int64) error {
 	result, err := r.db.NewUpdate().
 		Model((*users.Guardian)(nil)).
+		ModelTableExpr(`users.guardians AS "guardian"`).
 		Set("account_id = ?", accountID).
 		Where("id = ?", guardianID).
 		Exec(ctx)
@@ -272,6 +276,7 @@ func (r *GuardianRepository) LinkToAccount(ctx context.Context, guardianID int64
 func (r *GuardianRepository) UnlinkFromAccount(ctx context.Context, guardianID int64) error {
 	result, err := r.db.NewUpdate().
 		Model((*users.Guardian)(nil)).
+		ModelTableExpr(`users.guardians AS "guardian"`).
 		Set("account_id = NULL").
 		Where("id = ?", guardianID).
 		Exec(ctx)
