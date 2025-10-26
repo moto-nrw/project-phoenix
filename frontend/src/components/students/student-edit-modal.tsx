@@ -417,33 +417,42 @@ export function StudentEditModal({
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                             <div>
-                                                <label className="block text-xs font-medium text-gray-700 mb-1">Vorname</label>
+                                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                    Vorname <span className="text-red-500">*</span>
+                                                </label>
                                                 <input
                                                     type="text"
                                                     value={guardian.first_name}
                                                     onChange={(e) => updateGuardian(index, "first_name", e.target.value)}
                                                     className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors"
                                                     placeholder="Maria"
+                                                    required
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-medium text-gray-700 mb-1">Nachname</label>
+                                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                    Nachname <span className="text-red-500">*</span>
+                                                </label>
                                                 <input
                                                     type="text"
                                                     value={guardian.last_name}
                                                     onChange={(e) => updateGuardian(index, "last_name", e.target.value)}
                                                     className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors"
                                                     placeholder="Mustermann"
+                                                    required
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-medium text-gray-700 mb-1">Verhältnis</label>
+                                                <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                    Verhältnis <span className="text-red-500">*</span>
+                                                </label>
                                                 <input
                                                     type="text"
                                                     value={guardian.relationship_type}
                                                     onChange={(e) => updateGuardian(index, "relationship_type", e.target.value)}
                                                     className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors"
                                                     placeholder="Erziehungsberechtigte/r, Mutter, Vater, etc."
+                                                    required
                                                 />
                                             </div>
                                             <div>

@@ -57,8 +57,8 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 				guardian = &users.Guardian{
 					FirstName: guardianFirstName,
 					LastName:  person.LastName,
-					Email:     guardianEmail,
-					Phone:     guardianPhone,
+					Email:     &guardianEmail, // Pointer to string for optional field
+					Phone:     &guardianPhone, // Pointer to string for optional field
 					Active:    true,
 				}
 				guardian.CreatedAt = time.Now()
@@ -221,8 +221,9 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("failed to hash password: %w", err)
 			}
+			// Guardian email is required for account creation (cached by email)
 			account := &auth.AccountParent{
-				Email:        guardian.Email,
+				Email:        *guardian.Email, // Dereference pointer (guaranteed non-nil in cache)
 				PasswordHash: &passwordHash,
 				Active:       true,
 			}

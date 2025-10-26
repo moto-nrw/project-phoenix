@@ -140,8 +140,8 @@ type GuardianResponse struct {
 	ID                  int64     `json:"id"`
 	FirstName           string    `json:"first_name"`
 	LastName            string    `json:"last_name"`
-	Email               string    `json:"email"`
-	Phone               string    `json:"phone"`
+	Email               *string   `json:"email,omitempty"`    // Optional
+	Phone               *string   `json:"phone,omitempty"`    // Optional
 	RelationshipType    string    `json:"relationship_type"`
 	IsPrimary           bool      `json:"is_primary"`
 	IsEmergencyContact  bool      `json:"is_emergency_contact"`
@@ -200,11 +200,11 @@ type StudentRequest struct {
 
 // GuardianCreate represents inline guardian creation
 type GuardianCreate struct {
-	FirstName        string `json:"first_name"`
-	LastName         string `json:"last_name"`
-	Email            string `json:"email"`
-	Phone            string `json:"phone"`
-	RelationshipType string `json:"relationship_type"` // Default: "parent"
+	FirstName        string  `json:"first_name"`
+	LastName         string  `json:"last_name"`
+	Email            *string `json:"email,omitempty"`            // Optional
+	Phone            *string `json:"phone,omitempty"`            // Optional
+	RelationshipType string  `json:"relationship_type"`          // Default: "parent"
 }
 
 // UpdateStudentRequest represents a student update request
@@ -268,9 +268,7 @@ func (req *StudentRequest) Bind(r *http.Request) error {
 		if req.Guardian.LastName == "" {
 			return errors.New("guardian last name is required")
 		}
-		if req.Guardian.Email == "" && req.Guardian.Phone == "" {
-			return errors.New("guardian must have either email or phone")
-		}
+		// Email and phone are now OPTIONAL - only name and relationship required
 		if req.Guardian.RelationshipType == "" {
 			req.Guardian.RelationshipType = "parent" // Default
 		}
@@ -358,9 +356,14 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 	if err == nil && primaryGuardian != nil {
 		response.GuardianName = primaryGuardian.FirstName + " " + primaryGuardian.LastName
 		// Guardian contact info is always visible (emergency contact information)
-		response.GuardianContact = primaryGuardian.Phone
-		response.GuardianEmail = primaryGuardian.Email
-		response.GuardianPhone = primaryGuardian.Phone
+		// Handle optional phone and email (now pointers)
+		if primaryGuardian.Phone != nil {
+			response.GuardianContact = *primaryGuardian.Phone
+			response.GuardianPhone = *primaryGuardian.Phone
+		}
+		if primaryGuardian.Email != nil {
+			response.GuardianEmail = *primaryGuardian.Email
+		}
 	}
 
 	// Load all guardians for this student
@@ -1855,14 +1858,14 @@ func (rs *Resource) createStudentGuardian(w http.ResponseWriter, r *http.Request
 
 	// Parse request body
 	var req struct {
-		FirstName          string `json:"first_name"`
-		LastName           string `json:"last_name"`
-		Email              string `json:"email"`
-		Phone              string `json:"phone"`
-		RelationshipType   string `json:"relationship_type"`
-		IsPrimary          bool   `json:"is_primary"`
-		IsEmergencyContact bool   `json:"is_emergency_contact"`
-		CanPickup          bool   `json:"can_pickup"`
+		FirstName          string  `json:"first_name"`
+		LastName           string  `json:"last_name"`
+		Email              *string `json:"email"`              // Optional
+		Phone              *string `json:"phone"`              // Optional
+		RelationshipType   string  `json:"relationship_type"`
+		IsPrimary          bool    `json:"is_primary"`
+		IsEmergencyContact bool    `json:"is_emergency_contact"`
+		CanPickup          bool    `json:"can_pickup"`
 	}
 
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
@@ -1876,8 +1879,8 @@ func (rs *Resource) createStudentGuardian(w http.ResponseWriter, r *http.Request
 	guardian := &users.Guardian{
 		FirstName: req.FirstName,
 		LastName:  req.LastName,
-		Email:     req.Email,
-		Phone:     req.Phone,
+		Email:     req.Email,  // Now a pointer, can be nil
+		Phone:     req.Phone,  // Now a pointer, can be nil
 		Active:    true,
 	}
 
@@ -1944,14 +1947,14 @@ func (rs *Resource) updateStudentGuardian(w http.ResponseWriter, r *http.Request
 
 	// Parse request body
 	var req struct {
-		FirstName          string `json:"first_name"`
-		LastName           string `json:"last_name"`
-		Email              string `json:"email"`
-		Phone              string `json:"phone"`
-		RelationshipType   string `json:"relationship_type"`
-		IsPrimary          bool   `json:"is_primary"`
-		IsEmergencyContact bool   `json:"is_emergency_contact"`
-		CanPickup          bool   `json:"can_pickup"`
+		FirstName          string  `json:"first_name"`
+		LastName           string  `json:"last_name"`
+		Email              *string `json:"email"`              // Optional
+		Phone              *string `json:"phone"`              // Optional
+		RelationshipType   string  `json:"relationship_type"`
+		IsPrimary          bool    `json:"is_primary"`
+		IsEmergencyContact bool    `json:"is_emergency_contact"`
+		CanPickup          bool    `json:"can_pickup"`
 	}
 
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
@@ -1973,8 +1976,8 @@ func (rs *Resource) updateStudentGuardian(w http.ResponseWriter, r *http.Request
 	// Update guardian fields
 	guardian.FirstName = req.FirstName
 	guardian.LastName = req.LastName
-	guardian.Email = req.Email
-	guardian.Phone = req.Phone
+	guardian.Email = req.Email  // Now a pointer, can be nil
+	guardian.Phone = req.Phone  // Now a pointer, can be nil
 
 	if err := rs.GuardianRepo.Update(r.Context(), guardian); err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to update guardian"))); err != nil {

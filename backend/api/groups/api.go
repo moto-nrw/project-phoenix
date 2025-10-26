@@ -536,9 +536,14 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 		// Include sensitive data only for authorized users
 		if canAccessFullDetails {
 			if primaryGuardian != nil {
-				response.GuardianContact = primaryGuardian.Phone
-				response.GuardianEmail = primaryGuardian.Email
-				response.GuardianPhone = primaryGuardian.Phone
+				// Handle optional guardian contact fields (pointers)
+				if primaryGuardian.Phone != nil {
+					response.GuardianContact = *primaryGuardian.Phone
+					response.GuardianPhone = *primaryGuardian.Phone
+				}
+				if primaryGuardian.Email != nil {
+					response.GuardianEmail = *primaryGuardian.Email
+				}
 			}
 			if person.TagID != nil {
 				response.TagID = *person.TagID
