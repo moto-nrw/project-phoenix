@@ -16,23 +16,23 @@ func TestStudentGuardian_Validate(t *testing.T) {
 		{
 			name: "valid",
 			sg: &StudentGuardian{
-				StudentID:         1,
-				GuardianAccountID: 2,
-				RelationshipType:  "parent",
-				IsPrimary:         true,
+				StudentID:        1,
+				GuardianID:       2,
+				RelationshipType: "parent",
+				IsPrimary:        true,
 			},
 			wantErr: false,
 		},
 		{
 			name: "missing student ID",
 			sg: &StudentGuardian{
-				GuardianAccountID: 2,
-				RelationshipType:  "parent",
+				GuardianID:       2,
+				RelationshipType: "parent",
 			},
 			wantErr: true,
 		},
 		{
-			name: "missing guardian account ID",
+			name: "missing guardian ID",
 			sg: &StudentGuardian{
 				StudentID:        1,
 				RelationshipType: "parent",
@@ -42,36 +42,36 @@ func TestStudentGuardian_Validate(t *testing.T) {
 		{
 			name: "missing relationship type",
 			sg: &StudentGuardian{
-				StudentID:         1,
-				GuardianAccountID: 2,
+				StudentID:  1,
+				GuardianID: 2,
 			},
 			wantErr: true,
 		},
 		{
-			name: "invalid relationship type",
+			name: "allows custom relationship type",
 			sg: &StudentGuardian{
-				StudentID:         1,
-				GuardianAccountID: 2,
-				RelationshipType:  "invalid",
+				StudentID:        1,
+				GuardianID:       2,
+				RelationshipType: "custom",
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
-			name: "normalize relationship type to lowercase",
+			name: "preserves relationship type casing",
 			sg: &StudentGuardian{
-				StudentID:         1,
-				GuardianAccountID: 2,
-				RelationshipType:  "PARENT",
+				StudentID:        1,
+				GuardianID:       2,
+				RelationshipType: "PARENT",
 			},
 			wantErr: false,
 		},
 		{
 			name: "permissions map",
 			sg: &StudentGuardian{
-				StudentID:         1,
-				GuardianAccountID: 2,
-				RelationshipType:  "parent",
-				Permissions:       map[string]interface{}{"test": true},
+				StudentID:        1,
+				GuardianID:       2,
+				RelationshipType: "parent",
+				Permissions:      map[string]interface{}{"test": true},
 			},
 			wantErr: false,
 		},
@@ -84,9 +84,9 @@ func TestStudentGuardian_Validate(t *testing.T) {
 				t.Errorf("StudentGuardian.Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			// Check normalization of relationship type
-			if tt.name == "normalize relationship type to lowercase" && tt.sg.RelationshipType != "parent" {
-				t.Errorf("StudentGuardian.Validate() failed to normalize relationship type, got %v", tt.sg.RelationshipType)
+			// Check that relationship type is preserved as-is
+			if tt.name == "preserves relationship type casing" && tt.sg.RelationshipType != "PARENT" {
+				t.Errorf("StudentGuardian.Validate() failed to preserve relationship type, got %v", tt.sg.RelationshipType)
 			}
 		})
 	}
@@ -102,9 +102,9 @@ func TestStudentGuardian_SetStudent(t *testing.T) {
 	}
 
 	sg := &StudentGuardian{
-		StudentID:         0,
-		GuardianAccountID: 2,
-		RelationshipType:  "parent",
+		StudentID:        0,
+		GuardianID:       2,
+		RelationshipType: "parent",
 	}
 
 	sg.SetStudent(student)
@@ -118,12 +118,40 @@ func TestStudentGuardian_SetStudent(t *testing.T) {
 	}
 }
 
+func TestStudentGuardian_SetGuardian(t *testing.T) {
+	guardian := &Guardian{
+		Model: base.Model{
+			ID: 456,
+		},
+		FirstName: "John",
+		LastName:  "Doe",
+		Email:     "john.doe@example.com",
+		Phone:     "+49 123 456789",
+	}
+
+	sg := &StudentGuardian{
+		StudentID:        1,
+		GuardianID:       0,
+		RelationshipType: "parent",
+	}
+
+	sg.SetGuardian(guardian)
+
+	if sg.GuardianID != 456 {
+		t.Errorf("StudentGuardian.SetGuardian() failed to set guardian ID, got %v", sg.GuardianID)
+	}
+
+	if sg.Guardian != guardian {
+		t.Errorf("StudentGuardian.SetGuardian() failed to set guardian reference")
+	}
+}
+
 func TestStudentGuardian_HasPermission(t *testing.T) {
 	// Test with boolean permissions
 	sg1 := &StudentGuardian{
-		StudentID:         1,
-		GuardianAccountID: 2,
-		RelationshipType:  "parent",
+		StudentID:        1,
+		GuardianID:       2,
+		RelationshipType: "parent",
 		Permissions: map[string]interface{}{
 			"can_view_grades":     true,
 			"can_attend_meetings": false,
@@ -144,10 +172,10 @@ func TestStudentGuardian_HasPermission(t *testing.T) {
 
 	// Test with empty permissions
 	sg2 := &StudentGuardian{
-		StudentID:         1,
-		GuardianAccountID: 2,
-		RelationshipType:  "parent",
-		Permissions:       map[string]interface{}{},
+		StudentID:        1,
+		GuardianID:       2,
+		RelationshipType: "parent",
+		Permissions:      map[string]interface{}{},
 	}
 
 	if sg2.HasPermission("any_permission") {
@@ -182,10 +210,10 @@ func TestStudentGuardian_GetRelationshipName(t *testing.T) {
 
 func TestStudentGuardian_UpdatePermissions(t *testing.T) {
 	sg := &StudentGuardian{
-		StudentID:         1,
-		GuardianAccountID: 2,
-		RelationshipType:  "parent",
-		Permissions:       map[string]interface{}{},
+		StudentID:        1,
+		GuardianID:       2,
+		RelationshipType: "parent",
+		Permissions:      map[string]interface{}{},
 	}
 
 	// Update permissions
