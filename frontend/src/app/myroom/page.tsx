@@ -8,6 +8,7 @@ import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { Loading } from "~/components/ui/loading";
+import { LocationBadge } from "@/components/ui/location-badge";
 import { userContextService } from "~/lib/usercontext-api";
 import { activeService } from "~/lib/active-api";
 // import { studentService } from "~/lib/api";
@@ -33,6 +34,8 @@ interface ActiveRoom {
   supervisor_name?: string;
   students?: StudentWithVisit[];
 }
+
+const GROUP_CARD_GRADIENT = "from-blue-50/80 to-cyan-100/80";
 
 function MeinRaumPageContent() {
   const router = useRouter();
@@ -420,25 +423,6 @@ function MeinRaumPageContent() {
     return filters;
   }, [searchTerm, groupFilter]);
 
-  // Helper function to get group status with enhanced design
-  const getGroupStatus = (student: StudentWithVisit) => {
-    const groupName = student.group_name ?? "Unbekannt";
-
-    // Single color for all groups - clean and consistent
-    const groupColor = {
-      bg: "#5080D8",
-      shadow: "0 8px 25px rgba(80, 128, 216, 0.4)",
-    };
-
-    return {
-      label: groupName,
-      badgeColor: "text-white backdrop-blur-sm",
-      cardGradient: "from-blue-50/80 to-cyan-100/80",
-      customBgColor: groupColor.bg,
-      customShadow: groupColor.shadow,
-    };
-  };
-
   if (status === "loading" || isLoading || hasAccess === null) {
     return (
       <ResponsiveLayout>
@@ -697,8 +681,6 @@ function MeinRaumPageContent() {
           <div>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
               {filteredStudents.map((student) => {
-                const groupStatus = getGroupStatus(student);
-
                 return (
                   <div
                     key={student.id}
@@ -709,7 +691,7 @@ function MeinRaumPageContent() {
                   >
                     {/* Modern gradient overlay */}
                     <div
-                      className={`absolute inset-0 bg-gradient-to-br ${groupStatus.cardGradient} rounded-3xl opacity-[0.03]`}
+                      className={`absolute inset-0 bg-gradient-to-br ${GROUP_CARD_GRADIENT} rounded-3xl opacity-[0.03]`}
                     ></div>
                     {/* Subtle inner glow */}
                     <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
@@ -746,16 +728,12 @@ function MeinRaumPageContent() {
                         </div>
 
                         {/* Group Badge */}
-                        <span
-                          className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${groupStatus.badgeColor} ml-3`}
-                          style={{
-                            backgroundColor: groupStatus.customBgColor,
-                            boxShadow: groupStatus.customShadow,
-                          }}
-                        >
-                          <span className="mr-2 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80"></span>
-                          {groupStatus.label}
-                        </span>
+                        <LocationBadge
+                          student={student}
+                          displayMode="groupName"
+                          variant="modern"
+                          size="md"
+                        />
                       </div>
 
                       {/* Bottom row with click hint */}

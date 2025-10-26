@@ -11,14 +11,8 @@ import type { Student, SupervisorContact } from "~/lib/student-helpers";
 import { ModernContactActions } from "~/components/simple/student";
 import { ScheduledCheckoutModal } from "~/components/scheduled-checkout/scheduled-checkout-modal";
 import { ScheduledCheckoutInfo } from "~/components/scheduled-checkout/scheduled-checkout-info";
-import {
-    LOCATION_COLORS,
-    LOCATION_STATUSES,
-    isHomeLocation,
-    isSchoolyardLocation,
-    isTransitLocation,
-    parseLocation,
-} from "~/lib/location-helper";
+import { userContextService } from "~/lib/usercontext-api";
+import { LocationBadge } from "@/components/ui/location-badge";
 
 // Guardian type for multiple guardians
 interface Guardian {
@@ -43,48 +37,6 @@ interface ExtendedStudent extends Student {
     extra_info?: string;
     supervisor_notes?: string;
     health_info?: string;
-}
-
-// Simplified status badge component with proper color coding
-function StatusBadge({ location, roomName, isGroupRoom = false }: { location?: string; roomName?: string; isGroupRoom?: boolean }) {
-    const getStatusDetails = () => {
-        if (!location) {
-            return { label: LOCATION_STATUSES.UNKNOWN, bgColor: LOCATION_COLORS.UNKNOWN, textColor: "text-white" };
-        }
-
-        if (isTransitLocation(location)) {
-            return { label: LOCATION_STATUSES.TRANSIT, bgColor: LOCATION_COLORS.TRANSIT, textColor: "text-white" };
-        }
-
-        const parsed = parseLocation(location);
-        if (parsed.status === LOCATION_STATUSES.PRESENT) {
-            const label = roomName ?? parsed.room ?? LOCATION_STATUSES.PRESENT;
-            const bgColor = isGroupRoom ? LOCATION_COLORS.GROUP_ROOM : LOCATION_COLORS.OTHER_ROOM;
-            return { label, bgColor, textColor: "text-white" };
-        }
-
-        if (isHomeLocation(location)) {
-            return { label: LOCATION_STATUSES.HOME, bgColor: LOCATION_COLORS.HOME, textColor: "text-white" };
-        }
-
-        if (isSchoolyardLocation(location)) {
-            return { label: LOCATION_STATUSES.SCHOOLYARD, bgColor: LOCATION_COLORS.SCHOOLYARD, textColor: "text-white" };
-        }
-
-        return { label: LOCATION_STATUSES.UNKNOWN, bgColor: LOCATION_COLORS.UNKNOWN, textColor: "text-white" };
-    };
-
-    const status = getStatusDetails();
-
-    return (
-        <span
-            className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold ${status.textColor}`}
-            style={{ backgroundColor: status.bgColor }}
-        >
-            <span className="w-2 h-2 bg-white/80 rounded-full mr-2 animate-pulse" />
-            {status.label}
-        </span>
-    );
 }
 
 // Mobile-optimized info card component
@@ -125,7 +77,7 @@ export default function StudentDetailPage() {
     const searchParams = useSearchParams();
     const studentId = params.id as string;
     const referrer = searchParams.get("from") ?? "/students/search";
-    useSession();
+    const { data: session } = useSession();
 
     const [student, setStudent] = useState<ExtendedStudent | null>(null);
     const [loading, setLoading] = useState(true);
@@ -141,6 +93,7 @@ export default function StudentDetailPage() {
     const [showCheckoutModal, setShowCheckoutModal] = useState(false);
     const [checkoutUpdated, setCheckoutUpdated] = useState(0);
     const [hasScheduledCheckout, setHasScheduledCheckout] = useState(false);
+    const [myGroups, setMyGroups] = useState<string[]>([]);
 
     // Edit mode states
     const [isEditingPersonal, setIsEditingPersonal] = useState(false);
@@ -247,6 +200,24 @@ export default function StudentDetailPage() {
         void fetchStudent();
     }, [studentId, checkoutUpdated]);
 
+    useEffect(() => {
+        const loadMyGroups = async () => {
+            if (!session?.user?.token) {
+                setMyGroups([]);
+                return;
+            }
+
+            try {
+                const groups = await userContextService.getMyEducationalGroups();
+                setMyGroups(groups.map((group) => group.id));
+            } catch (err) {
+                console.error("Error loading supervisor groups:", err);
+            }
+        };
+
+        void loadMyGroups();
+    }, [session?.user?.token]);
+
     // Handle save for personal information
     const handleSavePersonal = async () => {
         if (!editedStudent) return;
@@ -348,6 +319,12 @@ export default function StudentDetailPage() {
         );
     }
 
+    const badgeStudent = {
+        current_location: currentLocation?.location ?? student.current_location,
+        group_id: student.group_id,
+        group_name: student.group_name,
+    };
+
     return (
         <ResponsiveLayout studentName={student.name} referrerPage={referrer}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
@@ -383,10 +360,13 @@ export default function StudentDetailPage() {
 
                         {/* Status Badge */}
                         <div className="flex-shrink-0 pb-3 mr-4">
-                            <StatusBadge
-                                location={currentLocation?.location ?? student.current_location}
-                                roomName={currentLocation?.room?.name}
-                                isGroupRoom={currentLocation?.isGroupRoom ?? false}
+                            <LocationBadge
+                                student={badgeStudent}
+                                displayMode="contextAware"
+                                userGroups={myGroups}
+                                isGroupRoom={currentLocation?.isGroupRoom}
+                                variant="modern"
+                                size="md"
                             />
                         </div>
                     </div>

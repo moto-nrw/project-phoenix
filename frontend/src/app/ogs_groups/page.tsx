@@ -12,20 +12,18 @@ import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
 import type { StudentLocation } from "~/lib/student-helpers";
 import {
-  LOCATION_COLORS,
   LOCATION_STATUSES,
   isHomeLocation,
   isSchoolyardLocation,
   isTransitLocation,
   parseLocation,
 } from "~/lib/location-helper";
-import { fetchRooms } from "~/lib/rooms-api";
-import { createRoomIdToNameMap } from "~/lib/rooms-helpers";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import type { SSEEvent } from "~/lib/sse-types";
 
 import { Loading } from "~/components/ui/loading";
+import { LocationBadge } from "@/components/ui/location-badge";
 // Location constants to ensure type safety
 const LOCATIONS = {
   HOME: LOCATION_STATUSES.HOME as StudentLocation,
@@ -44,6 +42,31 @@ interface OGSGroup {
   student_count?: number;
   supervisor_name?: string;
   students?: Student[];
+}
+
+function isStudentInGroupRoom(
+  student: Student,
+  currentGroup?: OGSGroup | null,
+): boolean {
+  if (!student?.current_location || !currentGroup?.room_name) {
+    return false;
+  }
+
+  const parsed = parseLocation(student.current_location);
+  if (parsed.room) {
+    const normalizedStudentRoom = parsed.room.trim().toLowerCase();
+    const normalizedGroupRoom = currentGroup.room_name.trim().toLowerCase();
+    if (normalizedStudentRoom === normalizedGroupRoom) {
+      return true;
+    }
+  }
+
+  if (currentGroup.room_id) {
+    const normalizedLocation = student.current_location.toLowerCase();
+    return normalizedLocation.includes(currentGroup.room_id.toString());
+  }
+
+  return false;
 }
 
 function OGSGroupPageContent() {
@@ -78,9 +101,6 @@ function OGSGroupPageContent() {
         reason?: string;
       }
     >
-  >({});
-  const [roomIdToNameMap, setRoomIdToNameMap] = useState<
-    Record<string, string>
   >({});
 
   // State for showing group selection (for 5+ groups)
@@ -253,15 +273,6 @@ function OGSGroupPageContent() {
         // Fetch room status for all students in the group
         await loadGroupRoomStatus(firstGroup.id);
 
-        // Fetch all rooms to get their names
-        try {
-          const rooms = await fetchRooms(session?.user?.token);
-          const roomMap = createRoomIdToNameMap(rooms);
-          setRoomIdToNameMap(roomMap);
-        } catch (roomErr) {
-          console.error("Failed to fetch rooms:", roomErr);
-        }
-
         setError(null);
       } catch (err) {
         if (err instanceof Error && err.message.includes("403")) {
@@ -379,101 +390,36 @@ function OGSGroupPageContent() {
     },
   );
 
-  // Helper function to get location status with enhanced design
-  const getLocationStatus = (student: Student) => {
-    const studentRoomStatus = roomStatus[student.id.toString()];
-    const parsedLocation = parseLocation(student.current_location);
+  const getCardGradient = useCallback(
+    (student: Student) => {
+      if (isStudentInGroupRoom(student, currentGroup)) {
+        return "from-emerald-50/80 to-green-100/80";
+      }
 
-    // Check if student is in group room
-    if (studentRoomStatus?.in_group_room) {
-      // Use the actual room name instead of generic "Gruppenraum"
-      const roomLabel = currentGroup?.room_name ?? "Gruppenraum";
-      return {
-        label: roomLabel,
-        badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-emerald-50/80 to-green-100/80",
-        customBgColor: "#83CD2D",
-        customShadow: "0 8px 25px rgba(131, 205, 45, 0.4)",
-      };
-    }
+      if (isSchoolyardLocation(student.current_location)) {
+        return "from-amber-50/80 to-yellow-100/80";
+      }
 
-    // Check if student is in a specific room (not group room)
-    if (
-      studentRoomStatus?.current_room_id &&
-      !studentRoomStatus.in_group_room
-    ) {
-      const roomName =
-        roomIdToNameMap[studentRoomStatus.current_room_id.toString()] ??
-        `Raum ${studentRoomStatus.current_room_id}`;
-      return {
-        label: roomName,
-        badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-blue-50/80 to-cyan-100/80",
-        customBgColor: "#5080D8",
-        customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)",
-      };
-    }
+      if (isTransitLocation(student.current_location)) {
+        return "from-fuchsia-50/80 to-pink-100/80";
+      }
 
-    if (parsedLocation.room) {
-      return {
-        label: parsedLocation.room,
-        badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-blue-50/80 to-cyan-100/80",
-        customBgColor: LOCATION_COLORS.OTHER_ROOM,
-        customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)",
-      };
-    }
+      if (isHomeLocation(student.current_location)) {
+        return "from-red-50/80 to-rose-100/80";
+      }
 
-    if (parsedLocation.status === LOCATION_STATUSES.PRESENT) {
-      return {
-        label: LOCATION_STATUSES.PRESENT,
-        badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-blue-50/80 to-cyan-100/80",
-        customBgColor: LOCATION_COLORS.OTHER_ROOM,
-        customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)",
-      };
-    }
+      const parsedLocation = parseLocation(student.current_location);
+      if (
+        parsedLocation.room ||
+        parsedLocation.status === LOCATION_STATUSES.PRESENT
+      ) {
+        return "from-blue-50/80 to-cyan-100/80";
+      }
 
-    // Check for schoolyard
-    if (isSchoolyardLocation(student.current_location)) {
-      return {
-        label: "Schulhof",
-        badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-amber-50/80 to-yellow-100/80",
-        customBgColor: LOCATION_COLORS.SCHOOLYARD,
-        customShadow: "0 8px 25px rgba(247, 140, 16, 0.4)",
-      };
-    }
-
-    // Check for in transit/movement
-    if (isTransitLocation(student.current_location)) {
-      return {
-        label: "Unterwegs",
-        badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-fuchsia-50/80 to-pink-100/80",
-        customBgColor: LOCATION_COLORS.TRANSIT,
-        customShadow: "0 8px 25px rgba(217, 70, 239, 0.4)",
-      };
-    }
-
-    if (isHomeLocation(student.current_location)) {
-      return {
-        label: "Zuhause",
-        badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-red-50/80 to-rose-100/80",
-        customBgColor: LOCATION_COLORS.HOME,
-        customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)",
-      };
-    }
-
-    return {
-      label: "Unbekannt",
-      badgeColor: "text-white backdrop-blur-sm",
-      cardGradient: "from-slate-50/80 to-gray-100/80",
-      customBgColor: LOCATION_COLORS.UNKNOWN,
-      customShadow: "0 8px 25px rgba(107, 114, 128, 0.4)",
-    };
-  };
+      return "from-slate-50/80 to-gray-100/80";
+    },
+    [currentGroup],
+  );
 
   // Prepare filter configurations for PageHeaderWithSearch
   const filterConfigs: FilterConfig[] = useMemo(
@@ -809,7 +755,8 @@ function OGSGroupPageContent() {
           <div>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
               {filteredStudents.map((student) => {
-                const locationStatus = getLocationStatus(student);
+                const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
+                const cardGradient = getCardGradient(student);
 
                 return (
                   <div
@@ -821,7 +768,7 @@ function OGSGroupPageContent() {
                   >
                     {/* Modern gradient overlay */}
                     <div
-                      className={`absolute inset-0 bg-gradient-to-br ${locationStatus.cardGradient} rounded-3xl opacity-[0.03]`}
+                      className={`absolute inset-0 bg-gradient-to-br ${cardGradient} rounded-3xl opacity-[0.03]`}
                     ></div>
                     {/* Subtle inner glow */}
                     <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
@@ -858,16 +805,13 @@ function OGSGroupPageContent() {
                         </div>
 
                         {/* Status Badge */}
-                        <span
-                          className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor} ml-3`}
-                          style={{
-                            backgroundColor: locationStatus.customBgColor,
-                            boxShadow: locationStatus.customShadow,
-                          }}
-                        >
-                          <span className="mr-2 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80"></span>
-                          {locationStatus.label}
-                        </span>
+                        <LocationBadge
+                          student={student}
+                          displayMode="roomName"
+                          isGroupRoom={inGroupRoom}
+                          variant="modern"
+                          size="md"
+                        />
                       </div>
 
                       {/* Bottom row with click hint */}
