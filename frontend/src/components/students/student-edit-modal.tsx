@@ -144,7 +144,7 @@ export function StudentEditModal({
                     });
 
                     if (!response.ok) {
-                        const errorData = await response.json().catch((): { error: string } => ({ error: response.statusText })) as { error?: string };
+                        const errorData = await response.json().catch(() => ({ error: response.statusText })) as { error?: string };
                         const errorMessage = errorData.error ?? `Fehler beim Aktualisieren von ${guardian.first_name} ${guardian.last_name}`;
                         throw new Error(errorMessage);
                     }
@@ -157,7 +157,7 @@ export function StudentEditModal({
                     });
 
                     if (!response.ok) {
-                        const errorData = await response.json().catch((): { error: string } => ({ error: response.statusText })) as { error?: string };
+                        const errorData = await response.json().catch(() => ({ error: response.statusText })) as { error?: string };
                         const errorMsg = errorData.error ?? response.statusText;
 
                         // Better error message for duplicate email

@@ -42,7 +42,7 @@ func makeGuardianContactsOptionalUp(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("error beginning transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Make email nullable and remove UNIQUE constraint
 	// We'll recreate the unique constraint to allow nulls
@@ -127,7 +127,7 @@ func makeGuardianContactsOptionalDown(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("error beginning transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// WARNING: This will fail if there are guardians with NULL email or phone
 	// Set default values for NULL contacts before making them NOT NULL
