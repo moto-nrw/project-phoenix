@@ -119,14 +119,16 @@ func TestStudentGuardian_SetStudent(t *testing.T) {
 }
 
 func TestStudentGuardian_SetGuardian(t *testing.T) {
+	email := "john.doe@example.com"
+	phone := "+49 123 456789"
 	guardian := &Guardian{
 		Model: base.Model{
 			ID: 456,
 		},
 		FirstName: "John",
 		LastName:  "Doe",
-		Email:     "john.doe@example.com",
-		Phone:     "+49 123 456789",
+		Email:     &email,
+		Phone:     &phone,
 	}
 
 	sg := &StudentGuardian{
