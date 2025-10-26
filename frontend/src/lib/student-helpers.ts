@@ -110,6 +110,8 @@ export interface Student {
     guardian_email?: string;
     guardian_phone?: string;
     custom_users_id?: string;
+    // Guardians (loaded from separate API endpoint)
+    guardians?: unknown; // Type is flexible to allow both Guardian[] and backend format
     // Privacy consent data (fetched separately)
     privacy_consent?: PrivacyConsent;
     // Privacy consent fields for form handling

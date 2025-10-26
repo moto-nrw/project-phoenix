@@ -121,6 +121,9 @@ export function StudentEditModal({
         for (let i = 0; i < editedGuardians.length; i++) {
             const guardian = editedGuardians[i];
 
+            // TypeScript safety check (noUncheckedIndexedAccess)
+            if (!guardian) continue;
+
             // Skip if guardian has no name (empty guardian)
             if (!guardian.first_name.trim() && !guardian.last_name.trim()) {
                 continue;
