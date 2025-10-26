@@ -22,9 +22,9 @@ type Guardian struct {
 	// Profile information
 	FirstName      string  `bun:"first_name,notnull" json:"first_name"`
 	LastName       string  `bun:"last_name,notnull" json:"last_name"`
-	Phone          string  `bun:"phone,notnull" json:"phone"`
+	Phone          *string `bun:"phone" json:"phone,omitempty"`          // Optional - for contact
 	PhoneSecondary *string `bun:"phone_secondary" json:"phone_secondary,omitempty"`
-	Email          string  `bun:"email,notnull" json:"email"`
+	Email          *string `bun:"email" json:"email,omitempty"`          // Optional - for contact
 	Address        *string `bun:"address" json:"address,omitempty"`
 	City           *string `bun:"city" json:"city,omitempty"`
 	PostalCode     *string `bun:"postal_code" json:"postal_code,omitempty"`
@@ -66,39 +66,51 @@ func (g *Guardian) TableName() string {
 
 // Validate ensures guardian data is valid
 func (g *Guardian) Validate() error {
-	// Validate first name
+	// Validate first name (REQUIRED)
 	if strings.TrimSpace(g.FirstName) == "" {
 		return errors.New("first name is required")
 	}
 	g.FirstName = strings.TrimSpace(g.FirstName)
 
-	// Validate last name
+	// Validate last name (REQUIRED)
 	if strings.TrimSpace(g.LastName) == "" {
 		return errors.New("last name is required")
 	}
 	g.LastName = strings.TrimSpace(g.LastName)
 
-	// Validate email format
-	if _, err := mail.ParseAddress(g.Email); err != nil {
-		return errors.New("invalid email format")
+	// Validate email format if provided (OPTIONAL)
+	if g.Email != nil && *g.Email != "" {
+		email := strings.TrimSpace(*g.Email)
+		if _, err := mail.ParseAddress(email); err != nil {
+			return errors.New("invalid email format")
+		}
+		normalized := strings.ToLower(email)
+		g.Email = &normalized
+	} else {
+		g.Email = nil // Normalize empty string to nil
 	}
-	g.Email = strings.ToLower(strings.TrimSpace(g.Email))
 
-	// Validate phone format
-	if strings.TrimSpace(g.Phone) == "" {
-		return errors.New("phone number is required")
-	}
+	// Validate phone format if provided (OPTIONAL)
 	phonePattern := regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s\-().]{7,20}$`)
-	if !phonePattern.MatchString(g.Phone) {
-		return errors.New("invalid phone format")
+	if g.Phone != nil && *g.Phone != "" {
+		phone := strings.TrimSpace(*g.Phone)
+		if !phonePattern.MatchString(phone) {
+			return errors.New("invalid phone format")
+		}
+		g.Phone = &phone
+	} else {
+		g.Phone = nil // Normalize empty string to nil
 	}
 
-	// Validate secondary phone if provided
+	// Validate secondary phone if provided (OPTIONAL)
 	if g.PhoneSecondary != nil && *g.PhoneSecondary != "" {
-		*g.PhoneSecondary = strings.TrimSpace(*g.PhoneSecondary)
-		if !phonePattern.MatchString(*g.PhoneSecondary) {
+		phone := strings.TrimSpace(*g.PhoneSecondary)
+		if !phonePattern.MatchString(phone) {
 			return errors.New("invalid secondary phone format")
 		}
+		g.PhoneSecondary = &phone
+	} else {
+		g.PhoneSecondary = nil // Normalize empty string to nil
 	}
 
 	// Validate country code
