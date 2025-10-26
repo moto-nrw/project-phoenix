@@ -1,7 +1,7 @@
 // lib/activity-helpers.ts
 // Type definitions and helper functions for activities
 
-import { LOCATION_STATUSES } from "./location-helper";
+import { LOCATION_STATUSES, normalizeLocation } from "./location-helper";
 import type { StudentLocation } from "./student-helpers";
 
 // Backend supervisor response type from API
@@ -326,10 +326,7 @@ export function mapActivityScheduleResponse(backendSchedule: BackendActivitySche
 }
 
 export function mapActivityStudentResponse(backendStudent: BackendActivityStudent): ActivityStudent {
-    const rawLocation = backendStudent.current_location?.trim();
-    const current_location: StudentLocation = (rawLocation && rawLocation.length > 0
-        ? rawLocation
-        : LOCATION_STATUSES.UNKNOWN) as StudentLocation;
+    const current_location: StudentLocation = normalizeLocation(backendStudent.current_location) as StudentLocation;
 
     return {
         id: String(backendStudent.id),
@@ -354,10 +351,7 @@ export function mapStudentEnrollmentResponse(enrollment: BackendStudentEnrollmen
     const firstName = enrollment.first_name ?? enrollment.person__first_name ?? '';
     const lastName = enrollment.last_name ?? enrollment.person__last_name ?? '';
     const fullName = `${firstName} ${lastName}`.trim() || 'Unnamed Student';
-    const rawLocation = enrollment.current_location?.trim() ?? enrollment.student__current_location?.trim();
-    const current_location: StudentLocation = (rawLocation && rawLocation.length > 0
-        ? rawLocation
-        : LOCATION_STATUSES.UNKNOWN) as StudentLocation;
+    const current_location: StudentLocation = normalizeLocation(enrollment.current_location ?? enrollment.student__current_location) as StudentLocation;
 
     return {
         id: String(enrollment.id),

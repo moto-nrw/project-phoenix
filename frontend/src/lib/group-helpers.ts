@@ -1,7 +1,7 @@
 // lib/group-helpers.ts
 // Type definitions and helper functions for groups
 
-import { LOCATION_STATUSES } from "./location-helper";
+import { LOCATION_STATUSES, normalizeLocation } from "./location-helper";
 import type { StudentLocation } from "./student-helpers";
 
 // Backend types (from Go structs)
@@ -149,7 +149,7 @@ export function mapGroupResponse(backendGroup: BackendGroup): Group {
             id: String(student.id),
             name: student.name ?? 'Unnamed Student',
             school_class: student.school_class ?? '',
-            current_location: (student.current_location?.trim() ?? LOCATION_STATUSES.UNKNOWN) as StudentLocation,
+            current_location: normalizeLocation(student.current_location) as StudentLocation,
         }));
     }
     

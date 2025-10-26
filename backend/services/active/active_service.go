@@ -193,6 +193,15 @@ func (s *service) GetActiveGroup(ctx context.Context, id int64) (*active.Group, 
 	if err != nil {
 		return nil, &ActiveError{Op: "GetActiveGroup", Err: ErrActiveGroupNotFound}
 	}
+
+	// Ensure we always have room metadata so downstream callers
+	// (location resolver, SSE payloads) can render friendly labels.
+	if group != nil && group.Room == nil && group.RoomID > 0 {
+		if room, roomErr := s.roomRepo.FindByID(ctx, group.RoomID); roomErr == nil {
+			group.Room = room
+		}
+	}
+
 	return group, nil
 }
 

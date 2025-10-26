@@ -8,6 +8,7 @@ import {
     isPresentLocation,
     isSchoolyardLocation,
     isTransitLocation,
+    normalizeLocation,
 } from "./location-helper";
 
 // Scheduled checkout information
@@ -137,11 +138,8 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student & { 
     const lastName = backendStudent.last_name || '';
     const name = `${firstName} ${lastName}`.trim();
     
-    // Map backend attendance status - backend now provides current_location directly
-    const rawLocation = backendStudent.current_location?.trim();
-    const current_location: StudentLocation = rawLocation && rawLocation.length > 0
-        ? rawLocation
-        : LOCATION_STATUSES.UNKNOWN;
+    // Map backend attendance status with normalization for legacy values (e.g., "Abwesend")
+    const current_location: StudentLocation = normalizeLocation(backendStudent.current_location);
     
     const mapped = {
         id: String(backendStudent.id),
@@ -154,7 +152,7 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student & { 
         group_name: backendStudent.group_name,
         group_id: backendStudent.group_id ? String(backendStudent.group_id) : undefined,
         // New attendance-based system
-        current_location: current_location,
+        current_location,
         takes_bus: undefined, // TODO: Map from backend when available
         bus: backendStudent.bus ?? false, // Administrative permission flag (Buskind)
         name_lg: backendStudent.guardian_name,
@@ -216,7 +214,7 @@ export function prepareStudentForBackend(student: Partial<Student> & {
         first_name: student.first_name,
         last_name: student.second_name, // Map second_name to last_name for backend
         school_class: student.school_class,
-        current_location: student.current_location,
+        current_location: student.current_location ? normalizeLocation(student.current_location) : undefined,
         bus: student.bus ?? false, // Send bus as a separate field
         guardian_name: student.name_lg,
         guardian_contact: student.contact_lg,

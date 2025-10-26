@@ -41,14 +41,69 @@ export const LOCATION_COLORS = {
 const LOCATION_SEPARATOR = '-';
 const UNKNOWN_STATUS = LOCATION_STATUSES.UNKNOWN;
 
+const LEGACY_STATUS_MAP: Record<string, string> = {
+  abwesend: LOCATION_STATUSES.HOME,
+  zuhause: LOCATION_STATUSES.HOME,
+  home: LOCATION_STATUSES.HOME,
+  unbekannt: LOCATION_STATUSES.UNKNOWN,
+  unknown: LOCATION_STATUSES.UNKNOWN,
+  anwesend: LOCATION_STATUSES.PRESENT,
+  'in house': LOCATION_STATUSES.PRESENT,
+  unterwegs: LOCATION_STATUSES.TRANSIT,
+  bus: LOCATION_STATUSES.TRANSIT,
+  schulhof: LOCATION_STATUSES.SCHOOLYARD,
+  'school yard': LOCATION_STATUSES.SCHOOLYARD,
+  schoolyard: LOCATION_STATUSES.SCHOOLYARD,
+};
+
+function normalizeStatusKeyword(rawStatus: string): string {
+  const trimmed = rawStatus.trim();
+  if (trimmed.length === 0) {
+    return UNKNOWN_STATUS;
+  }
+
+  const key = trimmed.toLowerCase();
+
+  if (key === 'wc' || key === 'bathroom' || key === 'toilette') {
+    return `${LOCATION_STATUSES.PRESENT} - WC`;
+  }
+
+  const mapped = LEGACY_STATUS_MAP[key];
+  if (mapped) {
+    return mapped;
+  }
+
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+export function normalizeLocation(location?: string | null): string {
+  const raw = (location ?? '').trim();
+  if (raw.length === 0) {
+    return UNKNOWN_STATUS;
+  }
+
+  const separatorIndex = raw.indexOf(LOCATION_SEPARATOR);
+  if (separatorIndex === -1) {
+    return normalizeStatusKeyword(raw);
+  }
+
+  const status = raw.slice(0, separatorIndex).trim();
+  const room = raw.slice(separatorIndex + 1).trim();
+  const normalizedStatus = normalizeStatusKeyword(status);
+
+  if (room.length === 0) {
+    return normalizedStatus;
+  }
+
+  return `${normalizedStatus} - ${room}`;
+}
+
 /**
  * Splits a location string into its status and optional room component.
  */
 export function parseLocation(location?: string | null): ParsedLocation {
-  const raw = (location ?? '').trim();
-  if (raw.length === 0) {
-    return { status: UNKNOWN_STATUS };
-  }
+  const normalized = normalizeLocation(location);
+  const raw = normalized.trim();
 
   const separatorIndex = raw.indexOf(LOCATION_SEPARATOR);
   if (separatorIndex === -1) {

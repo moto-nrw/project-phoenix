@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { createGetHandler } from "~/lib/route-wrapper";
 import { apiGet } from "~/lib/api-client";
 import type { BackendStudent } from "~/lib/student-helpers";
-import { LOCATION_STATUSES, isHomeLocation, isPresentLocation } from "~/lib/location-helper";
+import { LOCATION_STATUSES, isHomeLocation, isPresentLocation, normalizeLocation } from "~/lib/location-helper";
 import axios from "axios";
 import type { BackendRoom } from "~/lib/rooms-helpers";
 
@@ -94,7 +94,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     // First, get the student details - this includes attendance status from the backend
     const studentResponse = await apiGet<StudentApiResponse>(`/api/students/${studentId}`, token);
     const student = studentResponse.data.data;
-    const normalizedLocation = student.current_location ?? LOCATION_STATUSES.UNKNOWN;
+    const normalizedLocation = normalizeLocation(student.current_location);
 
     // Get the student's group room ID for comparison
     let groupRoomId: number | null = null;

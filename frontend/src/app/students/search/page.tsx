@@ -12,6 +12,7 @@ import type { Student, Group } from "~/lib/api";
 import { userContextService } from "~/lib/usercontext-api";
 import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
+import { isHomeLocation, isPresentLocation, isSchoolyardLocation, isTransitLocation } from "~/lib/location-helper";
 
 function SearchPageContent() {
   const { data: session, status } = useSession();
@@ -202,12 +203,19 @@ function SearchPageContent() {
   // Apply additional client-side filtering for attendance statuses and year
   const filteredStudents = students.filter((student) => {
     // Apply attendance filter
-    if (attendanceFilter === "all") {
-      // No attendance filtering
-    } else if (attendanceFilter === "anwesend" && student.current_location !== "Anwesend") {
-      return false;
-    } else if (attendanceFilter === "abwesend" && student.current_location !== "Zuhause") {
-      return false;
+    if (attendanceFilter !== "all") {
+      const isOnSite =
+        isPresentLocation(student.current_location) ||
+        isTransitLocation(student.current_location) ||
+        isSchoolyardLocation(student.current_location);
+
+      if (attendanceFilter === "anwesend" && !isOnSite) {
+        return false;
+      }
+
+      if (attendanceFilter === "abwesend" && !isHomeLocation(student.current_location)) {
+        return false;
+      }
     }
 
     // Apply year filter - extract year from school_class (e.g., "1a" → year 1)
