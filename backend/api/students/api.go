@@ -357,38 +357,36 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 	primaryGuardian, _, err := getPrimaryGuardian(ctx, studentRepo, guardianRepo, studentGuardianRepo, student.ID)
 	if err == nil && primaryGuardian != nil {
 		response.GuardianName = primaryGuardian.FirstName + " " + primaryGuardian.LastName
-		if hasFullAccess {
-			response.GuardianContact = primaryGuardian.Phone
-			response.GuardianEmail = primaryGuardian.Email
-			response.GuardianPhone = primaryGuardian.Phone
-		}
+		// Guardian contact info is always visible (emergency contact information)
+		response.GuardianContact = primaryGuardian.Phone
+		response.GuardianEmail = primaryGuardian.Email
+		response.GuardianPhone = primaryGuardian.Phone
 	}
 
 	// Load all guardians for this student
-	if hasFullAccess {
-		relationships, err := studentGuardianRepo.FindByStudentID(ctx, student.ID)
-		if err == nil && len(relationships) > 0 {
-			guardians := make([]GuardianResponse, 0, len(relationships))
-			for _, rel := range relationships {
-				guardian, err := guardianRepo.FindByID(ctx, rel.GuardianID)
-				if err == nil && guardian != nil {
-					guardians = append(guardians, GuardianResponse{
-						ID:                 guardian.ID,
-						FirstName:          guardian.FirstName,
-						LastName:           guardian.LastName,
-						Email:              guardian.Email,
-						Phone:              guardian.Phone,
-						RelationshipType:   rel.RelationshipType,
-						IsPrimary:          rel.IsPrimary,
-						IsEmergencyContact: rel.IsEmergencyContact,
-						CanPickup:          rel.CanPickup,
-						CreatedAt:          guardian.CreatedAt,
-						UpdatedAt:          guardian.UpdatedAt,
-					})
-				}
+	// Guardian information is always visible to all authenticated staff (emergency contacts)
+	relationships, err := studentGuardianRepo.FindByStudentID(ctx, student.ID)
+	if err == nil && len(relationships) > 0 {
+		guardians := make([]GuardianResponse, 0, len(relationships))
+		for _, rel := range relationships {
+			guardian, err := guardianRepo.FindByID(ctx, rel.GuardianID)
+			if err == nil && guardian != nil {
+				guardians = append(guardians, GuardianResponse{
+					ID:                 guardian.ID,
+					FirstName:          guardian.FirstName,
+					LastName:           guardian.LastName,
+					Email:              guardian.Email,
+					Phone:              guardian.Phone,
+					RelationshipType:   rel.RelationshipType,
+					IsPrimary:          rel.IsPrimary,
+					IsEmergencyContact: rel.IsEmergencyContact,
+					CanPickup:          rel.CanPickup,
+					CreatedAt:          guardian.CreatedAt,
+					UpdatedAt:          guardian.UpdatedAt,
+				})
 			}
-			response.Guardians = guardians
 		}
+		response.Guardians = guardians
 	}
 
 	// Use real tracking data instead of deprecated flags
@@ -1567,56 +1565,9 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Check if user has permission to view this student's data
-	// Admin users have full access
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	isAdmin := hasAdminPermissions(userPermissions)
-
-	if !isAdmin {
-		// Check if user is a staff member who supervises the student's group
-		student, err := rs.StudentRepo.FindByID(r.Context(), id)
-		if err != nil {
-			if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
-			return
-		}
-
-		if student.GroupID != nil {
-			// Check if current user supervises this group
-			staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
-			if err != nil || staff == nil {
-				if err := render.Render(w, r, ErrorForbidden(errors.New("insufficient permissions to access this student's data"))); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-
-			// Check if staff supervises the student's group
-			educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-			if err != nil {
-				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-
-			hasAccess := false
-			for _, group := range educationGroups {
-				if group.ID == *student.GroupID {
-					hasAccess = true
-					break
-				}
-			}
-
-			if !hasAccess {
-				if err := render.Render(w, r, ErrorForbidden(errors.New("you do not supervise this student's group"))); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-		}
-	}
+	// Privacy consent is readable by all authenticated staff (data retention info is important for all staff)
+	// Permission check is handled by middleware (UsersRead permission required)
+	// No supervisor check needed for reading consent - all staff need to know retention policies
 
 	// Get privacy consents
 	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), id)
