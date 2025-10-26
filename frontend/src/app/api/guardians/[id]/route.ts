@@ -1,6 +1,15 @@
 import { createGetHandler, createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
 
-export const GET = createGetHandler(async (request, token, params) => {
+interface GuardianResponse {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  [key: string]: unknown;
+}
+
+export const GET = createGetHandler<GuardianResponse>(async (_request, token, params) => {
   const id = params.id as string;
 
   const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/guardians/${id}`, {
@@ -13,10 +22,10 @@ export const GET = createGetHandler(async (request, token, params) => {
     throw new Error(`Backend error: ${response.statusText}`);
   }
 
-  return response.json();
+  return response.json() as Promise<GuardianResponse>;
 });
 
-export const PUT = createPutHandler(async (request, body, token, params) => {
+export const PUT = createPutHandler<GuardianResponse>(async (_request, body, token, params) => {
   const id = params.id as string;
 
   const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/guardians/${id}`, {
@@ -32,10 +41,10 @@ export const PUT = createPutHandler(async (request, body, token, params) => {
     throw new Error(`Backend error: ${response.statusText}`);
   }
 
-  return response.json();
+  return response.json() as Promise<GuardianResponse>;
 });
 
-export const DELETE = createDeleteHandler(async (request, token, params) => {
+export const DELETE = createDeleteHandler<GuardianResponse>(async (_request, token, params) => {
   const id = params.id as string;
 
   const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/guardians/${id}`, {
@@ -49,5 +58,5 @@ export const DELETE = createDeleteHandler(async (request, token, params) => {
     throw new Error(`Backend error: ${response.statusText}`);
   }
 
-  return response.json();
+  return response.json() as Promise<GuardianResponse>;
 });

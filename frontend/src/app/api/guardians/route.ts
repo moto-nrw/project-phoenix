@@ -1,7 +1,22 @@
-import { NextRequest } from "next/server";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 
-export const GET = createGetHandler(async (request, token) => {
+interface GuardianResponse {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  [key: string]: unknown;
+}
+
+interface GuardiansListResponse {
+  data: GuardianResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export const GET = createGetHandler<GuardiansListResponse>(async (request, token) => {
   const { searchParams } = new URL(request.url);
 
   // Forward all query parameters to backend
@@ -22,12 +37,10 @@ export const GET = createGetHandler(async (request, token) => {
     throw new Error(`Backend error: ${response.statusText}`);
   }
 
-  return response.json();
+  return response.json() as Promise<GuardiansListResponse>;
 });
 
-export const POST = createPostHandler(async (request, token) => {
-  const body = await request.json();
-
+export const POST = createPostHandler<GuardianResponse>(async (_request, body, token) => {
   const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/guardians`, {
     method: "POST",
     headers: {
@@ -41,5 +54,5 @@ export const POST = createPostHandler(async (request, token) => {
     throw new Error(`Backend error: ${response.statusText}`);
   }
 
-  return response.json();
+  return response.json() as Promise<GuardianResponse>;
 });
