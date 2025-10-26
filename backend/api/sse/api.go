@@ -78,22 +78,61 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract active group IDs from supervisions
+	// Prepare subscription topics (active groups + derived educational groups)
 	activeGroupIDs := make([]string, 0, len(supervisions))
+	educationTopics := make([]string, 0)
+	subscribedTopics := make([]string, 0)
+	topicSet := make(map[string]struct{})
+	addTopic := func(topic string) {
+		if topic == "" {
+			return
+		}
+		if _, exists := topicSet[topic]; exists {
+			return
+		}
+		topicSet[topic] = struct{}{}
+		subscribedTopics = append(subscribedTopics, topic)
+	}
+
 	for _, supervision := range supervisions {
-		// Use supervision.GroupID (the active group ID), NOT supervision.ID (supervision record PK)
-		activeGroupIDs = append(activeGroupIDs, strconv.FormatInt(supervision.GroupID, 10))
+		groupTopic := strconv.FormatInt(supervision.GroupID, 10)
+		activeGroupIDs = append(activeGroupIDs, groupTopic)
+		addTopic(groupTopic)
+	}
+
+	if rs.userCtx != nil {
+		if eduGroups, err := rs.userCtx.GetMyGroups(r.Context()); err != nil {
+			if logging.Logger != nil {
+				logging.Logger.WithFields(map[string]interface{}{
+					"error":    err.Error(),
+					"staff_id": staff.ID,
+				}).Warn("Failed to load educational groups for SSE subscription")
+			}
+		} else {
+			educationTopics = make([]string, 0, len(eduGroups))
+			for _, group := range eduGroups {
+				topic := fmt.Sprintf("edu:%d", group.ID)
+				educationTopics = append(educationTopics, topic)
+				addTopic(topic)
+			}
+		}
 	}
 
 	// Emit initial connected event so clients know the stream is ready
 	initialEvent := struct {
-		Status               string   `json:"status"`
-		SupervisedGroupCount int      `json:"supervisedGroupCount"`
-		ActiveGroupIDs       []string `json:"activeGroupIds"`
+		Status                   string   `json:"status"`
+		SupervisedGroupCount     int      `json:"supervisedGroupCount"`
+		ActiveGroupIDs           []string `json:"activeGroupIds"`
+		EducationalGroupTopics   []string `json:"educationalGroupTopics"`
+		SubscribedTopicCount     int      `json:"subscribedTopicCount"`
+		SubscribedTopicSnapshots []string `json:"subscribedTopics"`
 	}{
-		Status:               "ready",
-		SupervisedGroupCount: len(activeGroupIDs),
-		ActiveGroupIDs:       activeGroupIDs,
+		Status:                   "ready",
+		SupervisedGroupCount:     len(activeGroupIDs),
+		ActiveGroupIDs:           activeGroupIDs,
+		EducationalGroupTopics:   educationTopics,
+		SubscribedTopicCount:     len(subscribedTopics),
+		SubscribedTopicSnapshots: subscribedTopics,
 	}
 
 	initialData, err := json.Marshal(initialEvent)
@@ -116,12 +155,12 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	flusher.Flush()
 
-	// If user has no active supervisions, keep connection alive with heartbeat only
-	if len(activeGroupIDs) == 0 {
+	// If user has no topics at all, keep connection alive with heartbeat only
+	if len(subscribedTopics) == 0 {
 		if logging.Logger != nil {
 			logging.Logger.WithFields(map[string]interface{}{
 				"staff_id": staff.ID,
-			}).Info("SSE connection - no active supervisions")
+			}).Info("SSE connection - no available topics (heartbeat only)")
 		}
 
 		// Keep connection alive with heartbeat only
@@ -149,7 +188,7 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Register client with hub for supervised groups
-	rs.hub.Register(client, activeGroupIDs)
+	rs.hub.Register(client, subscribedTopics)
 	defer rs.hub.Unregister(client)
 
 	// Create ticker for heartbeat (keep connection alive)

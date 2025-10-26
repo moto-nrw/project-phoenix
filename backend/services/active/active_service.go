@@ -380,8 +380,12 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 		studentID := fmt.Sprintf("%d", visit.StudentID)
 
 		// Query student for display data
-		var studentName string
+		var (
+			studentName string
+			studentRec  *userModels.Student
+		)
 		if student, err := s.studentRepo.FindByID(ctx, visit.StudentID); err == nil && student != nil {
+			studentRec = student
 			if person, err := s.personRepo.FindByID(ctx, student.PersonID); err == nil && person != nil {
 				studentName = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
 			}
@@ -407,6 +411,8 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 				}).Error("SSE broadcast failed")
 			}
 		}
+
+		s.broadcastToEducationalGroup(studentRec, event)
 	}
 
 	return nil
@@ -487,8 +493,12 @@ func (s *service) EndVisit(ctx context.Context, id int64) error {
 			studentID := fmt.Sprintf("%d", visit.StudentID)
 
 			// Query student for display data
-			var studentName string
+			var (
+				studentName string
+				studentRec  *userModels.Student
+			)
 			if student, err := s.studentRepo.FindByID(ctx, visit.StudentID); err == nil && student != nil {
+				studentRec = student
 				if person, err := s.personRepo.FindByID(ctx, student.PersonID); err == nil && person != nil {
 					studentName = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
 				}
@@ -514,10 +524,34 @@ func (s *service) EndVisit(ctx context.Context, id int64) error {
 					}).Error("SSE broadcast failed")
 				}
 			}
+
+			s.broadcastToEducationalGroup(studentRec, event)
 		}
 	}
 
 	return nil
+}
+
+// broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic
+func (s *service) broadcastToEducationalGroup(student *userModels.Student, event realtime.Event) {
+	if s.broadcaster == nil || student == nil || student.GroupID == nil {
+		return
+	}
+	groupID := fmt.Sprintf("edu:%d", *student.GroupID)
+	if err := s.broadcaster.BroadcastToGroup(groupID, event); err != nil {
+		if logging.Logger != nil {
+			studentID := ""
+			if event.Data.StudentID != nil {
+				studentID = *event.Data.StudentID
+			}
+			logging.Logger.WithFields(map[string]interface{}{
+				"error":                 err.Error(),
+				"event_type":            string(event.Type),
+				"education_group_topic": groupID,
+				"student_id":            studentID,
+			}).Error("SSE broadcast failed for educational topic")
+		}
+	}
 }
 
 func (s *service) GetStudentCurrentVisit(ctx context.Context, studentID int64) (*active.Visit, error) {
@@ -2694,8 +2728,12 @@ func (s *service) ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledC
 				source := "automated"
 
 				// Query student for display data
-				var studentName string
+				var (
+					studentName string
+					studentRec  *userModels.Student
+				)
 				if student, err := s.studentRepo.FindByID(ctx, visit.StudentID); err == nil && student != nil {
+					studentRec = student
 					if person, err := s.personRepo.FindByID(ctx, student.PersonID); err == nil && person != nil {
 						studentName = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
 					}
@@ -2713,6 +2751,7 @@ func (s *service) ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledC
 
 				// Fire-and-forget: NEVER block on broadcast failure
 				_ = s.broadcaster.BroadcastToGroup(activeGroupIDStr, event)
+				s.broadcastToEducationalGroup(studentRec, event)
 			}
 		} else {
 			fmt.Printf("No active visit found for student %d\n", checkout.StudentID)
