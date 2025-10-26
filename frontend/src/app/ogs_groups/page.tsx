@@ -11,6 +11,14 @@ import { userContextService } from "~/lib/usercontext-api";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
 import type { StudentLocation } from "~/lib/student-helpers";
+import {
+  LOCATION_COLORS,
+  LOCATION_STATUSES,
+  isHomeLocation,
+  isSchoolyardLocation,
+  isTransitLocation,
+  parseLocation,
+} from "~/lib/location-helper";
 import { fetchRooms } from "~/lib/rooms-api";
 import { createRoomIdToNameMap } from "~/lib/rooms-helpers";
 import { useSSE } from "~/lib/hooks/use-sse";
@@ -20,12 +28,11 @@ import type { SSEEvent } from "~/lib/sse-types";
 import { Loading } from "~/components/ui/loading";
 // Location constants to ensure type safety
 const LOCATIONS = {
-  HOME: "Home" as StudentLocation,
-  IN_HOUSE: "In House" as StudentLocation,
-  WC: "WC" as StudentLocation,
-  SCHOOL_YARD: "School Yard" as StudentLocation,
-  BUS: "Bus" as StudentLocation,
-  UNKNOWN: "Unknown" as StudentLocation,
+  HOME: LOCATION_STATUSES.HOME as StudentLocation,
+  PRESENT: LOCATION_STATUSES.PRESENT as StudentLocation,
+  SCHOOL_YARD: LOCATION_STATUSES.SCHOOLYARD as StudentLocation,
+  TRANSIT: LOCATION_STATUSES.TRANSIT as StudentLocation,
+  UNKNOWN: LOCATION_STATUSES.UNKNOWN as StudentLocation,
 } as const;
 
 // Define OGSGroup type based on EducationalGroup with additional fields
@@ -356,30 +363,14 @@ function OGSGroupPageContent() {
             )
               return false;
             break;
-          case "in_house":
-            // Check both the in_house flag and current_location
-            if (
-              !student.in_house &&
-              student.current_location !== LOCATIONS.IN_HOUSE
-            )
-              return false;
+          case "transit":
+            if (!isTransitLocation(student.current_location)) return false;
             break;
-          case "school_yard":
-            if (
-              !student.school_yard &&
-              student.current_location !== LOCATIONS.SCHOOL_YARD
-            )
-              return false;
+          case "schoolyard":
+            if (!isSchoolyardLocation(student.current_location)) return false;
             break;
           case "at_home":
-            // Student is at home if no location flags are set OR current_location is "Home"
-            const isAtHome =
-              (!student.in_house &&
-                !student.wc &&
-                !student.school_yard &&
-                !studentRoomStatus?.in_group_room) ||
-              student.current_location === LOCATIONS.HOME;
-            if (!isAtHome) return false;
+            if (!isHomeLocation(student.current_location)) return false;
             break;
         }
       }
@@ -391,6 +382,7 @@ function OGSGroupPageContent() {
   // Helper function to get location status with enhanced design
   const getLocationStatus = (student: Student) => {
     const studentRoomStatus = roomStatus[student.id.toString()];
+    const parsedLocation = parseLocation(student.current_location);
 
     // Check if student is in group room
     if (studentRoomStatus?.in_group_room) {
@@ -422,38 +414,64 @@ function OGSGroupPageContent() {
       };
     }
 
+    if (parsedLocation.room) {
+      return {
+        label: parsedLocation.room,
+        badgeColor: "text-white backdrop-blur-sm",
+        cardGradient: "from-blue-50/80 to-cyan-100/80",
+        customBgColor: LOCATION_COLORS.OTHER_ROOM,
+        customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)",
+      };
+    }
+
+    if (parsedLocation.status === LOCATION_STATUSES.PRESENT) {
+      return {
+        label: LOCATION_STATUSES.PRESENT,
+        badgeColor: "text-white backdrop-blur-sm",
+        cardGradient: "from-blue-50/80 to-cyan-100/80",
+        customBgColor: LOCATION_COLORS.OTHER_ROOM,
+        customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)",
+      };
+    }
+
     // Check for schoolyard
-    if (student.school_yard === true) {
+    if (isSchoolyardLocation(student.current_location)) {
       return {
         label: "Schulhof",
         badgeColor: "text-white backdrop-blur-sm",
         cardGradient: "from-amber-50/80 to-yellow-100/80",
-        customBgColor: "#F78C10",
+        customBgColor: LOCATION_COLORS.SCHOOLYARD,
         customShadow: "0 8px 25px rgba(247, 140, 16, 0.4)",
       };
     }
 
     // Check for in transit/movement
-    if (
-      student.in_house === true ||
-      student.current_location === LOCATIONS.BUS
-    ) {
+    if (isTransitLocation(student.current_location)) {
       return {
         label: "Unterwegs",
         badgeColor: "text-white backdrop-blur-sm",
         cardGradient: "from-fuchsia-50/80 to-pink-100/80",
-        customBgColor: "#D946EF",
+        customBgColor: LOCATION_COLORS.TRANSIT,
         customShadow: "0 8px 25px rgba(217, 70, 239, 0.4)",
       };
     }
 
-    // Default to at home
+    if (isHomeLocation(student.current_location)) {
+      return {
+        label: "Zuhause",
+        badgeColor: "text-white backdrop-blur-sm",
+        cardGradient: "from-red-50/80 to-rose-100/80",
+        customBgColor: LOCATION_COLORS.HOME,
+        customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)",
+      };
+    }
+
     return {
-      label: "Zuhause",
+      label: "Unbekannt",
       badgeColor: "text-white backdrop-blur-sm",
-      cardGradient: "from-red-50/80 to-rose-100/80",
-      customBgColor: "#FF3130",
-      customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)",
+      cardGradient: "from-slate-50/80 to-gray-100/80",
+      customBgColor: LOCATION_COLORS.UNKNOWN,
+      customShadow: "0 8px 25px rgba(107, 114, 128, 0.4)",
     };
   };
 
@@ -493,12 +511,12 @@ function OGSGroupPageContent() {
             icon: "M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z",
           },
           {
-            value: "in_house",
+            value: "transit",
             label: "Unterwegs",
             icon: "M13 10V3L4 14h7v7l9-11h-7z",
           },
           {
-            value: "school_yard",
+            value: "schoolyard",
             label: "Schulhof",
             icon: "M21 12a9 9 0 11-18 0 9 9 0 0118 0zM12 12a8 8 0 008 4M7.5 13.5a12 12 0 008.5 6.5M12 12a8 8 0 00-7.464 4.928M12.951 7.353a12 12 0 00-9.88 4.111M12 12a8 8 0 00-.536-8.928M15.549 15.147a12 12 0 001.38-10.611",
           },
@@ -536,8 +554,9 @@ function OGSGroupPageContent() {
     if (attendanceFilter !== "all") {
       const locationLabels: Record<string, string> = {
         in_room: "Gruppenraum",
-        in_house: "Unterwegs",
-        school_yard: "Schulhof",
+        foreign_room: "Fremder Raum",
+        transit: "Unterwegs",
+        schoolyard: "Schulhof",
         at_home: "Zuhause",
       };
       filters.push({

@@ -101,7 +101,6 @@ function MeinRaumPageContent() {
             second_name: lastName,
             school_class: visit.schoolClass ?? "",
             current_location: "Anwesend" as const,
-            in_house: true,
             group_name: visit.groupName,
             activeGroupId: visit.activeGroupId,
             checkInTime: visit.checkInTime,

@@ -11,6 +11,14 @@ import type { Student, SupervisorContact } from "~/lib/student-helpers";
 import { ModernContactActions } from "~/components/simple/student";
 import { ScheduledCheckoutModal } from "~/components/scheduled-checkout/scheduled-checkout-modal";
 import { ScheduledCheckoutInfo } from "~/components/scheduled-checkout/scheduled-checkout-info";
+import {
+    LOCATION_COLORS,
+    LOCATION_STATUSES,
+    isHomeLocation,
+    isSchoolyardLocation,
+    isTransitLocation,
+    parseLocation,
+} from "~/lib/location-helper";
 
 // Guardian type for multiple guardians
 interface Guardian {
@@ -23,8 +31,6 @@ interface Guardian {
 
 // Extended Student type for this page
 interface ExtendedStudent extends Student {
-    wc: boolean;
-    school_yard: boolean;
     bus: boolean;
     current_room?: string;
     guardian_name: string;
@@ -42,22 +48,30 @@ interface ExtendedStudent extends Student {
 // Simplified status badge component with proper color coding
 function StatusBadge({ location, roomName, isGroupRoom = false }: { location?: string; roomName?: string; isGroupRoom?: boolean }) {
     const getStatusDetails = () => {
-        // Check for "Unterwegs" (in transit) BEFORE "Anwesend" to match ogs_groups behavior
-        if (location === "Unterwegs" || location === "In House" || location === "Bus") {
-            return { label: location === "Bus" ? "Bus" : "Unterwegs", bgColor: "#D946EF", textColor: "text-white" };
-        } else if (location === "Anwesend" || location?.startsWith("Anwesend")) {
-            const label = roomName ?? (location?.startsWith("Anwesend - ") ? location.substring(11) : "Anwesend");
-            // 🟢 GREEN = Own group room, 🔵 BLUE = External room
-            const bgColor = isGroupRoom ? "#83CD2D" : "#5080D8";
-            return { label, bgColor, textColor: "text-white" };
-        } else if (location === "Zuhause") {
-            return { label: "Zuhause", bgColor: "#FF3130", textColor: "text-white" };
-        } else if (location === "WC") {
-            return { label: "WC", bgColor: "#5080D8", textColor: "text-white" };
-        } else if (location === "School Yard" || location === "Schulhof") {
-            return { label: "Schulhof", bgColor: "#F78C10", textColor: "text-white" };
+        if (!location) {
+            return { label: LOCATION_STATUSES.UNKNOWN, bgColor: LOCATION_COLORS.UNKNOWN, textColor: "text-white" };
         }
-        return { label: "Unbekannt", bgColor: "#6B7280", textColor: "text-white" };
+
+        if (isTransitLocation(location)) {
+            return { label: LOCATION_STATUSES.TRANSIT, bgColor: LOCATION_COLORS.TRANSIT, textColor: "text-white" };
+        }
+
+        const parsed = parseLocation(location);
+        if (parsed.status === LOCATION_STATUSES.PRESENT) {
+            const label = roomName ?? parsed.room ?? LOCATION_STATUSES.PRESENT;
+            const bgColor = isGroupRoom ? LOCATION_COLORS.GROUP_ROOM : LOCATION_COLORS.OTHER_ROOM;
+            return { label, bgColor, textColor: "text-white" };
+        }
+
+        if (isHomeLocation(location)) {
+            return { label: LOCATION_STATUSES.HOME, bgColor: LOCATION_COLORS.HOME, textColor: "text-white" };
+        }
+
+        if (isSchoolyardLocation(location)) {
+            return { label: LOCATION_STATUSES.SCHOOLYARD, bgColor: LOCATION_COLORS.SCHOOLYARD, textColor: "text-white" };
+        }
+
+        return { label: LOCATION_STATUSES.UNKNOWN, bgColor: LOCATION_COLORS.UNKNOWN, textColor: "text-white" };
     };
 
     const status = getStatusDetails();
@@ -185,9 +199,6 @@ export default function StudentDetailPage() {
                     group_id: mappedStudent.group_id ?? "",
                     group_name: mappedStudent.group_name ?? "",
                     current_location: mappedStudent.current_location,
-                    in_house: mappedStudent.in_house,
-                    wc: mappedStudent.wc ?? false,
-                    school_yard: mappedStudent.school_yard ?? false,
                     bus: mappedStudent.bus ?? false,
                     current_room: undefined,
                     guardian_name: hasAccess ? (mappedStudent.name_lg ?? "") : "",

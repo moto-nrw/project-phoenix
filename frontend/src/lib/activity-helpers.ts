@@ -1,6 +1,9 @@
 // lib/activity-helpers.ts
 // Type definitions and helper functions for activities
 
+import { LOCATION_STATUSES } from "./location-helper";
+import type { StudentLocation } from "./student-helpers";
+
 // Backend supervisor response type from API
 export interface BackendActivitySupervisor {
     id: number;
@@ -69,7 +72,7 @@ export interface BackendActivityStudent {
     activity_id: number;
     name?: string;
     school_class?: string;
-    in_house?: boolean;
+    current_location?: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -88,10 +91,10 @@ export interface BackendStudentEnrollment {
     first_name?: string;
     last_name?: string;
     school_class?: string;
-    in_house?: boolean;
+    current_location?: string | null;
     // Fallback: Flattened fields in case backend changes
     student__school_class?: string;
-    student__in_house?: boolean;
+    student__current_location?: string | null;
     person__first_name?: string;
     person__last_name?: string;
 }
@@ -167,7 +170,7 @@ export interface ActivityStudent {
     student_id: string;
     name?: string;
     school_class?: string;
-    in_house: boolean;
+    current_location: StudentLocation;
     created_at: Date;
     updated_at: Date;
 }
@@ -323,13 +326,18 @@ export function mapActivityScheduleResponse(backendSchedule: BackendActivitySche
 }
 
 export function mapActivityStudentResponse(backendStudent: BackendActivityStudent): ActivityStudent {
+    const rawLocation = backendStudent.current_location?.trim();
+    const current_location: StudentLocation = (rawLocation && rawLocation.length > 0
+        ? rawLocation
+        : LOCATION_STATUSES.UNKNOWN) as StudentLocation;
+
     return {
         id: String(backendStudent.id),
         activity_id: String(backendStudent.activity_id),
         student_id: String(backendStudent.student_id),
         name: backendStudent.name,
         school_class: backendStudent.school_class,
-        in_house: backendStudent.in_house ?? false, // Default to false if not present
+        current_location,
         created_at: new Date(backendStudent.created_at),
         updated_at: new Date(backendStudent.updated_at),
     };
@@ -346,7 +354,11 @@ export function mapStudentEnrollmentResponse(enrollment: BackendStudentEnrollmen
     const firstName = enrollment.first_name ?? enrollment.person__first_name ?? '';
     const lastName = enrollment.last_name ?? enrollment.person__last_name ?? '';
     const fullName = `${firstName} ${lastName}`.trim() || 'Unnamed Student';
-    
+    const rawLocation = enrollment.current_location?.trim() ?? enrollment.student__current_location?.trim();
+    const current_location: StudentLocation = (rawLocation && rawLocation.length > 0
+        ? rawLocation
+        : LOCATION_STATUSES.UNKNOWN) as StudentLocation;
+
     return {
         id: String(enrollment.id),
         activity_id: enrollment.activity_group_id ? String(enrollment.activity_group_id) : '',
@@ -354,7 +366,7 @@ export function mapStudentEnrollmentResponse(enrollment: BackendStudentEnrollmen
         student_id: String(enrollment.id),
         name: fullName,
         school_class: enrollment.school_class ?? enrollment.student__school_class ?? '',
-        in_house: enrollment.in_house ?? enrollment.student__in_house ?? false,
+        current_location,
         created_at: enrollment.created_at ? new Date(enrollment.created_at) : new Date(),
         updated_at: enrollment.updated_at ? new Date(enrollment.updated_at) : new Date(),
     };

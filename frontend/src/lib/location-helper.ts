@@ -21,6 +21,14 @@ export interface StudentLocationContext {
   group_name?: string | null;
 }
 
+export const LOCATION_STATUSES = {
+  PRESENT: 'Anwesend',
+  HOME: 'Zuhause',
+  SCHOOLYARD: 'Schulhof',
+  TRANSIT: 'Unterwegs',
+  UNKNOWN: 'Unbekannt',
+} as const;
+
 export const LOCATION_COLORS = {
   GROUP_ROOM: '#83CD2D',
   OTHER_ROOM: '#5080D8',
@@ -31,11 +39,7 @@ export const LOCATION_COLORS = {
 } as const;
 
 const LOCATION_SEPARATOR = '-';
-const UNKNOWN_STATUS = 'Unbekannt';
-const STATUS_PRESENT = 'Anwesend';
-const STATUS_HOME = 'Zuhause';
-const STATUS_SCHOOLYARD = 'Schulhof';
-const STATUS_TRANSIT = 'Unterwegs';
+const UNKNOWN_STATUS = LOCATION_STATUSES.UNKNOWN;
 
 /**
  * Splits a location string into its status and optional room component.
@@ -67,17 +71,17 @@ export function getLocationColor(
   const parsed = parseLocation(location);
   const status = parsed.status;
 
-  if (status === STATUS_HOME) {
+  if (status === LOCATION_STATUSES.HOME) {
     return LOCATION_COLORS.HOME;
   }
-  if (status === STATUS_SCHOOLYARD) {
+  if (status === LOCATION_STATUSES.SCHOOLYARD) {
     return LOCATION_COLORS.SCHOOLYARD;
   }
-  if (status === STATUS_TRANSIT) {
+  if (status === LOCATION_STATUSES.TRANSIT) {
     return LOCATION_COLORS.TRANSIT;
   }
 
-  if (status === STATUS_PRESENT) {
+  if (status === LOCATION_STATUSES.PRESENT) {
     if (parsed.room) {
       return isGroupRoom === true
         ? LOCATION_COLORS.GROUP_ROOM
@@ -137,7 +141,38 @@ export function canSeeDetailedLocation(
  */
 export function getLocationGlowEffect(color: string): string {
   const rgb = hexToRgb(color) ?? hexToRgb(LOCATION_COLORS.UNKNOWN);
+  if (!rgb) {
+    return '0 8px 25px rgba(107, 114, 128, 0.4)';
+  }
   return `0 8px 25px rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.4)`;
+}
+
+/**
+ * Indicates whether the provided location means the student is present in the building.
+ */
+export function isPresentLocation(location?: string | null): boolean {
+  return parseLocation(location).status === LOCATION_STATUSES.PRESENT;
+}
+
+/**
+ * Indicates whether the student is explicitly marked as being at home.
+ */
+export function isHomeLocation(location?: string | null): boolean {
+  return parseLocation(location).status === LOCATION_STATUSES.HOME;
+}
+
+/**
+ * Indicates whether the student is currently on the school yard.
+ */
+export function isSchoolyardLocation(location?: string | null): boolean {
+  return parseLocation(location).status === LOCATION_STATUSES.SCHOOLYARD;
+}
+
+/**
+ * Indicates whether the student is marked as being in transit (Unterwegs).
+ */
+export function isTransitLocation(location?: string | null): boolean {
+  return parseLocation(location).status === LOCATION_STATUSES.TRANSIT;
 }
 
 interface RgbColor {

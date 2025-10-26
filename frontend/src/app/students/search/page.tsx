@@ -13,6 +13,14 @@ import { fetchRooms } from "~/lib/rooms-api";
 import { createRoomIdToNameMap } from "~/lib/rooms-helpers";
 import { userContextService } from "~/lib/usercontext-api";
 import { Loading } from "~/components/ui/loading";
+import {
+  LOCATION_COLORS,
+  LOCATION_STATUSES,
+  isHomeLocation,
+  isSchoolyardLocation,
+  isTransitLocation,
+  parseLocation,
+} from "~/lib/location-helper";
 
 function SearchPageContent() {
   const { data: session, status } = useSession();
@@ -288,74 +296,100 @@ function SearchPageContent() {
 
   // Helper function to get attendance status with enhanced design
   const getLocationStatus = (student: Student) => {
-    // Check if student is in user's OGS group for detailed location
+    const parsedLocation = parseLocation(student.current_location);
+
     if (isStudentInUserOgsGroup(student)) {
       const studentRoomStatus = roomStatus[student.id.toString()];
-      
-      // Check if student is in group room
+
       if (studentRoomStatus?.in_group_room) {
-        return { 
-          label: "Gruppenraum", 
+        const roomLabel = student.group_name ?? "Gruppenraum";
+        return {
+          label: roomLabel,
           badgeColor: "text-white backdrop-blur-sm",
           cardGradient: "from-emerald-50/80 to-green-100/80",
-          customBgColor: "#83CD2D",
-          customShadow: "0 8px 25px rgba(131, 205, 45, 0.4)"
+          customBgColor: LOCATION_COLORS.GROUP_ROOM,
+          customShadow: "0 8px 25px rgba(131, 205, 45, 0.4)",
         };
       }
-      
-      // Check if student is in a specific room (not group room)
+
       if (studentRoomStatus?.current_room_id && !studentRoomStatus.in_group_room) {
         const roomName = roomIdToNameMap[studentRoomStatus.current_room_id.toString()] ?? `Raum ${studentRoomStatus.current_room_id}`;
-        return { 
-          label: roomName, 
+        return {
+          label: roomName,
           badgeColor: "text-white backdrop-blur-sm",
           cardGradient: "from-blue-50/80 to-cyan-100/80",
-          customBgColor: "#5080D8",
-          customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)"
+          customBgColor: LOCATION_COLORS.OTHER_ROOM,
+          customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)",
         };
       }
-      
-      // Check for schoolyard
-      if (student.school_yard === true) {
-        return { 
-          label: "Schulhof", 
+
+      if (parsedLocation.room) {
+        return {
+          label: parsedLocation.room,
+          badgeColor: "text-white backdrop-blur-sm",
+          cardGradient: "from-blue-50/80 to-cyan-100/80",
+          customBgColor: LOCATION_COLORS.OTHER_ROOM,
+          customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)",
+        };
+      }
+
+      if (parsedLocation.status === LOCATION_STATUSES.PRESENT) {
+        return {
+          label: LOCATION_STATUSES.PRESENT,
+          badgeColor: "text-white backdrop-blur-sm",
+          cardGradient: "from-blue-50/80 to-cyan-100/80",
+          customBgColor: LOCATION_COLORS.OTHER_ROOM,
+          customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)",
+        };
+      }
+
+      if (isSchoolyardLocation(student.current_location)) {
+        return {
+          label: LOCATION_STATUSES.SCHOOLYARD,
           badgeColor: "text-white backdrop-blur-sm",
           cardGradient: "from-amber-50/80 to-yellow-100/80",
-          customBgColor: "#F78C10",
-          customShadow: "0 8px 25px rgba(247, 140, 16, 0.4)"
+          customBgColor: LOCATION_COLORS.SCHOOLYARD,
+          customShadow: "0 8px 25px rgba(247, 140, 16, 0.4)",
         };
       }
-      
-      // Check for in transit/movement
-      if (student.in_house === true) {
-        return { 
-          label: "Unterwegs", 
+
+      if (isTransitLocation(student.current_location)) {
+        return {
+          label: LOCATION_STATUSES.TRANSIT,
           badgeColor: "text-white backdrop-blur-sm",
           cardGradient: "from-fuchsia-50/80 to-pink-100/80",
-          customBgColor: "#D946EF",
-          customShadow: "0 8px 25px rgba(217, 70, 239, 0.4)"
+          customBgColor: LOCATION_COLORS.TRANSIT,
+          customShadow: "0 8px 25px rgba(217, 70, 239, 0.4)",
         };
       }
-      
-      // Default to at home for OGS students
-      return { 
-        label: "Zuhause", 
+
+      if (isHomeLocation(student.current_location)) {
+        return {
+          label: LOCATION_STATUSES.HOME,
+          badgeColor: "text-white backdrop-blur-sm",
+          cardGradient: "from-red-50/80 to-rose-100/80",
+          customBgColor: LOCATION_COLORS.HOME,
+          customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)",
+        };
+      }
+
+      return {
+        label: LOCATION_STATUSES.UNKNOWN,
         badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-red-50/80 to-rose-100/80",
-        customBgColor: "#FF3130",
-        customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)"
+        cardGradient: "from-slate-50/80 to-gray-100/80",
+        customBgColor: LOCATION_COLORS.UNKNOWN,
+        customShadow: "0 8px 25px rgba(107, 114, 128, 0.4)",
       };
     }
-    
-    // For non-OGS group students, use simple status
-    if (student.current_location === "Anwesend") {
-      return { 
-        label: "Anwesend", 
+
+    if (parsedLocation.status === LOCATION_STATUSES.PRESENT) {
+      return {
+        label: LOCATION_STATUSES.PRESENT,
         badgeColor: "text-white backdrop-blur-sm",
         cardGradient: "from-emerald-50/80 to-green-100/80",
         glowColor: "ring-emerald-200/50 shadow-emerald-100/50",
-        customBgColor: "#83CD2D",
-        customShadow: "0 8px 25px rgba(131, 205, 45, 0.4)"
+        customBgColor: LOCATION_COLORS.GROUP_ROOM,
+        customShadow: "0 8px 25px rgba(131, 205, 45, 0.4)",
       };
     }
     if (student.current_location === "Zuhause") {

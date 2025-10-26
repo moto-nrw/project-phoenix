@@ -25,7 +25,7 @@ interface StudentResponseFromBackend {
   last_name: string;
   tag_id?: string;
   school_class: string;
-  location: string;
+  current_location?: string | null;
   guardian_name: string;
   guardian_contact: string;
   guardian_email?: string;
