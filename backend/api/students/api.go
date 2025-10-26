@@ -358,23 +358,23 @@ func resolveStudentLocation(ctx context.Context, studentID int64, hasFullAccess 
 
 	currentVisit, err := activeService.GetStudentCurrentVisit(ctx, studentID)
 	if err != nil || currentVisit == nil {
-		return "Anwesend"
+		return "Unterwegs"
 	}
 
 	if currentVisit.ActiveGroupID <= 0 {
-		return "Anwesend"
+		return "Unterwegs"
 	}
 
 	activeGroup, err := activeService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
 	if err != nil || activeGroup == nil {
-		return "Anwesend"
+		return "Unterwegs"
 	}
 
 	if activeGroup.Room != nil && activeGroup.Room.Name != "" {
 		return fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name)
 	}
 
-	return "Anwesend"
+	return "Unterwegs"
 }
 
 // listStudents handles listing all students with staff-based filtering
