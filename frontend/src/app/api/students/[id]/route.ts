@@ -107,7 +107,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
 
     // Extract guardians array from backend response
     // BackendStudentData has an index signature, so we can access guardians directly
-    const guardians = (studentData.guardians as GuardianFromBackend[] | undefined) || [];
+    const guardians = (studentData.guardians as GuardianFromBackend[] | undefined) ?? [];
 
     // Fetch privacy consent data - with timeout to prevent hanging
     try {

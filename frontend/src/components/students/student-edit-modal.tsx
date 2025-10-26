@@ -144,8 +144,9 @@ export function StudentEditModal({
                     });
 
                     if (!response.ok) {
-                        const errorData = await response.json().catch(() => ({ error: response.statusText }));
-                        throw new Error(errorData.error || `Fehler beim Aktualisieren von ${guardian.first_name} ${guardian.last_name}`);
+                        const errorData = await response.json().catch((): { error: string } => ({ error: response.statusText })) as { error?: string };
+                        const errorMessage = errorData.error ?? `Fehler beim Aktualisieren von ${guardian.first_name} ${guardian.last_name}`;
+                        throw new Error(errorMessage);
                     }
                 } else {
                     // Create new guardian
@@ -156,11 +157,11 @@ export function StudentEditModal({
                     });
 
                     if (!response.ok) {
-                        const errorData = await response.json().catch(() => ({ error: response.statusText }));
-                        const errorMsg = errorData.error || response.statusText;
+                        const errorData = await response.json().catch((): { error: string } => ({ error: response.statusText })) as { error?: string };
+                        const errorMsg = errorData.error ?? response.statusText;
 
                         // Better error message for duplicate email
-                        if (errorMsg.includes('duplicate') || errorMsg.includes('already exists')) {
+                        if (typeof errorMsg === 'string' && (errorMsg.includes('duplicate') || errorMsg.includes('already exists'))) {
                             throw new Error(`E-Mail ${guardian.email} wird bereits verwendet. Bitte verwenden Sie eine andere E-Mail-Adresse.`);
                         }
 

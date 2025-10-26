@@ -1,6 +1,17 @@
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 
-export const GET = createGetHandler(async (request, token, params) => {
+interface GuardianWithRelationship {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  relationship_type?: string;
+  is_primary?: boolean;
+  [key: string]: unknown;
+}
+
+export const GET = createGetHandler<GuardianWithRelationship[]>(async (_request, token, params) => {
   const id = params.id as string;
 
   const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/students/${id}/guardians`, {
@@ -13,10 +24,10 @@ export const GET = createGetHandler(async (request, token, params) => {
     throw new Error(`Backend error: ${response.statusText}`);
   }
 
-  return response.json();
+  return response.json() as Promise<GuardianWithRelationship[]>;
 });
 
-export const POST = createPostHandler(async (request, body, token, params) => {
+export const POST = createPostHandler<GuardianWithRelationship>(async (_request, body, token, params) => {
   const id = params.id as string;
 
   const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/students/${id}/guardians`, {
@@ -32,5 +43,5 @@ export const POST = createPostHandler(async (request, body, token, params) => {
     throw new Error(`Backend error: ${response.statusText}`);
   }
 
-  return response.json();
+  return response.json() as Promise<GuardianWithRelationship>;
 });
