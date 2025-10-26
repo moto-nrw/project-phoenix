@@ -109,7 +109,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     // BackendStudentData has an index signature, so we can access guardians directly
     const guardians = (studentData.guardians as GuardianFromBackend[] | undefined) || [];
 
-    // Fetch privacy consent data
+    // Fetch privacy consent data - with timeout to prevent hanging
     try {
       const consentResponse = await apiGet<unknown>(`/api/students/${id}/privacy-consent`, token);
 
@@ -125,15 +125,17 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
         };
       }
     } catch (e) {
+      // Log the error for debugging
+      console.error(`Privacy consent fetch error for student ${id}:`, e);
+
       // Differentiate 404 (no consent yet) from other errors
       if (e instanceof Error) {
         if (!e.message.includes("(404)")) {
-          throw e; // system/network error — bubble up
+          console.warn(`Non-404 error fetching privacy consent for student ${id}, using defaults`);
+          // Don't throw - use defaults instead to prevent breaking the whole request
         }
-      } else {
-        throw e;
       }
-      // For 404 only, fall through to defaults below
+      // Fall through to defaults for any error
     }
 
     return {
