@@ -64,13 +64,10 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 				guardian.CreatedAt = time.Now()
 				guardian.UpdatedAt = time.Now()
 
+				// Insert guardian (no conflict handling - cache prevents duplicates)
+				// Note: Can't use ON CONFLICT with partial unique index on email
 				_, err := s.tx.NewInsert().Model(guardian).
 					ModelTableExpr("users.guardians").
-					On("CONFLICT (email) DO UPDATE").
-					Set("first_name = EXCLUDED.first_name").
-					Set("last_name = EXCLUDED.last_name").
-					Set("phone = EXCLUDED.phone").
-					Set("updated_at = EXCLUDED.updated_at").
 					Returning("id, created_at, updated_at").
 					Exec(ctx)
 				if err != nil {
