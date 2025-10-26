@@ -395,7 +395,18 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// For search functionality, we show all students regardless of group supervision
 	// Permission checking will be done on individual student detail view
 	var allowedGroupIDs []int64
-	hasFullAccess := isAdmin
+	var myGroupIDs map[int64]struct{}
+	if !isAdmin {
+		if staff, err := rs.UserContextService.GetCurrentStaff(r.Context()); err == nil && staff != nil {
+			educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
+			if err == nil {
+				myGroupIDs = make(map[int64]struct{}, len(educationGroups))
+				for _, eduGroup := range educationGroups {
+					myGroupIDs[eduGroup.ID] = struct{}{}
+				}
+			}
+		}
+	}
 
 	// If a specific group filter is requested, apply it
 	if groupIDStr != "" {
@@ -499,6 +510,13 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Build response with person data for each student
 	responses := make([]StudentResponse, 0, len(students))
 	for _, student := range students {
+		hasFullAccess := isAdmin
+		if !hasFullAccess && student.GroupID != nil && myGroupIDs != nil {
+			if _, ok := myGroupIDs[*student.GroupID]; ok {
+				hasFullAccess = true
+			}
+		}
+
 		// Get person data
 		person, err := rs.PersonService.Get(r.Context(), student.PersonID)
 		if err != nil {
