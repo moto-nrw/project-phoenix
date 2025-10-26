@@ -107,7 +107,7 @@ type StudentResponse struct {
 	LastName          string                 `json:"last_name"`
 	TagID             string                 `json:"tag_id,omitempty"`
 	SchoolClass       string                 `json:"school_class"`
-	Location          string                 `json:"location"`
+	Location          string                 `json:"current_location"`
 	GuardianName      string                 `json:"guardian_name"`
 	GuardianContact   string                 `json:"guardian_contact,omitempty"`
 	GuardianEmail     string                 `json:"guardian_email,omitempty"`
@@ -989,7 +989,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 
 	// Create location response structure
 	locationResponse := struct {
-		Location          string                 `json:"location"`
+		Location          string                 `json:"current_location"`
 		CurrentRoom       string                 `json:"current_room,omitempty"`
 		ScheduledCheckout *ScheduledCheckoutInfo `json:"scheduled_checkout,omitempty"`
 	}{
