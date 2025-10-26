@@ -49,32 +49,45 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 				normalizeForEmail(guardianFirstName),
 				normalizeForEmail(person.LastName))
 
-			// Check if guardian already exists in cache
+			// Check if guardian already exists in cache or database
 			var guardian *users.Guardian
 			var exists bool
 			if guardian, exists = guardianCache[guardianEmail]; !exists {
-				// Create new guardian
-				guardian = &users.Guardian{
-					FirstName: guardianFirstName,
-					LastName:  person.LastName,
-					Email:     &guardianEmail, // Pointer to string for optional field
-					Phone:     &guardianPhone, // Pointer to string for optional field
-					Active:    true,
-				}
-				guardian.CreatedAt = time.Now()
-				guardian.UpdatedAt = time.Now()
+				// Check if guardian exists in database
+				existingGuardian := &users.Guardian{}
+				err := s.tx.NewSelect().
+					Model(existingGuardian).
+					ModelTableExpr(`users.guardians AS "guardian"`).
+					Where("email = ?", guardianEmail).
+					Scan(ctx)
 
-				// Insert guardian (no conflict handling - cache prevents duplicates)
-				// Note: Can't use ON CONFLICT with partial unique index on email
-				_, err := s.tx.NewInsert().Model(guardian).
-					ModelTableExpr("users.guardians").
-					Returning("id, created_at, updated_at").
-					Exec(ctx)
-				if err != nil {
-					return fmt.Errorf("failed to create guardian for student %d: %w", person.ID, err)
-				}
+				if err == nil {
+					// Guardian exists in database, use it
+					guardian = existingGuardian
+					guardianCache[guardianEmail] = guardian
+				} else {
+					// Create new guardian
+					guardian = &users.Guardian{
+						FirstName: guardianFirstName,
+						LastName:  person.LastName,
+						Email:     &guardianEmail, // Pointer to string for optional field
+						Phone:     &guardianPhone, // Pointer to string for optional field
+						Active:    true,
+					}
+					guardian.CreatedAt = time.Now()
+					guardian.UpdatedAt = time.Now()
 
-				guardianCache[guardianEmail] = guardian
+					// Insert guardian
+					_, err := s.tx.NewInsert().Model(guardian).
+						ModelTableExpr("users.guardians").
+						Returning("id, created_at, updated_at").
+						Exec(ctx)
+					if err != nil {
+						return fmt.Errorf("failed to create guardian for student %d: %w", person.ID, err)
+					}
+
+					guardianCache[guardianEmail] = guardian
+				}
 			}
 
 			// Set bus permission (30% of students)
