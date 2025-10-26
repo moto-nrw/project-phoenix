@@ -752,23 +752,25 @@ function StudentPageContent() {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="text-xs text-gray-500 mb-1 block">Betreuernotizen</label>
+                                                <label className="text-xs text-gray-400 mb-1 block">Betreuernotizen (noch nicht verfügbar)</label>
                                                 <textarea
                                                     value={editedStudent.supervisor_notes ?? ''}
                                                     onChange={(e) => setEditedStudent({ ...editedStudent, supervisor_notes: e.target.value })}
-                                                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]"
+                                                    className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-400 cursor-not-allowed min-h-[80px]"
                                                     rows={3}
                                                     placeholder="Notizen für Betreuer"
+                                                    disabled
                                                 />
                                             </div>
                                             <div>
-                                                <label className="text-xs text-gray-500 mb-1 block">Elternnotizen</label>
+                                                <label className="text-xs text-gray-400 mb-1 block">Elternnotizen (noch nicht verfügbar)</label>
                                                 <textarea
                                                     value={editedStudent.extra_info ?? ''}
                                                     onChange={(e) => setEditedStudent({ ...editedStudent, extra_info: e.target.value })}
-                                                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[60px]"
+                                                    className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-400 cursor-not-allowed min-h-[60px]"
                                                     rows={2}
                                                     placeholder="Notizen der Eltern"
+                                                    disabled
                                                 />
                                             </div>
                                         </>
@@ -904,6 +906,35 @@ function StudentPageContent() {
                                                                 placeholder="email@beispiel.de"
                                                             />
                                                         </div>
+                                                        <div className="sm:col-span-2 space-y-2 pt-2">
+                                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={guardian.is_primary}
+                                                                    onChange={(e) => handleUpdateGuardian(index, 'is_primary', e.target.checked)}
+                                                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                                />
+                                                                <span className="text-sm text-gray-700">Hauptkontakt</span>
+                                                            </label>
+                                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={guardian.is_emergency_contact}
+                                                                    onChange={(e) => handleUpdateGuardian(index, 'is_emergency_contact', e.target.checked)}
+                                                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                                />
+                                                                <span className="text-sm text-gray-700">Notfallkontakt</span>
+                                                            </label>
+                                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={guardian.can_pickup}
+                                                                    onChange={(e) => handleUpdateGuardian(index, 'can_pickup', e.target.checked)}
+                                                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                                />
+                                                                <span className="text-sm text-gray-700">Abholberechtigt</span>
+                                                            </label>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))}
@@ -919,6 +950,25 @@ function StudentPageContent() {
                                             {student.guardians && student.guardians.length > 0 ? (
                                                 student.guardians.map((guardian, index) => (
                                                     <div key={index} className="p-4 border border-gray-200 rounded-lg">
+                                                        <div className="flex items-start justify-between mb-3">
+                                                            <div className="flex flex-wrap gap-1.5">
+                                                                {guardian.is_primary && (
+                                                                    <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                                                                        Hauptkontakt
+                                                                    </span>
+                                                                )}
+                                                                {guardian.is_emergency_contact && (
+                                                                    <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">
+                                                                        Notfallkontakt
+                                                                    </span>
+                                                                )}
+                                                                {guardian.can_pickup && (
+                                                                    <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">
+                                                                        Abholberechtigt
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                         <div className="space-y-2">
                                                             <InfoItem label="Name" value={`${guardian.first_name} ${guardian.last_name}`} />
                                                             {guardian.relationship_type && <InfoItem label="Beziehung" value={guardian.relationship_type} />}
