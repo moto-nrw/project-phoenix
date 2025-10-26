@@ -157,25 +157,36 @@ function OGSGroupPageContent() {
     [session?.user?.token],
   );
 
-  // SSE event handler - refetch room status when students check in/out
+  // SSE event handler - refetch students + room status when students check in/out
   const handleSSEEvent = useCallback(
-    (event: SSEEvent) => {
+    async (event: SSEEvent) => {
       console.log("SSE event received:", event.type, event.active_group_id);
 
-      // Check if we have a current group selected
       if (!currentGroup) return;
 
-      // For any student check-in/check-out event, refetch room status
-      // (SSE events are for active groups, but we need to update OGS group room status)
-      if (
-        event.type === "student_checkin" ||
-        event.type === "student_checkout"
-      ) {
-        console.log(
-          "Student location changed - refetching room status for group:",
-          currentGroup.id,
-        );
-        void loadGroupRoomStatus(currentGroup.id);
+      const isStudentLocationEvent =
+        event.type === "student_checkin" || event.type === "student_checkout";
+
+      if (!isStudentLocationEvent) return;
+
+      console.log(
+        "Student location changed - refetching students and room status for group:",
+        currentGroup.id,
+      );
+
+      try {
+        const studentsPromise = studentService.getStudents({
+          groupId: currentGroup.id,
+        });
+
+        const [studentsResponse] = await Promise.all([
+          studentsPromise,
+          loadGroupRoomStatus(currentGroup.id),
+        ]);
+
+        setStudents(studentsResponse.students || []);
+      } catch (error) {
+        console.error("Error refetching after SSE:", error);
       }
     },
     [currentGroup, loadGroupRoomStatus],
