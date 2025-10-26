@@ -10,7 +10,6 @@ import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { userContextService } from "~/lib/usercontext-api";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
-import type { StudentLocation } from "~/lib/student-helpers";
 import {
   LOCATION_STATUSES,
   isHomeLocation,
@@ -24,14 +23,6 @@ import type { SSEEvent } from "~/lib/sse-types";
 
 import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
-// Location constants to ensure type safety
-const LOCATIONS = {
-  HOME: LOCATION_STATUSES.HOME as StudentLocation,
-  PRESENT: LOCATION_STATUSES.PRESENT as StudentLocation,
-  SCHOOL_YARD: LOCATION_STATUSES.SCHOOLYARD as StudentLocation,
-  TRANSIT: LOCATION_STATUSES.TRANSIT as StudentLocation,
-  UNKNOWN: LOCATION_STATUSES.UNKNOWN as StudentLocation,
-} as const;
 
 // Define OGSGroup type based on EducationalGroup with additional fields
 interface OGSGroup {
@@ -159,7 +150,7 @@ function OGSGroupPageContent() {
 
   // SSE event handler - refetch students + room status when students check in/out
   const handleSSEEvent = useCallback(
-    async (event: SSEEvent) => {
+    (event: SSEEvent) => {
       console.log("SSE event received:", event.type, event.active_group_id);
 
       if (!currentGroup) return;
@@ -174,20 +165,23 @@ function OGSGroupPageContent() {
         currentGroup.id,
       );
 
-      try {
-        const studentsPromise = studentService.getStudents({
-          groupId: currentGroup.id,
-        });
+      // Handle async operations without returning promise
+      void (async () => {
+        try {
+          const studentsPromise = studentService.getStudents({
+            groupId: currentGroup.id,
+          });
 
-        const [studentsResponse] = await Promise.all([
-          studentsPromise,
-          loadGroupRoomStatus(currentGroup.id),
-        ]);
+          const [studentsResponse] = await Promise.all([
+            studentsPromise,
+            loadGroupRoomStatus(currentGroup.id),
+          ]);
 
-        setStudents(studentsResponse.students || []);
-      } catch (error) {
-        console.error("Error refetching after SSE:", error);
-      }
+          setStudents(studentsResponse.students || []);
+        } catch (error) {
+          console.error("Error refetching after SSE:", error);
+        }
+      })();
     },
     [currentGroup, loadGroupRoomStatus],
   );
