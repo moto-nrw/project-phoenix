@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
+import { useState, useEffect, Suspense, useMemo, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
@@ -103,6 +103,12 @@ function OGSGroupPageContent() {
   // Get current selected group
   const currentGroup = allGroups[selectedGroupIndex] ?? null;
 
+  // Ref to track current group without triggering SSE reconnections
+  const currentGroupRef = useRef<OGSGroup | null>(null);
+  useEffect(() => {
+    currentGroupRef.current = currentGroup;
+  }, [currentGroup]);
+
   // Helper function to load room status for current group
   const loadGroupRoomStatus = useCallback(
     async (groupId: string) => {
@@ -153,7 +159,8 @@ function OGSGroupPageContent() {
     (event: SSEEvent) => {
       console.log("SSE event received:", event.type, event.active_group_id);
 
-      if (!currentGroup) return;
+      const group = currentGroupRef.current;
+      if (!group) return;
 
       const isStudentLocationEvent =
         event.type === "student_checkin" || event.type === "student_checkout";
@@ -162,19 +169,19 @@ function OGSGroupPageContent() {
 
       console.log(
         "Student location changed - refetching students and room status for group:",
-        currentGroup.id,
+        group.id,
       );
 
       // Handle async operations without returning promise
       void (async () => {
         try {
           const studentsPromise = studentService.getStudents({
-            groupId: currentGroup.id,
+            groupId: group.id,
           });
 
           const [studentsResponse] = await Promise.all([
             studentsPromise,
-            loadGroupRoomStatus(currentGroup.id),
+            loadGroupRoomStatus(group.id),
           ]);
 
           setStudents(studentsResponse.students || []);
@@ -183,7 +190,7 @@ function OGSGroupPageContent() {
         }
       })();
     },
-    [currentGroup, loadGroupRoomStatus],
+    [loadGroupRoomStatus],
   );
 
   // Connect to SSE for real-time updates
