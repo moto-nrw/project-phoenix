@@ -47,13 +47,9 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 				normalizeForEmail(guardianFirstName),
 				normalizeForEmail(person.LastName))
 
-			// Set bus permission (30% of students)
-			bus := rng.Float32() < 0.3
-
 			student := &users.Student{
 				PersonID:        person.ID,
 				SchoolClass:     classGroup.Name,
-				Bus:             bus,
 				GuardianName:    guardianName,
 				GuardianContact: guardianPhone,
 				GuardianEmail:   &guardianEmail,
@@ -67,7 +63,6 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 				ModelTableExpr("users.students").
 				On("CONFLICT (person_id) DO UPDATE").
 				Set("school_class = EXCLUDED.school_class").
-				Set("bus = EXCLUDED.bus").
 				Set("guardian_name = EXCLUDED.guardian_name").
 				Set("guardian_contact = EXCLUDED.guardian_contact").
 				Set("guardian_email = EXCLUDED.guardian_email").

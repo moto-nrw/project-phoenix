@@ -334,24 +334,6 @@ export async function deleteStudent(id: string): Promise<void> {
     }
 }
 
-// Helper function to map attendance filter to location string
-export function mapAttendanceFilterToLocation(attendanceFilter: string): string | undefined {
-    switch (attendanceFilter) {
-        case "in_house":
-            return "In House";
-        case "wc":
-            return "WC";
-        case "school_yard":
-            return "School Yard";
-        case "bus":
-            return "Bus";
-        case "all":
-            return undefined;
-        default:
-            return undefined;
-    }
-}
-
 // Fetch all groups (for filter dropdown)
 export async function fetchGroups(): Promise<Group[]> {
     const useProxyApi = typeof window !== "undefined";

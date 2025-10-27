@@ -71,6 +71,14 @@ func (m *MockAttendanceRepository) GetTodayByStudentID(ctx context.Context, stud
 	return nil, args.Error(1)
 }
 
+func (m *MockAttendanceRepository) GetTodayByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*active.Attendance, error) {
+	args := m.Called(ctx, studentIDs)
+	if obj := args.Get(0); obj != nil {
+		return obj.(map[int64]*active.Attendance), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockAttendanceRepository) FindForDate(ctx context.Context, date time.Time) ([]*active.Attendance, error) {
 	args := m.Called(ctx, date)
 	if obj := args.Get(0); obj != nil {
@@ -113,6 +121,51 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 	assert.Nil(t, result.CheckOutTime)
 	assert.Empty(t, result.CheckedInBy)
 	assert.Empty(t, result.CheckedOutBy)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestGetStudentsAttendanceStatuses(t *testing.T) {
+	ctx := context.Background()
+	mockRepo := &MockAttendanceRepository{}
+
+	svc := &service{
+		attendanceRepo: mockRepo,
+	}
+
+	studentIDs := []int64{101, 202}
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	attendanceRecords := map[int64]*active.Attendance{
+		101: {
+			StudentID:   101,
+			Date:        today,
+			CheckInTime: today.Add(-1 * time.Hour),
+		},
+	}
+
+	mockRepo.On("GetTodayByStudentIDs", ctx, studentIDs).Return(attendanceRecords, nil)
+
+	statuses, err := svc.GetStudentsAttendanceStatuses(ctx, studentIDs)
+
+	require.NoError(t, err)
+	require.Len(t, statuses, 2)
+
+	checkedIn := statuses[101]
+	if assert.NotNil(t, checkedIn) {
+		assert.Equal(t, "checked_in", checkedIn.Status)
+		assert.NotNil(t, checkedIn.CheckInTime)
+		assert.Nil(t, checkedIn.CheckOutTime)
+		assert.Equal(t, today, checkedIn.Date)
+	}
+
+	notCheckedIn := statuses[202]
+	if assert.NotNil(t, notCheckedIn) {
+		assert.Equal(t, "not_checked_in", notCheckedIn.Status)
+		assert.Nil(t, notCheckedIn.CheckInTime)
+		assert.Nil(t, notCheckedIn.CheckOutTime)
+		assert.Equal(t, today, notCheckedIn.Date.Truncate(24*time.Hour))
+	}
 
 	mockRepo.AssertExpectations(t)
 }

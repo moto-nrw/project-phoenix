@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import type { Student } from "@/lib/api";
+import { isPresentLocation } from "@/lib/location-helper";
 
 interface StudentListProps {
   students: Student[];
@@ -36,14 +37,16 @@ export default function StudentList({
 
   return (
     <div className="space-y-2">
-      {students.map((student) => (
-        <div
-          key={student.id}
-          onClick={() => handleStudentClick(student)}
-          className="group cursor-pointer rounded-lg border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:translate-y-[-1px] hover:border-blue-200 hover:shadow-md"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+      {students.map((student) => {
+        const isPresent = isPresentLocation(student.current_location);
+        return (
+          <div
+            key={student.id}
+            onClick={() => handleStudentClick(student)}
+            className="group cursor-pointer rounded-lg border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:translate-y-[-1px] hover:border-blue-200 hover:shadow-md"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 font-medium text-white">
                 {(
                   student.name ??
@@ -74,10 +77,10 @@ export default function StudentList({
             <div className="flex items-center">
               <div className="mr-16 flex items-center">
                 <div
-                  className={`h-2.5 w-2.5 rounded-full ${student.in_house ? "bg-green-500" : "bg-gray-300"} relative transition-all duration-200 group-hover:scale-110`}
-                  title={student.in_house ? "Anwesend" : "Nicht anwesend"}
+                  className={`h-2.5 w-2.5 rounded-full ${isPresent ? "bg-green-500" : "bg-gray-300"} relative transition-all duration-200 group-hover:scale-110`}
+                  title={isPresent ? "Anwesend" : "Nicht anwesend"}
                 >
-                  {student.in_house && (
+                  {isPresent && (
                     <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3 opacity-75">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
                     </span>
@@ -85,9 +88,10 @@ export default function StudentList({
                 </div>
               </div>
             </div>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

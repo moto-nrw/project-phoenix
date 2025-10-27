@@ -197,9 +197,7 @@ Project Phoenix is a GDPR-compliant RFID-based student attendance and room manag
 - **Concurrent Users:** Support 150 concurrent users (120 students + 30 staff)
 
 ### Data Integrity
-- **Student Location:** Use `active.visits` table as source of truth
-- **DEPRECATED:** Boolean flags in `users.students` (in_house, wc, school_yard) are BROKEN
-- **Bus Flag:** Administrative permission flag only ("Buskind"), NOT a location indicator
+- **Student Location:** Use `active.visits` table as source of truth (legacy boolean columns removed)
 - **Transaction Boundaries:** Complex operations (combined groups, substitutions) require transactions
 
 ### Deployment Constraints
