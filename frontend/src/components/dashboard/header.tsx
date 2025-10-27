@@ -10,8 +10,7 @@ import { HelpButton } from "@/components/ui/help_button";
 import { getHelpContent } from "@/lib/help-content";
 import { useSession } from "next-auth/react";
 import { LogoutModal } from "~/components/ui/logout-modal";
-import { PROFILE_EVENTS, type ProfileUpdatedEvent } from "~/lib/events/profile-events";
-import { fetchProfile } from "~/lib/profile-api";
+import { useProfile } from "~/lib/profile-context";
 
 // Function to get page title based on pathname
 function getPageTitle(pathname: string): string {
@@ -170,17 +169,11 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
-    const [profileData, setProfileData] = useState<{
-        name: string;
-        avatar?: string | null;
-    }>({
-        name: userName,
-        avatar: null,
-    });
     const pathname = usePathname();
     const helpContent = getHelpContent(pathname);
     const pageTitle = customPageTitle ?? getPageTitle(pathname);
     const { data: session } = useSession();
+    const { profile } = useProfile();
 
     // Shrinking header on scroll (Instagram/Twitter pattern - mobile only)
     useEffect(() => {
@@ -192,54 +185,6 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
         window.addEventListener('scroll', handleScroll, { passive: true });
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
-
-    // Listen for profile updates from other components (e.g., Settings page)
-    useEffect(() => {
-        const handleProfileUpdate = (event: Event) => {
-            const customEvent = event as CustomEvent<ProfileUpdatedEvent>;
-            const { firstName, lastName, avatar } = customEvent.detail;
-            const fullName = `${firstName} ${lastName}`.trim();
-
-            setProfileData({
-                name: fullName || userName,
-                avatar: avatar,
-            });
-        };
-
-        window.addEventListener(
-            PROFILE_EVENTS.PROFILE_UPDATED,
-            handleProfileUpdate
-        );
-
-        return () => {
-            window.removeEventListener(
-                PROFILE_EVENTS.PROFILE_UPDATED,
-                handleProfileUpdate
-            );
-        };
-    }, [userName]);
-
-    // Load initial profile data on mount
-    useEffect(() => {
-        const loadInitialProfile = async () => {
-            try {
-                const profile = await fetchProfile();
-                const fullName = `${profile.firstName} ${profile.lastName}`.trim();
-                setProfileData({
-                    name: fullName || userName,
-                    avatar: profile.avatar,
-                });
-            } catch (error) {
-                // Silent fail, use session data as fallback
-                console.debug('Could not load profile for header:', error);
-            }
-        };
-
-        // Only fetch if we have a session token
-        if (session?.user?.token) {
-            void loadInitialProfile();
-        }
-    }, [session?.user?.token, userName]);
 
     // Check if we're on a student detail page (main page, not history subpages)
     const isStudentDetailPage = pathname.startsWith("/students/") &&
@@ -272,9 +217,11 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
                             referrer.startsWith("/myroom") ? "Mein Raum" :
                             "Kindersuche";
 
-    // Use profileData for display, fall back to props
-    const displayName = profileData.name || userName;
-    const displayAvatar = profileData.avatar;
+    // Use profile from Context, fall back to props
+    const displayName = profile
+        ? `${profile.firstName} ${profile.lastName}`.trim() || userName
+        : userName;
+    const displayAvatar = profile?.avatar;
 
     const toggleProfileMenu = () => {
         setIsProfileMenuOpen(!isProfileMenuOpen);

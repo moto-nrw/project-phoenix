@@ -10,10 +10,10 @@ import { useToast } from "~/contexts/ToastContext";
 import { PasswordChangeModal } from "~/components/ui";
 import { PINManagement } from "~/components/staff";
 import { IOSToggle } from "~/components/ui/ios-toggle";
-import { fetchProfile, updateProfile, uploadAvatar } from "~/lib/profile-api";
-import type { Profile, ProfileUpdateRequest } from "~/lib/profile-helpers";
+import { updateProfile, uploadAvatar } from "~/lib/profile-api";
+import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
 import { Loading } from "~/components/ui/loading";
-import { dispatchProfileUpdate } from "~/lib/events/profile-events";
+import { useProfile } from "~/lib/profile-context";
 
 // Tab configuration
 interface Tab {
@@ -84,6 +84,7 @@ function SettingsContent() {
   const { data: session, status } = useSession({ required: true });
   const router = useRouter();
   const { success: toastSuccess } = useToast();
+  const { profile, updateProfileData, refreshProfile } = useProfile();
   const [activeTab, setActiveTab] = useState<string | null>("profile");
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
@@ -91,11 +92,9 @@ function SettingsContent() {
   const [isMobile, setIsMobile] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
-  // Profile state
-  const [profile, setProfile] = useState<Profile | null>(null);
+  // Profile editing state
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [hasLoadedProfile, setHasLoadedProfile] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -147,29 +146,16 @@ function SettingsContent() {
     return () => window.removeEventListener("resize", handleResize);
   }, [isMobile, activeTab]);
 
+  // Sync formData with profile from Context
   useEffect(() => {
-    if (session?.user?.token && !hasLoadedProfile) {
-      void loadProfile();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.user?.token, hasLoadedProfile]); // Only load once when session is ready
-
-  const loadProfile = async () => {
-    if (!session?.user?.token) return;
-
-    try {
-      const profileData = await fetchProfile();
-      setProfile(profileData);
+    if (profile) {
       setFormData({
-        firstName: profileData.firstName || "",
-        lastName: profileData.lastName || "",
-        email: profileData.email || "",
+        firstName: profile.firstName || "",
+        lastName: profile.lastName || "",
+        email: profile.email || "",
       });
-      setHasLoadedProfile(true); // Mark as loaded to prevent re-fetching
-    } catch (error) {
-      console.error("Failed to load profile:", error);
     }
-  };
+  }, [profile]);
 
   const handleSaveProfile = async () => {
     if (!session?.user?.token || !profile) return;
@@ -182,17 +168,18 @@ function SettingsContent() {
       };
 
       await updateProfile(updateData);
-      await loadProfile();
-      setIsEditing(false);
-      toastSuccess("Profil erfolgreich aktualisiert");
 
-      // Dispatch event to notify other components (e.g., Header)
-      dispatchProfileUpdate({
+      // Update profile in Context (optimistic update)
+      updateProfileData({
         firstName: formData.firstName,
         lastName: formData.lastName,
-        email: formData.email,
-        avatar: profile.avatar,
       });
+
+      // Refresh from backend to ensure consistency
+      await refreshProfile(true);
+
+      setIsEditing(false);
+      toastSuccess("Profil erfolgreich aktualisiert");
     } catch {
       setAlertMessage("Fehler beim Speichern des Profils");
       setAlertType("error");
@@ -207,18 +194,11 @@ function SettingsContent() {
 
     try {
       await uploadAvatar(file);
-      await loadProfile();
-      toastSuccess("Profilbild erfolgreich aktualisiert");
 
-      // Dispatch event to notify other components (e.g., Header)
-      if (profile) {
-        dispatchProfileUpdate({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          avatar: profile.avatar,
-        });
-      }
+      // Refresh profile from backend to get new avatar URL
+      await refreshProfile(true);
+
+      toastSuccess("Profilbild erfolgreich aktualisiert");
     } catch {
       setAlertMessage("Fehler beim Hochladen des Profilbilds");
       setAlertType("error");
@@ -365,7 +345,14 @@ function SettingsContent() {
                   <button
                     onClick={() => {
                       setIsEditing(false);
-                      void loadProfile();
+                      // Reset form data to profile values from Context
+                      if (profile) {
+                        setFormData({
+                          firstName: profile.firstName || "",
+                          lastName: profile.lastName || "",
+                          email: profile.email || "",
+                        });
+                      }
                     }}
                     className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100"
                   >
