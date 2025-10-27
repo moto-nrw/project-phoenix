@@ -538,14 +538,18 @@ func (s *service) FindVisitsByTimeRange(ctx context.Context, start, end time.Tim
 }
 
 func (s *service) EndVisit(ctx context.Context, id int64) error {
-	var deviceID int64
-	if deviceCtx := device.DeviceFromCtx(ctx); deviceCtx != nil {
-		deviceID = deviceCtx.ID
-	}
+	autoSyncAttendance := shouldAutoSyncAttendance(ctx)
 
+	var deviceID int64
 	var staffID int64
-	if staffCtx := device.StaffFromCtx(ctx); staffCtx != nil {
-		staffID = staffCtx.ID
+	if autoSyncAttendance {
+		if deviceCtx := device.DeviceFromCtx(ctx); deviceCtx != nil {
+			deviceID = deviceCtx.ID
+		}
+
+		if staffCtx := device.StaffFromCtx(ctx); staffCtx != nil {
+			staffID = staffCtx.ID
+		}
 	}
 
 	var endedVisit *active.Visit
@@ -568,6 +572,10 @@ func (s *service) EndVisit(ctx context.Context, id int64) error {
 		endedVisit = visit
 
 		if visit.ExitTime == nil {
+			return nil
+		}
+
+		if !autoSyncAttendance {
 			return nil
 		}
 
