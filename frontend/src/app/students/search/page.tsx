@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Suspense, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  Suspense,
+  useMemo,
+} from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
@@ -12,7 +19,12 @@ import type { Student, Group } from "~/lib/api";
 import { userContextService } from "~/lib/usercontext-api";
 import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
-import { isHomeLocation, isPresentLocation, isSchoolyardLocation, isTransitLocation } from "~/lib/location-helper";
+import {
+  isHomeLocation,
+  isPresentLocation,
+  isSchoolyardLocation,
+  isTransitLocation,
+} from "~/lib/location-helper";
 
 function SearchPageContent() {
   const { data: session, status } = useSession();
@@ -34,29 +46,28 @@ function SearchPageContent() {
   // OGS group tracking
   const [myGroups, setMyGroups] = useState<string[]>([]);
 
-  const fetchStudentsData = useCallback(async (filters?: {
-    search?: string;
-    groupId?: string;
-  }) => {
-    try {
-      setIsSearching(true);
-      setError(null);
+  const fetchStudentsData = useCallback(
+    async (filters?: { search?: string; groupId?: string }) => {
+      try {
+        setIsSearching(true);
+        setError(null);
 
-      // Fetch students from API
-      const fetchedStudents = await studentService.getStudents({
-        search: filters?.search ?? searchTerm,
-        groupId: filters?.groupId ?? selectedGroup
-      });
+        // Fetch students from API
+        const fetchedStudents = await studentService.getStudents({
+          search: filters?.search ?? searchTerm,
+          groupId: filters?.groupId ?? selectedGroup,
+        });
 
-      setStudents(fetchedStudents.students);
-      
-    } catch {
-      // Error fetching students - handle gracefully
-      setError("Fehler beim Laden der Schülerdaten.");
-    } finally {
-      setIsSearching(false);
-    }
-  }, [searchTerm, selectedGroup]);
+        setStudents(fetchedStudents.students);
+      } catch {
+        // Error fetching students - handle gracefully
+        setError("Fehler beim Laden der Schülerdaten.");
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    [searchTerm, selectedGroup],
+  );
 
   // Load groups and user's OGS groups on mount
   useEffect(() => {
@@ -65,12 +76,13 @@ function SearchPageContent() {
         // Load all groups for filter
         const fetchedGroups = await groupService.getGroups();
         setGroups(fetchedGroups);
-        
+
         // Load user's OGS groups
         if (session?.user?.token) {
           try {
-            const myOgsGroups = await userContextService.getMyEducationalGroups();
-            setMyGroups(myOgsGroups.map(g => g.id));
+            const myOgsGroups =
+              await userContextService.getMyEducationalGroups();
+            setMyGroups(myOgsGroups.map((g) => g.id));
           } catch (ogsError) {
             console.error("Error loading OGS groups:", ogsError);
             // User might not have OGS groups, which is fine
@@ -116,87 +128,91 @@ function SearchPageContent() {
   }, [selectedGroup]);
 
   // Prepare filter configurations for PageHeaderWithSearch
-  const filterConfigs: FilterConfig[] = useMemo(() => [
-    {
-      id: 'year',
-      label: 'Klassenstufe',
-      type: 'buttons',
-      value: selectedYear,
-      onChange: (value) => setSelectedYear(value as string),
-      options: [
-        { value: 'all', label: 'Alle' },
-        { value: '1', label: '1' },
-        { value: '2', label: '2' },
-        { value: '3', label: '3' },
-        { value: '4', label: '4' }
-      ]
-    },
-    {
-      id: 'group',
-      label: 'Gruppe',
-      type: 'dropdown',
-      value: selectedGroup,
-      onChange: (value) => setSelectedGroup(value as string),
-      options: [
-        { value: '', label: 'Alle Gruppen' },
-        ...groups.map(group => ({ value: group.id, label: group.name }))
-      ]
-    },
-    {
-      id: 'attendance',
-      label: 'Anwesenheit',
-      type: 'dropdown',
-      value: attendanceFilter,
-      onChange: (value) => setAttendanceFilter(value as string),
-      options: [
-        { value: 'all', label: 'Alle Status' },
-        { value: 'anwesend', label: 'Anwesend' },
-        { value: 'abwesend', label: 'Zuhause' }
-      ]
-    }
-  ], [selectedYear, selectedGroup, attendanceFilter, groups]);
+  const filterConfigs: FilterConfig[] = useMemo(
+    () => [
+      {
+        id: "year",
+        label: "Klassenstufe",
+        type: "buttons",
+        value: selectedYear,
+        onChange: (value) => setSelectedYear(value as string),
+        options: [
+          { value: "all", label: "Alle" },
+          { value: "1", label: "1" },
+          { value: "2", label: "2" },
+          { value: "3", label: "3" },
+          { value: "4", label: "4" },
+        ],
+      },
+      {
+        id: "group",
+        label: "Gruppe",
+        type: "dropdown",
+        value: selectedGroup,
+        onChange: (value) => setSelectedGroup(value as string),
+        options: [
+          { value: "", label: "Alle Gruppen" },
+          ...groups.map((group) => ({ value: group.id, label: group.name })),
+        ],
+      },
+      {
+        id: "attendance",
+        label: "Anwesenheit",
+        type: "dropdown",
+        value: attendanceFilter,
+        onChange: (value) => setAttendanceFilter(value as string),
+        options: [
+          { value: "all", label: "Alle Status" },
+          { value: "anwesend", label: "Anwesend" },
+          { value: "abwesend", label: "Zuhause" },
+        ],
+      },
+    ],
+    [selectedYear, selectedGroup, attendanceFilter, groups],
+  );
 
   // Prepare active filters for display
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const filters: ActiveFilter[] = [];
-    
+
     if (searchTerm) {
       filters.push({
-        id: 'search',
+        id: "search",
         label: `"${searchTerm}"`,
-        onRemove: () => setSearchTerm("")
+        onRemove: () => setSearchTerm(""),
       });
     }
-    
+
     if (selectedYear !== "all") {
       filters.push({
-        id: 'year',
+        id: "year",
         label: `Jahr ${selectedYear}`,
-        onRemove: () => setSelectedYear("all")
+        onRemove: () => setSelectedYear("all"),
       });
     }
-    
+
     if (selectedGroup) {
-      const groupName = groups.find(g => g.id === selectedGroup)?.name ?? "Gruppe";
+      const groupName =
+        groups.find((g) => g.id === selectedGroup)?.name ?? "Gruppe";
       filters.push({
-        id: 'group',
+        id: "group",
         label: groupName,
-        onRemove: () => setSelectedGroup("")
+        onRemove: () => setSelectedGroup(""),
       });
     }
-    
+
     if (attendanceFilter !== "all") {
       const statusLabels: Record<string, string> = {
-        "anwesend": "Anwesend",
-        "abwesend": "Zuhause"
+        anwesend: "Anwesend",
+        abwesend: "Zuhause",
       };
       filters.push({
-        id: 'attendance',
+        id: "attendance",
         label: statusLabels[attendanceFilter] ?? attendanceFilter,
-        onRemove: () => setAttendanceFilter("all")
+        onRemove: () => setAttendanceFilter("all"),
       });
     }
-    
+
     return filters;
   }, [searchTerm, selectedYear, selectedGroup, attendanceFilter, groups]);
 
@@ -213,7 +229,10 @@ function SearchPageContent() {
         return false;
       }
 
-      if (attendanceFilter === "abwesend" && !isHomeLocation(student.current_location)) {
+      if (
+        attendanceFilter === "abwesend" &&
+        !isHomeLocation(student.current_location)
+      ) {
         return false;
       }
     }
@@ -230,30 +249,38 @@ function SearchPageContent() {
     return true;
   });
 
-
   if (status === "loading") {
     return <Loading />;
   }
 
   return (
     <ResponsiveLayout>
-      <div className="w-full -mt-1.5">
+      <div className="-mt-1.5 w-full">
         {/* PageHeaderWithSearch - With Suche title */}
         <PageHeaderWithSearch
           title="Suche"
           badge={{
             icon: (
-              <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              <svg
+                className="h-5 w-5 text-gray-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                />
               </svg>
             ),
-            count: filteredStudents.length
+            count: filteredStudents.length,
           }}
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Name suchen..."
+            placeholder: "Name suchen...",
           }}
           filters={filterConfigs}
           activeFilters={activeFilters}
@@ -278,12 +305,26 @@ function SearchPageContent() {
         ) : filteredStudents.length === 0 ? (
           <div className="py-12 text-center">
             <div className="flex flex-col items-center gap-4">
-              <svg className="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <svg
+                className="h-12 w-12 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
               </svg>
               <div>
-                <h3 className="text-lg font-medium text-gray-900">Keine Schüler gefunden</h3>
-                <p className="text-gray-600">Versuche deine Suchkriterien anzupassen.</p>
+                <h3 className="text-lg font-medium text-gray-900">
+                  Keine Schüler gefunden
+                </h3>
+                <p className="text-gray-600">
+                  Versuche deine Suchkriterien anzupassen.
+                </p>
               </div>
             </div>
           </div>
@@ -292,71 +333,109 @@ function SearchPageContent() {
             {/* Add floating animation keyframes */}
             <style jsx>{`
               @keyframes float {
-                0%, 100% { transform: translateY(0px) rotate(var(--rotation)); }
-                50% { transform: translateY(-4px) rotate(var(--rotation)); }
+                0%,
+                100% {
+                  transform: translateY(0px) rotate(var(--rotation));
+                }
+                50% {
+                  transform: translateY(-4px) rotate(var(--rotation));
+                }
               }
             `}</style>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
               {filteredStudents.map((student, index) => {
                 return (
                   <div
                     key={student.id}
-                    onClick={() => router.push(`/students/${student.id}?from=/students/search`)}
-                    className={`group cursor-pointer relative overflow-hidden rounded-2xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-500 md:hover:scale-[1.03] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] md:hover:bg-white md:hover:-translate-y-3 active:scale-[0.97] md:hover:border-[#5080D8]/30`}
+                    onClick={() =>
+                      router.push(
+                        `/students/${student.id}?from=/students/search`,
+                      )
+                    }
+                    className={`group relative cursor-pointer overflow-hidden rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]`}
                     style={{
-                      transform: `rotate(${(index % 3 - 1) * 0.8}deg)`,
-                      animation: `float 8s ease-in-out infinite ${index * 0.7}s`
+                      transform: `rotate(${((index % 3) - 1) * 0.8}deg)`,
+                      animation: `float 8s ease-in-out infinite ${index * 0.7}s`,
                     }}
                   >
                     {/* Modern gradient overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03] rounded-2xl"></div>
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
                     {/* Subtle inner glow */}
                     <div className="absolute inset-px rounded-2xl bg-gradient-to-br from-white/80 to-white/20"></div>
                     {/* Modern border highlight */}
-                    <div className="absolute inset-0 rounded-2xl ring-1 ring-white/20 md:group-hover:ring-blue-200/60 transition-all duration-300"></div>
-                    
+                    <div className="absolute inset-0 rounded-2xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
 
                     <div className="relative p-6">
                       {/* Header with student name */}
-                      <div className="flex items-center justify-between mb-3">
+                      <div className="mb-3 flex items-center justify-between">
                         {/* Student Name */}
-                        <div className="flex-1 min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <h3 className="text-lg font-bold text-gray-800 whitespace-nowrap overflow-hidden text-ellipsis md:group-hover:text-blue-600 transition-colors duration-300">
+                            <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-blue-600">
                               {student.first_name}
                             </h3>
                             {/* Subtle integrated arrow */}
-                            <svg className="w-4 h-4 text-gray-300 md:group-hover:text-blue-500 md:group-hover:translate-x-1 transition-all duration-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            <svg
+                              className="h-4 w-4 flex-shrink-0 text-gray-300 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-blue-500"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 5l7 7-7 7"
+                              />
                             </svg>
                           </div>
-                          <p className="text-base font-semibold text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis md:group-hover:text-blue-500 transition-colors duration-300">
+                          <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-300 md:group-hover:text-blue-500">
                             {student.second_name}
                           </p>
                         </div>
-                        
+
                         {/* Status Badge */}
                         <LocationBadge
                           student={student}
                           displayMode="contextAware"
                           userGroups={myGroups}
                           variant="modern"
-                          size="sm"
+                          size="md"
                         />
                       </div>
 
                       {/* Additional Info */}
-                      <div className="space-y-1 mb-3">
+                      <div className="mb-3 space-y-1">
                         <div className="flex items-center text-sm text-gray-600">
-                          <svg className="h-4 w-4 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                          <svg
+                            className="mr-2 h-4 w-4 text-gray-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                            />
                           </svg>
                           <span>Klasse {student.school_class}</span>
                         </div>
                         {student.group_name && (
                           <div className="flex items-center text-sm text-gray-600">
-                            <svg className="h-4 w-4 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            <svg
+                              className="mr-2 h-4 w-4 text-gray-400"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                              />
                             </svg>
                             Gruppe: {student.group_name}
                           </div>
@@ -365,18 +444,18 @@ function SearchPageContent() {
 
                       {/* Bottom row with click hint */}
                       <div className="flex justify-start">
-                        <p className="text-xs text-gray-400 md:group-hover:text-blue-400 transition-colors duration-300">
+                        <p className="text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-blue-400">
                           Tippen für mehr Infos
                         </p>
                       </div>
 
                       {/* Decorative elements */}
-                      <div className="absolute top-3 left-3 w-5 h-5 bg-white/20 rounded-full animate-ping"></div>
-                      <div className="absolute bottom-3 right-3 w-3 h-3 bg-white/30 rounded-full"></div>
+                      <div className="absolute top-3 left-3 h-5 w-5 animate-ping rounded-full bg-white/20"></div>
+                      <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
                     </div>
 
                     {/* Glowing border effect */}
-                    <div className="absolute inset-0 rounded-2xl opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-transparent via-blue-100/30 to-transparent"></div>
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
                   </div>
                 );
               })}
@@ -391,11 +470,13 @@ function SearchPageContent() {
 // Main component with Suspense wrapper
 export default function StudentSearchPage() {
   return (
-    <Suspense fallback={
-      <ResponsiveLayout>
-        <Loading fullPage={false} />
-      </ResponsiveLayout>
-    }>
+    <Suspense
+      fallback={
+        <ResponsiveLayout>
+          <Loading fullPage={false} />
+        </ResponsiveLayout>
+      }
+    >
       <SearchPageContent />
     </Suspense>
   );
