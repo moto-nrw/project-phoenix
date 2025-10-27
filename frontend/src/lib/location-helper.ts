@@ -7,7 +7,7 @@ export interface ParsedLocation {
   room?: string;
 }
 
-export type DisplayMode = 'groupName' | 'roomName' | 'contextAware';
+export type DisplayMode = "groupName" | "roomName" | "contextAware";
 
 export interface LocationStyle {
   color: string;
@@ -22,23 +22,23 @@ export interface StudentLocationContext {
 }
 
 export const LOCATION_STATUSES = {
-  PRESENT: 'Anwesend',
-  HOME: 'Zuhause',
-  SCHOOLYARD: 'Schulhof',
-  TRANSIT: 'Unterwegs',
-  UNKNOWN: 'Unbekannt',
+  PRESENT: "Anwesend",
+  HOME: "Zuhause",
+  SCHOOLYARD: "Schulhof",
+  TRANSIT: "Unterwegs",
+  UNKNOWN: "Unbekannt",
 } as const;
 
 export const LOCATION_COLORS = {
-  GROUP_ROOM: '#83CD2D',
-  OTHER_ROOM: '#5080D8',
-  HOME: '#FF3130',
-  SCHOOLYARD: '#F78C10',
-  TRANSIT: '#D946EF',
-  UNKNOWN: '#6B7280',
+  GROUP_ROOM: "#5080D8",
+  OTHER_ROOM: "#83CD2D",
+  HOME: "#FF3130",
+  SCHOOLYARD: "#F78C10",
+  TRANSIT: "#D946EF",
+  UNKNOWN: "#6B7280",
 } as const;
 
-const LOCATION_SEPARATOR = '-';
+const LOCATION_SEPARATOR = "-";
 const UNKNOWN_STATUS = LOCATION_STATUSES.UNKNOWN;
 
 const LEGACY_STATUS_MAP: Record<string, string> = {
@@ -48,11 +48,11 @@ const LEGACY_STATUS_MAP: Record<string, string> = {
   unbekannt: LOCATION_STATUSES.UNKNOWN,
   unknown: LOCATION_STATUSES.UNKNOWN,
   anwesend: LOCATION_STATUSES.PRESENT,
-  'in house': LOCATION_STATUSES.PRESENT,
+  "in house": LOCATION_STATUSES.PRESENT,
   unterwegs: LOCATION_STATUSES.TRANSIT,
   bus: LOCATION_STATUSES.TRANSIT,
   schulhof: LOCATION_STATUSES.SCHOOLYARD,
-  'school yard': LOCATION_STATUSES.SCHOOLYARD,
+  "school yard": LOCATION_STATUSES.SCHOOLYARD,
   schoolyard: LOCATION_STATUSES.SCHOOLYARD,
 };
 
@@ -64,7 +64,7 @@ function normalizeStatusKeyword(rawStatus: string): string {
 
   const key = trimmed.toLowerCase();
 
-  if (key === 'wc' || key === 'bathroom' || key === 'toilette') {
+  if (key === "wc" || key === "bathroom" || key === "toilette") {
     return `${LOCATION_STATUSES.PRESENT} - WC`;
   }
 
@@ -77,7 +77,7 @@ function normalizeStatusKeyword(rawStatus: string): string {
 }
 
 export function normalizeLocation(location?: string | null): string {
-  const raw = (location ?? '').trim();
+  const raw = (location ?? "").trim();
   if (raw.length === 0) {
     return UNKNOWN_STATUS;
   }
@@ -158,15 +158,15 @@ export function getLocationDisplay(
 ): string {
   const parsed = parseLocation(student.current_location);
 
-  if (displayMode === 'groupName') {
-    return (student.group_name ?? '').trim() || UNKNOWN_STATUS;
+  if (displayMode === "groupName") {
+    return (student.group_name ?? "").trim() || UNKNOWN_STATUS;
   }
 
-  if (displayMode === 'roomName') {
+  if (displayMode === "roomName") {
     return parsed.room ?? parsed.status ?? UNKNOWN_STATUS;
   }
 
-  if (displayMode === 'contextAware') {
+  if (displayMode === "contextAware") {
     const canSeeDetails = canSeeDetailedLocation(student, userGroups);
     if (canSeeDetails) {
       return parsed.room ?? parsed.status ?? UNKNOWN_STATUS;
@@ -184,7 +184,11 @@ export function canSeeDetailedLocation(
   student: StudentLocationContext,
   userGroups?: string[],
 ): boolean {
-  if (!student.group_id || !Array.isArray(userGroups) || userGroups.length === 0) {
+  if (
+    !student.group_id ||
+    !Array.isArray(userGroups) ||
+    userGroups.length === 0
+  ) {
     return false;
   }
 
@@ -197,7 +201,7 @@ export function canSeeDetailedLocation(
 export function getLocationGlowEffect(color: string): string {
   const rgb = hexToRgb(color) ?? hexToRgb(LOCATION_COLORS.UNKNOWN);
   if (!rgb) {
-    return '0 8px 25px rgba(107, 114, 128, 0.4)';
+    return "0 8px 25px rgba(107, 114, 128, 0.4)";
   }
   return `0 8px 25px rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.4)`;
 }
@@ -237,7 +241,7 @@ interface RgbColor {
 }
 
 function hexToRgb(hexColor: string): RgbColor | null {
-  const sanitized = hexColor.trim().replace('#', '');
+  const sanitized = hexColor.trim().replace("#", "");
   if (sanitized.length !== 6) {
     return null;
   }
