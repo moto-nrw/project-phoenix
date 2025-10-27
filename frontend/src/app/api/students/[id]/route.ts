@@ -102,15 +102,15 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
         };
       }
     } catch (e) {
-      // Differentiate 404 (no consent yet) from other errors
+      // Differentiate 404 (no consent yet) and 403 (no permission) from other errors
       if (e instanceof Error) {
-        if (!e.message.includes("(404)")) {
+        if (!e.message.includes("(404)") && !e.message.includes("(403)")) {
           throw e; // system/network error — bubble up
         }
       } else {
         throw e;
       }
-      // For 404 only, fall through to defaults below
+      // For 404 or 403, fall through to defaults below (no consent data available)
     }
     
     return {
