@@ -140,12 +140,11 @@ const UserAvatar = ({
     size?: "sm" | "md";
 }) => {
     const sizeClasses = size === "sm" ? "w-8 h-8 text-sm" : "w-11 h-11 text-base";
-    const pixelSize = size === "sm" ? 32 : 44;
     const initials = userName.split(' ').map(n => n[0]).join('').toUpperCase();
 
     return (
         <div
-            className={`${sizeClasses} rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0 overflow-hidden ${size === "sm" ? "ring-2 ring-white shadow-sm" : "shadow-md"}`}
+            className={`relative ${sizeClasses} rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0 overflow-hidden ${size === "sm" ? "ring-2 ring-white shadow-sm" : "shadow-md"}`}
             style={{
                 background: avatarUrl ? 'transparent' : 'linear-gradient(135deg, #5080d8, #83cd2d)'
             }}
@@ -154,10 +153,9 @@ const UserAvatar = ({
                 <Image
                     src={avatarUrl}
                     alt={userName}
-                    width={pixelSize}
-                    height={pixelSize}
+                    fill
                     className="object-cover"
-                    style={{ width: 'auto', height: 'auto' }}
+                    sizes="44px"
                     unoptimized
                 />
             ) : (
