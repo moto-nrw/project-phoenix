@@ -61,7 +61,9 @@ export function LocationBadge({
   const label = getLocationDisplay(student, displayMode, userGroups);
   const color =
     displayMode === "groupName"
-      ? LOCATION_COLORS.GROUP_ROOM
+      ? isGroupRoom === false
+        ? LOCATION_COLORS.OTHER_ROOM
+        : LOCATION_COLORS.GROUP_ROOM
       : getLocationColor(student.current_location, isGroupRoom);
   const glowEffect = getLocationGlowEffect(color);
 

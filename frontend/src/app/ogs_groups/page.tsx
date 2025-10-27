@@ -815,7 +815,7 @@ function OGSGroupPageContent() {
                         <LocationBadge
                           student={student}
                           displayMode="roomName"
-                          isGroupRoom={inGroupRoom}
+                          isGroupRoom={!inGroupRoom}
                           variant="modern"
                           size="md"
                         />

@@ -757,6 +757,7 @@ function MeinRaumPageContent() {
                         <LocationBadge
                           student={student}
                           displayMode="groupName"
+                          isGroupRoom={false}
                           variant="modern"
                           size="md"
                         />
