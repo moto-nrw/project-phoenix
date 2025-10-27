@@ -227,30 +227,15 @@ function OGSGroupPageContent() {
 
         setHasAccess(true);
 
-        // Convert all groups to OGSGroup format and pre-load student counts
-        const ogsGroups: OGSGroup[] = await Promise.all(
-          myGroups.map(async (group) => {
-            // Pre-load student count for this group
-            let studentCount = 0;
-            try {
-              const studentsResponse = await studentService.getStudents({
-                groupId: group.id,
-              });
-              studentCount = studentsResponse.students?.length || 0;
-            } catch (error) {
-              console.error("Error fetching student count for group:", error);
-            }
-
-            return {
-              id: group.id,
-              name: group.name,
-              room_name: group.room?.name,
-              room_id: group.room_id,
-              student_count: studentCount, // Pre-loaded actual student count
-              supervisor_name: undefined, // Will be fetched separately if needed
-            };
-          }),
-        );
+        // Convert all groups to OGSGroup format (no pre-loading)
+        const ogsGroups: OGSGroup[] = myGroups.map((group) => ({
+          id: group.id,
+          name: group.name,
+          room_name: group.room?.name,
+          room_id: group.room_id,
+          student_count: undefined, // Will be loaded on-demand
+          supervisor_name: undefined,
+        }));
 
         setAllGroups(ogsGroups);
 
@@ -261,7 +246,7 @@ function OGSGroupPageContent() {
           throw new Error("No educational group found");
         }
 
-        // Fetch students for the first group
+        // Fetch students for the first group only
         const studentsResponse = await studentService.getStudents({
           groupId: firstGroup.id,
         });
@@ -269,16 +254,10 @@ function OGSGroupPageContent() {
 
         setStudents(studentsData);
 
-        // Calculate statistics from real data (only if we have valid array data)
-        const validStudents = Array.isArray(studentsData) ? studentsData : [];
-        setStudents(validStudents);
-
-        // Update group with actual student count
+        // Update first group with actual student count
         setAllGroups((prev) =>
           prev.map((group, idx) =>
-            idx === 0
-              ? { ...group, student_count: validStudents.length }
-              : group,
+            idx === 0 ? { ...group, student_count: studentsData.length } : group,
           ),
         );
 
