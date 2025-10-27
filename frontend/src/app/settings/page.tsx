@@ -15,6 +15,7 @@ import { updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
 import { Loading } from "~/components/ui/loading";
 import { useProfile } from "~/lib/profile-context";
+import { compressAvatar } from "~/lib/image-utils";
 
 // Tab configuration
 interface Tab {
@@ -194,9 +195,15 @@ function SettingsContent() {
     if (!session?.user?.token) return;
 
     try {
-      await uploadAvatar(file);
+      setIsSaving(true);
 
-      // Refresh profile from backend to get new avatar URL
+      // 1. Compress image in browser before upload
+      const compressedFile = await compressAvatar(file);
+
+      // 2. Upload compressed file (much faster!)
+      await uploadAvatar(compressedFile);
+
+      // 3. Refresh profile from backend to get new avatar URL
       await refreshProfile(true);
 
       toastSuccess("Profilbild erfolgreich aktualisiert");
@@ -204,6 +211,8 @@ function SettingsContent() {
       setAlertMessage("Fehler beim Hochladen des Profilbilds");
       setAlertType("error");
       setShowAlert(true);
+    } finally {
+      setIsSaving(false);
     }
   };
 

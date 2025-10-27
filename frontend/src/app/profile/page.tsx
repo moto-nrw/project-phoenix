@@ -13,6 +13,7 @@ import { updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
 import { Loading } from "~/components/ui/loading";
 import { useProfile } from "~/lib/profile-context";
+import { compressAvatar } from "~/lib/image-utils";
 
 // Info Card Component
 interface InfoCardProps {
@@ -199,9 +200,13 @@ function ProfilePageContent() {
     setError(null);
 
     try {
-      await uploadAvatar(file);
+      // 1. Compress image in browser before upload
+      const compressedFile = await compressAvatar(file);
 
-      // Refresh profile from backend to get new avatar URL
+      // 2. Upload compressed file (much faster!)
+      await uploadAvatar(compressedFile);
+
+      // 3. Refresh profile from backend to get new avatar URL
       await refreshProfile(true);
 
       toastSuccess("Profilbild erfolgreich aktualisiert");
