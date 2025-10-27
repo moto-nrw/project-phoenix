@@ -239,6 +239,7 @@ function SettingsContent() {
                           fill
                           className="object-cover"
                           sizes="128px"
+                          unoptimized
                         />
                       ) : (
                         <span className="text-4xl font-bold">

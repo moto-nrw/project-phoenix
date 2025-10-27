@@ -157,7 +157,7 @@ const UserAvatar = ({
                     width={pixelSize}
                     height={pixelSize}
                     className="object-cover"
-                    priority={size === "sm"} // Header avatar loads immediately
+                    unoptimized
                 />
             ) : (
                 initials
