@@ -739,7 +739,7 @@ function OGSGroupPageContent() {
         )}
 
         {/* Student Grid - Mobile Optimized */}
-        {isLoading && selectedGroupIndex > 0 ? (
+        {isLoading ? (
           <Loading fullPage={false} />
         ) : students.length === 0 ? (
           <div className="py-12 text-center">
