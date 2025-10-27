@@ -157,6 +157,7 @@ const UserAvatar = ({
                     width={pixelSize}
                     height={pixelSize}
                     className="object-cover"
+                    style={{ width: 'auto', height: 'auto' }}
                     unoptimized
                 />
             ) : (
@@ -255,6 +256,7 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
                                     width={40}
                                     height={40}
                                     className="w-9 h-9"
+                                    priority
                                 />
                                 {/* Subtle glow effect */}
                                 <div className="absolute inset-0 w-9 h-9 rounded-full bg-gradient-to-br from-[#5080d8]/20 to-[#83cd2d]/20 blur-sm -z-10"></div>
