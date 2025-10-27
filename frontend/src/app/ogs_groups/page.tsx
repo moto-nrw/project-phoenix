@@ -536,19 +536,32 @@ function OGSGroupPageContent() {
           <PageHeaderWithSearch title="Meine Gruppe" />
 
           <div className="flex min-h-[60vh] items-center justify-center px-4">
-            <div className="flex flex-col items-center gap-6 text-center max-w-md">
-              <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center">
-                <svg className="w-10 h-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            <div className="flex max-w-md flex-col items-center gap-6 text-center">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
+                <svg
+                  className="h-10 w-10 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                  />
                 </svg>
               </div>
               <div className="space-y-2">
-                <h3 className="text-xl font-bold text-gray-900">Keine OGS-Gruppe zugeordnet</h3>
+                <h3 className="text-xl font-bold text-gray-900">
+                  Keine OGS-Gruppe zugeordnet
+                </h3>
                 <p className="text-gray-600">
                   Du bist keiner OGS-Gruppe als Leiter:in zugeordnet.
                 </p>
-                <p className="text-sm text-gray-500 mt-4">
-                  Wende dich an deine Verwaltung, um einer Gruppe zugewiesen zu werden.
+                <p className="mt-4 text-sm text-gray-500">
+                  Wende dich an deine Verwaltung, um einer Gruppe zugewiesen zu
+                  werden.
                 </p>
               </div>
             </div>
@@ -558,8 +571,9 @@ function OGSGroupPageContent() {
     );
   }
 
-  // Show group selection screen for 5+ groups
-  if (allGroups.length >= 5 && showGroupSelection) {
+  // TODO: Remove group selection screen entirely - threshold raised to effectively disable
+  // Show group selection screen for 99+ groups (effectively disabled)
+  if (allGroups.length >= 99 && showGroupSelection) {
     return (
       <ResponsiveLayout>
         <div className="mx-auto w-full max-w-6xl px-4">
@@ -646,20 +660,22 @@ function OGSGroupPageContent() {
               : "" // No title when multiple groups (tabs show group names) or on desktop
           }
           statusIndicator={{
-            color: sseStatus === "connected"
-              ? "green"
-              : sseStatus === "reconnecting"
-                ? "yellow"
-                : sseStatus === "failed"
-                  ? "red"
-                  : "gray",
-            tooltip: sseStatus === "connected"
-              ? "Live-Updates aktiv"
-              : sseStatus === "reconnecting"
-                ? `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`
-                : sseStatus === "failed"
-                  ? "Verbindung fehlgeschlagen"
-                  : "Verbindung wird hergestellt..."
+            color:
+              sseStatus === "connected"
+                ? "green"
+                : sseStatus === "reconnecting"
+                  ? "yellow"
+                  : sseStatus === "failed"
+                    ? "red"
+                    : "gray",
+            tooltip:
+              sseStatus === "connected"
+                ? "Live-Updates aktiv"
+                : sseStatus === "reconnecting"
+                  ? `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`
+                  : sseStatus === "failed"
+                    ? "Verbindung fehlgeschlagen"
+                    : "Verbindung wird hergestellt...",
           }}
           badge={{
             icon: (
@@ -877,11 +893,7 @@ function OGSGroupPageContent() {
 // Main component with Suspense wrapper
 export default function OGSGroupPage() {
   return (
-    <Suspense
-      fallback={
-        <Loading fullPage={false} />
-      }
-    >
+    <Suspense fallback={<Loading fullPage={false} />}>
       <SSEErrorBoundary>
         <OGSGroupPageContent />
       </SSEErrorBoundary>
