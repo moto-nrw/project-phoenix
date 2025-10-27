@@ -107,14 +107,22 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 		"id", "created_at", "updated_at",
 		"start_time", "end_time", "last_activity", "timeout_minutes",
 		"group_id", "device_id", "room_id",
-		"room__id", "room__created_at", "room__updated_at",
-		"room__name", "room__building", "room__floor", "room__capacity", "room__category", "room__color",
 	}).
-		AddRow(int64(501), now, now, now, nil, now, 30, int64(1001), nil, int64(9001), int64(9001), now, now, "Library", "Main", 1, 20, "Study", "#FFFFFF").
-		AddRow(int64(502), now, now, now, nil, now, 45, int64(1002), nil, int64(9002), int64(9002), now, now, "Lab", "Annex", 2, 25, "Science", "#000000")
+		AddRow(int64(501), now, now, now, nil, now, 30, int64(1001), nil, int64(9001)).
+		AddRow(int64(502), now, now, now, nil, now, 45, int64(1002), nil, int64(9002))
 
 	mock.ExpectQuery(`SELECT .* FROM active\.groups AS "group"`).
 		WillReturnRows(rows)
+
+	roomRows := sqlmock.NewRows([]string{
+		"id", "created_at", "updated_at",
+		"name", "building", "floor", "capacity", "category", "color",
+	}).
+		AddRow(int64(9001), now, now, "Library", "Main", 1, 20, "Study", "#FFFFFF").
+		AddRow(int64(9002), now, now, "Lab", "Annex", 2, 25, "Science", "#000000")
+
+	mock.ExpectQuery(`SELECT .* FROM facilities\.rooms AS "room"`).
+		WillReturnRows(roomRows)
 
 	groups, err := repo.FindByIDs(ctx, groupIDs)
 	require.NoError(t, err)
