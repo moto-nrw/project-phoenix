@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useRouter } from "next/navigation";
+import Image from "next/image";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import { SimpleAlert } from "~/components/simple/SimpleAlert";
@@ -230,13 +231,14 @@ function SettingsContent() {
               <div className="inline-block">
                 <div className="flex flex-col items-center">
                   <div className="group relative">
-                    <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-gray-700 to-gray-900 text-white shadow-xl">
+                    <div className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-gray-700 to-gray-900 text-white shadow-xl">
                       {profile?.avatar ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
+                        <Image
                           src={profile.avatar}
                           alt="Profile"
-                          className="h-full w-full object-cover"
+                          fill
+                          className="object-cover"
+                          sizes="128px"
                         />
                       ) : (
                         <span className="text-4xl font-bold">

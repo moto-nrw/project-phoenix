@@ -140,6 +140,7 @@ const UserAvatar = ({
     size?: "sm" | "md";
 }) => {
     const sizeClasses = size === "sm" ? "w-8 h-8 text-sm" : "w-11 h-11 text-base";
+    const pixelSize = size === "sm" ? 32 : 44;
     const initials = userName.split(' ').map(n => n[0]).join('').toUpperCase();
 
     return (
@@ -150,11 +151,13 @@ const UserAvatar = ({
             }}
         >
             {avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Image
                     src={avatarUrl}
                     alt={userName}
-                    className="w-full h-full object-cover"
+                    width={pixelSize}
+                    height={pixelSize}
+                    className="object-cover"
+                    priority={size === "sm"} // Header avatar loads immediately
                 />
             ) : (
                 initials

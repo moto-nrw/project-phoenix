@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
+import Image from "next/image";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Input, PasswordChangeModal } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
@@ -54,10 +55,15 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatar, firstName, lastName
   return (
     <div className="flex flex-col items-center">
       <div className="relative group">
-        <div className="w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white shadow-lg">
+        <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white shadow-lg">
           {avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatar} alt="Profile" className="w-full h-full object-cover" />
+            <Image
+              src={avatar}
+              alt="Profile"
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 96px, 128px"
+            />
           ) : (
             <span className="text-2xl md:text-3xl font-bold">{initials}</span>
           )}
