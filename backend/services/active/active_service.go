@@ -205,6 +205,23 @@ func (s *service) GetActiveGroup(ctx context.Context, id int64) (*active.Group, 
 	return group, nil
 }
 
+func (s *service) GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (map[int64]*active.Group, error) {
+	if len(groupIDs) == 0 {
+		return map[int64]*active.Group{}, nil
+	}
+
+	groups, err := s.groupRepo.FindByIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetActiveGroupsByIDs", Err: ErrDatabaseOperation}
+	}
+
+	if groups == nil {
+		groups = make(map[int64]*active.Group)
+	}
+
+	return groups, nil
+}
+
 func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) error {
 	if err := group.Validate(); err != nil {
 		return &ActiveError{Op: "CreateActiveGroup", Err: ErrInvalidData}
@@ -710,6 +727,23 @@ func (s *service) GetStudentCurrentVisit(ctx context.Context, studentID int64) (
 
 	// Return the first active visit (there should only be one)
 	return visits[0], nil
+}
+
+func (s *service) GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
+	if len(studentIDs) == 0 {
+		return map[int64]*active.Visit{}, nil
+	}
+
+	visits, err := s.visitRepo.GetCurrentByStudentIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetStudentsCurrentVisits", Err: ErrDatabaseOperation}
+	}
+
+	if visits == nil {
+		visits = make(map[int64]*active.Visit)
+	}
+
+	return visits, nil
 }
 
 // Group Supervisor operations
@@ -2456,6 +2490,47 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, olderThan time.D
 }
 
 // Attendance tracking operations
+
+func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs []int64) (map[int64]*AttendanceStatus, error) {
+	if len(studentIDs) == 0 {
+		return map[int64]*AttendanceStatus{}, nil
+	}
+
+	statuses := make(map[int64]*AttendanceStatus, len(studentIDs))
+
+	attendanceRecords, err := s.attendanceRepo.GetTodayByStudentIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetStudentsAttendanceStatuses", Err: ErrDatabaseOperation}
+	}
+	if attendanceRecords == nil {
+		attendanceRecords = make(map[int64]*active.Attendance)
+	}
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	for _, studentID := range studentIDs {
+		status := &AttendanceStatus{
+			StudentID: studentID,
+			Status:    "not_checked_in",
+			Date:      today,
+		}
+
+		if attendance, ok := attendanceRecords[studentID]; ok && attendance != nil {
+			status.Date = attendance.Date
+			status.CheckInTime = &attendance.CheckInTime
+			status.CheckOutTime = attendance.CheckOutTime
+			if attendance.CheckOutTime != nil {
+				status.Status = "checked_out"
+			} else {
+				status.Status = "checked_in"
+			}
+		}
+
+		statuses[studentID] = status
+	}
+
+	return statuses, nil
+}
 
 // GetStudentAttendanceStatus gets today's latest attendance record and determines status
 func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error) {

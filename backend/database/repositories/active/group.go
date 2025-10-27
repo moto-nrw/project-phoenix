@@ -538,6 +538,81 @@ func (r *GroupRepository) FindActiveGroups(ctx context.Context) ([]*active.Group
 	return groups, nil
 }
 
+// FindByIDs finds active groups by their IDs in a single query
+func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*active.Group, error) {
+	result := make(map[int64]*active.Group, len(ids))
+
+	if len(ids) == 0 {
+		return result, nil
+	}
+
+	uniqueIDs := make([]int64, 0, len(ids))
+	seen := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		uniqueIDs = append(uniqueIDs, id)
+	}
+
+	var groups []*active.Group
+	err := r.db.NewSelect().
+		Model(&groups).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".id IN (?)`, bun.In(uniqueIDs)).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find groups by IDs",
+			Err: err,
+		}
+	}
+
+	roomIDSet := make(map[int64]struct{})
+	for _, group := range groups {
+		if group.RoomID > 0 {
+			roomIDSet[group.RoomID] = struct{}{}
+		}
+	}
+
+	if len(roomIDSet) > 0 {
+		roomIDs := make([]int64, 0, len(roomIDSet))
+		for id := range roomIDSet {
+			roomIDs = append(roomIDs, id)
+		}
+
+		var rooms []*facilities.Room
+		if err := r.db.NewSelect().
+			Model(&rooms).
+			ModelTableExpr(`facilities.rooms AS "room"`).
+			Where(`"room".id IN (?)`, bun.In(roomIDs)).
+			Scan(ctx); err != nil {
+			return nil, &modelBase.DatabaseError{
+				Op:  "find group rooms by IDs",
+				Err: err,
+			}
+		}
+
+		roomMap := make(map[int64]*facilities.Room, len(rooms))
+		for _, room := range rooms {
+			roomMap[room.ID] = room
+		}
+
+		for _, group := range groups {
+			if room, ok := roomMap[group.RoomID]; ok {
+				group.Room = room
+			}
+		}
+	}
+
+	for _, group := range groups {
+		result[group.ID] = group
+	}
+
+	return result, nil
+}
+
 // FindUnclaimed finds all active groups that have no supervisors assigned
 // This is used to allow teachers to claim Schulhof or other deviceless rooms via the frontend
 func (r *GroupRepository) FindUnclaimed(ctx context.Context) ([]*active.Group, error) {

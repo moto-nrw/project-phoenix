@@ -263,7 +263,7 @@ func (req *RFIDAssignmentRequest) Bind(r *http.Request) error {
 
 // newStudentResponse creates a student response from a student and person model
 // hasFullAccess determines whether to include detailed location data and supervisor-only information (like extra info)
-func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, activeService activeService.Service, personService userService.PersonService) StudentResponse {
+func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, activeService activeService.Service, personService userService.PersonService, locationOverride *string) StudentResponse {
 	response := StudentResponse{
 		ID:           student.ID,
 		PersonID:     student.PersonID,
@@ -278,7 +278,11 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 		response.GuardianContact = student.GuardianContact
 	}
 
-	response.Location = resolveStudentLocation(ctx, student.ID, hasFullAccess, activeService)
+	if locationOverride != nil {
+		response.Location = *locationOverride
+	} else {
+		response.Location = resolveStudentLocation(ctx, student.ID, hasFullAccess, activeService)
+	}
 
 	// Check for pending scheduled checkout
 	if pendingCheckout, err := activeService.GetPendingScheduledCheckout(ctx, student.ID); err == nil && pendingCheckout != nil {
@@ -507,6 +511,17 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	studentIDs := make([]int64, 0, len(students))
+	for _, student := range students {
+		studentIDs = append(studentIDs, student.ID)
+	}
+
+	locationSnapshot, snapshotErr := common.LoadStudentLocationSnapshot(r.Context(), rs.ActiveService, studentIDs)
+	if snapshotErr != nil {
+		log.Printf("Failed to batch load student locations: %v", snapshotErr)
+		locationSnapshot = nil
+	}
+
 	// Build response with person data for each student
 	responses := make([]StudentResponse, 0, len(students))
 	for _, student := range students {
@@ -551,7 +566,13 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		studentResponse := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService)
+		var locationOverride *string
+		if locationSnapshot != nil {
+			locationValue := locationSnapshot.ResolveStudentLocation(student.ID, hasFullAccess)
+			locationOverride = &locationValue
+		}
+
+		studentResponse := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, locationOverride)
 
 		if location != "" && hasFullAccess && location != "Unknown" && studentResponse.Location != location {
 			continue
@@ -625,7 +646,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare response
 	response := StudentDetailResponse{
-		StudentResponse: newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService),
+		StudentResponse: newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil),
 		HasFullAccess:   hasFullAccess,
 	}
 
@@ -750,7 +771,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	hasFullAccess := hasAdminPermissions(userPermissions)
 
 	// Return the created student with person data
-	common.Respond(w, r, http.StatusCreated, newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService), "Student created successfully")
+	common.Respond(w, r, http.StatusCreated, newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil), "Student created successfully")
 }
 
 // updateStudent handles updating an existing student
@@ -900,7 +921,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	hasFullAccess := isAdmin || isGroupSupervisor // Explicitly check for admin or group supervisor
 
 	// Return the updated student with person data
-	common.Respond(w, r, http.StatusOK, newStudentResponse(r.Context(), updatedStudent, person, group, hasFullAccess, rs.ActiveService, rs.PersonService), "Student updated successfully")
+	common.Respond(w, r, http.StatusOK, newStudentResponse(r.Context(), updatedStudent, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil), "Student updated successfully")
 }
 
 // deleteStudent handles deleting a student and their associated person record
@@ -1003,7 +1024,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 	}
 
 	// Build student response
-	response := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService)
+	response := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil)
 
 	// Create location response structure
 	locationResponse := struct {

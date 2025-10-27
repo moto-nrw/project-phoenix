@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -484,6 +485,17 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	studentIDs := make([]int64, 0, len(students))
+	for _, student := range students {
+		studentIDs = append(studentIDs, student.ID)
+	}
+
+	locationSnapshot, snapshotErr := common.LoadStudentLocationSnapshot(r.Context(), rs.ActiveService, studentIDs)
+	if snapshotErr != nil {
+		log.Printf("Failed to batch load group student locations: %v", snapshotErr)
+		locationSnapshot = nil
+	}
+
 	// Build response with person data for each student
 	type StudentResponse struct {
 		ID              int64  `json:"id"`
@@ -544,7 +556,11 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Location is derived from real-time attendance data
-		response.Location = rs.resolveStudentLocation(r.Context(), student.ID, canAccessFullDetails)
+		if locationSnapshot != nil {
+			response.Location = locationSnapshot.ResolveStudentLocation(student.ID, canAccessFullDetails)
+		} else {
+			response.Location = rs.resolveStudentLocation(r.Context(), student.ID, canAccessFullDetails)
+		}
 
 		responses = append(responses, response)
 	}
@@ -689,19 +705,43 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 	result["group_room_id"] = *group.RoomID
 	studentStatuses := make(map[string]interface{})
 
+	studentIDs := make([]int64, 0, len(students))
+	for _, student := range students {
+		studentIDs = append(studentIDs, student.ID)
+	}
+
+	roomSnapshot, snapshotErr := common.LoadStudentLocationSnapshot(r.Context(), rs.ActiveService, studentIDs)
+	if snapshotErr != nil {
+		log.Printf("Failed to batch load student room locations: %v", snapshotErr)
+		roomSnapshot = nil
+	}
+
 	for _, student := range students {
 		studentStatus := map[string]interface{}{
 			"in_group_room": false,
 			"reason":        "no_active_visit",
 		}
 
-		// Get the student's current active visit
-		visit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID)
-		if err == nil && visit != nil {
-			// Student has an active visit, check the room
-			activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), visit.ActiveGroupID)
-			if err == nil && activeGroup != nil {
-				// Check if the active group's room matches the educational group's room
+		var visit *active.Visit
+		if roomSnapshot != nil {
+			visit = roomSnapshot.Visits[student.ID]
+		} else {
+			if v, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID); err == nil {
+				visit = v
+			}
+		}
+
+		if visit != nil {
+			var activeGroup *active.Group
+			if roomSnapshot != nil {
+				activeGroup = roomSnapshot.Groups[visit.ActiveGroupID]
+			} else {
+				if g, err := rs.ActiveService.GetActiveGroup(r.Context(), visit.ActiveGroupID); err == nil {
+					activeGroup = g
+				}
+			}
+
+			if activeGroup != nil {
 				inGroupRoom := activeGroup.RoomID == *group.RoomID
 				studentStatus["in_group_room"] = inGroupRoom
 				studentStatus["current_room_id"] = activeGroup.RoomID
