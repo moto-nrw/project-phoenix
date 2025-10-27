@@ -10,6 +10,8 @@ import { HelpButton } from "@/components/ui/help_button";
 import { getHelpContent } from "@/lib/help-content";
 import { useSession } from "next-auth/react";
 import { LogoutModal } from "~/components/ui/logout-modal";
+import { PROFILE_EVENTS, type ProfileUpdatedEvent } from "~/lib/events/profile-events";
+import { fetchProfile } from "~/lib/profile-api";
 
 // Function to get page title based on pathname
 function getPageTitle(pathname: string): string {
@@ -128,12 +130,53 @@ const LogoutIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
+// Avatar Component with profile picture support
+const UserAvatar = ({
+    avatarUrl,
+    userName,
+    size = "sm"
+}: {
+    avatarUrl?: string | null;
+    userName: string;
+    size?: "sm" | "md";
+}) => {
+    const sizeClasses = size === "sm" ? "w-8 h-8 text-sm" : "w-11 h-11 text-base";
+    const initials = userName.split(' ').map(n => n[0]).join('').toUpperCase();
+
+    return (
+        <div
+            className={`${sizeClasses} rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0 overflow-hidden ${size === "sm" ? "ring-2 ring-white shadow-sm" : "shadow-md"}`}
+            style={{
+                background: avatarUrl ? 'transparent' : 'linear-gradient(135deg, #5080d8, #83cd2d)'
+            }}
+        >
+            {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                    src={avatarUrl}
+                    alt={userName}
+                    className="w-full h-full object-cover"
+                />
+            ) : (
+                initials
+            )}
+        </div>
+    );
+};
+
 
 
 export function Header({ userName = "Benutzer", userEmail = "", userRole = "", customPageTitle, studentName, roomName, activityName, referrerPage }: HeaderProps) {
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
+    const [profileData, setProfileData] = useState<{
+        name: string;
+        avatar?: string | null;
+    }>({
+        name: userName,
+        avatar: null,
+    });
     const pathname = usePathname();
     const helpContent = getHelpContent(pathname);
     const pageTitle = customPageTitle ?? getPageTitle(pathname);
@@ -149,6 +192,54 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
         window.addEventListener('scroll', handleScroll, { passive: true });
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
+
+    // Listen for profile updates from other components (e.g., Settings page)
+    useEffect(() => {
+        const handleProfileUpdate = (event: Event) => {
+            const customEvent = event as CustomEvent<ProfileUpdatedEvent>;
+            const { firstName, lastName, avatar } = customEvent.detail;
+            const fullName = `${firstName} ${lastName}`.trim();
+
+            setProfileData({
+                name: fullName || userName,
+                avatar: avatar,
+            });
+        };
+
+        window.addEventListener(
+            PROFILE_EVENTS.PROFILE_UPDATED,
+            handleProfileUpdate
+        );
+
+        return () => {
+            window.removeEventListener(
+                PROFILE_EVENTS.PROFILE_UPDATED,
+                handleProfileUpdate
+            );
+        };
+    }, [userName]);
+
+    // Load initial profile data on mount
+    useEffect(() => {
+        const loadInitialProfile = async () => {
+            try {
+                const profile = await fetchProfile();
+                const fullName = `${profile.firstName} ${profile.lastName}`.trim();
+                setProfileData({
+                    name: fullName || userName,
+                    avatar: profile.avatar,
+                });
+            } catch (error) {
+                // Silent fail, use session data as fallback
+                console.debug('Could not load profile for header:', error);
+            }
+        };
+
+        // Only fetch if we have a session token
+        if (session?.user?.token) {
+            void loadInitialProfile();
+        }
+    }, [session?.user?.token, userName]);
 
     // Check if we're on a student detail page (main page, not history subpages)
     const isStudentDetailPage = pathname.startsWith("/students/") &&
@@ -180,6 +271,10 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
     const breadcrumbLabel = referrer.startsWith("/ogs_groups") ? "Meine Gruppe" :
                             referrer.startsWith("/myroom") ? "Mein Raum" :
                             "Kindersuche";
+
+    // Use profileData for display, fall back to props
+    const displayName = profileData.name || userName;
+    const displayAvatar = profileData.avatar;
 
     const toggleProfileMenu = () => {
         setIsProfileMenuOpen(!isProfileMenuOpen);
@@ -475,22 +570,19 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
 
                         {/* User menu */}
                         <div className="relative">
-                            <button 
+                            <button
                                 onClick={toggleProfileMenu}
                                 className="flex items-center space-x-2 p-1.5 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors duration-200 touch-manipulation"
                             >
-                                <div 
-                                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-semibold ring-2 ring-white shadow-sm"
-                                    style={{
-                                        background: 'linear-gradient(135deg, #5080d8, #83cd2d)'
-                                    }}
-                                >
-                                    {userName.split(' ').map(n => n[0]).join('').toUpperCase()}
-                                </div>
-                                
+                                <UserAvatar
+                                    avatarUrl={displayAvatar}
+                                    userName={displayName}
+                                    size="sm"
+                                />
+
                                 <div className="hidden md:block text-left">
                                     <div className="text-sm font-medium text-gray-900">
-                                        {userName}
+                                        {displayName}
                                     </div>
                                     <div className="text-xs text-gray-500">
                                         {userRole}
@@ -519,16 +611,13 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
                                 {/* User info header - modern glassmorphic style */}
                                 <div className="px-4 py-4 border-b border-gray-100/50">
                                     <div className="flex items-center space-x-3">
-                                        <div
-                                            className="w-11 h-11 flex-shrink-0 rounded-full flex items-center justify-center text-white font-semibold shadow-md"
-                                            style={{
-                                                background: 'linear-gradient(135deg, #5080d8, #83cd2d)'
-                                            }}
-                                        >
-                                            {userName.split(' ').map(n => n[0]).join('').toUpperCase()}
-                                        </div>
+                                        <UserAvatar
+                                            avatarUrl={displayAvatar}
+                                            userName={displayName}
+                                            size="md"
+                                        />
                                         <div className="flex-1 min-w-0">
-                                            <div className="font-semibold text-gray-900 truncate">{userName}</div>
+                                            <div className="font-semibold text-gray-900 truncate">{displayName}</div>
                                             <div className="text-xs text-gray-500 truncate" title={userEmail}>{userEmail}</div>
                                         </div>
                                     </div>

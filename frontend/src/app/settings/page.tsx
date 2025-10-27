@@ -13,6 +13,7 @@ import { IOSToggle } from "~/components/ui/ios-toggle";
 import { fetchProfile, updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { Profile, ProfileUpdateRequest } from "~/lib/profile-helpers";
 import { Loading } from "~/components/ui/loading";
+import { dispatchProfileUpdate } from "~/lib/events/profile-events";
 
 // Tab configuration
 interface Tab {
@@ -94,6 +95,7 @@ function SettingsContent() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasLoadedProfile, setHasLoadedProfile] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -146,11 +148,11 @@ function SettingsContent() {
   }, [isMobile, activeTab]);
 
   useEffect(() => {
-    if (session?.user?.token) {
+    if (session?.user?.token && !hasLoadedProfile) {
       void loadProfile();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session]);
+  }, [session?.user?.token, hasLoadedProfile]); // Only load once when session is ready
 
   const loadProfile = async () => {
     if (!session?.user?.token) return;
@@ -163,6 +165,7 @@ function SettingsContent() {
         lastName: profileData.lastName || "",
         email: profileData.email || "",
       });
+      setHasLoadedProfile(true); // Mark as loaded to prevent re-fetching
     } catch (error) {
       console.error("Failed to load profile:", error);
     }
@@ -182,6 +185,14 @@ function SettingsContent() {
       await loadProfile();
       setIsEditing(false);
       toastSuccess("Profil erfolgreich aktualisiert");
+
+      // Dispatch event to notify other components (e.g., Header)
+      dispatchProfileUpdate({
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        avatar: profile.avatar,
+      });
     } catch {
       setAlertMessage("Fehler beim Speichern des Profils");
       setAlertType("error");
@@ -198,6 +209,16 @@ function SettingsContent() {
       await uploadAvatar(file);
       await loadProfile();
       toastSuccess("Profilbild erfolgreich aktualisiert");
+
+      // Dispatch event to notify other components (e.g., Header)
+      if (profile) {
+        dispatchProfileUpdate({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          avatar: profile.avatar,
+        });
+      }
     } catch {
       setAlertMessage("Fehler beim Hochladen des Profilbilds");
       setAlertType("error");
