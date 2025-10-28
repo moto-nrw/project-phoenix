@@ -140,7 +140,14 @@ const UserAvatar = ({
     size?: "sm" | "md";
 }) => {
     const sizeClasses = size === "sm" ? "w-8 h-8 text-sm" : "w-11 h-11 text-base";
-    const initials = userName.split(' ').map(n => n[0]).join('').toUpperCase();
+    const initials = (
+        (userName?.trim() || "")
+            .split(' ')
+            .filter(n => n.length > 0)
+            .map(n => n[0])
+            .join('')
+            .toUpperCase()
+    ) || "?";
 
     return (
         <div
@@ -221,7 +228,7 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
 
     // Use profile from Context, fall back to props
     const displayName = profile
-        ? `${profile.firstName} ${profile.lastName}`.trim() || userName
+        ? `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim() || userName
         : userName;
     const displayAvatar = profile?.avatar;
 
