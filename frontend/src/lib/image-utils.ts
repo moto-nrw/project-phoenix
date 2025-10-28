@@ -35,15 +35,6 @@ export async function compressAvatar(file: File): Promise<File> {
       lastModified: Date.now(),
     });
 
-    // Log compression results for debugging
-    const originalSizeMB = (file.size / 1024 / 1024).toFixed(2);
-    const compressedSizeMB = (compressedFile.size / 1024 / 1024).toFixed(2);
-    const reduction = Math.round(((file.size - compressedFile.size) / file.size) * 100);
-
-    console.log(
-      `🖼️ Avatar compressed: ${originalSizeMB}MB → ${compressedSizeMB}MB (${reduction}% reduction)`
-    );
-
     return compressedFile;
   } catch (error) {
     console.error('Avatar compression failed, using original:', error);
