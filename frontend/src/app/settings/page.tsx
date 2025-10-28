@@ -9,7 +9,6 @@ import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import { SimpleAlert } from "~/components/simple/SimpleAlert";
 import { useToast } from "~/contexts/ToastContext";
 import { PasswordChangeModal } from "~/components/ui";
-import { PINManagement } from "~/components/staff";
 import { IOSToggle } from "~/components/ui/ios-toggle";
 import { updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
@@ -407,25 +406,6 @@ function SettingsContent() {
               >
                 Passwort ändern
               </button>
-            </div>
-
-            <div className="rounded-2xl border border-gray-100 bg-white/50 p-6 backdrop-blur-sm">
-              <h3 className="mb-3 text-base font-semibold text-gray-900">
-                PIN-Verwaltung
-              </h3>
-              <p className="mb-4 text-sm text-gray-600">
-                Verwalten Sie Ihre PIN für RFID-Geräte.
-              </p>
-              <PINManagement
-                onSuccess={(message) => {
-                  toastSuccess(message);
-                }}
-                onError={(message) => {
-                  setAlertMessage(message);
-                  setAlertType("error");
-                  setShowAlert(true);
-                }}
-              />
             </div>
           </div>
         );
