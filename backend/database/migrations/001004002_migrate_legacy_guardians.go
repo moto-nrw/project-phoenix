@@ -206,14 +206,14 @@ func parseGuardianContact(student LegacyStudent) (email string, phone string) {
 			} else {
 				// Assume it's a phone number
 				phone = contact
-				email = fmt.Sprintf("guardian_%d@placeholder.local", student.ID)
+				email = fmt.Sprintf("noemail+guardian_%d@example.invalid", student.ID)
 			}
 		}
 	}
 
 	// Ensure we have both email and phone (requirements of guardian table)
 	if email == "" {
-		email = fmt.Sprintf("guardian_%d@placeholder.local", student.ID)
+		email = fmt.Sprintf("noemail+guardian_%d@example.invalid", student.ID)
 	}
 	if phone == "" {
 		phone = "000000000"
