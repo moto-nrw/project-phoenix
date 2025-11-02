@@ -49,12 +49,8 @@ func usersStudentsUp(ctx context.Context, db *bun.DB) error {
 	}()
 
 	// Create the students table - for students/children
-	// NOTE: The validation regex patterns defined here are also available as constants
-	// in models/base/validation.go for use in Go code. This ensures consistency between
-	// database-level and application-level validation.
 	_, err = tx.ExecContext(ctx, `
 		-- Create email format validation function if it doesn't exist
-		-- Pattern matches: models/base/validation.go::EmailPattern
 		CREATE OR REPLACE FUNCTION is_valid_email(email TEXT) RETURNS BOOLEAN AS $$
 		BEGIN
 			RETURN email ~* '^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$';
@@ -62,7 +58,6 @@ func usersStudentsUp(ctx context.Context, db *bun.DB) error {
 		$$ LANGUAGE plpgsql IMMUTABLE;
 
 		-- Create phone format validation function if it doesn't exist
-		-- Pattern matches: models/base/validation.go::PhonePattern
 		CREATE OR REPLACE FUNCTION is_valid_phone(phone TEXT) RETURNS BOOLEAN AS $$
 		BEGIN
 			-- Validates international format +XX XXXXXXXX or local format with optional spaces/dashes
