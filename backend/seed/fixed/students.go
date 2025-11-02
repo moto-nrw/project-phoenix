@@ -43,17 +43,27 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 				30+rng.Intn(900),
 				rng.Intn(900)+100,
 				rng.Intn(9000)+1000)
-			guardianEmail := fmt.Sprintf("%s.%s@gmx.de",
-				normalizeForEmail(guardianFirstName),
-				normalizeForEmail(person.LastName))
+
+			// Guardian email and phone are optional fields in the schema.
+			// Create them for most students (~85%), but leave some nil to test
+			// nil-handling code paths and match real-world scenarios.
+			var guardianEmail *string
+			var guardianPhonePtr *string
+			if rng.Float32() < 0.85 {
+				email := fmt.Sprintf("%s.%s@gmx.de",
+					normalizeForEmail(guardianFirstName),
+					normalizeForEmail(person.LastName))
+				guardianEmail = &email
+				guardianPhonePtr = &guardianPhone
+			}
 
 			student := &users.Student{
 				PersonID:        person.ID,
 				SchoolClass:     classGroup.Name,
 				GuardianName:    guardianName,
 				GuardianContact: guardianPhone,
-				GuardianEmail:   &guardianEmail,
-				GuardianPhone:   &guardianPhone,
+				GuardianEmail:   guardianEmail,
+				GuardianPhone:   guardianPhonePtr,
 				GroupID:         &classGroup.ID,
 			}
 			student.CreatedAt = time.Now()
@@ -153,10 +163,13 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	// Create guardian accounts for 20% of students
+	// NOTE: Only students with guardian emails can have guardian accounts created,
+	// since email is required for account creation. ~15% of seeded students have
+	// nil guardian emails to test nil-handling code paths.
 	guardianCount := 0
 	for _, student := range s.result.Students {
 		if rng.Float32() < 0.2 {
-			// Create guardian account
+			// Skip students without guardian email (required for account creation)
 			if student.GuardianEmail == nil {
 				continue
 			}

@@ -2,7 +2,6 @@ package users
 
 import (
 	"errors"
-	"regexp"
 	"strings"
 	"time"
 
@@ -81,8 +80,7 @@ func (s *Student) Validate() error {
 	// Validate guardian email if provided
 	if s.GuardianEmail != nil && *s.GuardianEmail != "" {
 		*s.GuardianEmail = strings.TrimSpace(*s.GuardianEmail)
-		emailPattern := regexp.MustCompile(`^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
-		if !emailPattern.MatchString(*s.GuardianEmail) {
+		if !base.ValidateEmail(*s.GuardianEmail) {
 			return errors.New("invalid guardian email format")
 		}
 	}
@@ -90,8 +88,7 @@ func (s *Student) Validate() error {
 	// Validate guardian phone if provided
 	if s.GuardianPhone != nil && *s.GuardianPhone != "" {
 		*s.GuardianPhone = strings.TrimSpace(*s.GuardianPhone)
-		phonePattern := regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$`)
-		if !phonePattern.MatchString(*s.GuardianPhone) {
+		if !base.ValidatePhone(*s.GuardianPhone) {
 			return errors.New("invalid guardian phone format")
 		}
 	}
