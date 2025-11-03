@@ -1809,8 +1809,8 @@ func (rs *Resource) getStudentGuardians(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Get all guardian relationships for this student
-	relationships, err := rs.StudentGuardianRepo.FindByStudentID(r.Context(), id)
+	// Get all guardian relationships for this student with guardians loaded (single query, no N+1)
+	relationships, err := rs.StudentGuardianRepo.FindByStudentIDWithGuardians(r.Context(), id)
 	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get student guardians"))); err != nil {
 			log.Printf("Error rendering error response: %v", err)
@@ -1818,23 +1818,22 @@ func (rs *Resource) getStudentGuardians(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Build guardian responses
+	// Build guardian responses from eagerly loaded data
 	guardians := make([]GuardianResponse, 0, len(relationships))
 	for _, rel := range relationships {
-		guardian, err := rs.GuardianRepo.FindByID(r.Context(), rel.GuardianID)
-		if err == nil && guardian != nil {
+		if rel.Guardian != nil {
 			guardians = append(guardians, GuardianResponse{
-				ID:                 guardian.ID,
-				FirstName:          guardian.FirstName,
-				LastName:           guardian.LastName,
-				Email:              guardian.Email,
-				Phone:              guardian.Phone,
+				ID:                 rel.Guardian.ID,
+				FirstName:          rel.Guardian.FirstName,
+				LastName:           rel.Guardian.LastName,
+				Email:              rel.Guardian.Email,
+				Phone:              rel.Guardian.Phone,
 				RelationshipType:   rel.RelationshipType,
 				IsPrimary:          rel.IsPrimary,
 				IsEmergencyContact: rel.IsEmergencyContact,
 				CanPickup:          rel.CanPickup,
-				CreatedAt:          guardian.CreatedAt,
-				UpdatedAt:          guardian.UpdatedAt,
+				CreatedAt:          rel.Guardian.CreatedAt,
+				UpdatedAt:          rel.Guardian.UpdatedAt,
 			})
 		}
 	}
@@ -1872,34 +1871,43 @@ func (rs *Resource) createStudentGuardian(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Create guardian record
-	guardian := &users.Guardian{
-		FirstName: req.FirstName,
-		LastName:  req.LastName,
-		Email:     req.Email,  // Now a pointer, can be nil
-		Phone:     req.Phone,  // Now a pointer, can be nil
-		Active:    true,
-	}
+	// Wrap guardian and relationship creation in a transaction for atomicity
+	guardian := &users.Guardian{}
+	relationship := &users.StudentGuardian{}
 
-	if err := rs.GuardianRepo.Create(r.Context(), guardian); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to create guardian"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+	err = base.RunInTx(r.Context(), rs.db, func(txCtx context.Context, tx bun.Tx) error {
+		// Create guardian record
+		guardian = &users.Guardian{
+			FirstName: req.FirstName,
+			LastName:  req.LastName,
+			Email:     req.Email,  // Now a pointer, can be nil
+			Phone:     req.Phone,  // Now a pointer, can be nil
+			Active:    true,
 		}
-		return
-	}
 
-	// Create student-guardian relationship
-	relationship := &users.StudentGuardian{
-		StudentID:          studentID,
-		GuardianID:         guardian.ID,
-		RelationshipType:   req.RelationshipType,
-		IsPrimary:          req.IsPrimary,
-		IsEmergencyContact: req.IsEmergencyContact,
-		CanPickup:          req.CanPickup,
-	}
+		if err := rs.GuardianRepo.Create(txCtx, guardian); err != nil {
+			return fmt.Errorf("failed to create guardian: %w", err)
+		}
 
-	if err := rs.StudentGuardianRepo.Create(r.Context(), relationship); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to create guardian relationship"))); err != nil {
+		// Create student-guardian relationship
+		relationship = &users.StudentGuardian{
+			StudentID:          studentID,
+			GuardianID:         guardian.ID,
+			RelationshipType:   req.RelationshipType,
+			IsPrimary:          req.IsPrimary,
+			IsEmergencyContact: req.IsEmergencyContact,
+			CanPickup:          req.CanPickup,
+		}
+
+		if err := rs.StudentGuardianRepo.Create(txCtx, relationship); err != nil {
+			return fmt.Errorf("failed to create guardian relationship: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return

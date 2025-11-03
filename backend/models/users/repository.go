@@ -342,6 +342,9 @@ type StudentGuardianRepository interface {
 	// FindByStudentID retrieves relationships by student ID
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentGuardian, error)
 
+	// FindByStudentIDWithGuardians retrieves relationships by student ID with Guardian relation eagerly loaded
+	FindByStudentIDWithGuardians(ctx context.Context, studentID int64) ([]*StudentGuardian, error)
+
 	// FindByGuardianID retrieves relationships by guardian account ID
 	FindByGuardianID(ctx context.Context, guardianID int64) ([]*StudentGuardian, error)
 
