@@ -70,7 +70,7 @@ func usersGuardiansUp(ctx context.Context, db *bun.DB) error {
 			active BOOLEAN NOT NULL DEFAULT TRUE,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT chk_email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+			CONSTRAINT chk_email_format CHECK (email ~* '` + EmailValidationRegex + `')
 		)
 	`)
 	if err != nil {

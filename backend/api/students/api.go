@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/uptrace/bun"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -39,10 +40,11 @@ type Resource struct {
 	ActiveService           activeService.Service
 	IoTService              iotSvc.Service
 	PrivacyConsentRepo      users.PrivacyConsentRepository
+	db                      *bun.DB
 }
 
 // NewResource creates a new students resource
-func NewResource(personService userService.PersonService, studentRepo users.StudentRepository, guardianRepo users.GuardianRepository, studentGuardianRepo users.StudentGuardianRepository, educationService educationService.Service, userContextService userContextService.UserContextService, activeService activeService.Service, iotService iotSvc.Service, privacyConsentRepo users.PrivacyConsentRepository) *Resource {
+func NewResource(personService userService.PersonService, studentRepo users.StudentRepository, guardianRepo users.GuardianRepository, studentGuardianRepo users.StudentGuardianRepository, educationService educationService.Service, userContextService userContextService.UserContextService, activeService activeService.Service, iotService iotSvc.Service, privacyConsentRepo users.PrivacyConsentRepository, db *bun.DB) *Resource {
 	return &Resource{
 		PersonService:           personService,
 		StudentRepo:             studentRepo,
@@ -53,6 +55,7 @@ func NewResource(personService userService.PersonService, studentRepo users.Stud
 		ActiveService:           activeService,
 		IoTService:              iotService,
 		PrivacyConsentRepo:      privacyConsentRepo,
+		db:                      db,
 	}
 }
 
@@ -757,108 +760,102 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create person from request
-	person := &users.Person{
-		FirstName: req.FirstName,
-		LastName:  req.LastName,
-	}
+	var person *users.Person
+	var student *users.Student
+	var guardianID int64
 
-	// Set optional TagID if provided
-	if req.TagID != "" {
-		tagID := req.TagID
-		person.TagID = &tagID
-	}
-
-	// Create person - validation occurs at the model layer
-	if err := rs.PersonService.Create(r.Context(), person); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+	// Wrap all creation operations in a database transaction for atomicity
+	err := base.RunInTx(r.Context(), rs.db, func(txCtx context.Context, tx bun.Tx) error {
+		// Create person from request
+		person = &users.Person{
+			FirstName: req.FirstName,
+			LastName:  req.LastName,
 		}
-		return
-	}
 
-	// Create student with the person ID
-	student := &users.Student{
-		PersonID:    person.ID,
-		SchoolClass: req.SchoolClass,
-	}
-
-	// Set optional fields
-	if req.GroupID != nil {
-		student.GroupID = req.GroupID
-	}
-
-	if req.Bus != nil {
-		student.Bus = *req.Bus
-	}
-
-	if req.ExtraInfo != nil {
-		student.ExtraInfo = req.ExtraInfo
-	}
-
-	// Create student
-	if err := rs.StudentRepo.Create(r.Context(), student); err != nil {
-		// Clean up person if student creation fails
-		if deleteErr := rs.PersonService.Delete(r.Context(), person.ID); deleteErr != nil {
-			log.Printf("Error cleaning up person after failed student creation: %v", deleteErr)
+		// Set optional TagID if provided
+		if req.TagID != "" {
+			tagID := req.TagID
+			person.TagID = &tagID
 		}
+
+		// Create person - validation occurs at the model layer
+		if err := rs.PersonService.Create(txCtx, person); err != nil {
+			return fmt.Errorf("failed to create person: %w", err)
+		}
+
+		// Create student with the person ID
+		student = &users.Student{
+			PersonID:    person.ID,
+			SchoolClass: req.SchoolClass,
+		}
+
+		// Set optional fields
+		if req.GroupID != nil {
+			student.GroupID = req.GroupID
+		}
+
+		if req.Bus != nil {
+			student.Bus = *req.Bus
+		}
+
+		if req.ExtraInfo != nil {
+			student.ExtraInfo = req.ExtraInfo
+		}
+
+		// Create student
+		if err := rs.StudentRepo.Create(txCtx, student); err != nil {
+			return fmt.Errorf("failed to create student: %w", err)
+		}
+
+		// Handle guardian creation or linking
+		if req.GuardianID != nil {
+			// Option 1: Link to existing guardian
+			guardianID = *req.GuardianID
+		} else if req.Guardian != nil {
+			// Option 2: Create new guardian
+			guardian := &users.Guardian{
+				FirstName: req.Guardian.FirstName,
+				LastName:  req.Guardian.LastName,
+				Email:     req.Guardian.Email,
+				Phone:     req.Guardian.Phone,
+				Active:    true,
+			}
+
+			if err := rs.GuardianRepo.Create(txCtx, guardian); err != nil {
+				return fmt.Errorf("failed to create guardian: %w", err)
+			}
+			guardianID = guardian.ID
+		}
+
+		// Create student-guardian relationship
+		if guardianID > 0 {
+			relationshipType := "parent"
+			if req.Guardian != nil && req.Guardian.RelationshipType != "" {
+				relationshipType = req.Guardian.RelationshipType
+			}
+
+			relationship := &users.StudentGuardian{
+				StudentID:          student.ID,
+				GuardianID:         guardianID,
+				RelationshipType:   relationshipType,
+				IsPrimary:          true, // First guardian is always primary
+				IsEmergencyContact: true,
+				CanPickup:          true,
+			}
+
+			if err := rs.StudentGuardianRepo.Create(txCtx, relationship); err != nil {
+				return fmt.Errorf("failed to create student-guardian relationship: %w", err)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
 		return
-	}
-
-	// Handle guardian creation or linking
-	var guardianID int64
-	if req.GuardianID != nil {
-		// Option 1: Link to existing guardian
-		guardianID = *req.GuardianID
-	} else if req.Guardian != nil {
-		// Option 2: Create new guardian
-		guardian := &users.Guardian{
-			FirstName: req.Guardian.FirstName,
-			LastName:  req.Guardian.LastName,
-			Email:     req.Guardian.Email,
-			Phone:     req.Guardian.Phone,
-			Active:    true,
-		}
-
-		if err := rs.GuardianRepo.Create(r.Context(), guardian); err != nil {
-			// Clean up student and person if guardian creation fails
-			if deleteErr := rs.StudentRepo.Delete(r.Context(), student.ID); deleteErr != nil {
-				log.Printf("Error cleaning up student after failed guardian creation: %v", deleteErr)
-			}
-			if deleteErr := rs.PersonService.Delete(r.Context(), person.ID); deleteErr != nil {
-				log.Printf("Error cleaning up person after failed guardian creation: %v", deleteErr)
-			}
-			if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
-			return
-		}
-		guardianID = guardian.ID
-	}
-
-	// Create student-guardian relationship
-	if guardianID > 0 {
-		relationshipType := "parent"
-		if req.Guardian != nil && req.Guardian.RelationshipType != "" {
-			relationshipType = req.Guardian.RelationshipType
-		}
-
-		relationship := &users.StudentGuardian{
-			StudentID:          student.ID,
-			GuardianID:         guardianID,
-			RelationshipType:   relationshipType,
-			IsPrimary:          true, // First guardian is always primary
-			IsEmergencyContact: true,
-			CanPickup:          true,
-		}
-
-		if err := rs.StudentGuardianRepo.Create(r.Context(), relationship); err != nil {
-			log.Printf("Error creating student-guardian relationship: %v", err)
-			// Don't fail the entire request - student is created successfully
-		}
 	}
 
 	// Get group data if student has a group

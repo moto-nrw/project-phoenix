@@ -12,6 +12,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Package-level compiled regex patterns (compiled once, reused across all validations)
+var (
+	phonePattern             = regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s\-().]{7,20}$`)
+	guestPhonePattern        = regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$`)
+)
+
 // Guardian represents a student's guardian/parent
 type Guardian struct {
 	base.Model `bun:"schema:users,table:guardians"`
@@ -91,7 +97,6 @@ func (g *Guardian) Validate() error {
 	}
 
 	// Validate phone format if provided (OPTIONAL)
-	phonePattern := regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s\-().]{7,20}$`)
 	if g.Phone != nil && *g.Phone != "" {
 		phone := strings.TrimSpace(*g.Phone)
 		if !phonePattern.MatchString(phone) {

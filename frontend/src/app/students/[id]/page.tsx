@@ -271,21 +271,30 @@ function StudentPageContent() {
 
         try {
             // Save each guardian to the database
-            for (const guardian of editedGuardians) {
-                if (guardian.id === 0) {
-                    // New guardian - create via POST
-                    await fetch(`/api/students/${studentId}/guardians`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(guardian)
-                    });
-                } else {
-                    // Existing guardian - update via PUT
-                    await fetch(`/api/students/${studentId}/guardians/${guardian.id}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(guardian)
-                    });
+            for (let i = 0; i < editedGuardians.length; i++) {
+                const guardian = editedGuardians[i]!;
+                const guardianName = `${guardian.first_name} ${guardian.last_name}`;
+
+                try {
+                    if (guardian.id === 0) {
+                        // New guardian - create via POST
+                        await fetch(`/api/students/${studentId}/guardians`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(guardian)
+                        });
+                    } else {
+                        // Existing guardian - update via PUT
+                        await fetch(`/api/students/${studentId}/guardians/${guardian.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(guardian)
+                        });
+                    }
+                } catch (guardianError) {
+                    // Include specific guardian context in error
+                    console.error(`Failed to save guardian #${i + 1} (${guardianName}):`, guardianError);
+                    throw new Error(`Fehler beim Speichern von Erziehungsberechtigtem #${i + 1} (${guardianName}): ${guardianError instanceof Error ? guardianError.message : String(guardianError)}`);
                 }
             }
 
@@ -309,7 +318,10 @@ function StudentPageContent() {
             setTimeout(() => setAlertMessage(null), 3000);
         } catch (error) {
             console.error('Failed to save guardians:', error);
-            setAlertMessage({ type: 'error', message: 'Fehler beim Speichern der Erziehungsberechtigten' });
+            const errorMessage = error instanceof Error
+                ? error.message
+                : 'Fehler beim Speichern der Erziehungsberechtigten';
+            setAlertMessage({ type: 'error', message: errorMessage });
             setTimeout(() => setAlertMessage(null), 3000);
         }
     };

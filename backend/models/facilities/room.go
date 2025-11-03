@@ -10,6 +10,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Package-level compiled regex patterns (compiled once, reused across all validations)
+var (
+	hexColorPattern = regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
+)
+
 // Room represents a physical room in a facility
 type Room struct {
 	base.Model `bun:"schema:facilities,table:rooms"`
@@ -65,7 +70,6 @@ func (r *Room) Validate() error {
 		}
 
 		// Validate hex color format (#RRGGBB or #RGB)
-		hexColorPattern := regexp.MustCompile(`^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$`)
 		if !hexColorPattern.MatchString(r.Color) {
 			return errors.New("invalid color format, must be a valid hex color")
 		}

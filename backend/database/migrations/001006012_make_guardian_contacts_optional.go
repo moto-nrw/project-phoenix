@@ -86,7 +86,7 @@ func makeGuardianContactsOptionalUp(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		ALTER TABLE users.guardians
 		ADD CONSTRAINT chk_email_format
-		CHECK (email IS NULL OR email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$');
+		CHECK (email IS NULL OR email ~* '`+EmailValidationRegex+`');
 	`)
 	if err != nil {
 		return fmt.Errorf("error adding email format constraint: %w", err)

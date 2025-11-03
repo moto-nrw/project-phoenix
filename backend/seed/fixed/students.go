@@ -223,17 +223,25 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 		return fmt.Errorf("failed to fetch guardians: %w", err)
 	}
 
-	// Create auth accounts for 20% of guardians so they can log in
+	// Create auth accounts for 20% of guardians (with email) so they can log in
 	guardianCount := 0
+	guardiansWithEmail := 0
 	for _, guardian := range guardians {
+		// Skip guardians without email - they can exist (e.g., elderly guardians)
+		// but cannot have auth accounts for the guardian app
+		if guardian.Email == nil || *guardian.Email == "" {
+			continue
+		}
+		guardiansWithEmail++
+
 		if rng.Float32() < 0.2 {
 			passwordHash, err := userpass.HashPassword("Test1234%", nil)
 			if err != nil {
 				return fmt.Errorf("failed to hash password: %w", err)
 			}
-			// Guardian email is required for account creation (cached by email)
+			// Guardian email is required for account creation
 			account := &auth.AccountParent{
-				Email:        *guardian.Email, // Dereference pointer (guaranteed non-nil in cache)
+				Email:        *guardian.Email, // Safe to dereference (checked above)
 				PasswordHash: &passwordHash,
 				Active:       true,
 			}
@@ -276,8 +284,12 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 	}
 
 	if s.verbose {
-		log.Printf("Created %d guardian auth accounts (%.0f%% of %d guardians)",
-			guardianCount, float64(guardianCount)/float64(len(guardians))*100, len(guardians))
+		percentage := 0.0
+		if guardiansWithEmail > 0 {
+			percentage = float64(guardianCount) / float64(guardiansWithEmail) * 100
+		}
+		log.Printf("Created %d guardian auth accounts (%.0f%% of %d guardians with email, %d total guardians)",
+			guardianCount, percentage, guardiansWithEmail, len(guardians))
 	}
 
 	return nil

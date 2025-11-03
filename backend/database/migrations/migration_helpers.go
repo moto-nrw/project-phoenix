@@ -16,6 +16,14 @@ type Migration struct {
 	Down        func(ctx context.Context, db *bun.DB) error
 }
 
+// Common validation patterns used across migrations
+const (
+	// EmailValidationRegex is the standard email validation pattern used in CHECK constraints
+	// Format: local-part@domain.tld
+	// Example: user.name+tag@example.com
+	EmailValidationRegex = `^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$`
+)
+
 // TableExists checks if a table exists in the database
 func TableExists(ctx context.Context, tx bun.Tx, table string) (bool, error) {
 	var exists bool

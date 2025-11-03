@@ -18,6 +18,9 @@ var (
 
 	// MaxRFIDCardLength is the maximum allowed length for RFID card IDs
 	MaxRFIDCardLength = 64
+
+	// hexPattern validates that RFID card ID is hexadecimal
+	hexPattern = regexp.MustCompile(`^[A-F0-9]+$`)
 )
 
 // RFIDCard represents a physical RFID card used for identification and access
@@ -71,7 +74,6 @@ func (r *RFIDCard) Validate() error {
 	}
 
 	// Validate ID format (must be hexadecimal after normalization)
-	hexPattern := regexp.MustCompile(`^[A-F0-9]+$`)
 	if !hexPattern.MatchString(r.ID) {
 		return errors.New("invalid RFID card ID format, must be hexadecimal")
 	}
