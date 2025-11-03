@@ -549,15 +549,23 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 				response.TagID = *person.TagID
 			}
 
-			// Include location information
-			if student.InHouse || student.WC || student.SchoolYard {
-				response.Location = student.GetLocation()
+			// Include location information from active.visits (proper tracking system)
+			currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID)
+			if err == nil && currentVisit != nil && currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil {
+				response.Location = currentVisit.ActiveGroup.Room.Name
 			} else {
-				response.Location = "Home"
+				// Check attendance status to distinguish between "Home" and "Checked In (no room)"
+				attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
+				if err == nil && attendanceStatus.Status == "checked_in" {
+					response.Location = "Checked In"
+				} else {
+					response.Location = "Home"
+				}
 			}
 		} else {
 			// Show generic location status
-			if student.InHouse || student.WC || student.SchoolYard {
+			currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID)
+			if err == nil && currentVisit != nil {
 				response.Location = "In House"
 			} else {
 				response.Location = "Home"

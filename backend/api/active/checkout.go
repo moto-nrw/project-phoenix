@@ -46,46 +46,39 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check authorization - only education group teachers can checkout their students
-	isAuthorized := false
+	// IMPORTANT: Validate staff BEFORE ending visit to prevent data inconsistency
 
 	// Get the person and staff info for the current user
 	person, err := rs.PersonService.FindByAccountID(ctx, int64(userClaims.ID))
-	if err == nil && person != nil {
-		staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
-		if err == nil && staff != nil {
-			// Check if user is a teacher of the student's education group
-			hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staff.ID, studentID)
-			if err == nil && hasAccess {
-				isAuthorized = true
-			}
-		}
+	if err != nil || person == nil {
+		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to get user information")
+		return
 	}
 
-	if !isAuthorized {
+	staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
+	if err != nil || staff == nil {
+		common.RespondWithError(w, r, http.StatusInternalServerError, "User is not a staff member")
+		return
+	}
+
+	// Check if user is a teacher of the student's education group
+	hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staff.ID, studentID)
+	if err != nil {
+		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to check authorization")
+		return
+	}
+	if !hasAccess {
 		common.RespondWithError(w, r, http.StatusForbidden,
 			"You are not authorized to checkout this student")
 		return
 	}
 
-	// End the visit if student has one
+	// Now that we've validated staff exists and is authorized, end the visit
 	if currentVisit != nil {
 		if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
 			// Log but don't fail - we still want to update attendance
 			fmt.Printf("Warning: Failed to end visit %d: %v\n", currentVisit.ID, err)
 		}
-	}
-
-	// Update attendance to mark student as checked out
-	// We already have person and staff from authorization, but need to re-get due to error handling
-	if person == nil {
-		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to get staff information")
-		return
-	}
-
-	staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
-	if err != nil {
-		common.RespondWithError(w, r, http.StatusInternalServerError, "User is not a staff member")
-		return
 	}
 
 	// Toggle attendance to check out the student
