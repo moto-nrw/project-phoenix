@@ -80,11 +80,11 @@ func addPerformanceIndexesUp(ctx context.Context, db *bun.DB) error {
 		// Foreign key index for student_id
 		`CREATE INDEX IF NOT EXISTS idx_attendance_student_id ON active.attendance(student_id)`,
 
-		// Composite index for date-based queries
-		`CREATE INDEX IF NOT EXISTS idx_attendance_date_status ON active.attendance(attendance_date, status)`,
+		// Index for date-based queries
+		`CREATE INDEX IF NOT EXISTS idx_attendance_date ON active.attendance(date)`,
 
-		// Index for finding today's attendance
-		`CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON active.attendance(student_id, attendance_date)`,
+		// Composite index for finding student attendance by date
+		`CREATE INDEX IF NOT EXISTS idx_attendance_student_date ON active.attendance(student_id, date)`,
 
 		// Indexes for active.groups table
 		// Foreign key index for group_id
@@ -141,7 +141,7 @@ func addPerformanceIndexesDown(ctx context.Context, db *bun.DB) error {
 		`DROP INDEX IF EXISTS active.idx_visits_active`,
 		`DROP INDEX IF EXISTS active.idx_visits_entry_time`,
 		`DROP INDEX IF EXISTS active.idx_attendance_student_id`,
-		`DROP INDEX IF EXISTS active.idx_attendance_date_status`,
+		`DROP INDEX IF EXISTS active.idx_attendance_date`,
 		`DROP INDEX IF EXISTS active.idx_attendance_student_date`,
 		`DROP INDEX IF EXISTS active.idx_active_groups_group_id`,
 		`DROP INDEX IF EXISTS active.idx_active_groups_room_id`,
