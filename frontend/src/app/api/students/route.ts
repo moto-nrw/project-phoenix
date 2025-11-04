@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { apiGet, apiPost, apiPut, apiDelete } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 import type { Student } from "~/lib/student-helpers";
-import { mapStudentResponse, prepareStudentForBackend } from "~/lib/student-helpers";
+import { mapStudentResponse } from "~/lib/student-helpers";
 
 /**
  * Type definition for student response from backend
@@ -139,19 +139,6 @@ interface BackendGuardianCreate {
   relationship_type: string;
 }
 
-// Define type for backend student request structure (NEW format)
-interface BackendStudentRequest {
-  first_name: string;
-  last_name: string;
-  school_class: string;
-  guardian?: BackendGuardianCreate; // NEW: Guardian object for inline creation
-  guardian_id?: number; // Alternative: Link to existing guardian
-  tag_id?: string;
-  group_id?: number;
-  bus?: boolean;
-  extra_info?: string;
-}
-
 export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; }>(
   async (_request: NextRequest, body: Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; }, token: string) => {
     // Extract privacy consent fields
@@ -184,12 +171,14 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
 
     // Split guardian full name into first and last name
     const nameParts = guardianName.split(' ');
-    const guardianFirstName = nameParts[0] || '';
-    const guardianLastName = nameParts.slice(1).join(' ') || guardianFirstName; // Use first name as last if no last name
+    const guardianFirstName = nameParts[0] ?? '';
+    const guardianLastName = nameParts.slice(1).join(' ') ?? guardianFirstName; // Use first name as last if no last name
 
     // Extract guardian contact info - email and phone are now optional
-    const guardianEmail = body.guardian_email?.trim() || undefined;
-    const guardianPhone = body.guardian_phone?.trim() || body.contact_lg?.trim() || undefined;
+    const guardianEmailTrimmed = body.guardian_email?.trim();
+    const guardianEmail = guardianEmailTrimmed ? guardianEmailTrimmed : undefined;
+    const guardianPhoneTrimmed = body.guardian_phone?.trim() ?? body.contact_lg?.trim();
+    const guardianPhone = guardianPhoneTrimmed ? guardianPhoneTrimmed : undefined;
 
     // Create guardian object for backend (NEW format)
     const guardianRequest = {
@@ -201,12 +190,13 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
     };
 
     // Create a properly typed request object for the NEW backend API
+    const tagIdTrimmed = body.studentId?.trim();
     const backendRequest = {
       first_name: firstName,
       last_name: lastName,
       school_class: schoolClass,
       guardian: guardianRequest, // New guardian object format
-      tag_id: body.studentId?.trim() || undefined,
+      tag_id: tagIdTrimmed ? tagIdTrimmed : undefined,
       group_id: body.group_id ? parseInt(body.group_id, 10) : undefined,
       bus: body.bus ?? false,
       extra_info: studentData.extra_info
