@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	PrivacyConsentsVersion     = "1.3.7" // Following after users_students (1.3.6)
+	PrivacyConsentsVersion     = "1.4.12" // Following after students_guardians (1.4.10)
 	PrivacyConsentsDescription = "Users privacy consents table"
 )
 
@@ -19,10 +19,10 @@ func init() {
 	MigrationRegistry[PrivacyConsentsVersion] = &Migration{
 		Version:     PrivacyConsentsVersion,
 		Description: PrivacyConsentsDescription,
-		DependsOn:   []string{"1.3.5"}, // Depends on students table
+		DependsOn:   []string{"1.3.5", "1.4.10"}, // Depends on students table and students_guardians join table
 	}
 
-	// Migration 1.3.7: Users privacy consents table
+	// Migration 1.4.12: Users privacy consents table
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
 			return usersPrivacyConsentsUp(ctx, db)
@@ -35,7 +35,7 @@ func init() {
 
 // usersPrivacyConsentsUp creates the users.privacy_consents table
 func usersPrivacyConsentsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.3.7: Creating users.privacy_consents table...")
+	fmt.Println("Migration 1.4.12: Creating users.privacy_consents table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -142,17 +142,23 @@ func usersPrivacyConsentsUp(ctx context.Context, db *bun.DB) error {
 	}
 
 	// Create view for expired consents
+	// NOTE: Uses new guardian structure via students_guardians join table
+	// Displays primary guardian contact information for consent renewal notifications
 	_, err = tx.ExecContext(ctx, `
 		CREATE OR REPLACE VIEW users.expired_privacy_consents AS
-		SELECT 
+		SELECT
 			pc.*,
-			s.person_id, 
-			s.guardian_name,
-			s.guardian_email,
-			s.guardian_phone
+			s.person_id,
+			-- Guardian information from the guardians table via students_guardians
+			g.id AS guardian_id,
+			CONCAT(g.first_name, ' ', g.last_name) AS guardian_name,
+			g.email AS guardian_email,
+			g.phone AS guardian_phone
 		FROM users.privacy_consents pc
 		JOIN users.students s ON pc.student_id = s.id
-		WHERE pc.expires_at < CURRENT_TIMESTAMP 
+		LEFT JOIN users.students_guardians sg ON s.id = sg.student_id AND sg.is_primary = true
+		LEFT JOIN users.guardians g ON sg.guardian_id = g.id
+		WHERE pc.expires_at < CURRENT_TIMESTAMP
 		  AND pc.accepted = TRUE
 		  AND pc.renewal_required = TRUE;
 	`)
@@ -195,7 +201,7 @@ func usersPrivacyConsentsUp(ctx context.Context, db *bun.DB) error {
 
 // usersPrivacyConsentsDown removes the users.privacy_consents table
 func usersPrivacyConsentsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.3.7: Removing users.privacy_consents table...")
+	fmt.Println("Rolling back migration 1.4.12: Removing users.privacy_consents table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})

@@ -1,11 +1,5 @@
 import { type Student } from "@/lib/api";
 import { formatStudentName } from "@/lib/student-helpers";
-import {
-  isHomeLocation,
-  isPresentLocation,
-  isSchoolyardLocation,
-  isTransitLocation,
-} from "@/lib/location-helper";
 
 interface StudentDetailViewProps {
   student: Student;
@@ -18,11 +12,6 @@ export function StudentDetailView({
   onEdit, 
   onDelete 
 }: StudentDetailViewProps) {
-  const isPresent = isPresentLocation(student.current_location);
-  const isSchoolyard = isSchoolyardLocation(student.current_location);
-  const isTransit = isTransitLocation(student.current_location);
-  const isHome = isHomeLocation(student.current_location);
-
   return (
     <div className="space-y-6">
       {/* Header with gradient and student info */}
@@ -45,24 +34,19 @@ export function StudentDetailView({
 
         {/* Status badges */}
         <div className="absolute top-4 md:top-6 right-4 md:right-6 flex flex-col space-y-2">
-          {isPresent && (
+          {student.in_house && (
             <span className="rounded-full bg-green-400/80 px-2 py-1 text-xs text-white">
               Im Haus
             </span>
           )}
-          {isTransit && (
-            <span className="rounded-full bg-fuchsia-400/80 px-2 py-1 text-xs text-white">
-              Unterwegs
+          {student.wc && (
+            <span className="rounded-full bg-blue-400/80 px-2 py-1 text-xs text-white">
+              Toilette
             </span>
           )}
-          {isSchoolyard && (
+          {student.school_yard && (
             <span className="rounded-full bg-yellow-400/80 px-2 py-1 text-xs text-white">
               Schulhof
-            </span>
-          )}
-          {isHome && (
-            <span className="rounded-full bg-red-400/80 px-2 py-1 text-xs text-white">
-              Zuhause
             </span>
           )}
           {student.bus && (
@@ -162,33 +146,33 @@ export function StudentDetailView({
 
             <div className="grid grid-cols-2 gap-2 md:gap-4">
               <div
-                className={`rounded-lg p-2 md:p-3 text-sm ${isPresent ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-500"}`}
+                className={`rounded-lg p-2 md:p-3 text-sm ${student.in_house ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-500"}`}
               >
                 <span className="flex items-center">
                   <span
-                    className={`mr-2 inline-block h-3 w-3 rounded-full flex-shrink-0 ${isPresent ? "bg-green-500" : "bg-gray-300"}`}
+                    className={`mr-2 inline-block h-3 w-3 rounded-full flex-shrink-0 ${student.in_house ? "bg-green-500" : "bg-gray-300"}`}
                   ></span>
                   <span className="truncate">Im Haus</span>
                 </span>
               </div>
 
               <div
-                className={`rounded-lg p-2 md:p-3 text-sm ${isTransit ? "bg-fuchsia-100 text-fuchsia-800" : "bg-gray-100 text-gray-500"}`}
+                className={`rounded-lg p-2 md:p-3 text-sm ${student.wc ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-500"}`}
               >
                 <span className="flex items-center">
                   <span
-                    className={`mr-2 inline-block h-3 w-3 rounded-full flex-shrink-0 ${isTransit ? "bg-fuchsia-500" : "bg-gray-300"}`}
+                    className={`mr-2 inline-block h-3 w-3 rounded-full flex-shrink-0 ${student.wc ? "bg-blue-500" : "bg-gray-300"}`}
                   ></span>
-                  <span className="truncate">Unterwegs</span>
+                  <span className="truncate">Toilette</span>
                 </span>
               </div>
 
               <div
-                className={`rounded-lg p-2 md:p-3 text-sm ${isSchoolyard ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-gray-500"}`}
+                className={`rounded-lg p-2 md:p-3 text-sm ${student.school_yard ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-gray-500"}`}
               >
                 <span className="flex items-center">
                   <span
-                    className={`mr-2 inline-block h-3 w-3 rounded-full flex-shrink-0 ${isSchoolyard ? "bg-yellow-500" : "bg-gray-300"}`}
+                    className={`mr-2 inline-block h-3 w-3 rounded-full flex-shrink-0 ${student.school_yard ? "bg-yellow-500" : "bg-gray-300"}`}
                   ></span>
                   <span className="truncate">Schulhof</span>
                 </span>

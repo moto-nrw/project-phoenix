@@ -3,7 +3,6 @@ package users
 import (
 	"errors"
 	"net/mail"
-	"regexp"
 	"strings"
 	"time"
 
@@ -73,8 +72,7 @@ func (g *Guest) Validate() error {
 	// Validate contact phone if provided
 	if g.ContactPhone != "" {
 		g.ContactPhone = strings.TrimSpace(g.ContactPhone)
-		phonePattern := regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$`)
-		if !phonePattern.MatchString(g.ContactPhone) {
+		if !guestPhonePattern.MatchString(g.ContactPhone) {
 			return errors.New("invalid contact phone format")
 		}
 	}

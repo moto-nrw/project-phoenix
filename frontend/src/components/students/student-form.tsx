@@ -29,6 +29,9 @@ export default function StudentForm({
     contact_lg: "",
     group_id: "",
     bus: false,
+    in_house: false,
+    wc: false,
+    school_yard: false,
   });
 
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +46,9 @@ export default function StudentForm({
         contact_lg: initialData.contact_lg ?? "",
         group_id: initialData.group_id ?? "",
         bus: initialData.bus ?? false,
+        in_house: initialData.in_house ?? false,
+        wc: initialData.wc ?? false,
+        school_yard: initialData.school_yard ?? false,
       });
     }
   }, [initialData]);

@@ -21,7 +21,7 @@ type StudentGuardianRepository struct {
 // NewStudentGuardianRepository creates a new StudentGuardianRepository
 func NewStudentGuardianRepository(db *bun.DB) users.StudentGuardianRepository {
 	return &StudentGuardianRepository{
-		Repository: base.NewRepository[*users.StudentGuardian](db, "users.students_guardians", "StudentGuardian"),
+		Repository: base.NewRepository[*users.StudentGuardian](db, "users.students_guardians", "student_guardian"),
 		db:         db,
 	}
 }
@@ -31,6 +31,7 @@ func (r *StudentGuardianRepository) FindByStudentID(ctx context.Context, student
 	var relationships []*users.StudentGuardian
 	err := r.db.NewSelect().
 		Model(&relationships).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Where("student_id = ?", studentID).
 		Scan(ctx)
 
@@ -44,12 +45,12 @@ func (r *StudentGuardianRepository) FindByStudentID(ctx context.Context, student
 	return relationships, nil
 }
 
-// FindByGuardianID retrieves relationships by guardian account ID
+// FindByGuardianID retrieves relationships by guardian ID
 func (r *StudentGuardianRepository) FindByGuardianID(ctx context.Context, guardianID int64) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
 	err := r.db.NewSelect().
 		Model(&relationships).
-		Where("guardian_account_id = ?", guardianID).
+		Where("guardian_id = ?", guardianID).
 		Scan(ctx)
 
 	if err != nil {
@@ -333,4 +334,43 @@ func (r *StudentGuardianRepository) FindWithStudentAndPerson(ctx context.Context
 	}
 
 	return relationship, nil
+}
+
+// FindWithGuardian retrieves a student guardian relationship with the guardian details
+func (r *StudentGuardianRepository) FindWithGuardian(ctx context.Context, id int64) (*users.StudentGuardian, error) {
+	relationship := new(users.StudentGuardian)
+	err := r.db.NewSelect().
+		Model(relationship).
+		Relation("Guardian").
+		Where("id = ?", id).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find with guardian",
+			Err: err,
+		}
+	}
+
+	return relationship, nil
+}
+
+// FindByStudentIDWithGuardians retrieves all guardian relationships for a student with guardian details
+func (r *StudentGuardianRepository) FindByStudentIDWithGuardians(ctx context.Context, studentID int64) ([]*users.StudentGuardian, error) {
+	var relationships []*users.StudentGuardian
+	err := r.db.NewSelect().
+		Model(&relationships).
+		Relation("Guardian").
+		Where("student_id = ?", studentID).
+		Order("is_primary DESC").  // Primary guardian first
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student ID with guardians",
+			Err: err,
+		}
+	}
+
+	return relationships, nil
 }

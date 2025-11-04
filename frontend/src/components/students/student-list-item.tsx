@@ -1,6 +1,5 @@
 import { type Student } from "@/lib/api";
 import { formatStudentName } from "@/lib/student-helpers";
-import { isPresentLocation } from "@/lib/location-helper";
 import { 
   DatabaseListItem, 
   ClassBadge, 
@@ -14,7 +13,6 @@ export interface StudentListItemProps {
 }
 
 export function StudentListItem({ student, onClick }: StudentListItemProps) {
-  const isPresent = isPresentLocation(student.current_location);
   const badges = [];
 
   // Add class badge
@@ -62,11 +60,11 @@ export function StudentListItem({ student, onClick }: StudentListItemProps) {
       title={formatStudentName(student)}
       badges={badges}
       leftIcon={avatar}
-      indicator={isPresent ? {
+      indicator={student.in_house ? {
         type: "dot",
         value: "bg-green-500"
       } : undefined}
-      subtitle={isPresent && (
+      subtitle={student.in_house && (
         <StatusBadge status="present" />
       )}
       minHeight="md"

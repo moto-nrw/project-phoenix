@@ -32,9 +32,9 @@ VALUES (1, 'Mathematics', 'Teacher', 'B.Ed.', CURRENT_TIMESTAMP, CURRENT_TIMESTA
 RETURNING id;
 
 -- Test Student insertion
-INSERT INTO users.students (person_id, school_class,
+INSERT INTO users.students (person_id, school_class, bus, in_house, wc, school_yard, 
                            guardian_name, guardian_contact, guardian_email, guardian_phone, group_id, created_at, updated_at) 
-VALUES (1, '1A',
+VALUES (1, '1A', false, true, false, false,
         'Jane Doe', '+1 555-555-5555', 'jane.doe@email.com', '+1 555-555-5555', 1,
         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
 RETURNING id;

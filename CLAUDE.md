@@ -969,8 +969,10 @@ For deployment instructions, please refer to the deployment documentation specif
 ### Core Privacy Principles
 
 1. **Data Access Restrictions**:
-   - Teachers/Staff can only see full data for students in their assigned groups
-   - Other staff see only student names and responsible person
+   - **Emergency Contact Information**: All authenticated staff can see student names, classes, and guardian contact information (required for safety/emergency situations)
+   - **Basic Attendance**: All staff can see whether students are present or absent (general safety awareness)
+   - **Detailed Tracking**: Only supervisors of a student's group can see detailed location (specific room/activity), health information, and supervisor notes
+   - **Privacy Consent Settings**: All staff can view privacy consent and data retention settings (READ only). Only supervisors can modify these settings (WRITE requires supervisor relationship)
    - Admin accounts should not be used for day-to-day operations
    - Admin access is reserved for GDPR compliance tasks (exports, deletions)
 

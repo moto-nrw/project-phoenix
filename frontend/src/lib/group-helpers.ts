@@ -1,16 +1,13 @@
 // lib/group-helpers.ts
 // Type definitions and helper functions for groups
 
-import { normalizeLocation } from "./location-helper";
-import type { StudentLocation } from "./student-helpers";
-
 // Backend types (from Go structs)
 // Define a simple backend student structure
 interface BackendGroupStudent {
     id: number;
     name?: string;
     school_class?: string;
-    current_location?: string | null;
+    in_house?: boolean;
 }
 
 export interface BackendGroup {
@@ -71,7 +68,7 @@ export interface StudentForGroup {
     id: string;
     name: string;
     school_class: string;
-    current_location: StudentLocation;
+    in_house: boolean;
 }
 
 export interface Group {
@@ -149,7 +146,7 @@ export function mapGroupResponse(backendGroup: BackendGroup): Group {
             id: String(student.id),
             name: student.name ?? 'Unnamed Student',
             school_class: student.school_class ?? '',
-            current_location: normalizeLocation(student.current_location),
+            in_house: student.in_house ?? false
         }));
     }
     

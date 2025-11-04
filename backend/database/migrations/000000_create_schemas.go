@@ -47,6 +47,7 @@ func init() {
 				CREATE SCHEMA IF NOT EXISTS active;
 				CREATE SCHEMA IF NOT EXISTS config;
 				CREATE SCHEMA IF NOT EXISTS meta;
+				CREATE SCHEMA IF NOT EXISTS audit;
 			`)
 			if err != nil {
 				return fmt.Errorf("error creating schemas: %w", err)
@@ -68,6 +69,7 @@ func init() {
 			// Drop the schemas in reverse order of dependencies
 			// Only if they're empty - CASCADE would forcibly drop contents
 			_, err = tx.ExecContext(ctx, `
+				DROP SCHEMA IF EXISTS audit;
 				DROP SCHEMA IF EXISTS meta;
 				DROP SCHEMA IF EXISTS config;
 				DROP SCHEMA IF EXISTS active;

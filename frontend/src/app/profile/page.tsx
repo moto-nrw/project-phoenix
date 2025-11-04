@@ -1,19 +1,16 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { redirect } from "next/navigation";
-import Image from "next/image";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Input, PasswordChangeModal } from "~/components/ui";
 import { Alert } from "~/components/ui/alert";
  
 import { useToast } from "~/contexts/ToastContext";
-import { updateProfile, uploadAvatar } from "~/lib/profile-api";
-import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
+import { fetchProfile, updateProfile, uploadAvatar } from "~/lib/profile-api";
+import type { Profile, ProfileUpdateRequest } from "~/lib/profile-helpers";
 import { Loading } from "~/components/ui/loading";
-import { useProfile } from "~/lib/profile-context";
-import { compressAvatar } from "~/lib/image-utils";
 
 // Info Card Component
 interface InfoCardProps {
@@ -56,17 +53,10 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatar, firstName, lastName
   return (
     <div className="flex flex-col items-center">
       <div className="relative group">
-        <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white shadow-lg">
+        <div className="w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white shadow-lg">
           {avatar ? (
-            <Image
-              src={avatar}
-              alt="Profile"
-              fill
-              className="object-cover"
-              sizes="(max-width: 768px) 96px, 128px"
-              priority
-              unoptimized
-            />
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatar} alt="Profile" className="w-full h-full object-cover" />
           ) : (
             <span className="text-2xl md:text-3xl font-bold">{initials}</span>
           )}
@@ -97,19 +87,21 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({ avatar, firstName, lastName
 };
 
 function ProfilePageContent() {
-  const { status } = useSession({
+  const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/");
     },
   });
 
-  const { profile, updateProfileData, refreshProfile, isLoading } = useProfile();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { success: toastSuccess } = useToast();
-
+  
   const [isEditing, setIsEditing] = useState(false);
+  const [hasLoadedProfile, setHasLoadedProfile] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   // Form state
@@ -121,18 +113,47 @@ function ProfilePageContent() {
     username: "",
   });
 
-  // Sync formData with profile from Context
+  // Load profile data
   useEffect(() => {
-    if (profile) {
-      setFormData({
-        firstName: profile.firstName || "",
-        lastName: profile.lastName || "",
-        bio: profile.bio ?? "",
-        email: profile.email,
-        username: profile.username ?? "",
-      });
+    if (session?.user?.token && !hasLoadedProfile) {
+      void loadProfile();
     }
-  }, [profile]);
+  }, [session, hasLoadedProfile]);
+
+  const loadProfile = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      setHasLoadedProfile(true); // Mark as attempted to prevent loops
+      
+      const data = await fetchProfile();
+      setProfile(data);
+      setFormData({
+        firstName: data.firstName || "",
+        lastName: data.lastName || "",
+        bio: data.bio ?? "",
+        email: data.email,
+        username: data.username ?? "",
+      });
+    } catch (err) {
+      console.error("Error loading profile:", err);
+      
+      // Check if it's an authentication error
+      if (err instanceof Error && err.message.includes('401')) {
+        setError("Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.");
+        // Redirect to login after a short delay
+        setTimeout(() => {
+          void signOut({ callbackUrl: '/' });
+        }, 2000);
+      } else {
+        // For mock data, we shouldn't get errors, but if we do, just log them
+        console.error("Unexpected error with mock data:", err);
+        setError("Fehler beim Laden des Profils");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -145,7 +166,7 @@ function ProfilePageContent() {
       setError(null);
 
       // If no profile exists yet, firstName and lastName are required
-      if ((!profile?.firstName || !profile?.lastName) &&
+      if ((!profile?.firstName || !profile?.lastName) && 
           (!formData.firstName || !formData.lastName)) {
         setError("Vorname und Nachname sind erforderlich, um Ihr Profil zu erstellen.");
         setIsSaving(false);
@@ -159,19 +180,8 @@ function ProfilePageContent() {
         username: formData.username || undefined,
       };
 
-      await updateProfile(updateData);
-
-      // Update profile in Context (optimistic update)
-      updateProfileData({
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        bio: formData.bio || undefined,
-        username: formData.username || undefined,
-      });
-
-      // Refresh from backend to ensure consistency
-      await refreshProfile(true);
-
+      const updatedProfile = await updateProfile(updateData);
+      setProfile(updatedProfile);
       setIsEditing(false);
       toastSuccess("Profil erfolgreich aktualisiert");
     } catch (err) {
@@ -198,17 +208,10 @@ function ProfilePageContent() {
   const handleAvatarChange = async (file: File) => {
     setIsSaving(true);
     setError(null);
-
+    
     try {
-      // 1. Compress image in browser before upload
-      const compressedFile = await compressAvatar(file);
-
-      // 2. Upload compressed file (much faster!)
-      await uploadAvatar(compressedFile);
-
-      // 3. Refresh profile from backend to get new avatar URL
-      await refreshProfile(true);
-
+      const updatedProfile = await uploadAvatar(file);
+      setProfile(updatedProfile);
       toastSuccess("Profilbild erfolgreich aktualisiert");
     } catch (err) {
       console.error("Error uploading avatar:", err);

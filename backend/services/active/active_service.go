@@ -193,33 +193,7 @@ func (s *service) GetActiveGroup(ctx context.Context, id int64) (*active.Group, 
 	if err != nil {
 		return nil, &ActiveError{Op: "GetActiveGroup", Err: ErrActiveGroupNotFound}
 	}
-
-	// Ensure we always have room metadata so downstream callers
-	// (location resolver, SSE payloads) can render friendly labels.
-	if group != nil && group.Room == nil && group.RoomID > 0 {
-		if room, roomErr := s.roomRepo.FindByID(ctx, group.RoomID); roomErr == nil {
-			group.Room = room
-		}
-	}
-
 	return group, nil
-}
-
-func (s *service) GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (map[int64]*active.Group, error) {
-	if len(groupIDs) == 0 {
-		return map[int64]*active.Group{}, nil
-	}
-
-	groups, err := s.groupRepo.FindByIDs(ctx, groupIDs)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetActiveGroupsByIDs", Err: ErrDatabaseOperation}
-	}
-
-	if groups == nil {
-		groups = make(map[int64]*active.Group)
-	}
-
-	return groups, nil
 }
 
 func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) error {
@@ -386,66 +360,17 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 		return &ActiveError{Op: "CreateVisit", Err: ErrInvalidData}
 	}
 
-	var deviceID int64
-	if deviceCtx := device.DeviceFromCtx(ctx); deviceCtx != nil {
-		deviceID = deviceCtx.ID
-	}
-
-	var staffID int64
-	if staffCtx := device.StaffFromCtx(ctx); staffCtx != nil {
-		staffID = staffCtx.ID
-	}
-
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*service)
-
-		// Ensure the student does not already have an active visit
-		visits, err := txService.visitRepo.FindActiveByStudentID(txCtx, visit.StudentID)
-		if err != nil {
-			return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
-		}
-		if len(visits) > 0 {
-			return &ActiveError{Op: "CreateVisit", Err: ErrStudentAlreadyActive}
-		}
-
-		// Auto-create attendance when this is the first visit of the day
-		visitDate := visit.EntryTime.UTC().Truncate(24 * time.Hour)
-		attendanceRecords, err := txService.attendanceRepo.FindByStudentAndDate(txCtx, visit.StudentID, visitDate)
-		if err != nil {
-			return &ActiveError{Op: "CreateVisit", Err: err}
-		}
-
-		if len(attendanceRecords) == 0 {
-			resolvedStaffID := staffID
-			if resolvedStaffID == 0 && deviceID > 0 {
-				if supervisorID, err := txService.getDeviceSupervisorID(txCtx, deviceID); err == nil {
-					resolvedStaffID = supervisorID
-				}
-			}
-
-			attendance := &active.Attendance{
-				StudentID:   visit.StudentID,
-				Date:        visitDate,
-				CheckInTime: visit.EntryTime,
-				CheckedInBy: resolvedStaffID,
-				DeviceID:    deviceID,
-			}
-
-			if err := txService.attendanceRepo.Create(txCtx, attendance); err != nil {
-				return &ActiveError{Op: "CreateVisit", Err: err}
-			}
-		}
-
-		if err := txService.visitRepo.Create(txCtx, visit); err != nil {
-			return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
-		}
-
-		return nil
-	})
+	// Check if student already has an active visit
+	visits, err := s.visitRepo.FindActiveByStudentID(ctx, visit.StudentID)
 	if err != nil {
-		if activeErr, ok := err.(*ActiveError); ok {
-			return activeErr
-		}
+		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
+	}
+
+	if len(visits) > 0 {
+		return &ActiveError{Op: "CreateVisit", Err: ErrStudentAlreadyActive}
+	}
+
+	if err := s.visitRepo.Create(ctx, visit); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
 	}
 
@@ -455,12 +380,8 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 		studentID := fmt.Sprintf("%d", visit.StudentID)
 
 		// Query student for display data
-		var (
-			studentName string
-			studentRec  *userModels.Student
-		)
+		var studentName string
 		if student, err := s.studentRepo.FindByID(ctx, visit.StudentID); err == nil && student != nil {
-			studentRec = student
 			if person, err := s.personRepo.FindByID(ctx, student.PersonID); err == nil && person != nil {
 				studentName = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
 			}
@@ -486,8 +407,6 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 				}).Error("SSE broadcast failed")
 			}
 		}
-
-		s.broadcastToEducationalGroup(studentRec, event)
 	}
 
 	return nil
@@ -555,164 +474,50 @@ func (s *service) FindVisitsByTimeRange(ctx context.Context, start, end time.Tim
 }
 
 func (s *service) EndVisit(ctx context.Context, id int64) error {
-	autoSyncAttendance := shouldAutoSyncAttendance(ctx)
-
-	var deviceID int64
-	var staffID int64
-	if autoSyncAttendance {
-		if deviceCtx := device.DeviceFromCtx(ctx); deviceCtx != nil {
-			deviceID = deviceCtx.ID
-		}
-
-		if staffCtx := device.StaffFromCtx(ctx); staffCtx != nil {
-			staffID = staffCtx.ID
-		}
-	}
-
-	var endedVisit *active.Visit
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*service)
-
-		visit, err := txService.visitRepo.FindByID(txCtx, id)
-		if err != nil || visit == nil {
-			return &ActiveError{Op: "EndVisit", Err: ErrVisitNotFound}
-		}
-
-		if err := txService.visitRepo.EndVisit(txCtx, id); err != nil {
-			return &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
-		}
-
-		visit, err = txService.visitRepo.FindByID(txCtx, id)
-		if err != nil || visit == nil {
-			return &ActiveError{Op: "EndVisit", Err: ErrVisitNotFound}
-		}
-		endedVisit = visit
-
-		if visit.ExitTime == nil {
-			return nil
-		}
-
-		if !autoSyncAttendance {
-			return nil
-		}
-
-		activeVisits, err := txService.visitRepo.FindActiveByStudentID(txCtx, visit.StudentID)
-		if err != nil {
-			return &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
-		}
-
-		// Only auto-check the student out if no other active visits remain
-		if len(activeVisits) > 0 {
-			return nil
-		}
-
-		attendance, err := txService.attendanceRepo.GetStudentCurrentStatus(txCtx, visit.StudentID)
-		if err != nil {
-			// Ignore missing attendance – nothing to sync
-			var dbErr *base.DatabaseError
-			if errors.As(err, &dbErr) && errors.Is(dbErr.Err, sql.ErrNoRows) {
-				return nil
-			}
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil
-			}
-			return &ActiveError{Op: "EndVisit", Err: err}
-		}
-
-		if attendance.CheckOutTime != nil {
-			return nil
-		}
-
-		resolvedStaffID := staffID
-		if resolvedStaffID == 0 && deviceID > 0 {
-			if supervisorID, err := txService.getDeviceSupervisorID(txCtx, deviceID); err == nil {
-				resolvedStaffID = supervisorID
-			}
-		}
-
-		checkoutTime := *visit.ExitTime
-		attendance.CheckOutTime = &checkoutTime
-		if resolvedStaffID > 0 {
-			attendance.CheckedOutBy = &resolvedStaffID
-		}
-
-		if err := txService.attendanceRepo.Update(txCtx, attendance); err != nil {
-			return &ActiveError{Op: "EndVisit", Err: err}
-		}
-
-		return nil
-	})
-	if err != nil {
-		if activeErr, ok := err.(*ActiveError); ok {
-			return activeErr
-		}
+	if err := s.visitRepo.EndVisit(ctx, id); err != nil {
 		return &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
 	}
 
 	// Broadcast SSE event (fire-and-forget)
-	if s.broadcaster != nil && endedVisit != nil {
-		activeGroupID := fmt.Sprintf("%d", endedVisit.ActiveGroupID)
-		studentID := fmt.Sprintf("%d", endedVisit.StudentID)
+	if s.broadcaster != nil {
+		// Reload visit to get complete data for event payload
+		visit, err := s.visitRepo.FindByID(ctx, id)
+		if err == nil && visit != nil {
+			activeGroupID := fmt.Sprintf("%d", visit.ActiveGroupID)
+			studentID := fmt.Sprintf("%d", visit.StudentID)
 
-		// Query student for display data
-		var (
-			studentName string
-			studentRec  *userModels.Student
-		)
-		if student, err := s.studentRepo.FindByID(ctx, endedVisit.StudentID); err == nil && student != nil {
-			studentRec = student
-			if person, err := s.personRepo.FindByID(ctx, student.PersonID); err == nil && person != nil {
-				studentName = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
+			// Query student for display data
+			var studentName string
+			if student, err := s.studentRepo.FindByID(ctx, visit.StudentID); err == nil && student != nil {
+				if person, err := s.personRepo.FindByID(ctx, student.PersonID); err == nil && person != nil {
+					studentName = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
+				}
+			}
+
+			event := realtime.NewEvent(
+				realtime.EventStudentCheckOut,
+				activeGroupID,
+				realtime.EventData{
+					StudentID:   &studentID,
+					StudentName: &studentName,
+				},
+			)
+
+			if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
+				// Fire-and-forget: log but don't fail the operation
+				if logging.Logger != nil {
+					logging.Logger.WithFields(map[string]interface{}{
+						"error":           err.Error(),
+						"event_type":      "student_checkout",
+						"active_group_id": activeGroupID,
+						"student_id":      studentID,
+					}).Error("SSE broadcast failed")
+				}
 			}
 		}
-
-		event := realtime.NewEvent(
-			realtime.EventStudentCheckOut,
-			activeGroupID,
-			realtime.EventData{
-				StudentID:   &studentID,
-				StudentName: &studentName,
-			},
-		)
-
-		if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
-			// Fire-and-forget: log but don't fail the operation
-			if logging.Logger != nil {
-				logging.Logger.WithFields(map[string]interface{}{
-					"error":           err.Error(),
-					"event_type":      "student_checkout",
-					"active_group_id": activeGroupID,
-					"student_id":      studentID,
-				}).Error("SSE broadcast failed")
-			}
-		}
-
-		s.broadcastToEducationalGroup(studentRec, event)
 	}
 
 	return nil
-}
-
-// broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic
-func (s *service) broadcastToEducationalGroup(student *userModels.Student, event realtime.Event) {
-	if s.broadcaster == nil || student == nil || student.GroupID == nil {
-		return
-	}
-	groupID := fmt.Sprintf("edu:%d", *student.GroupID)
-	if err := s.broadcaster.BroadcastToGroup(groupID, event); err != nil {
-		if logging.Logger != nil {
-			studentID := ""
-			if event.Data.StudentID != nil {
-				studentID = *event.Data.StudentID
-			}
-			logging.Logger.WithFields(map[string]interface{}{
-				"error":                 err.Error(),
-				"event_type":            string(event.Type),
-				"education_group_topic": groupID,
-				"student_id":            studentID,
-			}).Error("SSE broadcast failed for educational topic")
-		}
-	}
 }
 
 func (s *service) GetStudentCurrentVisit(ctx context.Context, studentID int64) (*active.Visit, error) {
@@ -727,23 +532,6 @@ func (s *service) GetStudentCurrentVisit(ctx context.Context, studentID int64) (
 
 	// Return the first active visit (there should only be one)
 	return visits[0], nil
-}
-
-func (s *service) GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
-	if len(studentIDs) == 0 {
-		return map[int64]*active.Visit{}, nil
-	}
-
-	visits, err := s.visitRepo.GetCurrentByStudentIDs(ctx, studentIDs)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetStudentsCurrentVisits", Err: ErrDatabaseOperation}
-	}
-
-	if visits == nil {
-		visits = make(map[int64]*active.Visit)
-	}
-
-	return visits, nil
 }
 
 // Group Supervisor operations
@@ -2491,47 +2279,6 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, olderThan time.D
 
 // Attendance tracking operations
 
-func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs []int64) (map[int64]*AttendanceStatus, error) {
-	if len(studentIDs) == 0 {
-		return map[int64]*AttendanceStatus{}, nil
-	}
-
-	statuses := make(map[int64]*AttendanceStatus, len(studentIDs))
-
-	attendanceRecords, err := s.attendanceRepo.GetTodayByStudentIDs(ctx, studentIDs)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetStudentsAttendanceStatuses", Err: ErrDatabaseOperation}
-	}
-	if attendanceRecords == nil {
-		attendanceRecords = make(map[int64]*active.Attendance)
-	}
-
-	today := time.Now().UTC().Truncate(24 * time.Hour)
-
-	for _, studentID := range studentIDs {
-		status := &AttendanceStatus{
-			StudentID: studentID,
-			Status:    "not_checked_in",
-			Date:      today,
-		}
-
-		if attendance, ok := attendanceRecords[studentID]; ok && attendance != nil {
-			status.Date = attendance.Date
-			status.CheckInTime = &attendance.CheckInTime
-			status.CheckOutTime = attendance.CheckOutTime
-			if attendance.CheckOutTime != nil {
-				status.Status = "checked_out"
-			} else {
-				status.Status = "checked_in"
-			}
-		}
-
-		statuses[studentID] = status
-	}
-
-	return statuses, nil
-}
-
 // GetStudentAttendanceStatus gets today's latest attendance record and determines status
 func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error) {
 	// Get today's latest attendance record
@@ -2947,12 +2694,8 @@ func (s *service) ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledC
 				source := "automated"
 
 				// Query student for display data
-				var (
-					studentName string
-					studentRec  *userModels.Student
-				)
+				var studentName string
 				if student, err := s.studentRepo.FindByID(ctx, visit.StudentID); err == nil && student != nil {
-					studentRec = student
 					if person, err := s.personRepo.FindByID(ctx, student.PersonID); err == nil && person != nil {
 						studentName = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
 					}
@@ -2970,7 +2713,6 @@ func (s *service) ProcessDueScheduledCheckouts(ctx context.Context) (*ScheduledC
 
 				// Fire-and-forget: NEVER block on broadcast failure
 				_ = s.broadcaster.BroadcastToGroup(activeGroupIDStr, event)
-				s.broadcastToEducationalGroup(studentRec, event)
 			}
 		} else {
 			fmt.Printf("No active visit found for student %d\n", checkout.StudentID)

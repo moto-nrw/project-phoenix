@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  useState,
-  useEffect,
-  Suspense,
-  useMemo,
-  useCallback,
-  useRef,
-} from "react";
+import { useState, useEffect, Suspense, useMemo, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
@@ -15,7 +8,6 @@ import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { Loading } from "~/components/ui/loading";
-import { LocationBadge } from "@/components/ui/location-badge";
 import { userContextService } from "~/lib/usercontext-api";
 import { activeService } from "~/lib/active-api";
 // import { studentService } from "~/lib/api";
@@ -41,8 +33,6 @@ interface ActiveRoom {
   supervisor_name?: string;
   students?: StudentWithVisit[];
 }
-
-const GROUP_CARD_GRADIENT = "from-blue-50/80 to-cyan-100/80";
 
 function MeinRaumPageContent() {
   const router = useRouter();
@@ -82,13 +72,15 @@ function MeinRaumPageContent() {
       setIsMobile(window.innerWidth < 768);
     };
     checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   // Helper function to load visits for a specific room
   const loadRoomVisits = useCallback(
-    async (roomId: string): Promise<StudentWithVisit[]> => {
+    async (
+      roomId: string,
+    ): Promise<StudentWithVisit[]> => {
       try {
         // Use bulk endpoint to fetch visits with display data for specific room
         const visits =
@@ -109,6 +101,7 @@ function MeinRaumPageContent() {
             second_name: lastName,
             school_class: visit.schoolClass ?? "",
             current_location: "Anwesend" as const,
+            in_house: true,
             group_name: visit.groupName,
             activeGroupId: visit.activeGroupId,
             checkInTime: visit.checkInTime,
@@ -119,9 +112,7 @@ function MeinRaumPageContent() {
       } catch (error) {
         // Handle 403 Forbidden gracefully - user might not have group access
         if (error instanceof Error && error.message.includes("403")) {
-          console.warn(
-            `No permission to view group ${roomId} - returning empty list`,
-          );
+          console.warn(`No permission to view group ${roomId} - returning empty list`);
           return []; // Return empty array instead of throwing
         }
         // Re-throw other errors
@@ -153,10 +144,7 @@ function MeinRaumPageContent() {
             setAllRooms((prev) =>
               prev.map((existingRoom) =>
                 existingRoom.id === targetRoomId
-                  ? {
-                      ...existingRoom,
-                      student_count: studentsFromVisits.length,
-                    }
+                  ? { ...existingRoom, student_count: studentsFromVisits.length }
                   : existingRoom,
               ),
             );
@@ -282,7 +270,9 @@ function MeinRaumPageContent() {
       } catch (err) {
         if (err instanceof Error && err.message.includes("403")) {
           console.error("403 Forbidden - No access to room/group:", err);
-          setError("Sie haben aktuell keinen aktiven Raum zur Supervision.");
+          setError(
+            "Sie haben aktuell keinen aktiven Raum zur Supervision.",
+          );
           setHasAccess(false);
         } else {
           setError("Fehler beim Laden der Aktivitätsdaten.");
@@ -338,9 +328,7 @@ function MeinRaumPageContent() {
     } catch (err) {
       // Handle 403 gracefully - show message but don't break the UI
       if (err instanceof Error && err.message.includes("403")) {
-        setError(
-          `Keine Berechtigung für "${allRooms[roomIndex]?.name}". Kontaktieren Sie einen Administrator.`,
-        );
+        setError(`Keine Berechtigung für "${allRooms[roomIndex]?.name}". Kontaktieren Sie einen Administrator.`);
         setStudents([]); // Show empty list instead of crashing
       } else {
         setError("Fehler beim Laden der Raumdaten.");
@@ -433,6 +421,25 @@ function MeinRaumPageContent() {
     return filters;
   }, [searchTerm, groupFilter]);
 
+  // Helper function to get group status with enhanced design
+  const getGroupStatus = (student: StudentWithVisit) => {
+    const groupName = student.group_name ?? "Unbekannt";
+
+    // Single color for all groups - clean and consistent
+    const groupColor = {
+      bg: "#5080D8",
+      shadow: "0 8px 25px rgba(80, 128, 216, 0.4)",
+    };
+
+    return {
+      label: groupName,
+      badgeColor: "text-white backdrop-blur-sm",
+      cardGradient: "from-blue-50/80 to-cyan-100/80",
+      customBgColor: groupColor.bg,
+      customShadow: groupColor.shadow,
+    };
+  };
+
   if (status === "loading" || isLoading || hasAccess === null) {
     return (
       <ResponsiveLayout>
@@ -449,32 +456,19 @@ function MeinRaumPageContent() {
           <PageHeaderWithSearch title="Mein Raum" />
 
           <div className="flex min-h-[60vh] items-center justify-center px-4">
-            <div className="flex max-w-md flex-col items-center gap-6 text-center">
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
-                <svg
-                  className="h-10 w-10 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                  />
+            <div className="flex flex-col items-center gap-6 text-center max-w-md">
+              <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center">
+                <svg className="w-10 h-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
               <div className="space-y-2">
-                <h3 className="text-xl font-bold text-gray-900">
-                  Keine aktive Raum-Aufsicht
-                </h3>
+                <h3 className="text-xl font-bold text-gray-900">Keine aktive Raum-Aufsicht</h3>
                 <p className="text-gray-600">
                   Du bist aktuell in keinem Raum als Live-Aktivität registriert.
                 </p>
-                <p className="mt-4 text-sm text-gray-500">
-                  Starte eine Aktivität an einem Terminal, um Live-Raumdaten
-                  einzusehen.
+                <p className="text-sm text-gray-500 mt-4">
+                  Starte eine Aktivität an einem Terminal, um Live-Raumdaten einzusehen.
                 </p>
               </div>
             </div>
@@ -484,9 +478,8 @@ function MeinRaumPageContent() {
     );
   }
 
-  // TODO: Remove room selection screen entirely - threshold raised to effectively disable
-  // Show room selection screen for 99+ rooms (effectively disabled)
-  if (allRooms.length >= 99 && showRoomSelection) {
+  // Show room selection screen for 5+ rooms
+  if (allRooms.length >= 5 && showRoomSelection) {
     return (
       <ResponsiveLayout>
         <div className="mx-auto w-full max-w-6xl px-4">
@@ -580,22 +573,20 @@ function MeinRaumPageContent() {
               : "" // No title when multiple rooms (tabs show room names) or on desktop
           }
           statusIndicator={{
-            color:
-              sseStatus === "connected"
-                ? "green"
-                : sseStatus === "reconnecting"
-                  ? "yellow"
-                  : sseStatus === "failed"
-                    ? "red"
-                    : "gray",
-            tooltip:
-              sseStatus === "connected"
-                ? "Live-Updates aktiv"
-                : sseStatus === "reconnecting"
-                  ? `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`
-                  : sseStatus === "failed"
-                    ? "Verbindung fehlgeschlagen"
-                    : "Verbindung wird hergestellt...",
+            color: sseStatus === "connected"
+              ? "green"
+              : sseStatus === "reconnecting"
+                ? "yellow"
+                : sseStatus === "failed"
+                  ? "red"
+                  : "gray",
+            tooltip: sseStatus === "connected"
+              ? "Live-Updates aktiv"
+              : sseStatus === "reconnecting"
+                ? `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`
+                : sseStatus === "failed"
+                  ? "Verbindung fehlgeschlagen"
+                  : "Verbindung wird hergestellt..."
           }}
           badge={{
             icon: (
@@ -697,7 +688,7 @@ function MeinRaumPageContent() {
                 <h3 className="text-sm font-medium text-gray-600">
                   Keine Schüler in diesem Raum
                 </h3>
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="text-xs text-gray-500 mt-1">
                   Es wurden noch keine Schüler eingecheckt
                 </p>
               </div>
@@ -707,6 +698,8 @@ function MeinRaumPageContent() {
           <div>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
               {filteredStudents.map((student) => {
+                const groupStatus = getGroupStatus(student);
+
                 return (
                   <div
                     key={student.id}
@@ -717,7 +710,7 @@ function MeinRaumPageContent() {
                   >
                     {/* Modern gradient overlay */}
                     <div
-                      className={`absolute inset-0 bg-gradient-to-br ${GROUP_CARD_GRADIENT} rounded-3xl opacity-[0.03]`}
+                      className={`absolute inset-0 bg-gradient-to-br ${groupStatus.cardGradient} rounded-3xl opacity-[0.03]`}
                     ></div>
                     {/* Subtle inner glow */}
                     <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
@@ -754,13 +747,16 @@ function MeinRaumPageContent() {
                         </div>
 
                         {/* Group Badge */}
-                        <LocationBadge
-                          student={student}
-                          displayMode="groupName"
-                          isGroupRoom={false}
-                          variant="modern"
-                          size="md"
-                        />
+                        <span
+                          className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${groupStatus.badgeColor} ml-3`}
+                          style={{
+                            backgroundColor: groupStatus.customBgColor,
+                            boxShadow: groupStatus.customShadow,
+                          }}
+                        >
+                          <span className="mr-2 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80"></span>
+                          {groupStatus.label}
+                        </span>
                       </div>
 
                       {/* Bottom row with click hint */}

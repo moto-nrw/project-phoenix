@@ -1,9 +1,6 @@
 // lib/activity-helpers.ts
 // Type definitions and helper functions for activities
 
-import { normalizeLocation } from "./location-helper";
-import type { StudentLocation } from "./student-helpers";
-
 // Backend supervisor response type from API
 export interface BackendActivitySupervisor {
     id: number;
@@ -72,7 +69,7 @@ export interface BackendActivityStudent {
     activity_id: number;
     name?: string;
     school_class?: string;
-    current_location?: string | null;
+    in_house?: boolean;
     created_at: string;
     updated_at: string;
 }
@@ -91,10 +88,10 @@ export interface BackendStudentEnrollment {
     first_name?: string;
     last_name?: string;
     school_class?: string;
-    current_location?: string | null;
+    in_house?: boolean;
     // Fallback: Flattened fields in case backend changes
     student__school_class?: string;
-    student__current_location?: string | null;
+    student__in_house?: boolean;
     person__first_name?: string;
     person__last_name?: string;
 }
@@ -170,7 +167,7 @@ export interface ActivityStudent {
     student_id: string;
     name?: string;
     school_class?: string;
-    current_location: StudentLocation;
+    in_house: boolean;
     created_at: Date;
     updated_at: Date;
 }
@@ -326,15 +323,13 @@ export function mapActivityScheduleResponse(backendSchedule: BackendActivitySche
 }
 
 export function mapActivityStudentResponse(backendStudent: BackendActivityStudent): ActivityStudent {
-    const current_location = normalizeLocation(backendStudent.current_location);
-
     return {
         id: String(backendStudent.id),
         activity_id: String(backendStudent.activity_id),
         student_id: String(backendStudent.student_id),
         name: backendStudent.name,
         school_class: backendStudent.school_class,
-        current_location,
+        in_house: backendStudent.in_house ?? false, // Default to false if not present
         created_at: new Date(backendStudent.created_at),
         updated_at: new Date(backendStudent.updated_at),
     };
@@ -351,8 +346,7 @@ export function mapStudentEnrollmentResponse(enrollment: BackendStudentEnrollmen
     const firstName = enrollment.first_name ?? enrollment.person__first_name ?? '';
     const lastName = enrollment.last_name ?? enrollment.person__last_name ?? '';
     const fullName = `${firstName} ${lastName}`.trim() || 'Unnamed Student';
-    const current_location = normalizeLocation(enrollment.current_location ?? enrollment.student__current_location);
-
+    
     return {
         id: String(enrollment.id),
         activity_id: enrollment.activity_group_id ? String(enrollment.activity_group_id) : '',
@@ -360,7 +354,7 @@ export function mapStudentEnrollmentResponse(enrollment: BackendStudentEnrollmen
         student_id: String(enrollment.id),
         name: fullName,
         school_class: enrollment.school_class ?? enrollment.student__school_class ?? '',
-        current_location,
+        in_house: enrollment.in_house ?? enrollment.student__in_house ?? false,
         created_at: enrollment.created_at ? new Date(enrollment.created_at) : new Date(),
         updated_at: enrollment.updated_at ? new Date(enrollment.updated_at) : new Date(),
     };

@@ -88,8 +88,8 @@ export function mapProfileResponse(data: BackendProfile): Profile {
 
   return {
     id: data.id.toString(),
-    firstName: data.first_name ?? '',
-    lastName: data.last_name ?? '',
+    firstName: data.first_name,
+    lastName: data.last_name,
     email: data.email,
     username: data.username,
     avatar: avatarUrl,

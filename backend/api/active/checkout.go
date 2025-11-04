@@ -1,14 +1,12 @@
 package active
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 )
 
@@ -48,48 +46,47 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check authorization - only education group teachers can checkout their students
-	isAuthorized := false
+	// IMPORTANT: Validate staff BEFORE ending visit to prevent data inconsistency
 
 	// Get the person and staff info for the current user
 	person, err := rs.PersonService.FindByAccountID(ctx, int64(userClaims.ID))
-	if err == nil && person != nil {
-		staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
-		if err == nil && staff != nil {
-			// Check if user is a teacher of the student's education group
-			hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staff.ID, studentID)
-			if err == nil && hasAccess {
-				isAuthorized = true
-			}
-		}
+	if err != nil || person == nil {
+		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to get user information")
+		return
 	}
 
-	if !isAuthorized {
+	staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
+	if err != nil || staff == nil {
+		common.RespondWithError(w, r, http.StatusInternalServerError, "User is not a staff member")
+		return
+	}
+
+	// Check if user is a teacher of the student's education group
+	hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staff.ID, studentID)
+	if err != nil {
+		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to check authorization")
+		return
+	}
+	if !hasAccess {
 		common.RespondWithError(w, r, http.StatusForbidden,
 			"You are not authorized to checkout this student")
 		return
 	}
 
-	// Ensure we have staff info for follow-up actions (e.g., cancelling scheduled checkouts)
-	if person == nil {
-		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to get staff information")
-		return
-	}
-
-	staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
-	if err != nil {
-		common.RespondWithError(w, r, http.StatusInternalServerError, "User is not a staff member")
-		return
-	}
-
-	// Embed staff in context so EndVisit can record who performed the checkout
-	actionCtx := context.WithValue(ctx, device.CtxStaff, staff)
-
-	// End the visit if student has one
+	// Now that we've validated staff exists and is authorized, end the visit
 	if currentVisit != nil {
-		if err := rs.ActiveService.EndVisit(actionCtx, currentVisit.ID); err != nil {
+		if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
 			// Log but don't fail - we still want to update attendance
 			fmt.Printf("Warning: Failed to end visit %d: %v\n", currentVisit.ID, err)
 		}
+	}
+
+	// Toggle attendance to check out the student
+	// Note: deviceID = 0 for web-based checkouts (no physical device)
+	result, err := rs.ActiveService.ToggleStudentAttendance(ctx, studentID, staff.ID, 0)
+	if err != nil {
+		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to checkout student from daily attendance")
+		return
 	}
 
 	// Cancel any pending scheduled checkout since the student was checked out manually
@@ -106,34 +103,13 @@ func (rs *Resource) checkoutStudent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	result, err := rs.ActiveService.ToggleStudentAttendance(actionCtx, studentID, staff.ID, 0)
-	if err != nil {
-		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to checkout student from daily attendance")
-		return
-	}
-
-	updatedAttendance, statusErr := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
-	if statusErr != nil {
-		fmt.Printf("Warning: Failed to refresh attendance status for student %d: %v\n", studentID, statusErr)
-	}
-
-	responseData := map[string]interface{}{
-		"student_id":    studentID,
-		"action":        result.Action,
-		"attendance_id": result.AttendanceID,
-	}
-
-	if statusErr == nil && updatedAttendance != nil {
-		responseData["attendance_status"] = updatedAttendance.Status
-		responseData["check_in_time"] = updatedAttendance.CheckInTime
-		responseData["check_out_time"] = updatedAttendance.CheckOutTime
-		responseData["checked_in_by"] = updatedAttendance.CheckedInBy
-		responseData["checked_out_by"] = updatedAttendance.CheckedOutBy
-	}
-
 	common.RespondWithJSON(w, r, http.StatusOK, map[string]interface{}{
 		"status":  "success",
 		"message": "Student checked out successfully",
-		"data":    responseData,
+		"data": map[string]interface{}{
+			"student_id":    studentID,
+			"action":        result.Action,
+			"attendance_id": result.AttendanceID,
+		},
 	})
 }

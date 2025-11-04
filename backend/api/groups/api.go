@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -27,21 +26,25 @@ import (
 
 // Resource defines the group API resource
 type Resource struct {
-	EducationService   educationSvc.Service
-	ActiveService      activeService.Service
-	UserService        userService.PersonService
-	UserContextService userContextService.UserContextService
-	StudentRepo        users.StudentRepository
+	EducationService        educationSvc.Service
+	ActiveService           activeService.Service
+	UserService             userService.PersonService
+	UserContextService      userContextService.UserContextService
+	StudentRepo             users.StudentRepository
+	GuardianRepo            users.GuardianRepository
+	StudentGuardianRepo     users.StudentGuardianRepository
 }
 
 // NewResource creates a new groups resource
-func NewResource(educationService educationSvc.Service, activeService activeService.Service, userService userService.PersonService, userContextService userContextService.UserContextService, studentRepo users.StudentRepository) *Resource {
+func NewResource(educationService educationSvc.Service, activeService activeService.Service, userService userService.PersonService, userContextService userContextService.UserContextService, studentRepo users.StudentRepository, guardianRepo users.GuardianRepository, studentGuardianRepo users.StudentGuardianRepository) *Resource {
 	return &Resource{
-		EducationService:   educationService,
-		ActiveService:      activeService,
-		UserService:        userService,
-		UserContextService: userContextService,
-		StudentRepo:        studentRepo,
+		EducationService:        educationService,
+		ActiveService:           activeService,
+		UserService:             userService,
+		UserContextService:      userContextService,
+		StudentRepo:             studentRepo,
+		GuardianRepo:            guardianRepo,
+		StudentGuardianRepo:     studentGuardianRepo,
 	}
 }
 
@@ -485,17 +488,6 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	studentIDs := make([]int64, 0, len(students))
-	for _, student := range students {
-		studentIDs = append(studentIDs, student.ID)
-	}
-
-	locationSnapshot, snapshotErr := common.LoadStudentLocationSnapshot(r.Context(), rs.ActiveService, studentIDs)
-	if snapshotErr != nil {
-		log.Printf("Failed to batch load group student locations: %v", snapshotErr)
-		locationSnapshot = nil
-	}
-
 	// Build response with person data for each student
 	type StudentResponse struct {
 		ID              int64  `json:"id"`
@@ -510,12 +502,13 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 		GuardianEmail   string `json:"guardian_email,omitempty"`
 		GuardianPhone   string `json:"guardian_phone,omitempty"`
 		Location        string `json:"location,omitempty"`
+		Bus             bool   `json:"bus"`
 		TagID           string `json:"tag_id,omitempty"`
 	}
 
 	responses := make([]StudentResponse, 0, len(students))
 	for _, student := range students {
-		// Get person data
+		// Get person data (N+1 query - can be optimized later with batch loading)
 		person, err := rs.UserService.Get(r.Context(), student.PersonID)
 		if err != nil {
 			// Skip this student if person not found
@@ -531,35 +524,52 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 			SchoolClass: student.SchoolClass,
 			GroupID:     id,
 			GroupName:   group.Name,
+			Bus:         student.Bus,
+		}
+
+		// Load primary guardian for all users (name only for limited access)
+		primaryGuardian, _, err := rs.getPrimaryGuardianForStudent(r.Context(), student.ID)
+		if err == nil && primaryGuardian != nil {
+			response.GuardianName = primaryGuardian.FirstName + " " + primaryGuardian.LastName
 		}
 
 		// Include sensitive data only for authorized users
 		if canAccessFullDetails {
-			response.GuardianName = student.GuardianName
-			response.GuardianContact = student.GuardianContact
-
-			if student.GuardianEmail != nil {
-				response.GuardianEmail = *student.GuardianEmail
-			}
-			if student.GuardianPhone != nil {
-				response.GuardianPhone = *student.GuardianPhone
+			if primaryGuardian != nil {
+				// Handle optional guardian contact fields (pointers)
+				if primaryGuardian.Phone != nil {
+					response.GuardianContact = *primaryGuardian.Phone
+					response.GuardianPhone = *primaryGuardian.Phone
+				}
+				if primaryGuardian.Email != nil {
+					response.GuardianEmail = *primaryGuardian.Email
+				}
 			}
 			if person.TagID != nil {
 				response.TagID = *person.TagID
 			}
 
-		}
-
-		// Limited data for non-supervisor staff
-		if !canAccessFullDetails {
-			response.GuardianName = student.GuardianName
-		}
-
-		// Location is derived from real-time attendance data
-		if locationSnapshot != nil {
-			response.Location = locationSnapshot.ResolveStudentLocation(student.ID, canAccessFullDetails)
+			// Include location information from active.visits (proper tracking system)
+			currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID)
+			if err == nil && currentVisit != nil && currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil {
+				response.Location = currentVisit.ActiveGroup.Room.Name
+			} else {
+				// Check attendance status to distinguish between "Home" and "Checked In (no room)"
+				attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
+				if err == nil && attendanceStatus.Status == "checked_in" {
+					response.Location = "Checked In"
+				} else {
+					response.Location = "Home"
+				}
+			}
 		} else {
-			response.Location = rs.resolveStudentLocation(r.Context(), student.ID, canAccessFullDetails)
+			// Show generic location status
+			currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID)
+			if err == nil && currentVisit != nil {
+				response.Location = "In House"
+			} else {
+				response.Location = "Home"
+			}
 		}
 
 		responses = append(responses, response)
@@ -705,43 +715,19 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 	result["group_room_id"] = *group.RoomID
 	studentStatuses := make(map[string]interface{})
 
-	studentIDs := make([]int64, 0, len(students))
-	for _, student := range students {
-		studentIDs = append(studentIDs, student.ID)
-	}
-
-	roomSnapshot, snapshotErr := common.LoadStudentLocationSnapshot(r.Context(), rs.ActiveService, studentIDs)
-	if snapshotErr != nil {
-		log.Printf("Failed to batch load student room locations: %v", snapshotErr)
-		roomSnapshot = nil
-	}
-
 	for _, student := range students {
 		studentStatus := map[string]interface{}{
 			"in_group_room": false,
 			"reason":        "no_active_visit",
 		}
 
-		var visit *active.Visit
-		if roomSnapshot != nil {
-			visit = roomSnapshot.Visits[student.ID]
-		} else {
-			if v, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID); err == nil {
-				visit = v
-			}
-		}
-
-		if visit != nil {
-			var activeGroup *active.Group
-			if roomSnapshot != nil {
-				activeGroup = roomSnapshot.Groups[visit.ActiveGroupID]
-			} else {
-				if g, err := rs.ActiveService.GetActiveGroup(r.Context(), visit.ActiveGroupID); err == nil {
-					activeGroup = g
-				}
-			}
-
-			if activeGroup != nil {
+		// Get the student's current active visit
+		visit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID)
+		if err == nil && visit != nil {
+			// Student has an active visit, check the room
+			activeGroup, err := rs.ActiveService.GetActiveGroup(r.Context(), visit.ActiveGroupID)
+			if err == nil && activeGroup != nil {
+				// Check if the active group's room matches the educational group's room
 				inGroupRoom := activeGroup.RoomID == *group.RoomID
 				studentStatus["in_group_room"] = inGroupRoom
 				studentStatus["current_room_id"] = activeGroup.RoomID
@@ -808,40 +794,35 @@ func (rs *Resource) getGroupSubstitutions(w http.ResponseWriter, r *http.Request
 	common.Respond(w, r, http.StatusOK, substitutions, "Group substitutions retrieved successfully")
 }
 
-// resolveStudentLocation determines the student's location string based on active attendance data.
-func (rs *Resource) resolveStudentLocation(ctx context.Context, studentID int64, hasFullAccess bool) string {
-	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
-	if err != nil || attendanceStatus == nil {
-		return "Abwesend"
+// getPrimaryGuardianForStudent retrieves the primary guardian for a student
+func (rs *Resource) getPrimaryGuardianForStudent(ctx context.Context, studentID int64) (*users.Guardian, *users.StudentGuardian, error) {
+	// Find primary guardian relationship
+	relationships, err := rs.StudentGuardianRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	if attendanceStatus.Status != "checked_in" {
-		return "Abwesend"
+	for _, rel := range relationships {
+		if rel.IsPrimary {
+			// Load the full guardian details
+			guardian, err := rs.GuardianRepo.FindByID(ctx, rel.GuardianID)
+			if err != nil {
+				return nil, nil, err
+			}
+			return guardian, rel, nil
+		}
 	}
 
-	if !hasFullAccess {
-		return "Anwesend"
+	// No primary guardian found - return first guardian if any
+	if len(relationships) > 0 {
+		guardian, err := rs.GuardianRepo.FindByID(ctx, relationships[0].GuardianID)
+		if err != nil {
+			return nil, nil, err
+		}
+		return guardian, relationships[0], nil
 	}
 
-	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
-	if err != nil || currentVisit == nil {
-		return "Anwesend"
-	}
-
-	if currentVisit.ActiveGroupID <= 0 {
-		return "Anwesend"
-	}
-
-	activeGroup, err := rs.ActiveService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
-	if err != nil || activeGroup == nil {
-		return "Anwesend"
-	}
-
-	if activeGroup.Room != nil && activeGroup.Room.Name != "" {
-		return fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name)
-	}
-
-	return "Anwesend"
+	return nil, nil, nil // No guardians
 }
 
 // Helper function to check if user has admin permissions

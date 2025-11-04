@@ -76,10 +76,10 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 		ColumnExpr(`"student".updated_at AS "student__updated_at"`).
 		ColumnExpr(`"student".person_id AS "student__person_id"`).
 		ColumnExpr(`"student".school_class AS "student__school_class"`).
-		ColumnExpr(`"student".guardian_name AS "student__guardian_name"`).
-		ColumnExpr(`"student".guardian_contact AS "student__guardian_contact"`).
-		ColumnExpr(`"student".guardian_email AS "student__guardian_email"`).
-		ColumnExpr(`"student".guardian_phone AS "student__guardian_phone"`).
+		ColumnExpr(`"student".bus AS "student__bus"`).
+		ColumnExpr(`"student".in_house AS "student__in_house"`).
+		ColumnExpr(`"student".wc AS "student__wc"`).
+		ColumnExpr(`"student".school_yard AS "student__school_yard"`).
 		ColumnExpr(`"student".group_id AS "student__group_id"`).
 		ColumnExpr(`"person".id AS "person__id"`).
 		ColumnExpr(`"person".created_at AS "person__created_at"`).

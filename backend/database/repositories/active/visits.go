@@ -346,49 +346,6 @@ func (r *VisitRepository) GetCurrentByStudentID(ctx context.Context, studentID i
 	return visit, nil
 }
 
-// GetCurrentByStudentIDs finds current active visits for multiple students in a single query
-func (r *VisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
-	result := make(map[int64]*active.Visit, len(studentIDs))
-
-	if len(studentIDs) == 0 {
-		return result, nil
-	}
-
-	uniqueIDs := make([]int64, 0, len(studentIDs))
-	seen := make(map[int64]struct{}, len(studentIDs))
-	for _, id := range studentIDs {
-		if _, exists := seen[id]; exists {
-			continue
-		}
-		seen[id] = struct{}{}
-		uniqueIDs = append(uniqueIDs, id)
-	}
-
-	var visits []*active.Visit
-	err := r.db.NewSelect().
-		Model(&visits).
-		ModelTableExpr(`active.visits AS "visit"`).
-		Where(`"visit".student_id IN (?)`, bun.In(uniqueIDs)).
-		Where(`"visit".exit_time IS NULL`).
-		OrderExpr(`"visit".student_id ASC`).
-		OrderExpr(`"visit".entry_time DESC`).
-		Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "get current by student IDs",
-			Err: err,
-		}
-	}
-
-	for _, visit := range visits {
-		if _, exists := result[visit.StudentID]; !exists {
-			result[visit.StudentID] = visit
-		}
-	}
-
-	return result, nil
-}
-
 // FindActiveVisits finds all visits with no exit time (currently active)
 func (r *VisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit, error) {
 	var visits []*active.Visit

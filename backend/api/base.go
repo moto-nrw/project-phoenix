@@ -17,6 +17,7 @@ import (
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
+	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
@@ -41,6 +42,7 @@ type API struct {
 	Auth          *authAPI.Resource
 	Rooms         *roomsAPI.Resource
 	Students      *studentsAPI.Resource
+	Guardians     *guardiansAPI.Resource
 	Groups        *groupsAPI.Resource
 	Activities    *activitiesAPI.Resource
 	Staff         *staffAPI.Resource
@@ -147,8 +149,9 @@ func New(enableCORS bool) (*API, error) {
 	// Initialize API resources
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation)
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities)
-	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student, api.Services.Education, api.Services.UserContext, api.Services.Active, api.Services.IoT, repoFactory.PrivacyConsent)
-	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student)
+	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student, repoFactory.Guardian, repoFactory.StudentGuardian, api.Services.Education, api.Services.UserContext, api.Services.Active, api.Services.IoT, repoFactory.PrivacyConsent, db)
+	api.Guardians = guardiansAPI.NewResource(repoFactory.Guardian, repoFactory.StudentGuardian, repoFactory.Student)
+	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.Guardian, repoFactory.StudentGuardian)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth)
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback)
@@ -156,7 +159,7 @@ func New(enableCORS bool) (*API, error) {
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, db)
 	api.IoT = iotAPI.NewResource(api.Services.IoT, api.Services.Users, api.Services.Active, api.Services.Activities, api.Services.Config, api.Services.Facilities, api.Services.Education, api.Services.Feedback)
-	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext)
+	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users)
 	api.Users = usersAPI.NewResource(api.Services.Users)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
@@ -229,6 +232,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount student resources
 		r.Mount("/students", a.Students.Router())
+
+		// Mount guardian resources
+		r.Mount("/guardians", a.Guardians.Router())
 
 		// Mount group resources
 		r.Mount("/groups", a.Groups.Router())

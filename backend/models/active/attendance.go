@@ -87,9 +87,6 @@ type AttendanceRepository interface {
 	// GetTodayByStudentID gets today's attendance record for a student
 	GetTodayByStudentID(ctx context.Context, studentID int64) (*Attendance, error)
 
-	// GetTodayByStudentIDs gets today's attendance record for multiple students
-	GetTodayByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*Attendance, error)
-
 	// FindForDate finds all attendance records for a specific date
 	FindForDate(ctx context.Context, date time.Time) ([]*Attendance, error)
 }

@@ -176,6 +176,7 @@ export default function StudentCSVImportPage() {
             group_name: csvStudent.group_name,
             group_id: undefined,
             current_location: "Zuhause",
+            in_house: false,
             bus: csvStudent.bus,
             name_lg: csvStudent.guardian_name,
             contact_lg: csvStudent.guardian_contact,

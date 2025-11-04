@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/uptrace/bun"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -30,25 +31,31 @@ import (
 
 // Resource defines the students API resource
 type Resource struct {
-	PersonService      userService.PersonService
-	StudentRepo        users.StudentRepository
-	EducationService   educationService.Service
-	UserContextService userContextService.UserContextService
-	ActiveService      activeService.Service
-	IoTService         iotSvc.Service
-	PrivacyConsentRepo users.PrivacyConsentRepository
+	PersonService           userService.PersonService
+	StudentRepo             users.StudentRepository
+	GuardianRepo            users.GuardianRepository
+	StudentGuardianRepo     users.StudentGuardianRepository
+	EducationService        educationService.Service
+	UserContextService      userContextService.UserContextService
+	ActiveService           activeService.Service
+	IoTService              iotSvc.Service
+	PrivacyConsentRepo      users.PrivacyConsentRepository
+	db                      *bun.DB
 }
 
 // NewResource creates a new students resource
-func NewResource(personService userService.PersonService, studentRepo users.StudentRepository, educationService educationService.Service, userContextService userContextService.UserContextService, activeService activeService.Service, iotService iotSvc.Service, privacyConsentRepo users.PrivacyConsentRepository) *Resource {
+func NewResource(personService userService.PersonService, studentRepo users.StudentRepository, guardianRepo users.GuardianRepository, studentGuardianRepo users.StudentGuardianRepository, educationService educationService.Service, userContextService userContextService.UserContextService, activeService activeService.Service, iotService iotSvc.Service, privacyConsentRepo users.PrivacyConsentRepository, db *bun.DB) *Resource {
 	return &Resource{
-		PersonService:      personService,
-		StudentRepo:        studentRepo,
-		EducationService:   educationService,
-		UserContextService: userContextService,
-		ActiveService:      activeService,
-		IoTService:         iotService,
-		PrivacyConsentRepo: privacyConsentRepo,
+		PersonService:           personService,
+		StudentRepo:             studentRepo,
+		GuardianRepo:            guardianRepo,
+		StudentGuardianRepo:     studentGuardianRepo,
+		EducationService:        educationService,
+		UserContextService:      userContextService,
+		ActiveService:           activeService,
+		IoTService:              iotService,
+		PrivacyConsentRepo:      privacyConsentRepo,
+		db:                      db,
 	}
 }
 
@@ -85,6 +92,12 @@ func (rs *Resource) Router() chi.Router {
 		// Privacy consent routes
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/privacy-consent", rs.getStudentPrivacyConsent)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/privacy-consent", rs.updateStudentPrivacyConsent)
+
+		// Guardian routes - Teachers can manage guardians with UsersUpdate permission
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/guardians", rs.getStudentGuardians)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Post("/{id}/guardians", rs.createStudentGuardian)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/guardians/{guardianId}", rs.updateStudentGuardian)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Delete("/{id}/guardians/{guardianId}", rs.deleteStudentGuardian)
 	})
 
 	// Device-authenticated routes for RFID devices
@@ -100,6 +113,7 @@ func (rs *Resource) Router() chi.Router {
 }
 
 // StudentResponse represents a student response
+// Guardian fields show PRIMARY guardian for backward compatibility
 type StudentResponse struct {
 	ID                int64                  `json:"id"`
 	PersonID          int64                  `json:"person_id"`
@@ -107,19 +121,36 @@ type StudentResponse struct {
 	LastName          string                 `json:"last_name"`
 	TagID             string                 `json:"tag_id,omitempty"`
 	SchoolClass       string                 `json:"school_class"`
-	Location          string                 `json:"current_location"`
-	GuardianName      string                 `json:"guardian_name"`
-	GuardianContact   string                 `json:"guardian_contact,omitempty"`
-	GuardianEmail     string                 `json:"guardian_email,omitempty"`
-	GuardianPhone     string                 `json:"guardian_phone,omitempty"`
+	Location          string                 `json:"location"`
+	Bus               bool                   `json:"bus"`
+	GuardianName      string                 `json:"guardian_name"`           // Primary guardian full name
+	GuardianContact   string                 `json:"guardian_contact,omitempty"` // Primary guardian phone
+	GuardianEmail     string                 `json:"guardian_email,omitempty"` // Primary guardian email
+	GuardianPhone     string                 `json:"guardian_phone,omitempty"` // Primary guardian phone (duplicate for compatibility)
 	GroupID           int64                  `json:"group_id,omitempty"`
 	GroupName         string                 `json:"group_name,omitempty"`
 	ScheduledCheckout *ScheduledCheckoutInfo `json:"scheduled_checkout,omitempty"`
 	ExtraInfo         string                 `json:"extra_info,omitempty"`
 	HealthInfo        string                 `json:"health_info,omitempty"`
 	SupervisorNotes   string                 `json:"supervisor_notes,omitempty"`
+	Guardians         []GuardianResponse     `json:"guardians,omitempty"` // All guardians for this student
 	CreatedAt         time.Time              `json:"created_at"`
 	UpdatedAt         time.Time              `json:"updated_at"`
+}
+
+// GuardianResponse represents a guardian with relationship info
+type GuardianResponse struct {
+	ID                  int64     `json:"id"`
+	FirstName           string    `json:"first_name"`
+	LastName            string    `json:"last_name"`
+	Email               *string   `json:"email,omitempty"`    // Optional
+	Phone               *string   `json:"phone,omitempty"`    // Optional
+	RelationshipType    string    `json:"relationship_type"`
+	IsPrimary           bool      `json:"is_primary"`
+	IsEmergencyContact  bool      `json:"is_emergency_contact"`
+	CanPickup           bool      `json:"can_pickup"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 // ScheduledCheckoutInfo represents scheduled checkout information for a student
@@ -155,18 +186,32 @@ type StudentRequest struct {
 	TagID     string `json:"tag_id,omitempty"` // RFID tag ID (optional)
 
 	// Student-specific details (required)
-	SchoolClass     string `json:"school_class"`
-	GuardianName    string `json:"guardian_name"`
-	GuardianContact string `json:"guardian_contact"`
+	SchoolClass string `json:"school_class"`
+
+	// Guardian handling - TWO OPTIONS:
+	// Option 1: Link to existing guardian
+	GuardianID *int64 `json:"guardian_id,omitempty"`
+
+	// Option 2: Create new guardian inline (legacy compatibility)
+	Guardian *GuardianCreate `json:"guardian,omitempty"`
 
 	// Optional fields
-	GuardianEmail string  `json:"guardian_email,omitempty"`
-	GuardianPhone string  `json:"guardian_phone,omitempty"`
-	GroupID       *int64  `json:"group_id,omitempty"`
-	ExtraInfo     *string `json:"extra_info,omitempty"` // Extra information visible to supervisors
+	GroupID   *int64  `json:"group_id,omitempty"`
+	Bus       *bool   `json:"bus,omitempty"`        // Whether student takes the bus
+	ExtraInfo *string `json:"extra_info,omitempty"` // Extra information visible to supervisors
+}
+
+// GuardianCreate represents inline guardian creation
+type GuardianCreate struct {
+	FirstName        string  `json:"first_name"`
+	LastName         string  `json:"last_name"`
+	Email            *string `json:"email,omitempty"`            // Optional
+	Phone            *string `json:"phone,omitempty"`            // Optional
+	RelationshipType string  `json:"relationship_type"`          // Default: "parent"
 }
 
 // UpdateStudentRequest represents a student update request
+// NOTE: Guardian relationships managed via separate /students/{id}/guardians endpoints
 type UpdateStudentRequest struct {
 	// Person details (optional for update)
 	FirstName *string    `json:"first_name,omitempty"`
@@ -176,11 +221,8 @@ type UpdateStudentRequest struct {
 
 	// Student-specific details (optional for update)
 	SchoolClass     *string `json:"school_class,omitempty"`
-	GuardianName    *string `json:"guardian_name,omitempty"`
-	GuardianContact *string `json:"guardian_contact,omitempty"`
-	GuardianEmail   *string `json:"guardian_email,omitempty"`
-	GuardianPhone   *string `json:"guardian_phone,omitempty"`
 	GroupID         *int64  `json:"group_id,omitempty"`
+	Bus             *bool   `json:"bus,omitempty"`              // Whether student takes the bus
 	HealthInfo      *string `json:"health_info,omitempty"`      // Static health and medical information
 	SupervisorNotes *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
 	ExtraInfo       *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
@@ -215,11 +257,24 @@ func (req *StudentRequest) Bind(r *http.Request) error {
 	if req.SchoolClass == "" {
 		return errors.New("school class is required")
 	}
-	if req.GuardianName == "" {
-		return errors.New("guardian name is required")
+
+	// Guardian validation - must provide either guardian_id OR guardian object
+	if req.GuardianID == nil && req.Guardian == nil {
+		return errors.New("either guardian_id or guardian information is required")
 	}
-	if req.GuardianContact == "" {
-		return errors.New("guardian contact is required")
+
+	// If providing inline guardian creation, validate fields
+	if req.Guardian != nil {
+		if req.Guardian.FirstName == "" {
+			return errors.New("guardian first name is required")
+		}
+		if req.Guardian.LastName == "" {
+			return errors.New("guardian last name is required")
+		}
+		// Email and phone are now OPTIONAL - only name and relationship required
+		if req.Guardian.RelationshipType == "" {
+			req.Guardian.RelationshipType = "parent" // Default
+		}
 	}
 
 	// Optional fields are not validated here - they will be validated in the model layer
@@ -238,12 +293,7 @@ func (req *UpdateStudentRequest) Bind(r *http.Request) error {
 	if req.SchoolClass != nil && *req.SchoolClass == "" {
 		return errors.New("school class cannot be empty")
 	}
-	if req.GuardianName != nil && *req.GuardianName == "" {
-		return errors.New("guardian name cannot be empty")
-	}
-	if req.GuardianContact != nil && *req.GuardianContact == "" {
-		return errors.New("guardian contact cannot be empty")
-	}
+	// Note: Guardian updates managed via separate /students/{id}/guardians endpoints
 	return nil
 }
 
@@ -261,27 +311,127 @@ func (req *RFIDAssignmentRequest) Bind(r *http.Request) error {
 	return nil
 }
 
+// getPrimaryGuardian retrieves the primary guardian for a student with relationship details
+func getPrimaryGuardian(ctx context.Context, studentRepo users.StudentRepository, guardianRepo users.GuardianRepository, studentGuardianRepo users.StudentGuardianRepository, studentID int64) (*users.Guardian, *users.StudentGuardian, error) {
+	// Find primary guardian relationship
+	relationships, err := studentGuardianRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, rel := range relationships {
+		if rel.IsPrimary {
+			// Load the full guardian details
+			guardian, err := guardianRepo.FindByID(ctx, rel.GuardianID)
+			if err != nil {
+				return nil, nil, err
+			}
+			return guardian, rel, nil
+		}
+	}
+
+	// No primary guardian found - return first guardian if any
+	if len(relationships) > 0 {
+		guardian, err := guardianRepo.FindByID(ctx, relationships[0].GuardianID)
+		if err != nil {
+			return nil, nil, err
+		}
+		return guardian, relationships[0], nil
+	}
+
+	return nil, nil, nil // No guardians
+}
+
 // newStudentResponse creates a student response from a student and person model
 // hasFullAccess determines whether to include detailed location data and supervisor-only information (like extra info)
-func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, activeService activeService.Service, personService userService.PersonService, locationOverride *string) StudentResponse {
+func newStudentResponse(ctx context.Context, student *users.Student, person *users.Person, group *education.Group, hasFullAccess bool, activeService activeService.Service, personService userService.PersonService, studentRepo users.StudentRepository, guardianRepo users.GuardianRepository, studentGuardianRepo users.StudentGuardianRepository) StudentResponse {
 	response := StudentResponse{
-		ID:           student.ID,
-		PersonID:     student.PersonID,
-		SchoolClass:  student.SchoolClass,
-		GuardianName: student.GuardianName,
-		CreatedAt:    student.CreatedAt,
-		UpdatedAt:    student.UpdatedAt,
+		ID:          student.ID,
+		PersonID:    student.PersonID,
+		SchoolClass: student.SchoolClass,
+		Bus:         student.Bus,
+		CreatedAt:   student.CreatedAt,
+		UpdatedAt:   student.UpdatedAt,
 	}
 
-	// Only include guardian contact info for users with full access
-	if hasFullAccess {
-		response.GuardianContact = student.GuardianContact
+	// Load primary guardian for backward compatibility
+	primaryGuardian, _, err := getPrimaryGuardian(ctx, studentRepo, guardianRepo, studentGuardianRepo, student.ID)
+	if err == nil && primaryGuardian != nil {
+		response.GuardianName = primaryGuardian.FirstName + " " + primaryGuardian.LastName
+		// Guardian contact info is always visible (emergency contact information)
+		// Handle optional phone and email (now pointers)
+		if primaryGuardian.Phone != nil {
+			response.GuardianContact = *primaryGuardian.Phone
+			response.GuardianPhone = *primaryGuardian.Phone
+		}
+		if primaryGuardian.Email != nil {
+			response.GuardianEmail = *primaryGuardian.Email
+		}
 	}
 
-	if locationOverride != nil {
-		response.Location = *locationOverride
+	// Load all guardians for this student
+	// Guardian information is always visible to all authenticated staff (emergency contacts)
+	relationships, err := studentGuardianRepo.FindByStudentID(ctx, student.ID)
+	if err == nil && len(relationships) > 0 {
+		guardians := make([]GuardianResponse, 0, len(relationships))
+		for _, rel := range relationships {
+			guardian, err := guardianRepo.FindByID(ctx, rel.GuardianID)
+			if err == nil && guardian != nil {
+				guardians = append(guardians, GuardianResponse{
+					ID:                 guardian.ID,
+					FirstName:          guardian.FirstName,
+					LastName:           guardian.LastName,
+					Email:              guardian.Email,
+					Phone:              guardian.Phone,
+					RelationshipType:   rel.RelationshipType,
+					IsPrimary:          rel.IsPrimary,
+					IsEmergencyContact: rel.IsEmergencyContact,
+					CanPickup:          rel.CanPickup,
+					CreatedAt:          guardian.CreatedAt,
+					UpdatedAt:          guardian.UpdatedAt,
+				})
+			}
+		}
+		response.Guardians = guardians
+	}
+
+	// Use real tracking data instead of deprecated flags
+	// Always check attendance status first - this is public information
+	attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, student.ID)
+
+	if err == nil && attendanceStatus != nil && attendanceStatus.Status == "checked_in" {
+		// Student is checked in today
+		// Now check if they have an active visit (room assignment)
+		currentVisit, err := activeService.GetStudentCurrentVisit(ctx, student.ID)
+
+		if err == nil && currentVisit != nil {
+			// Student has an active visit - they are present and in a specific activity
+			if hasFullAccess {
+				// Users with full access see detailed location/activity information
+				// Get the active group with room details
+				if currentVisit.ActiveGroupID > 0 {
+					activeGroup, err := activeService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
+					if err == nil && activeGroup != nil && activeGroup.Room != nil {
+						response.Location = fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name)
+					} else {
+						response.Location = "Anwesend - Aktivität"
+					}
+				} else {
+					response.Location = "Anwesend - Aktivität"
+				}
+			} else {
+				// Users without full access see generic attendance status
+				response.Location = "Anwesend"
+			}
+		} else {
+			// Student is checked in but has no active visit (not in a specific room)
+			// This is the generic checked-in status - frontend will determine if they are "Unterwegs"
+			// based on room-status API data
+			response.Location = "Anwesend"
+		}
 	} else {
-		response.Location = resolveStudentLocation(ctx, student.ID, hasFullAccess, activeService)
+		// Student is not checked in or has checked out
+		response.Location = "Abwesend"
 	}
 
 	// Check for pending scheduled checkout
@@ -311,17 +461,6 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 		}
 	}
 
-	// Only include guardian email and phone for users with full access
-	if hasFullAccess {
-		if student.GuardianEmail != nil {
-			response.GuardianEmail = *student.GuardianEmail
-		}
-
-		if student.GuardianPhone != nil {
-			response.GuardianPhone = *student.GuardianPhone
-		}
-	}
-
 	if student.GroupID != nil {
 		response.GroupID = *student.GroupID
 	}
@@ -346,46 +485,10 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 	return response
 }
 
-func resolveStudentLocation(ctx context.Context, studentID int64, hasFullAccess bool, activeService activeService.Service) string {
-	attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, studentID)
-	if err != nil || attendanceStatus == nil {
-		return "Abwesend"
-	}
-
-	if attendanceStatus.Status != "checked_in" {
-		return "Abwesend"
-	}
-
-	if !hasFullAccess {
-		return "Anwesend"
-	}
-
-	currentVisit, err := activeService.GetStudentCurrentVisit(ctx, studentID)
-	if err != nil || currentVisit == nil {
-		return "Unterwegs"
-	}
-
-	if currentVisit.ActiveGroupID <= 0 {
-		return "Unterwegs"
-	}
-
-	activeGroup, err := activeService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
-	if err != nil || activeGroup == nil {
-		return "Unterwegs"
-	}
-
-	if activeGroup.Room != nil && activeGroup.Room.Name != "" {
-		return fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name)
-	}
-
-	return "Unterwegs"
-}
-
 // listStudents handles listing all students with staff-based filtering
 func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Get query parameters
 	schoolClass := r.URL.Query().Get("school_class")
-	guardianName := r.URL.Query().Get("guardian_name")
 	firstName := r.URL.Query().Get("first_name")
 	lastName := r.URL.Query().Get("last_name")
 	location := r.URL.Query().Get("location")
@@ -399,18 +502,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// For search functionality, we show all students regardless of group supervision
 	// Permission checking will be done on individual student detail view
 	var allowedGroupIDs []int64
-	var myGroupIDs map[int64]struct{}
-	if !isAdmin {
-		if staff, err := rs.UserContextService.GetCurrentStaff(r.Context()); err == nil && staff != nil {
-			educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-			if err == nil {
-				myGroupIDs = make(map[int64]struct{}, len(educationGroups))
-				for _, eduGroup := range educationGroups {
-					myGroupIDs[eduGroup.ID] = struct{}{}
-				}
-			}
-		}
-	}
+	hasFullAccess := isAdmin
 
 	// If a specific group filter is requested, apply it
 	if groupIDStr != "" {
@@ -427,9 +519,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	if schoolClass != "" {
 		filter.ILike("school_class", "%"+schoolClass+"%")
 	}
-	if guardianName != "" {
-		filter.ILike("guardian_name", "%"+guardianName+"%")
-	}
+	// Note: Guardian filtering removed - guardians now in separate table
 
 	// Add pagination
 	page := 1
@@ -477,9 +567,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		if schoolClass != "" {
 			countFilter.ILike("school_class", "%"+schoolClass+"%")
 		}
-		if guardianName != "" {
-			countFilter.ILike("guardian_name", "%"+guardianName+"%")
-		}
+		// Note: Guardian filtering removed - guardians now in separate table
 		countOptions.Filter = countFilter
 
 		// Get the count efficiently from database
@@ -511,27 +599,9 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	studentIDs := make([]int64, 0, len(students))
-	for _, student := range students {
-		studentIDs = append(studentIDs, student.ID)
-	}
-
-	locationSnapshot, snapshotErr := common.LoadStudentLocationSnapshot(r.Context(), rs.ActiveService, studentIDs)
-	if snapshotErr != nil {
-		log.Printf("Failed to batch load student locations: %v", snapshotErr)
-		locationSnapshot = nil
-	}
-
 	// Build response with person data for each student
 	responses := make([]StudentResponse, 0, len(students))
 	for _, student := range students {
-		hasFullAccess := isAdmin
-		if !hasFullAccess && student.GroupID != nil && myGroupIDs != nil {
-			if _, ok := myGroupIDs[*student.GroupID]; ok {
-				hasFullAccess = true
-			}
-		}
-
 		// Get person data
 		person, err := rs.PersonService.Get(r.Context(), student.PersonID)
 		if err != nil {
@@ -557,6 +627,11 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		// Filter based on location (only if user has full access to location data)
+		if location != "" && hasFullAccess && student.GetLocation() != location && location != "Unknown" {
+			continue
+		}
+
 		// Get group data if student has a group
 		var group *education.Group
 		if student.GroupID != nil {
@@ -566,19 +641,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		var locationOverride *string
-		if locationSnapshot != nil {
-			locationValue := locationSnapshot.ResolveStudentLocation(student.ID, hasFullAccess)
-			locationOverride = &locationValue
-		}
-
-		studentResponse := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, locationOverride)
-
-		if location != "" && hasFullAccess && location != "Unknown" && studentResponse.Location != location {
-			continue
-		}
-
-		responses = append(responses, studentResponse)
+		responses = append(responses, newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, rs.StudentRepo, rs.GuardianRepo, rs.StudentGuardianRepo))
 	}
 
 	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, totalCount, "Students retrieved successfully")
@@ -646,7 +709,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare response
 	response := StudentDetailResponse{
-		StudentResponse: newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil),
+		StudentResponse: newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, rs.StudentRepo, rs.GuardianRepo, rs.StudentGuardianRepo),
 		HasFullAccess:   hasFullAccess,
 	}
 
@@ -698,59 +761,98 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create person from request
-	person := &users.Person{
-		FirstName: req.FirstName,
-		LastName:  req.LastName,
-	}
+	var person *users.Person
+	var student *users.Student
+	var guardianID int64
 
-	// Set optional TagID if provided
-	if req.TagID != "" {
-		tagID := req.TagID
-		person.TagID = &tagID
-	}
-
-	// Create person - validation occurs at the model layer
-	if err := rs.PersonService.Create(r.Context(), person); err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
+	// Wrap all creation operations in a database transaction for atomicity
+	err := base.RunInTx(r.Context(), rs.db, func(txCtx context.Context, tx bun.Tx) error {
+		// Create person from request
+		person = &users.Person{
+			FirstName: req.FirstName,
+			LastName:  req.LastName,
 		}
-		return
-	}
 
-	// Create student with the person ID
-	student := &users.Student{
-		PersonID:        person.ID,
-		SchoolClass:     req.SchoolClass,
-		GuardianName:    req.GuardianName,
-		GuardianContact: req.GuardianContact,
-	}
-
-	// Set optional fields
-	if req.GuardianEmail != "" {
-		email := req.GuardianEmail
-		student.GuardianEmail = &email
-	}
-
-	if req.GuardianPhone != "" {
-		phone := req.GuardianPhone
-		student.GuardianPhone = &phone
-	}
-
-	if req.GroupID != nil {
-		student.GroupID = req.GroupID
-	}
-
-	if req.ExtraInfo != nil {
-		student.ExtraInfo = req.ExtraInfo
-	}
-
-	// Create student
-	if err := rs.StudentRepo.Create(r.Context(), student); err != nil {
-		// Clean up person if student creation fails
-		if deleteErr := rs.PersonService.Delete(r.Context(), person.ID); deleteErr != nil {
-			log.Printf("Error cleaning up person after failed student creation: %v", deleteErr)
+		// Set optional TagID if provided
+		if req.TagID != "" {
+			tagID := req.TagID
+			person.TagID = &tagID
 		}
+
+		// Create person - validation occurs at the model layer
+		if err := rs.PersonService.Create(txCtx, person); err != nil {
+			return fmt.Errorf("failed to create person: %w", err)
+		}
+
+		// Create student with the person ID
+		student = &users.Student{
+			PersonID:    person.ID,
+			SchoolClass: req.SchoolClass,
+		}
+
+		// Set optional fields
+		if req.GroupID != nil {
+			student.GroupID = req.GroupID
+		}
+
+		if req.Bus != nil {
+			student.Bus = *req.Bus
+		}
+
+		if req.ExtraInfo != nil {
+			student.ExtraInfo = req.ExtraInfo
+		}
+
+		// Create student
+		if err := rs.StudentRepo.Create(txCtx, student); err != nil {
+			return fmt.Errorf("failed to create student: %w", err)
+		}
+
+		// Handle guardian creation or linking
+		if req.GuardianID != nil {
+			// Option 1: Link to existing guardian
+			guardianID = *req.GuardianID
+		} else if req.Guardian != nil {
+			// Option 2: Create new guardian
+			guardian := &users.Guardian{
+				FirstName: req.Guardian.FirstName,
+				LastName:  req.Guardian.LastName,
+				Email:     req.Guardian.Email,
+				Phone:     req.Guardian.Phone,
+				Active:    true,
+			}
+
+			if err := rs.GuardianRepo.Create(txCtx, guardian); err != nil {
+				return fmt.Errorf("failed to create guardian: %w", err)
+			}
+			guardianID = guardian.ID
+		}
+
+		// Create student-guardian relationship
+		if guardianID > 0 {
+			relationshipType := "parent"
+			if req.Guardian != nil && req.Guardian.RelationshipType != "" {
+				relationshipType = req.Guardian.RelationshipType
+			}
+
+			relationship := &users.StudentGuardian{
+				StudentID:          student.ID,
+				GuardianID:         guardianID,
+				RelationshipType:   relationshipType,
+				IsPrimary:          true, // First guardian is always primary
+				IsEmergencyContact: true,
+				CanPickup:          true,
+			}
+
+			if err := rs.StudentGuardianRepo.Create(txCtx, relationship); err != nil {
+				return fmt.Errorf("failed to create student-guardian relationship: %w", err)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
 			log.Printf("Error rendering error response: %v", err)
 		}
@@ -771,7 +873,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	hasFullAccess := hasAdminPermissions(userPermissions)
 
 	// Return the created student with person data
-	common.Respond(w, r, http.StatusCreated, newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil), "Student created successfully")
+	common.Respond(w, r, http.StatusCreated, newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, rs.StudentRepo, rs.GuardianRepo, rs.StudentGuardianRepo), "Student created successfully")
 }
 
 // updateStudent handles updating an existing student
@@ -862,23 +964,15 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update student fields if provided
+	// Note: Guardian updates are handled via /students/{id}/guardians endpoints
 	if req.SchoolClass != nil {
 		student.SchoolClass = *req.SchoolClass
 	}
-	if req.GuardianName != nil {
-		student.GuardianName = *req.GuardianName
-	}
-	if req.GuardianContact != nil {
-		student.GuardianContact = *req.GuardianContact
-	}
-	if req.GuardianEmail != nil {
-		student.GuardianEmail = req.GuardianEmail
-	}
-	if req.GuardianPhone != nil {
-		student.GuardianPhone = req.GuardianPhone
-	}
 	if req.GroupID != nil {
 		student.GroupID = req.GroupID
+	}
+	if req.Bus != nil {
+		student.Bus = *req.Bus
 	}
 	if req.ExtraInfo != nil {
 		student.ExtraInfo = req.ExtraInfo
@@ -921,7 +1015,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	hasFullAccess := isAdmin || isGroupSupervisor // Explicitly check for admin or group supervisor
 
 	// Return the updated student with person data
-	common.Respond(w, r, http.StatusOK, newStudentResponse(r.Context(), updatedStudent, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil), "Student updated successfully")
+	common.Respond(w, r, http.StatusOK, newStudentResponse(r.Context(), updatedStudent, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, rs.StudentRepo, rs.GuardianRepo, rs.StudentGuardianRepo), "Student updated successfully")
 }
 
 // deleteStudent handles deleting a student and their associated person record
@@ -1024,11 +1118,11 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 	}
 
 	// Build student response
-	response := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, nil)
+	response := newStudentResponse(r.Context(), student, person, group, hasFullAccess, rs.ActiveService, rs.PersonService, rs.StudentRepo, rs.GuardianRepo, rs.StudentGuardianRepo)
 
 	// Create location response structure
 	locationResponse := struct {
-		Location          string                 `json:"current_location"`
+		Location          string                 `json:"location"`
 		CurrentRoom       string                 `json:"current_room,omitempty"`
 		ScheduledCheckout *ScheduledCheckoutInfo `json:"scheduled_checkout,omitempty"`
 	}{
@@ -1472,56 +1566,9 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Check if user has permission to view this student's data
-	// Admin users have full access
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	isAdmin := hasAdminPermissions(userPermissions)
-
-	if !isAdmin {
-		// Check if user is a staff member who supervises the student's group
-		student, err := rs.StudentRepo.FindByID(r.Context(), id)
-		if err != nil {
-			if err := render.Render(w, r, ErrorNotFound(errors.New("student not found"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
-			return
-		}
-
-		if student.GroupID != nil {
-			// Check if current user supervises this group
-			staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
-			if err != nil || staff == nil {
-				if err := render.Render(w, r, ErrorForbidden(errors.New("insufficient permissions to access this student's data"))); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-
-			// Check if staff supervises the student's group
-			educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-			if err != nil {
-				if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-
-			hasAccess := false
-			for _, group := range educationGroups {
-				if group.ID == *student.GroupID {
-					hasAccess = true
-					break
-				}
-			}
-
-			if !hasAccess {
-				if err := render.Render(w, r, ErrorForbidden(errors.New("you do not supervise this student's group"))); err != nil {
-					log.Printf("Error rendering error response: %v", err)
-				}
-				return
-			}
-		}
-	}
+	// Privacy consent is readable by all authenticated staff (data retention info is important for all staff)
+	// Permission check is handled by middleware (UsersRead permission required)
+	// No supervisor check needed for reading consent - all staff need to know retention policies
 
 	// Get privacy consents
 	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), id)
@@ -1750,4 +1797,308 @@ func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Reques
 	}
 
 	common.Respond(w, r, http.StatusOK, todaysVisits, "Visit history retrieved successfully")
+}
+
+// getStudentGuardians retrieves all guardians for a student
+func (rs *Resource) getStudentGuardians(w http.ResponseWriter, r *http.Request) {
+	// Parse student ID from URL
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get all guardian relationships for this student with guardians loaded (single query, no N+1)
+	relationships, err := rs.StudentGuardianRepo.FindByStudentIDWithGuardians(r.Context(), id)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get student guardians"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Build guardian responses from eagerly loaded data
+	guardians := make([]GuardianResponse, 0, len(relationships))
+	for _, rel := range relationships {
+		if rel.Guardian != nil {
+			guardians = append(guardians, GuardianResponse{
+				ID:                 rel.Guardian.ID,
+				FirstName:          rel.Guardian.FirstName,
+				LastName:           rel.Guardian.LastName,
+				Email:              rel.Guardian.Email,
+				Phone:              rel.Guardian.Phone,
+				RelationshipType:   rel.RelationshipType,
+				IsPrimary:          rel.IsPrimary,
+				IsEmergencyContact: rel.IsEmergencyContact,
+				CanPickup:          rel.CanPickup,
+				CreatedAt:          rel.Guardian.CreatedAt,
+				UpdatedAt:          rel.Guardian.UpdatedAt,
+			})
+		}
+	}
+
+	common.Respond(w, r, http.StatusOK, guardians, "Guardians retrieved successfully")
+}
+
+// createStudentGuardian creates a new guardian for a student
+func (rs *Resource) createStudentGuardian(w http.ResponseWriter, r *http.Request) {
+	// Parse student ID from URL
+	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Parse request body
+	var req struct {
+		FirstName          string  `json:"first_name"`
+		LastName           string  `json:"last_name"`
+		Email              *string `json:"email"`              // Optional
+		Phone              *string `json:"phone"`              // Optional
+		RelationshipType   string  `json:"relationship_type"`
+		IsPrimary          bool    `json:"is_primary"`
+		IsEmergencyContact bool    `json:"is_emergency_contact"`
+		CanPickup          bool    `json:"can_pickup"`
+	}
+
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Wrap guardian and relationship creation in a transaction for atomicity
+	guardian := &users.Guardian{}
+	relationship := &users.StudentGuardian{}
+
+	err = base.RunInTx(r.Context(), rs.db, func(txCtx context.Context, tx bun.Tx) error {
+		// Create guardian record
+		guardian = &users.Guardian{
+			FirstName: req.FirstName,
+			LastName:  req.LastName,
+			Email:     req.Email,  // Now a pointer, can be nil
+			Phone:     req.Phone,  // Now a pointer, can be nil
+			Active:    true,
+		}
+
+		if err := rs.GuardianRepo.Create(txCtx, guardian); err != nil {
+			return fmt.Errorf("failed to create guardian: %w", err)
+		}
+
+		// Create student-guardian relationship
+		relationship = &users.StudentGuardian{
+			StudentID:          studentID,
+			GuardianID:         guardian.ID,
+			RelationshipType:   req.RelationshipType,
+			IsPrimary:          req.IsPrimary,
+			IsEmergencyContact: req.IsEmergencyContact,
+			CanPickup:          req.CanPickup,
+		}
+
+		if err := rs.StudentGuardianRepo.Create(txCtx, relationship); err != nil {
+			return fmt.Errorf("failed to create guardian relationship: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Build response
+	response := GuardianResponse{
+		ID:                 guardian.ID,
+		FirstName:          guardian.FirstName,
+		LastName:           guardian.LastName,
+		Email:              guardian.Email,
+		Phone:              guardian.Phone,
+		RelationshipType:   relationship.RelationshipType,
+		IsPrimary:          relationship.IsPrimary,
+		IsEmergencyContact: relationship.IsEmergencyContact,
+		CanPickup:          relationship.CanPickup,
+		CreatedAt:          guardian.CreatedAt,
+		UpdatedAt:          guardian.UpdatedAt,
+	}
+
+	common.Respond(w, r, http.StatusCreated, response, "Guardian created successfully")
+}
+
+// updateStudentGuardian updates a guardian for a student
+func (rs *Resource) updateStudentGuardian(w http.ResponseWriter, r *http.Request) {
+	// Parse student ID and guardian ID from URL
+	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	guardianID, err := strconv.ParseInt(chi.URLParam(r, "guardianId"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Parse request body
+	var req struct {
+		FirstName          string  `json:"first_name"`
+		LastName           string  `json:"last_name"`
+		Email              *string `json:"email"`              // Optional
+		Phone              *string `json:"phone"`              // Optional
+		RelationshipType   string  `json:"relationship_type"`
+		IsPrimary          bool    `json:"is_primary"`
+		IsEmergencyContact bool    `json:"is_emergency_contact"`
+		CanPickup          bool    `json:"can_pickup"`
+	}
+
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get guardian
+	guardian, err := rs.GuardianRepo.FindByID(r.Context(), guardianID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("guardian not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Update guardian fields
+	guardian.FirstName = req.FirstName
+	guardian.LastName = req.LastName
+	guardian.Email = req.Email  // Now a pointer, can be nil
+	guardian.Phone = req.Phone  // Now a pointer, can be nil
+
+	if err := rs.GuardianRepo.Update(r.Context(), guardian); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to update guardian"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get relationship
+	relationships, err := rs.StudentGuardianRepo.FindByStudentID(r.Context(), studentID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get relationship"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Find the specific relationship
+	var relationship *users.StudentGuardian
+	for _, rel := range relationships {
+		if rel.GuardianID == guardianID {
+			relationship = rel
+			break
+		}
+	}
+
+	if relationship == nil {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("relationship not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Update relationship fields
+	relationship.RelationshipType = req.RelationshipType
+	relationship.IsPrimary = req.IsPrimary
+	relationship.IsEmergencyContact = req.IsEmergencyContact
+	relationship.CanPickup = req.CanPickup
+
+	if err := rs.StudentGuardianRepo.Update(r.Context(), relationship); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to update relationship"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Build response
+	response := GuardianResponse{
+		ID:                 guardian.ID,
+		FirstName:          guardian.FirstName,
+		LastName:           guardian.LastName,
+		Email:              guardian.Email,
+		Phone:              guardian.Phone,
+		RelationshipType:   relationship.RelationshipType,
+		IsPrimary:          relationship.IsPrimary,
+		IsEmergencyContact: relationship.IsEmergencyContact,
+		CanPickup:          relationship.CanPickup,
+		CreatedAt:          guardian.CreatedAt,
+		UpdatedAt:          guardian.UpdatedAt,
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Guardian updated successfully")
+}
+
+// deleteStudentGuardian deletes a guardian relationship for a student
+func (rs *Resource) deleteStudentGuardian(w http.ResponseWriter, r *http.Request) {
+	// Parse student ID and guardian ID from URL
+	studentID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	guardianID, err := strconv.ParseInt(chi.URLParam(r, "guardianId"), 10, 64)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Get all relationships for this student
+	relationships, err := rs.StudentGuardianRepo.FindByStudentID(r.Context(), studentID)
+	if err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to get relationships"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Find the specific relationship to delete
+	var relationshipID int64
+	for _, rel := range relationships {
+		if rel.GuardianID == guardianID {
+			relationshipID = rel.ID
+			break
+		}
+	}
+
+	if relationshipID == 0 {
+		if err := render.Render(w, r, ErrorNotFound(errors.New("relationship not found"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	// Delete the relationship
+	if err := rs.StudentGuardianRepo.Delete(r.Context(), relationshipID); err != nil {
+		if err := render.Render(w, r, ErrorInternalServer(errors.New("failed to delete relationship"))); err != nil {
+			log.Printf("Error rendering error response: %v", err)
+		}
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, map[string]interface{}{"id": guardianID}, "Guardian relationship deleted successfully")
 }

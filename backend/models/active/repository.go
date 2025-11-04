@@ -50,9 +50,6 @@ type GroupRepository interface {
 
 	// FindActiveGroups finds all groups with no end time (currently active)
 	FindActiveGroups(ctx context.Context) ([]*Group, error)
-
-	// FindByIDs finds active groups by their IDs
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Group, error)
 }
 
 // VisitRepository defines operations for managing active visits
@@ -89,9 +86,6 @@ type VisitRepository interface {
 
 	// GetCurrentByStudentID finds the current active visit for a student
 	GetCurrentByStudentID(ctx context.Context, studentID int64) (*Visit, error)
-
-	// GetCurrentByStudentIDs finds the current active visit for multiple students
-	GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*Visit, error)
 
 	// FindActiveVisits finds all visits with no exit time (currently active)
 	FindActiveVisits(ctx context.Context) ([]*Visit, error)

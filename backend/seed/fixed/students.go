@@ -23,6 +23,9 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 	studentsPerClass := len(studentPersons) / len(s.result.ClassGroups)
 	extraStudents := len(studentPersons) % len(s.result.ClassGroups)
 
+	// Track guardians to avoid duplicates (by email)
+	guardianCache := make(map[string]*users.Guardian)
+
 	studentIndex := 0
 	for i, classGroup := range s.result.ClassGroups {
 		// Calculate how many students for this class
@@ -38,7 +41,6 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 
 			// Generate guardian information based on student's last name
 			guardianFirstName := firstNames[rng.Intn(35)] // Adult names
-			guardianName := fmt.Sprintf("%s %s", guardianFirstName, person.LastName)
 			guardianPhone := fmt.Sprintf("+49 %d %d-%d",
 				30+rng.Intn(900),
 				rng.Intn(900)+100,
@@ -47,14 +49,56 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 				normalizeForEmail(guardianFirstName),
 				normalizeForEmail(person.LastName))
 
+			// Check if guardian already exists in cache or database
+			var guardian *users.Guardian
+			var exists bool
+			if guardian, exists = guardianCache[guardianEmail]; !exists {
+				// Check if guardian exists in database
+				existingGuardian := &users.Guardian{}
+				err := s.tx.NewSelect().
+					Model(existingGuardian).
+					ModelTableExpr(`users.guardians AS "guardian"`).
+					Where("email = ?", guardianEmail).
+					Scan(ctx)
+
+				if err == nil {
+					// Guardian exists in database, use it
+					guardian = existingGuardian
+					guardianCache[guardianEmail] = guardian
+				} else {
+					// Create new guardian
+					guardian = &users.Guardian{
+						FirstName: guardianFirstName,
+						LastName:  person.LastName,
+						Email:     &guardianEmail, // Pointer to string for optional field
+						Phone:     &guardianPhone, // Pointer to string for optional field
+						Active:    true,
+					}
+					guardian.CreatedAt = time.Now()
+					guardian.UpdatedAt = time.Now()
+
+					// Insert guardian
+					_, err := s.tx.NewInsert().Model(guardian).
+						ModelTableExpr("users.guardians").
+						Returning("id, created_at, updated_at").
+						Exec(ctx)
+					if err != nil {
+						return fmt.Errorf("failed to create guardian for student %d: %w", person.ID, err)
+					}
+
+					guardianCache[guardianEmail] = guardian
+				}
+			}
+
+			// Set bus permission (30% of students)
+			bus := rng.Float32() < 0.3
+
+			// Create student
 			student := &users.Student{
-				PersonID:        person.ID,
-				SchoolClass:     classGroup.Name,
-				GuardianName:    guardianName,
-				GuardianContact: guardianPhone,
-				GuardianEmail:   &guardianEmail,
-				GuardianPhone:   &guardianPhone,
-				GroupID:         &classGroup.ID,
+				PersonID:    person.ID,
+				SchoolClass: classGroup.Name,
+				Bus:         bus,
+				GroupID:     &classGroup.ID,
 			}
 			student.CreatedAt = time.Now()
 			student.UpdatedAt = time.Now()
@@ -63,10 +107,7 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 				ModelTableExpr("users.students").
 				On("CONFLICT (person_id) DO UPDATE").
 				Set("school_class = EXCLUDED.school_class").
-				Set("guardian_name = EXCLUDED.guardian_name").
-				Set("guardian_contact = EXCLUDED.guardian_contact").
-				Set("guardian_email = EXCLUDED.guardian_email").
-				Set("guardian_phone = EXCLUDED.guardian_phone").
+				Set("bus = EXCLUDED.bus").
 				Set("group_id = EXCLUDED.group_id").
 				Set("updated_at = EXCLUDED.updated_at").
 				Returning("id, created_at, updated_at").
@@ -75,13 +116,33 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 				return fmt.Errorf("failed to upsert student for person %d: %w", person.ID, err)
 			}
 
+			// Create student-guardian relationship
+			relationship := &users.StudentGuardian{
+				StudentID:          student.ID,
+				GuardianID:         guardian.ID,
+				RelationshipType:   "parent",
+				IsPrimary:          true,
+				IsEmergencyContact: true,
+				CanPickup:          true,
+			}
+			relationship.CreatedAt = time.Now()
+			relationship.UpdatedAt = time.Now()
+
+			_, err = s.tx.NewInsert().Model(relationship).
+				ModelTableExpr("users.students_guardians").
+				On("CONFLICT (student_id, guardian_id, relationship_type) DO NOTHING").
+				Exec(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to create student-guardian relationship for student %d: %w", student.ID, err)
+			}
+
 			s.result.Students = append(s.result.Students, student)
 			s.result.StudentByPersonID[person.ID] = student
 		}
 	}
 
 	if s.verbose {
-		log.Printf("Created %d students distributed across %d classes",
+		log.Printf("Created %d students with guardians distributed across %d classes",
 			len(s.result.Students), len(s.result.ClassGroups))
 	}
 
@@ -148,24 +209,39 @@ func (s *Seeder) seedPrivacyConsents(ctx context.Context) error {
 	return nil
 }
 
-// seedGuardianRelationships creates some guardian relationships
+// seedGuardianRelationships creates auth accounts for some guardians so they can log in
 func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	// Create guardian accounts for 20% of students
+	// Get all unique guardians from the guardians table
+	var guardians []*users.Guardian
+	err := s.tx.NewSelect().
+		Model(&guardians).
+		ModelTableExpr(`users.guardians AS "guardian"`).
+		Scan(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch guardians: %w", err)
+	}
+
+	// Create auth accounts for 20% of guardians (with email) so they can log in
 	guardianCount := 0
-	for _, student := range s.result.Students {
+	guardiansWithEmail := 0
+	for _, guardian := range guardians {
+		// Skip guardians without email - they can exist (e.g., elderly guardians)
+		// but cannot have auth accounts for the guardian app
+		if guardian.Email == nil || *guardian.Email == "" {
+			continue
+		}
+		guardiansWithEmail++
+
 		if rng.Float32() < 0.2 {
-			// Create guardian account
-			if student.GuardianEmail == nil {
-				continue
-			}
 			passwordHash, err := userpass.HashPassword("Test1234%", nil)
 			if err != nil {
 				return fmt.Errorf("failed to hash password: %w", err)
 			}
+			// Guardian email is required for account creation
 			account := &auth.AccountParent{
-				Email:        *student.GuardianEmail,
+				Email:        *guardian.Email, // Safe to dereference (checked above)
 				PasswordHash: &passwordHash,
 				Active:       true,
 			}
@@ -192,39 +268,15 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 			account.CreatedAt = createdAt
 			account.UpdatedAt = updatedAt
 
-			// Delete existing guardian relationships for this student to ensure idempotent seeding
-			_, err = s.tx.NewDelete().
-				Table("users.students_guardians").
-				Where("student_id = ?", student.ID).
+			// Link the auth account to the guardian profile
+			_, err = s.tx.NewUpdate().
+				Model(guardian).
+				ModelTableExpr("users.guardians").
+				Set("account_id = ?", id).
+				Where("id = ?", guardian.ID).
 				Exec(ctx)
 			if err != nil {
-				return fmt.Errorf("failed to clear guardian relationships for student %d: %w", student.ID, err)
-			}
-
-			// Create student-guardian relationship
-			guardianRel := &users.StudentGuardian{
-				StudentID:          student.ID,
-				GuardianAccountID:  account.ID,
-				RelationshipType:   "parent",
-				IsPrimary:          true, // All guardians created are primary for simplicity
-				IsEmergencyContact: true,
-				CanPickup:          true,
-			}
-			guardianRel.CreatedAt = time.Now()
-			guardianRel.UpdatedAt = time.Now()
-
-			_, err = s.tx.NewInsert().
-				Model(guardianRel).
-				ModelTableExpr("users.students_guardians").
-				On("CONFLICT (student_id, guardian_account_id, relationship_type) DO UPDATE").
-				Set("is_primary = EXCLUDED.is_primary").
-				Set("is_emergency_contact = EXCLUDED.is_emergency_contact").
-				Set("can_pickup = EXCLUDED.can_pickup").
-				Set("updated_at = EXCLUDED.updated_at").
-				Returning("created_at, updated_at").
-				Exec(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to upsert guardian relationship: %w", err)
+				return fmt.Errorf("failed to link guardian %d to account %d: %w", guardian.ID, id, err)
 			}
 
 			guardianCount++
@@ -232,7 +284,12 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 	}
 
 	if s.verbose {
-		log.Printf("Created %d guardian accounts with relationships", guardianCount)
+		percentage := 0.0
+		if guardiansWithEmail > 0 {
+			percentage = float64(guardianCount) / float64(guardiansWithEmail) * 100
+		}
+		log.Printf("Created %d guardian auth accounts (%.0f%% of %d guardians with email, %d total guardians)",
+			guardianCount, percentage, guardiansWithEmail, len(guardians))
 	}
 
 	return nil

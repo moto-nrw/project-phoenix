@@ -5,12 +5,17 @@ import { Modal } from "~/components/ui/modal";
 import type { Student } from "@/lib/api";
 
 interface Guardian {
-    id: string;
-    name: string;
-    contact: string;
+    id: number;
+    first_name: string;
+    last_name: string;
     email: string;
     phone: string;
-    relationship: string;
+    relationship_type: string;
+    is_primary: boolean;
+    is_emergency_contact: boolean;
+    can_pickup: boolean;
+    created_at?: string;
+    updated_at?: string;
 }
 
 interface StudentDetailModalProps {
@@ -32,37 +37,8 @@ export function StudentDetailModal({
 }: StudentDetailModalProps) {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-    // Type guards for safe JSON parsing
-    const isGuardian = (g: unknown): g is Guardian => {
-        return typeof g === 'object' && g !== null &&
-            typeof (g as { id?: unknown }).id === 'string' &&
-            typeof (g as { name?: unknown }).name === 'string';
-    };
-    const isGuardiansPayload = (x: unknown): x is { guardians: Guardian[]; additionalInfo?: string } => {
-        if (typeof x !== 'object' || x === null) return false;
-        const arr = (x as { guardians?: unknown }).guardians;
-        return Array.isArray(arr) && arr.every(isGuardian);
-    };
-    // Parse guardians and additional notes from student extra_info
-    const parseExtraInfo = (s: Student): { guardians: Guardian[] | null; additionalInfo: string | null } => {
-        try {
-            if (s.extra_info) {
-                const parsed: unknown = JSON.parse(s.extra_info);
-                if (isGuardiansPayload(parsed)) {
-                    return {
-                        guardians: parsed.guardians,
-                        additionalInfo: typeof (parsed as { additionalInfo?: unknown }).additionalInfo === 'string'
-                          ? (parsed as { additionalInfo?: string }).additionalInfo!
-                          : null,
-                    };
-                }
-            }
-        } catch {
-            // Ignore parse errors and fall through
-        }
-        return { guardians: null, additionalInfo: null };
-    };
-    const { guardians, additionalInfo } = student ? parseExtraInfo(student) : { guardians: null, additionalInfo: null };
+    // Get guardians from student object (loaded from API)
+    const guardians: Guardian[] = (student?.guardians as Guardian[] | undefined) ?? [];
 
     // Reset confirmation state when modal closes
     useEffect(() => {
@@ -213,16 +189,25 @@ export function StudentDetailModal({
                                     <div className="space-y-4">
                                         {guardians.map((guardian, index) => (
                                             <div key={guardian.id} className={`${index > 0 ? 'pt-4 border-t border-purple-100' : ''}`}>
-                                                <div className="text-xs font-semibold text-purple-700 mb-2">
-                                                    {guardian.relationship} {guardians.length > 1 ? `${index + 1}` : ''}
-                                                </div>
-                                                <dl className="space-y-2">
-                                                    {guardian.name && (
-                                                        <div>
-                                                            <dt className="text-xs text-gray-500">Name</dt>
-                                                            <dd className="text-sm font-medium text-gray-900 mt-0.5">{guardian.name}</dd>
-                                                        </div>
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <div className="text-xs font-semibold text-purple-700">
+                                                        {guardian.relationship_type} {guardians.length > 1 ? `${index + 1}` : ''}
+                                                    </div>
+                                                    {guardian.is_primary && (
+                                                        <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                                                            Hauptkontakt
+                                                        </span>
                                                     )}
+                                                </div>
+                                                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 md:gap-x-4 gap-y-2">
+                                                    <div>
+                                                        <dt className="text-xs text-gray-500">Vorname</dt>
+                                                        <dd className="text-sm font-medium text-gray-900 mt-0.5">{guardian.first_name}</dd>
+                                                    </div>
+                                                    <div>
+                                                        <dt className="text-xs text-gray-500">Nachname</dt>
+                                                        <dd className="text-sm font-medium text-gray-900 mt-0.5">{guardian.last_name}</dd>
+                                                    </div>
                                                     {guardian.email && (
                                                         <div>
                                                             <dt className="text-xs text-gray-500">E-Mail</dt>
@@ -235,13 +220,21 @@ export function StudentDetailModal({
                                                             <dd className="text-sm font-medium text-gray-900 mt-0.5">{guardian.phone}</dd>
                                                         </div>
                                                     )}
-                                                    {guardian.contact && (
-                                                        <div>
-                                                            <dt className="text-xs text-gray-500">Zusätzliche Kontaktinfo</dt>
-                                                            <dd className="text-sm font-medium text-gray-900 mt-0.5">{guardian.contact}</dd>
-                                                        </div>
-                                                    )}
                                                 </dl>
+                                                {(guardian.is_emergency_contact || guardian.can_pickup) && (
+                                                    <div className="mt-2 flex flex-wrap gap-1">
+                                                        {guardian.is_emergency_contact && (
+                                                            <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                                                                Notfallkontakt
+                                                            </span>
+                                                        )}
+                                                        {guardian.can_pickup && (
+                                                            <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                                                                Abholberechtigt
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
@@ -311,27 +304,14 @@ export function StudentDetailModal({
                                 </div>
                             )}
 
-                            {/* Additional Information parsed from structured extra_info */}
-                            {additionalInfo && additionalInfo.trim().length > 0 && (
+                            {/* Extra Information */}
+                            {student.extra_info && (
                                 <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
                                     <h3 className="text-xs md:text-sm font-semibold text-gray-900 mb-2 md:mb-3 flex items-center gap-2">
                                         <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                         </svg>
-                                        Elternnotizen
-                                    </h3>
-                                    <p className="text-xs md:text-sm text-gray-700 whitespace-pre-wrap break-words">{additionalInfo}</p>
-                                </div>
-                            )}
-
-                            {/* Fallback: show raw extra_info only when it didn't contain guardians or structured notes */}
-                            {student.extra_info && !guardians && !(additionalInfo && additionalInfo.trim().length > 0) && (
-                                <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
-                                    <h3 className="text-xs md:text-sm font-semibold text-gray-900 mb-2 md:mb-3 flex items-center gap-2">
-                                        <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
-                                        Elternnotizen
+                                        Zusätzliche Informationen
                                     </h3>
                                     <p className="text-xs md:text-sm text-gray-700 whitespace-pre-wrap break-words">{student.extra_info}</p>
                                 </div>

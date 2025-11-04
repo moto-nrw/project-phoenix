@@ -3,7 +3,6 @@ import type { NextRequest } from "next/server";
 import { createGetHandler } from "~/lib/route-wrapper";
 import { apiGet } from "~/lib/api-client";
 import type { BackendStudent } from "~/lib/student-helpers";
-import { LOCATION_STATUSES, isHomeLocation, isPresentLocation, normalizeLocation } from "~/lib/location-helper";
 import axios from "axios";
 import type { BackendRoom } from "~/lib/rooms-helpers";
 
@@ -94,7 +93,6 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     // First, get the student details - this includes attendance status from the backend
     const studentResponse = await apiGet<StudentApiResponse>(`/api/students/${studentId}`, token);
     const student = studentResponse.data.data;
-    const normalizedLocation = normalizeLocation(student.current_location);
 
     // Get the student's group room ID for comparison
     let groupRoomId: number | null = null;
@@ -108,10 +106,11 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     }
 
     // The backend already determines the correct location based on attendance data
-    if (isHomeLocation(normalizedLocation)) {
+    // If student.location is "Abwesend", they're not checked in today - regardless of group assignment
+    if (student.location === "Abwesend") {
       return {
         status: "not_present",
-        location: LOCATION_STATUSES.HOME,
+        location: "Zuhause",
         room: null,
         group: student.group_id ? {
           id: student.group_id.toString(),
@@ -122,9 +121,10 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
         isGroupRoom: false
       } satisfies LocationResponse;
     }
-
-    // If student is marked as present (Anwesend...), they are onsite
-    if (isPresentLocation(normalizedLocation)) {
+    
+    // If student.location starts with "Anwesend" (checked in), they are present
+    // This includes "Anwesend", "Anwesend - Aktivität", "Anwesend - Room Name", etc.
+    if (student.location?.startsWith("Anwesend")) {
       // Student is checked in - try to get detailed room information if they have a group
       if (student?.group_id) {
         // Try to get room status for the student's group (may fail due to permissions)
@@ -147,7 +147,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
                 if (roomData) {
                   return {
                     status: "present",
-                    location: normalizedLocation,
+                    location: student.location || "Anwesend",
                     room: {
                       id: roomData.id.toString(),
                       name: roomData.name ?? `Raum ${studentStatus.current_room_id}`,
@@ -169,7 +169,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
                 // Even if room details fail, we know they're in a room
                 return {
                   status: "present",
-                  location: normalizedLocation,
+                  location: student.location || "Anwesend",
                   room: {
                     id: studentStatus.current_room_id.toString(),
                     name: `Raum ${studentStatus.current_room_id}`,
@@ -200,7 +200,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       // Return "Unterwegs" to match the behavior in ogs_groups page
       return {
         status: "present",
-        location: LOCATION_STATUSES.TRANSIT,
+        location: "Unterwegs",
         room: null,
         group: student.group_id ? {
           id: student.group_id.toString(),
@@ -212,10 +212,11 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
       } satisfies LocationResponse;
     }
 
-    // Default fallback: student is considered not present
+    // If we get here, student.location is neither "Abwesend" nor "Anwesend"
+    // This shouldn't happen with proper backend logic, but handle as fallback
     return {
       status: "not_present",
-      location: LOCATION_STATUSES.HOME,
+      location: "Zuhause", // Default to home for unknown status
       room: null,
       group: student.group_id ? {
         id: student.group_id.toString(),
@@ -243,7 +244,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     }
     return {
       status: "unknown",
-      location: LOCATION_STATUSES.UNKNOWN,
+      location: "Unbekannt",
       room: null,
       group: null,
       checkInTime: null,

@@ -16,6 +16,23 @@ interface ApiStudentResponse {
 }
 
 /**
+ * Guardian type matching backend GuardianResponse
+ */
+interface GuardianFromBackend {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  relationship_type: string;
+  is_primary: boolean;
+  is_emergency_contact: boolean;
+  can_pickup: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
  * Type definition for student response from backend
  */
 interface StudentResponseFromBackend {
@@ -25,11 +42,12 @@ interface StudentResponseFromBackend {
   last_name: string;
   tag_id?: string;
   school_class: string;
-  current_location?: string | null;
+  location: string;
   guardian_name: string;
   guardian_contact: string;
   guardian_email?: string;
   guardian_phone?: string;
+  guardians?: GuardianFromBackend[];  // All guardians for this student
   group_id?: number;
   created_at: string;
   updated_at: string;
@@ -86,35 +104,43 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
     }
     
     const mappedStudent = mapStudentResponse(studentData as unknown as BackendStudent);
-    
-    // Fetch privacy consent data
+
+    // Extract guardians array from backend response
+    // BackendStudentData has an index signature, so we can access guardians directly
+    const guardians = (studentData.guardians as GuardianFromBackend[] | undefined) ?? [];
+
+    // Fetch privacy consent data - with timeout to prevent hanging
     try {
       const consentResponse = await apiGet<unknown>(`/api/students/${id}/privacy-consent`, token);
-      
+
       // The privacy consent route handler returns the consent object directly
       if (consentResponse && typeof consentResponse === 'object' && 'accepted' in consentResponse && 'data_retention_days' in consentResponse) {
         const consent = consentResponse as { accepted: boolean; data_retention_days: number };
-        // Add privacy consent fields to the student object
+        // Add privacy consent fields and guardians to the student object
         return {
           ...mappedStudent,
+          guardians,
           privacy_consent_accepted: consent.accepted,
           data_retention_days: consent.data_retention_days,
         };
       }
     } catch (e) {
-      // Differentiate 404 (no consent yet) and 403 (no permission) from other errors
+      // Log the error for debugging
+      console.error(`Privacy consent fetch error for student ${id}:`, e);
+
+      // Differentiate 404 (no consent yet) from other errors
       if (e instanceof Error) {
-        if (!e.message.includes("(404)") && !e.message.includes("(403)")) {
-          throw e; // system/network error — bubble up
+        if (!e.message.includes("(404)")) {
+          console.warn(`Non-404 error fetching privacy consent for student ${id}, using defaults`);
+          // Don't throw - use defaults instead to prevent breaking the whole request
         }
-      } else {
-        throw e;
       }
-      // For 404 or 403, fall through to defaults below (no consent data available)
+      // Fall through to defaults for any error
     }
-    
+
     return {
       ...mappedStudent,
+      guardians,
       privacy_consent_accepted: false,
       data_retention_days: 30,
     };

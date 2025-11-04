@@ -2,7 +2,6 @@ package users
 
 import (
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -13,16 +12,16 @@ import (
 type StudentGuardian struct {
 	base.Model         `bun:"schema:users,table:students_guardians"`
 	StudentID          int64                  `bun:"student_id,notnull" json:"student_id"`
-	GuardianAccountID  int64                  `bun:"guardian_account_id,notnull" json:"guardian_account_id"`
+	GuardianID         int64                  `bun:"guardian_id,notnull" json:"guardian_id"`
 	RelationshipType   string                 `bun:"relationship_type,notnull" json:"relationship_type"`
 	IsPrimary          bool                   `bun:"is_primary,notnull" json:"is_primary"`
 	IsEmergencyContact bool                   `bun:"is_emergency_contact,notnull" json:"is_emergency_contact"`
 	CanPickup          bool                   `bun:"can_pickup,notnull" json:"can_pickup"`
 	Permissions        map[string]interface{} `bun:"permissions,type:jsonb,nullzero" json:"permissions,omitempty"`
 
-	// Relations not stored in the database
-	Student *Student `bun:"-" json:"student,omitempty"`
-	// GuardianAccount would be a reference to auth.AccountParent
+	// Relations
+	Student  *Student  `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
+	Guardian *Guardian `bun:"rel:belongs-to,join:guardian_id=id" json:"guardian,omitempty"`
 }
 
 func (sg *StudentGuardian) BeforeAppendModel(query any) error {
@@ -49,8 +48,8 @@ func (sg *StudentGuardian) Validate() error {
 		return errors.New("student ID is required")
 	}
 
-	if sg.GuardianAccountID <= 0 {
-		return errors.New("guardian account ID is required")
+	if sg.GuardianID <= 0 {
+		return errors.New("guardian ID is required")
 	}
 
 	// Validate relationship type
@@ -58,20 +57,9 @@ func (sg *StudentGuardian) Validate() error {
 		return errors.New("relationship type is required")
 	}
 
-	// Convert relationship type to lowercase for consistency
-	sg.RelationshipType = strings.ToLower(sg.RelationshipType)
-
-	// Validate against known types
-	validTypes := map[string]bool{
-		"parent":   true,
-		"guardian": true,
-		"relative": true,
-		"other":    true,
-	}
-
-	if !validTypes[sg.RelationshipType] {
-		return errors.New("invalid relationship type")
-	}
+	// Note: We don't validate against a specific list to allow for
+	// localized relationship types (German, etc.) and custom relationships
+	// The relationship type is stored as-is to preserve the original casing
 
 	// Initialize permissions with empty object if nil
 	if sg.Permissions == nil {
@@ -86,6 +74,14 @@ func (sg *StudentGuardian) SetStudent(student *Student) {
 	sg.Student = student
 	if student != nil {
 		sg.StudentID = student.ID
+	}
+}
+
+// SetGuardian links this relationship to a guardian
+func (sg *StudentGuardian) SetGuardian(guardian *Guardian) {
+	sg.Guardian = guardian
+	if guardian != nil {
+		sg.GuardianID = guardian.ID
 	}
 }
 

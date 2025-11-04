@@ -49,8 +49,8 @@ func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 	var students []*users.Student
 	err := r.db.NewSelect().
 		Model(&students).
-		ModelTableExpr("users.students AS student").
-		Where("group_id = ?", groupID).
+		ModelTableExpr(`users.students AS "student"`).
+		Where(`"student".group_id = ?`, groupID).
 		Scan(ctx)
 
 	if err != nil {
@@ -103,6 +103,36 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 	}
 
 	return students, nil
+}
+
+// UpdateLocation updates a student's location status
+func (r *StudentRepository) UpdateLocation(ctx context.Context, id int64, location string) error {
+	// First, get the student
+	student, err := r.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// Update location
+	if err := student.SetLocation(location); err != nil {
+		return err
+	}
+
+	// Save changes
+	_, err = r.db.NewUpdate().
+		Model(student).
+		Column("bus", "in_house", "wc", "school_yard").
+		WherePK().
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update location",
+			Err: err,
+		}
+	}
+
+	return nil
 }
 
 // AssignToGroup assigns a student to a group
@@ -184,15 +214,29 @@ func (r *StudentRepository) List(ctx context.Context, filters map[string]interfa
 				if strValue, ok := value.(string); ok {
 					filter.ILike("school_class", "%"+strValue+"%")
 				}
-			case "guardian_name_like":
-				if strValue, ok := value.(string); ok {
-					filter.ILike("guardian_name", "%"+strValue+"%")
-				}
 			case "has_group":
 				if boolValue, ok := value.(bool); ok && boolValue {
 					filter.IsNotNull("group_id")
 				} else if boolValue, ok := value.(bool); ok && !boolValue {
 					filter.IsNull("group_id")
+				}
+			case "location":
+				if strValue, ok := value.(string); ok {
+					switch strValue {
+					case "bus":
+						filter.Equal("bus", true)
+					case "in_house", "house":
+						filter.Equal("in_house", true)
+					case "wc", "bathroom":
+						filter.Equal("wc", true)
+					case "school_yard", "yard":
+						filter.Equal("school_yard", true)
+					case "unknown", "none", "":
+						filter.Equal("bus", false).
+							Equal("in_house", false).
+							Equal("wc", false).
+							Equal("school_yard", false)
+					}
 				}
 			default:
 				// Default to exact match for other fields
@@ -282,11 +326,15 @@ func (r *StudentRepository) FindWithPerson(ctx context.Context, id int64) (*user
 }
 
 // FindByGuardianEmail finds students with a specific guardian email
+// Now queries through the guardians table and students_guardians join table
 func (r *StudentRepository) FindByGuardianEmail(ctx context.Context, email string) ([]*users.Student, error) {
 	var students []*users.Student
 	err := r.db.NewSelect().
 		Model(&students).
-		Where("LOWER(guardian_email) = LOWER(?)", email).
+		ModelTableExpr(`users.students AS "student"`).
+		Join(`INNER JOIN users.students_guardians AS "sg" ON "sg".student_id = "student".id`).
+		Join(`INNER JOIN users.guardians AS "g" ON "g".id = "sg".guardian_id`).
+		Where("LOWER(g.email) = LOWER(?)", email).
 		Scan(ctx)
 
 	if err != nil {
@@ -300,11 +348,15 @@ func (r *StudentRepository) FindByGuardianEmail(ctx context.Context, email strin
 }
 
 // FindByGuardianPhone finds students with a specific guardian phone
+// Now queries through the guardians table and students_guardians join table
 func (r *StudentRepository) FindByGuardianPhone(ctx context.Context, phone string) ([]*users.Student, error) {
 	var students []*users.Student
 	err := r.db.NewSelect().
 		Model(&students).
-		Where("guardian_phone = ?", phone).
+		ModelTableExpr(`users.students AS "student"`).
+		Join(`INNER JOIN users.students_guardians AS "sg" ON "sg".student_id = "student".id`).
+		Join(`INNER JOIN users.guardians AS "g" ON "g".id = "sg".guardian_id`).
+		Where("g.phone = ?", phone).
 		Scan(ctx)
 
 	if err != nil {
@@ -333,8 +385,8 @@ func (r *StudentRepository) FindByTeacherID(ctx context.Context, teacherID int64
 		// Student columns with proper aliasing
 		ColumnExpr(`"student".id AS "student__id", "student".created_at AS "student__created_at", "student".updated_at AS "student__updated_at"`).
 		ColumnExpr(`"student".person_id AS "student__person_id", "student".school_class AS "student__school_class"`).
-		ColumnExpr(`"student".guardian_name AS "student__guardian_name", "student".guardian_contact AS "student__guardian_contact"`).
-		ColumnExpr(`"student".guardian_email AS "student__guardian_email", "student".guardian_phone AS "student__guardian_phone"`).
+		ColumnExpr(`"student".bus AS "student__bus", "student".in_house AS "student__in_house"`).
+		ColumnExpr(`"student".wc AS "student__wc", "student".school_yard AS "student__school_yard"`).
 		ColumnExpr(`"student".group_id AS "student__group_id"`).
 		// Person columns with proper aliasing
 		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
@@ -388,8 +440,8 @@ func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teach
 		// Student columns with proper aliasing
 		ColumnExpr(`"student".id AS "student__id", "student".created_at AS "student__created_at", "student".updated_at AS "student__updated_at"`).
 		ColumnExpr(`"student".person_id AS "student__person_id", "student".school_class AS "student__school_class"`).
-		ColumnExpr(`"student".guardian_name AS "student__guardian_name", "student".guardian_contact AS "student__guardian_contact"`).
-		ColumnExpr(`"student".guardian_email AS "student__guardian_email", "student".guardian_phone AS "student__guardian_phone"`).
+		ColumnExpr(`"student".bus AS "student__bus", "student".in_house AS "student__in_house"`).
+		ColumnExpr(`"student".wc AS "student__wc", "student".school_yard AS "student__school_yard"`).
 		ColumnExpr(`"student".group_id AS "student__group_id"`).
 		// Person columns with proper aliasing
 		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
