@@ -130,18 +130,23 @@ export const GET = createGetHandler(async (request: NextRequest, token: string):
  * Handler for POST /api/students
  * Creates a new student with associated person record
  */
-// Define type for backend request structure
+// Define type for backend guardian creation
+interface BackendGuardianCreate {
+  first_name: string;
+  last_name: string;
+  email?: string;
+  phone?: string;
+  relationship_type: string;
+}
+
+// Define type for backend student request structure (NEW format)
 interface BackendStudentRequest {
   first_name: string;
   last_name: string;
   school_class: string;
-  guardian_name: string;
-  guardian_contact: string;
-  location?: string;
-  notes?: string;
+  guardian?: BackendGuardianCreate; // NEW: Guardian object for inline creation
+  guardian_id?: number; // Alternative: Link to existing guardian
   tag_id?: string;
-  guardian_email?: string;
-  guardian_phone?: string;
   group_id?: number;
   bus?: boolean;
   extra_info?: string;
@@ -151,70 +156,65 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
   async (_request: NextRequest, body: Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; }, token: string) => {
     // Extract privacy consent fields
     const { privacy_consent_accepted, data_retention_days, ...studentData } = body;
-    
-    // Transform frontend format to backend format
-    const backendData = prepareStudentForBackend(studentData);
-    
-    // Extract guardian email/phone from contact_lg if not provided separately
-    let guardianEmail = body.guardian_email;
-    let guardianPhone = body.guardian_phone;
-    
-    if (!guardianEmail && !guardianPhone && body.contact_lg) {
-      // Parse guardian contact - check if it's an email or phone
-      if (body.contact_lg.includes('@')) {
-        guardianEmail = body.contact_lg;
-      } else {
-        guardianPhone = body.contact_lg;
-      }
-    }
-    
+
     // Validate required fields using frontend field names
     const firstName = body.first_name?.trim();
     const lastName = body.second_name?.trim();
     const schoolClass = body.school_class?.trim();
-    const guardianName = body.name_lg?.trim();
-    const guardianContact = body.contact_lg?.trim();
-    
+
     if (!firstName) {
       throw new Error('First name is required');
     }
-    
+
     if (!lastName) {
       throw new Error('Last name is required');
     }
-    
+
     if (!schoolClass) {
       throw new Error('School class is required');
     }
-    
+
+    // Guardian validation - check if we have guardian data
+    // Guardian can come from legacy fields (name_lg, contact_lg) or new format
+    const guardianName = body.name_lg?.trim();
+
     if (!guardianName) {
       throw new Error('Guardian name is required');
     }
-    
-    if (!guardianContact) {
-      throw new Error('Guardian contact is required');
-    }
-    
-    // Create a properly typed request object using the transformed data
-    const backendRequest: BackendStudentRequest = {
+
+    // Split guardian full name into first and last name
+    const nameParts = guardianName.split(' ');
+    const guardianFirstName = nameParts[0] || '';
+    const guardianLastName = nameParts.slice(1).join(' ') || guardianFirstName; // Use first name as last if no last name
+
+    // Extract guardian contact info - email and phone are now optional
+    const guardianEmail = body.guardian_email?.trim() || undefined;
+    const guardianPhone = body.guardian_phone?.trim() || body.contact_lg?.trim() || undefined;
+
+    // Create guardian object for backend (NEW format)
+    const guardianRequest = {
+      first_name: guardianFirstName,
+      last_name: guardianLastName,
+      email: guardianEmail,
+      phone: guardianPhone,
+      relationship_type: 'parent' // Default relationship type
+    };
+
+    // Create a properly typed request object for the NEW backend API
+    const backendRequest = {
       first_name: firstName,
       last_name: lastName,
       school_class: schoolClass,
-      guardian_name: guardianName,
-      guardian_contact: guardianContact,
-      location: backendData.location ?? "Unknown",
-      notes: undefined, // Not in frontend model
-      tag_id: backendData.tag_id,
-      guardian_email: guardianEmail ?? backendData.guardian_email,
-      guardian_phone: guardianPhone ?? backendData.guardian_phone,
-      group_id: backendData.group_id,
-      bus: backendData.bus,
-      extra_info: backendData.extra_info
+      guardian: guardianRequest, // New guardian object format
+      tag_id: body.studentId?.trim() || undefined,
+      group_id: body.group_id ? parseInt(body.group_id, 10) : undefined,
+      bus: body.bus ?? false,
+      extra_info: studentData.extra_info
     };
-    
+
     try {
-      // Create the student via the simplified API endpoint
-      const rawResponse = await apiPost<{ status: string; data: StudentResponseFromBackend; message: string }>("/api/students", token, backendRequest as StudentResponseFromBackend);
+      // Create the student via the NEW backend API endpoint
+      const rawResponse = await apiPost<{ status: string; data: StudentResponseFromBackend; message: string }>("/api/students", token, backendRequest);
       
       // Extract the student data from the response
       const response = rawResponse.data;

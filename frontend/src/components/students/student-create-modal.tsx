@@ -5,12 +5,15 @@ import { Modal } from "~/components/ui/modal";
 import type { Student } from "@/lib/api";
 
 interface Guardian {
-    id: string;
-    name: string;
-    contact: string;
+    id: number;
+    first_name: string;
+    last_name: string;
     email: string;
     phone: string;
-    relationship: string;
+    relationship_type: string;
+    is_primary: boolean;
+    is_emergency_contact: boolean;
+    can_pickup: boolean;
 }
 
 interface StudentCreateModalProps {
@@ -45,15 +48,17 @@ export function StudentCreateModal({
     const [saveLoading, setSaveLoading] = useState(false);
     const [guardians, setGuardians] = useState<Guardian[]>([
         {
-            id: '1',
-            name: "",
-            contact: "",
+            id: 0,
+            first_name: "",
+            last_name: "",
             email: "",
             phone: "",
-            relationship: "Erziehungsberechtigter"
+            relationship_type: "Erziehungsberechtigte/r",
+            is_primary: true,
+            is_emergency_contact: true,
+            can_pickup: true
         }
     ]);
-    const [additionalInfo, setAdditionalInfo] = useState<string>("");
 
     // Reset form when modal opens/closes
     useEffect(() => {
@@ -73,15 +78,17 @@ export function StudentCreateModal({
             });
             setGuardians([
                 {
-                    id: '1',
-                    name: "",
-                    contact: "",
+                    id: 0,
+                    first_name: "",
+                    last_name: "",
                     email: "",
                     phone: "",
-                    relationship: "Erziehungsberechtigter"
+                    relationship_type: "Erziehungsberechtigte/r",
+                    is_primary: true,
+                    is_emergency_contact: true,
+                    can_pickup: true
                 }
             ]);
-            setAdditionalInfo("");
             setErrors({});
         }
     }, [isOpen]);
@@ -99,10 +106,10 @@ export function StudentCreateModal({
             newErrors.data_retention_days = "Aufbewahrungsdauer muss zwischen 1 und 31 Tagen liegen";
         }
 
-        // Validate at least one guardian with name or contact
-        const hasValidGuardian = guardians.some(g => g.name.trim() || g.contact.trim() || g.email.trim() || g.phone.trim());
+        // Validate at least one guardian with name
+        const hasValidGuardian = guardians.some(g => g.first_name.trim() && g.last_name.trim());
         if (!hasValidGuardian) {
-            newErrors.guardians = "Bitte geben Sie mindestens einen Erziehungsberechtigten mit Kontaktinformationen an";
+            newErrors.guardians = "Bitte geben Sie mindestens einen Erziehungsberechtigten mit Vor- und Nachnamen an";
         }
 
         setErrors(newErrors);
@@ -123,16 +130,10 @@ export function StudentCreateModal({
             const primaryGuardian = guardians[0];
             const updatedFormData = {
                 ...formData,
-                // Map first guardian to legacy fields for backward compatibility
-                name_lg: primaryGuardian?.name ?? "",
-                contact_lg: primaryGuardian?.contact ?? "",
+                // Map first guardian to legacy fields for API route handler
+                name_lg: primaryGuardian ? `${primaryGuardian.first_name} ${primaryGuardian.last_name}`.trim() : "",
                 guardian_email: primaryGuardian?.email ?? "",
                 guardian_phone: primaryGuardian?.phone ?? "",
-                // Store all guardians and additional info in extra_info
-                extra_info: JSON.stringify({
-                    guardians: guardians,
-                    additionalInfo: additionalInfo
-                })
             };
 
             await onCreate(updatedFormData);
@@ -147,25 +148,28 @@ export function StudentCreateModal({
 
     const addGuardian = () => {
         const newGuardian: Guardian = {
-            id: Date.now().toString(),
-            name: "",
-            contact: "",
+            id: 0, // 0 indicates a new guardian not yet saved
+            first_name: "",
+            last_name: "",
             email: "",
             phone: "",
-            relationship: "Erziehungsberechtigter"
+            relationship_type: "Erziehungsberechtigte/r",
+            is_primary: false, // Only first guardian is primary
+            is_emergency_contact: true,
+            can_pickup: true
         };
         setGuardians([...guardians, newGuardian]);
     };
 
-    const removeGuardian = (id: string) => {
+    const removeGuardian = (index: number) => {
         if (guardians.length > 1) {
-            setGuardians(guardians.filter(g => g.id !== id));
+            setGuardians(guardians.filter((_, i) => i !== index));
         }
     };
 
-    const updateGuardian = (id: string, field: keyof Guardian, value: string) => {
-        setGuardians(guardians.map(g =>
-            g.id === id ? { ...g, [field]: value } : g
+    const updateGuardian = (index: number, field: keyof Guardian, value: string | boolean) => {
+        setGuardians(guardians.map((g, i) =>
+            i === index ? { ...g, [field]: value } : g
         ));
         // Clear guardian error when any guardian field is updated
         if (errors.guardians) {
@@ -331,15 +335,15 @@ export function StudentCreateModal({
 
                         <div className="space-y-4">
                             {guardians.map((guardian, index) => (
-                                <div key={guardian.id} className="p-4 bg-white rounded-lg border border-purple-100">
+                                <div key={index} className="p-4 bg-white rounded-lg border border-purple-100">
                                     <div className="flex items-center justify-between mb-3">
                                         <span className="text-xs font-semibold text-purple-700">
-                                            Erziehungsberechtigter {index + 1}
+                                            Erziehungsberechtigter {index + 1} {guardian.is_primary && "(Primär)"}
                                         </span>
                                         {guardians.length > 1 && (
                                             <button
                                                 type="button"
-                                                onClick={() => removeGuardian(guardian.id)}
+                                                onClick={() => removeGuardian(index)}
                                                 className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
                                                 aria-label="Entfernen"
                                             >
@@ -351,24 +355,54 @@ export function StudentCreateModal({
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">Name</label>
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">Vorname</label>
                                             <input
                                                 type="text"
-                                                value={guardian.name}
-                                                onChange={(e) => updateGuardian(guardian.id, "name", e.target.value)}
+                                                value={guardian.first_name}
+                                                onChange={(e) => updateGuardian(index, "first_name", e.target.value)}
                                                 className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors"
-                                                placeholder="Maria Mustermann"
+                                                placeholder="Maria"
                                             />
                                         </div>
                                         <div>
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">Nachname</label>
+                                            <input
+                                                type="text"
+                                                value={guardian.last_name}
+                                                onChange={(e) => updateGuardian(index, "last_name", e.target.value)}
+                                                className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors"
+                                                placeholder="Mustermann"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">E-Mail</label>
+                                            <input
+                                                type="email"
+                                                value={guardian.email}
+                                                onChange={(e) => updateGuardian(index, "email", e.target.value)}
+                                                className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors"
+                                                placeholder="maria@example.com"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">Telefon</label>
+                                            <input
+                                                type="tel"
+                                                value={guardian.phone}
+                                                onChange={(e) => updateGuardian(index, "phone", e.target.value)}
+                                                className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors"
+                                                placeholder="+49 123 456789"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2">
                                             <label className="block text-xs font-medium text-gray-700 mb-1">Verhältnis</label>
                                             <div className="relative">
                                                 <select
-                                                    value={guardian.relationship}
-                                                    onChange={(e) => updateGuardian(guardian.id, "relationship", e.target.value)}
+                                                    value={guardian.relationship_type}
+                                                    onChange={(e) => updateGuardian(index, "relationship_type", e.target.value)}
                                                     className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors appearance-none"
                                                 >
-                                                    <option value="Erziehungsberechtigter">Erziehungsberechtigter</option>
+                                                    <option value="Erziehungsberechtigte/r">Erziehungsberechtigte/r</option>
                                                     <option value="Mutter">Mutter</option>
                                                     <option value="Vater">Vater</option>
                                                     <option value="Großmutter">Großmutter</option>
@@ -384,36 +418,6 @@ export function StudentCreateModal({
                                                     </svg>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">E-Mail</label>
-                                            <input
-                                                type="email"
-                                                value={guardian.email}
-                                                onChange={(e) => updateGuardian(guardian.id, "email", e.target.value)}
-                                                className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors"
-                                                placeholder="maria@example.com"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">Telefon</label>
-                                            <input
-                                                type="tel"
-                                                value={guardian.phone}
-                                                onChange={(e) => updateGuardian(guardian.id, "phone", e.target.value)}
-                                                className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors"
-                                                placeholder="+49 123 456789"
-                                            />
-                                        </div>
-                                        <div className="md:col-span-2">
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">Zusätzliche Kontaktinfo</label>
-                                            <input
-                                                type="text"
-                                                value={guardian.contact}
-                                                onChange={(e) => updateGuardian(guardian.id, "contact", e.target.value)}
-                                                className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors"
-                                                placeholder="Weitere Kontaktinformationen..."
-                                            />
                                         </div>
                                     </div>
                                 </div>
@@ -452,23 +456,6 @@ export function StudentCreateModal({
                             rows={3}
                             className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs md:text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors resize-none"
                             placeholder="Interne Notizen für Betreuer..."
-                        />
-                    </div>
-
-                    {/* Additional Information */}
-                    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
-                        <h3 className="text-xs md:text-sm font-semibold text-gray-900 mb-3 md:mb-4 flex items-center gap-2">
-                            <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            Elternnotizen
-                        </h3>
-                        <textarea
-                            value={additionalInfo}
-                            onChange={(e) => setAdditionalInfo(e.target.value)}
-                            rows={3}
-                            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs md:text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] transition-colors resize-none"
-                            placeholder="Weitere Informationen über den Schüler..."
                         />
                     </div>
 
