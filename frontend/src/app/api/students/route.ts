@@ -130,15 +130,6 @@ export const GET = createGetHandler(async (request: NextRequest, token: string):
  * Handler for POST /api/students
  * Creates a new student with associated person record
  */
-// Define type for backend guardian creation
-interface BackendGuardianCreate {
-  first_name: string;
-  last_name: string;
-  email?: string;
-  phone?: string;
-  relationship_type: string;
-}
-
 export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; }>(
   async (_request: NextRequest, body: Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; }, token: string) => {
     // Extract privacy consent fields
@@ -175,10 +166,11 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
     const guardianLastName = nameParts.slice(1).join(' ') ?? guardianFirstName; // Use first name as last if no last name
 
     // Extract guardian contact info - email and phone are now optional
-    const guardianEmailTrimmed = body.guardian_email?.trim();
-    const guardianEmail = guardianEmailTrimmed ? guardianEmailTrimmed : undefined;
-    const guardianPhoneTrimmed = body.guardian_phone?.trim() ?? body.contact_lg?.trim();
-    const guardianPhone = guardianPhoneTrimmed ? guardianPhoneTrimmed : undefined;
+    // Use || undefined to convert empty strings to undefined (not just null/undefined)
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+    const guardianEmail = body.guardian_email?.trim() || undefined;
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+    const guardianPhone = (body.guardian_phone?.trim() ?? body.contact_lg?.trim()) || undefined;
 
     // Create guardian object for backend (NEW format)
     const guardianRequest = {
@@ -190,13 +182,13 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
     };
 
     // Create a properly typed request object for the NEW backend API
-    const tagIdTrimmed = body.studentId?.trim();
     const backendRequest = {
       first_name: firstName,
       last_name: lastName,
       school_class: schoolClass,
       guardian: guardianRequest, // New guardian object format
-      tag_id: tagIdTrimmed ? tagIdTrimmed : undefined,
+      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+      tag_id: body.studentId?.trim() || undefined,
       group_id: body.group_id ? parseInt(body.group_id, 10) : undefined,
       bus: body.bus ?? false,
       extra_info: studentData.extra_info
