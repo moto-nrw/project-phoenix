@@ -508,18 +508,19 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 
 	responses := make([]StudentResponse, 0, len(students))
 	for _, student := range students {
-		// Person data is eagerly loaded from repository (no N+1 query)
-		if student.Person == nil {
-			// Skip this student if person not loaded
-			log.Printf("Failed to get person data for student %d: person not loaded", student.ID)
+		// Get person data (N+1 query - can be optimized later with batch loading)
+		person, err := rs.UserService.Get(r.Context(), student.PersonID)
+		if err != nil {
+			// Skip this student if person not found
+			log.Printf("Failed to get person data for student %d: %v", student.ID, err)
 			continue
 		}
 
 		response := StudentResponse{
 			ID:          student.ID,
 			PersonID:    student.PersonID,
-			FirstName:   student.Person.FirstName,
-			LastName:    student.Person.LastName,
+			FirstName:   person.FirstName,
+			LastName:    person.LastName,
 			SchoolClass: student.SchoolClass,
 			GroupID:     id,
 			GroupName:   group.Name,
@@ -544,8 +545,8 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 					response.GuardianEmail = *primaryGuardian.Email
 				}
 			}
-			if student.Person.TagID != nil {
-				response.TagID = *student.Person.TagID
+			if person.TagID != nil {
+				response.TagID = *person.TagID
 			}
 
 			// Include location information from active.visits (proper tracking system)

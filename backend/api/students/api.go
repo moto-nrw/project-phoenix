@@ -425,7 +425,8 @@ func newStudentResponse(ctx context.Context, student *users.Student, person *use
 			}
 		} else {
 			// Student is checked in but has no active visit (not in a specific room)
-			// This means they are "Unterwegs" (in transit/between activities)
+			// This is the generic checked-in status - frontend will determine if they are "Unterwegs"
+			// based on room-status API data
 			response.Location = "Anwesend"
 		}
 	} else {

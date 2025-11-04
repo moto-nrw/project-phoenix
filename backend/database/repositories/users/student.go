@@ -44,14 +44,13 @@ func (r *StudentRepository) FindByPersonID(ctx context.Context, personID int64) 
 	return student, nil
 }
 
-// FindByGroupID retrieves students by their group ID with Person relation eagerly loaded
+// FindByGroupID retrieves students by their group ID
 func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*users.Student, error) {
 	var students []*users.Student
 	err := r.db.NewSelect().
 		Model(&students).
-		ModelTableExpr("users.students AS student").
-		Relation("Person").  // Eagerly load Person to avoid N+1 queries
-		Where("group_id = ?", groupID).
+		ModelTableExpr(`users.students AS "student"`).
+		Where(`"student".group_id = ?`, groupID).
 		Scan(ctx)
 
 	if err != nil {

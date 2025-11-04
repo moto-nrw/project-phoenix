@@ -392,9 +392,8 @@ function OGSGroupPageContent() {
   const getLocationStatus = (student: Student) => {
     const studentRoomStatus = roomStatus[student.id.toString()];
 
-    // Check if student is in group room
+    // Check if student is in group room (highest priority - shows actual room name)
     if (studentRoomStatus?.in_group_room) {
-      // Use the actual room name instead of generic "Gruppenraum"
       const roomLabel = currentGroup?.room_name ?? "Gruppenraum";
       return {
         label: roomLabel,
@@ -433,7 +432,7 @@ function OGSGroupPageContent() {
       };
     }
 
-    // Check for in transit/movement
+    // Check for in transit/movement (student is checked in but no room assignment)
     if (
       student.in_house === true ||
       student.current_location === LOCATIONS.BUS

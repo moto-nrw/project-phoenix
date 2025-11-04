@@ -145,7 +145,7 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student & { 
             current_location = backendStudent.location;
         }
     }
-    
+
     const mapped = {
         id: String(backendStudent.id),
         name: name,
@@ -160,10 +160,11 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student & { 
         current_location: current_location,
         takes_bus: undefined, // TODO: Map from backend when available
         // Legacy boolean fields for backward compatibility (derived from attendance status)
+        // in_house: true means student is checked in (used by OGS groups to determine if they should check room status)
         in_house: current_location.startsWith("Anwesend"),
         wc: false, // Deprecated - no longer used
         school_yard: false, // Deprecated - no longer used
-        bus: backendStudent.bus, // Administrative permission flag (Buskind)
+        bus: backendStudent.bus, // Administrative permission flag (Buskind), not a location
         name_lg: backendStudent.guardian_name,
         contact_lg: backendStudent.guardian_contact,
         guardian_email: backendStudent.guardian_email,
