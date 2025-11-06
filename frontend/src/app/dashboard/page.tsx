@@ -86,13 +86,14 @@ interface StatCardProps {
   color: string;
   subtitle?: string;
   loading?: boolean;
+  href?: string;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color, subtitle, loading }) => {
+const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color, subtitle, loading, href }) => {
   const theme = getColorTheme(color);
 
-  return (
-    <div className="relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300">
+  const cardContent = (
+    <div className="relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_40px_rgb(0,0,0,0.14)]">
       <div className={`absolute inset-0 bg-gradient-to-br ${theme.overlay} opacity-[0.03] rounded-3xl pointer-events-none`}></div>
       <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20 pointer-events-none"></div>
       <div className={`absolute inset-0 rounded-3xl ring-1 ring-white/20 ${theme.ring} pointer-events-none`}></div>
@@ -116,6 +117,19 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color, subtitle
       </div>
     </div>
   );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white rounded-3xl"
+      >
+        {cardContent}
+      </Link>
+    );
+  }
+
+  return cardContent;
 };
 
 // Info Card Component for lists
@@ -127,35 +141,50 @@ interface InfoCardProps {
   linkText?: string;
 }
 
-const InfoCard: React.FC<InfoCardProps> = ({ title, children, icon, href, linkText = "Alle" }) => (
-  <div className="relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-    <div className="absolute inset-0 bg-gradient-to-br from-gray-50/80 to-slate-100/80 opacity-[0.03] rounded-3xl pointer-events-none"></div>
-    <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20 pointer-events-none"></div>
-    <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 pointer-events-none"></div>
+const InfoCard: React.FC<InfoCardProps> = ({ title, children, icon, href, linkText }) => {
+  const cardContent = (
+    <div className="relative overflow-hidden rounded-3xl bg-white/90 backdrop-blur-md border border-gray-100/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_40px_rgb(0,0,0,0.14)]">
+      <div className="absolute inset-0 bg-gradient-to-br from-gray-50/80 to-slate-100/80 opacity-[0.03] rounded-3xl pointer-events-none"></div>
+      <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20 pointer-events-none"></div>
+      <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 pointer-events-none"></div>
 
-    <div className="relative p-4 md:p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          {icon && (
-            <div className="rounded-xl bg-gray-100 p-2">
-              <Icon path={icon} className="h-4 w-4 md:h-5 md:w-5 text-gray-600" />
-            </div>
-          )}
-          <h3 className="text-base md:text-lg font-semibold text-gray-900">{title}</h3>
+      <div className="relative p-4 md:p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            {icon && (
+              <div className="rounded-xl bg-gray-100 p-2">
+                <Icon path={icon} className="h-4 w-4 md:h-5 md:w-5 text-gray-600" />
+              </div>
+            )}
+            <h3 className="text-base md:text-lg font-semibold text-gray-900">{title}</h3>
+          </div>
+          {href ? (
+            <span className="flex items-center gap-1 text-xs md:text-sm text-gray-600 group-hover:text-gray-900 font-medium transition-colors">
+              {linkText ? <span>{linkText}</span> : null}
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </span>
+          ) : null}
         </div>
-        {href && (
-          <Link href={href} className="flex items-center gap-1 text-xs md:text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors">
-            <span>{linkText}</span>
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-          </Link>
-        )}
+        {children}
       </div>
-      {children}
     </div>
-  </div>
-);
+  );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white rounded-3xl"
+      >
+        {cardContent}
+      </Link>
+    );
+  }
+
+  return cardContent;
+};
 
 function DashboardContent() {
   const router = useRouter();
@@ -270,6 +299,7 @@ function DashboardContent() {
             icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
             color="from-[#5080D8] to-[#4070c8]"
             loading={isLoading}
+            href="/students/search"
           />
           <StatCard
             title="In Räumen"
@@ -277,25 +307,8 @@ function DashboardContent() {
             icon="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
             color="from-indigo-500 to-indigo-600"
             loading={isLoading}
+            href="/students/search"
           />
-          <StatCard
-            title="Aktive Gruppen"
-            value={dashboardData?.activeOGSGroups ?? 0}
-            icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-            color="from-[#83CD2D] to-[#70b525]"
-            loading={isLoading}
-          />
-          <StatCard
-            title="Aktivitäten"
-            value={dashboardData?.activeActivities ?? 0}
-            icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-            color="from-[#FF3130] to-[#e02020]"
-            loading={isLoading}
-          />
-        </div>
-
-        {/* Secondary Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
           <StatCard
             title="Unterwegs"
             value={dashboardData?.studentsInTransit ?? 0}
@@ -303,6 +316,7 @@ function DashboardContent() {
             color="from-orange-500 to-orange-600"
             subtitle="zwischen Räumen"
             loading={isLoading}
+            href="/students/search"
           />
           <StatCard
             title="Schulhof"
@@ -311,6 +325,27 @@ function DashboardContent() {
             color="from-yellow-400 to-yellow-500"
             subtitle="im Freien"
             loading={isLoading}
+            href="/students/search"
+          />
+        </div>
+
+        {/* Secondary Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
+          <StatCard
+            title="Aktive Gruppen"
+            value={dashboardData?.activeOGSGroups ?? 0}
+            icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+            color="from-[#83CD2D] to-[#70b525]"
+            loading={isLoading}
+            href="/ogs_groups"
+          />
+          <StatCard
+            title="Aktive Aktivitäten"
+            value={dashboardData?.activeActivities ?? 0}
+            icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+            color="from-[#FF3130] to-[#e02020]"
+            loading={isLoading}
+            href="/activities"
           />
           <StatCard
             title="Freie Räume"
@@ -319,6 +354,7 @@ function DashboardContent() {
             color="from-emerald-500 to-green-600"
             subtitle="verfügbar"
             loading={isLoading}
+            href="/rooms"
           />
           <StatCard
             title="Auslastung"
@@ -375,7 +411,6 @@ function DashboardContent() {
             title="Laufende Aktivitäten"
             icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
             href="/activities"
-            linkText="Meine"
           >
             {isLoading ? (
               <div className="space-y-3">
@@ -407,7 +442,6 @@ function DashboardContent() {
             title="Aktive Gruppen"
             icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
             href="/ogs_groups"
-            linkText="Meine"
           >
             {isLoading ? (
               <div className="space-y-3">
