@@ -152,16 +152,16 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
       const normalizedBody: StaffUpdateRequest = {
         ...body,
         specialization: body.specialization !== undefined
-          ? (trimmedSpecialization === "" ? undefined : trimmedSpecialization)
+          ? (trimmedSpecialization === "" ? "" : trimmedSpecialization)
           : undefined,
         role: body.role !== undefined
-          ? (trimmedRole === "" ? undefined : trimmedRole)
+          ? (trimmedRole === "" ? "" : trimmedRole)
           : undefined,
         qualifications: body.qualifications !== undefined
-          ? (trimmedQualifications === "" ? undefined : trimmedQualifications)
+          ? (trimmedQualifications === "" ? "" : trimmedQualifications)
           : undefined,
         staff_notes: body.staff_notes !== undefined
-          ? (trimmedNotes === "" ? undefined : trimmedNotes)
+          ? (trimmedNotes === "" ? "" : trimmedNotes)
           : undefined,
       };
 

@@ -160,33 +160,48 @@ export function TeacherDetailModal({
                         </div>
 
                         {/* Professional Information */}
-                        {(teacher.role?.trim() || teacher.qualifications?.trim()) && (
-                            <div className="rounded-xl border border-gray-100 bg-orange-50/30 p-3 md:p-4">
-                                <h3 className="text-xs md:text-sm font-semibold text-gray-900 mb-2 md:mb-3 flex items-center gap-2">
-                                    <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                    </svg>
-                                    Berufliche Informationen
-                                </h3>
-                                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 md:gap-x-4 gap-y-2 md:gap-y-3">
-                                    {teacher.role?.trim() && (
-                                        <div>
-                                            <dt className="text-xs text-gray-500">Rolle</dt>
-                                            <dd className="text-sm font-medium text-gray-900 mt-0.5 break-words">{teacher.role.trim()}</dd>
-                                        </div>
-                                    )}
-                                    {teacher.qualifications?.trim() && (
-                                        <div className="col-span-1 sm:col-span-2">
-                                            <dt className="text-xs text-gray-500">Qualifikationen</dt>
-                                            <dd className="text-xs md:text-sm text-gray-700 mt-0.5 whitespace-pre-wrap break-words">{teacher.qualifications.trim()}</dd>
-                                        </div>
-                                    )}
-                                </dl>
-                            </div>
-                        )}
+                        {(() => {
+                            const trimmedRole = teacher.role?.trim() ?? "";
+                            const trimmedQualifications = teacher.qualifications?.trim() ?? "";
+                            const hasProfessionalInfo = [trimmedRole, trimmedQualifications].some((value) => value.length > 0);
+
+                            if (!hasProfessionalInfo) {
+                                return null;
+                            }
+
+                            return (
+                                <div className="rounded-xl border border-gray-100 bg-orange-50/30 p-3 md:p-4">
+                                    <h3 className="text-xs md:text-sm font-semibold text-gray-900 mb-2 md:mb-3 flex items-center gap-2">
+                                        <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
+                                        Berufliche Informationen
+                                    </h3>
+                                    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 md:gap-x-4 gap-y-2 md:gap-y-3">
+                                        {trimmedRole && (
+                                            <div>
+                                                <dt className="text-xs text-gray-500">Rolle</dt>
+                                                <dd className="text-sm font-medium text-gray-900 mt-0.5 break-words">{trimmedRole}</dd>
+                                            </div>
+                                        )}
+                                        {trimmedQualifications && (
+                                            <div className="col-span-1 sm:col-span-2">
+                                                <dt className="text-xs text-gray-500">Qualifikationen</dt>
+                                                <dd className="text-xs md:text-sm text-gray-700 mt-0.5 whitespace-pre-wrap break-words">{trimmedQualifications}</dd>
+                                            </div>
+                                        )}
+                                    </dl>
+                                </div>
+                            );
+                        })()}
 
                         {/* Staff Notes */}
-                        {teacher.staff_notes?.trim() && (
+                        {(() => {
+                            const trimmedNotes = teacher.staff_notes?.trim() ?? "";
+                            if (trimmedNotes.length === 0) {
+                                return null;
+                            }
+                            return (
                             <div className="rounded-xl border border-gray-100 bg-orange-50/30 p-3 md:p-4">
                                 <h3 className="text-xs md:text-sm font-semibold text-gray-900 mb-2 md:mb-3 flex items-center gap-2">
                                     <svg className="h-3.5 w-3.5 md:h-4 md:w-4 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -194,9 +209,10 @@ export function TeacherDetailModal({
                                     </svg>
                                     Notizen
                                 </h3>
-                                <p className="text-xs md:text-sm text-gray-700 whitespace-pre-wrap break-words">{teacher.staff_notes.trim()}</p>
+                                <p className="text-xs md:text-sm text-gray-700 whitespace-pre-wrap break-words">{trimmedNotes}</p>
                             </div>
-                        )}
+                            );
+                        })()}
 
                         {/* Timestamps */}
                         {(teacher.created_at ?? teacher.updated_at) && (
