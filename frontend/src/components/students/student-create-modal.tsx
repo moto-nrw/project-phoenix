@@ -150,7 +150,7 @@ export function StudentCreateModal({
 
     const addGuardian = () => {
         const newGuardian: Guardian = {
-            id: 0, // 0 indicates a new guardian not yet saved
+            id: 0, // Note: Multiple guardians are not yet supported by the backend; 'id' is for future use when backend support is added
             first_name: "",
             last_name: "",
             email: "",
