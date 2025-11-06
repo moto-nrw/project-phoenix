@@ -163,7 +163,7 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
     // Split guardian full name into first and last name
     const nameParts = guardianName.split(' ');
     const guardianFirstName = nameParts[0] ?? '';
-    const guardianLastName = nameParts.slice(1).join(' ') ?? guardianFirstName; // Use first name as last if no last name
+    const guardianLastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : guardianFirstName; // Use first name as last if no last name
 
     // Extract guardian contact info - email and phone are now optional
     // Use || undefined to convert empty strings to undefined (not just null/undefined)
