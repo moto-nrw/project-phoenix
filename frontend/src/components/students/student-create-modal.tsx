@@ -130,10 +130,12 @@ export function StudentCreateModal({
             const primaryGuardian = guardians[0];
             const updatedFormData = {
                 ...formData,
-                // Map first guardian to legacy fields for API route handler
-                name_lg: primaryGuardian ? [primaryGuardian.first_name, primaryGuardian.last_name].filter(Boolean).join(' ') : "",
+                // Map first guardian to legacy fields for API route handler (for backward compatibility)
+                name_lg: primaryGuardian ? `${primaryGuardian.first_name} ${primaryGuardian.last_name}`.trim() : "",
                 guardian_email: primaryGuardian?.email ?? "",
                 guardian_phone: primaryGuardian?.phone ?? "",
+                // Include all guardians with their metadata
+                guardians: guardians,
             };
 
             await onCreate(updatedFormData);
