@@ -130,10 +130,30 @@ export const GET = createGetHandler(async (request: NextRequest, token: string):
  * Handler for POST /api/students
  * Creates a new student with associated person record
  */
-export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; }>(
-  async (_request: NextRequest, body: Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; }, token: string) => {
-    // Extract privacy consent fields
-    const { privacy_consent_accepted, data_retention_days, ...studentData } = body;
+export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; guardians?: Array<{
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  relationship_type: string;
+  is_primary: boolean;
+  is_emergency_contact: boolean;
+  can_pickup: boolean;
+}>; }>(
+  async (_request: NextRequest, body: Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; guardians?: Array<{
+    id: number;
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+    relationship_type: string;
+    is_primary: boolean;
+    is_emergency_contact: boolean;
+    can_pickup: boolean;
+  }>; }, token: string) => {
+    // Extract privacy consent fields and guardians array
+    const { privacy_consent_accepted, data_retention_days, guardians, ...studentData } = body;
 
     // Validate required fields using frontend field names
     const firstName = body.first_name?.trim();
@@ -152,33 +172,55 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
       throw new Error('School class is required');
     }
 
-    // Guardian validation - check if we have guardian data
-    // Guardian can come from legacy fields (name_lg, contact_lg) or new format
-    const guardianName = body.name_lg?.trim();
+    // Guardian validation - use guardians array or fall back to legacy fields
+    const guardiansArray = guardians && guardians.length > 0 ? guardians : [];
 
-    if (!guardianName) {
-      throw new Error('Guardian name is required');
+    // If no guardians array, fall back to legacy name_lg field
+    if (guardiansArray.length === 0) {
+      const guardianName = body.name_lg?.trim();
+      if (!guardianName) {
+        throw new Error('At least one guardian is required');
+      }
+
+      // Split guardian full name into first and last name
+      const nameParts = guardianName.split(' ');
+      const guardianFirstName = nameParts[0] ?? '';
+      const guardianLastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : guardianFirstName;
+
+      // Extract guardian contact info - email and phone are now optional
+      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+      const guardianEmail = body.guardian_email?.trim() || undefined;
+      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+      const guardianPhone = (body.guardian_phone?.trim() ?? body.contact_lg?.trim()) || undefined;
+
+      guardiansArray.push({
+        id: 0,
+        first_name: guardianFirstName,
+        last_name: guardianLastName,
+        email: guardianEmail ?? '',
+        phone: guardianPhone ?? '',
+        relationship_type: 'parent',
+        is_primary: true,
+        is_emergency_contact: true,
+        can_pickup: true
+      });
     }
 
-    // Split guardian full name into first and last name
-    const nameParts = guardianName.split(' ');
-    const guardianFirstName = nameParts[0] ?? '';
-    const guardianLastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : guardianFirstName; // Use first name as last if no last name
+    // Filter out guardians with empty names
+    const validGuardians = guardiansArray.filter(g => g.first_name.trim() && g.last_name.trim());
 
-    // Extract guardian contact info - email and phone are now optional
-    // Use || undefined to convert empty strings to undefined (not just null/undefined)
-    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-    const guardianEmail = body.guardian_email?.trim() || undefined;
-    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-    const guardianPhone = (body.guardian_phone?.trim() ?? body.contact_lg?.trim()) || undefined;
+    if (validGuardians.length === 0) {
+      throw new Error('At least one guardian with name is required');
+    }
 
-    // Create guardian object for backend (NEW format)
+    // First guardian (primary) will be created with the student
+    const primaryGuardian = validGuardians[0]!; // Non-null assertion safe because we validated length > 0
     const guardianRequest = {
-      first_name: guardianFirstName,
-      last_name: guardianLastName,
-      email: guardianEmail,
-      phone: guardianPhone,
-      relationship_type: 'parent' // Default relationship type
+      first_name: primaryGuardian.first_name.trim(),
+      last_name: primaryGuardian.last_name.trim(),
+      email: primaryGuardian.email.trim() || undefined,
+      phone: primaryGuardian.phone.trim() || undefined,
+      relationship_type: primaryGuardian.relationship_type || 'parent'
     };
 
     // Create a properly typed request object for the NEW backend API
@@ -186,7 +228,7 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
       first_name: firstName,
       last_name: lastName,
       school_class: schoolClass,
-      guardian: guardianRequest, // New guardian object format
+      guardian: guardianRequest, // New guardian object format (only first guardian)
       // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
       tag_id: body.studentId?.trim() || undefined,
       group_id: body.group_id ? parseInt(body.group_id, 10) : undefined,
@@ -195,12 +237,43 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
     };
 
     try {
-      // Create the student via the NEW backend API endpoint
+      // Create the student with the first (primary) guardian
       const rawResponse = await apiPost<{ status: string; data: StudentResponseFromBackend; message: string }>("/api/students", token, backendRequest);
-      
+
       // Extract the student data from the response
       const response = rawResponse.data;
-      
+
+      if (!response?.id) {
+        throw new Error('Failed to create student - no ID returned');
+      }
+
+      // Create additional guardians (if any) via the guardian endpoint
+      if (validGuardians.length > 1) {
+        for (let i = 1; i < validGuardians.length; i++) {
+          const additionalGuardian = validGuardians[i]!; // Non-null assertion safe because loop is within bounds
+          try {
+            await apiPost(
+              `/api/students/${response.id}/guardians`,
+              token,
+              {
+                first_name: additionalGuardian.first_name.trim(),
+                last_name: additionalGuardian.last_name.trim(),
+                email: additionalGuardian.email.trim() || undefined,
+                phone: additionalGuardian.phone.trim() || undefined,
+                relationship_type: additionalGuardian.relationship_type || 'parent',
+                is_primary: false, // Only first guardian is primary
+                is_emergency_contact: additionalGuardian.is_emergency_contact,
+                can_pickup: additionalGuardian.can_pickup
+              }
+            );
+          } catch (guardianError) {
+            console.error(`Error creating additional guardian ${i}:`, guardianError);
+            // Continue with other guardians even if one fails
+            // The student is already created, so we don't want to roll back everything
+          }
+        }
+      }
+
       // Handle privacy consent if provided
       if ((privacy_consent_accepted !== undefined || data_retention_days !== undefined) && response?.id) {
         try {
@@ -220,7 +293,7 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
           throw new Error("Datenschutzeinwilligung konnte nicht erstellt werden. Vorgang abgebrochen.");
         }
       }
-      
+
       // Map the backend response to frontend format using the consistent mapping function
       return mapStudentResponse(response);
     } catch (error) {
@@ -229,12 +302,12 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
         console.error("Permission denied when creating student:", error);
         throw new Error("Permission denied: You need the 'users:create' permission to create students.");
       }
-      
-      // Check for validation errors 
+
+      // Check for validation errors
       if (error instanceof Error && error.message.includes("400")) {
         const errorMessage = error.message;
         console.error("Validation error when creating student:", errorMessage);
-        
+
         // Extract specific error message if possible
         if (errorMessage.includes("first name is required")) {
           throw new Error("First name is required");
@@ -249,7 +322,7 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
           throw new Error("Guardian contact is required");
         }
       }
-      
+
       // Re-throw other errors
       throw error;
     }
