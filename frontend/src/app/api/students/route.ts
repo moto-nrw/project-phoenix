@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { apiGet, apiPost, apiPut, apiDelete } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 import type { Student } from "~/lib/student-helpers";
-import { mapStudentResponse } from "~/lib/student-helpers";
+import { mapStudentResponse, prepareStudentForBackend } from "~/lib/student-helpers";
 
 /**
  * Type definition for student response from backend
