@@ -131,7 +131,7 @@ export function StudentCreateModal({
             const updatedFormData = {
                 ...formData,
                 // Map first guardian to legacy fields for API route handler
-                name_lg: primaryGuardian ? `${primaryGuardian.first_name} ${primaryGuardian.last_name}`.trim() : "",
+                name_lg: primaryGuardian ? [primaryGuardian.first_name, primaryGuardian.last_name].filter(Boolean).join(' ') : "",
                 guardian_email: primaryGuardian?.email ?? "",
                 guardian_phone: primaryGuardian?.phone ?? "",
             };
