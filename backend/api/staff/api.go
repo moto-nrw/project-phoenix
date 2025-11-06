@@ -107,7 +107,7 @@ type StaffResponse struct {
 type TeacherResponse struct {
 	StaffResponse
 	TeacherID      int64  `json:"teacher_id"`
-	Specialization string `json:"specialization"`
+	Specialization string `json:"specialization,omitempty"`
 	Role           string `json:"role,omitempty"`
 	Qualifications string `json:"qualifications,omitempty"`
 }
@@ -147,10 +147,9 @@ func (req *StaffRequest) Bind(r *http.Request) error {
 		return errors.New("person ID is required")
 	}
 
-	// If creating a teacher, specialization is required
-	if req.IsTeacher && req.Specialization == "" {
-		return errors.New("specialization is required for teachers")
-	}
+	req.Specialization = strings.TrimSpace(req.Specialization)
+	req.Role = strings.TrimSpace(req.Role)
+	req.Qualifications = strings.TrimSpace(req.Qualifications)
 
 	return nil
 }
@@ -227,7 +226,7 @@ func newTeacherResponse(staff *users.Staff, teacher *users.Teacher) TeacherRespo
 	response := TeacherResponse{
 		StaffResponse:  staffResponse,
 		TeacherID:      teacher.ID,
-		Specialization: teacher.Specialization,
+		Specialization: strings.TrimSpace(teacher.Specialization),
 		Role:           teacher.Role,
 		Qualifications: teacher.Qualifications,
 	}
@@ -407,7 +406,7 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	if isTeacher {
 		teacher = &users.Teacher{
 			StaffID:        staff.ID,
-			Specialization: req.Specialization,
+			Specialization: strings.TrimSpace(req.Specialization),
 			Role:           req.Role,
 			Qualifications: req.Qualifications,
 		}
@@ -514,7 +513,7 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	if req.IsTeacher {
 		if teacher != nil {
 			// Update existing teacher record
-			teacher.Specialization = req.Specialization
+			teacher.Specialization = strings.TrimSpace(req.Specialization)
 			teacher.Role = req.Role
 			teacher.Qualifications = req.Qualifications
 
@@ -528,7 +527,7 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 			// Create new teacher record
 			teacher = &users.Teacher{
 				StaffID:        staff.ID,
-				Specialization: req.Specialization,
+				Specialization: strings.TrimSpace(req.Specialization),
 				Role:           req.Role,
 				Qualifications: req.Qualifications,
 			}

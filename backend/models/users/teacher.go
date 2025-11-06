@@ -13,7 +13,7 @@ import (
 type Teacher struct {
 	base.Model     `bun:"schema:users,table:teachers"`
 	StaffID        int64  `bun:"staff_id,notnull,unique" json:"staff_id"`
-	Specialization string `bun:"specialization,notnull" json:"specialization"`
+	Specialization string `bun:"specialization,nullzero" json:"specialization,omitempty"`
 	Role           string `bun:"role" json:"role,omitempty"`
 	Qualifications string `bun:"qualifications" json:"qualifications,omitempty"`
 
@@ -46,11 +46,7 @@ func (t *Teacher) Validate() error {
 		return errors.New("staff ID is required")
 	}
 
-	if t.Specialization == "" {
-		return errors.New("specialization is required")
-	}
-
-	// Trim spaces from specialization
+	// Normalize specialization whitespace; empty string will be stored as NULL via nullzero tag
 	t.Specialization = strings.TrimSpace(t.Specialization)
 
 	// Trim spaces from role if provided

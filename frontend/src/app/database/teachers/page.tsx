@@ -115,7 +115,7 @@ export default function TeachersPage() {
                 (teacher.first_name?.toLowerCase().includes(searchLower) ?? false) ||
                 (teacher.last_name?.toLowerCase().includes(searchLower) ?? false) ||
                 (teacher.name?.toLowerCase().includes(searchLower) ?? false) ||
-                (teacher.specialization?.toLowerCase().includes(searchLower) ?? false) ||
+                (teacher.role?.toLowerCase().includes(searchLower) ?? false) ||
                 (teacher.email?.toLowerCase().includes(searchLower) ?? false)
             );
         }
@@ -377,9 +377,9 @@ export default function TeachersPage() {
                                             </h3>
                                             <div className="flex items-center gap-2 mt-1 flex-wrap">
                                                 {/* Specialization Badge */}
-                                                {teacher.specialization && (
+                                                {teacher.role && (
                                                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                                        {teacher.specialization}
+                                                        {teacher.role}
                                                     </span>
                                                 )}
                                             </div>

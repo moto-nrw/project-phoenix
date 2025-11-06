@@ -52,7 +52,7 @@ export interface BackendStaffWithSubstitutionStatus {
     substitution?: BackendSubstitution;
     // Teacher fields
     teacher_id?: number;
-    specialization?: string;
+    specialization?: string | null;
     role?: string;
     qualifications?: string;
 }
@@ -110,7 +110,7 @@ export function mapTeacherAvailabilityResponse(backend: BackendStaffWithSubstitu
         inSubstitution: backend.is_substituting,
         currentGroup: backend.current_group?.name,
         teacherId: backend.teacher_id ? String(backend.teacher_id) : undefined,
-        specialization: backend.specialization,
+        specialization: backend.specialization ?? undefined,
     };
 }
 

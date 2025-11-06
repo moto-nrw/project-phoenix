@@ -10,7 +10,7 @@ export interface Teacher {
     first_name: string;
     last_name: string;
     email?: string;  // Email address for authentication
-    specialization: string;
+    specialization?: string | null;
     role?: string | null;
     qualifications?: string | null;
     tag_id?: string | null;
@@ -229,13 +229,21 @@ class TeacherService {
             }
 
             // Then create staff with is_teacher flag
+            const normalizedSpecialization = teacherData.specialization?.trim();
+            const safeSpecialization = normalizedSpecialization && normalizedSpecialization.length > 0
+                ? normalizedSpecialization
+                : undefined;
+
+            const staffNotes = teacherData.staff_notes?.trim();
+            const trimmedRole = teacherData.role?.trim();
+            const trimmedQualifications = teacherData.qualifications?.trim();
             const staffRequestData = {
                 person_id: personId,
-                staff_notes: teacherData.staff_notes ?? null,
+                staff_notes: staffNotes && staffNotes.length > 0 ? staffNotes : undefined,
                 is_teacher: true,
-                specialization: teacherData.specialization,
-                role: teacherData.role ?? null,
-                qualifications: teacherData.qualifications ?? null,
+                specialization: safeSpecialization,
+                role: trimmedRole && trimmedRole.length > 0 ? trimmedRole : undefined,
+                qualifications: trimmedQualifications && trimmedQualifications.length > 0 ? trimmedQualifications : undefined,
             };
 
             const response = await fetch("/api/staff", {
@@ -253,7 +261,8 @@ class TeacherService {
             });
 
             if (!response.ok) {
-                throw new Error(`Failed to create teacher: ${response.statusText}`);
+                const errorText = await response.text().catch(() => "");
+                throw new Error(`Failed to create teacher: ${response.statusText}${errorText ? ` - ${errorText}` : ""}`);
             }
 
             const responseData = await response.json() as {
@@ -364,13 +373,23 @@ class TeacherService {
             }
             
             // Then update the staff record with staff-specific fields
+            const normalizedSpecialization = teacherData.specialization !== undefined
+                ? teacherData.specialization?.trim()
+                : undefined;
+            const safeSpecialization = normalizedSpecialization && normalizedSpecialization.length > 0
+                ? normalizedSpecialization
+                : undefined;
+
+            const staffNotes = teacherData.staff_notes?.trim();
+            const trimmedRole = teacherData.role?.trim();
+            const trimmedQualifications = teacherData.qualifications?.trim();
             const staffData = {
                 person_id: currentTeacher.person_id, // Include person_id as required by backend
                 is_teacher: true,
-                specialization: teacherData.specialization,
-                role: teacherData.role,
-                qualifications: teacherData.qualifications,
-                staff_notes: teacherData.staff_notes,
+                specialization: safeSpecialization,
+                role: trimmedRole && trimmedRole.length > 0 ? trimmedRole : undefined,
+                qualifications: trimmedQualifications && trimmedQualifications.length > 0 ? trimmedQualifications : undefined,
+                staff_notes: staffNotes && staffNotes.length > 0 ? staffNotes : undefined,
             };
             
             const response = await fetch(`/api/staff/${id}`, {
@@ -388,7 +407,8 @@ class TeacherService {
             });
 
             if (!response.ok) {
-                throw new Error(`Failed to update teacher: ${response.statusText}`);
+                const errorText = await response.text().catch(() => "");
+                throw new Error(`Failed to update teacher: ${response.statusText}${errorText ? ` - ${errorText}` : ""}`);
             }
 
             const data = await response.json() as Teacher;

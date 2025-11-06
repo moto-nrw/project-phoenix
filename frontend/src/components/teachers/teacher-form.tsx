@@ -32,13 +32,7 @@ export function TeacherForm({
     const [email, setEmail] = useState(initialData.email ?? "");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
-    const [specialization, setSpecialization] = useState(
-        initialData.specialization ?? ""
-    );
     const [role, setRole] = useState(initialData.role ?? "");
-    const [qualifications, setQualifications] = useState(
-        initialData.qualifications ?? ""
-    );
     const [tagId, setTagId] = useState(initialData.tag_id ?? "");
     const [staffNotes, setStaffNotes] = useState(initialData.staff_notes ?? "");
 
@@ -59,9 +53,7 @@ export function TeacherForm({
             setFirstName(initialData.first_name ?? "");
             setLastName(initialData.last_name ?? "");
             setEmail(initialData.email ?? "");
-            setSpecialization(initialData.specialization ?? "");
             setRole(initialData.role ?? "");
-            setQualifications(initialData.qualifications ?? "");
             setTagId(initialData.tag_id ?? "");
             setStaffNotes(initialData.staff_notes ?? "");
             // Reset password fields
@@ -116,10 +108,6 @@ export function TeacherForm({
             }
         }
 
-        if (!specialization.trim()) {
-            newErrors.specialization = "Fachgebiet ist erforderlich";
-        }
-
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -140,9 +128,7 @@ export function TeacherForm({
                 first_name: firstName.trim(),
                 last_name: lastName.trim(),
                 email: email.trim() || undefined,
-                specialization: specialization.trim(),
                 role: role.trim() || null,
-                qualifications: qualifications.trim() || null,  
                 tag_id: tagId || null, // Use the TagID directly
                 staff_notes: staffNotes.trim() || null,
                 // Preserve existing IDs when editing
@@ -352,29 +338,6 @@ export function TeacherForm({
                         Berufliche Informationen
                     </h4>
                     <div className="grid grid-cols-1 gap-3 md:gap-4 md:grid-cols-2">
-                        {/* Specialization */}
-                        <div>
-                            <label
-                                htmlFor="specialization"
-                                className="mb-1 block text-xs font-medium text-gray-700"
-                            >
-                                Fachgebiet <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                id="specialization"
-                                value={specialization}
-                                onChange={(e) => setSpecialization(e.target.value)}
-                                className={`w-full rounded-lg border ${
-                                    errors.specialization ? "border-red-300 bg-red-50" : "border-gray-200 bg-white focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
-                                } px-3 py-2 text-sm transition-colors`}
-                                disabled={isLoading}
-                            />
-                            {errors.specialization && (
-                                <p className="mt-1 text-xs text-red-600">{errors.specialization}</p>
-                            )}
-                        </div>
-
                         {/* Role */}
                         <div>
                             <label
@@ -393,23 +356,6 @@ export function TeacherForm({
                             />
                         </div>
 
-                        {/* Qualifications */}
-                        <div className="md:col-span-2">
-                            <label
-                                htmlFor="qualifications"
-                                className="mb-1 block text-xs font-medium text-gray-700"
-                            >
-                                Qualifikationen
-                            </label>
-                            <input
-                                type="text"
-                                id="qualifications"
-                                value={qualifications}
-                                onChange={(e) => setQualifications(e.target.value)}
-                                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10] transition-colors"
-                                disabled={isLoading}
-                            />
-                        </div>
                     </div>
                 </div>
 
@@ -428,7 +374,7 @@ export function TeacherForm({
                         rows={3}
                         className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs md:text-sm focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10] transition-colors resize-none"
                         disabled={isLoading}
-                        placeholder="Interne Notizen zur Lehrkraft..."
+                        placeholder="Interne Notizen zum Betreuer..."
                     />
                 </div>
 

@@ -34,9 +34,9 @@ interface BackendStaffResponse {
  */
 interface StaffUpdateRequest {
   person_id?: number;
-  staff_notes?: string;
+  staff_notes?: string | null;
   is_teacher?: boolean;
-  specialization?: string;
+  specialization?: string | null;
   role?: string;
   qualifications?: string;
 }
@@ -109,7 +109,7 @@ interface TeacherResponse {
   first_name: string;
   last_name: string;
   email?: string;
-  specialization: string;
+  specialization?: string | null;
   role: string | null;
   qualifications: string | null;
   tag_id: string | null;
@@ -143,15 +143,30 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
     if (!id) {
       throw new Error('Staff ID is required');
     }
-    
-    // If updating a teacher, specialization is required
-    if (body.is_teacher && (!body.specialization || body.specialization.trim() === '')) {
-      throw new Error('Specialization is required for teachers');
-    }
-    
     try {
+      const trimmedNotes = body.staff_notes?.trim();
+      const trimmedSpecialization = body.specialization?.trim();
+      const trimmedRole = body.role?.trim();
+      const trimmedQualifications = body.qualifications?.trim();
+
+      const normalizedBody: StaffUpdateRequest = {
+        ...body,
+        specialization: body.specialization !== undefined
+          ? (trimmedSpecialization === "" ? undefined : trimmedSpecialization)
+          : undefined,
+        role: body.role !== undefined
+          ? (trimmedRole === "" ? undefined : trimmedRole)
+          : undefined,
+        qualifications: body.qualifications !== undefined
+          ? (trimmedQualifications === "" ? undefined : trimmedQualifications)
+          : undefined,
+        staff_notes: body.staff_notes !== undefined
+          ? (trimmedNotes === "" ? undefined : trimmedNotes)
+          : undefined,
+      };
+
       // Update the staff member via the API
-      const response = await apiPut<BackendStaffResponse>(`/api/staff/${id}`, token, body);
+      const response = await apiPut<BackendStaffResponse>(`/api/staff/${id}`, token, normalizedBody);
       
       // Map the response to match the Teacher interface from teacher-api.ts
       return {
@@ -160,7 +175,7 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
         first_name: response.person?.first_name ?? "",
         last_name: response.person?.last_name ?? "",
         email: response.person?.email ?? undefined,  // Include email from person object
-        specialization: response.specialization ?? "",
+        specialization: response.specialization ?? null,
         role: response.role ?? null,
         qualifications: response.qualifications ?? null,
         tag_id: response.person?.tag_id ?? null,
@@ -190,9 +205,7 @@ export const PUT = createPutHandler<TeacherResponse, StaffUpdateRequest>(
         if (errorMessage.includes("staff member not found")) {
           throw new Error("Staff member not found");
         }
-        if (errorMessage.includes("specialization is required")) {
-          throw new Error("Specialization is required for teachers");
-        }
+        // No additional specialization validation anymore
       }
       
       // Re-throw other errors

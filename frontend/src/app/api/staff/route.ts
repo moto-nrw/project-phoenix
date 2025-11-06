@@ -33,11 +33,11 @@ interface BackendStaffResponse {
  */
 interface StaffCreateRequest {
   person_id: number;
-  staff_notes?: string;
+  staff_notes?: string | null;
   is_teacher?: boolean;
-  specialization?: string;
-  role?: string;
-  qualifications?: string;
+  specialization?: string | null;
+  role?: string | null;
+  qualifications?: string | null;
 }
 
 /**
@@ -140,7 +140,7 @@ interface TeacherResponse {
   name: string;
   firstName: string;
   lastName: string;
-  specialization: string;
+  specialization?: string | null;
   role: string | null;
   qualifications: string | null;
   tag_id: string | null;
@@ -162,14 +162,30 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
       throw new Error('Missing required field: person_id must be a positive number');
     }
     
-    // If creating a teacher, specialization is required
-    if (body.is_teacher && (!body.specialization || body.specialization.trim() === '')) {
-      throw new Error('Specialization is required for teachers');
-    }
-    
     try {
+      const trimmedNotes = body.staff_notes?.trim();
+      const trimmedSpecialization = body.specialization?.trim();
+      const trimmedRole = body.role?.trim();
+      const trimmedQualifications = body.qualifications?.trim();
+
+      const normalizedBody: StaffCreateRequest = {
+        ...body,
+        staff_notes: body.staff_notes !== undefined
+          ? (trimmedNotes === "" ? undefined : trimmedNotes)
+          : undefined,
+        specialization: body.specialization !== undefined
+          ? (trimmedSpecialization === "" ? undefined : trimmedSpecialization)
+          : undefined,
+        role: body.role !== undefined
+          ? (trimmedRole === "" ? undefined : trimmedRole)
+          : undefined,
+        qualifications: body.qualifications !== undefined
+          ? (trimmedQualifications === "" ? undefined : trimmedQualifications)
+          : undefined,
+      };
+
       // Create the staff member via the API
-      const response = await apiPost<BackendStaffResponse>("/api/staff", token, body);
+      const response = await apiPost<BackendStaffResponse>("/api/staff", token, normalizedBody);
       
       // Map the response to match the Teacher interface from teacher-api.ts
       return {
@@ -178,7 +194,7 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
         name: response.person ? `${response.person.first_name} ${response.person.last_name}` : "",
         firstName: response.person?.first_name ?? "",
         lastName: response.person?.last_name ?? "",
-        specialization: response.specialization ?? "",
+        specialization: response.specialization ?? null,
         role: response.role ?? null,
         qualifications: response.qualifications ?? null,
         tag_id: response.person?.tag_id ?? null,
@@ -202,9 +218,7 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
         if (errorMessage.includes("person not found")) {
           throw new Error("Person not found with the specified ID");
         }
-        if (errorMessage.includes("specialization is required")) {
-          throw new Error("Specialization is required for teachers");
-        }
+        // No additional specialization validation anymore
       }
       
       // Re-throw other errors

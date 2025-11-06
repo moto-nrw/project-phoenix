@@ -25,7 +25,7 @@ export interface BackendGroup {
         first_name: string;
         last_name: string;
         full_name: string;
-        specialization: string;
+        specialization: string | null;
         role?: string;
     };
     teachers?: Array<{  // Array of teachers
@@ -34,7 +34,7 @@ export interface BackendGroup {
         first_name: string;
         last_name: string;
         full_name: string;
-        specialization: string;
+        specialization: string | null;
         role?: string;
     }>;
     student_count?: number;  // These fields might come from the backend

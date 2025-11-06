@@ -8,7 +8,7 @@ interface TeacherCreationData {
     last_name: string;
     email: string;
     password: string;
-    specialization: string;
+    specialization?: string | null;
     role?: string | null;
     qualifications?: string | null;
     tag_id?: string | null;
@@ -102,6 +102,11 @@ export const POST = createPostHandler(async (req: NextRequest, body: TeacherCrea
         const person = personResult.data;
 
         // Step 3: Create a staff record linked to this person
+        const trimmedStaffNotes = body.staff_notes?.trim();
+        const trimmedSpecialization = body.specialization?.trim();
+        const trimmedRole = body.role?.trim();
+        const trimmedQualifications = body.qualifications?.trim();
+
         const staffResponse = await fetch(`${env.NEXT_PUBLIC_API_URL}/api/staff`, {
             method: "POST",
             headers: {
@@ -110,11 +115,11 @@ export const POST = createPostHandler(async (req: NextRequest, body: TeacherCrea
             },
             body: JSON.stringify({
                 person_id: person.id,
-                staff_notes: body.staff_notes ?? "",
+                staff_notes: trimmedStaffNotes && trimmedStaffNotes.length > 0 ? trimmedStaffNotes : undefined,
                 is_teacher: true,
-                specialization: body.specialization,
-                role: body.role ?? "",
-                qualifications: body.qualifications ?? "",
+                specialization: trimmedSpecialization && trimmedSpecialization.length > 0 ? trimmedSpecialization : undefined,
+                role: trimmedRole && trimmedRole.length > 0 ? trimmedRole : undefined,
+                qualifications: trimmedQualifications && trimmedQualifications.length > 0 ? trimmedQualifications : undefined,
             }),
         });
 
@@ -133,9 +138,9 @@ export const POST = createPostHandler(async (req: NextRequest, body: TeacherCrea
             first_name: person.first_name,
             last_name: person.last_name,
             email: account.email,
-            specialization: staff.specialization,
-            role: staff.role,
-            qualifications: staff.qualifications,
+            specialization: staff.specialization ?? null,
+            role: staff.role ?? null,
+            qualifications: staff.qualifications ?? null,
             tag_id: person.tag_id,
             staff_notes: staff.staff_notes,
             created_at: staff.created_at,
