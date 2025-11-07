@@ -21,8 +21,6 @@ export default function RoomsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [isMobile, setIsMobile] = useState(false);
-  const [isFabVisible, setIsFabVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
 
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -52,20 +50,6 @@ export default function RoomsPage() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // FAB visibility on scroll
-  useEffect(() => {
-    const handleScroll = () => {
-      const current = window.scrollY;
-      if (current > lastScrollY && current > 100) {
-        setIsFabVisible(false);
-      } else {
-        setIsFabVisible(true);
-      }
-      setLastScrollY(current);
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY]);
 
   // Fetch rooms
   const fetchRooms = useCallback(async () => {
@@ -262,7 +246,7 @@ export default function RoomsPage() {
         {/* Mobile FAB */}
         <button
           onClick={() => setShowCreateModal(true)}
-          className={`md:hidden fixed right-4 bottom-24 z-40 w-14 h-14 bg-gradient-to-br from-indigo-500 to-indigo-600 text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(79,70,229,0.3)] flex items-center justify-center group active:scale-95 transition-all duration-300 ease-out ${isFabVisible ? 'translate-y-0 opacity-100 pointer-events-auto' : 'translate-y-32 opacity-0 pointer-events-none'}`}
+          className="md:hidden fixed right-4 bottom-24 z-40 w-14 h-14 bg-gradient-to-br from-indigo-500 to-indigo-600 text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(79,70,229,0.3)] flex items-center justify-center group active:scale-95 transition-all duration-300 ease-out translate-y-0 opacity-100 pointer-events-auto"
           aria-label="Raum erstellen"
         >
           <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>

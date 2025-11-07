@@ -21,7 +21,7 @@ export function TeacherCreateModal({
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title="Neue Lehrkraft erstellen"
+            title="Neuen Betreuer erstellen"
         >
             {loading ? (
                 <div className="flex items-center justify-center py-12">

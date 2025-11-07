@@ -18,7 +18,14 @@ export function TeacherDetailView({ teacher, onEdit, onDelete }: TeacherDetailVi
           </div>
           <div>
             <h2 className="text-xl md:text-2xl font-bold">{teacher.name}</h2>
-            <p className="text-sm md:text-base opacity-90">{teacher.specialization}</p>
+            <p className="text-sm md:text-base opacity-90">
+              {(() => {
+                const specialization = teacher.specialization?.trim();
+                return specialization && specialization.length > 0
+                  ? specialization
+                  : "Fachgebiet nicht angegeben";
+              })()}
+            </p>
             {teacher.role && (
               <p className="text-xs md:text-sm opacity-75">
                 Rolle: {teacher.role}
@@ -99,7 +106,14 @@ export function TeacherDetailView({ teacher, onEdit, onDelete }: TeacherDetailVi
 
           <div>
             <div className="text-sm text-gray-500">Fachgebiet</div>
-            <div className="text-base">{teacher.specialization}</div>
+            <div className="text-base">
+              {(() => {
+                const specialization = teacher.specialization?.trim();
+                return specialization && specialization.length > 0
+                  ? specialization
+                  : "Keine Angabe";
+              })()}
+            </div>
           </div>
 
           {teacher.role && (

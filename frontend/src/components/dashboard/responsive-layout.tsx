@@ -87,7 +87,7 @@ export default function ResponsiveLayout({
         <Sidebar className="hidden lg:block" />
 
         {/* Main content with bottom padding on mobile for bottom navigation */}
-        <main className="flex-1 p-2 pb-24 md:p-8 lg:pb-8">{children}</main>
+        <main className="flex-1 p-4 pb-24 md:p-8 lg:pb-8">{children}</main>
       </div>
 
       {/* Mobile bottom navigation with conditional blur */}

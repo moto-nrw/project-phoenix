@@ -25,7 +25,7 @@ export function TeacherEditModal({
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title="Lehrkraft bearbeiten"
+            title="Betreuer bearbeiten"
         >
             {loading ? (
                 <div className="flex items-center justify-center py-12">

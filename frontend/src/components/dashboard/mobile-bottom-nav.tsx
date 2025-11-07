@@ -82,8 +82,6 @@ interface MobileBottomNavProps {
 export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [isVisible, setIsVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
   const [isOverflowMenuOpen, setIsOverflowMenuOpen] = useState(false);
 
   // Refs for sliding indicator
@@ -98,24 +96,6 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
 
   // Get supervision state
   const { hasGroups, isSupervising, isLoadingGroups, isLoadingSupervision } = useSupervision();
-
-  // Auto-hide functionality (Instagram/Uber pattern - KEEP)
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-
-      if (currentScrollY > lastScrollY && currentScrollY > 100) {
-        setIsVisible(false); // Hide when scrolling down
-      } else {
-        setIsVisible(true); // Show when scrolling up
-      }
-
-      setLastScrollY(currentScrollY);
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY]);
 
   // Check if current path matches nav item
   const isActiveRoute = useCallback((href: string) => {
@@ -274,7 +254,7 @@ export function MobileBottomNav({ className = '' }: MobileBottomNavProps) {
         className={`
           lg:hidden fixed bottom-0 left-0 right-0 z-30
           transition-transform duration-300 ease-in-out
-          ${isVisible ? 'translate-y-0' : 'translate-y-full'}
+          translate-y-0
           ${className}
         `}
       >

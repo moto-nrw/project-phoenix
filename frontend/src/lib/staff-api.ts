@@ -8,7 +8,7 @@ export interface BackendStaffResponse {
   name: string;
   firstName: string;
   lastName: string;
-  specialization: string;
+  specialization?: string | null;
   role: string | null;
   qualifications: string | null;
   tag_id: string | null;
@@ -205,13 +205,15 @@ class StaffService {
             }
           }
 
+          const normalizedSpecialization = staff.specialization?.trim() ? staff.specialization : undefined;
+
           return {
             id: staff.id,
             name: staff.name,
             firstName: staff.firstName,
             lastName: staff.lastName,
             email: undefined, // Not provided by API route handler
-            specialization: staff.specialization,
+            specialization: normalizedSpecialization,
             qualifications: staff.qualifications ?? undefined,
             staffNotes: staff.staff_notes ?? undefined,
             hasRfid: !!staff.tag_id,
