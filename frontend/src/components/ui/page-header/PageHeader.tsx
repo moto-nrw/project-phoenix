@@ -20,9 +20,9 @@ export function PageHeader({ title, badge, statusIndicator, className = "" }: Pa
 
   return (
     <div className={`mb-6 md:hidden ${className}`}>
-      <div className="flex items-end justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         {/* Title with underline */}
-        <div className="relative ml-6">
+        <div className="relative ml-6 flex-1 min-w-0">
           <h1 className="text-2xl font-bold text-gray-900 pb-3">
             {title}
           </h1>
@@ -35,7 +35,7 @@ export function PageHeader({ title, badge, statusIndicator, className = "" }: Pa
 
         {/* Badge and Status */}
         {(statusIndicator ?? badge) && (
-          <div className="flex items-center gap-3 pb-3 mr-4">
+          <div className="flex items-center gap-3 pb-3 mr-4 flex-none">
             {/* Status Indicator Dot */}
             {statusIndicator && (
               <div
@@ -53,11 +53,6 @@ export function PageHeader({ title, badge, statusIndicator, className = "" }: Pa
                 <span className="text-sm font-semibold text-gray-900">
                   {badge.count}
                 </span>
-                {badge.label && (
-                  <span className="text-xs text-gray-500">
-                    {badge.label}
-                  </span>
-                )}
               </div>
             )}
           </div>
