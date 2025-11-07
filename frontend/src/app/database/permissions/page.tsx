@@ -220,7 +220,7 @@ export default function PermissionsPage() {
         {isMobile && (
           <button
             onClick={() => (window.location.href = "/database")}
-            className="relative z-10 mb-3 flex items-center gap-2 text-gray-600 transition-colors duration-200 hover:text-gray-900"
+            className="mb-3 flex items-center gap-2 text-gray-600 transition-colors duration-200 hover:text-gray-900"
             aria-label="Zurück zur Datenverwaltung"
           >
             <svg
@@ -260,7 +260,6 @@ export default function PermissionsPage() {
                 </svg>
               ),
               count: filteredPermissions.length,
-              label: "Berechtigungen",
             }}
             search={{
               value: searchTerm,
@@ -391,9 +390,13 @@ export default function PermissionsPage() {
                         {perm.description}
                       </p>
                     )}
-                    <div className="mt-1 truncate text-xs text-gray-500">
-                      Ressource: {localizeResource(perm.resource)} • Aktion:{" "}
-                      {localizeAction(perm.action)}
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                        {localizeResource(perm.resource)}
+                      </span>
+                      <span className="inline-flex items-center rounded-full bg-pink-100 px-2 py-1 text-xs font-medium text-pink-700">
+                        {localizeAction(perm.action)}
+                      </span>
                     </div>
                   </div>
                   <div className="flex-shrink-0">
