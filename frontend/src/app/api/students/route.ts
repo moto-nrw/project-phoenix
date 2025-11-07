@@ -58,102 +58,134 @@ interface PaginatedStudentsResponse {
  * Handler for GET /api/students
  * Returns a paginated list of students, optionally filtered by query parameters
  */
-export const GET = createGetHandler(async (request: NextRequest, token: string): Promise<PaginatedStudentsResponse> => {
-  // Build URL with any query parameters
-  const queryParams = new URLSearchParams();
-  request.nextUrl.searchParams.forEach((value, key) => {
-    queryParams.append(key, value);
-  });
-  
-  // Override page_size to load all students at once
-  queryParams.set('page_size', '1000');
-  
-  const endpoint = `/api/students${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-  
-  
-  try {
-    // Fetch students from backend API
-    const response = await apiGet<ApiStudentsResponse>(endpoint, token);
-    
-    // Handle null or undefined response
-    if (!response) {
-      console.warn("API returned null response for students");
+export const GET = createGetHandler(
+  async (
+    request: NextRequest,
+    token: string,
+  ): Promise<PaginatedStudentsResponse> => {
+    // Build URL with any query parameters
+    const queryParams = new URLSearchParams();
+    request.nextUrl.searchParams.forEach((value, key) => {
+      queryParams.append(key, value);
+    });
+
+    // Override page_size to load all students at once
+    queryParams.set("page_size", "1000");
+
+    const endpoint = `/api/students${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
+
+    try {
+      // Fetch students from backend API
+      const response = await apiGet<ApiStudentsResponse>(endpoint, token);
+
+      // Handle null or undefined response
+      if (!response) {
+        console.warn("API returned null response for students");
+        return {
+          data: [],
+          pagination: {
+            current_page: 1,
+            page_size: 50,
+            total_pages: 0,
+            total_records: 0,
+          },
+        };
+      }
+
+      // Check for the paginated response structure from backend
+      if ("data" in response && Array.isArray(response.data)) {
+        // Map the backend response format to the frontend format using the consistent mapping function
+        const mappedStudents = response.data.map(
+          (student: StudentResponseFromBackend) => {
+            const mapped = mapStudentResponse(student);
+            return mapped;
+          },
+        );
+
+        return {
+          data: mappedStudents,
+          pagination: response.pagination,
+        };
+      }
+
+      // If the response doesn't have the expected structure, return empty paginated response
+      console.warn(
+        "API response does not have the expected structure:",
+        response,
+      );
       return {
         data: [],
         pagination: {
           current_page: 1,
           page_size: 50,
           total_pages: 0,
-          total_records: 0
-        }
+          total_records: 0,
+        },
       };
-    }
-    
-    
-    // Check for the paginated response structure from backend
-    if ('data' in response && Array.isArray(response.data)) {
-      // Map the backend response format to the frontend format using the consistent mapping function
-      const mappedStudents = response.data.map((student: StudentResponseFromBackend) => {
-        const mapped = mapStudentResponse(student);
-        return mapped;
-      });
-      
-      return {
-        data: mappedStudents,
-        pagination: response.pagination
-      };
-    }
-    
-    // If the response doesn't have the expected structure, return empty paginated response
-    console.warn("API response does not have the expected structure:", response);
-    return {
-      data: [],
-      pagination: {
-        current_page: 1,
-        page_size: 50,
-        total_pages: 0,
-        total_records: 0
+    } catch (error) {
+      console.error("Error fetching students:", error);
+      // Log the specific error for debugging
+      if (error instanceof Error) {
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
       }
-    };
-  } catch (error) {
-    console.error("Error fetching students:", error);
-    // Log the specific error for debugging
-    if (error instanceof Error) {
-      console.error("Error message:", error.message);
-      console.error("Error stack:", error.stack);
+      throw error; // Re-throw to let the error handler deal with it
     }
-    throw error; // Re-throw to let the error handler deal with it
-  }
-});
+  },
+);
 
 /**
  * Handler for POST /api/students
  * Creates a new student with associated person record
  */
-export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; guardians?: Array<{
-  id: number;
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-  relationship_type: string;
-  is_primary: boolean;
-  is_emergency_contact: boolean;
-  can_pickup: boolean;
-}>; }>(
-  async (_request: NextRequest, body: Omit<Student, "id"> & { guardian_email?: string; guardian_phone?: string; privacy_consent_accepted?: boolean; data_retention_days?: number; guardians?: Array<{
-    id: number;
-    first_name: string;
-    last_name: string;
-    email: string;
-    phone: string;
-    relationship_type: string;
-    is_primary: boolean;
-    is_emergency_contact: boolean;
-    can_pickup: boolean;
-  }>; }, token: string) => {
+export const POST = createPostHandler<
+  Student,
+  Omit<Student, "id"> & {
+    guardian_email?: string;
+    guardian_phone?: string;
+    privacy_consent_accepted?: boolean;
+    data_retention_days?: number;
+    guardians?: Array<{
+      id: number;
+      first_name: string;
+      last_name: string;
+      email: string;
+      phone: string;
+      relationship_type: string;
+      is_primary: boolean;
+      is_emergency_contact: boolean;
+      can_pickup: boolean;
+    }>;
+  }
+>(
+  async (
+    _request: NextRequest,
+    body: Omit<Student, "id"> & {
+      guardian_email?: string;
+      guardian_phone?: string;
+      privacy_consent_accepted?: boolean;
+      data_retention_days?: number;
+      guardians?: Array<{
+        id: number;
+        first_name: string;
+        last_name: string;
+        email: string;
+        phone: string;
+        relationship_type: string;
+        is_primary: boolean;
+        is_emergency_contact: boolean;
+        can_pickup: boolean;
+      }>;
+    },
+    token: string,
+  ) => {
     // Extract privacy consent fields and guardians array
-    const { privacy_consent_accepted, data_retention_days, guardians, ...studentData } = body;
+    const {
+      privacy_consent_accepted,
+      data_retention_days,
+      guardians,
+      ...studentData
+    } = body;
 
     // Validate required fields using frontend field names
     const firstName = body.first_name?.trim();
@@ -161,15 +193,15 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
     const schoolClass = body.school_class?.trim();
 
     if (!firstName) {
-      throw new Error('First name is required');
+      throw new Error("First name is required");
     }
 
     if (!lastName) {
-      throw new Error('Last name is required');
+      throw new Error("Last name is required");
     }
 
     if (!schoolClass) {
-      throw new Error('School class is required');
+      throw new Error("School class is required");
     }
 
     // Guardian validation - use guardians array or fall back to legacy fields
@@ -179,38 +211,40 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
     if (guardiansArray.length === 0) {
       const guardianName = body.name_lg?.trim();
       if (!guardianName) {
-        throw new Error('At least one guardian is required');
+        throw new Error("At least one guardian is required");
       }
 
       // Split guardian full name into first and last name
-      const nameParts = guardianName.split(' ');
-      const guardianFirstName = nameParts[0] ?? '';
-      const guardianLastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : guardianFirstName;
+      const nameParts = guardianName.split(" ");
+      const guardianFirstName = nameParts[0] ?? "";
+      const guardianLastName =
+        nameParts.length > 1 ? nameParts.slice(1).join(" ") : guardianFirstName;
 
       // Extract guardian contact info - email and phone are now optional
-      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-      const guardianEmail = body.guardian_email?.trim() || undefined;
-      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-      const guardianPhone = (body.guardian_phone?.trim() ?? body.contact_lg?.trim()) || undefined;
+      const guardianEmail = body.guardian_email?.trim() ?? undefined;
+      const guardianPhone =
+        body.guardian_phone?.trim() ?? body.contact_lg?.trim() ?? undefined;
 
       guardiansArray.push({
         id: 0,
         first_name: guardianFirstName,
         last_name: guardianLastName,
-        email: guardianEmail ?? '',
-        phone: guardianPhone ?? '',
-        relationship_type: 'parent',
+        email: guardianEmail ?? "",
+        phone: guardianPhone ?? "",
+        relationship_type: "parent",
         is_primary: true,
         is_emergency_contact: true,
-        can_pickup: true
+        can_pickup: true,
       });
     }
 
     // Filter out guardians with empty names
-    const validGuardians = guardiansArray.filter(g => g.first_name.trim() && g.last_name.trim());
+    const validGuardians = guardiansArray.filter(
+      (g) => g.first_name.trim() && g.last_name.trim(),
+    );
 
     if (validGuardians.length === 0) {
-      throw new Error('At least one guardian with name is required');
+      throw new Error("At least one guardian with name is required");
     }
 
     // First guardian (primary) will be created with the student
@@ -220,7 +254,7 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
       last_name: primaryGuardian.last_name.trim(),
       email: primaryGuardian.email.trim() || undefined,
       phone: primaryGuardian.phone.trim() || undefined,
-      relationship_type: primaryGuardian.relationship_type || 'parent'
+      relationship_type: primaryGuardian.relationship_type || "parent",
     };
 
     // Create a properly typed request object for the NEW backend API
@@ -233,49 +267,88 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
       tag_id: body.studentId?.trim() || undefined,
       group_id: body.group_id ? parseInt(body.group_id, 10) : undefined,
       bus: body.bus ?? false,
-      extra_info: studentData.extra_info
+      extra_info: studentData.extra_info,
     };
 
     try {
       // Create the student with the first (primary) guardian
-      const rawResponse = await apiPost<{ status: string; data: StudentResponseFromBackend; message: string }>("/api/students", token, backendRequest);
+      const rawResponse = await apiPost<{
+        status: string;
+        data: StudentResponseFromBackend;
+        message: string;
+      }>("/api/students", token, backendRequest);
 
       // Extract the student data from the response
       const response = rawResponse.data;
 
       if (!response?.id) {
-        throw new Error('Failed to create student - no ID returned');
+        throw new Error("Failed to create student - no ID returned");
       }
 
       // Create additional guardians (if any) via the guardian endpoint
+      const failedGuardians: Array<{
+        index: number;
+        name: string;
+        error: string;
+      }> = [];
       if (validGuardians.length > 1) {
         for (let i = 1; i < validGuardians.length; i++) {
           const additionalGuardian = validGuardians[i]!; // Non-null assertion safe because loop is within bounds
           try {
-            await apiPost(
-              `/api/students/${response.id}/guardians`,
-              token,
-              {
-                first_name: additionalGuardian.first_name.trim(),
-                last_name: additionalGuardian.last_name.trim(),
-                email: additionalGuardian.email.trim() || undefined,
-                phone: additionalGuardian.phone.trim() || undefined,
-                relationship_type: additionalGuardian.relationship_type || 'parent',
-                is_primary: false, // Only first guardian is primary
-                is_emergency_contact: additionalGuardian.is_emergency_contact,
-                can_pickup: additionalGuardian.can_pickup
-              }
-            );
+            await apiPost(`/api/students/${response.id}/guardians`, token, {
+              first_name: additionalGuardian.first_name.trim(),
+              last_name: additionalGuardian.last_name.trim(),
+              email: additionalGuardian.email.trim() || undefined,
+              phone: additionalGuardian.phone.trim() || undefined,
+              relationship_type:
+                additionalGuardian.relationship_type || "parent",
+              is_primary: false, // Only first guardian is primary
+              is_emergency_contact: additionalGuardian.is_emergency_contact,
+              can_pickup: additionalGuardian.can_pickup,
+            });
           } catch (guardianError) {
-            console.error(`Error creating additional guardian ${i}:`, guardianError);
+            const guardianName = `${additionalGuardian.first_name} ${additionalGuardian.last_name}`;
+            const errorMessage =
+              guardianError instanceof Error
+                ? guardianError.message
+                : "Unknown error";
+            console.error(
+              `Error creating additional guardian ${i} (${guardianName}):`,
+              guardianError,
+            );
+
+            // Track failed guardians for user notification
+            failedGuardians.push({
+              index: i,
+              name: guardianName,
+              error: errorMessage,
+            });
             // Continue with other guardians even if one fails
             // The student is already created, so we don't want to roll back everything
           }
         }
       }
 
+      // Log warning if some guardians failed
+      if (failedGuardians.length > 0) {
+        console.warn(
+          `Student created successfully, but ${failedGuardians.length} guardian(s) failed:`,
+          failedGuardians.map((g) => g.name).join(", "),
+        );
+
+        // Throw error with detailed information about partial failure
+        // This allows the frontend to show appropriate user feedback
+        throw new Error(
+          `Student created successfully, but ${failedGuardians.length} of ${validGuardians.length - 1} additional guardian(s) could not be created: ${failedGuardians.map((g) => g.name).join(", ")}. You may need to add them manually.`,
+        );
+      }
+
       // Handle privacy consent if provided
-      if ((privacy_consent_accepted !== undefined || data_retention_days !== undefined) && response?.id) {
+      if (
+        (privacy_consent_accepted !== undefined ||
+          data_retention_days !== undefined) &&
+        response?.id
+      ) {
         try {
           await apiPut(`/api/students/${response.id}/privacy-consent`, token, {
             policy_version: "1.0",
@@ -288,9 +361,14 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
           try {
             await apiDelete(`/api/students/${response.id}`, token);
           } catch (rollbackError) {
-            console.error("Failed to rollback student after consent error:", rollbackError);
+            console.error(
+              "Failed to rollback student after consent error:",
+              rollbackError,
+            );
           }
-          throw new Error("Datenschutzeinwilligung konnte nicht erstellt werden. Vorgang abgebrochen.");
+          throw new Error(
+            "Datenschutzeinwilligung konnte nicht erstellt werden. Vorgang abgebrochen.",
+          );
         }
       }
 
@@ -300,7 +378,9 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
       // Check for permission errors (403 Forbidden)
       if (error instanceof Error && error.message.includes("403")) {
         console.error("Permission denied when creating student:", error);
-        throw new Error("Permission denied: You need the 'users:create' permission to create students.");
+        throw new Error(
+          "Permission denied: You need the 'users:create' permission to create students.",
+        );
       }
 
       // Check for validation errors
@@ -326,5 +406,5 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
       // Re-throw other errors
       throw error;
     }
-  }
+  },
 );
