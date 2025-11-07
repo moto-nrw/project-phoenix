@@ -16,28 +16,7 @@ import { QuickCreateActivityModal } from "~/components/activities/quick-create-m
 import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
 import { useToast } from "~/contexts/ToastContext";
-import { useAlertVisibility } from "~/contexts/AlertContext";
 import { Loading } from "~/components/ui/loading";
-
-// FAB positioning constants for better maintainability
-const FAB_POSITIONS = {
-    // When navbar is hidden (scrolled down)
-    navHidden: {
-        default: '1.5rem',  // 24px from bottom
-        withAlert: '8rem'   // 128px from bottom to clear alert
-    },
-    // When navbar is visible (at top or scrolling up)
-    navVisible: {
-        default: '6rem',    // 96px from bottom to clear navbar
-        withAlert: '11rem'  // 176px from bottom to clear both navbar and alert
-    }
-} as const;
-
-// Helper function to compute FAB position based on UI state
-function getFabBottomPosition(isAlertShowing: boolean, isNavBarHidden: boolean): string {
-    const navState = isNavBarHidden ? FAB_POSITIONS.navHidden : FAB_POSITIONS.navVisible;
-    return isAlertShowing ? navState.withAlert : navState.default;
-}
 
 export default function ActivitiesPage() {
     const [loading, setLoading] = useState(true);
@@ -52,8 +31,6 @@ export default function ActivitiesPage() {
     const [isManagementModalOpen, setIsManagementModalOpen] = useState(false);
     const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
     const [currentStaff, setCurrentStaff] = useState<Staff | null>(null);
-    const { isAlertShowing } = useAlertVisibility();
-    const [isNavBarHidden, setIsNavBarHidden] = useState(false);
     const { success: toastSuccess } = useToast();
     const [isMobile, setIsMobile] = useState(false);
 
@@ -68,40 +45,6 @@ export default function ActivitiesPage() {
     }, []);
 
     // Alert visibility is now managed via context - no window events needed
-
-    // Track scroll position to detect when mobile nav bar is hidden
-    useEffect(() => {
-        let lastScrollY = window.scrollY;
-        let ticking = false;
-
-        const handleScroll = () => {
-            if (!ticking) {
-                window.requestAnimationFrame(() => {
-                    const currentScrollY = window.scrollY;
-                    
-                    // Mobile navigation typically hides when scrolling down past a threshold
-                    if (currentScrollY > lastScrollY && currentScrollY > 50) {
-                        // Scrolling down - nav bar should be hidden
-                        setIsNavBarHidden(true);
-                    } else if (currentScrollY < lastScrollY || currentScrollY <= 50) {
-                        // Scrolling up or at top - nav bar should be visible
-                        setIsNavBarHidden(false);
-                    }
-                    
-                    lastScrollY = currentScrollY;
-                    ticking = false;
-                });
-                
-                ticking = true;
-            }
-        };
-
-        window.addEventListener('scroll', handleScroll, { passive: true });
-
-        return () => {
-            window.removeEventListener('scroll', handleScroll);
-        };
-    }, []);
 
     // Load activities, categories and current user on mount
     useEffect(() => {
@@ -315,10 +258,7 @@ export default function ActivitiesPage() {
                 {/* Mobile FAB Create Button */}
                 <button
                     onClick={() => setIsQuickCreateOpen(true)}
-                    className={`md:hidden fixed right-4 z-[9999] w-14 h-14 bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(255,49,48,0.3)] transition-all duration-300 flex items-center justify-center group active:scale-95`}
-                    style={{
-                        bottom: getFabBottomPosition(isAlertShowing, isNavBarHidden)
-                    }}
+                    className="md:hidden fixed right-4 bottom-24 z-[9999] w-14 h-14 bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(255,49,48,0.3)] transition-all duration-300 flex items-center justify-center group active:scale-95"
                     aria-label="Aktivität erstellen"
                 >
                     <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>

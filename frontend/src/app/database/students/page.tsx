@@ -24,8 +24,6 @@ export default function StudentsPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [groupFilter, setGroupFilter] = useState("all");
     const [isMobile, setIsMobile] = useState(false);
-    const [isFabVisible, setIsFabVisible] = useState(true);
-    const [lastScrollY, setLastScrollY] = useState(0);
 
     // Modal states
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -68,23 +66,6 @@ export default function StudentsPage() {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    // Handle FAB visibility based on scroll (same logic as mobile bottom nav)
-    useEffect(() => {
-        const handleScroll = () => {
-            const currentScrollY = window.scrollY;
-
-            if (currentScrollY > lastScrollY && currentScrollY > 100) {
-                setIsFabVisible(false); // Hide when scrolling down
-            } else {
-                setIsFabVisible(true); // Show when scrolling up
-            }
-
-            setLastScrollY(currentScrollY);
-        };
-
-        window.addEventListener("scroll", handleScroll, { passive: true });
-        return () => window.removeEventListener("scroll", handleScroll);
-    }, [lastScrollY]);
 
     // Fetch students
     const fetchStudents = useCallback(async () => {
@@ -396,9 +377,7 @@ export default function StudentsPage() {
                 {/* Mobile FAB Create Button */}
                 <button
                     onClick={() => setShowCreateModal(true)}
-                    className={`md:hidden fixed right-4 bottom-24 z-40 w-14 h-14 bg-gradient-to-br from-[#5080D8] to-[#4070c8] text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(80,128,216,0.3)] flex items-center justify-center group active:scale-95 transition-all duration-300 ease-out ${
-                        isFabVisible ? 'translate-y-0 opacity-100 pointer-events-auto' : 'translate-y-32 opacity-0 pointer-events-none'
-                    }`}
+                    className="md:hidden fixed right-4 bottom-24 z-40 w-14 h-14 bg-gradient-to-br from-[#5080D8] to-[#4070c8] text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgb(80,128,216,0.3)] flex items-center justify-center group active:scale-95 transition-all duration-300 ease-out translate-y-0 opacity-100 pointer-events-auto"
                     aria-label="Schüler erstellen"
                 >
                     <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>

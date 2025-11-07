@@ -21,8 +21,6 @@ export default function GroupsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [roomFilter, setRoomFilter] = useState<string>("all");
   const [isMobile, setIsMobile] = useState(false);
-  const [isFabVisible, setIsFabVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
@@ -49,16 +47,6 @@ export default function GroupsPage() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      const current = window.scrollY;
-      if (current > lastScrollY && current > 100) setIsFabVisible(false);
-      else setIsFabVisible(true);
-      setLastScrollY(current);
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY]);
 
   const fetchGroups = useCallback(async () => {
     try {
@@ -219,7 +207,7 @@ export default function GroupsPage() {
 
         <button
           onClick={() => setShowCreateModal(true)}
-          className={`md:hidden fixed right-4 bottom-24 z-40 w-14 h-14 bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgba(112,181,37,0.3)] flex items-center justify-center group active:scale-95 transition-all duration-300 ease-out ${isFabVisible ? 'translate-y-0 opacity-100 pointer-events-auto' : 'translate-y-32 opacity-0 pointer-events-none'}`}
+          className="md:hidden fixed right-4 bottom-24 z-40 w-14 h-14 bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_40px_rgba(112,181,37,0.3)] flex items-center justify-center group active:scale-95 transition-all duration-300 ease-out translate-y-0 opacity-100 pointer-events-auto"
           aria-label="Gruppe erstellen"
         >
           <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
