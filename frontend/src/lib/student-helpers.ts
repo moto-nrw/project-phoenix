@@ -1,6 +1,16 @@
 // lib/student-helpers.ts
 // Type definitions and helper functions for students
 
+import {
+    LOCATION_STATUSES,
+    parseLocation,
+    isHomeLocation,
+    isPresentLocation,
+    isSchoolyardLocation,
+    isTransitLocation,
+    normalizeLocation,
+} from "./location-helper";
+
 // Scheduled checkout information
 export interface ScheduledCheckoutInfo {
     id: number;
@@ -17,8 +27,8 @@ export interface BackendStudent {
     last_name: string;
     tag_id?: string;
     school_class: string;
-    location: string;
-    bus: boolean;
+    current_location?: string | null;
+    bus?: boolean;
     guardian_name: string;
     guardian_contact: string;
     guardian_email?: string;
@@ -100,18 +110,12 @@ export interface Student {
     current_location: StudentLocation;
     // Transportation method (separate from attendance)
     takes_bus?: boolean;
-    // Legacy boolean fields for backward compatibility (derived from current_location)
-    in_house: boolean; // Now maps to "Anwesend" status
-    wc?: boolean; // Deprecated - no longer used
-    school_yard?: boolean; // Deprecated - no longer used
     bus?: boolean; // Administrative permission flag (Buskind), not attendance status
     name_lg?: string;
     contact_lg?: string;
     guardian_email?: string;
     guardian_phone?: string;
     custom_users_id?: string;
-    // Guardians (loaded from separate API endpoint)
-    guardians?: unknown; // Type is flexible to allow both Guardian[] and backend format
     // Privacy consent data (fetched separately)
     privacy_consent?: PrivacyConsent;
     // Privacy consent fields for form handling
@@ -134,18 +138,9 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student & { 
     const lastName = backendStudent.last_name || '';
     const name = `${firstName} ${lastName}`.trim();
     
-    // Map backend attendance status - preserve full location details
-    let current_location: StudentLocation = "Unknown";
-    if (backendStudent.location) {
-        if (backendStudent.location === "Abwesend") {
-            // Backend returns "Abwesend" for not checked in, map to "Zuhause" for frontend
-            current_location = "Zuhause";
-        } else {
-            // Preserve the full location string from backend (e.g., "Anwesend", "Anwesend - Aktivität", etc.)
-            current_location = backendStudent.location;
-        }
-    }
-
+    // Map backend attendance status with normalization for legacy values (e.g., "Abwesend")
+    const current_location: StudentLocation = normalizeLocation(backendStudent.current_location);
+    
     const mapped = {
         id: String(backendStudent.id),
         name: name,
@@ -157,14 +152,9 @@ export function mapStudentResponse(backendStudent: BackendStudent): Student & { 
         group_name: backendStudent.group_name,
         group_id: backendStudent.group_id ? String(backendStudent.group_id) : undefined,
         // New attendance-based system
-        current_location: current_location,
+        current_location,
         takes_bus: undefined, // TODO: Map from backend when available
-        // Legacy boolean fields for backward compatibility (derived from attendance status)
-        // in_house: true means student is checked in (used by OGS groups to determine if they should check room status)
-        in_house: current_location.startsWith("Anwesend"),
-        wc: false, // Deprecated - no longer used
-        school_yard: false, // Deprecated - no longer used
-        bus: backendStudent.bus, // Administrative permission flag (Buskind), not a location
+        bus: backendStudent.bus ?? false, // Administrative permission flag (Buskind)
         name_lg: backendStudent.guardian_name,
         contact_lg: backendStudent.guardian_contact,
         guardian_email: backendStudent.guardian_email,
@@ -219,19 +209,12 @@ export function prepareStudentForBackend(student: Partial<Student> & {
     health_info?: string;
     supervisor_notes?: string;
 }): Partial<BackendStudent> {
-    // Calculate location string from boolean flags (excluding bus)
-    let location = "Unknown";
-    if (student.in_house) location = "In House";
-    else if (student.wc) location = "WC";
-    else if (student.school_yard) location = "School Yard";
-    // Note: bus is NOT a location, it's a separate transportation field
-
     return {
         id: student.id ? parseInt(student.id, 10) : undefined,
         first_name: student.first_name,
         last_name: student.second_name, // Map second_name to last_name for backend
         school_class: student.school_class,
-        location: location,
+        current_location: student.current_location ? normalizeLocation(student.current_location) : undefined,
         bus: student.bus ?? false, // Send bus as a separate field
         guardian_name: student.name_lg,
         guardian_contact: student.contact_lg,
@@ -370,11 +353,8 @@ export function formatStudentName(student: Student): string {
 }
 
 export function formatStudentStatus(student: Student): string {
-    if (student.in_house) return 'Anwesend';
-    if (student.wc) return 'Toilette';
-    if (student.school_yard) return 'Schulhof';
-    if (student.bus) return 'Bus';
-    return 'Zuhause';
+    const parsed = parseLocation(student.current_location);
+    return parsed.room ?? parsed.status ?? LOCATION_STATUSES.UNKNOWN;
 }
 
 /**
@@ -409,9 +389,9 @@ export function extractGuardianContact(studentData: {
 }
 
 export function getStatusColor(student: Student): string {
-    if (student.in_house) return 'green';
-    if (student.wc) return 'blue';
-    if (student.school_yard) return 'yellow';
-    if (student.bus) return 'purple';
-    return 'red';
+    if (isPresentLocation(student.current_location)) return 'green';
+    if (isSchoolyardLocation(student.current_location)) return 'yellow';
+    if (isTransitLocation(student.current_location)) return 'purple';
+    if (isHomeLocation(student.current_location)) return 'red';
+    return 'gray';
 }

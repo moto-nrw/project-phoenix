@@ -24,6 +24,7 @@ type Service interface {
 	EndActiveGroupSession(ctx context.Context, id int64) error
 	GetActiveGroupWithVisits(ctx context.Context, id int64) (*active.Group, error)
 	GetActiveGroupWithSupervisors(ctx context.Context, id int64) (*active.Group, error)
+	GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (map[int64]*active.Group, error)
 
 	// Visit operations
 	GetVisit(ctx context.Context, id int64) (*active.Visit, error)
@@ -36,6 +37,7 @@ type Service interface {
 	FindVisitsByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Visit, error)
 	EndVisit(ctx context.Context, id int64) error
 	GetStudentCurrentVisit(ctx context.Context, studentID int64) (*active.Visit, error)
+	GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error)
 
 	// Group Supervisor operations
 	GetGroupSupervisor(ctx context.Context, id int64) (*active.GroupSupervisor, error)
@@ -98,6 +100,7 @@ type Service interface {
 
 	// Attendance tracking operations
 	GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error)
+	GetStudentsAttendanceStatuses(ctx context.Context, studentIDs []int64) (map[int64]*AttendanceStatus, error)
 	ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64) (*AttendanceResult, error)
 	CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error)
 

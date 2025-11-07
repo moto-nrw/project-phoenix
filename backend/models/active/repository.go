@@ -26,6 +26,9 @@ type GroupRepository interface {
 	// FindBySourceIDs finds active groups based on source IDs and source type
 	FindBySourceIDs(ctx context.Context, sourceIDs []int64, sourceType string) ([]*Group, error)
 
+	// FindByIDs finds active groups by their IDs in a single query
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Group, error)
+
 	// Relations methods
 	FindWithRelations(ctx context.Context, id int64) (*Group, error)
 	FindWithVisits(ctx context.Context, id int64) (*Group, error)
@@ -86,6 +89,9 @@ type VisitRepository interface {
 
 	// GetCurrentByStudentID finds the current active visit for a student
 	GetCurrentByStudentID(ctx context.Context, studentID int64) (*Visit, error)
+
+	// GetCurrentByStudentIDs finds current active visits for multiple students in a single query
+	GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*Visit, error)
 
 	// FindActiveVisits finds all visits with no exit time (currently active)
 	FindActiveVisits(ctx context.Context) ([]*Visit, error)

@@ -136,6 +136,52 @@ func (r *AttendanceRepository) GetTodayByStudentID(ctx context.Context, studentI
 	return r.GetStudentCurrentStatus(ctx, studentID)
 }
 
+// GetTodayByStudentIDs gets today's attendance records for multiple students in a single query
+func (r *AttendanceRepository) GetTodayByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*active.Attendance, error) {
+	result := make(map[int64]*active.Attendance, len(studentIDs))
+
+	if len(studentIDs) == 0 {
+		return result, nil
+	}
+
+	// Ensure we only query unique student IDs
+	uniqueIDs := make([]int64, 0, len(studentIDs))
+	seen := make(map[int64]struct{}, len(studentIDs))
+	for _, id := range studentIDs {
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		uniqueIDs = append(uniqueIDs, id)
+	}
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+
+	var attendances []*active.Attendance
+	err := r.db.NewSelect().
+		Model(&attendances).
+		ModelTableExpr(`active.attendance AS "attendance"`).
+		Where(`"attendance".student_id IN (?)`, bun.In(uniqueIDs)).
+		Where(`"attendance".date = ?`, today).
+		OrderExpr(`"attendance".student_id ASC`).
+		OrderExpr(`"attendance".check_in_time DESC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get today by student IDs",
+			Err: err,
+		}
+	}
+
+	for _, attendance := range attendances {
+		if _, exists := result[attendance.StudentID]; !exists {
+			result[attendance.StudentID] = attendance
+		}
+	}
+
+	return result, nil
+}
+
 // FindForDate finds all attendance records for a specific date
 func (r *AttendanceRepository) FindForDate(ctx context.Context, date time.Time) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance
