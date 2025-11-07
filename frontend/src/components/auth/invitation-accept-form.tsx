@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { signOut } from "next-auth/react";
 import { useToast } from "~/contexts/ToastContext";
 import { useRouter } from "next/navigation";
 import { Input } from "~/components/ui";
@@ -74,6 +75,10 @@ export function InvitationAcceptForm({ token, invitation }: InvitationAcceptForm
         confirmPassword,
       });
       toastSuccess("Einladung erfolgreich angenommen! Du wirst zur Anmeldung weitergeleitet.");
+
+      // Logout any existing session before redirecting to login
+      await signOut({ redirect: false });
+
       setTimeout(() => {
         router.push("/");
       }, 2500);
