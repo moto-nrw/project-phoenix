@@ -180,7 +180,7 @@ const InfoCard: React.FC<InfoCardProps> = ({
   linkText,
 }) => {
   const cardContent = (
-    <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_40px_rgb(0,0,0,0.14)]">
+    <div className="relative h-full overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_40px_rgb(0,0,0,0.14)]">
       <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-gray-50/80 to-slate-100/80 opacity-[0.03]"></div>
       <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
       <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20"></div>
@@ -371,7 +371,6 @@ function DashboardContent() {
             value={dashboardData?.studentsInTransit ?? 0}
             icon="M13 10V3L4 14h7v7l9-11h-7z"
             color="from-orange-500 to-orange-600"
-            subtitle="zwischen Räumen"
             loading={isLoading}
             href="/students/search"
           />
@@ -380,7 +379,6 @@ function DashboardContent() {
             value={dashboardData?.studentsOnPlayground ?? 0}
             icon="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"
             color="from-yellow-400 to-yellow-500"
-            subtitle="im Freien"
             loading={isLoading}
             href="/students/search"
           />
@@ -409,7 +407,6 @@ function DashboardContent() {
             value={dashboardData?.freeRooms ?? 0}
             icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
             color="from-emerald-500 to-green-600"
-            subtitle="verfügbar"
             loading={isLoading}
             href="/rooms"
           />
@@ -422,13 +419,12 @@ function DashboardContent() {
             }
             icon="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
             color="from-purple-500 to-purple-600"
-            subtitle="Kapazität"
             loading={isLoading}
           />
         </div>
 
         {/* Activity Lists Grid */}
-        <div className="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 items-stretch gap-4 md:gap-6 lg:grid-cols-2">
           {/* Recent Activity */}
           <InfoCard
             title="Letzte Bewegungen"

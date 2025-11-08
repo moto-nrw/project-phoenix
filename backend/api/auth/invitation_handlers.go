@@ -91,6 +91,14 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 
 	invitation, err := rs.InvitationService.CreateInvitation(r.Context(), invitationReq)
 	if err != nil {
+		// Check for email already exists error
+		if errors.Is(err, authService.ErrEmailAlreadyExists) {
+			if renderErr := render.Render(w, r, common.ErrorConflict(authService.ErrEmailAlreadyExists)); renderErr != nil {
+				log.Printf("Render error: %v", renderErr)
+			}
+			return
+		}
+
 		if renderInvitationError(w, r, err) {
 			return
 		}

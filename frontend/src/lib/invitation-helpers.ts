@@ -15,7 +15,7 @@ export interface InvitationAcceptRequest {
 
 export interface CreateInvitationRequest {
   email: string;
-  roleId: number;
+  roleId: number | undefined;
   firstName?: string;
   lastName?: string;
 }
@@ -45,22 +45,18 @@ export interface BackendInvitation {
   id: number;
   email: string;
   role_id: number;
+  role_name?: string; // Role name from backend
   token?: string;
   expires_at: string;
   created_by: number;
   first_name?: string | null;
   last_name?: string | null;
-  role?: {
-    id: number;
-    name?: string;
-  };
-  creator?: {
-    id: number;
-    email?: string;
-  };
+  creator?: string; // Creator email from backend
 }
 
-export const mapInvitationValidationResponse = (data: BackendInvitationValidation): InvitationValidation => ({
+export const mapInvitationValidationResponse = (
+  data: BackendInvitationValidation,
+): InvitationValidation => ({
   email: data.email,
   roleName: data.role_name,
   firstName: data.first_name,
@@ -68,15 +64,19 @@ export const mapInvitationValidationResponse = (data: BackendInvitationValidatio
   expiresAt: data.expires_at,
 });
 
-export const mapPendingInvitationResponse = (data: BackendInvitation): PendingInvitation => ({
-  id: data.id,
-  email: data.email,
-  roleId: data.role_id,
-  roleName: data.role?.name ?? "",
-  createdBy: data.created_by,
-  creatorEmail: data.creator?.email,
-  expiresAt: data.expires_at,
-  token: data.token,
-  firstName: data.first_name,
-  lastName: data.last_name,
-});
+export const mapPendingInvitationResponse = (
+  data: BackendInvitation,
+): PendingInvitation => {
+  return {
+    id: data.id,
+    email: data.email,
+    roleId: data.role_id,
+    roleName: data.role_name ?? "",
+    createdBy: data.created_by,
+    creatorEmail: data.creator,
+    expiresAt: data.expires_at,
+    token: data.token,
+    firstName: data.first_name,
+    lastName: data.last_name,
+  };
+};
