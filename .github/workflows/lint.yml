@@ -46,3 +46,7 @@ jobs:
       - name: Type check frontend code
         working-directory: frontend
         run: npm run typecheck
+
+      - name: Check Prettier formatting
+        working-directory: frontend
+        run: npm run format:check
