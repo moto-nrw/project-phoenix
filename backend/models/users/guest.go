@@ -3,12 +3,15 @@ package users
 import (
 	"errors"
 	"net/mail"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
+
+var guestPhonePattern = regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$`)
 
 // Guest represents a guest instructor in the system
 type Guest struct {
