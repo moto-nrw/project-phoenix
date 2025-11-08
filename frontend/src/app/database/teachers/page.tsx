@@ -28,8 +28,6 @@ export default function TeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isMobile, setIsMobile] = useState(false);
-  const [isFabVisible, setIsFabVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
 
   // Modal states
   const [showChoiceModal, setShowChoiceModal] = useState(false);
@@ -66,24 +64,6 @@ export default function TeachersPage() {
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
-
-  // Handle FAB visibility based on scroll
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-
-      if (currentScrollY > lastScrollY && currentScrollY > 100) {
-        setIsFabVisible(false);
-      } else {
-        setIsFabVisible(true);
-      }
-
-      setLastScrollY(currentScrollY);
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY]);
 
   // Fetch teachers
   const fetchTeachers = useCallback(async () => {
@@ -339,11 +319,7 @@ export default function TeachersPage() {
         {/* Mobile FAB Create Button */}
         <button
           onClick={() => setShowChoiceModal(true)}
-          className={`group fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgb(247,140,16,0.3)] active:scale-95 md:hidden ${
-            isFabVisible
-              ? "pointer-events-auto translate-y-0 opacity-100"
-              : "pointer-events-none translate-y-32 opacity-0"
-          }`}
+          className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgb(247,140,16,0.3)] active:scale-95 md:hidden"
           aria-label="Betreuer hinzufügen"
         >
           <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
