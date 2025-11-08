@@ -208,7 +208,6 @@ export function InvitationAcceptForm({
             id="password"
             name="password"
             type={showPassword ? "text" : "password"}
-            label=""
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             disabled={isSubmitting}
@@ -275,7 +274,6 @@ export function InvitationAcceptForm({
             id="confirmPassword"
             name="confirmPassword"
             type={showConfirmPassword ? "text" : "password"}
-            label=""
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
             disabled={isSubmitting}

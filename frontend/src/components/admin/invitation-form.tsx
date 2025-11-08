@@ -53,12 +53,6 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
           }))
           .filter((role) => !Number.isNaN(role.id));
         setRoles(options);
-        if (options.length > 0) {
-          setForm((prev) => ({
-            ...prev,
-            roleId: prev.roleId ?? options[0]!.id,
-          }));
-        }
       } catch (err) {
         console.error("Failed to load roles", err);
         if (!cancelled) {
