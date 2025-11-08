@@ -126,8 +126,11 @@ function StudentPageContent() {
     // Edit mode states
     const [isEditingPersonal, setIsEditingPersonal] = useState(false);
     const [editedStudent, setEditedStudent] = useState<ExtendedStudent | null>(null);
+    interface NewGuardianFormData extends Partial<Guardian> {
+        relationshipType?: string;
+    }
     const [newGuardianMode, setNewGuardianMode] = useState(false);
-    const [newGuardianData, setNewGuardianData] = useState<Partial<Guardian>>({});
+    const [newGuardianData, setNewGuardianData] = useState<NewGuardianFormData>({});
     const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
     // Fetch student data
@@ -153,9 +156,6 @@ function StudentPageContent() {
                 const mappedStudent = studentData as Student & {
                     has_full_access?: boolean;
                     group_supervisors?: SupervisorContact[];
-                    guardian_name?: string;
-                    guardian_contact?: string;
-                    guardian_phone?: string;
                     guardian_email?: string;
                     guardians?: Guardian[];
                 };
@@ -177,9 +177,6 @@ function StudentPageContent() {
                     school_yard: mappedStudent.school_yard ?? false,
                     bus: mappedStudent.bus ?? false,
                     current_room: undefined,
-                    guardian_name: hasAccess ? (mappedStudent.guardian_name ?? "") : "",
-                    guardian_contact: hasAccess ? (mappedStudent.guardian_contact ?? mappedStudent.guardian_phone ?? "") : "",
-                    guardian_phone: hasAccess ? (mappedStudent.guardian_phone ?? mappedStudent.guardian_contact ?? "") : "",
                     birthday: mappedStudent.birthday ?? undefined,
                     buskind: mappedStudent.bus ?? false,
                     attendance_rate: undefined,
@@ -199,7 +196,7 @@ function StudentPageContent() {
                         setGuardianLoading(true);
                         const guardians = await guardianService.getStudentGuardians(studentId);
                         setStudentGuardians(guardians);
-                    } catch (guardianErr) {
+                    } catch (guardianErr: unknown) {
                         console.error("Error fetching guardians:", guardianErr);
                     } finally {
                         setGuardianLoading(false);
@@ -219,12 +216,12 @@ function StudentPageContent() {
                         };
                         setCurrentLocation(locationData);
                     }
-                } catch (locationErr) {
+                } catch (locationErr: unknown) {
                     console.error("Error fetching student location:", locationErr);
                 }
 
                 setLoading(false);
-            } catch (err) {
+            } catch (err: unknown) {
                 console.error("Error fetching student:", err);
                 setError("Fehler beim Laden der Schülerdaten.");
                 setLoading(false);
@@ -254,8 +251,9 @@ function StudentPageContent() {
             setIsEditingPersonal(false);
             setAlertMessage({ type: 'success', message: 'Persönliche Informationen erfolgreich aktualisiert' });
             setTimeout(() => setAlertMessage(null), 3000);
-        } catch (error) {
-            console.error('Failed to save personal information:', error);
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error('Failed to save personal information:', errorMessage);
             setAlertMessage({ type: 'error', message: 'Fehler beim Speichern der persönlichen Informationen' });
             setTimeout(() => setAlertMessage(null), 3000);
         }
@@ -273,38 +271,13 @@ function StudentPageContent() {
 
             setAlertMessage({ type: 'success', message: 'Erziehungsberechtigte/r erfolgreich entfernt' });
             setTimeout(() => setAlertMessage(null), 3000);
-        } catch (error) {
-            console.error('Failed to remove guardian:', error);
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error('Failed to remove guardian:', errorMessage);
             setAlertMessage({ type: 'error', message: 'Fehler beim Entfernen der/des Erziehungsberechtigten' });
             setTimeout(() => setAlertMessage(null), 3000);
         }
     };
-    // Handle adding a guardian to student
-    const handleAddExistingGuardian = async (guardianId: string, relationshipType: string, isPrimary: boolean = false) => {
-        if (!student) return;
-
-        try {
-            await guardianService.addStudentGuardian(studentId, {
-                guardianId,
-                relationshipType,
-                isPrimary,
-                isEmergencyContact: false,
-                canPickup: true,
-            });
-
-            // Refresh guardians list
-            const guardians = await guardianService.getStudentGuardians(studentId);
-            setStudentGuardians(guardians);
-
-            setAlertMessage({ type: 'success', message: 'Erziehungsberechtigte/r erfolgreich hinzugefügt' });
-            setTimeout(() => setAlertMessage(null), 3000);
-        } catch (error) {
-            console.error('Failed to add guardian:', error);
-            setAlertMessage({ type: 'error', message: 'Fehler beim Hinzufügen der/des Erziehungsberechtigten' });
-            setTimeout(() => setAlertMessage(null), 3000);
-        }
-    };
-
     // Handle creating a new guardian and adding to student
     const handleCreateAndAddGuardian = async () => {
         if (!student || !newGuardianData.firstName || !newGuardianData.lastName || !newGuardianData.email || !newGuardianData.phone) {
@@ -344,34 +317,12 @@ function StudentPageContent() {
             setNewGuardianData({});
             setAlertMessage({ type: 'success', message: 'Erziehungsberechtigte/r erfolgreich erstellt und hinzugefügt' });
             setTimeout(() => setAlertMessage(null), 3000);
-        } catch (error) {
-            console.error('Failed to create and add guardian:', error);
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error('Failed to create and add guardian:', errorMessage);
             setAlertMessage({ type: 'error', message: 'Fehler beim Erstellen der/des Erziehungsberechtigten' });
             setTimeout(() => setAlertMessage(null), 3000);
         }
-    };
-
-    // Update relationship information for a guardian
-    const handleUpdateRelationship = async (guardianId: string, isPrimary: boolean) => {
-        if (!student) return;
-
-        try {
-            await guardianService.updateStudentGuardian(studentId, guardianId, {
-                isPrimary,
-            });
-
-            // Refresh guardians list
-            const guardians = await guardianService.getStudentGuardians(studentId);
-            setStudentGuardians(guardians);
-
-            setAlertMessage({ type: 'success', message: 'Beziehung erfolgreich aktualisiert' });
-            setTimeout(() => setAlertMessage(null), 3000);
-        } catch (error) {
-            console.error('Failed to update relationship:', error);
-            setAlertMessage({ type: 'error', message: 'Fehler beim Aktualisieren der Beziehung' });
-            setTimeout(() => setAlertMessage(null), 3000);
-        }
->>>>>>> 7028f7eb (feat: gurdians)
     };
 
     if (loading) {
