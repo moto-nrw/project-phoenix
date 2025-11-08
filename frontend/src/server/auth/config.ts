@@ -31,7 +31,7 @@ declare module "next-auth" {
     isAdmin?: boolean;
     isTeacher?: boolean;
   }
-  
+
   interface JWT {
     id?: string;
     token?: string;
@@ -57,7 +57,7 @@ function parseDurationToMs(duration: string): number {
   const amount = match[1]!;
   const unit = match[2]!;
   const num = parseInt(amount, 10);
-  return unit === 'h' ? num * 60 * 60 * 1000 : num * 60 * 1000;
+  return unit === "h" ? num * 60 * 60 * 1000 : num * 60 * 1000;
 }
 
 // Get token expiries from environment
@@ -84,11 +84,18 @@ export const authConfig = {
       async authorize(credentials, _request) {
         // Cast credentials to have string values
         const creds = credentials as Record<string, string> | undefined;
-        
+        const isDev = process.env.NODE_ENV === "development";
+
         // Handle internal token refresh
-        if (creds?.internalRefresh === "true" && creds?.token && creds?.refreshToken) {
-          console.log("Handling internal token refresh");
-          
+        if (
+          creds?.internalRefresh === "true" &&
+          creds?.token &&
+          creds?.refreshToken
+        ) {
+          if (isDev) {
+            console.log("Handling internal token refresh");
+          }
+
           // Parse the JWT token to get user info
           const tokenString = creds.token;
           const tokenParts = tokenString.split(".");
@@ -96,7 +103,7 @@ export const authConfig = {
             console.error("Invalid token format during refresh");
             return null;
           }
-          
+
           try {
             const payloadPart = tokenParts[1];
             if (!payloadPart) {
@@ -116,18 +123,18 @@ export const authConfig = {
               is_admin?: boolean;
               is_teacher?: boolean;
             };
-            
+
             // Extract email and roles from token
             const email = payload.email ?? payload.sub ?? "";
             const roles = payload.roles ?? [];
-            
+
             // Construct display name
             const displayName = payload.first_name
               ? payload.last_name
                 ? `${payload.first_name} ${payload.last_name}`
                 : payload.first_name
-              : payload.username ?? email ?? "User";
-            
+              : (payload.username ?? email ?? "User");
+
             return {
               id: String(payload.id),
               name: displayName,
@@ -144,7 +151,7 @@ export const authConfig = {
             return null;
           }
         }
-        
+
         // Regular login flow
         if (!creds?.email || !creds?.password) return null;
 
@@ -152,23 +159,22 @@ export const authConfig = {
           // Improved error handling with more detailed logging
           // Use server URL in server context (Docker environment)
           const apiUrl = env.NEXT_PUBLIC_API_URL;
-          console.log(
-            `Attempting login with API URL: ${apiUrl}/auth/login`,
-          );
-          const response = await fetch(
-            `${apiUrl}/auth/login`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                email: creds.email,
-                password: creds.password,
-              }),
-            },
-          );
+          if (isDev) {
+            console.log(`Attempting login with API URL: ${apiUrl}/auth/login`);
+          }
+          const response = await fetch(`${apiUrl}/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: creds.email,
+              password: creds.password,
+            }),
+          });
 
           // Log the response status to help with debugging
-          console.log(`Login response status: ${response.status}`);
+          if (isDev) {
+            console.log(`Login response status: ${response.status}`);
+          }
 
           if (!response.ok) {
             const text = await response.text();
@@ -183,7 +189,9 @@ export const authConfig = {
             refresh_token: string;
           };
 
-          console.log("Login response:", JSON.stringify(responseData));
+          if (isDev) {
+            console.log("Login response:", JSON.stringify(responseData));
+          }
 
           // Parse the JWT token to get the user info
           // This avoids making a separate API call and possible auth issues
@@ -213,7 +221,9 @@ export const authConfig = {
               is_admin?: boolean;
               is_teacher?: boolean;
             };
-            console.log("Token payload:", payload);
+            if (isDev) {
+              console.log("Token payload:", payload);
+            }
 
             // Extract roles directly from the token payload - this is the correct way
             // The backend includes roles in the JWT token already
@@ -221,7 +231,9 @@ export const authConfig = {
 
             if (payload.roles && Array.isArray(payload.roles)) {
               roles = payload.roles;
-              console.log("Found roles in token:", roles);
+              if (isDev) {
+                console.log("Found roles in token:", roles);
+              }
             } else {
               console.warn(
                 "No roles found in token, this will cause authorization failures",
@@ -237,7 +249,9 @@ export const authConfig = {
             } else {
               displayName = payload.username ?? (credentials.email as string);
             }
-            console.log("Using display name:", displayName);
+            if (isDev) {
+              console.log("Using display name:", displayName);
+            }
 
             // Using type assertions for credentials to satisfy TypeScript
             return {
@@ -273,16 +287,27 @@ export const authConfig = {
   ],
   callbacks: {
     jwt: async ({ token, user }) => {
-      const callerId = `jwt-callback-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const stack = new Error().stack;
-      const caller = stack?.split('\n')[3]?.trim() ?? 'Unknown caller';
-      console.log(`\n=== [${callerId}] JWT Callback Invoked ===`);
-      console.log(`[${callerId}] Triggered by: NextAuth internal (server-side session access)`);
-      console.log(`[${callerId}] Stack trace hint: ${caller}`);
-      console.log(`[${callerId}] Has user object: ${!!user}`);
-      console.log(`[${callerId}] Current refresh token: ${token.refreshToken ? (token.refreshToken as string).substring(0, 50) + '...' : 'none'}`);
-      console.log(`[${callerId}] Token expiry: ${token.tokenExpiry ? new Date(token.tokenExpiry as number).toISOString() : 'not set'}`)
-      
+      // Only log in development to avoid production log spam
+      const isDev = process.env.NODE_ENV === "development";
+
+      if (isDev) {
+        const callerId = `jwt-callback-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const stack = new Error().stack;
+        const caller = stack?.split("\n")[3]?.trim() ?? "Unknown caller";
+        console.log(`\n=== [${callerId}] JWT Callback Invoked ===`);
+        console.log(
+          `[${callerId}] Triggered by: NextAuth internal (server-side session access)`,
+        );
+        console.log(`[${callerId}] Stack trace hint: ${caller}`);
+        console.log(`[${callerId}] Has user object: ${!!user}`);
+        console.log(
+          `[${callerId}] Current refresh token: ${token.refreshToken ? (token.refreshToken as string).substring(0, 50) + "..." : "none"}`,
+        );
+        console.log(
+          `[${callerId}] Token expiry: ${token.tokenExpiry ? new Date(token.tokenExpiry as number).toISOString() : "not set"}`,
+        );
+      }
+
       // Initial sign in
       if (user) {
         token.id = user.id;
@@ -301,55 +326,74 @@ export const authConfig = {
         // Clear any previous error states
         token.error = undefined;
         token.needsRefresh = undefined;
-        
-        // Log token configuration for debugging
-        console.log("=== Authentication Token Configuration ===");
-        console.log(`Access Token Expiry: ${env.AUTH_JWT_EXPIRY} (expires at ${new Date(token.tokenExpiry as number).toISOString()})`);
-        console.log(`Refresh Token Expiry: ${env.AUTH_JWT_REFRESH_EXPIRY} (expires at ${new Date(token.refreshTokenExpiry as number).toISOString()})`);
-        console.log(`NextAuth Session Length: ${env.AUTH_JWT_REFRESH_EXPIRY}`);
-        console.log(`Token Refresh: Handled by axios interceptor on 401 errors`);
-        console.log("========================================");
+
+        // Log token configuration for debugging (only in development)
+        if (isDev) {
+          console.log("=== Authentication Token Configuration ===");
+          console.log(
+            `Access Token Expiry: ${env.AUTH_JWT_EXPIRY} (expires at ${new Date(token.tokenExpiry as number).toISOString()})`,
+          );
+          console.log(
+            `Refresh Token Expiry: ${env.AUTH_JWT_REFRESH_EXPIRY} (expires at ${new Date(token.refreshTokenExpiry as number).toISOString()})`,
+          );
+          console.log(
+            `NextAuth Session Length: ${env.AUTH_JWT_REFRESH_EXPIRY}`,
+          );
+          console.log(
+            `Token Refresh: Handled by axios interceptor on 401 errors`,
+          );
+          console.log("========================================");
+        }
       }
 
       // Check if refresh token is expired
-      if (token.refreshTokenExpiry && Date.now() > (token.refreshTokenExpiry as number)) {
+      if (
+        token.refreshTokenExpiry &&
+        Date.now() > (token.refreshTokenExpiry as number)
+      ) {
         console.warn("Refresh token has expired, user needs to re-login");
         token.error = "RefreshTokenExpired";
         token.needsRefresh = true;
         // Keep user data for graceful degradation
         return token;
       }
-      
+
       // JWT callback no longer handles token refresh
       // All token refresh is now handled by the axios interceptor when it receives 401 errors
       // This eliminates race conditions from multiple concurrent refresh attempts
-      console.log(`[${callerId}] JWT callback completed - no refresh attempted (handled by axios interceptor)`);
-      
+      if (isDev) {
+        console.log(
+          "JWT callback completed - no refresh attempted (handled by axios interceptor)",
+        );
+      }
+
       return token;
     },
     session: ({ session, token }) => {
       // Check for token errors
-      if (token.error === "RefreshTokenExpired" || 
-          token.error === "RefreshTokenError" ||
-          !token.token) {
+      if (
+        token.error === "RefreshTokenExpired" ||
+        token.error === "RefreshTokenError" ||
+        !token.token
+      ) {
         // Return a minimal session that will trigger auth checks to fail
         return {
           ...session,
           user: {
             ...session.user,
-            id: token.id as string || "",
+            id: (token.id as string) || "",
             email: token.email ?? "",
             token: "", // Empty token will cause API calls to fail with 401
             refreshToken: "",
             roles: [],
-            firstName: token.firstName as string || "",
+            firstName: (token.firstName as string) || "",
             isAdmin: false,
             isTeacher: false,
           },
           error: token.error,
         };
       }
-      
+
       return {
         ...session,
         user: {
@@ -360,8 +404,8 @@ export const authConfig = {
           refreshToken: token.refreshToken as string,
           roles: token.roles as string[],
           firstName: token.firstName as string,
-          isAdmin: token.isAdmin as boolean ?? false,
-          isTeacher: token.isTeacher as boolean ?? false,
+          isAdmin: (token.isAdmin as boolean) ?? false,
+          isTeacher: (token.isTeacher as boolean) ?? false,
         },
       };
     },

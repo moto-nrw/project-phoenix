@@ -19,7 +19,8 @@ interface ResponsiveLayoutProps {
 export default function ResponsiveLayout({ children, pageTitle, studentName, roomName, activityName, referrerPage }: ResponsiveLayoutProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const userName = session?.user?.name ?? 'Root';
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- intentionally using || to treat empty strings as falsy
+  const userName = session?.user?.name?.trim() || undefined;
   const userEmail = session?.user?.email ?? '';
   const userRoles = session?.user?.roles ?? [];
   const userRole = userRoles.includes('admin') ? 'Admin' : userRoles.length > 0 ? 'Betreuer' : 'Betreuer';
@@ -28,7 +29,7 @@ export default function ResponsiveLayout({ children, pageTitle, studentName, roo
   // Check for invalid session and redirect
   useEffect(() => {
     if (status === 'loading') return;
-    
+
     // If session exists but token is empty, redirect to login
     if (session && !session.user?.token) {
       router.push('/');

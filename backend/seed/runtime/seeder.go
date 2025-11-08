@@ -290,6 +290,33 @@ func (s *Seeder) createAttendanceRecords(ctx context.Context, currentTime time.T
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	today := currentTime.Truncate(24 * time.Hour)
 
+	visitEntryByStudent := make(map[int64]time.Time)
+	for _, visit := range s.result.Visits {
+		if visit == nil || visit.ExitTime != nil {
+			continue
+		}
+		entryTime := visit.EntryTime
+		if entryTime.IsZero() {
+			continue
+		}
+		if existing, exists := visitEntryByStudent[visit.StudentID]; !exists || entryTime.Before(existing) {
+			visitEntryByStudent[visit.StudentID] = entryTime
+		}
+	}
+
+	existingAttendance := make(map[int64]struct{})
+	var existingAttendanceIDs []int64
+	if err := s.tx.NewSelect().
+		Table("active.attendance").
+		Column("student_id").
+		Where("date = ?", today).
+		Scan(ctx, &existingAttendanceIDs); err == nil {
+		for _, id := range existingAttendanceIDs {
+			existingAttendance[id] = struct{}{}
+			delete(visitEntryByStudent, id)
+		}
+	}
+
 	var checkedInByID int64
 	if len(s.fixedData.Staff) > 0 {
 		checkedInByID = s.fixedData.Staff[0].ID
@@ -316,40 +343,92 @@ func (s *Seeder) createAttendanceRecords(ctx context.Context, currentTime time.T
 	}
 
 	// Create attendance records for all students
+	deviceID := int64(1)
+	if len(s.fixedData.Devices) > 0 {
+		deviceID = s.fixedData.Devices[0].ID
+	}
 	attendanceCount := 0
 	for _, student := range s.fixedData.Students {
-		// 90% attendance rate
-		if rng.Float32() < 0.9 {
-			checkInTime := today.Add(7*time.Hour + 30*time.Minute) // 7:30 AM
-
-			// Add some variation to arrival times
-			arrivalOffset := rng.Intn(60) - 10 // -10 to +50 minutes
-			checkInTime = checkInTime.Add(time.Duration(arrivalOffset) * time.Minute)
-
-			// Find a device to check in with
-			var deviceID int64 = 1 // Default device
-			if len(s.fixedData.Devices) > 0 {
-				deviceID = s.fixedData.Devices[0].ID
-			}
-
-			attendance := &active.Attendance{
-				StudentID:   student.ID,
-				Date:        today,
-				CheckInTime: checkInTime,
-				CheckedInBy: checkedInByID,
-				DeviceID:    deviceID,
-			}
-
-			attendance.CreatedAt = time.Now()
-			attendance.UpdatedAt = time.Now()
-
-			_, err := s.tx.NewInsert().Model(attendance).ModelTableExpr("active.attendance").
-				Exec(ctx)
-			if err == nil {
-				s.result.Attendance = append(s.result.Attendance, attendance)
-				attendanceCount++
-			}
+		entryTime, hasVisit := visitEntryByStudent[student.ID]
+		shouldCreate := hasVisit || rng.Float32() < 0.9
+		if !shouldCreate {
+			continue
 		}
+		if _, alreadyCreated := existingAttendance[student.ID]; alreadyCreated {
+			if hasVisit {
+				delete(visitEntryByStudent, student.ID)
+			}
+			continue
+		}
+
+		checkInTime := today.Add(7*time.Hour + 30*time.Minute)
+		arrivalOffset := rng.Intn(60) - 10 // -10 to +50 minutes
+		checkInTime = checkInTime.Add(time.Duration(arrivalOffset) * time.Minute)
+		if hasVisit && checkInTime.After(entryTime) {
+			checkInTime = entryTime
+		}
+
+		attendance := &active.Attendance{
+			StudentID:   student.ID,
+			Date:        today,
+			CheckInTime: checkInTime,
+			CheckedInBy: checkedInByID,
+			DeviceID:    deviceID,
+		}
+
+		attendance.CreatedAt = time.Now()
+		attendance.UpdatedAt = time.Now()
+
+		_, err := s.tx.NewInsert().Model(attendance).ModelTableExpr("active.attendance").
+			Exec(ctx)
+		if err != nil {
+			if s.verbose {
+				log.Printf("Skipping attendance for student %d: %v", student.ID, err)
+			}
+			continue
+		}
+
+		s.result.Attendance = append(s.result.Attendance, attendance)
+		existingAttendance[student.ID] = struct{}{}
+		attendanceCount++
+		if hasVisit {
+			delete(visitEntryByStudent, student.ID)
+		}
+	}
+
+	for studentID, entryTime := range visitEntryByStudent {
+		if _, alreadyCreated := existingAttendance[studentID]; alreadyCreated {
+			continue
+		}
+
+		checkInTime := entryTime
+		if checkInTime.Before(today) {
+			checkInTime = today
+		}
+
+		attendance := &active.Attendance{
+			StudentID:   studentID,
+			Date:        today,
+			CheckInTime: checkInTime,
+			CheckedInBy: checkedInByID,
+			DeviceID:    deviceID,
+		}
+
+		attendance.CreatedAt = time.Now()
+		attendance.UpdatedAt = time.Now()
+
+		_, err := s.tx.NewInsert().Model(attendance).ModelTableExpr("active.attendance").
+			Exec(ctx)
+		if err != nil {
+			if s.verbose {
+				log.Printf("Failed to backfill attendance for student %d: %v", studentID, err)
+			}
+			continue
+		}
+
+		s.result.Attendance = append(s.result.Attendance, attendance)
+		existingAttendance[studentID] = struct{}{}
+		attendanceCount++
 	}
 
 	if s.verbose {

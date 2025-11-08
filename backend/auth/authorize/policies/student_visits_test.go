@@ -239,6 +239,14 @@ func (m *SimpleMockActiveService) GetStudentAttendanceStatus(ctx context.Context
 	return args.Get(0).(*activeSvc.AttendanceStatus), args.Error(1)
 }
 
+func (m *SimpleMockActiveService) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs []int64) (map[int64]*activeSvc.AttendanceStatus, error) {
+	args := m.Called(ctx, studentIDs)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(map[int64]*activeSvc.AttendanceStatus), args.Error(1)
+}
+
 func (m *SimpleMockActiveService) ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64) (*activeSvc.AttendanceResult, error) {
 	args := m.Called(ctx, studentID, staffID, deviceID)
 	if args.Get(0) == nil {
@@ -258,6 +266,22 @@ func (m *SimpleMockActiveService) ForceStartActivitySessionWithSupervisors(ctx c
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*active.Group), args.Error(1)
+}
+
+func (m *SimpleMockActiveService) GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
+	args := m.Called(ctx, studentIDs)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(map[int64]*active.Visit), args.Error(1)
+}
+
+func (m *SimpleMockActiveService) GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (map[int64]*active.Group, error) {
+	args := m.Called(ctx, groupIDs)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(map[int64]*active.Group), args.Error(1)
 }
 
 func (m *SimpleMockActiveService) StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error) {
@@ -324,10 +348,6 @@ func (m *SimpleMockStudentRepository) FindByGroupID(ctx context.Context, groupID
 
 func (m *SimpleMockStudentRepository) FindBySchoolClass(ctx context.Context, schoolClass string) ([]*userModels.Student, error) {
 	return nil, nil
-}
-
-func (m *SimpleMockStudentRepository) UpdateLocation(ctx context.Context, id int64, location string) error {
-	return nil
 }
 
 func (m *SimpleMockStudentRepository) AssignToGroup(ctx context.Context, studentID int64, groupID int64) error {

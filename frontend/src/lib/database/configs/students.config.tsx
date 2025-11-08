@@ -5,6 +5,13 @@ import { databaseThemes } from '@/components/ui/database/themes';
 import { GroupSelect } from '@/components/ui/database';
 import type { Student } from '@/lib/api';
 import dynamic from 'next/dynamic';
+import {
+  LOCATION_STATUSES,
+  isHomeLocation,
+  isPresentLocation,
+  isSchoolyardLocation,
+  isTransitLocation,
+} from '@/lib/location-helper';
 
 const PrivacyConsentSection = dynamic(
   () => import('@/components/students/privacy-consent-section'),
@@ -144,10 +151,8 @@ export const studentsConfig = defineEntityConfig<Student>({
     ],
     
     defaultValues: {
-      in_house: false,
-      wc: false,
-      school_yard: false,
       bus: false,
+      current_location: LOCATION_STATUSES.HOME,
     },
     
     transformBeforeSubmit: (data) => {
@@ -155,7 +160,7 @@ export const studentsConfig = defineEntityConfig<Student>({
       return {
         ...data,
         name: `${data.first_name} ${data.second_name}`,
-        current_location: 'Zuhause' as const,
+        current_location: LOCATION_STATUSES.HOME,
       };
     },
   },
@@ -172,17 +177,22 @@ export const studentsConfig = defineEntityConfig<Student>({
         {
           label: 'Im Haus',
           color: 'bg-green-400/80',
-          showWhen: (student) => !!student.in_house,
+          showWhen: (student) => isPresentLocation(student.current_location),
         },
         {
-          label: 'Toilette',
-          color: 'bg-blue-400/80',
-          showWhen: (student) => !!student.wc,
+          label: 'Unterwegs',
+          color: 'bg-fuchsia-400/80',
+          showWhen: (student) => isTransitLocation(student.current_location),
         },
         {
           label: 'Schulhof',
           color: 'bg-yellow-400/80',
-          showWhen: (student) => !!student.school_yard,
+          showWhen: (student) => isSchoolyardLocation(student.current_location),
+        },
+        {
+          label: 'Zuhause',
+          color: 'bg-red-400/80',
+          showWhen: (student) => isHomeLocation(student.current_location),
         },
         {
           label: 'Bus',
@@ -263,7 +273,7 @@ export const studentsConfig = defineEntityConfig<Student>({
             value: (student) => (
               <div
                 className={`rounded-lg p-2 md:p-3 text-sm ${
-                  student.in_house 
+                  isPresentLocation(student.current_location)
                     ? 'bg-green-100 text-green-800' 
                     : 'bg-gray-100 text-gray-500'
                 }`}
@@ -271,7 +281,7 @@ export const studentsConfig = defineEntityConfig<Student>({
                 <span className="flex items-center">
                   <span
                     className={`mr-2 inline-block h-3 w-3 rounded-full flex-shrink-0 ${
-                      student.in_house ? 'bg-green-500' : 'bg-gray-300'
+                      isPresentLocation(student.current_location) ? 'bg-green-500' : 'bg-gray-300'
                     }`}
                   />
                   <span className="truncate">Im Haus</span>
@@ -280,22 +290,22 @@ export const studentsConfig = defineEntityConfig<Student>({
             ),
           },
           {
-            label: 'Toilette',
+            label: 'Unterwegs',
             value: (student) => (
               <div
                 className={`rounded-lg p-2 md:p-3 text-sm ${
-                  student.wc 
-                    ? 'bg-blue-100 text-blue-800' 
+                  isTransitLocation(student.current_location)
+                    ? 'bg-fuchsia-100 text-fuchsia-800' 
                     : 'bg-gray-100 text-gray-500'
                 }`}
               >
                 <span className="flex items-center">
                   <span
                     className={`mr-2 inline-block h-3 w-3 rounded-full flex-shrink-0 ${
-                      student.wc ? 'bg-blue-500' : 'bg-gray-300'
+                      isTransitLocation(student.current_location) ? 'bg-fuchsia-500' : 'bg-gray-300'
                     }`}
                   />
-                  <span className="truncate">Toilette</span>
+                  <span className="truncate">Unterwegs</span>
                 </span>
               </div>
             ),
@@ -305,7 +315,7 @@ export const studentsConfig = defineEntityConfig<Student>({
             value: (student) => (
               <div
                 className={`rounded-lg p-2 md:p-3 text-sm ${
-                  student.school_yard 
+                  isSchoolyardLocation(student.current_location)
                     ? 'bg-yellow-100 text-yellow-800' 
                     : 'bg-gray-100 text-gray-500'
                 }`}
@@ -313,7 +323,7 @@ export const studentsConfig = defineEntityConfig<Student>({
                 <span className="flex items-center">
                   <span
                     className={`mr-2 inline-block h-3 w-3 rounded-full flex-shrink-0 ${
-                      student.school_yard ? 'bg-yellow-500' : 'bg-gray-300'
+                      isSchoolyardLocation(student.current_location) ? 'bg-yellow-500' : 'bg-gray-300'
                     }`}
                   />
                   <span className="truncate">Schulhof</span>

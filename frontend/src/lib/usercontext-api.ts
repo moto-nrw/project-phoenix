@@ -245,11 +245,13 @@ export const userContextService = {
                     throw new Error(`Get active groups failed: ${response.status}`);
                 }
 
-                const responseData = await response.json() as ApiResponse<BackendActiveGroup[]>;
-                return responseData.data.map(mapActiveGroupResponse);
+                const responseData = await response.json() as ApiResponse<BackendActiveGroup[] | null>;
+                const groups = Array.isArray(responseData.data) ? responseData.data : [];
+                return groups.map(mapActiveGroupResponse);
             } else {
-                const response = await api.get<ApiResponse<BackendActiveGroup[]>>(url);
-                return response.data.data.map(mapActiveGroupResponse);
+                const response = await api.get<ApiResponse<BackendActiveGroup[] | null>>(url);
+                const groups = Array.isArray(response.data.data) ? response.data.data : [];
+                return groups.map(mapActiveGroupResponse);
             }
         } catch (error) {
             console.error("Get active groups error:", error);
@@ -280,11 +282,13 @@ export const userContextService = {
                     throw new Error(`Get supervised groups failed: ${response.status}`);
                 }
 
-                const responseData = await response.json() as ApiResponse<BackendActiveGroup[]>;
-                return responseData.data.map(mapActiveGroupResponse);
+                const responseData = await response.json() as ApiResponse<BackendActiveGroup[] | null>;
+                const groups = Array.isArray(responseData.data) ? responseData.data : [];
+                return groups.map(mapActiveGroupResponse);
             } else {
-                const response = await api.get<ApiResponse<BackendActiveGroup[]>>(url);
-                return response.data.data.map(mapActiveGroupResponse);
+                const response = await api.get<ApiResponse<BackendActiveGroup[] | null>>(url);
+                const groups = Array.isArray(response.data.data) ? response.data.data : [];
+                return groups.map(mapActiveGroupResponse);
             }
         } catch (error) {
             console.error("Get supervised groups error:", error);

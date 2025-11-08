@@ -4,6 +4,7 @@ import { apiGet, apiPost, apiPut, apiDelete } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 import type { Student } from "~/lib/student-helpers";
 import { mapStudentResponse, prepareStudentForBackend } from "~/lib/student-helpers";
+import { LOCATION_STATUSES } from "~/lib/location-helper";
 
 /**
  * Type definition for student response from backend
@@ -15,7 +16,7 @@ interface StudentResponseFromBackend {
   last_name: string;
   tag_id?: string;
   school_class: string;
-  location: string;
+  current_location?: string | null;
   bus: boolean;
   guardian_name: string;
   guardian_contact: string;
@@ -137,7 +138,7 @@ interface BackendStudentRequest {
   school_class: string;
   guardian_name: string;
   guardian_contact: string;
-  location?: string;
+  current_location?: string;
   notes?: string;
   tag_id?: string;
   guardian_email?: string;
@@ -202,7 +203,7 @@ export const POST = createPostHandler<Student, Omit<Student, "id"> & { guardian_
       school_class: schoolClass,
       guardian_name: guardianName,
       guardian_contact: guardianContact,
-      location: backendData.location ?? "Unknown",
+      current_location: backendData.current_location ?? LOCATION_STATUSES.UNKNOWN,
       notes: undefined, // Not in frontend model
       tag_id: backendData.tag_id,
       guardian_email: guardianEmail ?? backendData.guardian_email,

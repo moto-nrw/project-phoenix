@@ -14,10 +14,6 @@ type Student struct {
 	base.Model      `bun:"schema:users,table:students"`
 	PersonID        int64   `bun:"person_id,notnull" json:"person_id"`
 	SchoolClass     string  `bun:"school_class,notnull" json:"school_class"`
-	Bus             bool    `bun:"bus,notnull" json:"bus"`
-	InHouse         bool    `bun:"in_house,notnull" json:"in_house"`
-	WC              bool    `bun:"wc,notnull" json:"wc"`
-	SchoolYard      bool    `bun:"school_yard,notnull" json:"school_yard"`
 	GroupID         *int64  `bun:"group_id" json:"group_id,omitempty"`
 	ExtraInfo       *string `bun:"extra_info" json:"extra_info,omitempty"`
 	SupervisorNotes *string `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
@@ -64,20 +60,6 @@ func (s *Student) Validate() error {
 	// Trim spaces from school class
 	s.SchoolClass = strings.TrimSpace(s.SchoolClass)
 
-	// Ensure only one location is active at a time (bus is not a location)
-	locationCount := 0
-	if s.InHouse {
-		locationCount++
-	}
-	if s.WC {
-		locationCount++
-	}
-	if s.SchoolYard {
-		locationCount++
-	}
-
-	if locationCount > 1 {
-		return errors.New("only one location can be active at a time")
 	}
 
 	return nil
@@ -89,50 +71,6 @@ func (s *Student) SetPerson(person *Person) {
 	if person != nil {
 		s.PersonID = person.ID
 	}
-}
-
-// SetGroupID sets the group ID for this student
-func (s *Student) SetGroupID(groupID *int64) {
-	s.GroupID = groupID
-}
-
-// GetLocation returns the current location of the student
-func (s *Student) GetLocation() string {
-	if s.InHouse {
-		return "In House"
-	}
-	if s.WC {
-		return "WC"
-	}
-	if s.SchoolYard {
-		return "School Yard"
-	}
-	// If none of the location flags are set, student is at home
-	return "Home"
-}
-
-// SetLocation sets the student's location, ensuring only one is active
-func (s *Student) SetLocation(location string) error {
-	// Reset all location flags (but not bus, which is transportation info)
-	s.InHouse = false
-	s.WC = false
-	s.SchoolYard = false
-
-	// Set the specified location
-	switch strings.ToLower(location) {
-	case "in house", "house":
-		s.InHouse = true
-	case "wc", "bathroom":
-		s.WC = true
-	case "school yard", "yard":
-		s.SchoolYard = true
-	case "home", "none", "":
-		// All locations remain false (student is at home)
-	default:
-		return errors.New("invalid location: must be In House, WC, School Yard, Home, or empty")
-	}
-
-	return nil
 }
 
 // GetID returns the entity's ID

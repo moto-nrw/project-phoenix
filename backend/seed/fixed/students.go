@@ -90,14 +90,11 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 				}
 			}
 
-			// Set bus permission (30% of students)
-			bus := rng.Float32() < 0.3
 
 			// Create student
 			student := &users.Student{
 				PersonID:    person.ID,
 				SchoolClass: classGroup.Name,
-				Bus:         bus,
 				GroupID:     &classGroup.ID,
 			}
 			student.CreatedAt = time.Now()
@@ -107,7 +104,6 @@ func (s *Seeder) seedStudents(ctx context.Context) error {
 				ModelTableExpr("users.students").
 				On("CONFLICT (person_id) DO UPDATE").
 				Set("school_class = EXCLUDED.school_class").
-				Set("bus = EXCLUDED.bus").
 				Set("group_id = EXCLUDED.group_id").
 				Set("updated_at = EXCLUDED.updated_at").
 				Returning("id, created_at, updated_at").

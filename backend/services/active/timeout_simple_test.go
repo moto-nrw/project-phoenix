@@ -106,6 +106,9 @@ func (m *SimpleGroupRepo) FindUnclaimed(ctx context.Context) ([]*active.Group, e
 func (m *SimpleGroupRepo) FindActiveGroups(ctx context.Context) ([]*active.Group, error) {
 	return nil, nil
 }
+func (m *SimpleGroupRepo) FindByIDs(ctx context.Context, ids []int64) (map[int64]*active.Group, error) {
+	return nil, nil
+}
 
 // Simple MockVisitRepository for testing
 type MockVisitRepository struct {
@@ -153,6 +156,9 @@ func (m *MockVisitRepository) CountExpiredVisits(ctx context.Context) (int64, er
 	return 0, nil
 }
 func (m *MockVisitRepository) GetCurrentByStudentID(ctx context.Context, studentID int64) (*active.Visit, error) {
+	return nil, nil
+}
+func (m *MockVisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
 	return nil, nil
 }
 func (m *MockVisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit, error) {

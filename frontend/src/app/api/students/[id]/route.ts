@@ -42,7 +42,7 @@ interface StudentResponseFromBackend {
   last_name: string;
   tag_id?: string;
   school_class: string;
-  location: string;
+  current_location?: string | null;
   guardian_name: string;
   guardian_contact: string;
   guardian_email?: string;
@@ -125,6 +125,7 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
         };
       }
     } catch (e) {
+
       // Log the error for debugging
       console.error(`Privacy consent fetch error for student ${id}:`, e);
 
@@ -135,7 +136,6 @@ export const GET = createGetHandler(async (_request: NextRequest, token: string,
           // Don't throw - use defaults instead to prevent breaking the whole request
         }
       }
-      // Fall through to defaults for any error
     }
 
     return {

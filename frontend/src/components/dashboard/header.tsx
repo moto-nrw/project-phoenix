@@ -10,6 +10,7 @@ import { HelpButton } from "@/components/ui/help_button";
 import { getHelpContent } from "@/lib/help-content";
 import { useSession } from "next-auth/react";
 import { LogoutModal } from "~/components/ui/logout-modal";
+import { useProfile } from "~/lib/profile-context";
 
 // Function to get page title based on pathname
 function getPageTitle(pathname: string): string {
@@ -128,6 +129,49 @@ const LogoutIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
+// Avatar Component with profile picture support
+const UserAvatar = ({
+    avatarUrl,
+    userName,
+    size = "sm"
+}: {
+    avatarUrl?: string | null;
+    userName: string;
+    size?: "sm" | "md";
+}) => {
+    const sizeClasses = size === "sm" ? "w-8 h-8 text-sm" : "w-11 h-11 text-base";
+    const initials = (
+        (userName?.trim() || "")
+            .split(' ')
+            .filter(n => n.length > 0)
+            .map(n => n[0])
+            .join('')
+            .toUpperCase()
+    ) || "?";
+
+    return (
+        <div
+            className={`relative ${sizeClasses} rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0 overflow-hidden ${size === "sm" ? "ring-2 ring-white shadow-sm" : "shadow-md"}`}
+            style={{
+                background: avatarUrl ? 'transparent' : 'linear-gradient(135deg, #5080d8, #83cd2d)'
+            }}
+        >
+            {avatarUrl ? (
+                <Image
+                    src={avatarUrl}
+                    alt={userName}
+                    fill
+                    className="object-cover"
+                    sizes="44px"
+                    unoptimized
+                />
+            ) : (
+                initials
+            )}
+        </div>
+    );
+};
+
 
 
 export function Header({ userName = "Benutzer", userEmail = "", userRole = "", customPageTitle, studentName, roomName, activityName, referrerPage }: HeaderProps) {
@@ -138,6 +182,7 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
     const helpContent = getHelpContent(pathname);
     const pageTitle = customPageTitle ?? getPageTitle(pathname);
     const { data: session } = useSession();
+    const { profile } = useProfile();
 
     // Shrinking header on scroll (Instagram/Twitter pattern - mobile only)
     useEffect(() => {
@@ -181,6 +226,12 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
                             referrer.startsWith("/myroom") ? "Mein Raum" :
                             "Kindersuche";
 
+    // Use profile from Context, fall back to props
+    const displayName = profile
+        ? `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim() || userName
+        : userName;
+    const displayAvatar = profile?.avatar;
+
     const toggleProfileMenu = () => {
         setIsProfileMenuOpen(!isProfileMenuOpen);
     };
@@ -210,6 +261,7 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
                                     width={40}
                                     height={40}
                                     className="w-9 h-9"
+                                    priority
                                 />
                                 {/* Subtle glow effect */}
                                 <div className="absolute inset-0 w-9 h-9 rounded-full bg-gradient-to-br from-[#5080d8]/20 to-[#83cd2d]/20 blur-sm -z-10"></div>
@@ -475,22 +527,19 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
 
                         {/* User menu */}
                         <div className="relative">
-                            <button 
+                            <button
                                 onClick={toggleProfileMenu}
                                 className="flex items-center space-x-2 p-1.5 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors duration-200 touch-manipulation"
                             >
-                                <div 
-                                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-semibold ring-2 ring-white shadow-sm"
-                                    style={{
-                                        background: 'linear-gradient(135deg, #5080d8, #83cd2d)'
-                                    }}
-                                >
-                                    {userName.split(' ').map(n => n[0]).join('').toUpperCase()}
-                                </div>
-                                
+                                <UserAvatar
+                                    avatarUrl={displayAvatar}
+                                    userName={displayName}
+                                    size="sm"
+                                />
+
                                 <div className="hidden md:block text-left">
                                     <div className="text-sm font-medium text-gray-900">
-                                        {userName}
+                                        {displayName}
                                     </div>
                                     <div className="text-xs text-gray-500">
                                         {userRole}
@@ -519,16 +568,13 @@ export function Header({ userName = "Benutzer", userEmail = "", userRole = "", c
                                 {/* User info header - modern glassmorphic style */}
                                 <div className="px-4 py-4 border-b border-gray-100/50">
                                     <div className="flex items-center space-x-3">
-                                        <div
-                                            className="w-11 h-11 flex-shrink-0 rounded-full flex items-center justify-center text-white font-semibold shadow-md"
-                                            style={{
-                                                background: 'linear-gradient(135deg, #5080d8, #83cd2d)'
-                                            }}
-                                        >
-                                            {userName.split(' ').map(n => n[0]).join('').toUpperCase()}
-                                        </div>
+                                        <UserAvatar
+                                            avatarUrl={displayAvatar}
+                                            userName={displayName}
+                                            size="md"
+                                        />
                                         <div className="flex-1 min-w-0">
-                                            <div className="font-semibold text-gray-900 truncate">{userName}</div>
+                                            <div className="font-semibold text-gray-900 truncate">{displayName}</div>
                                             <div className="text-xs text-gray-500 truncate" title={userEmail}>{userEmail}</div>
                                         </div>
                                     </div>

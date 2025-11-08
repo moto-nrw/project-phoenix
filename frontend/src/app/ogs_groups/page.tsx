@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
+import { useState, useEffect, Suspense, useMemo, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
@@ -10,23 +10,19 @@ import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { userContextService } from "~/lib/usercontext-api";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
-import type { StudentLocation } from "~/lib/student-helpers";
-import { fetchRooms } from "~/lib/rooms-api";
-import { createRoomIdToNameMap } from "~/lib/rooms-helpers";
+import {
+  LOCATION_STATUSES,
+  isHomeLocation,
+  isSchoolyardLocation,
+  isTransitLocation,
+  parseLocation,
+} from "~/lib/location-helper";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import type { SSEEvent } from "~/lib/sse-types";
 
 import { Loading } from "~/components/ui/loading";
-// Location constants to ensure type safety
-const LOCATIONS = {
-  HOME: "Home" as StudentLocation,
-  IN_HOUSE: "In House" as StudentLocation,
-  WC: "WC" as StudentLocation,
-  SCHOOL_YARD: "School Yard" as StudentLocation,
-  BUS: "Bus" as StudentLocation,
-  UNKNOWN: "Unknown" as StudentLocation,
-} as const;
+import { LocationBadge } from "@/components/ui/location-badge";
 
 // Define OGSGroup type based on EducationalGroup with additional fields
 interface OGSGroup {
@@ -37,6 +33,31 @@ interface OGSGroup {
   student_count?: number;
   supervisor_name?: string;
   students?: Student[];
+}
+
+function isStudentInGroupRoom(
+  student: Student,
+  currentGroup?: OGSGroup | null,
+): boolean {
+  if (!student?.current_location || !currentGroup?.room_name) {
+    return false;
+  }
+
+  const parsed = parseLocation(student.current_location);
+  if (parsed.room) {
+    const normalizedStudentRoom = parsed.room.trim().toLowerCase();
+    const normalizedGroupRoom = currentGroup.room_name.trim().toLowerCase();
+    if (normalizedStudentRoom === normalizedGroupRoom) {
+      return true;
+    }
+  }
+
+  if (currentGroup.room_id) {
+    const normalizedLocation = student.current_location.toLowerCase();
+    return normalizedLocation.includes(currentGroup.room_id.toString());
+  }
+
+  return false;
 }
 
 function OGSGroupPageContent() {
@@ -72,9 +93,6 @@ function OGSGroupPageContent() {
       }
     >
   >({});
-  const [roomIdToNameMap, setRoomIdToNameMap] = useState<
-    Record<string, string>
-  >({});
 
   // State for showing group selection (for 5+ groups)
   const [showGroupSelection, setShowGroupSelection] = useState(true);
@@ -84,6 +102,12 @@ function OGSGroupPageContent() {
 
   // Get current selected group
   const currentGroup = allGroups[selectedGroupIndex] ?? null;
+
+  // Ref to track current group without triggering SSE reconnections
+  const currentGroupRef = useRef<OGSGroup | null>(null);
+  useEffect(() => {
+    currentGroupRef.current = currentGroup;
+  }, [currentGroup]);
 
   // Helper function to load room status for current group
   const loadGroupRoomStatus = useCallback(
@@ -130,28 +154,43 @@ function OGSGroupPageContent() {
     [session?.user?.token],
   );
 
-  // SSE event handler - refetch room status when students check in/out
+  // SSE event handler - refetch students + room status when students check in/out
   const handleSSEEvent = useCallback(
     (event: SSEEvent) => {
       console.log("SSE event received:", event.type, event.active_group_id);
 
-      // Check if we have a current group selected
-      if (!currentGroup) return;
+      const group = currentGroupRef.current;
+      if (!group) return;
 
-      // For any student check-in/check-out event, refetch room status
-      // (SSE events are for active groups, but we need to update OGS group room status)
-      if (
-        event.type === "student_checkin" ||
-        event.type === "student_checkout"
-      ) {
-        console.log(
-          "Student location changed - refetching room status for group:",
-          currentGroup.id,
-        );
-        void loadGroupRoomStatus(currentGroup.id);
-      }
+      const isStudentLocationEvent =
+        event.type === "student_checkin" || event.type === "student_checkout";
+
+      if (!isStudentLocationEvent) return;
+
+      console.log(
+        "Student location changed - refetching students and room status for group:",
+        group.id,
+      );
+
+      // Handle async operations without returning promise
+      void (async () => {
+        try {
+          const studentsPromise = studentService.getStudents({
+            groupId: group.id,
+          });
+
+          const [studentsResponse] = await Promise.all([
+            studentsPromise,
+            loadGroupRoomStatus(group.id),
+          ]);
+
+          setStudents(studentsResponse.students || []);
+        } catch (error) {
+          console.error("Error refetching after SSE:", error);
+        }
+      })();
     },
-    [currentGroup, loadGroupRoomStatus],
+    [loadGroupRoomStatus],
   );
 
   // Connect to SSE for real-time updates
@@ -188,30 +227,15 @@ function OGSGroupPageContent() {
 
         setHasAccess(true);
 
-        // Convert all groups to OGSGroup format and pre-load student counts
-        const ogsGroups: OGSGroup[] = await Promise.all(
-          myGroups.map(async (group) => {
-            // Pre-load student count for this group
-            let studentCount = 0;
-            try {
-              const studentsResponse = await studentService.getStudents({
-                groupId: group.id,
-              });
-              studentCount = studentsResponse.students?.length || 0;
-            } catch (error) {
-              console.error("Error fetching student count for group:", error);
-            }
-
-            return {
-              id: group.id,
-              name: group.name,
-              room_name: group.room?.name,
-              room_id: group.room_id,
-              student_count: studentCount, // Pre-loaded actual student count
-              supervisor_name: undefined, // Will be fetched separately if needed
-            };
-          }),
-        );
+        // Convert all groups to OGSGroup format (no pre-loading)
+        const ogsGroups: OGSGroup[] = myGroups.map((group) => ({
+          id: group.id,
+          name: group.name,
+          room_name: group.room?.name,
+          room_id: group.room_id,
+          student_count: undefined, // Will be loaded on-demand
+          supervisor_name: undefined,
+        }));
 
         setAllGroups(ogsGroups);
 
@@ -222,7 +246,7 @@ function OGSGroupPageContent() {
           throw new Error("No educational group found");
         }
 
-        // Fetch students for the first group
+        // Fetch students for the first group only
         const studentsResponse = await studentService.getStudents({
           groupId: firstGroup.id,
         });
@@ -230,30 +254,15 @@ function OGSGroupPageContent() {
 
         setStudents(studentsData);
 
-        // Calculate statistics from real data (only if we have valid array data)
-        const validStudents = Array.isArray(studentsData) ? studentsData : [];
-        setStudents(validStudents);
-
-        // Update group with actual student count
+        // Update first group with actual student count
         setAllGroups((prev) =>
           prev.map((group, idx) =>
-            idx === 0
-              ? { ...group, student_count: validStudents.length }
-              : group,
+            idx === 0 ? { ...group, student_count: studentsData.length } : group,
           ),
         );
 
         // Fetch room status for all students in the group
         await loadGroupRoomStatus(firstGroup.id);
-
-        // Fetch all rooms to get their names
-        try {
-          const rooms = await fetchRooms(session?.user?.token);
-          const roomMap = createRoomIdToNameMap(rooms);
-          setRoomIdToNameMap(roomMap);
-        } catch (roomErr) {
-          console.error("Failed to fetch rooms:", roomErr);
-        }
 
         setError(null);
       } catch (err) {
@@ -356,30 +365,14 @@ function OGSGroupPageContent() {
             )
               return false;
             break;
-          case "in_house":
-            // Check both the in_house flag and current_location
-            if (
-              !student.in_house &&
-              student.current_location !== LOCATIONS.IN_HOUSE
-            )
-              return false;
+          case "transit":
+            if (!isTransitLocation(student.current_location)) return false;
             break;
-          case "school_yard":
-            if (
-              !student.school_yard &&
-              student.current_location !== LOCATIONS.SCHOOL_YARD
-            )
-              return false;
+          case "schoolyard":
+            if (!isSchoolyardLocation(student.current_location)) return false;
             break;
           case "at_home":
-            // Student is at home if no location flags are set OR current_location is "Home"
-            const isAtHome =
-              (!student.in_house &&
-                !student.wc &&
-                !student.school_yard &&
-                !studentRoomStatus?.in_group_room) ||
-              student.current_location === LOCATIONS.HOME;
-            if (!isAtHome) return false;
+            if (!isHomeLocation(student.current_location)) return false;
             break;
         }
       }
@@ -388,74 +381,36 @@ function OGSGroupPageContent() {
     },
   );
 
-  // Helper function to get location status with enhanced design
-  const getLocationStatus = (student: Student) => {
-    const studentRoomStatus = roomStatus[student.id.toString()];
+  const getCardGradient = useCallback(
+    (student: Student) => {
+      if (isStudentInGroupRoom(student, currentGroup)) {
+        return "from-emerald-50/80 to-green-100/80";
+      }
 
-    // Check if student is in group room
-    if (studentRoomStatus?.in_group_room) {
-      // Use the actual room name instead of generic "Gruppenraum"
-      const roomLabel = currentGroup?.room_name ?? "Gruppenraum";
-      return {
-        label: roomLabel,
-        badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-emerald-50/80 to-green-100/80",
-        customBgColor: "#83CD2D",
-        customShadow: "0 8px 25px rgba(131, 205, 45, 0.4)",
-      };
-    }
+      if (isSchoolyardLocation(student.current_location)) {
+        return "from-amber-50/80 to-yellow-100/80";
+      }
 
-    // Check if student is in a specific room (not group room)
-    if (
-      studentRoomStatus?.current_room_id &&
-      !studentRoomStatus.in_group_room
-    ) {
-      const roomName =
-        roomIdToNameMap[studentRoomStatus.current_room_id.toString()] ??
-        `Raum ${studentRoomStatus.current_room_id}`;
-      return {
-        label: roomName,
-        badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-blue-50/80 to-cyan-100/80",
-        customBgColor: "#5080D8",
-        customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)",
-      };
-    }
+      if (isTransitLocation(student.current_location)) {
+        return "from-fuchsia-50/80 to-pink-100/80";
+      }
 
-    // Check for schoolyard
-    if (student.school_yard === true) {
-      return {
-        label: "Schulhof",
-        badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-amber-50/80 to-yellow-100/80",
-        customBgColor: "#F78C10",
-        customShadow: "0 8px 25px rgba(247, 140, 16, 0.4)",
-      };
-    }
+      if (isHomeLocation(student.current_location)) {
+        return "from-red-50/80 to-rose-100/80";
+      }
 
-    // Check for in transit/movement
-    if (
-      student.in_house === true ||
-      student.current_location === LOCATIONS.BUS
-    ) {
-      return {
-        label: "Unterwegs",
-        badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-fuchsia-50/80 to-pink-100/80",
-        customBgColor: "#D946EF",
-        customShadow: "0 8px 25px rgba(217, 70, 239, 0.4)",
-      };
-    }
+      const parsedLocation = parseLocation(student.current_location);
+      if (
+        parsedLocation.room ||
+        parsedLocation.status === LOCATION_STATUSES.PRESENT
+      ) {
+        return "from-blue-50/80 to-cyan-100/80";
+      }
 
-    // Default to at home
-    return {
-      label: "Zuhause",
-      badgeColor: "text-white backdrop-blur-sm",
-      cardGradient: "from-red-50/80 to-rose-100/80",
-      customBgColor: "#FF3130",
-      customShadow: "0 8px 25px rgba(255, 49, 48, 0.4)",
-    };
-  };
+      return "from-slate-50/80 to-gray-100/80";
+    },
+    [currentGroup],
+  );
 
   // Prepare filter configurations for PageHeaderWithSearch
   const filterConfigs: FilterConfig[] = useMemo(
@@ -493,12 +448,12 @@ function OGSGroupPageContent() {
             icon: "M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z",
           },
           {
-            value: "in_house",
+            value: "transit",
             label: "Unterwegs",
             icon: "M13 10V3L4 14h7v7l9-11h-7z",
           },
           {
-            value: "school_yard",
+            value: "schoolyard",
             label: "Schulhof",
             icon: "M21 12a9 9 0 11-18 0 9 9 0 0118 0zM12 12a8 8 0 008 4M7.5 13.5a12 12 0 008.5 6.5M12 12a8 8 0 00-7.464 4.928M12.951 7.353a12 12 0 00-9.88 4.111M12 12a8 8 0 00-.536-8.928M15.549 15.147a12 12 0 001.38-10.611",
           },
@@ -536,8 +491,9 @@ function OGSGroupPageContent() {
     if (attendanceFilter !== "all") {
       const locationLabels: Record<string, string> = {
         in_room: "Gruppenraum",
-        in_house: "Unterwegs",
-        school_yard: "Schulhof",
+        foreign_room: "Fremder Raum",
+        transit: "Unterwegs",
+        schoolyard: "Schulhof",
         at_home: "Zuhause",
       };
       filters.push({
@@ -566,19 +522,32 @@ function OGSGroupPageContent() {
           <PageHeaderWithSearch title="Meine Gruppe" />
 
           <div className="flex min-h-[60vh] items-center justify-center px-4">
-            <div className="flex flex-col items-center gap-6 text-center max-w-md">
-              <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center">
-                <svg className="w-10 h-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            <div className="flex max-w-md flex-col items-center gap-6 text-center">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
+                <svg
+                  className="h-10 w-10 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                  />
                 </svg>
               </div>
               <div className="space-y-2">
-                <h3 className="text-xl font-bold text-gray-900">Keine OGS-Gruppe zugeordnet</h3>
+                <h3 className="text-xl font-bold text-gray-900">
+                  Keine OGS-Gruppe zugeordnet
+                </h3>
                 <p className="text-gray-600">
                   Du bist keiner OGS-Gruppe als Leiter:in zugeordnet.
                 </p>
-                <p className="text-sm text-gray-500 mt-4">
-                  Wende dich an deine Verwaltung, um einer Gruppe zugewiesen zu werden.
+                <p className="mt-4 text-sm text-gray-500">
+                  Wende dich an deine Verwaltung, um einer Gruppe zugewiesen zu
+                  werden.
                 </p>
               </div>
             </div>
@@ -588,8 +557,9 @@ function OGSGroupPageContent() {
     );
   }
 
-  // Show group selection screen for 5+ groups
-  if (allGroups.length >= 5 && showGroupSelection) {
+  // TODO: Remove group selection screen entirely - threshold raised to effectively disable
+  // Show group selection screen for 99+ groups (effectively disabled)
+  if (allGroups.length >= 99 && showGroupSelection) {
     return (
       <ResponsiveLayout>
         <div className="mx-auto w-full max-w-6xl px-4">
@@ -676,20 +646,22 @@ function OGSGroupPageContent() {
               : "" // No title when multiple groups (tabs show group names) or on desktop
           }
           statusIndicator={{
-            color: sseStatus === "connected"
-              ? "green"
-              : sseStatus === "reconnecting"
-                ? "yellow"
-                : sseStatus === "failed"
-                  ? "red"
-                  : "gray",
-            tooltip: sseStatus === "connected"
-              ? "Live-Updates aktiv"
-              : sseStatus === "reconnecting"
-                ? `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`
-                : sseStatus === "failed"
-                  ? "Verbindung fehlgeschlagen"
-                  : "Verbindung wird hergestellt..."
+            color:
+              sseStatus === "connected"
+                ? "green"
+                : sseStatus === "reconnecting"
+                  ? "yellow"
+                  : sseStatus === "failed"
+                    ? "red"
+                    : "gray",
+            tooltip:
+              sseStatus === "connected"
+                ? "Live-Updates aktiv"
+                : sseStatus === "reconnecting"
+                  ? `Verbindung wird wiederhergestellt... (Versuch ${reconnectAttempts}/5)`
+                  : sseStatus === "failed"
+                    ? "Verbindung fehlgeschlagen"
+                    : "Verbindung wird hergestellt...",
           }}
           badge={{
             icon: (
@@ -753,7 +725,7 @@ function OGSGroupPageContent() {
         )}
 
         {/* Student Grid - Mobile Optimized */}
-        {isLoading && selectedGroupIndex > 0 ? (
+        {isLoading ? (
           <Loading fullPage={false} />
         ) : students.length === 0 ? (
           <div className="py-12 text-center">
@@ -790,7 +762,8 @@ function OGSGroupPageContent() {
           <div>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
               {filteredStudents.map((student) => {
-                const locationStatus = getLocationStatus(student);
+                const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
+                const cardGradient = getCardGradient(student);
 
                 return (
                   <div
@@ -802,7 +775,7 @@ function OGSGroupPageContent() {
                   >
                     {/* Modern gradient overlay */}
                     <div
-                      className={`absolute inset-0 bg-gradient-to-br ${locationStatus.cardGradient} rounded-3xl opacity-[0.03]`}
+                      className={`absolute inset-0 bg-gradient-to-br ${cardGradient} rounded-3xl opacity-[0.03]`}
                     ></div>
                     {/* Subtle inner glow */}
                     <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
@@ -839,16 +812,13 @@ function OGSGroupPageContent() {
                         </div>
 
                         {/* Status Badge */}
-                        <span
-                          className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor} ml-3`}
-                          style={{
-                            backgroundColor: locationStatus.customBgColor,
-                            boxShadow: locationStatus.customShadow,
-                          }}
-                        >
-                          <span className="mr-2 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80"></span>
-                          {locationStatus.label}
-                        </span>
+                        <LocationBadge
+                          student={student}
+                          displayMode="roomName"
+                          isGroupRoom={!inGroupRoom}
+                          variant="modern"
+                          size="md"
+                        />
                       </div>
 
                       {/* Bottom row with click hint */}
@@ -909,11 +879,7 @@ function OGSGroupPageContent() {
 // Main component with Suspense wrapper
 export default function OGSGroupPage() {
   return (
-    <Suspense
-      fallback={
-        <Loading fullPage={false} />
-      }
-    >
+    <Suspense fallback={<Loading fullPage={false} />}>
       <SSEErrorBoundary>
         <OGSGroupPageContent />
       </SSEErrorBoundary>

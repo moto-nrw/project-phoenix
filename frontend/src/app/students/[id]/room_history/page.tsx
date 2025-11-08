@@ -16,11 +16,9 @@ interface Student {
     school_class: string;
     group_id: string;
     group_name?: string;
-    in_house: boolean;
-    wc: boolean;
-    school_yard: boolean;
     bus: boolean;
     current_room?: string;
+    current_location?: string;
     guardian_name: string;
     guardian_contact: string;
     guardian_phone?: string;
@@ -71,11 +69,9 @@ export default function StudentRoomHistoryPage() {
                     school_class: "3b",
                     group_id: "g3",
                     group_name: "Eulen",
-                    in_house: true,
-                    wc: false,
-                    school_yard: false,
                     bus: false,
                     current_room: "Raum 1.2",
+                    current_location: "Anwesend - Raum 1.2",
                     guardian_name: "Maria Müller",
                     guardian_contact: "muellers@example.com",
                     guardian_phone: "+49 176 12345678",
