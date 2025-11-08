@@ -29,9 +29,9 @@ export function PageHeader({
 
   return (
     <div className={`mb-6 md:hidden ${className}`}>
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex items-end justify-between gap-4">
         {/* Title with underline */}
-        <div className="relative ml-6 min-w-0 flex-1">
+        <div className="relative ml-6">
           <h1 className="pb-3 text-2xl font-bold text-gray-900">{title}</h1>
           {/* Underline indicator - matches tab style */}
           <div
@@ -42,7 +42,7 @@ export function PageHeader({
 
         {/* Badge and Status */}
         {(statusIndicator ?? badge) && (
-          <div className="mr-4 flex flex-none items-center gap-3 pb-3">
+          <div className="mr-4 flex items-center gap-3 pb-3">
             {/* Status Indicator Dot */}
             {statusIndicator && (
               <div
@@ -60,6 +60,9 @@ export function PageHeader({
                 <span className="text-sm font-semibold text-gray-900">
                   {badge.count}
                 </span>
+                {badge.label && (
+                  <span className="text-xs text-gray-500">{badge.label}</span>
+                )}
               </div>
             )}
           </div>
