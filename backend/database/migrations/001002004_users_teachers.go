@@ -53,12 +53,12 @@ func usersTeachersUp(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS users.teachers (
 			id BIGSERIAL PRIMARY KEY,
 			staff_id BIGINT NOT NULL UNIQUE,
-			specialization TEXT NOT NULL,
+			specialization TEXT,
 			role TEXT,
 			qualifications TEXT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT fk_teachers_staff FOREIGN KEY (staff_id) 
+			CONSTRAINT fk_teachers_staff FOREIGN KEY (staff_id)
 				REFERENCES users.staff(id) ON DELETE CASCADE
 		)
 	`)

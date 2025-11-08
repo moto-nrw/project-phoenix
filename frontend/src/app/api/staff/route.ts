@@ -33,11 +33,11 @@ interface BackendStaffResponse {
  */
 interface StaffCreateRequest {
   person_id: number;
-  staff_notes?: string;
+  staff_notes?: string | null;
   is_teacher?: boolean;
-  specialization?: string;
-  role?: string;
-  qualifications?: string;
+  specialization?: string | null;
+  role?: string | null;
+  qualifications?: string | null;
 }
 
 /**
@@ -90,7 +90,7 @@ export const GET = createGetHandler(
             : "",
           firstName: staff.person?.first_name ?? "",
           lastName: staff.person?.last_name ?? "",
-          specialization: staff.specialization ?? "",
+          specialization: staff.specialization ?? null,
           role: staff.role ?? null,
           qualifications: staff.qualifications ?? null,
           tag_id: staff.person?.tag_id ?? null,
@@ -117,7 +117,7 @@ export const GET = createGetHandler(
               : "",
             firstName: staff.person?.first_name ?? "",
             lastName: staff.person?.last_name ?? "",
-            specialization: staff.specialization ?? "",
+            specialization: staff.specialization ?? null,
             role: staff.role ?? null,
             qualifications: staff.qualifications ?? null,
             tag_id: staff.person?.tag_id ?? null,
@@ -154,7 +154,7 @@ interface TeacherResponse {
   name: string;
   firstName: string;
   lastName: string;
-  specialization: string;
+  specialization?: string | null;
   role: string | null;
   qualifications: string | null;
   tag_id: string | null;
@@ -178,20 +178,45 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
       );
     }
 
-    // If creating a teacher, specialization is required
-    if (
-      body.is_teacher &&
-      (!body.specialization || body.specialization.trim() === "")
-    ) {
-      throw new Error("Specialization is required for teachers");
-    }
-
     try {
+      const trimmedNotes = body.staff_notes?.trim();
+      const trimmedSpecialization = body.specialization?.trim();
+      const trimmedRole = body.role?.trim();
+      const trimmedQualifications = body.qualifications?.trim();
+
+      const normalizedBody: StaffCreateRequest = {
+        ...body,
+        staff_notes:
+          body.staff_notes !== undefined
+            ? trimmedNotes === ""
+              ? undefined
+              : trimmedNotes
+            : undefined,
+        specialization:
+          body.specialization !== undefined
+            ? trimmedSpecialization === ""
+              ? undefined
+              : trimmedSpecialization
+            : undefined,
+        role:
+          body.role !== undefined
+            ? trimmedRole === ""
+              ? undefined
+              : trimmedRole
+            : undefined,
+        qualifications:
+          body.qualifications !== undefined
+            ? trimmedQualifications === ""
+              ? undefined
+              : trimmedQualifications
+            : undefined,
+      };
+
       // Create the staff member via the API
       const response = await apiPost<BackendStaffResponse>(
         "/api/staff",
         token,
-        body,
+        normalizedBody,
       );
 
       // Map the response to match the Teacher interface from teacher-api.ts
@@ -203,7 +228,7 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
           : "",
         firstName: response.person?.first_name ?? "",
         lastName: response.person?.last_name ?? "",
-        specialization: response.specialization ?? "",
+        specialization: response.specialization ?? null,
         role: response.role ?? null,
         qualifications: response.qualifications ?? null,
         tag_id: response.person?.tag_id ?? null,
@@ -232,9 +257,7 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
         if (errorMessage.includes("person not found")) {
           throw new Error("Person not found with the specified ID");
         }
-        if (errorMessage.includes("specialization is required")) {
-          throw new Error("Specialization is required for teachers");
-        }
+        // No additional specialization validation anymore
       }
 
       // Re-throw other errors
