@@ -45,13 +45,13 @@ export interface BackendInvitation {
   id: number;
   email: string;
   role_id: number;
-  role_name?: string; // Rollenname direkt vom Backend
+  role_name?: string; // Role name from backend
   token?: string;
   expires_at: string;
   created_by: number;
   first_name?: string | null;
   last_name?: string | null;
-  creator?: string; // Creator-Email direkt vom Backend
+  creator?: string; // Creator email from backend
 }
 
 export const mapInvitationValidationResponse = (
