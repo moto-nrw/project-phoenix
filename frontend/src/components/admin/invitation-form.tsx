@@ -125,10 +125,16 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
       }
     } catch (err) {
       const apiError = err as ApiError | undefined;
-      setError(
-        apiError?.message ??
-          "Die Einladung konnte nicht erstellt werden. Bitte versuche es erneut.",
-      );
+
+      // Handle specific error cases with user-friendly messages
+      if (apiError?.status === 409) {
+        setError("Für diese E-Mail-Adresse existiert bereits ein Account. Bitte verwende eine andere E-Mail-Adresse.");
+      } else {
+        setError(
+          apiError?.message ??
+            "Die Einladung konnte nicht erstellt werden. Bitte versuche es erneut.",
+        );
+      }
     } finally {
       setIsSubmitting(false);
     }
