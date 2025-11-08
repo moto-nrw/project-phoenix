@@ -81,7 +81,8 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
   }, []);
 
   const handleChange =
-    (key: keyof CreateInvitationRequest) => (value: string | number | undefined) => {
+    (key: keyof CreateInvitationRequest) =>
+    (value: string | number | undefined) => {
       setForm((prev) => ({ ...prev, [key]: value }));
     };
 
@@ -128,7 +129,9 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
 
       // Handle specific error cases with user-friendly messages
       if (apiError?.status === 409) {
-        setError("Für diese E-Mail-Adresse existiert bereits ein Account. Bitte verwende eine andere E-Mail-Adresse.");
+        setError(
+          "Für diese E-Mail-Adresse existiert bereits ein Account. Bitte verwende eine andere E-Mail-Adresse.",
+        );
       } else {
         setError(
           apiError?.message ??
