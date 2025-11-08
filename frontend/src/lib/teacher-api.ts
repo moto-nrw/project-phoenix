@@ -271,18 +271,26 @@ class TeacherService {
       const staffNotes = teacherData.staff_notes?.trim();
       const trimmedRole = teacherData.role?.trim();
       const trimmedQualifications = teacherData.qualifications?.trim();
-      const staffRequestData = {
+      const staffRequestData: Record<string, unknown> = {
         person_id: personId,
-        staff_notes:
-          staffNotes && staffNotes.length > 0 ? staffNotes : undefined,
         is_teacher: true,
-        specialization: safeSpecialization,
-        role: trimmedRole && trimmedRole.length > 0 ? trimmedRole : undefined,
-        qualifications:
-          trimmedQualifications && trimmedQualifications.length > 0
-            ? trimmedQualifications
-            : undefined,
       };
+
+      if (teacherData.staff_notes !== undefined) {
+        staffRequestData.staff_notes = staffNotes ?? "";
+      }
+
+      if (teacherData.specialization !== undefined) {
+        staffRequestData.specialization = safeSpecialization ?? "";
+      }
+
+      if (teacherData.role !== undefined) {
+        staffRequestData.role = trimmedRole ?? "";
+      }
+
+      if (teacherData.qualifications !== undefined) {
+        staffRequestData.qualifications = trimmedQualifications ?? "";
+      }
 
       const response = await fetch("/api/staff", {
         method: "POST",
@@ -458,18 +466,26 @@ class TeacherService {
       const staffNotes = teacherData.staff_notes?.trim();
       const trimmedRole = teacherData.role?.trim();
       const trimmedQualifications = teacherData.qualifications?.trim();
-      const staffData = {
+      const staffData: Record<string, unknown> = {
         person_id: currentTeacher.person_id, // Include person_id as required by backend
         is_teacher: true,
-        specialization: safeSpecialization,
-        role: trimmedRole && trimmedRole.length > 0 ? trimmedRole : undefined,
-        qualifications:
-          trimmedQualifications && trimmedQualifications.length > 0
-            ? trimmedQualifications
-            : undefined,
-        staff_notes:
-          staffNotes && staffNotes.length > 0 ? staffNotes : undefined,
       };
+
+      if (teacherData.specialization !== undefined) {
+        staffData.specialization = safeSpecialization ?? "";
+      }
+
+      if (teacherData.role !== undefined) {
+        staffData.role = trimmedRole ?? "";
+      }
+
+      if (teacherData.qualifications !== undefined) {
+        staffData.qualifications = trimmedQualifications ?? "";
+      }
+
+      if (teacherData.staff_notes !== undefined) {
+        staffData.staff_notes = staffNotes ?? "";
+      }
 
       const response = await fetch(`/api/staff/${id}`, {
         method: "PUT",

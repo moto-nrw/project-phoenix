@@ -189,25 +189,25 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
         staff_notes:
           body.staff_notes !== undefined
             ? trimmedNotes === ""
-              ? undefined
+              ? ""
               : trimmedNotes
             : undefined,
         specialization:
           body.specialization !== undefined
             ? trimmedSpecialization === ""
-              ? undefined
+              ? ""
               : trimmedSpecialization
             : undefined,
         role:
           body.role !== undefined
             ? trimmedRole === ""
-              ? undefined
+              ? ""
               : trimmedRole
             : undefined,
         qualifications:
           body.qualifications !== undefined
             ? trimmedQualifications === ""
-              ? undefined
+              ? ""
               : trimmedQualifications
             : undefined,
       };
