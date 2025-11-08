@@ -120,7 +120,7 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
         : (invitation.token ?? "");
       setSuccessInfo({ email: invitation.email, link });
       toastSuccess(`Einladung an ${invitation.email} wurde gesendet.`);
-      setForm((prev) => ({ ...initialForm, roleId: prev.roleId }));
+      setForm(() => initialForm);
       if (onCreated) {
         onCreated(invitation);
       }
