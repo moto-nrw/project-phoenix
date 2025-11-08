@@ -383,7 +383,7 @@ export default function PermissionsPage() {
                     </div>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-pink-600">
+                    <h3 className="truncate text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-pink-600">
                       {displayTitle(perm)}
                     </h3>
                     {perm.description && (
@@ -391,7 +391,7 @@ export default function PermissionsPage() {
                         {perm.description}
                       </p>
                     )}
-                    <div className="mt-1 line-clamp-1 text-xs text-gray-500">
+                    <div className="mt-1 truncate text-xs text-gray-500">
                       Ressource: {localizeResource(perm.resource)} • Aktion:{" "}
                       {localizeAction(perm.action)}
                     </div>
