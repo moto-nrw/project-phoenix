@@ -262,35 +262,16 @@ class TeacherService {
       }
 
       // Then create staff with is_teacher flag
-      const normalizedSpecialization = teacherData.specialization?.trim();
-      const safeSpecialization =
-        normalizedSpecialization && normalizedSpecialization.length > 0
-          ? normalizedSpecialization
-          : undefined;
-
-      const staffNotes = teacherData.staff_notes?.trim();
-      const trimmedRole = teacherData.role?.trim();
-      const trimmedQualifications = teacherData.qualifications?.trim();
-      const staffRequestData: Record<string, unknown> = {
+      // Note: Backend does FULL model updates, so we always send all fields.
+      // Empty strings are converted to NULL via BUN's nullzero tag.
+      const staffRequestData = {
         person_id: personId,
         is_teacher: true,
+        staff_notes: teacherData.staff_notes?.trim() ?? "",
+        specialization: teacherData.specialization?.trim() ?? "",
+        role: teacherData.role?.trim() ?? "",
+        qualifications: teacherData.qualifications?.trim() ?? "",
       };
-
-      if (teacherData.staff_notes !== undefined) {
-        staffRequestData.staff_notes = staffNotes ?? "";
-      }
-
-      if (teacherData.specialization !== undefined) {
-        staffRequestData.specialization = safeSpecialization ?? "";
-      }
-
-      if (teacherData.role !== undefined) {
-        staffRequestData.role = trimmedRole ?? "";
-      }
-
-      if (teacherData.qualifications !== undefined) {
-        staffRequestData.qualifications = trimmedQualifications ?? "";
-      }
 
       const response = await fetch("/api/staff", {
         method: "POST",
@@ -454,38 +435,29 @@ class TeacherService {
       }
 
       // Then update the staff record with staff-specific fields
-      const normalizedSpecialization =
-        teacherData.specialization !== undefined
-          ? teacherData.specialization?.trim()
-          : undefined;
-      const safeSpecialization =
-        normalizedSpecialization && normalizedSpecialization.length > 0
-          ? normalizedSpecialization
-          : undefined;
-
-      const staffNotes = teacherData.staff_notes?.trim();
-      const trimmedRole = teacherData.role?.trim();
-      const trimmedQualifications = teacherData.qualifications?.trim();
-      const staffData: Record<string, unknown> = {
-        person_id: currentTeacher.person_id, // Include person_id as required by backend
+      // Note: Backend does FULL model updates, so we send all fields.
+      // Merge partial update data with current teacher data, then send everything.
+      // Empty strings are converted to NULL via BUN's nullzero tag.
+      const staffData = {
+        person_id: currentTeacher.person_id, // Required by backend
         is_teacher: true,
+        staff_notes:
+          (teacherData.staff_notes !== undefined
+            ? teacherData.staff_notes?.trim()
+            : currentTeacher.staff_notes?.trim()) ?? "",
+        specialization:
+          (teacherData.specialization !== undefined
+            ? teacherData.specialization?.trim()
+            : currentTeacher.specialization?.trim()) ?? "",
+        role:
+          (teacherData.role !== undefined
+            ? teacherData.role?.trim()
+            : currentTeacher.role?.trim()) ?? "",
+        qualifications:
+          (teacherData.qualifications !== undefined
+            ? teacherData.qualifications?.trim()
+            : currentTeacher.qualifications?.trim()) ?? "",
       };
-
-      if (teacherData.specialization !== undefined) {
-        staffData.specialization = safeSpecialization ?? "";
-      }
-
-      if (teacherData.role !== undefined) {
-        staffData.role = trimmedRole ?? "";
-      }
-
-      if (teacherData.qualifications !== undefined) {
-        staffData.qualifications = trimmedQualifications ?? "";
-      }
-
-      if (teacherData.staff_notes !== undefined) {
-        staffData.staff_notes = staffNotes ?? "";
-      }
 
       const response = await fetch(`/api/staff/${id}`, {
         method: "PUT",
