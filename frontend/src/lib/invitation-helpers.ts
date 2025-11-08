@@ -15,7 +15,7 @@ export interface InvitationAcceptRequest {
 
 export interface CreateInvitationRequest {
   email: string;
-  roleId: number;
+  roleId: number | undefined;
   firstName?: string;
   lastName?: string;
 }
